@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     const autoplay = JSON.parse(localStorage.getItem('autoplay'));
     const computerEval = JSON.parse(localStorage.getItem('computer_evaluation'));
     // engines dropped in this version — migrate stale selections to the current default
-    const REMOVED_ENGINES = ['stockfish-6', 'stockfish-16-nnue-40', 'stockfish-16-nnue-7', 'stockfish-17-nnue-79', 'stockfish-18-nnue'];
+    const REMOVED_ENGINES = ['stockfish-6', 'stockfish-16-nnue-40', 'stockfish-16-nnue-7'];
     let storedEngine = JSON.parse(localStorage.getItem('engine'));
     if (REMOVED_ENGINES.includes(storedEngine)) storedEngine = null;
     config = {
@@ -134,14 +134,16 @@ async function initialize_engine() {
     discard_stale_search = false; // a crashed engine never flushes its bestmove; don't eat the new engine's first result
     const engineMap = {
         'stockfish-dev-nnue': 'stockfish-dev/sf_dev.js',
+        'stockfish-18-nnue': 'stockfish-18/sf_18.js',
         'stockfish-18-small-nnue': 'stockfish-18-small/sf_18_smallnet.js',
+        'stockfish-17-nnue-79': 'stockfish-17-79/sf17-79.js',
         'stockfish-11-hce': 'stockfish-11-hce/sfhce.js',
         'lc0': 'lc0/lc0.js',
         'fairy-stockfish-14-nnue': 'fairy-stockfish-14/fsf14.js',
     }
     const enginePath = `/lib/engine/${engineMap[config.engine]}`;
     const engineBasePath = enginePath.substring(0, enginePath.lastIndexOf('/'));
-    if (['stockfish-dev-nnue', 'stockfish-18-small-nnue', 'fairy-stockfish-14-nnue', 'stockfish-11-hce'].includes(config.engine)) {
+    if (['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue', 'stockfish-17-nnue-79', 'fairy-stockfish-14-nnue', 'stockfish-11-hce'].includes(config.engine)) {
         const module = await import(enginePath);
         engine = await module.default();
         engine.listen = (message) => on_engine_response(message);
@@ -155,8 +157,7 @@ async function initialize_engine() {
                         if (!nnue || nnues.includes(nnue)) break;
                         nnues.push(nnue);
                     }
-                    const nnue_responses = await Promise.all(nnues.map(nnue => fetch(`${engineBasePath}/${nnue}`)));
-                    return await Promise.all(nnue_responses.map(res => res.arrayBuffer()));
+                    return await Promise.all(nnues.map(nnue => fetch_nnue(engineBasePath, nnue)));
                 } else {
                     const variantNnueMap = {
                         'chess': 'nn-46832cfbead3.nnue',
@@ -213,6 +214,26 @@ async function initialize_engine() {
         send_engine_uci('isready');
     }
     console.log('Engine ready!', engine);
+}
+
+async function fetch_nnue(engineBasePath, nnue) {
+    // GitHub refuses blobs over 100MB, so oversized nets ship split into
+    // `<name>.part0..N` chunks (plain byte splits); stitch them back together here.
+    const whole = await fetch(`${engineBasePath}/${nnue}`).then(res => res.ok ? res.arrayBuffer() : null).catch(() => null);
+    if (whole) return whole;
+    const parts = [];
+    for (let i = 0; ; i++) {
+        const part = await fetch(`${engineBasePath}/${nnue}.part${i}`).then(res => res.ok ? res.arrayBuffer() : null).catch(() => null);
+        if (!part) break;
+        parts.push(part);
+    }
+    if (!parts.length) throw new Error(`NNUE not found: ${nnue} (neither whole file nor .partN chunks)`);
+    const buffer = new Uint8Array(parts.reduce((total, part) => total + part.byteLength, 0));
+    parts.reduce((offset, part) => {
+        buffer.set(new Uint8Array(part), offset);
+        return offset + part.byteLength;
+    }, 0);
+    return buffer.buffer;
 }
 
 function send_engine_uci(message) {
