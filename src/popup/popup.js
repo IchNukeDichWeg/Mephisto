@@ -6,6 +6,7 @@ let fen_cache;
 let config;
 
 let is_calculating = false;
+let discard_stale_search = false; // drop engine output (incl. the flushed bestmove) of a search we stopped
 let prog = 0;
 let last_eval = {fen: '', activeLines: 0, lines: []};
 let turn = ''; // 'w' | 'b'
@@ -130,6 +131,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 });
 
 async function initialize_engine() {
+    discard_stale_search = false; // a crashed engine never flushes its bestmove; don't eat the new engine's first result
     const engineMap = {
         'stockfish-dev-nnue': 'stockfish-dev/sf_dev.js',
         'stockfish-18-small-nnue': 'stockfish-18-small/sf_18_smallnet.js',
@@ -355,6 +357,12 @@ function on_engine_response(message) {
         return;
     }
 
+    if (discard_stale_search) {
+        // output of the search we just stopped; UCI ordering ends it with its flushed bestmove
+        if (message.startsWith('bestmove')) discard_stale_search = false;
+        return;
+    }
+
     if (message.includes('lowerbound') || message.includes('upperbound') || message.includes('currmove')) {
         return; // ignore these messages
     } else if (message.startsWith('bestmove')) {
@@ -440,6 +448,7 @@ function is_legal_position(fen) {
 
 function on_new_pos(fen, startFen, moves) {
     console.log("on_new_pos", fen, startFen, moves);
+    const search_in_flight = is_calculating;
     toggle_calculating(true);
     if (config.engine === 'remote') {
         if (moves) {
@@ -448,6 +457,13 @@ function on_new_pos(fen, startFen, moves) {
             request_remote_analysis(fen, config.compute_time).then(on_engine_response).catch(on_remote_error);
         }
     } else {
+        if (search_in_flight) {
+            // 'stop' makes the engine flush a bestmove for the position it was searching. By the
+            // time it arrives, `turn` already belongs to the NEW position -- if the old search was
+            // for the opponent's side (they replied mid-search), that stale bestmove would be
+            // automoved as OUR move. Discard everything up to and including that flushed bestmove.
+            discard_stale_search = true;
+        }
         send_engine_uci('stop');
         if (moves) {
             send_engine_uci(`position fen ${startFen} moves ${moves}`);
