@@ -18,23 +18,29 @@ document.addEventListener('DOMContentLoaded', async function () {
     const thinkVariance = JSON.parse(localStorage.getItem('think_variance'));
     const moveTime = JSON.parse(localStorage.getItem('move_time'));
     const moveVariance = JSON.parse(localStorage.getItem('move_variance'));
+    const autoplay = JSON.parse(localStorage.getItem('autoplay'));
+    const computerEval = JSON.parse(localStorage.getItem('computer_evaluation'));
+    // engines dropped in this version — migrate stale selections to the current default
+    const REMOVED_ENGINES = ['stockfish-6', 'stockfish-16-nnue-40', 'stockfish-16-nnue-7', 'stockfish-17-nnue-79', 'stockfish-18-nnue'];
+    let storedEngine = JSON.parse(localStorage.getItem('engine'));
+    if (REMOVED_ENGINES.includes(storedEngine)) storedEngine = null;
     config = {
         // general settings
-        engine: JSON.parse(localStorage.getItem('engine')) || 'stockfish-16-nnue-7',
+        engine: storedEngine || 'stockfish-dev-nnue',
         variant: JSON.parse(localStorage.getItem('variant')) || 'chess',
-        compute_time: (computeTime != null) ? computeTime : 3000,
-        fen_refresh: (fenRefresh != null) ? fenRefresh : 100,
+        compute_time: (computeTime != null) ? computeTime : 500,
+        fen_refresh: (fenRefresh != null) ? fenRefresh : 50,
         multiple_lines: JSON.parse(localStorage.getItem('multiple_lines')) || 1,
-        threads: JSON.parse(localStorage.getItem('threads')) || navigator.hardwareConcurrency - 1,
-        memory: JSON.parse(localStorage.getItem('memory')) || 32,
-        think_time: (thinkTime != null) ? thinkTime : 1000,
-        think_variance: (thinkVariance != null) ? thinkVariance : 500,
-        move_time: (moveTime != null) ? moveTime : 500,
-        move_variance: (moveVariance != null) ? moveVariance : 250,
-        computer_evaluation: JSON.parse(localStorage.getItem('computer_evaluation')) || false,
+        threads: JSON.parse(localStorage.getItem('threads')) || 4,
+        memory: JSON.parse(localStorage.getItem('memory')) || 256,
+        think_time: (thinkTime != null) ? thinkTime : 0,
+        think_variance: (thinkVariance != null) ? thinkVariance : 0,
+        move_time: (moveTime != null) ? moveTime : 400,
+        move_variance: (moveVariance != null) ? moveVariance : 200,
+        computer_evaluation: (computerEval != null) ? computerEval : true,
         threat_analysis: JSON.parse(localStorage.getItem('threat_analysis')) || false,
         simon_says_mode: JSON.parse(localStorage.getItem('simon_says_mode')) || false,
-        autoplay: JSON.parse(localStorage.getItem('autoplay')) || false,
+        autoplay: (autoplay != null) ? autoplay : true,
         puzzle_mode: JSON.parse(localStorage.getItem('puzzle_mode')) || false,
         python_autoplay_backend: JSON.parse(localStorage.getItem('python_autoplay_backend')) || false,
         // appearance settings
@@ -64,11 +70,24 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     // listen to messages from content-script
     chrome.runtime.onMessage.addListener(function (response) {
-        if (response.fenresponse && response.dom !== 'no') {
+        if (response.fenresponse && response.dom && response.dom !== 'no') {
             if (board.orientation() !== response.orient) {
                 board.orientation(response.orient);
             }
-            const {fen, startFen, moves} = parse_position_from_response(response.dom);
+            let parsed;
+            try {
+                parsed = parse_position_from_response(response.dom);
+            } catch (e) {
+                console.warn('Mephisto: skipping unparseable scrape:', e.message);
+                return; // transient scrape garbage — the next poll (100ms) retries
+            }
+            const {fen, startFen, moves} = parsed;
+            if (!is_legal_position(fen)) {
+                // a corrupt/transient scrape (mid-animation, wrong turn guess) can yield an
+                // illegal position; feeding one to the wasm engine crashes it (OOB). Skip it.
+                console.warn('Mephisto: skipping illegal scraped position:', fen);
+                return;
+            }
             if (last_eval.fen !== fen) {
                 on_new_pos(fen, startFen, moves);
             }
@@ -112,22 +131,19 @@ document.addEventListener('DOMContentLoaded', async function () {
 
 async function initialize_engine() {
     const engineMap = {
-        'stockfish-17-nnue-79': 'stockfish-17-79/sf17-79.js',
-        'stockfish-16-nnue-40': 'stockfish-16-40/stockfish.js',
-        'stockfish-16-nnue-7': 'stockfish-16-7/sf16-7.js',
+        'stockfish-dev-nnue': 'stockfish-dev/sf_dev.js',
+        'stockfish-18-small-nnue': 'stockfish-18-small/sf_18_smallnet.js',
         'stockfish-11-hce': 'stockfish-11-hce/sfhce.js',
-        'stockfish-6': 'stockfish-6/stockfish.js',
         'lc0': 'lc0/lc0.js',
         'fairy-stockfish-14-nnue': 'fairy-stockfish-14/fsf14.js',
     }
     const enginePath = `/lib/engine/${engineMap[config.engine]}`;
     const engineBasePath = enginePath.substring(0, enginePath.lastIndexOf('/'));
-    if (['stockfish-16-nnue-40', 'stockfish-6'].includes(config.engine)) {
-        engine = new Worker(enginePath);
-        engine.onmessage = (event) => on_engine_response(event.data);
-    } else if (['stockfish-17-nnue-79', 'stockfish-16-nnue-7', 'fairy-stockfish-14-nnue', 'stockfish-11-hce'].includes(config.engine)) {
+    if (['stockfish-dev-nnue', 'stockfish-18-small-nnue', 'fairy-stockfish-14-nnue', 'stockfish-11-hce'].includes(config.engine)) {
         const module = await import(enginePath);
         engine = await module.default();
+        engine.listen = (message) => on_engine_response(message);
+        engine.onError = (message) => on_engine_error(message);
         if (config.engine.includes('nnue')) {
             async function fetchNnueModels(engine, engineBasePath) {
                 if (config.engine !== 'fairy-stockfish-14-nnue') {
@@ -163,7 +179,6 @@ async function initialize_engine() {
             const nnues = await fetchNnueModels(engine, engineBasePath);
             nnues.forEach((model, i) => engine.setNnueBuffer(new Uint8Array(model), i))
         }
-        engine.listen = (message) => on_engine_response(message);
     } else if (['lc0'].includes(config.engine)) {
         const lc0Frame = document.createElement('iframe');
         lc0Frame.src = `${engineBasePath}/lc0.html`;
@@ -187,14 +202,10 @@ async function initialize_engine() {
             "Hash": config.memory,
             "Threads": config.threads,
             "MultiPV": config.multiple_lines,
-        });
+        }).catch(on_remote_error);
     } else {
-        if (config.engine !== 'stockfish-16-nnue-40' && config.engine !== 'stockfish-6') { // crashes for some reason
-            send_engine_uci(`setoption name Hash value ${config.memory}`);
-        }
-        if (config.engine !== 'stockfish-6') {
-            send_engine_uci(`setoption name Threads value ${config.threads}`);
-        }
+        send_engine_uci(`setoption name Hash value ${config.memory}`);
+        send_engine_uci(`setoption name Threads value ${config.threads}`);
         send_engine_uci(`setoption name MultiPV value ${config.multiple_lines}`);
         send_engine_uci('ucinewgame');
         send_engine_uci('isready');
@@ -203,13 +214,40 @@ async function initialize_engine() {
 }
 
 function send_engine_uci(message) {
-    if (config.engine === 'lc0') {
-        engine.postMessage(message, '*');
-    } else if (engine instanceof Worker) {
-        engine.postMessage(message);
-    } else if (engine && 'uci' in engine) {
-        engine.uci(message);
+    try {
+        if (config.engine === 'lc0') {
+            engine.postMessage(message, '*');
+        } else if (engine instanceof Worker) {
+            engine.postMessage(message);
+        } else if (engine && 'uci' in engine) {
+            engine.uci(message);
+        }
+    } catch (e) {
+        // wasm engine crashed on the main thread (e.g. RuntimeError: unaligned access / Aborted)
+        on_engine_error(`${e}`);
     }
+}
+
+let engine_restarts = 0;
+let engine_restarting = false;
+
+function on_engine_error(message) {
+    console.error(message);
+    if (engine_restarting) return;
+    if (!/RuntimeError|Aborted|worker sent an error/.test(String(message))) return;
+    if (engine_restarts >= 3) {
+        // ponytail: cap restarts — a build that keeps trapping (stockfish-17-79 on some machines) shouldn't loop forever
+        update_best_move('Engine keeps crashing — pick a different engine in Settings.', '');
+        return;
+    }
+    engine_restarts++;
+    engine_restarting = true;
+    engine = null; // drop the dead instance; send_engine_uci becomes a no-op meanwhile
+    update_best_move(`Engine crashed — restarting (attempt ${engine_restarts}/3)`, '');
+    initialize_engine()
+        .then(() => { last_eval = {fen: '', activeLines: 0, lines: []}; }) // force re-analysis on next fen poll
+        .catch((e) => console.error('Engine restart failed:', e))
+        .finally(() => engine_restarting = false);
 }
 
 function on_engine_best_move(best, threat, isTerminal=false) {
@@ -221,8 +259,8 @@ function on_engine_best_move(best, threat, isTerminal=false) {
     const piece_name_map = {P: 'Pawn', R: 'Rook', N: 'Knight', B: 'Bishop', Q: 'Queen', K: 'King'};
     const toplay = (turn === 'w') ? 'White' : 'Black';
     const next = (turn === 'w') ? 'Black' : 'White';
-    if (best === '(none)') {
-        const pvLine = last_eval.lines[0] || '';
+    if (!best || best === '(none)') { // game over (or crashed search) — there is no move to draw or play
+        const pvLine = last_eval.lines[0] || {};
         if ('mate' in pvLine) {
             update_evaluation('Checkmate!');
             if (config.variant === 'antichess') {
@@ -238,6 +276,8 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 update_best_move('Draw', '');
             }
         }
+        toggle_calculating(false);
+        return;
     } else if (config.simon_says_mode) {
         if (toplay.toLowerCase() === board.orientation()) {
             const startSquare = best.substring(0, 2);
@@ -250,7 +290,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
             update_best_move('');
         }
     } else {
-        if (threat && threat !== '(none)') {
+        if (config.threat_analysis && threat && threat !== '(none)') {
             update_best_move(`${toplay} to play, best move is ${best}`, `Best response for ${next} is ${threat}`);
         } else {
             update_best_move(`${toplay} to play, best move is ${best}`, '');
@@ -372,14 +412,40 @@ function on_engine_response(message) {
     }
 }
 
+function is_legal_position(fen) {
+    let chess;
+    try {
+        chess = new Chess(config.variant, fen);
+    } catch (e) {
+        return false; // chess.js could not parse the FEN
+    }
+    // Strict legality only for standard chess / chess960. Other variants have their own
+    // rules (antichess & horde legitimately have no king, racingkings differs) and run on
+    // fairy-stockfish, which tolerates unusual positions.
+    if (config.variant === 'chess' || config.variant === 'fischerandom') {
+        if (chess._kings.w === -1 || chess._kings.b === -1) {
+            return false; // a missing king crashes the wasm engine (OOB)
+        }
+        const opponent = (chess.turn() === 'w') ? 'b' : 'w';
+        if (chess._isKingAttacked(opponent)) {
+            return false; // side-not-to-move in check => its king is capturable (engine OOB)
+        }
+        const ranks = fen.split(' ')[0].split('/');
+        if (/[pP]/.test(ranks[0]) || /[pP]/.test(ranks[7])) {
+            return false; // pawns cannot stand on the back ranks
+        }
+    }
+    return true;
+}
+
 function on_new_pos(fen, startFen, moves) {
     console.log("on_new_pos", fen, startFen, moves);
     toggle_calculating(true);
     if (config.engine === 'remote') {
         if (moves) {
-            request_remote_analysis(startFen, config.compute_time, moves).then(on_engine_response);
+            request_remote_analysis(startFen, config.compute_time, moves).then(on_engine_response).catch(on_remote_error);
         } else {
-            request_remote_analysis(fen, config.compute_time).then(on_engine_response);
+            request_remote_analysis(fen, config.compute_time).then(on_engine_response).catch(on_remote_error);
         }
     } else {
         send_engine_uci('stop');
@@ -465,6 +531,13 @@ function parse_position_from_response(txt) {
         chess.setTurn(playerTurn);
         turn = chess.turn();
 
+        // a mid-animation scrape or wrong turn guess can yield a position where the side to move
+        // could capture the king — searching such a position crashes the stockfish wasm (OOB)
+        const opponent = (turn === 'w') ? 'b' : 'w';
+        if (chess._isKingAttacked(opponent)) {
+            throw Error('illegal position scraped (opponent king en prise)');
+        }
+
         const record =  {fen: chess.fen()};
         fen_cache.set(txt, record);
         return record;
@@ -505,31 +578,31 @@ function update_best_move(line1, line2) {
     }
 }
 
-function request_fen() {
+function send_to_active_tab(message) {
     chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
-        chrome.tabs.sendMessage(tabs[0].id, {queryfen: true});
+        if (!tabs[0]?.id) return;
+        // read lastError so "Receiving end does not exist" (no content-script on tab) stays unlogged
+        chrome.tabs.sendMessage(tabs[0].id, message, () => void chrome.runtime.lastError);
     });
+}
+
+function request_fen() {
+    send_to_active_tab({queryfen: true});
 }
 
 function request_automove(move) {
     const message = (config.puzzle_mode)
-        ? {automove: true, pv: last_eval.lines[0].pv.split(' ') || [move]}
+        ? {automove: true, pv: last_eval.lines[0]?.pv?.split(' ') || [move]}
         : {automove: true, move: move};
-    chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
-        chrome.tabs.sendMessage(tabs[0].id, message);
-    });
+    send_to_active_tab(message);
 }
 
 function request_console_log(message) {
-    chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
-        chrome.tabs.sendMessage(tabs[0].id, {consoleMessage: message});
-    });
+    send_to_active_tab({consoleMessage: message});
 }
 
 function push_config() {
-    chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
-        chrome.tabs.sendMessage(tabs[0].id, {pushConfig: true, config: config});
-    });
+    send_to_active_tab({pushConfig: true, config: config});
 }
 
 function draw_moves() {
@@ -697,6 +770,11 @@ function toggle_calculating(on) {
 }
 
 async function dispatch_click_event(x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        // NaN/undefined coords (e.g. a crazyhouse drop move) serialize badly and the debugger rejects them
+        console.warn(`Ignoring click with invalid coordinates: (${x}, ${y})`);
+        return;
+    }
     if (config.python_autoplay_backend) {
         await request_backend_click(x, y);
     } else {
@@ -706,8 +784,11 @@ async function dispatch_click_event(x, y) {
 
 async function request_debugger_click(x, y) {
     chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+        if (!tabs[0]?.id) return;
         const debugee = {tabId: tabs[0].id};
         chrome.debugger.attach(debugee, '1.3', async () => {
+            // "Another debugger is already attached" is expected: we stay attached after the first click
+            void chrome.runtime.lastError;
             await dispatch_mouse_event(debugee, 'Input.dispatchMouseEvent', {
                 type: 'mousePressed',
                 button: 'left',
@@ -728,7 +809,12 @@ async function request_debugger_click(x, y) {
 
 async function dispatch_mouse_event(debugee, mouseEvent, mouseEventOpts) {
     return new Promise(resolve => {
-        chrome.debugger.sendCommand(debugee, mouseEvent, mouseEventOpts, resolve);
+        chrome.debugger.sendCommand(debugee, mouseEvent, mouseEventOpts, (result) => {
+            if (chrome.runtime.lastError) {
+                console.warn(`${mouseEvent} failed: ${chrome.runtime.lastError.message}`);
+            }
+            resolve(result);
+        });
     });
 }
 
@@ -741,7 +827,7 @@ async function request_backend_move(x0, y0, x1, y1) {
 }
 
 async function request_remote_configure(options) {
-    return call_backend('http://localhost:9090/configure', options).then(res => res.json());
+    return call_backend('http://localhost:9090/configure', options).then(parse_backend_json);
 }
 
 async function request_remote_analysis(fen, time, moves = null) {
@@ -749,7 +835,23 @@ async function request_remote_analysis(fen, time, moves = null) {
         fen: fen,
         moves: moves,
         time: time,
-    }).then(res => res.json());
+    }).then(parse_backend_json);
+}
+
+async function parse_backend_json(res) {
+    const text = await res.text();
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        // an unrelated server on the port answers with HTML ("<!doctype ...") — surface that instead of a SyntaxError
+        throw new Error(`Remote engine at ${res.url} did not return JSON — is remote-engine.py running on that port?`);
+    }
+}
+
+function on_remote_error(err) {
+    console.error(err);
+    update_best_move(err.message, '');
+    toggle_calculating(false);
 }
 
 async function call_backend(url, data) {

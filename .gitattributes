@@ -1,2 +1,5 @@
 *.dat.gz filter=lfs diff=lfs merge=lfs -text
 *.nnue filter=lfs diff=lfs merge=lfs -text
+
+lib/engine/stockfish-dev/*.nnue -filter -diff -merge -text
+lib/engine/stockfish-18-small/*.nnue -filter -diff -merge -text

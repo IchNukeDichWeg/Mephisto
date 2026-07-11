@@ -1,6 +1,7 @@
 # Example Usages:
 #   $ python remote-engine.py /usr/bin/stockfish -o Hash:32 -o "Skill Level":15 -o SyzygyPath:"/path/to/syzygy" -p 9090
 #   $ python remote-engine.py fairy-stockfish -o UCI_Variant:crazyhouse -p 9090
+#   $ python remote-engine.py ../../../dist/pygin -p 9090  (opening book works — book moves are handled below)
 
 import argparse
 import chess.engine
@@ -23,23 +24,8 @@ parser.add_argument('--port', '-p', dest='port', action='store', default=9090,
                     help='The port to run the server on. (default: 9090)')
 args = parser.parse_args()
 
-def format_line(line):
-    if line.get('depth') == 0: # game over?
-        if line.get('score').is_mate(): # checkmate?
-            return {
-                'move': '(none)',
-                'depth': line.get('depth'),
-                'rawScore': f'mate {line.get('score').relative}',
-                'mate': line.get('score').white().mate(),
-            }
-        else: # stalemate
-            return {
-                'move': '(none)',
-                'depth': line.get('depth'),
-                'rawScore': f'cp {line.get('score').relative}',
-                'score': line.get('score').white().score(),
-            }
-    else: # normal move
+def format_line(line, terminal, bestmove):
+    if line.get('pv'): # normal or book move that arrived with a full info line
         pv = list(map(lambda v: str(v), line.get('pv')))
         score_prefix = 'mate' if line.get('score').is_mate() else 'cp'
         formatted_line = {
@@ -61,10 +47,26 @@ def format_line(line):
         else:
             formatted_line['score'] = score.score()
         return formatted_line
+    # no principal variation. game over is a property of the POSITION, not of the
+    # engine output (a book move also arrives with no pv, and a superseded request
+    # has no pv either) -- so key off `terminal`, never off a missing/null bestmove.
+    if terminal: # the side to move has no legal move: real checkmate / stalemate
+        score = line.get('score')
+        if score is not None and score.is_mate(): # checkmate
+            return {'move': '(none)', 'depth': line.get('depth', 0),
+                    'rawScore': f'mate {score.relative}', 'mate': score.white().mate()}
+        return {'move': '(none)', 'depth': line.get('depth', 0), # stalemate
+                'rawScore': f'cp {score.relative if score is not None else 0}',
+                'score': score.white().score() if score is not None else 0}
+    if bestmove is not None and bestmove != chess.Move.null(): # book move played with no info line
+        return {'move': bestmove.uci(), 'depth': line.get('depth', 0),
+                'pv': [bestmove.uci()], 'rawScore': 'cp 0', 'score': 0}
+    # not terminal and no move yet (request superseded before any info) -- non-fatal placeholder
+    return {'move': '(none)', 'depth': line.get('depth', 0), 'rawScore': 'cp 0', 'score': 0}
 
 
-def format_lines(lines):
-    lines = list(map(lambda line: format_line(line), lines))
+def format_lines(lines, terminal, bestmove):
+    lines = list(map(lambda line: format_line(line, terminal, bestmove), lines or [{}]))
     if 'pv' in lines[0]:
         pv0 = lines[0].get('pv')
         return {
@@ -116,14 +118,20 @@ def analyse():
             for move in data.get('moves').split():
                 board.push(chess.Move.from_uci(move))
         time_limit = chess.engine.Limit(time=data.get('time') / 1000)
-        multipv = engine_options.get('MultiPV') if 'MultiPV' in engine_options else 1
+        multipv = int(engine_options.get('MultiPV', 1))
+        if 'multipv' not in engine.options:
+            multipv = 1 # engine doesn't support MultiPV (e.g. pygin) — don't ask for it
 
+        terminal = not any(board.legal_moves) # authoritative game-over signal
         with engine.analysis(board, time_limit, multipv=multipv) as analysis:
+            bestmove = None
             if request_counter == request_id: #
                 for _ in analysis:
                     if request_counter != request_id:
                         break # request was cancelled
-        return format_lines(analysis.multipv)
+                if request_counter == request_id:
+                    bestmove = analysis.wait().move # actual move (search or book)
+        return format_lines(analysis.multipv, terminal, bestmove)
 
 
 @app.route('/configure', methods=['POST'])
@@ -132,8 +140,12 @@ def configure():
         data = request.get_json()
         for (key, value) in data.items():
             engine_options[key] = value
-            if not key.lower() in MANAGED_OPTIONS:
-                engine.configure({key: value})
+            if key.lower() in MANAGED_OPTIONS:
+                continue
+            if key not in engine.options:
+                print(f"ignoring option '{key}' — not declared by this engine")
+                continue
+            engine.configure({key: value})
         return config()
 
 
@@ -149,6 +161,10 @@ if __name__ == '__main__':
     for option in args.options or []:
         key, value = option.split(':')
         engine_options[key] = value
-        if not key.lower() in MANAGED_OPTIONS:
-            engine.configure({key: value})
+        if key.lower() in MANAGED_OPTIONS:
+            continue
+        if key not in engine.options:
+            print(f"ignoring option '{key}' — not declared by this engine")
+            continue
+        engine.configure({key: value})
     app.run(port=args.port)

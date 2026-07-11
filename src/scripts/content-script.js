@@ -9,8 +9,9 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
+const MEPHISTO_BUILD = '2026-07-11g'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
-    console.log('Mephisto is listening!');
+    console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
         'lichess.org': 'lichess',
         'www.chess.com': 'chesscom',
@@ -27,15 +28,24 @@ chrome.runtime.onMessage.addListener(response => {
         if (!config) return;
         const res = tryScrapePosition();
         const orient = getOrientation();
-        chrome.runtime.sendMessage({ dom: res, orient: orient, fenresponse: true });
+        try {
+            chrome.runtime.sendMessage({ dom: res, orient: orient, fenresponse: true });
+        } catch (e) {
+            // extension was reloaded — this orphaned content-script can't reach it anymore
+        }
     } else if (response.automove) {
         toggleMoving();
-        if (config.puzzle_mode) {
-            console.log(response.pv);
-            simulatePvMoves(response.pv).finally(toggleMoving);
-        } else {
-            console.log(response.move);
-            simulateMove(response.move).finally(toggleMoving);
+        try {
+            if (config.puzzle_mode) {
+                console.log(response.pv);
+                simulatePvMoves(response.pv).finally(toggleMoving);
+            } else {
+                console.log(response.move);
+                simulateMove(response.move).finally(toggleMoving);
+            }
+        } catch (e) {
+            toggleMoving(); // a sync throw (e.g. board vanished) must not leave `moving` stuck true
+            console.warn('Mephisto: automove failed:', e);
         }
     } else if (response.pushConfig) {
         console.log(response.config);
@@ -47,7 +57,7 @@ chrome.runtime.onMessage.addListener(response => {
 
 function tryScrapePosition() {
     try {
-        return scrapePosition();
+        return scrapePosition() || 'no'; // scrapePosition() returns undefined when there is no board
     } catch (e) {
         return 'no'; // skip the current attempt, if we can't scrape
     }
@@ -65,7 +75,7 @@ function scrapePosition() {
         prefix += '***bt'
     }
 
-    let res;
+    let res = '';
     if (config.variant === 'chess') {
         const moveContainer = getMoveContainer();
         if (moveContainer != null) {
@@ -95,10 +105,11 @@ function scrapePosition() {
 
 function scrapePositionFen() {
     let res = '';
+    // The selected move only truncates the scrape when reviewing history. At the LIVE
+    // position lichess often marks no move as selected (notably right after you move,
+    // while the opponent is to reply) -- don't bail to an empty start position then;
+    // fall through and scrape ALL moves, which is the current position.
     const selectedMove = getSelectedMoveRecord();
-    if (!config.simon_says_mode && !selectedMove) {
-        return res;
-    }
     if (site === 'chesscom') {
         for (const moveWrapper of getMoveRecords()) {
             const move = moveWrapper.lastElementChild
@@ -112,9 +123,16 @@ function scrapePositionFen() {
             }
         }
     } else if (site === 'lichess') {
+        // In the LIVE game move list, always scrape through to the latest move (= the current
+        // position). lichess obfuscates the selected-move class (`.a1t`) and it varies between
+        // deploys/sessions -- if it's misread, breaking on it stops one move short and Mephisto
+        // then analyses the wrong side's turn (shows the opponent's move, never autoplays). In
+        // the analysis/puzzle tree (.tview2) there's no live position, so honour the selected
+        // move there to keep history review working.
+        const isLiveGame = !!getLichessMovesApp();
         for (const move of getMoveRecords()) {
             res += move.innerText.replace(/\n.*/, '') + '*****';
-            if (!config.simon_says_mode && move === selectedMove) {
+            if (!config.simon_says_mode && !isLiveGame && move === selectedMove) {
                 break;
             }
         }
@@ -151,12 +169,23 @@ function scrapePositionPuz() {
             const xyCoords = transform.substring(transform.indexOf('(') + 1, transform.length - 1)
                 .replaceAll('px', '').replace(' ', '').split(',')
                 .map(num => Number(num) / piece.getBoundingClientRect().width + 1);
-            const coords = (getOrientation() === 'black')
-                ? String.fromCharCode('h'.charCodeAt(0) - xyCoords[0] + 1) + xyCoords[1]
-                : String.fromCharCode('a'.charCodeAt(0) + xyCoords[0] - 1) + (9 - xyCoords[1]);
-            if (piece.classList[0] !== 'ghost') {
-                res += `${colorMap[piece.classList[0]]}-${pieceMap[piece.classList[1]]}-${coords}*****`;
+            if (piece.classList[0] === 'ghost') {
+                continue; // the drag placeholder, not a real piece
             }
+            // A settled piece sits on an integer file/rank. Fractional coords mean the board
+            // is mid-animation (a piece sliding, or the whole-board flip at game start).
+            // chessground no longer tags animating pieces with `.anim`, so isAnimating() above
+            // misses it; scraping now would drop the moving pieces and emit a corrupt partial
+            // position (e.g. "8/8/8/8/8/8/8/NB1QBN1R"). Abort and let the next poll retry.
+            const file = Math.round(xyCoords[0]);
+            const rank = Math.round(xyCoords[1]);
+            if (Math.abs(xyCoords[0] - file) > 0.1 || Math.abs(xyCoords[1] - rank) > 0.1) {
+                throw Error("Board is animating. Can't scrape.");
+            }
+            const coords = (getOrientation() === 'black')
+                ? String.fromCharCode('h'.charCodeAt(0) - file + 1) + rank
+                : String.fromCharCode('a'.charCodeAt(0) + file - 1) + (9 - rank);
+            res += `${colorMap[piece.classList[0]]}-${pieceMap[piece.classList[1]]}-${coords}*****`;
         }
     }
     return (res) ? getTurn() + '*****' + res : null;
@@ -178,8 +207,18 @@ function getOrientation() {
     return (orientedBlack) ? 'black' : 'white';
 }
 
+let movingWatchdog = null;
+
 function toggleMoving() {
     moving = !moving;
+    // Safety net: while `moving` is true the content-script ignores ALL scrape requests, so a
+    // move simulation that never resolves (a hung click / promotion) would freeze the extension
+    // ("gets stuck and doesn't play anything"). Force `moving` back to false after 15s -- far
+    // longer than any real move takes -- so scraping always resumes.
+    clearTimeout(movingWatchdog);
+    if (moving) {
+        movingWatchdog = setTimeout(() => { moving = false; }, 15000);
+    }
 }
 
 function pullConfig() {
@@ -188,6 +227,14 @@ function pullConfig() {
 
 // -------------------------------------------------------------------------------------------
 
+// The live-game move list is an `<app>` holding <z7yx> moves. In REAL-TIME games it sits under
+// `.col1-moves`; in CORRESPONDENCE games it sits directly under `<i5d>` with NO `.col1-moves`
+// wrapper -- so `.col1-moves app` alone misses it and the scraper wrongly falls to the puzzle
+// path (analysing the starting position -> premoving opening moves). Match both.
+function getLichessMovesApp() {
+    return document.querySelector('.col1-moves app') || document.querySelector('i5d app');
+}
+
 function getSelectedMoveRecord() {
     let selectedMove;
     if (site === 'chesscom') {
@@ -195,7 +242,9 @@ function getSelectedMoveRecord() {
             || document.querySelector('.move-node-highlighted .move-text-component') // vs player + computer (old)
             || document.querySelector('.move-node.selected .move-text'); // analysis
     } else if (site === 'lichess') {
-        selectedMove = document.querySelector('kwdb.a1t')
+        selectedMove = getLichessMovesApp()?.querySelector('.a1t') // live game (real-time + correspondence)
+            || document.querySelector('kwdb.a1t') // live game (older lichess DOM)
+            || document.querySelector('.tview2 move.active') // analysis / puzzle / finished game
             || document.querySelector('move.active');
     }
     return selectedMove;
@@ -212,9 +261,21 @@ function getMoveRecords() {
             moves = document.querySelectorAll('.move-text'); // analysis
         }
     } else if (site === 'lichess') { // cg-board
-        moves = document.querySelectorAll('kwdb'); // vs player + computer
-        if (moves.length === 0) {
-            moves = document.querySelectorAll('move'); // vs training
+        const liveMoves = getLichessMovesApp(); // live game (real-time + correspondence)
+        if (liveMoves) {
+            // Keep only real moves: a SAN has a destination square [a-h][1-8], or it's castling.
+            // This drops the move-number tags AND the game-result/status element lichess appends
+            // to the move list on game end (e.g. "0-1 White resigned • Black is victorious"),
+            // which would otherwise be scraped as a bogus move and abort the whole parse.
+            moves = Array.from(liveMoves.children).filter(el => {
+                const t = el.textContent.trim();
+                return /[a-h][1-8]/.test(t) || /^O-O(-O)?[+#]?$/.test(t);
+            });
+        } else {
+            moves = document.querySelectorAll('kwdb'); // live game (older lichess DOM)
+            if (moves.length === 0) {
+                moves = document.querySelectorAll('.tview2 move'); // analysis / puzzle / training
+            }
         }
     }
     return moves;
@@ -225,10 +286,9 @@ function getMoveContainer() {
     if (site === 'chesscom') {
         moveContainer = document.querySelector('wc-simple-move-list');
     } else if (site === 'lichess') {
-        moveContainer = document.querySelector('l4x'); // vs player + computer
-        if (!moveContainer) {
-            moveContainer = document.querySelector('.tview2'); // vs training
-        }
+        moveContainer = getLichessMovesApp() // live game (real-time + correspondence)
+            || document.querySelector('l4x') // live game (older lichess DOM)
+            || document.querySelector('.tview2'); // analysis / puzzle / training
     }
     return moveContainer;
 }
@@ -279,11 +339,19 @@ function getTurn() {
     try {
         toSquare = getLastMoveHighlights()[1];
     } catch (e) {
+        // no last-move highlight to read the turn from. If a move list exists, derive the
+        // turn from how many moves have been played (even count => white is to move).
         if (getMoveContainer()) {
-            return 'w'; // if starting position, white goes first
-        } else {
-            return (getOrientation() === 'black') ? 'w' : 'b'; // if puzzle, the opposite player moves first
+            return (getMoveRecords().length % 2 === 0) ? 'w' : 'b';
         }
+        // no move list at all: on lichess that's a GAME at the starting position -- white
+        // moves first (regardless of which colour the user plays), so autoplay must fire for
+        // white's opening move. (The old code returned orientation-based here, which said
+        // "black to move" for a white player at the start -> it never played move 1.)
+        if (site === 'lichess') {
+            return 'w';
+        }
+        return (getOrientation() === 'black') ? 'w' : 'b'; // chess.com / blitztactics puzzle
     }
 
     let turn;
@@ -416,9 +484,10 @@ function determineStartPosition() {
         if (getBoard() && getPieces()?.length) { // board and pieces are present?
             clearInterval(intervalId);
             onPositionLoad();
+            return;
         }
-        if (++retryCount >= 10) { // give up after 1s
-            console.error('Unable to determine starting position (timeout after 1s)');
+        if (++retryCount >= 100) { // give up after 10s: not a game page, or the board never loaded
+            console.debug('Mephisto: no chess board found on this page');
             clearInterval(intervalId);
         }
     }, 100); // check every 100ms
@@ -485,6 +554,10 @@ function simulateClickSquare(bounds, range = 0.8) {
 }
 
 function simulateMove(move) {
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
+        console.warn(`Mephisto: refusing to play invalid move '${move}'`); // e.g. '(none)' or a crazyhouse drop
+        return Promise.resolve();
+    }
     const boardBounds = getBoard().getBoundingClientRect();
     const orientation = getOrientation();
 
