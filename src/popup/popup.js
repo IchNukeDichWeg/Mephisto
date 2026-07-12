@@ -7,6 +7,9 @@ let config;
 
 let is_calculating = false;
 let discard_stale_search = false; // drop engine output (incl. the flushed bestmove) of a search we stopped
+let search_active = false; // a 'go' was issued whose bestmove hasn't arrived yet (is_calculating can't be
+                           // used for this: it flips false on the first info line, not on bestmove)
+let premove_tracker = {fen: '', lines: {}}; // per-multipv reply stability while the opponent thinks
 let prog = 0;
 let last_eval = {fen: '', activeLines: 0, lines: []};
 let turn = ''; // 'w' | 'b'
@@ -29,20 +32,22 @@ document.addEventListener('DOMContentLoaded', async function () {
         // general settings
         engine: storedEngine || 'stockfish-dev-nnue',
         variant: JSON.parse(localStorage.getItem('variant')) || 'chess',
-        compute_time: (computeTime != null) ? computeTime : 500,
-        fen_refresh: (fenRefresh != null) ? fenRefresh : 50,
+        compute_time: (computeTime != null) ? computeTime : 200,
+        fen_refresh: (fenRefresh != null) ? fenRefresh : 20,
         multiple_lines: JSON.parse(localStorage.getItem('multiple_lines')) || 1,
-        threads: JSON.parse(localStorage.getItem('threads')) || 4,
-        memory: JSON.parse(localStorage.getItem('memory')) || 256,
+        threads: JSON.parse(localStorage.getItem('threads')) || 8,
+        memory: JSON.parse(localStorage.getItem('memory')) || 512,
         think_time: (thinkTime != null) ? thinkTime : 0,
         think_variance: (thinkVariance != null) ? thinkVariance : 0,
-        move_time: (moveTime != null) ? moveTime : 400,
-        move_variance: (moveVariance != null) ? moveVariance : 200,
+        move_time: (moveTime != null) ? moveTime : 250,
+        move_variance: (moveVariance != null) ? moveVariance : 100,
         computer_evaluation: (computerEval != null) ? computerEval : true,
         threat_analysis: JSON.parse(localStorage.getItem('threat_analysis')) || false,
         simon_says_mode: JSON.parse(localStorage.getItem('simon_says_mode')) || false,
-        autoplay: (autoplay != null) ? autoplay : true,
+        autoplay: (autoplay != null) ? autoplay : false,
+        premove: JSON.parse(localStorage.getItem('premove')) || false,
         puzzle_mode: JSON.parse(localStorage.getItem('puzzle_mode')) || false,
+        help_mode: JSON.parse(localStorage.getItem('help_mode')) || false,
         python_autoplay_backend: JSON.parse(localStorage.getItem('python_autoplay_backend')) || false,
         // appearance settings
         pieces: JSON.parse(localStorage.getItem('pieces')) || 'wikipedia.svg',
@@ -50,6 +55,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         coordinates: JSON.parse(localStorage.getItem('coordinates')) || false,
     };
     push_config();
+    init_quick_settings();
 
     // init chess board
     document.getElementById('board').classList.add(config.board);
@@ -90,7 +96,13 @@ document.addEventListener('DOMContentLoaded', async function () {
                 return;
             }
             if (last_eval.fen !== fen) {
+                // check BEFORE on_new_pos: the tracker belongs to the position we were analysing
+                const instant = premove_instant_reply(fen);
                 on_new_pos(fen, startFen, moves);
+                if (instant) {
+                    console.log('Premove: certified instant reply', instant);
+                    request_automove(instant);
+                }
             }
         } else if (response.pullConfig) {
             push_config();
@@ -130,8 +142,61 @@ document.addEventListener('DOMContentLoaded', async function () {
     M.Tooltip.init(document.querySelectorAll('.tooltipped'), {});
 });
 
+function init_quick_settings() {
+    const save = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+    // toggles apply live
+    for (const [id, key] of [['qs_autoplay', 'autoplay'], ['qs_premove', 'premove'],
+                             ['qs_puzzle', 'puzzle_mode'], ['qs_help', 'help_mode']]) {
+        const elem = document.getElementById(id);
+        if (!elem) continue; // stale cached popup.html mid-update; don't let one missing control kill the popup
+        elem.checked = config[key];
+        elem.addEventListener('change', () => {
+            config[key] = elem.checked;
+            save(key, elem.checked);
+            if (key === 'help_mode' && !elem.checked) request_clear_hint();
+            if (key === 'help_mode' || key === 'autoplay') {
+                // the go mode (infinite vs movetime) depends on these; abandon the current
+                // search and re-analyse the position under the new mode on the next poll
+                send_engine_uci('stop');
+                last_eval.fen = '';
+            }
+            push_config();
+        });
+    }
+    // timing settings apply live: compute_time is read at every 'go', think/move times are pushed to the page
+    for (const [id, key] of [['qs_search', 'compute_time'], ['qs_think', 'think_time'],
+                             ['qs_think_var', 'think_variance'], ['qs_move', 'move_time'], ['qs_move_var', 'move_variance']]) {
+        const elem = document.getElementById(id);
+        if (!elem) continue;
+        elem.value = config[key];
+        elem.addEventListener('change', () => {
+            const value = Math.max((key === 'compute_time') ? 50 : 0, parseInt(elem.value) || 0);
+            config[key] = value;
+            save(key, value);
+            push_config();
+        });
+    }
+    // engine settings need a full engine re-init; reload the popup, it re-reads localStorage
+    for (const [id, key, parse] of [
+        ['qs_engine', 'engine', v => v],
+        ['qs_fen', 'fen_refresh', v => Math.max(20, parseInt(v) || 20)], // the poll interval is created once at startup
+        ['qs_threads', 'threads', v => parseInt(v) || 8],
+        ['qs_memory', 'memory', v => parseInt(v) || 512],
+        ['qs_lines', 'multiple_lines', v => parseInt(v) || 1],
+    ]) {
+        const elem = document.getElementById(id);
+        if (!elem) continue;
+        elem.value = config[key];
+        elem.addEventListener('change', () => {
+            save(key, parse(elem.value));
+            location.reload();
+        });
+    }
+}
+
 async function initialize_engine() {
     discard_stale_search = false; // a crashed engine never flushes its bestmove; don't eat the new engine's first result
+    search_active = false;
     const engineMap = {
         'stockfish-dev-nnue': 'stockfish-dev/sf_dev.js',
         'stockfish-18-nnue': 'stockfish-18/sf_18.js',
@@ -144,6 +209,13 @@ async function initialize_engine() {
     const enginePath = `/lib/engine/${engineMap[config.engine]}`;
     const engineBasePath = enginePath.substring(0, enginePath.lastIndexOf('/'));
     if (['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue', 'stockfish-17-nnue-79', 'fairy-stockfish-14-nnue', 'stockfish-11-hce'].includes(config.engine)) {
+        if (typeof SharedArrayBuffer === 'undefined') {
+            // the stockfish builds are pthread builds; without cross-origin isolation their
+            // worker just dies with an opaque "worker sent an error! undefined:undefined"
+            update_best_move('Engine blocked: this page does not provide SharedArrayBuffer '
+                + '(cross-origin isolation). Try the Remote Engine, or report which site this happened on.', '');
+            return;
+        }
         const module = await import(enginePath);
         engine = await module.default();
         engine.listen = (message) => on_engine_response(message);
@@ -344,8 +416,8 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 draw_threat();
             }
         }
-        if (config.autoplay && isTerminal) {
-            request_automove(best);
+        if (!config.help_mode && config.autoplay && isTerminal) {
+            request_automove(best); // in help mode draw_moves() mirrors all arrows onto the site board instead
         }
     }
 
@@ -359,8 +431,29 @@ function on_engine_best_move(best, threat, isTerminal=false) {
     toggle_calculating(false);
 }
 
+function update_eval_bar(line) {
+    const bar = document.getElementById('eval-bar-white');
+    if (!bar || !line) return;
+    let frac; // white's share of the bar; scores/mates are white-relative here
+    if ('mate' in line) {
+        // mate 0 = the side to move IS checkmated, so the sign carries no direction
+        frac = (line.mate === 0) ? ((turn === 'w') ? 0 : 1) : ((line.mate > 0) ? 1 : 0);
+    } else {
+        const winning_chance = 2 / (1 + Math.exp(-0.00368 * line.score)) - 1; // lichess curve, cp -> [-1,1]
+        frac = Math.max(0.03, Math.min(0.97, 0.5 + winning_chance / 2));
+    }
+    // mirror the player's perspective like lichess: the bar's bottom belongs to the bottom player,
+    // so when playing black the white share hangs from the top and black grows from the bottom.
+    // (the TEXT eval stays white-relative on purpose -- positive is always good for white.)
+    const flipped = board.orientation() === 'black';
+    bar.style.top = flipped ? '0' : 'auto';
+    bar.style.bottom = flipped ? 'auto' : '0';
+    bar.style.height = `${frac * 100}%`;
+}
+
 function on_engine_evaluation(info) {
     if (!info.lines[0]) return;
+    update_eval_bar(info.lines[0]);
 
     if ('mate' in info.lines[0]) {
         update_evaluation(`Checkmate in ${info.lines[0].mate}`);
@@ -387,6 +480,7 @@ function on_engine_response(message) {
     if (message.includes('lowerbound') || message.includes('upperbound') || message.includes('currmove')) {
         return; // ignore these messages
     } else if (message.startsWith('bestmove')) {
+        search_active = false;
         const arr = message.split(' ');
         const best = arr[1];
         const threat = arr[3];
@@ -415,6 +509,19 @@ function on_engine_response(message) {
         lineInfo[scoreType] = (turn === 'w' ? 1 : -1) * scoreNumber;
 
         const pvIdx = (lineInfo.multipv - 1) || 0;
+        // premove: while this position is searched, track how stable each line's 2nd move
+        // (our reply to the predicted opponent move) is across depths 6 / 9 / latest
+        if (config.premove && lineInfo.pv && pvIdx <= 1 && Number.isInteger(lineInfo.depth)) {
+            const [pred, reply] = lineInfo.pv.split(' ');
+            const line = premove_tracker.lines[pvIdx] || (premove_tracker.lines[pvIdx] = {});
+            if (lineInfo.depth === 6) line.d6 = `${pred} ${reply}`;
+            if (lineInfo.depth === 9) line.d9 = `${pred} ${reply}`;
+            line.latest = `${pred} ${reply}`;
+            line.pred = pred;
+            line.reply = reply;
+            line.depth = lineInfo.depth;
+            if (pvIdx === 0) maybe_premove_forced_reply(line);
+        }
         last_eval.activeLines = Math.max(last_eval.activeLines, lineInfo.multipv);
         if (pvIdx === 0) {
             // continuously show the best move for each depth
@@ -467,9 +574,87 @@ function is_legal_position(fen) {
     return true;
 }
 
+// "Premove" without the blunder risk: while the opponent thinks we certify a reply to their
+// PREDICTED move (max 2 candidate lines). It only fires if the new position is EXACTLY the
+// predicted one -- any other move discards the table and searches normally, so a wrong guess
+// costs nothing. Certification = the reply is identical at depth 6, depth 9 and the latest
+// depth (>= 10). Residual risk is only a marginally weaker (still certified) move, never a
+// move meant for a different position.
+// A physical premove is SAFE when the certified reply could never be legal after any opponent
+// move OTHER than the predicted one: forced moves (no other moves exist) and recaptures/replies
+// bound to the predicted move (anything else makes the premove illegal, and the site silently
+// cancels illegal premoves). Either way it cannot fire in a wrong position.
+function premove_is_safe(pred, reply) {
+    const [from, to, promotion] = [reply.slice(0, 2), reply.slice(2, 4), reply[4]];
+    let others;
+    try {
+        others = new Chess(config.variant, premove_tracker.fen).moves({verbose: true});
+    } catch (e) {
+        return false;
+    }
+    for (const move of others) {
+        if (`${move.from}${move.to}${move.promotion || ''}` === pred) continue;
+        try {
+            const after = new Chess(config.variant, premove_tracker.fen);
+            after.move({from: move.from, to: move.to, promotion: move.promotion});
+            after.move({from, to, promotion});
+            return false; // the reply is also legal after a different opponent move -> could blunder
+        } catch (e) {
+            // reply illegal after this move: the site would cancel the premove -- safe here
+        }
+    }
+    return true; // forced move (no other moves) or a reply only legal in the predicted position
+}
+
+// Don't wait for the opponent when waiting can't help: queue the certified reply as a REAL
+// site premove (clicks during their turn) whenever premove_is_safe says it can't misfire.
+function maybe_premove_forced_reply(line) {
+    if (premove_tracker.premoved || !config.autoplay) return;
+    if (config.help_mode || config.puzzle_mode || config.simon_says_mode) return;
+    if (line.depth < 10 || !line.d6 || line.d6 !== line.d9 || line.d6 !== line.latest) return;
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(line.reply ?? '')) return;
+    const mover = (premove_tracker.fen.split(' ')[1] === 'w') ? 'white' : 'black';
+    if (mover === board.orientation()) return; // only while the opponent is to move
+    if (premove_tracker.safe === undefined) {
+        // cached per position; certification pins (pred, reply) via the depth-6 snapshot,
+        // so at most one pair can ever be checked here per position
+        premove_tracker.safe = premove_is_safe(line.pred, line.reply);
+    }
+    if (!premove_tracker.safe) return;
+    premove_tracker.premoved = true;
+    console.log('Premove: reply cannot misfire (forced/bound to predicted move) -- premoving', line.reply);
+    request_automove(line.reply);
+}
+
+function premove_instant_reply(new_fen) {
+    if (!config.premove || !config.autoplay) return null;
+    if (config.help_mode || config.puzzle_mode || config.simon_says_mode) return null;
+    if (premove_tracker.premoved) return null; // already queued as a real site premove
+    if (!premove_tracker.fen || premove_tracker.fen !== last_eval.fen) return null;
+    const mover = (new_fen.split(' ')[1] === 'w') ? 'white' : 'black';
+    if (mover !== board.orientation()) return null; // the certified reply must be OUR move
+    for (const idx of [0, 1]) {
+        const line = premove_tracker.lines[idx];
+        if (!line || line.depth < 10 || !line.d6 || line.d6 !== line.d9 || line.d6 !== line.latest) continue;
+        if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(line.reply ?? '')) continue;
+        try {
+            const chess = new Chess(config.variant, premove_tracker.fen);
+            chess.move({from: line.pred.slice(0, 2), to: line.pred.slice(2, 4), promotion: line.pred[4]});
+            if (chess.fen() === new_fen) {
+                return line.reply; // the opponent played exactly the predicted move
+            }
+        } catch (e) {
+            // predicted move not applicable to this position; fall through to the next line
+        }
+    }
+    return null;
+}
+
 function on_new_pos(fen, startFen, moves) {
     console.log("on_new_pos", fen, startFen, moves);
-    const search_in_flight = is_calculating;
+    if (config.help_mode) request_clear_hint(); // position changed; last hint is stale
+    premove_tracker = {fen: fen, lines: {}}; // certifications belong to exactly one position
+    const search_in_flight = search_active;
     toggle_calculating(true);
     if (config.engine === 'remote') {
         if (moves) {
@@ -491,7 +676,12 @@ function on_new_pos(fen, startFen, moves) {
         } else {
             send_engine_uci(`position fen ${fen}`);
         }
-        send_engine_uci(`go movetime ${config.compute_time}`);
+        if (config.help_mode || !config.autoplay) {
+            send_engine_uci('go infinite'); // pure analysis: keep deepening until the position changes
+        } else {
+            send_engine_uci(`go movetime ${config.compute_time}`); // autoplay needs a final bestmove to act on
+        }
+        search_active = true;
     }
 
     board.position(fen);
@@ -586,10 +776,13 @@ function parse_position_from_response(txt) {
     txt = txt.substring(11);
 
     if (metaTag.includes('var')) {
-        if (config.variant === 'fischerandom') {
+        if (txt.includes('&')) { // a custom start position is shipped along (chess960 / "From Position")
             const puzTxt = txt.substring(0, txt.indexOf('&'));
             const fenTxt = txt.substring(txt.indexOf('&') + 6);
-            const startFen = parse_position_from_pieces(puzTxt).fen.replace('-', 'KQkq');
+            let startFen = parse_position_from_pieces(puzTxt).fen;
+            if (config.variant === 'fischerandom') {
+                startFen = startFen.replace('-', 'KQkq'); // chess960 always starts with full castling rights
+            }
             return parse_position_from_moves(fenTxt, startFen);
         }
         return parse_position_from_moves(txt);
@@ -636,6 +829,14 @@ function request_automove(move) {
 
 function request_console_log(message) {
     send_to_active_tab({consoleMessage: message});
+}
+
+function request_draw_hint(arrows) {
+    send_to_active_tab({drawHint: true, arrows: arrows});
+}
+
+function request_clear_hint() {
+    send_to_active_tab({clearHint: true});
 }
 
 function push_config() {
@@ -688,12 +889,22 @@ function draw_moves() {
     }
 
     clear_annotations();
+    const hint_arrows = []; // help mode mirrors the popup's arrows onto the site's board
     for (let i = 0; i < last_eval.activeLines; i++) {
         if (!last_eval.lines[i]) continue;
 
         const arrow_color = (i === 0) ? '#004db8' : '#4a4a4a';
         const stroke_width = strokeFunc(last_eval.lines[i]);
         draw_move(last_eval.lines[i].move, arrow_color, document.getElementById('move-annotations'), stroke_width);
+        if (config.help_mode && stroke_width > 0 && last_eval.lines[i].move) {
+            hint_arrows.push({move: last_eval.lines[i].move, width: stroke_width, color: arrow_color});
+        }
+    }
+    if (config.help_mode) {
+        if (config.threat_analysis && last_eval.threat && last_eval.threat !== '(none)') {
+            hint_arrows.push({move: last_eval.threat, width: 0.2, color: '#bf0000'});
+        }
+        request_draw_hint(hint_arrows);
     }
 }
 

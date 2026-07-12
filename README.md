@@ -1,11 +1,6 @@
 ![alt text](https://raw.githubusercontent.com/AlexPetrusca/Mephisto/master/res/mephisto_banner_lowercase.png)
 
-Mephisto is a browser extension that provides next-best-move analysis and can automate gameplay on Chess.com and Lichess.
-
-<p align="center">
-  <img src="https://github.com/AlexPetrusca/Mephisto/blob/master/res/puzzle_rush_demo.gif" align="center" height="500px" />
-  <p align="center">Mephisto crushing some Puzzle Rush in real-time</p>
-</p>
+Mephisto is a browser extension that enables next best move analysis and automated gameplay on Chess.com and Lichess.
 
 ## Getting Started
 
@@ -19,15 +14,51 @@ Mephisto is a browser extension that provides next-best-move analysis and can au
 <br>
 <br>
 
-Click the Mephisto icon to open its popup window. It will automatically detect and analyze the current chess position on the page.
+Click Mephisto's icon to toggle its floating analysis panel directly on the page. The panel can be dragged
+anywhere by its title bar, closed with the ✕, and — unlike a classic extension popup — it stays open while you
+click and play on the board, so analysis and autoplay keep running for the whole game. For ease of use, pin
+Mephisto in Chrome's extensions menu: click the puzzle icon to the right of the address bar, find
+"Mephisto Chess Extension" and click the pin icon next to it.
 
-For quick access, pin Mephisto to Chrome’s toolbar:
-1. Click the puzzle icon next to Chrome’s address bar.
-2. Find "Mephisto Chess Extension" and click the pin icon next to it.
+For more information, see [Getting Started](https://github.com/AlexPetrusca/Mephisto/wiki/Getting-Started).
 
-Note: The popup window will close if you click outside of it. To keep it open, right-click the pinned Mephisto icon and select "Inspect Popup."
 
-For more details, visit the [Getting Started](https://github.com/AlexPetrusca/Mephisto/wiki/Getting-Started) guide.
+## What's New in 3.0.0
+
+**UI**
+- **Floating in-page panel** replaces the anchored popup: draggable, closable, and it no longer closes when you
+  click the board (the old "Inspect Popup" workaround is obsolete).
+- **Quick Settings sidebar** in the panel: Autoplay / Premove / Puzzle / Help toggles apply instantly; engine,
+  threads, memory, lines and all timing settings are editable without opening the options page.
+- **Evaluation bar** next to the board, shown from your perspective (the text score stays White-relative).
+
+**Engines**
+- New builds from `@lichess-org/stockfish-web`: **Stockfish dev NNUE** (new default), **Stockfish 18**
+  (dual net — its 104MB net ships split into <50MB chunks and is stitched at load time to fit GitHub's file
+  limits), **Stockfish 18 Small** and **Stockfish 17**. Stockfish 6 and 16 were removed; stale selections are
+  migrated automatically.
+- Illegal scraped positions (missing king, side-not-to-move in check, back-rank pawns) are blocked before they
+  can crash the WASM engine, and a crashed engine restarts automatically (capped at 3 attempts).
+
+**Play**
+- **Help Mode**: instead of autoplaying, all analysis arrows (best line, alternatives, threat) are mirrored
+  directly onto the site's board while the engine keeps evaluating — play the move yourself when ready.
+- **Continuous analysis**: with Autoplay off the engine analyzes indefinitely instead of stopping after the
+  search time.
+- **Safe Premove**: while the opponent thinks, Mephisto certifies a reply to their predicted move (the reply
+  must be identical at depth 6, 9 and 10+). If they play exactly that move, the reply is played instantly;
+  anything else falls back to a normal search — a wrong guess costs nothing. When the reply could never be
+  legal after any other opponent move (forced moves, recaptures), it is queued as a real premove immediately.
+
+**Scraping fixes (2026 site DOMs)**
+- Lichess: current obfuscated move-list tags, correspondence games, the game-result element no longer breaks
+  parsing, turn detection at the starting position, and mid-animation scrapes are rejected instead of producing
+  corrupt positions.
+- **"From Position" games** (custom starting position, e.g. endgame practice vs the AI) are now supported —
+  the starting position is captured at page load and replayed with the moves.
+- `remote-engine.py`: opening-book moves are no longer mistaken for game over; undeclared engine options are
+  skipped.
+
 
 ## How to Develop Locally
 Set up a local install:

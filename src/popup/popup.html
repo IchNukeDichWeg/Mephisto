@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="/lib/chessboard/chessboard.min.css">
     <link rel="stylesheet" href="/lib/materialize/materialize.min.css">
     <link rel="stylesheet" href="/lib/materialize/material-icons.min.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto&display=swap">
     <script src="/lib/jquery.min.js"></script>
     <script src="/lib/lru.min.js"></script>
     <script src="/lib/chessboard/chessboard.min.js"></script>
@@ -28,9 +27,78 @@
 <div id="move-annotations"></div>
 <div id="response-annotations"></div>
 
+<div id="quick-settings">
+    <div class="qs-title">Quick Settings</div>
+    <div class="qs-row switch">
+        <span class="qs-label">Autoplay</span>
+        <label><input id="qs_autoplay" type="checkbox"><span class="lever"></span></label>
+    </div>
+    <div class="qs-row switch">
+        <span class="qs-label tooltipped" data-position="left"
+              data-tooltip="While the opponent thinks, certify a reply to their predicted move (stable across depths 6/9/10+, max 2 candidates). If they play exactly that move, answer instantly; anything else searches normally. If the reply could never be legal after any other opponent move (forced moves, recaptures), it's queued as a real premove immediately -- an illegal premove gets auto-cancelled. Never fires in a wrong position. Needs Autoplay.">Premove</span>
+        <label><input id="qs_premove" type="checkbox"><span class="lever"></span></label>
+    </div>
+    <div class="qs-row switch">
+        <span class="qs-label">Puzzle Mode</span>
+        <label><input id="qs_puzzle" type="checkbox"><span class="lever"></span></label>
+    </div>
+    <div class="qs-row switch">
+        <span class="qs-label tooltipped" data-position="left"
+              data-tooltip="Draws the best move as an arrow on the game board so you can play it yourself. Overrides Autoplay while on.">Help Mode</span>
+        <label><input id="qs_help" type="checkbox"><span class="lever"></span></label>
+    </div>
+    <div class="qs-row">
+        <span class="qs-label">Engine</span>
+        <select id="qs_engine" class="browser-default">
+            <option value="stockfish-dev-nnue">SF dev NNUE</option>
+            <option value="stockfish-18-nnue">SF 18 NNUE</option>
+            <option value="stockfish-18-small-nnue">SF 18 Small</option>
+            <option value="stockfish-17-nnue-79">SF 17 NNUE</option>
+            <option value="stockfish-11-hce">SF 11 HCE</option>
+            <option value="lc0">Leela Zero</option>
+            <option value="fairy-stockfish-14-nnue">Fairy SF 14</option>
+            <option value="remote">Remote Engine</option>
+        </select>
+    </div>
+    <div class="qs-row">
+        <span class="qs-label">Search / Fen Refresh (ms)</span>
+        <div class="qs-pair">
+            <input id="qs_search" class="browser-default" type="number" min="50" max="30000" step="50">
+            <input id="qs_fen" class="browser-default" type="number" min="20" max="2000" step="10">
+        </div>
+    </div>
+    <div class="qs-row">
+        <span class="qs-label">Threads</span>
+        <input id="qs_threads" class="browser-default" type="number" min="1" max="32" step="1">
+    </div>
+    <div class="qs-row">
+        <span class="qs-label">Memory (MB)</span>
+        <input id="qs_memory" class="browser-default" type="number" min="32" max="512" step="32">
+    </div>
+    <div class="qs-row">
+        <span class="qs-label">Multi Lines</span>
+        <input id="qs_lines" class="browser-default" type="number" min="1" max="5" step="1">
+    </div>
+    <div class="qs-row">
+        <span class="qs-label">Think Time ± Var (ms)</span>
+        <div class="qs-pair">
+            <input id="qs_think" class="browser-default" type="number" min="0" step="50">
+            <input id="qs_think_var" class="browser-default" type="number" min="0" step="50">
+        </div>
+    </div>
+    <div class="qs-row">
+        <span class="qs-label">Move Time ± Var (ms)</span>
+        <div class="qs-pair">
+            <input id="qs_move" class="browser-default" type="number" min="0" step="50">
+            <input id="qs_move_var" class="browser-default" type="number" min="0" step="50">
+        </div>
+    </div>
+</div>
+
 <div id="game-detection">No Chess Game Detected</div>
 
 <div id="board"></div>
+<div id="eval-bar"><div id="eval-bar-white"></div></div>
 
 <div id="moves">
     <div id="chess_line_1">If your chess game is not detected<br>try reloading the page</div>

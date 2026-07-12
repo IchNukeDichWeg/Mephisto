@@ -1,5 +1,5 @@
 html, body {
-    width: 354px;
+    width: 548px; /* 378px left column (14px eval bar + 4px gap + 350px board + margins) + 170px quick settings */
     height: 470px;
     overflow: hidden;
     background-color: rgb(240, 240, 240);
@@ -15,7 +15,7 @@ html, body {
 #board {
     width: 350px !important;
     background: none !important;
-    margin-left: 5px;
+    margin-left: 23px; /* room for the eval bar on the left */
 }
 
 #board .board-b72b1 {
@@ -187,7 +187,7 @@ html, body {
     position: absolute;
     z-index: 51;
     top: 26px;
-    left: 5px;
+    left: 23px;
     width: 344px;
     height: 344px;
 }
@@ -196,9 +196,36 @@ html, body {
     position: absolute;
     z-index: 50;
     top: 26px;
-    left: 5px;
+    left: 23px;
     width: 344px;
     height: 344px;
+}
+
+/* the left column is 378px wide; without this the centered text spans the full
+   body, drifts under the quick-settings panel and collides with the gear button */
+#game-detection, #moves, #evaluation {
+    width: 378px;
+}
+
+#eval-bar {
+    position: absolute;
+    top: 26px;
+    left: 5px;
+    width: 14px;
+    height: 350px; /* matches the board */
+    background: #403d39; /* black's share */
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: 0 2px 2px 0 rgb(0 0 0 / 14%);
+}
+
+#eval-bar-white {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 50%;
+    background: #ffffff;
+    transition: height 0.4s;
 }
 
 #moves {
@@ -229,7 +256,79 @@ html, body {
 #config {
     position: absolute;
     bottom: 5px;
-    right: 5px;
+    right: 175px; /* stay inside the left column, clear of the quick-settings panel */
+}
+
+#quick-settings {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 170px;
+    height: 100%;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    background: #e7e7e7;
+    border-left: 1px solid #d0d0d0;
+    font: 13px 'Roboto', sans-serif;
+    line-height: normal;
+    text-align: left;
+    white-space: normal;
+    overflow-y: auto;
+}
+
+#quick-settings .qs-title {
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+#quick-settings .qs-row {
+    margin-bottom: 6px;
+}
+
+#quick-settings .qs-row.switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#quick-settings .qs-label {
+    display: block;
+    font-size: 12px;
+    margin-bottom: 2px;
+}
+
+#quick-settings .switch .qs-label {
+    margin-bottom: 0;
+}
+
+#quick-settings .switch label .lever {
+    margin: 0;
+}
+
+#quick-settings .qs-pair {
+    display: flex;
+    gap: 6px;
+}
+
+#quick-settings .qs-pair input {
+    min-width: 0;
+}
+
+#quick-settings select.browser-default,
+#quick-settings input.browser-default {
+    width: 100%;
+    height: 26px;
+    font-size: 12px;
+    background: #fff;
+    color: #555;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 0 4px;
+    margin: 0;
+    box-sizing: border-box;
+    display: block;
 }
 
 #analyze {

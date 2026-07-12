@@ -9,7 +9,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '2026-07-11g'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.0.0'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -23,6 +23,10 @@ window.onload = () => {
 };
 
 chrome.runtime.onMessage.addListener(response => {
+    if (response.toggleOverlay) {
+        toggleOverlay();
+        return;
+    }
     if (moving) return;
     if (response.queryfen) {
         if (!config) return;
@@ -50,10 +54,140 @@ chrome.runtime.onMessage.addListener(response => {
     } else if (response.pushConfig) {
         console.log(response.config);
         config = response.config;
+    } else if (response.drawHint) {
+        drawHintArrows(response.arrows);
+    } else if (response.clearHint) {
+        clearHintArrow();
     } else if (response.consoleMessage) {
         console.log(response.consoleMessage);
     }
 });
+
+// ------------------------------------------------------------------------------------------
+// In-page overlay: the whole Mephisto panel (popup.html) injected into the page as a
+// draggable floating window, like Chessvision's. Toggled by clicking the toolbar icon.
+// Unlike the anchored popup it can be moved anywhere and stays open while you play.
+
+const PANEL_OVERLAY_ID = 'mephisto-overlay';
+const OVERLAY_SCALE = 0.85; // render the full 548x470 popup, scaled down a notch
+
+function toggleOverlay() {
+    const existing = document.getElementById(PANEL_OVERLAY_ID);
+    if (existing) {
+        existing.remove();
+        return;
+    }
+    const scaledW = Math.round(548 * OVERLAY_SCALE);
+    const scaledH = Math.round(470 * OVERLAY_SCALE);
+    const wrap = document.createElement('div');
+    wrap.id = PANEL_OVERLAY_ID;
+    wrap.style.cssText = 'position: fixed; top: 60px; right: 12px; z-index: 2147483646; ' +
+        `width: ${scaledW}px; height: ${24 + scaledH}px; ` +
+        'border-radius: 8px; overflow: hidden; background: #f0f0f0; ' +
+        'box-shadow: 0 6px 24px rgba(0,0,0,0.45);';
+
+    const bar = document.createElement('div');
+    bar.style.cssText = 'height: 24px; background: #2d2d2d; color: #ddd; display: flex; ' +
+        'align-items: center; justify-content: space-between; padding: 0 10px; ' +
+        'font: 12px Roboto, sans-serif; cursor: move; user-select: none;';
+    bar.innerHTML = '<span>Mephisto</span><span class="mephisto-overlay-close" style="cursor: pointer; padding: 0 4px; font-size: 14px;">✕</span>';
+
+    const frame = document.createElement('iframe');
+    frame.src = chrome.runtime.getURL('src/popup/popup.html');
+    frame.style.cssText = 'width: 548px; height: 470px; border: none; display: block; background: #f0f0f0; ' +
+        `transform: scale(${OVERLAY_SCALE}); transform-origin: top left;`;
+
+    wrap.append(bar, frame);
+    document.body.appendChild(wrap);
+    bar.querySelector('.mephisto-overlay-close').addEventListener('click', () => wrap.remove());
+
+    // drag by the title bar; the iframe must not eat mousemove while dragging
+    let dragFromX, dragFromY, startLeft, startTop, dragging = false;
+    bar.addEventListener('mousedown', e => {
+        if (e.target.classList.contains('mephisto-overlay-close')) return;
+        dragging = true;
+        frame.style.pointerEvents = 'none';
+        const rect = wrap.getBoundingClientRect();
+        [dragFromX, dragFromY, startLeft, startTop] = [e.clientX, e.clientY, rect.left, rect.top];
+        e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        wrap.style.left = `${startLeft + e.clientX - dragFromX}px`;
+        wrap.style.top = `${Math.max(0, startTop + e.clientY - dragFromY)}px`;
+        wrap.style.right = 'auto';
+    });
+    window.addEventListener('mouseup', () => {
+        dragging = false;
+        frame.style.pointerEvents = 'auto';
+    });
+}
+
+// ------------------------------------------------------------------------------------------
+// Help mode: instead of autoplaying, overlay the engine's best move as an arrow directly on
+// the site's board so the user can play it themselves at their own pace.
+
+const HINT_OVERLAY_ID = 'mephisto-hint-overlay';
+let lastHintKey = null;
+
+function clearHintArrow() {
+    lastHintKey = null;
+    document.getElementById(HINT_OVERLAY_ID)?.remove();
+}
+
+// arrows: [{move: 'e2e4', width: 0..0.25 (in squares), color: '#rrggbb'}, ...] best line first --
+// the same set the popup draws on its mini board (multipv lines weighted by score, threat in red)
+function drawHintArrows(arrows) {
+    arrows = (arrows || []).filter(a => a && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(a.move ?? ''));
+    // help mode redraws on every engine update; skip the DOM churn while the arrows are unchanged
+    const key = JSON.stringify(arrows);
+    if (key === lastHintKey && document.getElementById(HINT_OVERLAY_ID)) return;
+    clearHintArrow();
+    if (!arrows.length) return;
+    const board = getBoard();
+    if (!board) return;
+    const bounds = board.getBoundingClientRect();
+    const orientation = getOrientation();
+    const square = bounds.width / 8;
+
+    function squareCenter(coords) {
+        const [xIdx, yIdx] = (orientation === 'white')
+            ? [coords.charCodeAt(0) - 'a'.charCodeAt(0), 8 - parseInt(coords[1])]
+            : ['h'.charCodeAt(0) - coords.charCodeAt(0), parseInt(coords[1]) - 1];
+        return [(xIdx + 0.5) * square, (yIdx + 0.5) * square];
+    }
+
+    const markerId = color => `mephisto-hint-head-${color.replace(/[^\w]/g, '')}`;
+    let defs = '';
+    for (const color of new Set(arrows.map(a => a.color || '#15781b'))) {
+        defs += `<marker id="${markerId(color)}" markerWidth="3" markerHeight="3" refX="0.1" refY="1.5" orient="auto">
+            <path d="M0,0 L2.4,1.5 L0,3 Z" fill="${color}"/></marker>`;
+    }
+
+    let lines = '';
+    for (const arrow of [...arrows].reverse()) { // best line comes first; draw it last so it sits on top
+        const color = arrow.color || '#15781b';
+        const stroke = Math.max(2, (arrow.width || 0.2) * square);
+        const [x0, y0] = squareCenter(arrow.move.substring(0, 2));
+        const [x1, y1] = squareCenter(arrow.move.substring(2, 4));
+        // pull the line back so the arrowhead tip lands on the target square's center
+        const dist = Math.hypot(x1 - x0, y1 - y0) || 1;
+        const xh = x1 - (x1 - x0) / dist * square * 0.4;
+        const yh = y1 - (y1 - y0) / dist * square * 0.4;
+        lines += `<line x1="${x0}" y1="${y0}" x2="${xh}" y2="${yh}" stroke="${color}" stroke-width="${stroke}"
+            stroke-linecap="round" opacity="0.75" marker-end="url(#${markerId(color)})"/>`;
+    }
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = HINT_OVERLAY_ID;
+    svg.setAttribute('width', bounds.width);
+    svg.setAttribute('height', bounds.height);
+    svg.style.cssText = `position: absolute; left: ${bounds.left + window.scrollX}px; ` +
+        `top: ${bounds.top + window.scrollY}px; z-index: 2147483647; pointer-events: none;`;
+    svg.innerHTML = `<defs>${defs}</defs>${lines}`;
+    document.body.appendChild(svg);
+    lastHintKey = key;
+}
 
 function tryScrapePosition() {
     try {
@@ -79,8 +213,17 @@ function scrapePosition() {
     if (config.variant === 'chess') {
         const moveContainer = getMoveContainer();
         if (moveContainer != null) {
-            prefix += 'fen***';
-            res = scrapePositionFen();
+            const customStart = readStartPos(location.href)?.position;
+            if (customStart && customStart !== DEFAULT_POSITION) {
+                // "From Position" game (custom start, e.g. endgame practice vs the AI): the SANs
+                // only make sense from THAT position, so ship it along like the chess960 path does
+                prefix += 'var***';
+                res = customStart + '&*****';
+                res += (getMoveRecords()?.length) ? scrapePositionFen() : '?';
+            } else {
+                prefix += 'fen***';
+                res = scrapePositionFen();
+            }
         } else {
             prefix += 'puz***';
             res = scrapePositionPuz();
@@ -494,10 +637,18 @@ function determineStartPosition() {
 }
 
 
-function onPositionLoad() {
+function onPositionLoad(retries = 10) {
     // cache position, if it's a non-standard starting position
     if (!getMoveRecords()?.length) { // is stating position?
-        const position = scrapePositionPuz();
+        let position;
+        try {
+            position = scrapePositionPuz();
+        } catch (e) {
+            // board still animating in; a failed scrape here would lose the custom start
+            // position for the whole game, so retry until the pieces settle
+            if (retries > 0) setTimeout(() => onPositionLoad(retries - 1), 300);
+            return;
+        }
         if (position !== DEFAULT_POSITION) { // is non-standard?
             writeStartPos(location.href, {
                 position: position,

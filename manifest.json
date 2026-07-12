@@ -3,7 +3,7 @@
   "manifest_version": 3,
   "name": "Mephisto Chess Extension",
   "description": "Next best move analysis for your favorite chess websites",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "homepage_url": "https://github.com/AlexPetrusca/Mephisto",
   "author": "Alex Petrusca",
   "icons": {
@@ -19,9 +19,20 @@
       "48": "res/icons/icon48.png",
       "128": "res/icons/icon128.png"
     },
-    "default_popup": "src/popup/popup.html",
     "options_page": "src/options/options.html"
   },
+  "web_accessible_resources": [
+    {
+      "resources": ["src/popup/popup.html", "lib/engine/*"],
+      "matches": [
+        "*://www.chess.com/*",
+        "*://lichess.org/*",
+        "*://blitztactics.com/*"
+      ]
+    }
+  ],
+  "cross_origin_embedder_policy": {"value": "require-corp"},
+  "cross_origin_opener_policy": {"value": "same-origin"},
   "permissions": [
     "debugger"
   ],
