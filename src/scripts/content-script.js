@@ -9,7 +9,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.1'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.2'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -27,17 +27,25 @@ chrome.runtime.onMessage.addListener(response => {
         toggleOverlay();
         return;
     }
-    if (moving) return;
     if (response.queryfen) {
-        if (!config) return;
-        const res = tryScrapePosition();
-        const orient = getOrientation();
+        // ALWAYS answer so the popup's in-flight poll guard clears immediately -- otherwise a poll
+        // sent while we're mid-move (or before config) gets no reply and the board freezes for up
+        // to the fallback timeout. While moving/unconfigured the DOM is transient, so answer 'no'
+        // (skip); the next 10ms poll picks up the real position the instant we're idle again.
+        let res = 'no', orient;
+        if (!moving && config) {
+            res = tryScrapePosition();
+            orient = getOrientation();
+        }
         try {
             chrome.runtime.sendMessage({ dom: res, orient: orient, fenresponse: true });
         } catch (e) {
             // extension was reloaded — this orphaned content-script can't reach it anymore
         }
-    } else if (response.automove) {
+        return;
+    }
+    if (moving) return;
+    if (response.automove) {
         toggleMoving();
         try {
             if (config.puzzle_mode) {
@@ -45,7 +53,7 @@ chrome.runtime.onMessage.addListener(response => {
                 simulatePvMoves(response.pv).finally(toggleMoving);
             } else {
                 console.log(response.move);
-                simulateMove(response.move).finally(toggleMoving);
+                simulateMoveVerified(response.move).finally(toggleMoving);
             }
         } catch (e) {
             toggleMoving(); // a sync throw (e.g. board vanished) must not leave `moving` stuck true
@@ -750,6 +758,27 @@ function simulateMove(move) {
     }
 
     return performSimulatedMoveSequence();
+}
+
+// Autoplay clicks can silently fail (a mis-timed click during a board animation, a click landing
+// a hair off after a resize, a promotion race). Play the move, then CONFIRM it registered by
+// checking the move list actually grew; if not, retry. The move-count check is safe from
+// double-moving: if a move was played (count went up) we treat it as success even if the
+// opponent has already replied, so we never re-fire a move into a changed position.
+async function simulateMoveVerified(move, retries = 2) {
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
+        return simulateMove(move); // invalid -> simulateMove logs + no-ops
+    }
+    const before = getMoveRecords()?.length ?? 0;
+    await simulateMove(move);
+    await promiseTimeout(250); // give the site time to register the move + start its animation
+    const after = getMoveRecords()?.length ?? 0;
+    if (after > before) return; // a move was played -> success
+    if (retries > 0) {
+        console.warn(`Mephisto: move '${move}' did not register, retrying (${retries} left)`);
+        return simulateMoveVerified(move, retries - 1);
+    }
+    console.warn(`Mephisto: move '${move}' failed to register after retries`);
 }
 
 function simulatePvMoves(pv) {
