@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     await initialize_engine();
 
     // listen to messages from content-script
-    chrome.runtime.onMessage.addListener(function (response) {
+    chrome.runtime.onMessage.addListener(function (response, sender) {
         if (response.fenresponse) { // reply received -> the poll interval may fire the next request
             fen_request_inflight = false;
             clearTimeout(fen_request_timer);
@@ -120,7 +120,10 @@ document.addEventListener('DOMContentLoaded', async function () {
             push_config();
         } else if (response.click) {
             console.log(response);
-            dispatch_click_event(response.x, response.y);
+            // click the GAME tab (the content-script's sender tab), not whatever tab is active --
+            // otherwise a move firing while you're on another tab (e.g. chrome://extensions) dispatches
+            // there and fails ("Cannot access a chrome:// URL").
+            dispatch_click_event(response.x, response.y, sender?.tab?.id);
         }
     });
 
@@ -1061,7 +1064,7 @@ function toggle_calculating(on) {
     }
 }
 
-async function dispatch_click_event(x, y) {
+async function dispatch_click_event(x, y, tabId) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
         // NaN/undefined coords (e.g. a crazyhouse drop move) serialize badly and the debugger rejects them
         console.warn(`Ignoring click with invalid coordinates: (${x}, ${y})`);
@@ -1070,14 +1073,20 @@ async function dispatch_click_event(x, y) {
     if (config.python_autoplay_backend) {
         await request_backend_click(x, y);
     } else {
-        await request_debugger_click(x, y);
+        await request_debugger_click(x, y, tabId);
     }
 }
 
-async function request_debugger_click(x, y) {
-    chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-        if (!tabs[0]?.id) return;
-        const debugee = {tabId: tabs[0].id};
+function resolve_click_tab(tabId) {
+    // prefer the game tab (content-script sender); fall back to the active tab if unknown
+    if (tabId) return Promise.resolve(tabId);
+    return new Promise(res => chrome.tabs.query({active: true, currentWindow: true}, t => res(t[0]?.id)));
+}
+
+async function request_debugger_click(x, y, tabId) {
+    resolve_click_tab(tabId).then((id) => {
+        if (!id) return;
+        const debugee = {tabId: id};
         chrome.debugger.attach(debugee, '1.3', async () => {
             // "Another debugger is already attached" is expected: we stay attached after the first click
             void chrome.runtime.lastError;
