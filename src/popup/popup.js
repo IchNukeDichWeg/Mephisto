@@ -53,7 +53,9 @@ document.addEventListener('DOMContentLoaded', async function () {
         pieces: JSON.parse(localStorage.getItem('pieces')) || 'wikipedia.svg',
         board: JSON.parse(localStorage.getItem('board')) || 'brown',
         coordinates: JSON.parse(localStorage.getItem('coordinates')) || false,
+        dark_mode: JSON.parse(localStorage.getItem('dark_mode')) || false,
     };
+    document.body.classList.toggle('mephisto-dark', config.dark_mode); // dark theme (set in Appearance)
     push_config();
     init_quick_settings();
 

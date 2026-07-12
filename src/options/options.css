@@ -212,3 +212,42 @@ body.parallax-demo footer {
 .tooltip-content {
     max-width: 250px;
 }
+
+/* --------------------------------------------------------------------------- */
+/* Dark mode (toggled in Appearance settings -> class `dark` on <html>)        */
+html.dark, html.dark body {
+    background-color: #1b1b1d;
+    color: #e2e2e4;
+}
+html.dark .sidenav.sidenav-fixed,
+html.dark ul.sidenav.sidenav-fixed ul.collapsible-accordion,
+html.dark ul.sidenav.sidenav-fixed ul.collapsible-accordion a.collapsible-header {
+    background-color: #232326;
+}
+html.dark .sidenav li > a,
+html.dark ul.sidenav.sidenav-fixed li a,
+html.dark ul.sidenav.sidenav-fixed li a.collapsible-header {
+    color: #cfcfd2 !important;
+}
+html.dark .sidenav li.active { background-color: rgba(238, 110, 115, 0.55) !important; }
+html.dark .sidenav li.active.open { background-color: rgba(255, 255, 255, 0.06) !important; }
+html.dark .big-section,
+html.dark .card,
+html.dark .card-panel,
+html.dark .collapsible-body { background-color: #2a2a2e; }
+html.dark .header,
+html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6,
+html.dark .switch-label { color: #f0f0f2; }
+html.dark input:not([type]), html.dark input[type=text], html.dark input[type=number],
+html.dark input[type=email], html.dark textarea.materialize-textarea,
+html.dark .select-wrapper input.select-dropdown {
+    color: #e2e2e4;
+    border-bottom-color: #555;
+}
+html.dark .dropdown-content { background-color: #2a2a2e; }
+html.dark .dropdown-content li > a, html.dark .dropdown-content li > span { color: #e2e2e4; }
+html.dark .toc-wrapper .table-of-contents a { color: #b8b8bb; }
+html.dark .docs-footer { background-color: #232326; }
+html.dark .docs-footer .footer-copyright { color: #9a9a9d; }
+html.dark a { color: #ec8b8f; }
+html.dark .btn { background-color: #3a3a3f; }

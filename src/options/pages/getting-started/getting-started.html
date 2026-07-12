@@ -9,22 +9,19 @@
         <div id="usage" class="section scrollspy">
             <h3 class="header">Usage</h3>
             <p>
-                Clicking Mephisto's icon will open its popup window and automatically scrape the current page for a
-                chess position to analyze.
+                Clicking Mephisto's icon toggles its floating panel directly on the page and automatically scrapes the
+                current page for a chess position to analyze. The panel can be dragged anywhere by its title bar and
+                closed with the &times;.
             </p>
             <h5>Pinning Mephisto</h5>
             <p>
-                For ease of use, pin Mephisto in chrome's extensions menu. Click the <i>puzzle</i> icon to the right of
+                For ease of use, pin Mephisto in Chrome's extensions menu. Click the <i>puzzle</i> icon to the right of
                 Chrome's address bar. Find "Mephisto Chess Extension" and click the <i>pin</i> icon to the right of it.
             </p>
-            <h5>Keeping Mephisto Open</h5>
+            <h5>Stays Open While You Play</h5>
             <p>
-                You may notice that when you click outside of Mephisto's popup window, the popup will lose focus and
-                close. To prevent this, right click the pinned icon and click 'Inspect Popup'.
-            </p>
-            <p>
-                <i>NOTE</i>: This will keep the popup open until either the inspect window is closed or the current
-                tab is changed/closed.
+                Unlike a classic extension popup, Mephisto's panel lives on the page, so it does <i>not</i> close when
+                you click the board. Analysis, autoplay and premoves keep running for the whole game.
             </p>
             <h5>Further Analysis</h5>
             <p>
@@ -49,10 +46,23 @@
                 type of the piece to move. From there, it is your job as the "Hand" to find and play the best move
                 given the hint.
             </p>
+            <h5>Help Mode</h5>
+            <p>
+                Instead of autoplaying, Mephisto draws all of its analysis arrows &mdash; the best line, alternatives,
+                and the opponent's threat &mdash; directly onto the site's board while it keeps evaluating. You play
+                the moves yourself, at your own pace.
+            </p>
             <h5>Autoplay</h5>
             <p>
                 Mephisto calculates the next best move and simulates clicks to play it over the board. By default,
                 the simulated clicks are generated directly in browser.
+            </p>
+            <b>Premove</b>
+            <p>
+                While the opponent is thinking, Mephisto certifies a reply to their most likely move. If they play it,
+                the reply is answered instantly; anything else falls back to a normal search &mdash; a wrong guess
+                costs nothing. When the reply could never be legal after any other opponent move (forced moves,
+                recaptures), it is played as a real premove during their turn. Requires Autoplay.
             </p>
             <b>Python Backend</b>
             <p>

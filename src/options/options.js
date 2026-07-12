@@ -2,7 +2,17 @@ import { require } from "./framework/require.js";
 
 let registerPageScript;
 
+// dark mode: a single class on <html>, toggled from the Appearance settings. Applied before
+// anything renders and re-applied live when the toggle changes (window.mephistoApplyTheme).
+function applyTheme() {
+    const dark = JSON.parse(localStorage.getItem('dark_mode') || 'false');
+    document.documentElement.classList.toggle('dark', dark);
+}
+applyTheme();
+window.mephistoApplyTheme = applyTheme;
+
 document.addEventListener('DOMContentLoaded', function () {
+    applyTheme();
     let activeScrollspies;
 
     // init materialize
