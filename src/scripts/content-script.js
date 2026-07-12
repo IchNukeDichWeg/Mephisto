@@ -9,7 +9,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.2'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.3'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -760,6 +760,16 @@ function simulateMove(move) {
     return performSimulatedMoveSequence();
 }
 
+// is it OUR turn to move in the current position? (side to move == the side we're playing)
+function isOurTurn() {
+    try {
+        const ours = (getOrientation() === 'white') ? 'w' : 'b';
+        return getTurn() === ours;
+    } catch (e) {
+        return false; // can't tell -> treat as a premove (skip verification, never re-click)
+    }
+}
+
 // Autoplay clicks can silently fail (a mis-timed click during a board animation, a click landing
 // a hair off after a resize, a promotion race). Play the move, then CONFIRM it registered by
 // checking the move list actually grew; if not, retry. The move-count check is safe from
@@ -769,6 +779,10 @@ async function simulateMoveVerified(move, retries = 2) {
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
         return simulateMove(move); // invalid -> simulateMove logs + no-ops
     }
+    // A move clicked while it is NOT our turn is a PREMOVE: the site queues it and it won't appear
+    // in the move list until the opponent moves. Verifying/retrying it would re-click and clobber
+    // the queued premove -- so only verify moves played on our own turn.
+    if (!isOurTurn()) return simulateMove(move);
     const before = getMoveRecords()?.length ?? 0;
     await simulateMove(move);
     await promiseTimeout(250); // give the site time to register the move + start its animation
