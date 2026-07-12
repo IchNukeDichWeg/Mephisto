@@ -106,8 +106,14 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const instant = premove_instant_reply(fen, moves);
                 on_new_pos(fen, startFen, moves);
                 if (instant) {
-                    console.log('Premove: certified instant reply', instant);
-                    request_automove(instant);
+                    // SAFETY: only play a certified reply if it moves OUR piece and (on our turn)
+                    // is legal right now -- never click the opponent's move or an illegal move.
+                    if (premove_reply_playable(fen, instant)) {
+                        console.log('Premove: certified instant reply', instant);
+                        request_automove(instant);
+                    } else {
+                        console.warn('Mephisto: discarding premove reply not playable in this position:', instant);
+                    }
                 }
             }
         } else if (response.pullConfig) {
@@ -576,6 +582,26 @@ function is_legal_position(fen) {
 // costs nothing. Certification = the reply is identical at depth 6, depth 9 and the latest
 // depth (>= 10). Residual risk is only a marginally weaker (still certified) move, never a
 // move meant for a different position.
+// Final gate before ANY premove reply is clicked: it must move OUR piece, and when it is already
+// our turn (an instant reply, not a premove queued during the opponent's turn) it must be fully
+// legal right now. This rejects a stale/mismatched reply that would otherwise click the opponent's
+// move or an illegal move.
+function premove_reply_playable(fen, uci) {
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci ?? '')) return false;
+    try {
+        const chess = new Chess(config.variant, fen);
+        const our = (board.orientation() === 'white') ? 'w' : 'b';
+        const piece = chess.get(uci.slice(0, 2));
+        if (!piece || piece.color !== our) return false; // never our-play the opponent's (or an empty) square
+        if (fen.split(' ')[1] === our) {                 // our turn -> the reply must be legal immediately
+            chess.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]});
+        }
+        return true;
+    } catch (e) {
+        return false; // illegal move, or can't parse -> don't play it
+    }
+}
+
 // A physical premove is SAFE when the certified reply could never be legal after any opponent
 // move OTHER than the predicted one: forced moves (no other moves exist) and recaptures/replies
 // bound to the predicted move (anything else makes the premove illegal, and the site silently
