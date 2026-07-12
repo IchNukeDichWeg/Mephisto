@@ -77,6 +77,10 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     // listen to messages from content-script
     chrome.runtime.onMessage.addListener(function (response) {
+        if (response.fenresponse) { // reply received -> the poll interval may fire the next request
+            fen_request_inflight = false;
+            clearTimeout(fen_request_timer);
+        }
         if (response.fenresponse && response.dom && response.dom !== 'no') {
             if (board.orientation() !== response.orient) {
                 board.orientation(response.orient);
@@ -818,7 +822,17 @@ function send_to_active_tab(message) {
     });
 }
 
+let fen_request_inflight = false;
+let fen_request_timer = null;
+
 function request_fen() {
+    // don't pile up overlapping fen requests when the scrape round-trip is slower than the poll
+    // interval (10ms). Self-heals: the content-script skips replying while it performs a move (or
+    // before config arrives), so a 500ms fallback clears the flag -- polling can never wedge.
+    if (fen_request_inflight) return;
+    fen_request_inflight = true;
+    clearTimeout(fen_request_timer);
+    fen_request_timer = setTimeout(() => { fen_request_inflight = false; }, 500);
     send_to_active_tab({queryfen: true});
 }
 
