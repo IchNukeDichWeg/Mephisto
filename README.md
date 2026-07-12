@@ -54,10 +54,24 @@ For more information, see [Getting Started](https://github.com/AlexPetrusca/Meph
 - Lichess: current obfuscated move-list tags, correspondence games, the game-result element no longer breaks
   parsing, turn detection at the starting position, and mid-animation scrapes are rejected instead of producing
   corrupt positions.
+- Chess.com: normal games, "Play Bots", and puzzles all detect correctly (the From-Position support is scoped
+  to Lichess so it can't misread a chess.com game's standard start).
 - **"From Position" games** (custom starting position, e.g. endgame practice vs the AI) are now supported —
   the starting position is captured at page load and replayed with the moves.
 - `remote-engine.py`: opening-book moves are no longer mistaken for game over; undeclared engine options are
   skipped.
+
+**Refinements since 3.0.0**
+- **Live depth** in the eval line (counts up like a desktop GUI) and **checkmate vs stalemate** are reported
+  correctly for the Remote Engine too.
+- **Panel polish**: opens at the top of the page (covers less of the board); Threads, Memory and Multi Lines
+  are sliders with live value labels; the options page gained the Premove and Help Mode toggles.
+- **Faster premove matching**: the certified reply now matches on the opponent's exact *move* (robust across
+  sites) rather than a reconstructed FEN string, which fixed premoves on chess.com.
+- **Leela (lc0) removed**: the bundled build was an old, unmaintained port that misbehaved; existing selections
+  migrate to the default. (For NN-style analysis, Stockfish dev NNUE covers it.)
+- New fresh-install defaults: SF dev engine, 300 ms search, 10 ms fen refresh, 8 threads, 512 MB hash,
+  200 ± 50 ms move time, autoplay off.
 
 
 ## How to Develop Locally

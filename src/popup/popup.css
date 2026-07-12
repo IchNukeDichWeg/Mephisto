@@ -331,6 +331,14 @@ html, body {
     display: block;
 }
 
+#quick-settings input[type=range].browser-default {
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    accent-color: #26a69a;
+}
+
 #analyze {
     position: absolute;
     bottom: 5px;

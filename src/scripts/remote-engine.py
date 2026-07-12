@@ -1,7 +1,7 @@
 # Example Usages:
 #   $ python remote-engine.py /usr/bin/stockfish -o Hash:32 -o "Skill Level":15 -o SyzygyPath:"/path/to/syzygy" -p 9090
 #   $ python remote-engine.py fairy-stockfish -o UCI_Variant:crazyhouse -p 9090
-#   $ python remote-engine.py ../../../dist/pygin -p 9090  (opening book works — book moves are handled below)
+#   $ python remote-engine.py /path/to/engine -p 9090  (opening book works — book moves are handled below)
 
 import argparse
 import chess.engine
@@ -120,7 +120,7 @@ def analyse():
         time_limit = chess.engine.Limit(time=data.get('time') / 1000)
         multipv = int(engine_options.get('MultiPV', 1))
         if 'multipv' not in engine.options:
-            multipv = 1 # engine doesn't support MultiPV (e.g. pygin) — don't ask for it
+            multipv = 1 # engine doesn't declare MultiPV support — don't ask for it
 
         terminal = not any(board.legal_moves) # authoritative game-over signal
         with engine.analysis(board, time_limit, multipv=multipv) as analysis:

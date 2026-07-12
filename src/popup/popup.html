@@ -55,7 +55,6 @@
             <option value="stockfish-18-small-nnue">SF 18 Small</option>
             <option value="stockfish-17-nnue-79">SF 17 NNUE</option>
             <option value="stockfish-11-hce">SF 11 HCE</option>
-            <option value="lc0">Leela Zero</option>
             <option value="fairy-stockfish-14-nnue">Fairy SF 14</option>
             <option value="remote">Remote Engine</option>
         </select>
@@ -64,20 +63,20 @@
         <span class="qs-label">Search / Fen Refresh (ms)</span>
         <div class="qs-pair">
             <input id="qs_search" class="browser-default" type="number" min="50" max="30000" step="50">
-            <input id="qs_fen" class="browser-default" type="number" min="20" max="2000" step="10">
+            <input id="qs_fen" class="browser-default" type="number" min="10" max="2000" step="10">
         </div>
     </div>
     <div class="qs-row">
-        <span class="qs-label">Threads</span>
-        <input id="qs_threads" class="browser-default" type="number" min="1" max="32" step="1">
+        <span class="qs-label">Threads (<span id="qs_threads_val">8</span>)</span>
+        <input id="qs_threads" class="browser-default" type="range" min="1" max="32" step="1">
     </div>
     <div class="qs-row">
-        <span class="qs-label">Memory (MB)</span>
-        <input id="qs_memory" class="browser-default" type="number" min="32" max="512" step="32">
+        <span class="qs-label">Memory (<span id="qs_memory_val">512</span> MB)</span>
+        <input id="qs_memory" class="browser-default" type="range" min="32" max="512" step="32">
     </div>
     <div class="qs-row">
-        <span class="qs-label">Multi Lines</span>
-        <input id="qs_lines" class="browser-default" type="number" min="1" max="5" step="1">
+        <span class="qs-label">Multi Lines (<span id="qs_lines_val">1</span>)</span>
+        <input id="qs_lines" class="browser-default" type="range" min="1" max="5" step="1">
     </div>
     <div class="qs-row">
         <span class="qs-label">Think Time ± Var (ms)</span>

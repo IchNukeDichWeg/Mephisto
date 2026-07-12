@@ -8,8 +8,8 @@ class GeneralSettings extends SettingsPage {
         M.Tooltip.init(document.querySelectorAll('.tooltipped'), {enterDelay: 1000});
         const engine_select = this.registerFormElement('engine', 'Engine:', 'select', 'stockfish-dev-nnue');
         const variant_select = this.registerFormElement('variant', 'Variant:', 'select', 'chess');
-        this.registerFormElement('compute_time', 'Stockfish Compute Time (ms):', 'input', 200);
-        this.registerFormElement('fen_refresh', 'Fen Refresh Interval (ms):', 'input', 20);
+        this.registerFormElement('compute_time', 'Stockfish Compute Time (ms):', 'input', 300);
+        this.registerFormElement('fen_refresh', 'Fen Refresh Interval (ms):', 'input', 10);
         const multipv_range = this.registerFormElement('multiple_lines', 'Multiple Lines:', 'range', 1);
         const threads_range = this.registerFormElement('threads', 'Threads:', 'range', 8);
         const memory_range = this.registerFormElement('memory', 'Memory:', 'range', 512);
@@ -17,12 +17,14 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('threat_analysis', 'Show Threat Analysis', 'checkbox', false);
         this.registerFormElement('simon_says_mode', '"Hand and Brain" Mode:', 'checkbox', false);
         this.registerFormElement('autoplay', 'Autoplay:', 'checkbox', false);
+        this.registerFormElement('premove', 'Premove:', 'checkbox', false);
+        this.registerFormElement('help_mode', 'Help Mode:', 'checkbox', false);
         this.registerFormElement('puzzle_mode', 'Puzzle Mode:', 'checkbox', false);
         this.registerFormElement('python_autoplay_backend', 'Python Autoplay Backend:', 'checkbox', false);
         this.registerFormElement('think_time', 'Simulated Think Time (ms):', 'input', 0);
         this.registerFormElement('think_variance', 'Simulated Think Variance (ms):', 'input', 0);
-        this.registerFormElement('move_time', 'Simulated Move Time (ms):', 'input', 250);
-        this.registerFormElement('move_variance', 'Simulated Move Variance (ms):', 'input', 100);
+        this.registerFormElement('move_time', 'Simulated Move Time (ms):', 'input', 200);
+        this.registerFormElement('move_variance', 'Simulated Move Variance (ms):', 'input', 50);
         const engineLabelTooltiped = document.querySelector('#engine-label-tooltiped');
         const engineLabelUntooltiped = document.querySelector('#engine-label-untooltiped');
         for (const range of [multipv_range, threads_range, memory_range]) {

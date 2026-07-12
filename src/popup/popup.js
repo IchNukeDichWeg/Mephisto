@@ -25,22 +25,22 @@ document.addEventListener('DOMContentLoaded', async function () {
     const autoplay = JSON.parse(localStorage.getItem('autoplay'));
     const computerEval = JSON.parse(localStorage.getItem('computer_evaluation'));
     // engines dropped in this version — migrate stale selections to the current default
-    const REMOVED_ENGINES = ['stockfish-6', 'stockfish-16-nnue-40', 'stockfish-16-nnue-7'];
+    const REMOVED_ENGINES = ['stockfish-6', 'stockfish-16-nnue-40', 'stockfish-16-nnue-7', 'lc0'];
     let storedEngine = JSON.parse(localStorage.getItem('engine'));
     if (REMOVED_ENGINES.includes(storedEngine)) storedEngine = null;
     config = {
         // general settings
         engine: storedEngine || 'stockfish-dev-nnue',
         variant: JSON.parse(localStorage.getItem('variant')) || 'chess',
-        compute_time: (computeTime != null) ? computeTime : 200,
-        fen_refresh: (fenRefresh != null) ? fenRefresh : 20,
+        compute_time: (computeTime != null) ? computeTime : 300,
+        fen_refresh: (fenRefresh != null) ? fenRefresh : 10,
         multiple_lines: JSON.parse(localStorage.getItem('multiple_lines')) || 1,
         threads: JSON.parse(localStorage.getItem('threads')) || 8,
         memory: JSON.parse(localStorage.getItem('memory')) || 512,
         think_time: (thinkTime != null) ? thinkTime : 0,
         think_variance: (thinkVariance != null) ? thinkVariance : 0,
-        move_time: (moveTime != null) ? moveTime : 250,
-        move_variance: (moveVariance != null) ? moveVariance : 100,
+        move_time: (moveTime != null) ? moveTime : 200,
+        move_variance: (moveVariance != null) ? moveVariance : 50,
         computer_evaluation: (computerEval != null) ? computerEval : true,
         threat_analysis: JSON.parse(localStorage.getItem('threat_analysis')) || false,
         simon_says_mode: JSON.parse(localStorage.getItem('simon_says_mode')) || false,
@@ -96,8 +96,8 @@ document.addEventListener('DOMContentLoaded', async function () {
                 return;
             }
             if (last_eval.fen !== fen) {
-                // check BEFORE on_new_pos: the tracker belongs to the position we were analysing
-                const instant = premove_instant_reply(fen);
+                // check BEFORE on_new_pos: chain/tracker belong to the position we were analysing.
+                const instant = premove_instant_reply(fen, moves);
                 on_new_pos(fen, startFen, moves);
                 if (instant) {
                     console.log('Premove: certified instant reply', instant);
@@ -179,7 +179,7 @@ function init_quick_settings() {
     // engine settings need a full engine re-init; reload the popup, it re-reads localStorage
     for (const [id, key, parse] of [
         ['qs_engine', 'engine', v => v],
-        ['qs_fen', 'fen_refresh', v => Math.max(20, parseInt(v) || 20)], // the poll interval is created once at startup
+        ['qs_fen', 'fen_refresh', v => Math.max(10, parseInt(v) || 10)], // the poll interval is created once at startup
         ['qs_threads', 'threads', v => parseInt(v) || 8],
         ['qs_memory', 'memory', v => parseInt(v) || 512],
         ['qs_lines', 'multiple_lines', v => parseInt(v) || 1],
@@ -192,6 +192,15 @@ function init_quick_settings() {
             location.reload();
         });
     }
+    // range sliders show their value in the label while dragging ('change' above still does the
+    // save+reload when the thumb is released)
+    for (const id of ['qs_lines', 'qs_threads', 'qs_memory']) {
+        const slider = document.getElementById(id);
+        const label = document.getElementById(`${id}_val`);
+        if (!slider || !label) continue;
+        label.textContent = slider.value;
+        slider.addEventListener('input', () => { label.textContent = slider.value; });
+    }
 }
 
 async function initialize_engine() {
@@ -203,7 +212,6 @@ async function initialize_engine() {
         'stockfish-18-small-nnue': 'stockfish-18-small/sf_18_smallnet.js',
         'stockfish-17-nnue-79': 'stockfish-17-79/sf17-79.js',
         'stockfish-11-hce': 'stockfish-11-hce/sfhce.js',
-        'lc0': 'lc0/lc0.js',
         'fairy-stockfish-14-nnue': 'fairy-stockfish-14/fsf14.js',
     }
     const enginePath = `/lib/engine/${engineMap[config.engine]}`;
@@ -254,25 +262,9 @@ async function initialize_engine() {
             const nnues = await fetchNnueModels(engine, engineBasePath);
             nnues.forEach((model, i) => engine.setNnueBuffer(new Uint8Array(model), i))
         }
-    } else if (['lc0'].includes(config.engine)) {
-        const lc0Frame = document.createElement('iframe');
-        lc0Frame.src = `${engineBasePath}/lc0.html`;
-        lc0Frame.style.display = 'none';
-        document.body.appendChild(lc0Frame);
-        engine = lc0Frame.contentWindow;
-
-        let poll_startup = true
-        window.onmessage = () => poll_startup = false;
-        while (poll_startup) {
-            await promise_timeout(100);
-        }
-
-        window.onmessage = event => on_engine_response(event.data);
-        let weights = await fetch(`${engineBasePath}/weights/weights_32195.dat.gz`).then(res => res.arrayBuffer());
-        engine.postMessage({type: 'weights', data: {name: 'weights_32195.dat.gz', weights: weights}}, '*');
     }
 
-    if (config.engine === 'remote') {
+    if (is_remote()) {
         request_remote_configure({
             "Hash": config.memory,
             "Threads": config.threads,
@@ -310,9 +302,7 @@ async function fetch_nnue(engineBasePath, nnue) {
 
 function send_engine_uci(message) {
     try {
-        if (config.engine === 'lc0') {
-            engine.postMessage(message, '*');
-        } else if (engine instanceof Worker) {
+        if (engine instanceof Worker) {
             engine.postMessage(message);
         } else if (engine && 'uci' in engine) {
             engine.uci(message);
@@ -346,7 +336,7 @@ function on_engine_error(message) {
 }
 
 function on_engine_best_move(best, threat, isTerminal=false) {
-    if (config.engine === 'remote') {
+    if (is_remote()) {
         last_eval.activeLines = last_eval.lines.length;
     }
 
@@ -464,7 +454,7 @@ function on_engine_evaluation(info) {
 
 function on_engine_response(message) {
     console.log('on_engine_response', message);
-    if (config.engine === 'remote') {
+    if (is_remote()) {
         last_eval = Object.assign(last_eval, message);
         on_engine_evaluation(last_eval);
         on_engine_best_move(last_eval.bestmove, last_eval.threat, true);
@@ -584,18 +574,18 @@ function is_legal_position(fen) {
 // move OTHER than the predicted one: forced moves (no other moves exist) and recaptures/replies
 // bound to the predicted move (anything else makes the premove illegal, and the site silently
 // cancels illegal premoves). Either way it cannot fire in a wrong position.
-function premove_is_safe(pred, reply) {
+function premove_is_safe(fen, pred, reply) {
     const [from, to, promotion] = [reply.slice(0, 2), reply.slice(2, 4), reply[4]];
     let others;
     try {
-        others = new Chess(config.variant, premove_tracker.fen).moves({verbose: true});
+        others = new Chess(config.variant, fen).moves({verbose: true});
     } catch (e) {
         return false;
     }
     for (const move of others) {
         if (`${move.from}${move.to}${move.promotion || ''}` === pred) continue;
         try {
-            const after = new Chess(config.variant, premove_tracker.fen);
+            const after = new Chess(config.variant, fen);
             after.move({from: move.from, to: move.to, promotion: move.promotion});
             after.move({from, to, promotion});
             return false; // the reply is also legal after a different opponent move -> could blunder
@@ -618,7 +608,7 @@ function maybe_premove_forced_reply(line) {
     if (premove_tracker.safe === undefined) {
         // cached per position; certification pins (pred, reply) via the depth-6 snapshot,
         // so at most one pair can ever be checked here per position
-        premove_tracker.safe = premove_is_safe(line.pred, line.reply);
+        premove_tracker.safe = premove_is_safe(premove_tracker.fen, line.pred, line.reply);
     }
     if (!premove_tracker.safe) return;
     premove_tracker.premoved = true;
@@ -626,26 +616,38 @@ function maybe_premove_forced_reply(line) {
     request_automove(line.reply);
 }
 
-function premove_instant_reply(new_fen) {
+function premove_instant_reply(new_fen, new_moves) {
     if (!config.premove || !config.autoplay) return null;
     if (config.help_mode || config.puzzle_mode || config.simon_says_mode) return null;
     if (premove_tracker.premoved) return null; // already queued as a real site premove
     if (!premove_tracker.fen || premove_tracker.fen !== last_eval.fen) return null;
     const mover = (new_fen.split(' ')[1] === 'w') ? 'white' : 'black';
     if (mover !== board.orientation()) return null; // the certified reply must be OUR move
+    let certified = 0;
     for (const idx of [0, 1]) {
         const line = premove_tracker.lines[idx];
         if (!line || line.depth < 10 || !line.d6 || line.d6 !== line.d9 || line.d6 !== line.latest) continue;
         if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(line.reply ?? '')) continue;
-        try {
+        certified++;
+        // primary match: the exact MOVE, per the premove contract -- robust across sites
+        // (fen-string reconstruction proved fragile on some site DOMs)
+        if (premove_tracker.moves && new_moves
+                && new_moves === `${premove_tracker.moves} ${line.pred}`) {
+            return line.reply; // the opponent played exactly the predicted move
+        }
+        try { // fallback for moves-less contexts: apply the prediction and compare positions
             const chess = new Chess(config.variant, premove_tracker.fen);
             chess.move({from: line.pred.slice(0, 2), to: line.pred.slice(2, 4), promotion: line.pred[4]});
             if (chess.fen() === new_fen) {
-                return line.reply; // the opponent played exactly the predicted move
+                return line.reply;
             }
         } catch (e) {
             // predicted move not applicable to this position; fall through to the next line
         }
+    }
+    if (certified) { // diagnostic: we HAD a certified reply and the opponent's move missed it
+        console.log('Premove(WASM): no match for certified line(s)',
+            {tracked: premove_tracker.moves, got: new_moves});
     }
     return null;
 }
@@ -653,10 +655,10 @@ function premove_instant_reply(new_fen) {
 function on_new_pos(fen, startFen, moves) {
     console.log("on_new_pos", fen, startFen, moves);
     if (config.help_mode) request_clear_hint(); // position changed; last hint is stale
-    premove_tracker = {fen: fen, lines: {}}; // certifications belong to exactly one position
+    premove_tracker = {fen: fen, startFen: startFen || fen, moves: moves || '', lines: {}}; // certifications belong to exactly one position
     const search_in_flight = search_active;
     toggle_calculating(true);
-    if (config.engine === 'remote') {
+    if (is_remote()) {
         if (moves) {
             request_remote_analysis(startFen, config.compute_time, moves).then(on_engine_response).catch(on_remote_error);
         } else {
@@ -1074,6 +1076,10 @@ async function request_backend_move(x0, y0, x1, y1) {
     return call_backend('http://localhost:8080/performMove', {x0: x0, y0: y0, x1: x1, y1: y1});
 }
 
+function is_remote() {
+    return config.engine === 'remote';
+}
+
 async function request_remote_configure(options) {
     return call_backend('http://localhost:9090/configure', options).then(parse_backend_json);
 }
@@ -1111,11 +1117,5 @@ async function call_backend(url, data) {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(data)
-    });
-}
-
-function promise_timeout(time) {
-    return new Promise((resolve) => {
-        setTimeout(() => resolve(time), time);
     });
 }

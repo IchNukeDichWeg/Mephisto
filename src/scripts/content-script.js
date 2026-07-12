@@ -9,7 +9,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.0.0'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.0.9'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -81,7 +81,7 @@ function toggleOverlay() {
     const scaledH = Math.round(470 * OVERLAY_SCALE);
     const wrap = document.createElement('div');
     wrap.id = PANEL_OVERLAY_ID;
-    wrap.style.cssText = 'position: fixed; top: 60px; right: 12px; z-index: 2147483646; ' +
+    wrap.style.cssText = 'position: fixed; top: 4px; right: 12px; z-index: 2147483646; ' +
         `width: ${scaledW}px; height: ${24 + scaledH}px; ` +
         'border-radius: 8px; overflow: hidden; background: #f0f0f0; ' +
         'box-shadow: 0 6px 24px rgba(0,0,0,0.45);';
@@ -213,7 +213,11 @@ function scrapePosition() {
     if (config.variant === 'chess') {
         const moveContainer = getMoveContainer();
         if (moveContainer != null) {
-            const customStart = readStartPos(location.href)?.position;
+            // "From Position" custom starts only exist on lichess. DEFAULT_POSITION matches
+            // lichess's scrape order/turn but NOT chess.com's (h8-first, turn 'b' at load), so
+            // on chess.com a normal game's standard start reads as "custom" and corrupts every
+            // scrape (ships startpos + moves that don't apply -> "Invalid move: e3"). Gate to lichess.
+            const customStart = (site === 'lichess') ? readStartPos(location.href)?.position : null;
             if (customStart && customStart !== DEFAULT_POSITION) {
                 // "From Position" game (custom start, e.g. endgame practice vs the AI): the SANs
                 // only make sense from THAT position, so ship it along like the chess960 path does
@@ -649,7 +653,9 @@ function onPositionLoad(retries = 10) {
             if (retries > 0) setTimeout(() => onPositionLoad(retries - 1), 300);
             return;
         }
-        if (position !== DEFAULT_POSITION) { // is non-standard?
+        // only lichess has "From Position" games; caching elsewhere risks a wrong-turn/order
+        // scrape of the standard start being mistaken for a custom position (see scrapePosition)
+        if (site === 'lichess' && position !== DEFAULT_POSITION) { // is non-standard?
             writeStartPos(location.href, {
                 position: position,
                 timestamp: Date.now()

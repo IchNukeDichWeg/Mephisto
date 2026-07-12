@@ -9,5 +9,3 @@ chrome.action.onClicked.addListener(function (tab) {
   if (!tab.id) return;
   chrome.tabs.sendMessage(tab.id, {toggleOverlay: true}, () => void chrome.runtime.lastError);
 });
-
-
