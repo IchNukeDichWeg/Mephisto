@@ -1,5 +1,10 @@
 import {Chess} from '../../lib/chess.js';
 
+// the tab this popup iframe was injected into (passed by the content-script). Everything this popup
+// sends/receives is scoped to THIS tab, so a background tab's popup can't drive the foreground tab
+// or turn on its modes. Null only if opened before the content-script learned its id (falls back).
+const MY_TAB_ID = parseInt(new URLSearchParams(location.search).get('tab'), 10) || null;
+
 let engine;
 let board;
 let fen_cache;
@@ -80,6 +85,10 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     // listen to messages from content-script
     chrome.runtime.onMessage.addListener(function (response, sender) {
+        // the content-script broadcasts (runtime.sendMessage) reach EVERY tab's popup -- ignore any
+        // that came from a different tab's content-script so tabs never cross-talk. (Background
+        // messages have no sender.tab and pass through.)
+        if (MY_TAB_ID && sender.tab && sender.tab.id !== MY_TAB_ID) return;
         if (response.fenresponse) { // reply received -> the poll interval may fire the next request
             fen_request_inflight = false;
             clearTimeout(fen_request_timer);
@@ -856,9 +865,13 @@ function update_best_move(line1, line2) {
 }
 
 function send_to_active_tab(message) {
-    chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
+    // read lastError so "Receiving end does not exist" (no content-script on tab) stays unlogged
+    if (MY_TAB_ID) { // normal path: talk to OUR tab only, even when it's in the background
+        chrome.tabs.sendMessage(MY_TAB_ID, message, () => void chrome.runtime.lastError);
+        return;
+    }
+    chrome.tabs.query({active: true, currentWindow: true}, function (tabs) { // fallback: no tab id yet
         if (!tabs[0]?.id) return;
-        // read lastError so "Receiving end does not exist" (no content-script on tab) stays unlogged
         chrome.tabs.sendMessage(tabs[0].id, message, () => void chrome.runtime.lastError);
     });
 }

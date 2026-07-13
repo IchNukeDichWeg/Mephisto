@@ -2,6 +2,15 @@ let site; // the site that the content-script was loaded on (lichess, chess.com,
 let config; // configuration pulled from popup
 let startPosCache; // cache of non-standard starting positions as puzzle strings (to support chess960)
 let moving = false; // whether the content-script is performing a move
+let mephistoTabId = null; // this tab's id, so the popup iframe talks to ONLY this tab (see below)
+
+// ask the background for our own tab id as early as possible (content-script sender.tab is always
+// populated). The popup iframe uses it to message just this tab instead of the globally-active tab.
+try {
+    chrome.runtime.sendMessage({getTabId: true}, r => {
+        if (!chrome.runtime.lastError) mephistoTabId = r?.tabId ?? null;
+    });
+} catch (e) { /* extension context not ready; popup falls back to active-tab messaging */ }
 
 const LOCAL_CACHE = 'mephisto.startPosCache';
 const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-e8*****b-b-f8*****b-n-g8*****' +
@@ -9,7 +18,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.13'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.14'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -88,6 +97,8 @@ const OVERLAY_SCALE = 0.8; // render the full 548x470 popup, scaled down a notch
 function removeOverlay() {
     document.getElementById(PANEL_OVERLAY_ID)?.remove();
     document.getElementById(RESTORE_BADGE_ID)?.remove();
+    clearEvalBar();   // closing removes the iframe; the board overlays it drew must go too
+    clearHintArrow();
 }
 
 // Minimize = HIDE the panel without tearing it down. The engine + autoplay/premove/help live inside
@@ -137,7 +148,7 @@ function toggleOverlay() {
         '</span>';
 
     const frame = document.createElement('iframe');
-    frame.src = chrome.runtime.getURL('src/popup/popup.html');
+    frame.src = chrome.runtime.getURL('src/popup/popup.html') + (mephistoTabId ? `?tab=${mephistoTabId}` : '');
     frame.style.cssText = 'width: 548px; height: 470px; border: none; display: block; background: #f0f0f0; ' +
         `transform: scale(${OVERLAY_SCALE}); transform-origin: top left;`;
 
