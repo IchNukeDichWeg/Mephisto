@@ -18,7 +18,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.24'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.26'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -37,7 +37,7 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
         return;
     }
     if (response.detectVariant) {
-        sendResponse({variant: detectLichessVariant()});
+        sendResponse({variant: detectVariant()});
         return;
     }
     if (response.queryfen) {
@@ -327,6 +327,18 @@ function drawEvalBar({frac, text, winningWhite}) {
 // Best-effort: read the variant off lichess's game page. The variant name is a link to /variant/<key>
 // (a stable URL, unlike lichess's obfuscated CSS classes). Returns a config.variant value, or null if
 // it can't tell (standard games have no such link) so the caller keeps the current setting.
+// chess.com runs variants at www.chess.com/variants/<slug>/game/<id> with a React "TheBoard"
+// component whose DOM is nothing like the main site's -- own board, move list and piece markup.
+function isChesscomVariants() {
+    return site === 'chesscom' && /\/variants\//.test(location.pathname);
+}
+
+function detectVariant() {
+    if (site === 'lichess') return detectLichessVariant();
+    if (site === 'chesscom') return detectChesscomVariant();
+    return null;
+}
+
 function detectLichessVariant() {
     if (site !== 'lichess') return null;
     const href = document.querySelector('a[href*="/variant/"]')?.getAttribute('href') || '';
@@ -337,6 +349,19 @@ function detectLichessVariant() {
         antichess: 'antichess', horde: 'horde', standard: 'chess',
     };
     return map[key] || null;
+}
+
+// read the Fairy-Stockfish variant key straight out of the chess.com variants URL slug.
+function detectChesscomVariant() {
+    const slug = (location.pathname.match(/\/variants\/([^/]+)/) || [])[1];
+    if (!slug) return null;
+    const map = {
+        '3-check': '3check', 'king-of-the-hill': 'kingofthehill', 'racing-kings': 'racingkings',
+        'crazyhouse': 'crazyhouse', 'atomic': 'atomic', 'horde': 'horde',
+        'antichess': 'antichess', 'giveaway': 'antichess', 'chess960': 'fischerandom',
+        'standard': 'chess',
+    };
+    return map[slug] || map[slug.replace(/-/g, '')] || null;
 }
 
 function tryScrapePosition() {
@@ -406,6 +431,14 @@ function scrapePositionFen() {
     // while the opponent is to reply) -- don't bail to an empty start position then;
     // fall through and scrape ALL moves, which is the current position.
     const selectedMove = getSelectedMoveRecord();
+    if (isChesscomVariants()) {
+        // live variant game: scrape every ply's SAN straight through to the latest move (the
+        // current position). Fairy-Stockfish rebuilds the position from UCI_Variant + these SANs.
+        for (const cell of getMoveRecords()) {
+            res += cell.textContent.trim() + '*****';
+        }
+        return res;
+    }
     if (site === 'chesscom') {
         for (const moveWrapper of getMoveRecords()) {
             const move = moveWrapper.lastElementChild
@@ -489,7 +522,9 @@ function scrapePositionPuz() {
 
 function getOrientation() {
     let orientedBlack = true;
-    if (site === 'chesscom') {
+    if (isChesscomVariants()) {
+        return getChesscomVariantsOrientation();
+    } else if (site === 'chesscom') {
         const topLeftCoord = document.querySelector('.coordinate-light')
             || document.querySelector('.coords-light');
         orientedBlack = topLeftCoord && topLeftCoord.innerHTML === '1';
@@ -501,6 +536,45 @@ function getOrientation() {
         orientedBlack = topLeftCoord && topLeftCoord.classList.contains('black');
     }
     return (orientedBlack) ? 'black' : 'white';
+}
+
+// The chess.com variants board has no coordinate labels or flip class, and piece data-color codes
+// are assigned per-game (5/6/7...), so we can't hardcode "white=N". Classify the two sides
+// RELATIVELY: decode each colour's SVG sprite -- the lighter-filled side is White. The board is
+// White-oriented (a1 bottom-left) when White's pieces sit LOWER on screen (larger translateY).
+// ponytail: relative-lightness heuristic; needs both colours present on the board (true except in
+// near-empty antichess/atomic endgames) -- falls back to 'white' (un-flipped) when it can't tell.
+function getChesscomVariantsOrientation() {
+    const pieces = [...document.querySelectorAll('.piece.BasePiece-component:not([data-dead])')];
+    const groups = {}; // colour code -> {ys:[...], light}
+    for (const p of pieces) {
+        const c = p.getAttribute('data-color');
+        const y = parseFloat((/,\s*(-?\d+(?:\.\d+)?)px/.exec(p.getAttribute('style')) || [0, 0])[1]);
+        (groups[c] || (groups[c] = {ys: [], light: spriteLightness(p)})).ys.push(y);
+    }
+    const sides = Object.values(groups).filter(g => g.light != null);
+    if (sides.length < 2) return 'white';
+    const avgY = g => g.ys.reduce((a, b) => a + b, 0) / g.ys.length;
+    const white = sides.reduce((a, b) => (b.light > a.light ? b : a));
+    const black = sides.reduce((a, b) => (b.light < a.light ? b : a));
+    return (avgY(white) > avgY(black)) ? 'white' : 'black';
+}
+
+// mean luminance of the fill colours in a variants piece's data-URI SVG sprite (0=black..1=white)
+function spriteLightness(piece) {
+    const b64 = getComputedStyle(piece).backgroundImage.match(/base64,([^")]+)/);
+    if (!b64) return null;
+    let svg;
+    try { svg = atob(b64[1]); } catch (e) { return null; }
+    const fills = [...svg.matchAll(/fill\s*[:=]\s*["']?(#[0-9a-fA-F]{3,6})/g)].map(m => m[1]);
+    if (!fills.length) return null;
+    const lum = hex => {
+        hex = hex.slice(1);
+        if (hex.length === 3) hex = [...hex].map(c => c + c).join('');
+        const n = parseInt(hex, 16);
+        return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+    };
+    return fills.map(lum).reduce((a, b) => a + b, 0) / fills.length;
 }
 
 let movingWatchdog = null;
@@ -520,6 +594,7 @@ function toggleMoving() {
 function pullConfig() {
     chrome.runtime.sendMessage({ pullConfig: true });
 }
+
 
 // -------------------------------------------------------------------------------------------
 
@@ -548,6 +623,15 @@ function getSelectedMoveRecord() {
 
 function getMoveRecords() {
     let moves;
+    if (isChesscomVariants()) {
+        // one <div.moves-table-cell.moves-move> per ply, textContent = SAN. Keep only real moves
+        // (a SAN has a destination square, is castling, or a drop like P@e4) so trailing empty
+        // placeholder cells and any result/annotation marker don't get scraped as bogus moves.
+        return Array.from(document.querySelectorAll('.moves-table-cell.moves-move')).filter(el => {
+            const t = el.textContent.trim();
+            return /[a-h][1-8]/.test(t) || /^O-O(-O)?[+#]?$/.test(t);
+        });
+    }
     if (site === 'chesscom') {  // wc-chess-board
         moves = document.querySelectorAll('.node'); // vs player + computer (new)
         if (moves.length === 0) {
@@ -579,7 +663,9 @@ function getMoveRecords() {
 
 function getMoveContainer() {
     let moveContainer;
-    if (site === 'chesscom') {
+    if (isChesscomVariants()) {
+        moveContainer = document.querySelector('.moves-moves-list');
+    } else if (site === 'chesscom') {
         moveContainer = document.querySelector('wc-simple-move-list');
     } else if (site === 'lichess') {
         moveContainer = getLichessMovesApp() // live game (real-time + correspondence)
@@ -691,7 +777,9 @@ function getRanksFiles() {
 
 function getBoard() {
     let board;
-    if (site === 'chesscom') {
+    if (isChesscomVariants()) {
+        board = document.querySelector('.TheBoard-layers');
+    } else if (site === 'chesscom') {
         board = document.querySelector('.board');
     } else if (site === 'lichess') {
         board = document.querySelector('.main-board');
