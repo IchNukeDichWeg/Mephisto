@@ -18,7 +18,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.18'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.19'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -112,8 +112,13 @@ function removeOverlay() {
 // its timers (a cross-origin hidden iframe gets throttled to ~1/s -> laggy autoplay). pointer-events
 // :none makes it click-through so it can't sit over a destination square and eat the autoplay click.
 function minimizeOverlay(wrap) {
+    const frame = wrap.querySelector('iframe');
     wrap.style.opacity = '0';
     wrap.style.pointerEvents = 'none';
+    // set it on the iframe TOO, explicitly: the drag handler's mouseup leaves an inline
+    // pointer-events:auto on the frame, which would override the wrap's inherited 'none' and keep
+    // the invisible panel eating clicks. This makes the whole minimized panel click-through.
+    if (frame) frame.style.pointerEvents = 'none';
     if (document.getElementById(RESTORE_BADGE_ID)) return;
     const badge = document.createElement('div');
     badge.id = RESTORE_BADGE_ID;
@@ -126,6 +131,7 @@ function minimizeOverlay(wrap) {
     badge.addEventListener('click', () => {
         wrap.style.opacity = '1';
         wrap.style.pointerEvents = 'auto';
+        if (frame) frame.style.pointerEvents = 'auto';
         badge.remove();
     });
     document.body.appendChild(badge);
