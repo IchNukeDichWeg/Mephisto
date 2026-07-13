@@ -52,6 +52,21 @@
               data-tooltip="Show a vertical evaluation bar to the left of the game board, with the score shown inside it (chess.com-style).">Eval Bar</span>
         <label><input id="qs_evalbar" type="checkbox"><span class="lever"></span></label>
     </div>
+    <div class="qs-row switch">
+        <span class="qs-label tooltipped" data-position="left"
+              data-tooltip="Play like a human: instant recaptures and forced moves, quick obvious moves, long thinks in critical positions -- and occasionally a second-best move, a mistake, or (rarely) a blunder.">Humanize</span>
+        <label><input id="qs_humanize" type="checkbox"><span class="lever"></span></label>
+    </div>
+    <div class="qs-row switch">
+        <span class="qs-label tooltipped" data-position="left"
+              data-tooltip="Read the game clock off the page and budget every move to it: roughly time/30 plus 60% of the increment, shrinking the engine search too, near-instant when short on time.">Clock Mode</span>
+        <label><input id="qs_clock" type="checkbox"><span class="lever"></span></label>
+    </div>
+    <div class="qs-row switch">
+        <span class="qs-label tooltipped" data-position="left"
+              data-tooltip="Pace to the opponent instead: spend what they spent on their last move, minus 10%, staying just ahead on the clock (30% extra haste when behind). Uses the Clock Mode budget for the first move / when their spend is unknown. Recaptures and forced moves stay instant.">Mirror Time</span>
+        <label><input id="qs_mirror" type="checkbox"><span class="lever"></span></label>
+    </div>
     <div class="qs-row">
         <span class="qs-label">Engine</span>
         <select id="qs_engine" class="browser-default">
@@ -124,7 +139,9 @@
     <div id="chess_line_1">If your chess game is not detected<br>try reloading the page</div>
     <div id="chess_line_2"></div>
 </div>
+<div id="alt-lines" style="display: none"></div>
 <div id="evaluation"></div>
+<div id="next-move"></div>
 </body>
 
 </html>

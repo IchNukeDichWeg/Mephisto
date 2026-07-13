@@ -1,9 +1,9 @@
 html, body {
-    width: 548px; /* 378px left column (14px eval bar + 4px gap + 350px board + margins) + 170px quick settings */
-    height: 510px; /* a touch taller so the quick-settings column fits the Variant row without cramping */
+    width: 568px; /* 378px left column (14px eval bar + 4px gap + 350px board + margins) + 190px quick settings */
+    height: 630px; /* room for the alternative-lines panel under the board + an uncramped settings column */
     overflow: hidden;
     background-color: rgb(240, 240, 240);
-    color: #666666;
+    color: #000; /* stark: pure black in light mode (user: "no grey") */
     font: 20px 'Roboto', sans-serif;
     line-height: 35px;
     text-decoration: none;
@@ -203,8 +203,20 @@ html, body {
 
 /* the left column is 378px wide; without this the centered text spans the full
    body, drifts under the quick-settings panel and collides with the gear button */
-#game-detection, #moves, #evaluation {
+#game-detection, #moves, #evaluation, #next-move {
     width: 378px;
+}
+
+/* analysis text is stark: pure black in light mode, pure white in dark (user: "no grey") */
+#moves, #evaluation, #alt-lines .alt-eval, #alt-lines .alt-moves, #next-move {
+    color: #000;
+}
+
+#next-move {
+    height: 21px;
+    font: 15px 'Roboto', sans-serif;
+    line-height: 21px;
+    margin: 4px 0 0 0;
 }
 
 #eval-bar {
@@ -229,19 +241,44 @@ html, body {
 }
 
 #moves {
-    height: 45px;
-    font: 16px 'Roboto', sans-serif;
-    line-height: 22px;
+    height: 46px;
+    font: 17px 'Roboto', sans-serif;
+    line-height: 23px;
     z-index: 5;
     margin: 10px 0 0 0;
 }
 
 #evaluation {
-    height: 22px;
-    font: 16px 'Roboto', sans-serif;
-    line-height: 22px;
+    height: 23px;
+    font: 17px 'Roboto', sans-serif;
+    line-height: 23px;
     z-index: 5;
-    margin: 15px 0 0 0;
+    margin: 8px 0 0 0;
+}
+
+/* alternative engine lines under the board (visible when Multi Lines > 1);
+   sized so all 5 lines (the slider max) fit WITHOUT scrolling: 5 x 21px < 107px */
+#alt-lines {
+    width: 368px;
+    max-height: 107px;
+    margin: 6px 0 0 5px;
+    padding: 0 4px;
+    overflow-y: hidden;
+    font: 15px 'Roboto', sans-serif;
+    line-height: 21px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+#alt-lines .alt-line {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#alt-lines .alt-eval {
+    display: inline-block;
+    min-width: 52px;
+    font-weight: 600;
 }
 
 #game-detection {
@@ -256,16 +293,16 @@ html, body {
 #config {
     position: absolute;
     bottom: 5px;
-    right: 175px; /* stay inside the left column, clear of the quick-settings panel */
+    right: 195px; /* stay inside the left column, clear of the (190px) quick-settings panel */
 }
 
 #quick-settings {
     position: absolute;
     top: 0;
     right: 0;
-    width: 170px;
+    width: 190px; /* wider than the old 170px so labels + paired inputs breathe */
     height: 100%;
-    padding: 8px 12px;
+    padding: 10px 14px;
     box-sizing: border-box;
     background: #e7e7e7;
     border-left: 1px solid #d0d0d0;
@@ -280,11 +317,11 @@ html, body {
     font-size: 14px;
     font-weight: 500;
     text-align: center;
-    margin-bottom: 5px;
+    margin-bottom: 8px;
 }
 
 #quick-settings .qs-row {
-    margin-bottom: 6px;
+    margin-bottom: 9px;
 }
 
 #quick-settings .qs-row.switch {
@@ -329,7 +366,7 @@ html, body {
     font-size: 15px;
     line-height: 1;
     background: #fff;
-    color: #555;
+    color: #000;
     border: 1px solid #ccc;
     border-radius: 3px;
     cursor: pointer;
@@ -342,7 +379,7 @@ html, body {
     height: 26px;
     font-size: 12px;
     background: #fff;
-    color: #555;
+    color: #000;
     border: 1px solid #ccc;
     border-radius: 3px;
     padding: 0 4px;
@@ -373,23 +410,26 @@ html, body {
 /* Dark mode (toggled in Appearance settings -> class `mephisto-dark` on body) */
 body.mephisto-dark {
     background-color: #16171b; /* deeper slate base */
-    color: #e6e6e9;
+    color: #fff; /* stark: pure white in dark mode (user: "no grey") */
 }
 body.mephisto-dark #moves,
 body.mephisto-dark #evaluation,
 body.mephisto-dark #chess_line_1,
-body.mephisto-dark #chess_line_2 {
-    color: #e6e6e9;
+body.mephisto-dark #chess_line_2,
+body.mephisto-dark #next-move,
+body.mephisto-dark #alt-lines .alt-eval,
+body.mephisto-dark #alt-lines .alt-moves {
+    color: #fff; /* stark, matching the pure-black light mode -- no grey */
 }
 body.mephisto-dark #game-detection {
-    color: #9aa0a6; /* secondary text -- dimmer than body for hierarchy */
+    color: #fff;
 }
 body.mephisto-dark #quick-settings {
     background: #202127;
     border-left-color: #2e2f36;
 }
 body.mephisto-dark #quick-settings .qs-title {
-    color: #f2f2f4;
+    color: #fff;
     border-bottom: 1px solid #2e2f36;
     padding-bottom: 5px;
 }
@@ -397,7 +437,7 @@ body.mephisto-dark #quick-settings select.browser-default,
 body.mephisto-dark #quick-settings input.browser-default,
 body.mephisto-dark #quick-settings #qs_variant_detect {
     background: #16171b;
-    color: #e6e6e9;
+    color: #fff;
     border-color: #34353d;
 }
 body.mephisto-dark #quick-settings #qs_variant_detect:hover { background: #202127; }
@@ -430,3 +470,5 @@ body.mephisto-dark #analyze:hover {
 body.mephisto-dark #eval-bar {
     background: #34353d; /* black's share, lighter than the page so it reads */
 }
+body.mephisto-dark #alt-lines::-webkit-scrollbar { width: 8px; }
+body.mephisto-dark #alt-lines::-webkit-scrollbar-thumb { background: #34353d; border-radius: 4px; }

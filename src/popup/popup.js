@@ -17,6 +17,10 @@ let search_active = false; // a 'go' was issued whose bestmove hasn't arrived ye
 let premove_tracker = {fen: '', lines: {}}; // per-multipv reply stability while the opponent thinks
 let prog = 0;
 let last_eval = {fen: '', activeLines: 0, lines: []};
+let last_clocks = null;   // {mine, theirs, increment, at} scraped off the page (Clock Mode)
+let last_our_eval = null; // our-perspective cp after our previous move (humanize criticality)
+let opp_clock_mark = null; // opponent's clock when their turn started...
+let opp_spend = null;      // ...so their spend on their LAST move = mark - now (Clock Mode mirroring)
 let turn = ''; // 'w' | 'b'
 
 document.addEventListener('DOMContentLoaded', async function () {
@@ -46,6 +50,9 @@ document.addEventListener('DOMContentLoaded', async function () {
         think_variance: (thinkVariance != null) ? thinkVariance : 0,
         move_time: (moveTime != null) ? moveTime : 200,
         move_variance: (moveVariance != null) ? moveVariance : 50,
+        humanize: JSON.parse(localStorage.getItem('humanize')) || false,
+        clock_mode: JSON.parse(localStorage.getItem('clock_mode')) || false,
+        mirror_mode: JSON.parse(localStorage.getItem('mirror_mode')) || false,
         computer_evaluation: (computerEval != null) ? computerEval : true,
         threat_analysis: JSON.parse(localStorage.getItem('threat_analysis')) || false,
         simon_says_mode: JSON.parse(localStorage.getItem('simon_says_mode')) || false,
@@ -92,6 +99,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (response.fenresponse) { // reply received -> the poll interval may fire the next request
             fen_request_inflight = false;
             clearTimeout(fen_request_timer);
+            if (response.clocks) last_clocks = {...response.clocks, at: Date.now()}; // for Clock Mode budgeting
         }
         if (response.fenresponse && response.dom && response.dom !== 'no') {
             if (board.orientation() !== response.orient) {
@@ -112,6 +120,18 @@ document.addEventListener('DOMContentLoaded', async function () {
                 return;
             }
             if (last_eval.fen !== fen) {
+                // Clock Mode mirroring: bookkeep the opponent's clock at turn boundaries. When a
+                // position lands on OUR turn, they just moved -- their spend = their clock at the
+                // start of their turn minus now (they get the increment back after moving). When it
+                // lands on THEIR turn, our move went through -- mark where their clock starts.
+                const ourColor = (board.orientation() === 'white') ? 'w' : 'b';
+                if (turn === ourColor) {
+                    opp_spend = (opp_clock_mark != null && last_clocks?.theirs != null)
+                        ? Math.max(0, opp_clock_mark - last_clocks.theirs + (last_clocks.increment || 0))
+                        : null;
+                } else if (last_clocks?.theirs != null) {
+                    opp_clock_mark = last_clocks.theirs;
+                }
                 // check BEFORE on_new_pos: chain/tracker belong to the position we were analysing.
                 const instant = premove_instant_reply(fen, moves);
                 on_new_pos(fen, startFen, moves);
@@ -175,7 +195,8 @@ function init_quick_settings() {
     // toggles apply live
     for (const [id, key] of [['qs_autoplay', 'autoplay'], ['qs_premove', 'premove'],
                              ['qs_puzzle', 'puzzle_mode'], ['qs_help', 'help_mode'],
-                             ['qs_evalbar', 'eval_bar']]) {
+                             ['qs_evalbar', 'eval_bar'], ['qs_humanize', 'humanize'],
+                             ['qs_clock', 'clock_mode'], ['qs_mirror', 'mirror_mode']]) {
         const elem = document.getElementById(id);
         if (!elem) continue; // stale cached popup.html mid-update; don't let one missing control kill the popup
         elem.checked = config[key];
@@ -184,9 +205,16 @@ function init_quick_settings() {
             save(key, elem.checked);
             if (key === 'help_mode' && !elem.checked) request_clear_hint();
             if (key === 'eval_bar' && !elem.checked) request_clear_eval_bar();
-            if (key === 'help_mode' || key === 'autoplay') {
-                // the go mode (infinite vs movetime) depends on these; abandon the current
-                // search and re-analyse the position under the new mode on the next poll
+            if (key === 'humanize' && !is_remote()) {
+                // humanize picks among alternative lines, so it needs MultiPV headroom;
+                // re-apply and restart the search under the new setting
+                send_engine_uci('stop');
+                send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
+                last_eval.fen = '';
+            }
+            if (key === 'help_mode' || key === 'autoplay' || key === 'clock_mode' || key === 'mirror_mode') {
+                // the go mode (infinite vs movetime) / search budget depends on these; abandon the
+                // current search and re-analyse the position under the new mode on the next push
                 send_engine_uci('stop');
                 last_eval.fen = '';
             }
@@ -219,17 +247,25 @@ function init_quick_settings() {
         if (!elem) continue;
         elem.value = config[key];
         elem.addEventListener('change', () => {
-            // only Fairy-Stockfish plays variants; any other engine forces standard chess so the net
-            // + legality checks stay correct (mirrors the options page's engine/variant coupling).
-            if (key === 'engine' && parse(elem.value) !== 'fairy-stockfish-14-nnue') save('variant', 'chess');
+            // only Fairy-Stockfish plays fairy variants; other engines force standard chess so the
+            // net + legality checks stay correct -- EXCEPT Chess960, which every mainline Stockfish
+            // plays via UCI_Chess960 (sent at engine init), so it survives an engine switch.
+            if (key === 'engine' && parse(elem.value) !== 'fairy-stockfish-14-nnue'
+                && !['chess', 'fischerandom'].includes(config.variant)) save('variant', 'chess');
             save(key, parse(elem.value));
             location.reload();
         });
     }
-    // the Variant selector only matters for Fairy-Stockfish (the one engine that plays variants) --
-    // show it only then. The "detect" button asks the content-script to read the variant off the page.
+    // The Variant selector: full list for Fairy-Stockfish; Standard + Chess960 for everything else
+    // (mainline SF speaks UCI_Chess960). The "detect" button reads the variant off the page.
     const variantRow = document.getElementById('qs_variant_row');
-    if (variantRow) variantRow.style.display = (config.engine === 'fairy-stockfish-14-nnue') ? '' : 'none';
+    if (variantRow) {
+        const fairy = (config.engine === 'fairy-stockfish-14-nnue');
+        variantRow.style.display = '';
+        document.querySelectorAll('#qs_variant option').forEach(o => {
+            o.hidden = !fairy && !['chess', 'fischerandom'].includes(o.value);
+        });
+    }
     const detectBtn = document.getElementById('qs_variant_detect');
     if (detectBtn) {
         detectBtn.addEventListener('click', () => {
@@ -314,6 +350,8 @@ async function initialize_engine() {
 
     if (is_remote()) {
         request_remote_configure({
+            // remote-engine.py skips options the engine doesn't declare, so this is safe everywhere
+            ...(config.variant === 'fischerandom' ? {"UCI_Chess960": true} : {}),
             "Hash": config.memory,
             "Threads": config.threads,
             "MultiPV": config.multiple_lines,
@@ -321,7 +359,7 @@ async function initialize_engine() {
     } else {
         send_engine_uci(`setoption name Hash value ${config.memory}`);
         send_engine_uci(`setoption name Threads value ${config.threads}`);
-        send_engine_uci(`setoption name MultiPV value ${config.multiple_lines}`);
+        send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
         // Chess960: a mainline Stockfish must be told, or it treats the game as standard chess and
         // mishandles castling whenever the king/rooks aren't on their normal files. (Fairy-Stockfish
         // already gets this from its 'fischerandom' UCI_Variant above, so only the SF engines need it.)
@@ -464,7 +502,17 @@ function on_engine_best_move(best, threat, isTerminal=false) {
             // SAFETY: only autoplay a move that actually moves OUR piece and is legal right now.
             // If the turn was mis-scraped we'd otherwise play the opponent's best move as ours.
             if (premove_reply_playable(last_eval.fen, best)) {
-                request_automove(best); // in help mode draw_moves() mirrors all arrows onto the site board instead
+                // humanize: maybe swap in a close alternative + a human-looking think delay;
+                // a clock-aware mode alone still shapes the timing (budget / opponent mirror).
+                // Never in puzzle mode, whose PV playback must follow the engine line exactly.
+                if ((config.humanize || clock_aware()) && !config.puzzle_mode) {
+                    const pick = humanize_pick(best);
+                    if (pick.move !== best) console.log(`Humanize: playing ${pick.move} over ${best}`);
+                    show_next_move_eta(pick.think, pick.source);
+                    request_automove(pick.move, pick.think);
+                } else {
+                    request_automove(best); // in help mode draw_moves() mirrors the arrows instead
+                }
             } else {
                 console.warn('Mephisto: not autoplaying a move that is not ours/legal here:', best);
             }
@@ -516,6 +564,45 @@ function on_engine_evaluation(info) {
     } else {
         update_evaluation(`Score: ${info.lines[0].score / 100.0} at depth ${info.lines[0].depth}`)
     }
+    render_alt_lines();
+}
+
+// pv arrives as a space-joined STRING from the wasm engines but as a LIST of UCI moves from
+// remote-engine.py (it formats python-chess pv arrays) -- normalize before any .split use
+function pv_moves(pv) {
+    return Array.isArray(pv) ? pv.map(String) : (pv || '').split(' ');
+}
+
+// first few moves of a UCI pv as SAN, for the alternative-lines panel
+function san_preview(fen, pv, plies = 6) {
+    const ucis = pv_moves(pv).slice(0, plies);
+    try {
+        const chess = new Chess(config.variant, fen);
+        return ucis.map(u => chess.move({from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4]}).san).join(' ');
+    } catch (e) {
+        return ucis.join(' '); // variant/parse hiccup -> raw UCI is still useful
+    }
+}
+
+// the panel under the board: one row per engine line (eval + start of the line) when the
+// Multi Lines slider asks for more than one; hidden otherwise
+function render_alt_lines() {
+    const panel = document.getElementById('alt-lines');
+    if (!panel) return;
+    if (config.multiple_lines <= 1) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = '';
+    const rows = [];
+    for (let i = 0; i < config.multiple_lines; i++) {
+        const line = last_eval.lines?.[i];
+        if (!line || !line.pv) continue;
+        const evalTxt = ('mate' in line) ? `#${line.mate}` : (line.score / 100).toFixed(2);
+        rows.push(`<div class="alt-line"><span class="alt-eval">${evalTxt}</span> ` +
+            `<span class="alt-moves">${san_preview(last_eval.fen, line.pv)}</span></div>`);
+    }
+    panel.innerHTML = rows.join('');
 }
 
 function on_engine_response(message) {
@@ -594,6 +681,7 @@ function on_engine_response(message) {
             on_engine_evaluation(last_eval);
         } else {
             last_eval.lines[pvIdx] = lineInfo;
+            render_alt_lines(); // alternative lines land AFTER the pv-1 reset; keep the panel current
         }
     }
 
@@ -740,15 +828,22 @@ function premove_instant_reply(new_fen, new_moves) {
 
 function on_new_pos(fen, startFen, moves) {
     console.log("on_new_pos", fen, startFen, moves);
+    clear_next_move_eta(); // the countdown belonged to the position that just changed
     if (config.help_mode) request_clear_hint(); // position changed; last hint is stale
     premove_tracker = {fen: fen, startFen: startFen || fen, moves: moves || '', lines: {}}; // certifications belong to exactly one position
     const search_in_flight = search_active;
     toggle_calculating(true);
+    // clock-aware (Clock Mode / Mirror Time): under time pressure the SEARCH must shrink too --
+    // a 2s movetime with 10s on the clock loses on time no matter how fast the clicks are
+    const clock_budget = clock_budget_ms();
+    const movetime = (clock_budget != null)
+        ? Math.max(50, Math.min(config.compute_time, Math.round(clock_budget * 0.4)))
+        : config.compute_time;
     if (is_remote()) {
         if (moves) {
-            request_remote_analysis(startFen, config.compute_time, moves).then(on_engine_response).catch(on_remote_error);
+            request_remote_analysis(startFen, movetime, moves).then(on_engine_response).catch(on_remote_error);
         } else {
-            request_remote_analysis(fen, config.compute_time).then(on_engine_response).catch(on_remote_error);
+            request_remote_analysis(fen, movetime).then(on_engine_response).catch(on_remote_error);
         }
     } else {
         if (search_in_flight) {
@@ -767,7 +862,7 @@ function on_new_pos(fen, startFen, moves) {
         if (config.help_mode || !config.autoplay) {
             send_engine_uci('go infinite'); // pure analysis: keep deepening until the position changes
         } else {
-            send_engine_uci(`go movetime ${config.compute_time}`); // autoplay needs a final bestmove to act on
+            send_engine_uci(`go movetime ${movetime}`); // autoplay needs a final bestmove to act on
         }
         search_active = true;
     }
@@ -781,7 +876,8 @@ function on_new_pos(fen, startFen, moves) {
             request_console_log('Best Move: ' + last_eval.bestmove);
         }
     }
-    last_eval = {fen, activeLines: 0, lines: new Array(config.multiple_lines)}; // new evaluation
+    last_eval = {fen, activeLines: 0, lines: new Array(config.multiple_lines),
+        lastMove: moves ? moves.trim().split(' ').pop() : null}; // opp's last move (humanize recapture check)
 }
 
 function parse_position_from_response(txt) {
@@ -939,7 +1035,192 @@ function safe_deselect_square(fen, move) {
     return null;
 }
 
-function request_automove(move) {
+// -------------------------------------------------------------------------------------------
+// Humanize + Clock Mode: decide WHAT to play (occasionally a non-best line, capped loss) and
+// HOW LONG to visibly "think" (instant recaptures/forced moves, long thinks on critical
+// positions, everything scaled to the clock when Clock Mode reads one off the page).
+
+function effective_multipv() {
+    // humanize picks among alternatives, so it quietly searches a few extra lines; the DISPLAY
+    // still honours config.multiple_lines
+    return config.humanize ? Math.max(3, config.multiple_lines) : config.multiple_lines;
+}
+
+// Humanize move mix in PERCENT (top/second/third/mistake/blunder, summing to 100), tuned by the
+// five sliders in the options page. Read fresh from localStorage on EVERY pick: the options page
+// and this popup share the extension's localStorage, so changes apply to the very next move --
+// no reload needed. Normalized here so hand-edited storage can't break the roll.
+function humanize_rates() {
+    const get = (key, dflt) => {
+        try {
+            const v = JSON.parse(localStorage.getItem(key));
+            return (v != null && isFinite(+v)) ? Math.max(0, +v) : dflt;
+        } catch (e) {
+            return dflt;
+        }
+    };
+    const r = {
+        top: get('humanize_top', 50),         // the engine's best move
+        second: get('humanize_second', 40),   // second line (unless way worse)
+        third: get('humanize_third', 4),      // third line (unless way worse)
+        mistake: get('humanize_mistake', 5),  // 60-150cp worse
+        blunder: get('humanize_blunder', 1),  // 150-450cp worse, never in decided games
+    };
+    const sum = r.top + r.second + r.third + r.mistake + r.blunder;
+    if (sum > 0) for (const k in r) r[k] = r[k] * 100 / sum;
+    return r;
+}
+
+// our-perspective centipawns for a line whose score/mate are stored white-relative;
+// mates map to huge cp so comparisons Just Work (closer mate = bigger)
+function line_cp_ours(line) {
+    const sign = (turn === 'w') ? 1 : -1;
+    if ('mate' in line) {
+        if (line.mate === 0) return -100000 * sign; // side to move IS mated
+        return sign * Math.sign(line.mate) * (100000 - 1000 * Math.abs(line.mate));
+    }
+    return sign * line.score;
+}
+
+// Clock Mode and Mirror Time are both "clock-aware": either one reads the scraped clock and
+// paces to it. They differ in HOW: Clock Mode budgets from OUR clock (T/30 + 0.6*increment),
+// Mirror Time paces to the OPPONENT's spend (x0.9). Mirror falls back to the budget when their
+// spend hasn't been measured yet, and both share the same low-time safety rails.
+function clock_aware() {
+    return config.clock_mode || config.mirror_mode;
+}
+
+// per-move time budget in ms from the scraped clock, or null when no clock-aware mode is on
+// (or the clock is unreadable). ~T/30 + 60% of the increment, never more than T/8.
+function clock_budget_ms() {
+    if (!clock_aware() || !last_clocks || last_clocks.mine == null) return null;
+    const elapsed = (Date.now() - last_clocks.at) / 1000; // the scrape is a moment old
+    const T = Math.max(1, last_clocks.mine - elapsed);
+    const I = last_clocks.increment || 0;
+    return Math.max(120, Math.min((T / 30 + 0.6 * I) * 1000, T * 1000 / 8));
+}
+
+// {move, think}: which move to actually play, and how long to sit on it first
+function humanize_pick(best) {
+    const fen = last_eval.fen;
+    const lines = (last_eval.lines || []).filter(l => l && l.move && l.pv);
+    const bestLine = lines.find(l => l.move === best) || lines[0];
+    const bestCp = bestLine ? line_cp_ours(bestLine) : 0;
+
+    // reflex moves first: a human ALWAYS bangs out the recapture / the only legal move --
+    // instantly, and without ever "choosing" an alternative
+    const lastOpp = last_eval.lastMove; // opponent's move that produced this position (lan)
+    const recapture = lastOpp && best.slice(2, 4) === lastOpp.slice(2, 4);
+    let forced = false, fullmove = 999;
+    try {
+        const chess = new Chess(config.variant, fen);
+        forced = chess.moves().length === 1;
+        fullmove = parseInt(fen.split(' ')[5]) || 999;
+    } catch (e) { /* variant fen chess.js can't parse -- classification just loses two signals */ }
+
+    // ---- WHAT to play: mostly the best move; sometimes a close second; rarely a real mistake.
+    // (only Humanize deviates -- with Clock Mode alone this function only shapes the timing)
+    let move = best;
+    if (config.humanize && !recapture && !forced
+        && lines.length >= 2 && bestLine && bestCp < 90000 /* never toy with our own mate */) {
+        const playable = (m) => premove_reply_playable(fen, m); // moves OUR piece + legal here
+        const loss = (l) => bestCp - line_cp_ours(l);
+        const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000); // never move INTO mate
+        const rates = humanize_rates(); // move mix percents; live-tunable in the options page
+        const r = Math.random() * 100;
+        // second/third line only when not way worse (>60cp) -- otherwise the roll falls to best
+        const closeEnough = (l) => (l && loss(l) <= 60) ? l : null;
+        let cand = null;
+        if (r < rates.top) {
+            // the best move
+        } else if (r < rates.top + rates.second) {
+            cand = closeEnough(alts[0]);
+        } else if (r < rates.top + rates.second + rates.third) {
+            cand = closeEnough(alts[1]);
+        } else if (r < rates.top + rates.second + rates.third + rates.mistake) {
+            const pool = alts.filter(l => loss(l) > 60 && loss(l) <= 150);
+            cand = pool[Math.floor(Math.random() * pool.length)];
+        } else if (Math.abs(bestCp) < 600) { // blunder share; never in decided games
+            const pool = alts.filter(l => loss(l) > 150 && loss(l) <= 450);
+            cand = pool[Math.floor(Math.random() * pool.length)];
+        }
+        if (cand && playable(cand.move)) move = cand.move;
+    }
+
+    // ---- HOW LONG to think: classify the position, then sample a duration.
+    const second = lines.find(l => l !== bestLine);
+    const gap = second ? bestCp - line_cp_ours(second) : Infinity;
+    const swing = (last_our_eval != null) ? bestCp - last_our_eval : 0;
+    last_our_eval = bestCp;
+
+    let kind;
+    if (recapture || forced) kind = 'instant';
+    else if (gap < 35 && Math.abs(bestCp) < 150) kind = 'long';   // tense: close choices, level game
+    else if (swing < -120) kind = 'long';                          // something went wrong -- "sit up"
+    else if (gap > 250 || fullmove < 8) kind = 'quick';            // obvious move / opening reel-off
+    else kind = 'normal';
+
+    const r = Math.random();
+    let think = {instant: r * 150, quick: 250 + r * 500,
+                 normal: 600 + r * 1400, long: 2000 + r * 4500}[kind];
+
+    // ---- clock pacing (only when a clock-aware toggle is on and a clock was read).
+    // Mirror Time (its own toggle): spend what the opponent spent on their last move, minus 10%,
+    // so our clock tracks theirs while slowly pulling ahead (plus 30% extra haste whenever we're
+    // actually behind on time). Falls back to Clock Mode's T/30 + 0.6*increment budget when their
+    // spend hasn't been measured (first move, unreadable clock) -- and Clock Mode alone uses that
+    // budget always. Reflex moves stay instant regardless, and both paths share the safety rails.
+    // `source` = who decided the timing (priority: reflex > mirror > clock > humanize), for the
+    // "Playing in ..." countdown under the score.
+    let source = (kind === 'instant') ? 'Reflex' : 'Humanize';
+    const budget = clock_budget_ms();
+    if (budget != null) {
+        const T = last_clocks.mine - (Date.now() - last_clocks.at) / 1000;
+        if (config.mirror_mode && kind !== 'instant' && opp_spend != null) {
+            think = opp_spend * 900; // 90% of their spend, in ms
+            if (last_clocks.theirs != null && T < last_clocks.theirs) think *= 0.7;
+            think = Math.min(think, T * 1000 / 8); // never sink an eighth of the clock into one move
+            source = 'Mirror Time';
+        } else {
+            const cap = {instant: think, quick: budget * 0.35, normal: budget, long: budget * 2.5}[kind];
+            think = Math.min(think, cap);
+            if (kind !== 'instant') source = 'Clock Mode';
+        }
+        if (T < 20) think = Math.min(think, 250);
+        if (T < 8) think = 0;
+    }
+    return {move, think: Math.round(think), source};
+}
+
+// "Playing in X.Xs (Mirror Time)" countdown under the score -- shown whenever a pacing mode
+// (mirror/clock/humanize) decided a think delay for the move that is about to be played
+let eta_timer = null;
+
+function show_next_move_eta(thinkMs, source) {
+    const el = document.getElementById('next-move');
+    if (!el) return;
+    clearInterval(eta_timer);
+    const target = Date.now() + (thinkMs || 0);
+    const tick = () => {
+        const left = target - Date.now();
+        if (left <= 50) {
+            el.textContent = `Playing now (${source})`;
+            clearInterval(eta_timer);
+            return;
+        }
+        el.textContent = `Playing in ${(left / 1000).toFixed(1)}s (${source})`;
+    };
+    tick();
+    eta_timer = setInterval(tick, 100);
+}
+
+function clear_next_move_eta() {
+    clearInterval(eta_timer);
+    const el = document.getElementById('next-move');
+    if (el) el.textContent = '';
+}
+
+function request_automove(move, think = null) {
     // Is this a REAL move on our own turn, or a BLIND premove during the opponent's turn? The site
     // queues a blind premove (it won't appear in the move list until they move), so it must NOT be
     // verified/retried; an on-turn move must be. The popup is authoritative here -- decide from the
@@ -950,8 +1231,8 @@ function request_automove(move) {
     const verify = (last_eval.fen?.split(' ')[1] === our);
     const deselect = safe_deselect_square(last_eval.fen, move);
     const message = (config.puzzle_mode)
-        ? {automove: true, pv: last_eval.lines[0]?.pv?.split(' ') || [move], deselect, verify}
-        : {automove: true, move: move, deselect, verify};
+        ? {automove: true, pv: last_eval.lines[0]?.pv ? pv_moves(last_eval.lines[0].pv) : [move], deselect, verify}
+        : {automove: true, move: move, deselect, verify, think};
     send_to_active_tab(message);
 }
 
