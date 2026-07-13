@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     const autoplay = JSON.parse(localStorage.getItem('autoplay'));
     const computerEval = JSON.parse(localStorage.getItem('computer_evaluation'));
     // engines dropped in this version — migrate stale selections to the current default
-    const REMOVED_ENGINES = ['stockfish-6', 'stockfish-16-nnue-40', 'stockfish-16-nnue-7', 'lc0'];
+    const REMOVED_ENGINES = ['stockfish-6', 'stockfish-16-nnue-40', 'stockfish-16-nnue-7', 'lc0', 'stockfish-17-nnue-79'];
     let storedEngine = JSON.parse(localStorage.getItem('engine'));
     if (REMOVED_ENGINES.includes(storedEngine)) storedEngine = null;
     config = {
@@ -256,13 +256,12 @@ async function initialize_engine() {
         'stockfish-dev-nnue': 'stockfish-dev/sf_dev.js',
         'stockfish-18-nnue': 'stockfish-18/sf_18.js',
         'stockfish-18-small-nnue': 'stockfish-18-small/sf_18_smallnet.js',
-        'stockfish-17-nnue-79': 'stockfish-17-79/sf17-79.js',
         'stockfish-11-hce': 'stockfish-11-hce/sfhce.js',
         'fairy-stockfish-14-nnue': 'fairy-stockfish-14/fsf14.js',
     }
     const enginePath = `/lib/engine/${engineMap[config.engine]}`;
     const engineBasePath = enginePath.substring(0, enginePath.lastIndexOf('/'));
-    if (['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue', 'stockfish-17-nnue-79', 'fairy-stockfish-14-nnue', 'stockfish-11-hce'].includes(config.engine)) {
+    if (['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue', 'fairy-stockfish-14-nnue', 'stockfish-11-hce'].includes(config.engine)) {
         if (typeof SharedArrayBuffer === 'undefined') {
             // the stockfish builds are pthread builds; without cross-origin isolation their
             // worker just dies with an opaque "worker sent an error! undefined:undefined"
@@ -373,7 +372,7 @@ function on_engine_error(message) {
     if (engine_restarting) return;
     if (!/RuntimeError|Aborted|worker sent an error/.test(String(message))) return;
     if (engine_restarts >= 3) {
-        // ponytail: cap restarts — a build that keeps trapping (stockfish-17-79 on some machines) shouldn't loop forever
+        // ponytail: cap restarts — a build that keeps trapping (some wasm builds on some machines) shouldn't loop forever
         update_best_move('Engine keeps crashing — pick a different engine in Settings.', '');
         return;
     }

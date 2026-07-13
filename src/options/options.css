@@ -259,18 +259,19 @@ html.dark label,
 html.dark .range-field label,
 html.dark .input-field label { color: #c7c7cb; }
 html.dark .value { color: #ffffff; font-weight: 600; }
-/* give the section cards a subtle border + depth and an accented header underline so it looks
-   like a real dark theme instead of flat grey-on-grey. */
+/* the section cards read as one softly-raised panel via their #2a2a2e background alone -- no border
+   or hard outline (that made them look like a stray boxed-off frame on the page). */
 html.dark .big-section,
 html.dark .card,
 html.dark .card-panel {
-    border: 1px solid #34343a;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    border: none;
+    box-shadow: none;
+    border-radius: 6px;
 }
-html.dark .big-section > h5:first-child {
-    border-bottom: 1px solid #34343a;
-    padding-bottom: 10px;
-}
-/* the range track defaults to a harsh bright line in dark -- tone it down so the teal thumb pops. */
-html.dark input[type=range]::-webkit-slider-runnable-track { background: #45454b; }
+/* the range track is a harsh bright line in dark -- darken it so only the teal thumb stands out.
+   materialize styles it via .range-field, so match that specificity (and !important to win). */
+html.dark .range-field input[type=range]::-webkit-slider-runnable-track,
+html.dark input[type=range]::-webkit-slider-runnable-track { background: #3a3a40 !important; }
+html.dark .range-field input[type=range]::-moz-range-track,
+html.dark input[type=range]::-moz-range-track { background: #3a3a40 !important; }
 html.dark input[type=range] { background: transparent; }
