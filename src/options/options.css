@@ -259,9 +259,15 @@ html.dark label,
 html.dark .range-field label,
 html.dark .input-field label { color: #c7c7cb; }
 html.dark .value { color: #ffffff; font-weight: 600; }
-/* the section cards read as one softly-raised panel via their #2a2a2e background alone -- no border
-   or hard outline (that made them look like a stray boxed-off frame on the page). */
-html.dark .big-section,
+/* settings sections sit FLAT on the page -- no boxed-off card (the #2a2a2e background set above, the
+   border, shadow and rounding are all removed). This is "the stupid box" gone, consistently on every
+   settings page. */
+html.dark .big-section {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+}
 html.dark .card,
 html.dark .card-panel {
     border: none;
@@ -282,6 +288,18 @@ html.dark input[type=range] {
        would otherwise win the background on source order. */
     background: linear-gradient(to right,
         #2bbbad 0%, #2bbbad var(--fill, 0%), #3a3a42 var(--fill, 0%), #3a3a42 100%) !important;
+}
+/* materialize's ::-webkit-slider-runnable-track is a bright 3px line that renders OVER our gradient
+   (that was the leftover white bit past the thumb) -- make it transparent so only our element-background
+   fill shows. */
+html.dark input[type=range]::-webkit-slider-runnable-track {
+    background: transparent !important;
+    border: none !important;
+    height: 5px !important;
+}
+html.dark input[type=range]::-moz-range-track {
+    background: transparent !important;
+    border: none !important;
 }
 html.dark input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none;
