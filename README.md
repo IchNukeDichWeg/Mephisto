@@ -77,6 +77,24 @@ For more information, see [Getting Started](https://github.com/AlexPetrusca/Meph
   actually changes (30 ms debounce, deduped), replacing the old `fen_refresh` polling loop that scraped the
   page up to 100 times per second for the lifetime of the tab. Zero work at idle; the poll survives only as a
   ≥1 s fallback ("Fallback Poll" in the settings).
+- **Humanize**: play like a human, not a perfect engine — instant recaptures and forced moves, quick obvious
+  moves, long thinks in critical positions, and a **tunable move mix** (top move / second line / third line /
+  mistakes / blunders, five sliders in the options page that should sum to 100 — a Total row shows what to add
+  or remove, and edits apply to the very next move). Blunders are capped and never happen in decided games or
+  into a mate.
+- **Clock Mode**: reads the game clock off the page and budgets every move to it (≈ time/30 + 60% of the
+  increment), shrinking the engine search too; near-instant when short on time.
+- **Mirror Time**: paces to the opponent instead — spends what they spent on their last move, minus 10%,
+  staying just ahead on the clock, with extra haste when behind. Falls back to the Clock Mode budget until
+  their first move is measured. All humanize/clock/mirror combinations compose.
+- **Move countdown**: a line under the score shows when and why the next move fires
+  ("Playing in 8.2s (Mirror Time)").
+- **Alternative lines**: with Multi Lines > 1, a panel below the board lists each engine line's eval and
+  opening moves in SAN.
+- **Resizable panel**: drag the bottom-right corner; position and size persist per site.
+- **Chess960 with every engine**: all mainline Stockfish builds play it via `UCI_Chess960`; the variant
+  survives engine switches.
+- **Stark theme**: analysis and settings text is pure black in light mode, pure white in dark mode.
 - New fresh-install defaults: SF dev engine, 300 ms search, 1 s fallback poll, 8 threads, 512 MB hash,
   200 ± 50 ms move time, autoplay off.
 
