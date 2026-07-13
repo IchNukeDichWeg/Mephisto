@@ -18,7 +18,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.26'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.27'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -76,6 +76,11 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
     } else if (response.pushConfig) {
         console.log(response.config);
         config = response.config;
+        // config in hand = we can scrape. Start the event-driven pipeline and sync the panel
+        // immediately (a re-opened panel must not wait for the next board mutation or fallback poll).
+        startPositionObserver();
+        lastPushKey = null; // config may change how we scrape (variant) -> never dedupe across configs
+        schedulePush();
     } else if (response.drawHint) {
         drawHintArrows(response.arrows);
     } else if (response.clearHint) {
@@ -587,7 +592,9 @@ function toggleMoving() {
     // longer than any real move takes -- so scraping always resumes.
     clearTimeout(movingWatchdog);
     if (moving) {
-        movingWatchdog = setTimeout(() => { moving = false; }, 15000);
+        movingWatchdog = setTimeout(() => { moving = false; schedulePush(); }, 15000);
+    } else {
+        schedulePush(); // catch up: board mutations during the automove were suppressed
     }
 }
 
@@ -595,6 +602,68 @@ function pullConfig() {
     chrome.runtime.sendMessage({ pullConfig: true });
 }
 
+// -------------------------------------------------------------------------------------------
+// Event-driven position pipeline. The panel used to learn about position changes by POLLING
+// {queryfen} every fen_refresh ms (10ms default) -- 100 full DOM scrapes + forced layout flushes
+// per second to observe a board that changes a few times a minute, running for the lifetime of
+// the tab. Instead, a MutationObserver PUSHES a scrape to the panel when the page's DOM actually
+// changes: zero work at idle, and detection within one debounce window of the move committing.
+// The {queryfen} poll survives popup-side as a >=1s fallback (heals a missed push), and this
+// pipeline reuses its exact response shape ({dom, orient, fenresponse}), so the panel consumes
+// pushes and poll replies through one code path.
+
+let positionObserver = null;
+let pushDebounce = null;  // pending debounce timer id, or null
+let lastPushKey = null;   // orientation|scrape of the last push, for dedupe
+
+function startPositionObserver() {
+    if (positionObserver) return; // config re-pushes must not stack observers
+    positionObserver = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+            // ignore mutations inside our own injected overlays (panel drag = style mutations at
+            // 60/s, eval bar / hint arrows redraw on every eval) -- they can never change the
+            // scraped position, and reacting to them would turn our own UI into a mutation storm.
+            const t = (m.target instanceof Element) ? m.target : m.target.parentElement;
+            if (t && t.closest('[id^="mephisto-"]')) continue;
+            schedulePush();
+            return;
+        }
+    });
+    positionObserver.observe(document.body, {
+        subtree: true,
+        childList: true,               // moves appended to the move list, pieces added/removed
+        attributes: true,
+        attributeFilter: ['class', 'style'], // piece moves = class/transform changes on both sites
+        // characterData deliberately EXCLUDED: clock ticks are text mutations, every second, forever
+    });
+}
+
+// Debounce: fire one scrape 30ms after the FIRST mutation of a burst (a piece animation is dozens
+// of mutations). Re-arms on later mutations, so a settling burst always ends with one final scrape
+// ~30ms after its LAST mutation; during a continuous burst this samples at most ~33/s, and a
+// mid-animation sample is rejected by the scrapers ('no') without being pushed.
+function schedulePush() {
+    if (pushDebounce) return;
+    pushDebounce = setTimeout(() => {
+        pushDebounce = null;
+        pushPosition();
+    }, 30);
+}
+
+function pushPosition() {
+    if (!config || moving) return; // can't scrape yet / mid-automove (toggleMoving catches up)
+    const res = tryScrapePosition();
+    if (res === 'no') return;      // transient (animating, no board): never push, never dedupe
+    const orient = getOrientation();
+    const key = `${orient}|${res}`;
+    if (key === lastPushKey) return; // the mutation didn't change the position -> panel hears nothing
+    lastPushKey = key;
+    try {
+        chrome.runtime.sendMessage({ dom: res, orient: orient, fenresponse: true });
+    } catch (e) {
+        // extension was reloaded -- this orphaned content-script can't reach it anymore
+    }
+}
 
 // -------------------------------------------------------------------------------------------
 
@@ -1049,7 +1118,10 @@ function simulatePvMoves(pv) {
     async function confirmResponse(move, lastMove) {
         let runtime = 0;
         while (runtime < 10000) { // < 10 seconds
-            runtime += await promiseTimeout(config.fen_refresh);
+            // fixed 50ms cadence: this used to piggyback on config.fen_refresh back when that was
+            // a 10ms poll interval; fen_refresh is now a >=1s fallback poll and would make puzzle
+            // replies crawl (highlight checks are two getBoundingClientRect calls -- cheap).
+            runtime += await promiseTimeout(50);
             try {
                 const observedLastMove = deriveLastMove();
                 if (observedLastMove !== lastMove) {

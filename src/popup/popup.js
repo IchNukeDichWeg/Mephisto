@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         engine: storedEngine || 'stockfish-dev-nnue',
         variant: JSON.parse(localStorage.getItem('variant')) || 'chess',
         compute_time: (computeTime != null) ? computeTime : 300,
-        fen_refresh: (fenRefresh != null) ? fenRefresh : 10,
+        fen_refresh: (fenRefresh != null) ? fenRefresh : 1000, // FALLBACK poll; positions arrive event-driven
         multiple_lines: JSON.parse(localStorage.getItem('multiple_lines')) || 1,
         threads: JSON.parse(localStorage.getItem('threads')) || 8,
         memory: JSON.parse(localStorage.getItem('memory')) || 512,
@@ -137,11 +137,14 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
     });
 
-    // query fen periodically from content-script
+    // FALLBACK poll only: the content-script pushes positions event-driven (MutationObserver);
+    // this slow poll just heals a missed push (e.g. a mutation the observer filter skipped).
+    // Clamped to >=1s so a legacy saved fen_refresh (10ms era) can't reinstate the old
+    // 100-scrapes-a-second polling stampede.
     request_fen();
     setInterval(function () {
         request_fen();
-    }, config.fen_refresh);
+    }, Math.max(1000, config.fen_refresh));
 
     // register button click listeners
     document.getElementById('analyze').addEventListener('click', () => {
@@ -207,7 +210,7 @@ function init_quick_settings() {
     for (const [id, key, parse] of [
         ['qs_engine', 'engine', v => v],
         ['qs_variant', 'variant', v => v],
-        ['qs_fen', 'fen_refresh', v => Math.max(10, parseInt(v) || 10)], // the poll interval is created once at startup
+        ['qs_fen', 'fen_refresh', v => Math.max(1000, parseInt(v) || 1000)], // fallback poll, floor 1s (see interval clamp)
         ['qs_threads', 'threads', v => parseInt(v) || 8],
         ['qs_memory', 'memory', v => parseInt(v) || 512],
         ['qs_lines', 'multiple_lines', v => parseInt(v) || 1],
