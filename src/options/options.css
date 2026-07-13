@@ -268,10 +268,8 @@ html.dark .card-panel {
     box-shadow: none;
     border-radius: 6px;
 }
-/* the range track is a harsh bright line in dark -- darken it so only the teal thumb stands out.
-   materialize styles it via .range-field, so match that specificity (and !important to win). */
-html.dark .range-field input[type=range]::-webkit-slider-runnable-track,
-html.dark input[type=range]::-webkit-slider-runnable-track { background: #3a3a40 !important; }
-html.dark .range-field input[type=range]::-moz-range-track,
-html.dark input[type=range]::-moz-range-track { background: #3a3a40 !important; }
-html.dark input[type=range] { background: transparent; }
+/* the harsh white slider "track" is actually a 1px solid WHITE border materialize puts on the range
+   ELEMENT itself (input[type=range]{border:1px solid white}) -- NOT the ::track pseudo (that's
+   transparent, so overriding it does nothing). Recolour the border to a subtle dark line so only the
+   teal thumb stands out. */
+html.dark input[type=range] { background: transparent; border-color: #45454b; }
