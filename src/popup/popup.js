@@ -301,6 +301,12 @@ async function initialize_engine() {
         send_engine_uci(`setoption name Hash value ${config.memory}`);
         send_engine_uci(`setoption name Threads value ${config.threads}`);
         send_engine_uci(`setoption name MultiPV value ${config.multiple_lines}`);
+        // Chess960: a mainline Stockfish must be told, or it treats the game as standard chess and
+        // mishandles castling whenever the king/rooks aren't on their normal files. (Fairy-Stockfish
+        // already gets this from its 'fischerandom' UCI_Variant above, so only the SF engines need it.)
+        if (config.variant === 'fischerandom' && config.engine !== 'fairy-stockfish-14-nnue') {
+            send_engine_uci('setoption name UCI_Chess960 value true');
+        }
         send_engine_uci('ucinewgame');
         send_engine_uci('isready');
     }
