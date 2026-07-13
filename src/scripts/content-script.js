@@ -9,7 +9,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.6'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.7'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -54,7 +54,7 @@ chrome.runtime.onMessage.addListener(response => {
                 simulatePvMoves(response.pv).finally(toggleMoving);
             } else {
                 console.log(response.move);
-                simulateMoveVerified(response.move).finally(toggleMoving);
+                simulateMoveVerified(response.move, response.deselect).finally(toggleMoving);
             }
         } catch (e) {
             toggleMoving(); // a sync throw (e.g. board vanished) must not leave `moving` stuck true
@@ -719,7 +719,7 @@ function simulateClickSquare(bounds, range = 0.8) {
     dispatchSimulateClick(x, y);
 }
 
-function simulateMove(move) {
+function simulateMove(move, deselect) {
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
         console.warn(`Mephisto: refusing to play invalid move '${move}'`); // e.g. '(none)' or a crazyhouse drop
         return Promise.resolve();
@@ -744,6 +744,13 @@ function simulateMove(move) {
     }
 
     async function performSimulatedMoveClicks() {
+        // clear any stale selection first (a piece left selected by a prior failed click would be
+        // DESELECTED by our from-click, making the move a no-op). `deselect` is an empty square the
+        // moving piece can't reach, so clicking it only ever deselects -- never moves anything.
+        if (/^[a-h][1-8]$/.test(deselect ?? '')) {
+            simulateClickSquare(getBoundsFromCoords(deselect));
+            await promiseTimeout(60);
+        }
         simulateClickSquare(getBoundsFromCoords(move.substring(0, 2)));
         await promiseTimeout(getMoveTime());
         simulateClickSquare(getBoundsFromCoords(move.substring(2)));
@@ -776,22 +783,22 @@ function isOurTurn() {
 // checking the move list actually grew; if not, retry. The move-count check is safe from
 // double-moving: if a move was played (count went up) we treat it as success even if the
 // opponent has already replied, so we never re-fire a move into a changed position.
-async function simulateMoveVerified(move, retries = 2) {
+async function simulateMoveVerified(move, deselect, retries = 2) {
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
-        return simulateMove(move); // invalid -> simulateMove logs + no-ops
+        return simulateMove(move, deselect); // invalid -> simulateMove logs + no-ops
     }
     // A move clicked while it is NOT our turn is a PREMOVE: the site queues it and it won't appear
     // in the move list until the opponent moves. Verifying/retrying it would re-click and clobber
     // the queued premove -- so only verify moves played on our own turn.
-    if (!isOurTurn()) return simulateMove(move);
+    if (!isOurTurn()) return simulateMove(move, deselect);
     const before = getMoveRecords()?.length ?? 0;
-    await simulateMove(move);
+    await simulateMove(move, deselect);
     await promiseTimeout(250); // give the site time to register the move + start its animation
     const after = getMoveRecords()?.length ?? 0;
     if (after > before) return; // a move was played -> success
     if (retries > 0) {
         console.warn(`Mephisto: move '${move}' did not register, retrying (${retries} left)`);
-        return simulateMoveVerified(move, retries - 1);
+        return simulateMoveVerified(move, deselect, retries - 1);
     }
     console.warn(`Mephisto: move '${move}' failed to register after retries`);
 }

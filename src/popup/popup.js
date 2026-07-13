@@ -422,7 +422,13 @@ function on_engine_best_move(best, threat, isTerminal=false) {
             }
         }
         if (!config.help_mode && config.autoplay && isTerminal) {
-            request_automove(best); // in help mode draw_moves() mirrors all arrows onto the site board instead
+            // SAFETY: only autoplay a move that actually moves OUR piece and is legal right now.
+            // If the turn was mis-scraped we'd otherwise play the opponent's best move as ours.
+            if (premove_reply_playable(last_eval.fen, best)) {
+                request_automove(best); // in help mode draw_moves() mirrors all arrows onto the site board instead
+            } else {
+                console.warn('Mephisto: not autoplaying a move that is not ours/legal here:', best);
+            }
         }
     }
 
@@ -867,10 +873,33 @@ function request_fen() {
     send_to_active_tab({queryfen: true});
 }
 
+// An empty square that the moving piece CANNOT legally reach -- clicking it first clears any
+// stale board selection (e.g. a piece left selected by a failed click) without risking an
+// accidental move (a random empty square might be a legal destination and would move the piece).
+function safe_deselect_square(fen, move) {
+    if (!/^[a-h][1-8][a-h][1-8]/.test(move ?? '')) return null;
+    try {
+        const chess = new Chess(config.variant, fen);
+        const from = move.slice(0, 2), to = move.slice(2, 4);
+        const dests = new Set(chess.moves({square: from, verbose: true}).map(m => m.to));
+        for (const f of 'abcdefgh') {
+            for (const r of '12345678') {
+                const sq = f + r;
+                if (sq === from || sq === to) continue;
+                if (chess.get(sq)) continue;   // occupied
+                if (dests.has(sq)) continue;   // a legal destination -> clicking it could move the piece
+                return sq;
+            }
+        }
+    } catch (e) { /* bad fen -> no deselect */ }
+    return null;
+}
+
 function request_automove(move) {
+    const deselect = safe_deselect_square(last_eval.fen, move);
     const message = (config.puzzle_mode)
-        ? {automove: true, pv: last_eval.lines[0]?.pv?.split(' ') || [move]}
-        : {automove: true, move: move};
+        ? {automove: true, pv: last_eval.lines[0]?.pv?.split(' ') || [move], deselect}
+        : {automove: true, move: move, deselect};
     send_to_active_tab(message);
 }
 
