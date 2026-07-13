@@ -18,7 +18,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.14'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.15'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -101,13 +101,15 @@ function removeOverlay() {
     clearHintArrow();
 }
 
-// Minimize = HIDE the panel without tearing it down. The engine + autoplay/premove/help live inside
-// the iframe, so we keep it in the DOM and running (visibility:hidden leaves it rendered at full
-// speed -- unlike display:none, no background-timer throttling) and just make it invisible. Bonus:
-// a hidden panel is skipped in hit-testing, so it can no longer sit over a destination square and
-// eat the autoplay click (clicks are dispatched at screen coords, whatever is topmost gets them).
+// Minimize = HIDE the panel without tearing it down, so the engine + autoplay/premove/help keep
+// running exactly as if it were open (closing with X, which removes the iframe, is what STOPS
+// everything). We use opacity:0 + pointer-events:none rather than visibility:hidden/display:none:
+// the frame stays full-size and in the viewport so Chrome treats it as VISIBLE and never throttles
+// its timers (a cross-origin hidden iframe gets throttled to ~1/s -> laggy autoplay). pointer-events
+// :none makes it click-through so it can't sit over a destination square and eat the autoplay click.
 function minimizeOverlay(wrap) {
-    wrap.style.visibility = 'hidden';
+    wrap.style.opacity = '0';
+    wrap.style.pointerEvents = 'none';
     if (document.getElementById(RESTORE_BADGE_ID)) return;
     const badge = document.createElement('div');
     badge.id = RESTORE_BADGE_ID;
@@ -117,7 +119,11 @@ function minimizeOverlay(wrap) {
         'width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; ' +
         'justify-content: center; cursor: pointer; background: #2d2d2d; color: #eee; ' +
         'font-size: 22px; line-height: 1; box-shadow: 0 3px 12px rgba(0,0,0,0.5); user-select: none;';
-    badge.addEventListener('click', () => { wrap.style.visibility = 'visible'; badge.remove(); });
+    badge.addEventListener('click', () => {
+        wrap.style.opacity = '1';
+        wrap.style.pointerEvents = 'auto';
+        badge.remove();
+    });
     document.body.appendChild(badge);
 }
 

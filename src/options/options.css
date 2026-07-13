@@ -251,3 +251,26 @@ html.dark .docs-footer { background-color: #232326; }
 html.dark .docs-footer .footer-copyright { color: #9a9a9d; }
 html.dark a { color: #ec8b8f; }
 html.dark .btn { background-color: #3a3a3f; }
+html.dark .btn:hover { background-color: #45454b; }
+/* plain field labels ("Search Time", "Threads", "Pieces:", ...) inherit materialize's dim grey and
+   are unreadable on the dark panel -- lift them, and make the live slider numbers WHITE so "(6)",
+   "(128 MB)", "(1)" actually read. */
+html.dark label,
+html.dark .range-field label,
+html.dark .input-field label { color: #c7c7cb; }
+html.dark .value { color: #ffffff; font-weight: 600; }
+/* give the section cards a subtle border + depth and an accented header underline so it looks
+   like a real dark theme instead of flat grey-on-grey. */
+html.dark .big-section,
+html.dark .card,
+html.dark .card-panel {
+    border: 1px solid #34343a;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+html.dark .big-section > h5:first-child {
+    border-bottom: 1px solid #34343a;
+    padding-bottom: 10px;
+}
+/* the range track defaults to a harsh bright line in dark -- tone it down so the teal thumb pops. */
+html.dark input[type=range]::-webkit-slider-runnable-track { background: #45454b; }
+html.dark input[type=range] { background: transparent; }
