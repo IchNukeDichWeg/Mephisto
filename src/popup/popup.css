@@ -1,6 +1,6 @@
 html, body {
     width: 548px; /* 378px left column (14px eval bar + 4px gap + 350px board + margins) + 170px quick settings */
-    height: 470px;
+    height: 510px; /* a touch taller so the quick-settings column fits the Variant row without cramping */
     overflow: hidden;
     background-color: rgb(240, 240, 240);
     color: #666666;
@@ -316,6 +316,26 @@ html, body {
     min-width: 0;
 }
 
+/* Variant row: the select flexes, the "detect" button is a fixed square beside it */
+#quick-settings #qs_variant {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+#quick-settings #qs_variant_detect {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 26px;
+    padding: 0;
+    font-size: 15px;
+    line-height: 1;
+    background: #fff;
+    color: #555;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    cursor: pointer;
+}
+#quick-settings #qs_variant_detect:hover { background: #f0f0f0; }
+
 #quick-settings select.browser-default,
 #quick-settings input.browser-default {
     width: 100%;
@@ -374,11 +394,13 @@ body.mephisto-dark #quick-settings .qs-title {
     padding-bottom: 5px;
 }
 body.mephisto-dark #quick-settings select.browser-default,
-body.mephisto-dark #quick-settings input.browser-default {
+body.mephisto-dark #quick-settings input.browser-default,
+body.mephisto-dark #quick-settings #qs_variant_detect {
     background: #16171b;
     color: #e6e6e9;
     border-color: #34353d;
 }
+body.mephisto-dark #quick-settings #qs_variant_detect:hover { background: #202127; }
 body.mephisto-dark #quick-settings select.browser-default:focus,
 body.mephisto-dark #quick-settings input.browser-default:focus {
     border-color: #26a69a; /* teal accent on focus */

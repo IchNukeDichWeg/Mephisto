@@ -206,6 +206,7 @@ function init_quick_settings() {
     // engine settings need a full engine re-init; reload the popup, it re-reads localStorage
     for (const [id, key, parse] of [
         ['qs_engine', 'engine', v => v],
+        ['qs_variant', 'variant', v => v],
         ['qs_fen', 'fen_refresh', v => Math.max(10, parseInt(v) || 10)], // the poll interval is created once at startup
         ['qs_threads', 'threads', v => parseInt(v) || 8],
         ['qs_memory', 'memory', v => parseInt(v) || 512],
@@ -215,8 +216,26 @@ function init_quick_settings() {
         if (!elem) continue;
         elem.value = config[key];
         elem.addEventListener('change', () => {
+            // only Fairy-Stockfish plays variants; any other engine forces standard chess so the net
+            // + legality checks stay correct (mirrors the options page's engine/variant coupling).
+            if (key === 'engine' && parse(elem.value) !== 'fairy-stockfish-14-nnue') save('variant', 'chess');
             save(key, parse(elem.value));
             location.reload();
+        });
+    }
+    // the Variant selector only matters for Fairy-Stockfish (the one engine that plays variants) --
+    // show it only then. The "detect" button asks the content-script to read the variant off the page.
+    const variantRow = document.getElementById('qs_variant_row');
+    if (variantRow) variantRow.style.display = (config.engine === 'fairy-stockfish-14-nnue') ? '' : 'none';
+    const detectBtn = document.getElementById('qs_variant_detect');
+    if (detectBtn) {
+        detectBtn.addEventListener('click', () => {
+            detectBtn.disabled = true;
+            request_detect_variant(v => {
+                detectBtn.disabled = false;
+                if (v) { save('variant', v); location.reload(); }        // detected -> reload into it
+                else { detectBtn.textContent = '?'; setTimeout(() => { detectBtn.textContent = '↻'; }, 1200); }
+            });
         });
     }
     // range sliders show their value in the label while dragging ('change' above still does the
@@ -944,6 +963,15 @@ function request_draw_hint(arrows) {
 
 function request_clear_hint() {
     send_to_active_tab({clearHint: true});
+}
+
+// ask the content-script to read the variant off the current game page; cb(variant | null)
+function request_detect_variant(cb) {
+    const ask = tabId => chrome.tabs.sendMessage(tabId, {detectVariant: true}, resp => {
+        cb(chrome.runtime.lastError ? null : ((resp && resp.variant) || null));
+    });
+    if (MY_TAB_ID) return ask(MY_TAB_ID);
+    chrome.tabs.query({active: true, currentWindow: true}, tabs => (tabs[0] && tabs[0].id) && ask(tabs[0].id));
 }
 
 function request_draw_eval_bar(data) {

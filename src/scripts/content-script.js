@@ -18,7 +18,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.16'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.17'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -31,9 +31,13 @@ window.onload = () => {
     determineStartPosition();
 };
 
-chrome.runtime.onMessage.addListener(response => {
+chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
     if (response.toggleOverlay) {
         toggleOverlay();
+        return;
+    }
+    if (response.detectVariant) {
+        sendResponse({variant: detectLichessVariant()});
         return;
     }
     if (response.queryfen) {
@@ -92,7 +96,7 @@ chrome.runtime.onMessage.addListener(response => {
 
 const PANEL_OVERLAY_ID = 'mephisto-overlay';
 const RESTORE_BADGE_ID = 'mephisto-restore-badge';
-const OVERLAY_SCALE = 0.8; // render the full 548x470 popup, scaled down a notch
+const OVERLAY_SCALE = 0.8; // render the full 548x510 popup, scaled down a notch
 
 function removeOverlay() {
     document.getElementById(PANEL_OVERLAY_ID)?.remove();
@@ -133,7 +137,7 @@ function toggleOverlay() {
         return;
     }
     const scaledW = Math.round(548 * OVERLAY_SCALE);
-    const scaledH = Math.round(470 * OVERLAY_SCALE);
+    const scaledH = Math.round(510 * OVERLAY_SCALE);
     const wrap = document.createElement('div');
     wrap.id = PANEL_OVERLAY_ID;
     wrap.style.cssText = 'position: fixed; top: 4px; right: 0; z-index: 2147483646; ' +
@@ -155,7 +159,7 @@ function toggleOverlay() {
 
     const frame = document.createElement('iframe');
     frame.src = chrome.runtime.getURL('src/popup/popup.html') + (mephistoTabId ? `?tab=${mephistoTabId}` : '');
-    frame.style.cssText = 'width: 548px; height: 470px; border: none; display: block; background: #f0f0f0; ' +
+    frame.style.cssText = 'width: 548px; height: 510px; border: none; display: block; background: #f0f0f0; ' +
         `transform: scale(${OVERLAY_SCALE}); transform-origin: top left;`;
 
     wrap.append(bar, frame);
@@ -312,6 +316,21 @@ function drawEvalBar({frac, text, winningWhite}) {
     num.style.top = numAtBottom ? 'auto' : '2px';
     num.style.bottom = numAtBottom ? '2px' : 'auto';
     num.style.color = winningWhite ? '#403d39' : '#f0f0f0';
+}
+
+// Best-effort: read the variant off lichess's game page. The variant name is a link to /variant/<key>
+// (a stable URL, unlike lichess's obfuscated CSS classes). Returns a config.variant value, or null if
+// it can't tell (standard games have no such link) so the caller keeps the current setting.
+function detectLichessVariant() {
+    if (site !== 'lichess') return null;
+    const href = document.querySelector('a[href*="/variant/"]')?.getAttribute('href') || '';
+    const key = (href.match(/\/variant\/(\w+)/) || [])[1];
+    const map = {
+        threeCheck: '3check', kingOfTheHill: 'kingofthehill', racingKings: 'racingkings',
+        chess960: 'fischerandom', crazyhouse: 'crazyhouse', atomic: 'atomic',
+        antichess: 'antichess', horde: 'horde', standard: 'chess',
+    };
+    return map[key] || null;
 }
 
 function tryScrapePosition() {
