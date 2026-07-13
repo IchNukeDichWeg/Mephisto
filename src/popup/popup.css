@@ -352,29 +352,59 @@ html, body {
 /* --------------------------------------------------------------------------- */
 /* Dark mode (toggled in Appearance settings -> class `mephisto-dark` on body) */
 body.mephisto-dark {
-    background-color: #1f1f22;
-    color: #d8d8db;
+    background-color: #16171b; /* deeper slate base */
+    color: #e6e6e9;
 }
-body.mephisto-dark #game-detection,
 body.mephisto-dark #moves,
 body.mephisto-dark #evaluation,
 body.mephisto-dark #chess_line_1,
 body.mephisto-dark #chess_line_2 {
-    color: #d8d8db;
+    color: #e6e6e9;
+}
+body.mephisto-dark #game-detection {
+    color: #9aa0a6; /* secondary text -- dimmer than body for hierarchy */
 }
 body.mephisto-dark #quick-settings {
-    background: #2a2a2e;
-    border-left-color: #3a3a3f;
+    background: #202127;
+    border-left-color: #2e2f36;
+}
+body.mephisto-dark #quick-settings .qs-title {
+    color: #f2f2f4;
+    border-bottom: 1px solid #2e2f36;
+    padding-bottom: 5px;
 }
 body.mephisto-dark #quick-settings select.browser-default,
 body.mephisto-dark #quick-settings input.browser-default {
-    background: #1f1f22;
-    color: #d8d8db;
-    border-color: #4a4a4f;
+    background: #16171b;
+    color: #e6e6e9;
+    border-color: #34353d;
+}
+body.mephisto-dark #quick-settings select.browser-default:focus,
+body.mephisto-dark #quick-settings input.browser-default:focus {
+    border-color: #26a69a; /* teal accent on focus */
+    outline: none;
 }
 body.mephisto-dark #quick-settings input[type=range].browser-default {
     background: transparent;
 }
+/* dark, slim scrollbar for the settings panel (default is a bright light bar) */
+body.mephisto-dark #quick-settings::-webkit-scrollbar {
+    width: 8px;
+}
+body.mephisto-dark #quick-settings::-webkit-scrollbar-thumb {
+    background: #34353d;
+    border-radius: 4px;
+}
+/* flatten the two floating action buttons so they sit in the theme instead of glowing teal */
+body.mephisto-dark #config,
+body.mephisto-dark #analyze {
+    background-color: #2a2b31;
+    box-shadow: none;
+}
+body.mephisto-dark #config:hover,
+body.mephisto-dark #analyze:hover {
+    background-color: #363740;
+}
 body.mephisto-dark #eval-bar {
-    background: #4a4a4f; /* black's share, lighter than the page so it reads */
+    background: #34353d; /* black's share, lighter than the page so it reads */
 }

@@ -9,7 +9,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.11'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.12'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -78,12 +78,37 @@ chrome.runtime.onMessage.addListener(response => {
 // Unlike the anchored popup it can be moved anywhere and stays open while you play.
 
 const PANEL_OVERLAY_ID = 'mephisto-overlay';
+const RESTORE_BADGE_ID = 'mephisto-restore-badge';
 const OVERLAY_SCALE = 0.8; // render the full 548x470 popup, scaled down a notch
 
+function removeOverlay() {
+    document.getElementById(PANEL_OVERLAY_ID)?.remove();
+    document.getElementById(RESTORE_BADGE_ID)?.remove();
+}
+
+// Minimize = HIDE the panel without tearing it down. The engine + autoplay/premove/help live inside
+// the iframe, so we keep it in the DOM and running (visibility:hidden leaves it rendered at full
+// speed -- unlike display:none, no background-timer throttling) and just make it invisible. Bonus:
+// a hidden panel is skipped in hit-testing, so it can no longer sit over a destination square and
+// eat the autoplay click (clicks are dispatched at screen coords, whatever is topmost gets them).
+function minimizeOverlay(wrap) {
+    wrap.style.visibility = 'hidden';
+    if (document.getElementById(RESTORE_BADGE_ID)) return;
+    const badge = document.createElement('div');
+    badge.id = RESTORE_BADGE_ID;
+    badge.title = 'Restore Mephisto (autoplay is still running)';
+    badge.textContent = '♞'; // ♞
+    badge.style.cssText = 'position: fixed; top: 4px; right: 4px; z-index: 2147483646; ' +
+        'width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; ' +
+        'justify-content: center; cursor: pointer; background: #2d2d2d; color: #eee; ' +
+        'font-size: 22px; line-height: 1; box-shadow: 0 3px 12px rgba(0,0,0,0.5); user-select: none;';
+    badge.addEventListener('click', () => { wrap.style.visibility = 'visible'; badge.remove(); });
+    document.body.appendChild(badge);
+}
+
 function toggleOverlay() {
-    const existing = document.getElementById(PANEL_OVERLAY_ID);
-    if (existing) {
-        existing.remove();
+    if (document.getElementById(PANEL_OVERLAY_ID)) {
+        removeOverlay();
         return;
     }
     const scaledW = Math.round(548 * OVERLAY_SCALE);
@@ -99,7 +124,13 @@ function toggleOverlay() {
     bar.style.cssText = 'height: 24px; background: #2d2d2d; color: #ddd; display: flex; ' +
         'align-items: center; justify-content: space-between; padding: 0 10px; ' +
         'font: 12px Roboto, sans-serif; cursor: move; user-select: none;';
-    bar.innerHTML = '<span>Mephisto</span><span class="mephisto-overlay-close" style="cursor: pointer; padding: 0 4px; font-size: 14px;">✕</span>';
+    bar.innerHTML = '<span>Mephisto</span>' +
+        '<span style="display: flex; align-items: center; gap: 2px;">' +
+        '<span class="mephisto-overlay-min" title="Minimize (autoplay keeps running)" ' +
+        'style="cursor: pointer; padding: 0 6px; font-size: 18px; line-height: 1;">–</span>' +
+        '<span class="mephisto-overlay-close" title="Close" ' +
+        'style="cursor: pointer; padding: 0 4px; font-size: 14px;">✕</span>' +
+        '</span>';
 
     const frame = document.createElement('iframe');
     frame.src = chrome.runtime.getURL('src/popup/popup.html');
@@ -108,12 +139,14 @@ function toggleOverlay() {
 
     wrap.append(bar, frame);
     document.body.appendChild(wrap);
-    bar.querySelector('.mephisto-overlay-close').addEventListener('click', () => wrap.remove());
+    bar.querySelector('.mephisto-overlay-close').addEventListener('click', removeOverlay);
+    bar.querySelector('.mephisto-overlay-min').addEventListener('click', () => minimizeOverlay(wrap));
 
     // drag by the title bar; the iframe must not eat mousemove while dragging
     let dragFromX, dragFromY, startLeft, startTop, dragging = false;
     bar.addEventListener('mousedown', e => {
         if (e.target.classList.contains('mephisto-overlay-close')) return;
+        if (e.target.classList.contains('mephisto-overlay-min')) return;
         dragging = true;
         frame.style.pointerEvents = 'none';
         const rect = wrap.getBoundingClientRect();
