@@ -18,3 +18,41 @@
 .offset-right-m1 {
     margin-right: 8.3333333333%;
 }
+
+/* Humanize move mix: label | slider | number, one row per outcome; the five always sum to 100 */
+#humanize-mix .mix-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+#humanize-mix .mix-label {
+    flex: 0 0 90px;
+    font-size: 14px;
+}
+
+#humanize-mix .range-field {
+    flex: 1 1 auto;
+    margin: 0;
+}
+
+#humanize-mix input[type=number] {
+    flex: 0 0 64px;
+    height: 32px;
+    margin: 0;
+    text-align: center;
+}
+
+/* Total row: sum of the five values; "90 (-10)" = add 10 somewhere, "110 (+10)" = remove 10 */
+#humanize-mix .mix-total-row {
+    margin-top: 6px;
+}
+
+#humanize_mix_total {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+#humanize_mix_total.ok { color: #26a69a; }
+#humanize_mix_total.off { color: #e57373; }

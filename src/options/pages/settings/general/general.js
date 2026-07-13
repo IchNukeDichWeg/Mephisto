@@ -19,6 +19,10 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('autoplay', 'Autoplay:', 'checkbox', false);
         this.registerFormElement('premove', 'Premove:', 'checkbox', false);
         this.registerFormElement('help_mode', 'Help Mode:', 'checkbox', false);
+        this.registerFormElement('humanize', 'Humanize:', 'checkbox', false);
+        this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
+        this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);
+        this.initHumanizeMix();
         this.registerFormElement('puzzle_mode', 'Puzzle Mode:', 'checkbox', false);
         this.registerFormElement('python_autoplay_backend', 'Python Autoplay Backend:', 'checkbox', false);
         this.registerFormElement('think_time', 'Simulated Think Time (ms):', 'input', 0);
@@ -45,7 +49,11 @@ class GeneralSettings extends SettingsPage {
                 section.classList.remove('hidden');
             } else {
                 section.classList.add('hidden');
-                variant_select.setValue('chess');
+                // Chess960 survives an engine switch: every mainline Stockfish plays it via
+                // UCI_Chess960 (sent at engine init). Only fairy-only variants reset.
+                if (!['chess', 'fischerandom'].includes(variant_select.getValue())) {
+                    variant_select.setValue('chess');
+                }
             }
             if (engine_select.getValue() === 'remote') {
                 engineLabelTooltiped.classList.remove('hidden');
@@ -55,6 +63,59 @@ class GeneralSettings extends SettingsPage {
                 engineLabelUntooltiped.classList.remove('hidden');
             }
         })
+    }
+
+    // Humanize move mix: five independent slider+number pairs. No auto-rescaling -- the user
+    // balances them by hand, and the Total row shows the sum plus what's off: "90 (-10)" means
+    // add 10 somewhere, "110 (+10)" means remove 10. (The popup normalizes by the sum when
+    // picking, so an off-100 mix still behaves proportionally in the meantime.) NOT FormElements:
+    // one logical setting spans two inputs per row. Values persist per-key in localStorage; the
+    // popup reads them fresh on every pick, so edits apply to the very next move.
+    initHumanizeMix() {
+        const MIX = [
+            ['humanize_top', 50], ['humanize_second', 40], ['humanize_third', 4],
+            ['humanize_mistake', 5], ['humanize_blunder', 1],
+        ];
+        const rows = MIX.map(([key, dflt]) => ({
+            key, dflt,
+            range: document.getElementById(`${key}_mixrange`),
+            num: document.getElementById(`${key}_mixnum`),
+        }));
+        const total = document.getElementById('humanize_mix_total');
+        if (!rows.every(r => r.range && r.num) || !total) return; // stale cached page html
+        const paint = (el) => // dark-mode slider fill (options.js paints only on user input)
+            el.style.setProperty('--fill', ((el.value - el.min) / (el.max - el.min) * 100) + '%');
+        const load = (key, dflt) => {
+            try {
+                const v = JSON.parse(localStorage.getItem(key));
+                return (v != null && isFinite(+v)) ? +v : dflt;
+            } catch (e) {
+                return dflt;
+            }
+        };
+
+        const updateTotal = () => {
+            const sum = rows.reduce((a, r) => a + (+r.range.value), 0);
+            const diff = sum - 100;
+            total.textContent = (diff === 0) ? '100 ✓' : `${sum} (${diff > 0 ? '+' : ''}${diff})`;
+            total.classList.toggle('ok', diff === 0);
+            total.classList.toggle('off', diff !== 0);
+        };
+
+        const set = (row, val, persist = true) => {
+            val = Math.min(100, Math.max(1, Math.round(+val) || 1));
+            row.range.value = val;
+            row.num.value = val;
+            paint(row.range);
+            if (persist) localStorage.setItem(row.key, val);
+            updateTotal();
+        };
+
+        rows.forEach(r => {
+            set(r, load(r.key, r.dflt), false); // initial sync, don't churn storage on page open
+            r.range.addEventListener('input', () => set(r, r.range.value));
+            r.num.addEventListener('change', () => set(r, r.num.value));
+        });
     }
 }
 
