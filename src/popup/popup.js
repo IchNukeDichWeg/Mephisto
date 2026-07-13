@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         premove: JSON.parse(localStorage.getItem('premove')) || false,
         puzzle_mode: JSON.parse(localStorage.getItem('puzzle_mode')) || false,
         help_mode: JSON.parse(localStorage.getItem('help_mode')) || false,
+        eval_bar: JSON.parse(localStorage.getItem('eval_bar')) || false,
         python_autoplay_backend: JSON.parse(localStorage.getItem('python_autoplay_backend')) || false,
         // appearance settings
         pieces: JSON.parse(localStorage.getItem('pieces')) || 'wikipedia.svg',
@@ -161,7 +162,8 @@ function init_quick_settings() {
     const save = (key, value) => localStorage.setItem(key, JSON.stringify(value));
     // toggles apply live
     for (const [id, key] of [['qs_autoplay', 'autoplay'], ['qs_premove', 'premove'],
-                             ['qs_puzzle', 'puzzle_mode'], ['qs_help', 'help_mode']]) {
+                             ['qs_puzzle', 'puzzle_mode'], ['qs_help', 'help_mode'],
+                             ['qs_evalbar', 'eval_bar']]) {
         const elem = document.getElementById(id);
         if (!elem) continue; // stale cached popup.html mid-update; don't let one missing control kill the popup
         elem.checked = config[key];
@@ -169,6 +171,7 @@ function init_quick_settings() {
             config[key] = elem.checked;
             save(key, elem.checked);
             if (key === 'help_mode' && !elem.checked) request_clear_hint();
+            if (key === 'eval_bar' && !elem.checked) request_clear_eval_bar();
             if (key === 'help_mode' || key === 'autoplay') {
                 // the go mode (infinite vs movetime) depends on these; abandon the current
                 // search and re-analyse the position under the new mode on the next poll
@@ -460,6 +463,12 @@ function update_eval_bar(line) {
     bar.style.top = flipped ? '0' : 'auto';
     bar.style.bottom = flipped ? 'auto' : '0';
     bar.style.height = `${frac * 100}%`;
+
+    // mirror the bar onto the site board (chess.com-style: score inside, on the winning side's end)
+    if (config.eval_bar) {
+        const text = ('mate' in line) ? `M${Math.abs(line.mate)}` : (Math.abs(line.score) / 100).toFixed(1);
+        request_draw_eval_bar({frac, text, winningWhite: frac >= 0.5});
+    }
 }
 
 function on_engine_evaluation(info) {
@@ -916,6 +925,14 @@ function request_draw_hint(arrows) {
 
 function request_clear_hint() {
     send_to_active_tab({clearHint: true});
+}
+
+function request_draw_eval_bar(data) {
+    send_to_active_tab({drawEvalBar: true, ...data});
+}
+
+function request_clear_eval_bar() {
+    send_to_active_tab({clearEvalBar: true});
 }
 
 function push_config() {

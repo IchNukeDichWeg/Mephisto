@@ -9,7 +9,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.12'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.13'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -67,6 +67,10 @@ chrome.runtime.onMessage.addListener(response => {
         drawHintArrows(response.arrows);
     } else if (response.clearHint) {
         clearHintArrow();
+    } else if (response.drawEvalBar) {
+        drawEvalBar(response);
+    } else if (response.clearEvalBar) {
+        clearEvalBar();
     } else if (response.consoleMessage) {
         console.log(response.consoleMessage);
     }
@@ -229,6 +233,68 @@ function drawHintArrows(arrows) {
     svg.innerHTML = `<defs>${defs}</defs>${lines}`;
     document.body.appendChild(svg);
     lastHintKey = key;
+}
+
+// ------------------------------------------------------------------------------------------
+// Eval bar: a vertical evaluation bar drawn just to the LEFT of the site board, styled like the
+// popup's own bar (dark = black's share, white = white's share), with the score shown inside it
+// chess.com-style. The popup computes the numbers and pushes them on every eval update.
+
+const EVALBAR_OVERLAY_ID = 'mephisto-evalbar-overlay';
+
+function clearEvalBar() {
+    document.getElementById(EVALBAR_OVERLAY_ID)?.remove();
+}
+
+// frac = white's share of the bar (0..1); text = score magnitude ("1.1" / "M3"); winningWhite
+// decides which end the number sits at and its colour. Repositioned every update (like the hint
+// arrows) so it tracks the board; pointer-events:none so it never eats a click.
+function drawEvalBar({frac, text, winningWhite}) {
+    const board = getBoard();
+    if (!board || typeof frac !== 'number') { clearEvalBar(); return; }
+    const bounds = board.getBoundingClientRect();
+    if (!bounds.width) { clearEvalBar(); return; }
+    const flipped = getOrientation() === 'black';
+    const BAR_W = 16, GAP = 8;
+
+    let bar = document.getElementById(EVALBAR_OVERLAY_ID);
+    let white, num;
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = EVALBAR_OVERLAY_ID;
+        bar.style.cssText = 'position: absolute; z-index: 2147483646; pointer-events: none; ' +
+            'background: #403d39; border-radius: 3px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.4);';
+        white = document.createElement('div');
+        white.className = 'mephisto-evalbar-white';
+        white.style.cssText = 'position: absolute; left: 0; width: 100%; background: #f0f0f0; ' +
+            'transition: height 0.2s, top 0.2s, bottom 0.2s;';
+        num = document.createElement('div');
+        num.className = 'mephisto-evalbar-num';
+        num.style.cssText = 'position: absolute; left: 0; width: 100%; text-align: center; ' +
+            'font: 700 9px/1.4 Roboto, Arial, sans-serif;';
+        bar.append(white, num);
+        document.body.appendChild(bar);
+    } else {
+        white = bar.querySelector('.mephisto-evalbar-white');
+        num = bar.querySelector('.mephisto-evalbar-num');
+    }
+
+    bar.style.left = `${bounds.left + window.scrollX - GAP - BAR_W}px`;
+    bar.style.top = `${bounds.top + window.scrollY}px`;
+    bar.style.width = `${BAR_W}px`;
+    bar.style.height = `${bounds.height}px`;
+
+    // white's share hangs from the bottom (or the top when the board is flipped for black)
+    white.style.height = `${Math.max(0, Math.min(1, frac)) * 100}%`;
+    white.style.top = flipped ? '0' : 'auto';
+    white.style.bottom = flipped ? 'auto' : '0';
+
+    // the number sits at the winning side's end, coloured to contrast that end (dark on white, light on black)
+    const numAtBottom = winningWhite ? !flipped : flipped;
+    num.textContent = text ?? '';
+    num.style.top = numAtBottom ? 'auto' : '2px';
+    num.style.bottom = numAtBottom ? '2px' : 'auto';
+    num.style.color = winningWhite ? '#403d39' : '#f0f0f0';
 }
 
 function tryScrapePosition() {
