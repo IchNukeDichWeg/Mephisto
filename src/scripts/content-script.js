@@ -9,7 +9,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.9'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.10'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -78,7 +78,7 @@ chrome.runtime.onMessage.addListener(response => {
 // Unlike the anchored popup it can be moved anywhere and stays open while you play.
 
 const PANEL_OVERLAY_ID = 'mephisto-overlay';
-const OVERLAY_SCALE = 0.85; // render the full 548x470 popup, scaled down a notch
+const OVERLAY_SCALE = 0.75; // render the full 548x470 popup, scaled down a notch
 
 function toggleOverlay() {
     const existing = document.getElementById(PANEL_OVERLAY_ID);
@@ -90,7 +90,7 @@ function toggleOverlay() {
     const scaledH = Math.round(470 * OVERLAY_SCALE);
     const wrap = document.createElement('div');
     wrap.id = PANEL_OVERLAY_ID;
-    wrap.style.cssText = 'position: fixed; top: 4px; right: 12px; z-index: 2147483646; ' +
+    wrap.style.cssText = 'position: fixed; top: 4px; right: 0; z-index: 2147483646; ' +
         `width: ${scaledW}px; height: ${24 + scaledH}px; ` +
         'border-radius: 8px; overflow: hidden; background: #f0f0f0; ' +
         'box-shadow: 0 6px 24px rgba(0,0,0,0.45);';
