@@ -18,7 +18,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.27'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.28'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -51,7 +51,7 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
             orient = getOrientation();
         }
         try {
-            chrome.runtime.sendMessage({ dom: res, orient: orient, fenresponse: true });
+            chrome.runtime.sendMessage({ dom: res, orient: orient, clocks: scrapeClocks(), fenresponse: true });
         } catch (e) {
             // extension was reloaded — this orphaned content-script can't reach it anymore
         }
@@ -67,7 +67,7 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
                 simulatePvMoves(response.pv).finally(toggleMoving);
             } else {
                 console.log(response.move);
-                simulateMoveVerified(response.move, response.deselect, response.verify).finally(toggleMoving);
+                simulateMoveVerified(response.move, response.deselect, response.verify, response.think ?? null).finally(toggleMoving);
             }
         } catch (e) {
             toggleMoving(); // a sync throw (e.g. board vanished) must not leave `moving` stuck true
@@ -101,7 +101,32 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
 
 const PANEL_OVERLAY_ID = 'mephisto-overlay';
 const RESTORE_BADGE_ID = 'mephisto-restore-badge';
-const OVERLAY_SCALE = 0.8; // render the full 548x510 popup, scaled down a notch
+const POPUP_W = 568;       // the popup page's fixed layout size (popup.css html,body)
+const POPUP_H = 630;
+const OVERLAY_SCALE = 0.8; // default render scale for fresh installs; resizing the panel persists a width
+const OVERLAY_BOX_KEY = 'mephisto.overlayBox'; // per-site localStorage: {left, top, width}
+
+function saveOverlayBox(wrap) {
+    const r = wrap.getBoundingClientRect();
+    try {
+        localStorage.setItem(OVERLAY_BOX_KEY, JSON.stringify(
+            {left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width)}));
+    } catch (e) { /* storage full/blocked -- panel just won't persist its geometry */ }
+}
+
+function readOverlayBox() {
+    try {
+        const box = JSON.parse(localStorage.getItem(OVERLAY_BOX_KEY));
+        if (!box || !(box.width > 0)) return null;
+        // clamp back into the viewport (saved on a bigger screen / window since resized)
+        const width = Math.min(Math.max(box.width, 340), Math.round(window.innerWidth * 0.95));
+        const left = Math.min(Math.max(box.left, 0), window.innerWidth - 60);
+        const top = Math.min(Math.max(box.top, 0), window.innerHeight - 40);
+        return {left, top, width};
+    } catch (e) {
+        return null;
+    }
+}
 
 function removeOverlay() {
     document.getElementById(PANEL_OVERLAY_ID)?.remove();
@@ -147,12 +172,15 @@ function toggleOverlay() {
         removeOverlay();
         return;
     }
-    const scaledW = Math.round(548 * OVERLAY_SCALE);
-    const scaledH = Math.round(510 * OVERLAY_SCALE);
+    // saved geometry wins (drag/resize persists it); fresh installs get the scaled default at top-right
+    const saved = readOverlayBox();
+    const startW = saved ? saved.width : Math.round(POPUP_W * OVERLAY_SCALE);
+    let scale = startW / POPUP_W;
     const wrap = document.createElement('div');
     wrap.id = PANEL_OVERLAY_ID;
-    wrap.style.cssText = 'position: fixed; top: 4px; right: 0; z-index: 2147483646; ' +
-        `width: ${scaledW}px; height: ${24 + scaledH}px; ` +
+    wrap.style.cssText = 'position: fixed; z-index: 2147483646; ' +
+        (saved ? `top: ${saved.top}px; left: ${saved.left}px; ` : 'top: 4px; right: 0; ') +
+        `width: ${startW}px; height: ${Math.round(24 + POPUP_H * scale)}px; ` +
         'border-radius: 8px; overflow: hidden; background: #f0f0f0; ' +
         'box-shadow: 0 6px 24px rgba(0,0,0,0.45);';
 
@@ -170,13 +198,53 @@ function toggleOverlay() {
 
     const frame = document.createElement('iframe');
     frame.src = chrome.runtime.getURL('src/popup/popup.html') + (mephistoTabId ? `?tab=${mephistoTabId}` : '');
-    frame.style.cssText = 'width: 548px; height: 510px; border: none; display: block; background: #f0f0f0; ' +
-        `transform: scale(${OVERLAY_SCALE}); transform-origin: top left;`;
+    frame.style.cssText = `width: ${POPUP_W}px; height: ${POPUP_H}px; border: none; display: block; background: #f0f0f0; ` +
+        `transform: scale(${scale}); transform-origin: top left;`;
 
-    wrap.append(bar, frame);
+    // resize grip: a corner handle that rescales the whole panel (aspect-locked -- the popup is a
+    // fixed layout, so resizing changes the SCALE, not the layout). Native CSS `resize` doesn't
+    // work here: the iframe sits over the corner and eats the mouse.
+    const grip = document.createElement('div');
+    grip.title = 'Resize';
+    grip.style.cssText = 'position: absolute; right: 0; bottom: 0; width: 18px; height: 18px; ' +
+        'cursor: nwse-resize; z-index: 10; ' +
+        'background: linear-gradient(135deg, transparent 50%, rgba(120,120,120,0.7) 50%); ' +
+        'border-bottom-right-radius: 8px;';
+
+    wrap.append(bar, frame, grip);
     document.body.appendChild(wrap);
     bar.querySelector('.mephisto-overlay-close').addEventListener('click', removeOverlay);
     bar.querySelector('.mephisto-overlay-min').addEventListener('click', () => minimizeOverlay(wrap));
+
+    // corner-drag resize; persists like drag does
+    let resizing = false, resizeFromX, resizeStartW;
+    grip.addEventListener('mousedown', e => {
+        resizing = true;
+        frame.style.pointerEvents = 'none'; // the iframe must not eat mousemove mid-resize
+        const rect = wrap.getBoundingClientRect();
+        [resizeFromX, resizeStartW] = [e.clientX, rect.width];
+        // anchor the top-left corner: growing a right-anchored panel would push it off-screen
+        wrap.style.left = `${rect.left}px`;
+        wrap.style.top = `${rect.top}px`;
+        wrap.style.right = 'auto';
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    window.addEventListener('mousemove', e => {
+        if (!resizing) return;
+        const w = Math.min(Math.max(resizeStartW + e.clientX - resizeFromX, 340),
+            Math.round(window.innerWidth * 0.95));
+        scale = w / POPUP_W;
+        wrap.style.width = `${w}px`;
+        wrap.style.height = `${Math.round(24 + POPUP_H * scale)}px`;
+        frame.style.transform = `scale(${scale})`;
+    });
+    window.addEventListener('mouseup', () => {
+        if (!resizing) return; // see the drag mouseup below for why this must be conditional
+        resizing = false;
+        frame.style.pointerEvents = 'auto';
+        saveOverlayBox(wrap);
+    });
 
     // drag by the title bar; the iframe must not eat mousemove while dragging
     let dragFromX, dragFromY, startLeft, startTop, dragging = false;
@@ -196,8 +264,14 @@ function toggleOverlay() {
         wrap.style.right = 'auto';
     });
     window.addEventListener('mouseup', () => {
+        // ONLY a real drag-end may touch the frame: this global listener fires on every mouseup
+        // on the page forever, and unconditionally restoring pointer-events:auto re-armed the
+        // invisible MINIMIZED panel on the user's next click (a child with explicit 'auto' is
+        // hit-testable even under a pointer-events:none parent) -- eating clicks again.
+        if (!dragging) return;
         dragging = false;
         frame.style.pointerEvents = 'auto';
+        saveOverlayBox(wrap);
     });
 }
 
@@ -582,6 +656,43 @@ function spriteLightness(piece) {
     return fills.map(lum).reduce((a, b) => a + b, 0) / fills.length;
 }
 
+// -------------------------------------------------------------------------------------------
+// Clocks: best-effort scrape of both players' remaining time + the game's increment, shipped
+// with every position push so the popup's Clock Mode can budget its thinking. Missing/unparsable
+// clocks yield null fields -- the popup then just behaves as if Clock Mode were off.
+
+function parseClockText(txt) {
+    // "1:23:45(.6)" / "2:41" / "0:45.3" / "45.3" -> seconds
+    const m = (txt || '').trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2}(?:[.,]\d+)?)$|^(\d+(?:[.,]\d+)?)$/);
+    if (!m) return null;
+    if (m[4] != null) return parseFloat(m[4].replace(',', '.'));
+    const h = m[1] ? parseInt(m[1]) : 0;
+    return h * 3600 + parseInt(m[2]) * 60 + parseFloat(m[3].replace(',', '.'));
+}
+
+function scrapeClocks() {
+    let mineTxt = null, theirsTxt = null, tcText = '';
+    if (site === 'lichess') {
+        mineTxt = document.querySelector('.rclock-bottom .time')?.textContent;
+        theirsTxt = document.querySelector('.rclock-top .time')?.textContent;
+        tcText = document.querySelector('.game__meta .setup')?.textContent || '';
+    } else if (isChesscomVariants()) {
+        mineTxt = document.querySelector('.playerbox-bottom .clock-component')?.textContent;
+        theirsTxt = document.querySelector('.playerbox-top .clock-component')?.textContent;
+    } else if (site === 'chesscom') {
+        mineTxt = (document.querySelector('.clock-bottom')
+            || document.querySelector('#board-layout-player-bottom .clock-component'))?.textContent;
+        theirsTxt = (document.querySelector('.clock-top')
+            || document.querySelector('#board-layout-player-top .clock-component'))?.textContent;
+        tcText = document.querySelector('.time-control-component, .game-time-control')?.textContent || '';
+    }
+    const mine = parseClockText(mineTxt), theirs = parseClockText(theirsTxt);
+    if (mine == null && theirs == null) return null;
+    // increment from time-control text like "3+2" / "½+0 • Rated • Bullet"; null when unknown
+    const inc = tcText.match(/[\d½¼]+\s*\+\s*(\d+)/);
+    return {mine, theirs, increment: inc ? parseInt(inc[1]) : null};
+}
+
 let movingWatchdog = null;
 
 function toggleMoving() {
@@ -659,7 +770,7 @@ function pushPosition() {
     if (key === lastPushKey) return; // the mutation didn't change the position -> panel hears nothing
     lastPushKey = key;
     try {
-        chrome.runtime.sendMessage({ dom: res, orient: orient, fenresponse: true });
+        chrome.runtime.sendMessage({ dom: res, orient: orient, clocks: scrapeClocks(), fenresponse: true });
     } catch (e) {
         // extension was reloaded -- this orphaned content-script can't reach it anymore
     }
@@ -1016,7 +1127,7 @@ function simulateClickSquare(bounds, range = 0.8) {
     dispatchSimulateClick(x, y);
 }
 
-function simulateMove(move, deselect) {
+function simulateMove(move, deselect, think = null) {
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
         console.warn(`Mephisto: refusing to play invalid move '${move}'`); // e.g. '(none)' or a crazyhouse drop
         return Promise.resolve();
@@ -1033,6 +1144,9 @@ function simulateMove(move, deselect) {
     }
 
     function getThinkTime() {
+        // an explicit per-move think (humanize / clock mode, computed in the popup) overrides the
+        // static configured delay
+        if (think != null) return think;
         return config.think_time + Math.random() * config.think_variance;
     }
 
@@ -1070,7 +1184,7 @@ function simulateMove(move, deselect) {
 // checking the move list actually grew; if not, retry. The move-count check is safe from
 // double-moving: if a move was played (count went up) we treat it as success even if the
 // opponent has already replied, so we never re-fire a move into a changed position.
-async function simulateMoveVerified(move, deselect, verify, retries = 2, before = null) {
+async function simulateMoveVerified(move, deselect, verify, think = null, retries = 2, before = null) {
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
         return simulateMove(move, deselect); // invalid -> simulateMove logs + no-ops
     }
@@ -1078,21 +1192,22 @@ async function simulateMoveVerified(move, deselect, verify, retries = 2, before 
     // won't appear in the move list until the opponent moves. Verifying/retrying it would re-click
     // and clobber the queued premove -- so only verify real moves played on our own turn. The popup
     // decides this from the position's side-to-move and passes it in (see request_automove).
-    if (!verify) return simulateMove(move, deselect);
+    if (!verify) return simulateMove(move, deselect, think);
     // Capture the move count ONCE, before the FIRST attempt. Re-reading it on each retry breaks the
     // check: chess.com's move list can update later than a fixed wait (board animation), so a move
     // that DID land shows up only after we'd have re-read `before` as the already-grown count -- the
     // retry then replays into a changed board and still reports "failed". Compare against the
     // original count throughout, and POLL for it to grow instead of a single snapshot.
     if (before === null) before = getMoveRecords()?.length ?? 0;
-    await simulateMove(move, deselect);
+    await simulateMove(move, deselect, think);
     for (let waited = 0; waited < 1500; waited += 50) { // poll up to 1.5s for the move to register
         await promiseTimeout(50);
         if ((getMoveRecords()?.length ?? 0) > before) return; // a move was played -> success
     }
     if (retries > 0) {
         console.warn(`Mephisto: move '${move}' did not register, retrying (${retries} left)`);
-        return simulateMoveVerified(move, deselect, verify, retries - 1, before);
+        // think=0: the "thinking" already happened on the first attempt; a retry is just re-clicking
+        return simulateMoveVerified(move, deselect, verify, 0, retries - 1, before);
     }
     console.warn(`Mephisto: move '${move}' failed to register after retries`);
 }
