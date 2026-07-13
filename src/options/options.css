@@ -268,8 +268,37 @@ html.dark .card-panel {
     box-shadow: none;
     border-radius: 6px;
 }
-/* the harsh white slider "track" is actually a 1px solid WHITE border materialize puts on the range
-   ELEMENT itself (input[type=range]{border:1px solid white}) -- NOT the ::track pseudo (that's
-   transparent, so overriding it does nothing). Recolour the border to a subtle dark line so only the
-   teal thumb stands out. */
-html.dark input[type=range] { background: transparent; border-color: #45454b; }
+/* Slider: a clean teal-fill track (up to the thumb) + a subtle dark remainder. Materialize's default
+   is a harsh 1px solid WHITE border on the ELEMENT (the ::track pseudo is transparent, so overriding
+   it does nothing) -- so we reset the whole control and paint the ELEMENT background. `--fill` (0-100%)
+   is set by options.js from each range's value, on render and live while dragging. */
+html.dark input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    border: none !important;
+    height: 5px;
+    border-radius: 3px;
+    /* !important: options.css loads BEFORE materialize.min.css, so its equal-specificity range rule
+       would otherwise win the background on source order. */
+    background: linear-gradient(to right,
+        #2bbbad 0%, #2bbbad var(--fill, 0%), #3a3a42 var(--fill, 0%), #3a3a42 100%) !important;
+}
+html.dark input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #2bbbad;
+    border: 2px solid #17181c;
+    margin-top: -5px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+    cursor: pointer;
+}
+html.dark input[type=range]::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+    border: 2px solid #17181c;
+    background: #2bbbad;
+    cursor: pointer;
+}

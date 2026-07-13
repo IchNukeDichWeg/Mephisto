@@ -86,7 +86,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // inject page title
         titleElem.innerText = pageModule.title;
+
+        paintRanges();            // teal-fill the slider tracks up to the thumb (dark CSS reads var(--fill))
+        setTimeout(paintRanges, 150); // fallback: some range values are set just after onInit
     }
+
+    // set --fill (0-100%) on a range from its value; the dark-mode slider CSS paints the teal fill to it
+    function paintRange(r) {
+        const min = +r.min || 0, max = +r.max || 100;
+        r.style.setProperty('--fill', ((r.value - min) / (max - min) * 100) + '%');
+    }
+    function paintRanges() {
+        document.querySelectorAll('input[type=range]').forEach(paintRange);
+    }
+    document.addEventListener('input', e => { // live update while dragging any slider
+        if (e.target.matches?.('input[type=range]')) paintRange(e.target);
+    });
 
     document.querySelectorAll('#nav-mobile a.menu-item').forEach(elem => {
         elem.addEventListener('click', e => onClick(e));
