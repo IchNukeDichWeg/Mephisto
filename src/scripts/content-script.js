@@ -9,7 +9,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.7'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.8'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -783,7 +783,7 @@ function isOurTurn() {
 // checking the move list actually grew; if not, retry. The move-count check is safe from
 // double-moving: if a move was played (count went up) we treat it as success even if the
 // opponent has already replied, so we never re-fire a move into a changed position.
-async function simulateMoveVerified(move, deselect, retries = 2) {
+async function simulateMoveVerified(move, deselect, retries = 2, before = null) {
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
         return simulateMove(move, deselect); // invalid -> simulateMove logs + no-ops
     }
@@ -791,14 +791,20 @@ async function simulateMoveVerified(move, deselect, retries = 2) {
     // in the move list until the opponent moves. Verifying/retrying it would re-click and clobber
     // the queued premove -- so only verify moves played on our own turn.
     if (!isOurTurn()) return simulateMove(move, deselect);
-    const before = getMoveRecords()?.length ?? 0;
+    // Capture the move count ONCE, before the FIRST attempt. Re-reading it on each retry breaks the
+    // check: chess.com's move list can update later than a fixed wait (board animation), so a move
+    // that DID land shows up only after we'd have re-read `before` as the already-grown count -- the
+    // retry then replays into a changed board and still reports "failed". Compare against the
+    // original count throughout, and POLL for it to grow instead of a single snapshot.
+    if (before === null) before = getMoveRecords()?.length ?? 0;
     await simulateMove(move, deselect);
-    await promiseTimeout(250); // give the site time to register the move + start its animation
-    const after = getMoveRecords()?.length ?? 0;
-    if (after > before) return; // a move was played -> success
+    for (let waited = 0; waited < 1500; waited += 50) { // poll up to 1.5s for the move to register
+        await promiseTimeout(50);
+        if ((getMoveRecords()?.length ?? 0) > before) return; // a move was played -> success
+    }
     if (retries > 0) {
         console.warn(`Mephisto: move '${move}' did not register, retrying (${retries} left)`);
-        return simulateMoveVerified(move, deselect, retries - 1);
+        return simulateMoveVerified(move, deselect, retries - 1, before);
     }
     console.warn(`Mephisto: move '${move}' failed to register after retries`);
 }
