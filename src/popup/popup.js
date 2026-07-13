@@ -750,7 +750,6 @@ function parse_position_from_response(txt) {
         const directKey = (startFen) ? `${startFen}_${txt}` : txt;
         const directHit = fen_cache.get(directKey);
         if (directHit) { // reuse position
-            console.log('DIRECT');
             turn = directHit.fen.charAt(directHit.fen.indexOf(' ') + 1);
             return directHit;
         }
@@ -760,13 +759,11 @@ function parse_position_from_response(txt) {
         const indirectKey = directKey.replace(lastMoveRegex, '');
         const indirectHit = fen_cache.get(indirectKey);
         if (indirectHit) { // append newest move
-            console.log('INDIRECT');
             const chess = new Chess(config.variant, indirectHit.fen);
             const moveReceipt = chess.move(txt.match(lastMoveRegex)[0].split('*****')[0]);
             turn = chess.turn();
             record = {fen: chess.fen(), startFen: indirectHit.startFen, moves: indirectHit.moves + ' ' + moveReceipt.lan}
         } else { // perform all moves
-            console.log('FULL');
             const chess = new Chess(config.variant, startFen);
             const sans = txt.split('*****').slice(0, -1);
             let moves = '';
@@ -785,12 +782,10 @@ function parse_position_from_response(txt) {
     function parse_position_from_pieces(txt) {
         const directHit = fen_cache.get(txt);
         if (directHit) { // reuse position
-            console.log('DIRECT');
             turn = directHit.fen.charAt(directHit.fen.indexOf(' ') + 1);
             return directHit;
         }
 
-        console.log('FULL');
         const chess = new Chess(config.variant);
         chess.clear(); // clear the board so we can place our pieces
         const [playerTurn, ...pieces] = txt.split('*****').slice(0, -1);
@@ -896,10 +891,18 @@ function safe_deselect_square(fen, move) {
 }
 
 function request_automove(move) {
+    // Is this a REAL move on our own turn, or a BLIND premove during the opponent's turn? The site
+    // queues a blind premove (it won't appear in the move list until they move), so it must NOT be
+    // verified/retried; an on-turn move must be. The popup is authoritative here -- decide from the
+    // position's side-to-move (== our colour) rather than letting the content-script re-derive the
+    // turn from fragile DOM highlights (which throws on e.g. the lichess analysis board, silently
+    // skipping verification). last_eval.fen is the current position (on_new_pos ran before this).
+    const our = (board.orientation() === 'white') ? 'w' : 'b';
+    const verify = (last_eval.fen?.split(' ')[1] === our);
     const deselect = safe_deselect_square(last_eval.fen, move);
     const message = (config.puzzle_mode)
-        ? {automove: true, pv: last_eval.lines[0]?.pv?.split(' ') || [move], deselect}
-        : {automove: true, move: move, deselect};
+        ? {automove: true, pv: last_eval.lines[0]?.pv?.split(' ') || [move], deselect, verify}
+        : {automove: true, move: move, deselect, verify};
     send_to_active_tab(message);
 }
 

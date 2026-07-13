@@ -9,7 +9,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.8'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.9'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -54,7 +54,7 @@ chrome.runtime.onMessage.addListener(response => {
                 simulatePvMoves(response.pv).finally(toggleMoving);
             } else {
                 console.log(response.move);
-                simulateMoveVerified(response.move, response.deselect).finally(toggleMoving);
+                simulateMoveVerified(response.move, response.deselect, response.verify).finally(toggleMoving);
             }
         } catch (e) {
             toggleMoving(); // a sync throw (e.g. board vanished) must not leave `moving` stuck true
@@ -252,7 +252,6 @@ function scrapePosition() {
     }
 
     if (res != null) {
-        console.log(prefix + res.replace(/[^\w-+#*@&]/g, ''));
         return prefix + res.replace(/[^\w-+=#*@&]/g, '');
     } else {
         return 'no';
@@ -768,29 +767,20 @@ function simulateMove(move, deselect) {
     return performSimulatedMoveSequence();
 }
 
-// is it OUR turn to move in the current position? (side to move == the side we're playing)
-function isOurTurn() {
-    try {
-        const ours = (getOrientation() === 'white') ? 'w' : 'b';
-        return getTurn() === ours;
-    } catch (e) {
-        return false; // can't tell -> treat as a premove (skip verification, never re-click)
-    }
-}
-
 // Autoplay clicks can silently fail (a mis-timed click during a board animation, a click landing
 // a hair off after a resize, a promotion race). Play the move, then CONFIRM it registered by
 // checking the move list actually grew; if not, retry. The move-count check is safe from
 // double-moving: if a move was played (count went up) we treat it as success even if the
 // opponent has already replied, so we never re-fire a move into a changed position.
-async function simulateMoveVerified(move, deselect, retries = 2, before = null) {
+async function simulateMoveVerified(move, deselect, verify, retries = 2, before = null) {
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
         return simulateMove(move, deselect); // invalid -> simulateMove logs + no-ops
     }
-    // A move clicked while it is NOT our turn is a PREMOVE: the site queues it and it won't appear
-    // in the move list until the opponent moves. Verifying/retrying it would re-click and clobber
-    // the queued premove -- so only verify moves played on our own turn.
-    if (!isOurTurn()) return simulateMove(move, deselect);
+    // A BLIND premove (verify=false) is clicked while it is NOT our turn: the site queues it and it
+    // won't appear in the move list until the opponent moves. Verifying/retrying it would re-click
+    // and clobber the queued premove -- so only verify real moves played on our own turn. The popup
+    // decides this from the position's side-to-move and passes it in (see request_automove).
+    if (!verify) return simulateMove(move, deselect);
     // Capture the move count ONCE, before the FIRST attempt. Re-reading it on each retry breaks the
     // check: chess.com's move list can update later than a fixed wait (board animation), so a move
     // that DID land shows up only after we'd have re-read `before` as the already-grown count -- the
@@ -804,7 +794,7 @@ async function simulateMoveVerified(move, deselect, retries = 2, before = null) 
     }
     if (retries > 0) {
         console.warn(`Mephisto: move '${move}' did not register, retrying (${retries} left)`);
-        return simulateMoveVerified(move, deselect, retries - 1, before);
+        return simulateMoveVerified(move, deselect, verify, retries - 1, before);
     }
     console.warn(`Mephisto: move '${move}' failed to register after retries`);
 }
