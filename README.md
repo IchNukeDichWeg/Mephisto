@@ -35,8 +35,8 @@ For more information, see [Getting Started](https://github.com/AlexPetrusca/Meph
 **Engines**
 - New builds from `@lichess-org/stockfish-web`: **Stockfish dev NNUE** (new default), **Stockfish 18**
   (dual net — its 104MB net ships split into <50MB chunks and is stitched at load time to fit GitHub's file
-  limits), **Stockfish 18 Small** and **Stockfish 17**. Stockfish 6 and 16 were removed; stale selections are
-  migrated automatically.
+  limits) and **Stockfish 18 Small**. Stockfish 6, 16 and 17 were removed; stale selections are migrated
+  automatically.
 - Illegal scraped positions (missing king, side-not-to-move in check, back-rank pawns) are blocked before they
   can crash the WASM engine, and a crashed engine restarts automatically (capped at 3 attempts).
 
@@ -70,7 +70,14 @@ For more information, see [Getting Started](https://github.com/AlexPetrusca/Meph
   sites) rather than a reconstructed FEN string, which fixed premoves on chess.com.
 - **Leela (lc0) removed**: the bundled build was an old, unmaintained port that misbehaved; existing selections
   migrate to the default. (For NN-style analysis, Stockfish dev NNUE covers it.)
-- New fresh-install defaults: SF dev engine, 300 ms search, 10 ms fen refresh, 8 threads, 512 MB hash,
+- **Chess.com variants** (`chess.com/variants/...`): 3-check, King of the Hill, Crazyhouse, Antichess, Atomic,
+  Horde and Racing Kings are detected, analyzed (Fairy-Stockfish) and autoplayed on the variants board's own
+  React UI, including automatic variant detection from the game URL.
+- **Event-driven position detection**: a MutationObserver pushes positions to the panel when the page's DOM
+  actually changes (30 ms debounce, deduped), replacing the old `fen_refresh` polling loop that scraped the
+  page up to 100 times per second for the lifetime of the tab. Zero work at idle; the poll survives only as a
+  ≥1 s fallback ("Fallback Poll" in the settings).
+- New fresh-install defaults: SF dev engine, 300 ms search, 1 s fallback poll, 8 threads, 512 MB hash,
   200 ± 50 ms move time, autoplay off.
 
 
