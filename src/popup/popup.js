@@ -848,6 +848,7 @@ function premove_instant_reply(new_fen, new_moves) {
 function on_new_pos(fen, startFen, moves) {
     console.log("on_new_pos", fen, startFen, moves);
     clear_next_move_eta(); // the countdown belonged to the position that just changed
+    humanize_roll = null;  // and so did any pre-rolled humanize outcome
     if (config.help_mode) request_clear_hint(); // position changed; last hint is stale
     premove_tracker = {fen: fen, startFen: startFen || fen, moves: moves || '', lines: {}}; // certifications belong to exactly one position
     const search_in_flight = search_active;
@@ -883,7 +884,11 @@ function on_new_pos(fen, startFen, moves) {
     if (config.autoplay && !config.help_mode && !config.puzzle_mode
         && ((turn === 'w') ? 'white' : 'black') === board.orientation()) {
         const est = estimated_move_total_ms(fen);
-        if (est) set_move_countdown(search_start + est.ms, est.source, null);
+        if (est) {
+            // pre-roll the humanize outcome so the countdown shows the coming move from the start
+            if (config.humanize) humanize_roll = roll_humanize_category(fen);
+            set_move_countdown(search_start + est.ms, est.source, humanize_roll ? humanize_roll.category : null);
+        }
     }
     if (is_remote()) {
         if (moves) {
@@ -1117,6 +1122,30 @@ function humanize_rates() {
     return r;
 }
 
+// Pre-rolled humanize outcome for the current move, decided at SEARCH START so the countdown can
+// show which move is coming from the very beginning (not just the last instant). The random slice
+// roll doesn't need the search -- only whether the chosen line is actually PLAYABLE does, which
+// humanize_pick checks later using this same roll (`humanize_roll.r`), so what's shown matches what
+// gets played, with a rare late correction (a recapture, or a rolled slice that turns out too weak
+// and falls back to the top move). {r: the 0-100 roll, category: the label to show}.
+let humanize_roll = null;
+
+function roll_humanize_category(fen) {
+    try {
+        if (new Chess(config.variant, fen).moves().length === 1) return {r: 0, category: 'instant response'};
+    } catch (e) { /* variant fen chess.js can't parse -- fall through to the mix roll */ }
+    const rates = humanize_rates();
+    const r = Math.random() * 100;
+    const t = rates.top, s = t + rates.second, th = s + rates.third, mi = th + rates.mistake;
+    let category = 'top engine';
+    if (r < t) category = 'top engine';
+    else if (r < s) category = 'second line';
+    else if (r < th) category = 'third line';
+    else if (r < mi) category = 'mistake';
+    else category = 'blunder';
+    return {r, category};
+}
+
 // our-perspective centipawns for a line whose score/mate are stored white-relative;
 // mates map to huge cp so comparisons Just Work (closer mate = bigger)
 function line_cp_ours(line) {
@@ -1221,7 +1250,8 @@ function humanize_pick(best) {
         const loss = (l) => bestCp - line_cp_ours(l);
         const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000); // never move INTO mate
         const rates = humanize_rates(); // move mix percents; live-tunable in the options page
-        const r = Math.random() * 100;
+        // reuse the roll made at search start (so the countdown's shown move matches what's played)
+        const r = (humanize_roll != null) ? humanize_roll.r : Math.random() * 100;
         // second/third line only when not way worse (>60cp) -- otherwise the roll falls to best
         const closeEnough = (l) => (l && loss(l) <= 60) ? l : null;
         let cand = null;

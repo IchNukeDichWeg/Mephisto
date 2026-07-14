@@ -103,7 +103,7 @@ class GeneralSettings extends SettingsPage {
         };
 
         const set = (row, val, persist = true) => {
-            val = Math.min(100, Math.max(1, Math.round(+val) || 1));
+            val = Math.min(100, Math.max(0, Math.round(+val) || 0));
             row.range.value = val;
             row.num.value = val;
             paint(row.range);
