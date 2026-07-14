@@ -462,6 +462,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 update_best_move('Draw', '');
             }
         }
+        clear_next_move_eta(); // game over: no move coming, drop any countdown started at search time
         toggle_calculating(false);
         return;
     } else if (config.simon_says_mode) {
@@ -523,7 +524,10 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                     // a pure-humanize long think still waits here (its search stayed at the default).
                     const elapsed = Date.now() - search_start;
                     const residual = Math.max(0, Math.round(pick.think - elapsed));
-                    show_next_move_eta(residual, pick.source, pick.category);
+                    // re-anchor the countdown to the AUTHORITATIVE total (search_start + think) and
+                    // add the move category -- it keeps counting the full time down to the play, so
+                    // the move fires exactly when the countdown hits zero.
+                    set_move_countdown(search_start + pick.think, pick.source, pick.category);
                     request_automove(pick.move, residual);
                 } else {
                     request_automove(best); // in help mode draw_moves() mirrors the arrows instead
@@ -873,6 +877,14 @@ function on_new_pos(fen, startFen, moves) {
         if (new Chess(config.variant, fen).moves().length === 1) movetime = Math.min(movetime, config.compute_time);
     } catch (e) { /* variant fen chess.js can't parse -- skip the forced-move shortcut */ }
     search_start = Date.now();
+    // start the countdown NOW (the search fills the pace), on our turn, when a mode changes the
+    // base time -- so the full time counts down while the engine thinks. Category is added once the
+    // move is picked. Cleared at the top of this function, so a non-pacing move shows nothing.
+    if (config.autoplay && !config.help_mode && !config.puzzle_mode
+        && ((turn === 'w') ? 'white' : 'black') === board.orientation()) {
+        const est = estimated_move_total_ms(fen);
+        if (est) set_move_countdown(search_start + est.ms, est.source, null);
+    }
     if (is_remote()) {
         if (moves) {
             request_remote_analysis(startFen, movetime, moves).then(on_engine_response).catch(on_remote_error);
@@ -1188,7 +1200,7 @@ function humanize_pick(best) {
     const bestLine = lines.find(l => l.move === best) || lines[0];
     const bestCp = bestLine ? line_cp_ours(bestLine) : 0;
 
-    let category = 'top move'; // which slice of the move mix the pick came from (for the countdown)
+    let category = 'top engine'; // which slice of the move mix the pick came from (for the countdown)
     // reflex moves first: a human ALWAYS bangs out the recapture / the only legal move --
     // instantly, and without ever "choosing" an alternative
     const lastOpp = last_eval.lastMove; // opponent's move that produced this position (lan)
@@ -1231,7 +1243,7 @@ function humanize_pick(best) {
             if (cand) category = 'blunder';
         }
         if (cand && playable(cand.move)) move = cand.move;
-        else category = 'top move'; // gate failed / pool empty / not playable -> best move after all
+        else category = 'top engine'; // gate failed / pool empty / not playable -> best move after all
     }
 
     // ---- HOW LONG to think: classify the position, then sample a duration.
@@ -1259,7 +1271,7 @@ function humanize_pick(best) {
     // budget always. Reflex moves stay instant regardless, and both paths share the safety rails.
     // `source` = who decided the timing (priority: reflex > mirror > clock > humanize), for the
     // "Playing in ..." countdown under the score.
-    if (recapture || forced) category = 'reflex';
+    if (recapture || forced) category = 'instant response';
     let source = (kind === 'instant') ? 'Reflex' : 'Humanize';
     const budget = clock_budget_ms();
     if (budget != null) {
@@ -1282,22 +1294,26 @@ function humanize_pick(best) {
 
 // "Playing in X.Xs (Mirror Time)" countdown under the score -- shown whenever a pacing mode
 // (mirror/clock/humanize) decided a think delay for the move that is about to be played
-let eta_timer = null;
+let eta_timer = null, eta_target = 0, eta_source = '', eta_category = null;
 
-function show_next_move_eta(thinkMs, source, category = null) {
-    const el = document.getElementById('next-move');
-    if (!el) return;
+// The "Playing in X.Xs" countdown is TARGET-anchored so it can span the whole move: it's started
+// when the SEARCH begins (on_new_pos) with the full intended time -- so it counts the entire pace
+// down while the engine thinks, not just the ~150ms tail left after the search fills the time --
+// and updated when the move is picked (on_engine_best_move) to add which humanize slice is coming.
+function set_move_countdown(target, source, category = null) {
+    eta_target = target; eta_source = source; eta_category = category;
     clearInterval(eta_timer);
-    const target = Date.now() + (thinkMs || 0);
-    const suffix = category ? ` · ${category}` : ''; // humanize: which mix slice is coming
     const tick = () => {
-        const left = target - Date.now();
+        const el = document.getElementById('next-move');
+        if (!el) { clearInterval(eta_timer); return; }
+        const left = eta_target - Date.now();
+        const suffix = eta_category ? ` · ${eta_category}` : ''; // humanize: which move it plays next
         if (left <= 50) {
-            el.textContent = `Playing now (${source})${suffix}`;
+            el.textContent = `Playing now (${eta_source})${suffix}`;
             clearInterval(eta_timer);
             return;
         }
-        el.textContent = `Playing in ${(left / 1000).toFixed(1)}s (${source})${suffix}`;
+        el.textContent = `Playing in ${(left / 1000).toFixed(1)}s (${eta_source})${suffix}`;
     };
     tick();
     eta_timer = setInterval(tick, 100);
@@ -1305,8 +1321,23 @@ function show_next_move_eta(thinkMs, source, category = null) {
 
 function clear_next_move_eta() {
     clearInterval(eta_timer);
+    eta_target = 0;
     const el = document.getElementById('next-move');
     if (el) el.textContent = '';
+}
+
+// Estimated TOTAL time (ms) this move will take + who's pacing it -- known before the search from
+// the clock (Mirror/Clock) or the humanize criticality estimate. null when nothing changes the
+// base time (plain autoplay), so no countdown is shown then.
+function estimated_move_total_ms(fen) {
+    const pace = paced_move_target_ms();
+    if (pace != null) {
+        if (pace.ms <= 0) return null; // low clock -> effectively instant, nothing to count down
+        return {ms: pace.ms, source: (config.mirror_mode && opp_spend != null) ? 'Mirror Time' : 'Clock Mode'};
+    }
+    const hz = humanize_presearch_ms(fen);
+    if (hz != null) return {ms: hz, source: 'Humanize'};
+    return null;
 }
 
 function request_automove(move, think = null) {
