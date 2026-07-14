@@ -410,6 +410,12 @@ html, body {
 
 .material-tooltip {
     top: 429px !important;
+    /* Cap the width so long hints wrap onto several lines instead of running off the
+       popup edge and getting clipped (the default max-width is nearly the full body). */
+    max-width: 340px !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    height: auto !important;
 }
 
 /* --------------------------------------------------------------------------- */

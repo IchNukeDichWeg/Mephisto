@@ -8,6 +8,7 @@ class GeneralSettings extends SettingsPage {
         M.Tooltip.init(document.querySelectorAll('.tooltipped'), {enterDelay: 1000});
         const engine_select = this.registerFormElement('engine', 'Engine:', 'select', 'stockfish-dev-nnue');
         const variant_select = this.registerFormElement('variant', 'Variant:', 'select', 'chess');
+        const elo_input = this.registerFormElement('elo', 'Elo:', 'input', 0);
         this.registerFormElement('compute_time', 'Stockfish Compute Time (ms):', 'input', 300);
         this.registerFormElement('fen_refresh', 'Fallback Poll Interval (ms):', 'input', 1000);
         const multipv_range = this.registerFormElement('multiple_lines', 'Multiple Lines:', 'range', 1);
@@ -55,6 +56,10 @@ class GeneralSettings extends SettingsPage {
                     variant_select.setValue('chess');
                 }
             }
+            // Elo cap range follows the engine (Stockfish ignores out-of-range UCI_Elo). Keep the
+            // input min at 0 so "0 = full strength" stays enterable; only cap the top per engine.
+            const ELO_RANGE = { 'stockfish-11-hce': [1350, 2850], 'fairy-stockfish-14-nnue': [500, 2850] };
+            elo_input.elem.max = (ELO_RANGE[engine_select.getValue()] || [1320, 3190])[1];
             if (engine_select.getValue() === 'remote') {
                 engineLabelTooltiped.classList.remove('hidden');
                 engineLabelUntooltiped.classList.add('hidden');

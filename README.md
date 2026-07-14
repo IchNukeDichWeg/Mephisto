@@ -1,136 +1,148 @@
-![alt text](https://raw.githubusercontent.com/AlexPetrusca/Mephisto/master/res/mephisto_banner_lowercase.png)
+![Mephisto](https://raw.githubusercontent.com/AlexPetrusca/Mephisto/master/res/mephisto_banner_lowercase.png)
 
-Mephisto is a browser extension that enables next best move analysis and automated gameplay on Chess.com and Lichess.
+Mephisto is a browser extension for real‑time chess analysis and automated play on **Chess.com**, **Lichess**,
+**BlitzTactics**, and **TakeTakeTake**. It reads the position straight off the page, runs a local engine in your
+browser, and draws the best moves on the board — or plays them for you, with timing and move choices that can be
+tuned to look completely human.
 
-## Getting Started
+Click Mephisto's toolbar icon to toggle its floating analysis panel directly on the page. The panel drags anywhere
+by its title bar, closes with the ✕, and — unlike a classic extension popup — stays open while you click and play,
+so analysis and autoplay keep running for the whole game.
 
-<a href="https://chrome.google.com/webstore/detail/mephisto-chess-extension/ihpdlpgcjepplokoncjelcbbcedgnanp" style="border: 1px solid white">
-  <img src="https://github.com/AlexPetrusca/Mephisto/blob/master/res/chrome-web-store.png" align="center" height="66px" />
-</a>
-&nbsp;&nbsp;&nbsp;&nbsp;
-<a href="https://addons.mozilla.org/en-US/firefox/addon/mephisto-chess-extension">
-  <img src="https://github.com/AlexPetrusca/Mephisto/blob/master/res/firefox_web_store.png" align="center" height="66px" />
-</a>
-<br>
-<br>
+---
 
-Click Mephisto's icon to toggle its floating analysis panel directly on the page. The panel can be dragged
-anywhere by its title bar, closed with the ✕, and — unlike a classic extension popup — it stays open while you
-click and play on the board, so analysis and autoplay keep running for the whole game. For ease of use, pin
-Mephisto in Chrome's extensions menu: click the puzzle icon to the right of the address bar, find
-"Mephisto Chess Extension" and click the pin icon next to it.
+## Install (load unpacked)
 
-For more information, see [Getting Started](https://github.com/AlexPetrusca/Mephisto/wiki/Getting-Started).
+This build is distributed as an unpacked extension, not through the Chrome/Firefox stores.
 
+1. Download or clone this repository.
+2. Open `chrome://extensions` in Chrome (or any Chromium browser).
+3. Enable **Developer mode** (top‑right).
+4. Click **Load unpacked** and select the repository folder.
+5. Pin Mephisto for quick access: click the puzzle icon right of the address bar and pin "Mephisto Chess Extension".
 
-## What's New in 3.0.0
+To pick up a code change: reload the extension on `chrome://extensions`, then reload the game tab.
 
-**UI**
-- **Floating in-page panel** replaces the anchored popup: draggable, closable, and it no longer closes when you
-  click the board (the old "Inspect Popup" workaround is obsolete).
-- **Quick Settings sidebar** in the panel: Autoplay / Premove / Puzzle / Help toggles apply instantly; engine,
-  threads, memory, lines and all timing settings are editable without opening the options page.
-- **Evaluation bar** next to the board, shown from your perspective (the text score stays White-relative).
+---
 
-**Engines**
-- New builds from `@lichess-org/stockfish-web`: **Stockfish dev NNUE** (new default), **Stockfish 18**
-  (dual net — its 104MB net ships split into <50MB chunks and is stitched at load time to fit GitHub's file
-  limits) and **Stockfish 18 Small**. Stockfish 6, 16 and 17 were removed; stale selections are migrated
-  automatically.
-- Illegal scraped positions (missing king, side-not-to-move in check, back-rank pawns) are blocked before they
-  can crash the WASM engine, and a crashed engine restarts automatically (capped at 3 attempts).
+## The panel
 
-**Play**
-- **Help Mode**: instead of autoplaying, all analysis arrows (best line, alternatives, threat) are mirrored
-  directly onto the site's board while the engine keeps evaluating — play the move yourself when ready.
-- **Continuous analysis**: with Autoplay off the engine analyzes indefinitely instead of stopping after the
-  search time.
-- **Safe Premove**: while the opponent thinks, Mephisto certifies a reply to their predicted move (the reply
-  must be identical at depth 6, 9 and 10+). If they play exactly that move, the reply is played instantly;
-  anything else falls back to a normal search — a wrong guess costs nothing. When the reply could never be
-  legal after any other opponent move (forced moves, recaptures), it is queued as a real premove immediately.
+- **Floating & draggable** — drag by the title bar, place it anywhere over the board; it never blocks the game.
+- **Evaluation & lines** — the score (White‑relative) plus the best line and, optionally, alternative lines and a
+  threat line, all as arrows on the board.
+- **Quick Settings** — every setting is editable inline: engine, Elo cap, variant, search time, threads, memory,
+  number of lines, and all timing/mode toggles. Changes apply on the next move (engine changes reload the panel).
+- **Re‑detect (↻)** — rescan the page and restart analysis, e.g. after a new game loads without a full page reload.
+- **Analysis board** — open the current position on Lichess's analysis board in one click.
 
-**Scraping fixes (2026 site DOMs)**
-- Lichess: current obfuscated move-list tags, correspondence games, the game-result element no longer breaks
-  parsing, turn detection at the starting position, and mid-animation scrapes are rejected instead of producing
-  corrupt positions.
-- Chess.com: normal games, "Play Bots", and puzzles all detect correctly (the From-Position support is scoped
-  to Lichess so it can't misread a chess.com game's standard start).
-- **"From Position" games** (custom starting position, e.g. endgame practice vs the AI) are now supported —
-  the starting position is captured at page load and replayed with the moves.
-- `remote-engine.py`: opening-book moves are no longer mistaken for game over; undeclared engine options are
-  skipped.
+---
 
-**Refinements since 3.0.0**
-- **Live depth** in the eval line (counts up like a desktop GUI) and **checkmate vs stalemate** are reported
-  correctly for the Remote Engine too.
-- **Panel polish**: opens at the top of the page (covers less of the board); Threads, Memory and Multi Lines
-  are sliders with live value labels; the options page gained the Premove and Help Mode toggles.
-- **Faster premove matching**: the certified reply now matches on the opponent's exact *move* (robust across
-  sites) rather than a reconstructed FEN string, which fixed premoves on chess.com.
-- **Leela (lc0) removed**: the bundled build was an old, unmaintained port that misbehaved; existing selections
-  migrate to the default. (For NN-style analysis, Stockfish dev NNUE covers it.)
-- **Chess.com variants** (`chess.com/variants/...`): 3-check, King of the Hill, Crazyhouse, Antichess, Atomic,
-  Horde and Racing Kings are detected, analyzed (Fairy-Stockfish) and autoplayed on the variants board's own
-  React UI, including automatic variant detection from the game URL.
-- **Event-driven position detection**: a MutationObserver pushes positions to the panel when the page's DOM
-  actually changes (30 ms debounce, deduped), replacing the old `fen_refresh` polling loop that scraped the
-  page up to 100 times per second for the lifetime of the tab. Zero work at idle; the poll survives only as a
-  ≥1 s fallback ("Fallback Poll" in the settings).
-- **Humanize**: play like a human, not a perfect engine — instant recaptures and forced moves, quick obvious
-  moves, long thinks in critical positions, and a **tunable move mix** (top move / second line / third line /
-  mistakes / blunders, five sliders in the options page that should sum to 100 — a Total row shows what to add
-  or remove, and edits apply to the very next move). Blunders are capped and never happen in decided games or
-  into a mate.
-- **Clock Mode**: reads the game clock off the page and budgets every move to it (≈ time/30 + 60% of the
-  increment), shrinking the engine search too; near-instant when short on time.
-- **Mirror Time**: paces to the opponent instead — spends what they spent on their last move, minus 10%,
-  staying just ahead on the clock, with extra haste when behind. Falls back to the Clock Mode budget until
-  their first move is measured. All humanize/clock/mirror combinations compose.
-- **Move countdown**: a line under the score shows when and why the next move fires
-  ("Playing in 8.2s (Mirror Time)").
-- **Alternative lines**: with Multi Lines > 1, a panel below the board lists each engine line's eval and
-  opening moves in SAN.
-- **Resizable panel**: drag the bottom-right corner; position and size persist per site.
-- **Chess960 with every engine**: all mainline Stockfish builds play it via `UCI_Chess960`; the variant
-  survives engine switches.
-- **Stark theme**: analysis and settings text is pure black in light mode, pure white in dark mode.
-- **TakeTakeTake (taketaketake.com)**: full support for a site whose board is a WebGPU canvas with no DOM to
-  scrape — the position, move list and clocks are read from the page's game state and pushed the instant a
-  move commits, for both bot and online (Lichess-backed) games.
-- **Chess.com variants auto-detect**: opening a `chess.com/variants/…` game detects the variant from the URL
-  and applies it automatically, switching to Fairy-Stockfish when the variant needs it.
-- **Search fills the pacing time**: when a clock-aware or humanize mode intends to spend longer on a move, the
-  engine searches that whole time (deeper move) instead of finding a shallow move fast and idling — never
-  below your configured search time, faster only when the clock is low or the move is forced.
-- **Recheck button** next to the settings gear rescans the page and restarts analysis (handy for SPA rematches
-  that swap games without a reload).
-- New fresh-install defaults: SF dev engine, 300 ms search, 1 s fallback poll, 8 threads, 512 MB hash,
-  200 ± 50 ms move time, autoplay off.
+## Engines
 
+Everything runs locally in your browser via WebAssembly — no server, no account, nothing leaves your machine.
 
-## How to Develop Locally
-Set up a local install:
-1. Clone the repo
-2. Navigate to `chrome://extensions` through the Chrome address bar
-3. Enable developer mode
-4. Click on "Load unpacked" and select the cloned repo folder
-5. Mephisto Chess Extension is now installed
+| Engine | Notes |
+| --- | --- |
+| **Stockfish dev NNUE** | Latest development build, neural‑net eval. Default. |
+| **Stockfish 18 NNUE** | Full dual‑net build (the large net ships split into chunks and is stitched at load). |
+| **Stockfish 18 Small NNUE** | Smaller net — lighter download, still very strong. |
+| **Stockfish 11 HCE** | Classical hand‑crafted eval (no NNUE); light and fast. |
+| **Fairy‑Stockfish 14 NNUE** | Required for the chess **variants** below (each variant has its own net). |
+| **Remote Engine** | Talk to an engine running outside the browser over a small local bridge, for when you want more power than WASM allows. |
 
-Test a code change:
-1. Navigate to `chrome://extensions`
-2. Reload Mephisto Chess Extension
-3. Reload the webpage you want to test on
-4. Test the changes
+Illegal scraped positions (missing king, wrong side in check, back‑rank pawns) are blocked before they can crash the
+engine, and a crashed engine auto‑restarts (capped at 3 attempts).
 
-For technical details, see [Technical Overview](https://github.com/AlexPetrusca/Mephisto/wiki/Technical-Overview).
+### Strength cap (Elo)
 
+Limit any Stockfish/Fairy engine to a target **Elo** with an engine‑aware slider. The stops follow each engine's
+real `UCI_Elo` range (Stockfish dev/18: 1320–3190, Stockfish 11: 1350–2850, Fairy: 500–2850). Both ends of the
+slider mean **full strength** (no cap): *Off* on the far left, *"max+"* on the far right. Sent as
+`UCI_LimitStrength` + `UCI_Elo`; values outside an engine's range are ignored by the engine, so the slider stays
+within bounds automatically.
 
-## How to Contribute
-Thank you for your interest in contributing to Mephisto! There are many ways to contribute, and we appreciate all of them.
+### Variants
 
-Ways to Contribute:
-- Help contribute ideas to Mephisto
-- Help identify and document bugs with Mephisto
-- Implement requested features through PRs
-- Fix identified bugs through PRs
+Standard chess and **Chess960 / Fischer Random** work on every mainline Stockfish (via `UCI_Chess960`).
+Fairy‑Stockfish additionally plays **Crazyhouse, King of the Hill, Three‑Check, Antichess, Atomic, Horde, and
+Racing Kings**. The **↻** button next to the variant selector detects the variant from the current game and switches
+to the right engine automatically.
+
+---
+
+## Analysis features
+
+- **Multiple lines** — show the top 1–5 candidate moves (MultiPV), each drawn on the board with its evaluation.
+- **Show computer evaluation** — display the numeric score / eval bar (turn off for a cleaner board).
+- **Eval bar** — a chess.com‑style vertical bar beside the board, from your perspective, with the score inside it.
+- **Threat analysis** — also show the opponent's strongest reply, so you can see what they're threatening.
+- **Search time** — how long the engine thinks per move (also the ceiling for continuous analysis).
+- **Threads / Memory** — tune engine strength vs. resource use.
+- **"Hand & Brain" mode** — Mephisto plays the *Brain* (tells you which piece type to move); you play the *Hand*
+  (choose the actual move).
+- **Continuous analysis** — with Autoplay off, the engine keeps analyzing indefinitely instead of stopping after
+  the search time.
+
+---
+
+## Automated play
+
+- **Autoplay** — Mephisto plays the engine's move for you automatically.
+- **Help Mode** — instead of autoplaying, all analysis arrows are mirrored onto the site's board while the engine
+  keeps evaluating; you play the move yourself when ready. Overrides Autoplay while on.
+- **Puzzle Mode** — optimizes for solving puzzles as fast as possible (Puzzle Rush / Puzzle Storm).
+
+### Safe Premove
+
+While the opponent is thinking, Mephisto certifies a reply to their **predicted** move (the reply must be identical
+at depth 6, 9 and 10+). If they play exactly that move, the reply fires **instantly**; anything else falls back to a
+normal search — a wrong guess costs nothing. When the reply could never be legal after any other opponent move
+(forced moves and true recaptures), it's queued as a real site premove immediately, and an illegal premove is
+auto‑cancelled so it can never fire in the wrong position.
+
+### Humanize
+
+Make automated play look like a real person instead of a flawless engine:
+
+- **Move mix** — five tunable sliders control how often Mephisto plays the top move, the 2nd line, the 3rd line, a
+  *mistake*, or a *blunder*. Second/third lines are only used when they're not much worse than best; mistakes are
+  ~0.6–1.5 pawns worse, blunders ~1.5–4.5 — and never in already‑decided games or into a mate. Edits apply to the
+  very next move.
+- **Human timing** — quick on obvious moves and openings, long thinks in critical positions, and an **instant
+  reflex** *only* for true recaptures (the opponent actually captured, and you take back on that square) and forced
+  moves. Snapping off a piece that merely moved in to attack is **not** treated as a reflex — that used to look
+  suspiciously fast.
+- **Reflex‑aware premove** — with Humanize on, premoves fire instantly only for those same true recaptures / forced
+  replies; everything else waits for a natural think time. (With Humanize off, premove keeps full speed.)
+- **Coming‑move countdown** — the panel shows what kind of move is coming (top / 2nd / 3rd / mistake / blunder /
+  instant) and counts down until it's played.
+
+### Clock Mode & Mirror Time
+
+Two ways to manage the clock, both of which also size the engine's search to the time they intend to spend (so the
+wait becomes a deeper move instead of idle time):
+
+- **Clock Mode** — reads the game clock off the page and budgets each move to it (roughly time/30 plus 60% of the
+  increment), playing near‑instantly when short on time.
+- **Mirror Time** — paces to the *opponent* instead: spends what they spent on their last move minus 10%, staying
+  just ahead on the clock (with extra haste when behind), and falls back to the Clock Mode budget when their spend
+  is unknown.
+
+**Priority when several are on** — *Time:* Mirror ▸ Clock ▸ Humanize ▸ Search Time (the first one enabled sets the
+duration; recaptures & forced moves stay instant). *Move:* Humanize picks which move; otherwise the engine's best.
+Each toggle's tooltip states this inline.
+
+---
+
+## Supported sites
+
+- **Chess.com** — live games, puzzles, and the **variants** boards (auto‑detect + engine switch).
+- **Lichess** — live, correspondence, and "From Position" custom‑start games.
+- **BlitzTactics** — puzzle streams.
+- **TakeTakeTake** — bot games and online (Lichess‑backed) games, including premoves.
+
+---
+
+## Contributing
+
+Ideas, bug reports, and PRs are all welcome — open an issue or a pull request.

@@ -21,6 +21,31 @@ let last_clocks = null;   // {mine, theirs, increment, at} scraped off the page 
 let last_our_eval = null; // our-perspective cp after our previous move (humanize criticality)
 let opp_clock_mark = null; // opponent's clock when their turn started...
 let opp_spend = null;      // ...so their spend on their LAST move = mark - now (Clock Mode mirroring)
+// UCI_Elo [min, max] per engine, from each engine's own source (out-of-range values are silently
+// ignored by Stockfish, so the slider stays within these): modern SF = 1320/3190; SF 11 = 1350/2850;
+// Fairy-SF 14 = 500/2850.
+const ELO_RANGE = {
+    'stockfish-dev-nnue': [1320, 3190],
+    'stockfish-18-nnue': [1320, 3190],
+    'stockfish-18-small-nnue': [1320, 3190],
+    'stockfish-11-hce': [1350, 2850],
+    'fairy-stockfish-14-nnue': [500, 2850],
+    'remote': [1320, 3190], // unknown engine; assume the modern SF range
+};
+// Sits above every engine's ceiling (max is 3190), so it reads as "no cap / full strength". Both
+// slider ends map to full strength: 0 on the left (Off) and this on the right.
+const FULL_STRENGTH_ELO = 3200;
+// Slider stops: index 0 = 0 (Off / full strength), then the engine's range in 50-Elo steps with the
+// true max always included, and FULL_STRENGTH_ELO as the final right-hand "max+" stop.
+function elo_stops(engine) {
+    const [min, max] = ELO_RANGE[engine] || [1320, 3190];
+    const stops = [0];
+    for (let e = min; e < max; e += 50) stops.push(e);
+    stops.push(max);
+    stops.push(FULL_STRENGTH_ELO);
+    return stops;
+}
+
 let turn = ''; // 'w' | 'b'
 
 document.addEventListener('DOMContentLoaded', async function () {
@@ -41,6 +66,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         // general settings
         engine: storedEngine || 'stockfish-dev-nnue',
         variant: JSON.parse(localStorage.getItem('variant')) || 'chess',
+        elo: JSON.parse(localStorage.getItem('elo')) || 0, // strength cap; 0 = full strength (no UCI_LimitStrength)
         compute_time: (computeTime != null) ? computeTime : 300,
         fen_refresh: (fenRefresh != null) ? fenRefresh : 1000, // FALLBACK poll; positions arrive event-driven
         multiple_lines: JSON.parse(localStorage.getItem('multiple_lines')) || 1,
@@ -231,8 +257,8 @@ function init_quick_settings() {
         });
     }
     // timing settings apply live: compute_time is read at every 'go', think/move times are pushed to the page
-    for (const [id, key] of [['qs_search', 'compute_time'], ['qs_think', 'think_time'],
-                             ['qs_think_var', 'think_variance'], ['qs_move', 'move_time'], ['qs_move_var', 'move_variance']]) {
+    for (const [id, key] of [['qs_search', 'compute_time'],
+                             ['qs_move', 'move_time'], ['qs_move_var', 'move_variance']]) {
         const elem = document.getElementById(id);
         if (!elem) continue;
         elem.value = config[key];
@@ -285,6 +311,33 @@ function init_quick_settings() {
                 else { detectBtn.textContent = '?'; setTimeout(() => { detectBtn.textContent = '↻'; }, 1200); }
             });
         });
+    }
+    // Elo slider: index-mapped so its stops follow the selected engine's real UCI_Elo range
+    // (position 0 = Off / full strength). Saves the mapped Elo and reloads to re-init the engine.
+    const eloSlider = document.getElementById('qs_elo');
+    const eloLabel = document.getElementById('qs_elo_val');
+    if (eloSlider && eloLabel) {
+        const stops = elo_stops(config.engine);
+        const idxOf = (elo) => { // nearest stop to the stored Elo
+            if (!(elo > 0)) return 0;                              // Off (far left)
+            if (elo >= FULL_STRENGTH_ELO) return stops.length - 1; // max+ (far right)
+            let best = 1, bestD = Infinity;
+            stops.forEach((e, i) => { // nearest real stop; skip the full-strength sentinel
+                if (i && e < FULL_STRENGTH_ELO && Math.abs(e - elo) < bestD) { bestD = Math.abs(e - elo); best = i; }
+            });
+            return best;
+        };
+        eloSlider.max = String(stops.length - 1);
+        eloSlider.value = String(idxOf(config.elo));
+        const paint = () => {
+            const v = stops[+eloSlider.value];
+            // the right-hand full-strength stop shows the engine's OWN ceiling, not the 3200 sentinel
+            eloLabel.textContent = v === 0 ? 'Off / Full Strength'
+                : v >= FULL_STRENGTH_ELO ? `${stops[stops.length - 2]}+ / Full Strength` : v;
+        };
+        paint();
+        eloSlider.addEventListener('input', paint);
+        eloSlider.addEventListener('change', () => { save('elo', stops[+eloSlider.value]); location.reload(); });
     }
     // range sliders show their value in the label while dragging ('change' above still does the
     // save+reload when the thumb is released)
@@ -361,6 +414,7 @@ async function initialize_engine() {
         request_remote_configure({
             // remote-engine.py skips options the engine doesn't declare, so this is safe everywhere
             ...(config.variant === 'fischerandom' ? {"UCI_Chess960": true} : {}),
+            ...(config.elo > 0 && config.elo <= 3190 ? {"UCI_LimitStrength": true, "UCI_Elo": config.elo} : {}),
             "Hash": config.memory,
             "Threads": config.threads,
             "MultiPV": config.multiple_lines,
@@ -374,6 +428,15 @@ async function initialize_engine() {
         // already gets this from its 'fischerandom' UCI_Variant above, so only the SF engines need it.)
         if (config.variant === 'fischerandom' && config.engine !== 'fairy-stockfish-14-nnue') {
             send_engine_uci('setoption name UCI_Chess960 value true');
+        }
+        // Strength cap: Stockfish/Fairy clamp UCI_Elo to their own range. 0 = full strength (Off),
+        // and the "max+" slider stop sits above every ceiling -> also full strength (limiting off).
+        const eloMax = (ELO_RANGE[config.engine] || [1320, 3190])[1];
+        if (config.elo > 0 && config.elo <= eloMax) {
+            send_engine_uci('setoption name UCI_LimitStrength value true');
+            send_engine_uci(`setoption name UCI_Elo value ${config.elo}`);
+        } else {
+            send_engine_uci('setoption name UCI_LimitStrength value false');
         }
         send_engine_uci('ucinewgame');
         send_engine_uci('isready');
@@ -789,6 +852,26 @@ function premove_is_safe(fen, pred, reply) {
     return true; // forced move (no other moves) or a reply only legal in the predicted position
 }
 
+// Humanize-only extra gate on premoves: even a premove that can't misfire looks robotic when it
+// instantly snaps off a piece that merely moved in to attack. With Humanize on, only let a premove
+// fire when a human reflexively would -- a TRUE recapture (the opponent's predicted move was itself
+// a capture and we take back on that square) or a genuinely forced reply (the only legal move after
+// it). Anything else is held so the normal humanized think time plays it. Off when Humanize is off:
+// Mirror/Clock keep full premove speed (they don't chase the "look human" goal). Fail-safe: if the
+// position can't be verified, hold the premove (with Humanize on, erring toward looking human).
+function premove_human_reflex(fen, pred, reply) {
+    try {
+        const c = new Chess(config.variant, fen);
+        const predMove = c.moves({verbose: true}).find(m => `${m.from}${m.to}${m.promotion || ''}` === pred);
+        if (!predMove) return false;
+        if (predMove.captured && reply.slice(2, 4) === pred.slice(2, 4)) return true; // true recapture
+        c.move({from: pred.slice(0, 2), to: pred.slice(2, 4), promotion: pred[4]});
+        return c.moves().length === 1; // forced: exactly one legal reply after the predicted move
+    } catch (e) {
+        return false;
+    }
+}
+
 // Don't wait for the opponent when waiting can't help: queue the certified reply as a REAL
 // site premove (clicks during their turn) whenever premove_is_safe says it can't misfire.
 function maybe_premove_forced_reply(line) {
@@ -804,6 +887,8 @@ function maybe_premove_forced_reply(line) {
         premove_tracker.safe = premove_is_safe(premove_tracker.fen, line.pred, line.reply);
     }
     if (!premove_tracker.safe) return;
+    // Humanize: hold premoves that aren't a true recapture / forced reply (see premove_human_reflex)
+    if (config.humanize && !premove_human_reflex(premove_tracker.fen, line.pred, line.reply)) return;
     premove_tracker.premoved = true;
     console.log('Premove: reply cannot misfire (forced/bound to predicted move) -- premoving', line.reply);
     request_automove(line.reply);
@@ -824,15 +909,18 @@ function premove_instant_reply(new_fen, new_moves) {
         certified++;
         // primary match: the exact MOVE, per the premove contract -- robust across sites
         // (fen-string reconstruction proved fragile on some site DOMs)
+        // Humanize holds non-reflex replies (returns null -> normal humanized search plays it);
+        // off when Humanize is off, so plain Premove / Clock / Mirror keep full instant speed.
+        const held = config.humanize && !premove_human_reflex(premove_tracker.fen, line.pred, line.reply);
         if (premove_tracker.moves && new_moves
                 && new_moves === `${premove_tracker.moves} ${line.pred}`) {
-            return line.reply; // the opponent played exactly the predicted move
+            return held ? null : line.reply; // the opponent played exactly the predicted move
         }
         try { // fallback for moves-less contexts: apply the prediction and compare positions
             const chess = new Chess(config.variant, premove_tracker.fen);
             chess.move({from: line.pred.slice(0, 2), to: line.pred.slice(2, 4), promotion: line.pred[4]});
             if (chess.fen() === new_fen) {
-                return line.reply;
+                return held ? null : line.reply;
             }
         } catch (e) {
             // predicted move not applicable to this position; fall through to the next line
@@ -1233,7 +1321,14 @@ function humanize_pick(best) {
     // reflex moves first: a human ALWAYS bangs out the recapture / the only legal move --
     // instantly, and without ever "choosing" an alternative
     const lastOpp = last_eval.lastMove; // opponent's move that produced this position (lan)
-    const recapture = lastOpp && best.slice(2, 4) === lastOpp.slice(2, 4);
+    // True recapture only: the opponent's move must have been a CAPTURE (which zeroes the FEN
+    // halfmove clock) AND we take back on that same square. Instantly snapping off a piece that
+    // merely moved in to attack (e.g. a knight hitting our queen) is NOT a reflex for a human --
+    // treating it as one made the instant replies look illegitimate. (A pawn push also zeroes the
+    // clock, but taking a just-pushed pawn on its square is still a fair reflex; those are rare.)
+    let halfmove = 1;
+    try { halfmove = parseInt(fen.split(' ')[4]); } catch (e) { /* variant fen: leave >0, no false reflex */ }
+    const recapture = lastOpp && halfmove === 0 && best.slice(2, 4) === lastOpp.slice(2, 4);
     let forced = false, fullmove = 999;
     try {
         const chess = new Chess(config.variant, fen);

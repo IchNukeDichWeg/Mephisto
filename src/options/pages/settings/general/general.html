@@ -24,6 +24,18 @@
                         </select>
                     </label>
                 </div>
+                <div class="section" id="elo_section">
+                    <label>
+                        <span class="tooltipped" data-position="right"
+                              data-tooltip="Cap the engine's playing strength to a target Elo (sent as
+                                            UCI_LimitStrength + UCI_Elo). The valid range follows the engine
+                                            (SF dev/18: 1320-3190, SF 11: 1350-2850, Fairy: 500-2850), and
+                                            out-of-range values are ignored (not clamped). 0 = full strength (no cap).">
+                            Elo <i class="material-icons info-tooltip">info</i>
+                        </span>
+                        <input id="elo_input" type="number" min="0" max="3190" step="10">
+                    </label>
+                </div>
                 <div class="section">
                     <label>
                         Variant
@@ -165,7 +177,10 @@
                         <label class="switch-label tooltipped" data-position="right"
                                data-tooltip="Play like a human: instant recaptures and forced moves, quick obvious
                                              moves, long thinks in critical positions -- and occasionally a second-best
-                                             move, a mistake, or (rarely) a blunder."
+                                             move, a mistake, or (rarely) a blunder.
+                                             Priority -- Time: Mirror &gt; Clock &gt; Humanize &gt; Search Time (first one
+                                             enabled sets the duration; recaptures &amp; forced moves always instant).
+                                             Move: Humanize &gt; engine best."
                         >
                             Humanize <i class="material-icons info-tooltip">info</i>
                         </label>
@@ -180,7 +195,10 @@
                         <label class="switch-label tooltipped" data-position="right"
                                data-tooltip="Read the game clock off the page and budget thinking + search to it:
                                              roughly time/30 plus 60% of the increment per move, near-instant when
-                                             short on time."
+                                             short on time.
+                                             Priority -- Time: Mirror &gt; Clock &gt; Humanize &gt; Search Time (first one
+                                             enabled sets the duration; recaptures &amp; forced moves always instant).
+                                             Move: Humanize &gt; engine best."
                         >
                             Clock Mode <i class="material-icons info-tooltip">info</i>
                         </label>
@@ -196,7 +214,10 @@
                                data-tooltip="Pace to the opponent instead: spend what they spent on their last
                                              move, minus 10%, staying just ahead on the clock (30% extra haste
                                              when behind). Falls back to the Clock Mode budget when their spend
-                                             is unknown. Recaptures and forced moves stay instant."
+                                             is unknown. Recaptures and forced moves stay instant.
+                                             Priority -- Time: Mirror &gt; Clock &gt; Humanize &gt; Search Time (first one
+                                             enabled sets the duration; recaptures &amp; forced moves always instant).
+                                             Move: Humanize &gt; engine best."
                         >
                             Mirror Time <i class="material-icons info-tooltip">info</i>
                         </label>
