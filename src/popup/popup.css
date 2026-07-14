@@ -296,6 +296,12 @@ html, body {
     right: 195px; /* stay inside the left column, clear of the (190px) quick-settings panel */
 }
 
+#recheck {
+    position: absolute;
+    bottom: 5px;
+    right: 265px; /* beside the settings gear */
+}
+
 #quick-settings {
     position: absolute;
     top: 0;
@@ -459,11 +465,13 @@ body.mephisto-dark #quick-settings::-webkit-scrollbar-thumb {
 }
 /* flatten the two floating action buttons so they sit in the theme instead of glowing teal */
 body.mephisto-dark #config,
+body.mephisto-dark #recheck,
 body.mephisto-dark #analyze {
     background-color: #2a2b31;
     box-shadow: none;
 }
 body.mephisto-dark #config:hover,
+body.mephisto-dark #recheck:hover,
 body.mephisto-dark #analyze:hover {
     background-color: #363740;
 }

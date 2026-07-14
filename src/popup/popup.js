@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     document.body.classList.toggle('mephisto-dark', config.dark_mode); // dark theme (set in Appearance)
     push_config();
     init_quick_settings();
+    maybe_autodetect_variant(); // variant game page -> auto-apply the variant (+ Fairy) once
 
     // init chess board
     document.getElementById('board').classList.add(config.board);
@@ -185,6 +186,14 @@ document.addEventListener('DOMContentLoaded', async function () {
     document.getElementById('config').addEventListener('click', () => {
         window.open('/src/options/options.html', '_blank');
     });
+    // force re-detection: an SPA can swap games without any reload (e.g. a rematch), and if a
+    // scrape ever goes stale this rescans the page and restarts the analysis from scratch
+    document.getElementById('recheck')?.addEventListener('click', () => {
+        last_eval.fen = '';   // treat whatever comes back as a brand-new position
+        send_engine_uci('stop');
+        push_config();        // resets the content-script's push dedupe + triggers an immediate push
+        request_fen();        // and poll right now as well
+    });
 
     // initialize materialize
     M.Tooltip.init(document.querySelectorAll('.tooltipped'), {});
@@ -272,7 +281,7 @@ function init_quick_settings() {
             detectBtn.disabled = true;
             request_detect_variant(v => {
                 detectBtn.disabled = false;
-                if (v) { save('variant', v); location.reload(); }        // detected -> reload into it
+                if (v) apply_detected_variant(v);                        // detected -> apply (+ Fairy) & reload
                 else { detectBtn.textContent = '?'; setTimeout(() => { detectBtn.textContent = '↻'; }, 1200); }
             });
         });
@@ -508,8 +517,14 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 if ((config.humanize || clock_aware()) && !config.puzzle_mode) {
                     const pick = humanize_pick(best);
                     if (pick.move !== best) console.log(`Humanize: playing ${pick.move} over ${best}`);
-                    show_next_move_eta(pick.think, pick.source);
-                    request_automove(pick.move, pick.think);
+                    // the search already burned most of the intended think (on_new_pos sized it to
+                    // the pace), so only wait out the RESIDUAL -- never idle time the engine could
+                    // have spent searching. Clock-aware paces are largely consumed by the search;
+                    // a pure-humanize long think still waits here (its search stayed at the default).
+                    const elapsed = Date.now() - search_start;
+                    const residual = Math.max(0, Math.round(pick.think - elapsed));
+                    show_next_move_eta(residual, pick.source, pick.category);
+                    request_automove(pick.move, residual);
                 } else {
                     request_automove(best); // in help mode draw_moves() mirrors the arrows instead
                 }
@@ -833,12 +848,31 @@ function on_new_pos(fen, startFen, moves) {
     premove_tracker = {fen: fen, startFen: startFen || fen, moves: moves || '', lines: {}}; // certifications belong to exactly one position
     const search_in_flight = search_active;
     toggle_calculating(true);
-    // clock-aware (Clock Mode / Mirror Time): under time pressure the SEARCH must shrink too --
-    // a 2s movetime with 10s on the clock loses on time no matter how fast the clicks are
-    const clock_budget = clock_budget_ms();
-    const movetime = (clock_budget != null)
-        ? Math.max(50, Math.min(config.compute_time, Math.round(clock_budget * 0.4)))
-        : config.compute_time;
+    // SIZE THE SEARCH TO THE PACE. When a clock-aware mode intends to spend, say, 1.2s on this move,
+    // the engine should SEARCH ~1.2s (minus a margin to play it) rather than find a shallow move in
+    // the default time and then idle -- the wait becomes a deeper move instead of dead time. Floor
+    // at the configured search time so pacing never makes the engine think LESS than the default,
+    // unless it's genuinely time to hurry (low clock, or a forced move). Pure Humanize (no clock)
+    // keeps the default search: its long thinks key off the position's criticality, which isn't
+    // known until after the search, so that time stays a post-search wait.
+    const pace = paced_move_target_ms();
+    let movetime = config.compute_time;
+    if (pace != null) {
+        const filled = Math.round(pace.ms - MOVE_MARGIN);
+        movetime = pace.lowClock
+            ? Math.max(50, Math.min(filled, Math.round(pace.ms))) // hurrying: let it drop below default
+            : Math.max(config.compute_time, filled);              // else fill the pace, never under default
+        movetime = Math.max(50, movetime);
+    } else {
+        // humanize without a clock mode: fill the estimated human think, never under the default
+        const hz = humanize_presearch_ms(fen);
+        if (hz != null) movetime = Math.max(config.compute_time, Math.round(hz - MOVE_MARGIN));
+    }
+    // a forced move (one legal reply) needs no thinking time -- play it fast even mid-pace
+    try {
+        if (new Chess(config.variant, fen).moves().length === 1) movetime = Math.min(movetime, config.compute_time);
+    } catch (e) { /* variant fen chess.js can't parse -- skip the forced-move shortcut */ }
+    search_start = Date.now();
     if (is_remote()) {
         if (moves) {
             request_remote_analysis(startFen, movetime, moves).then(on_engine_response).catch(on_remote_error);
@@ -1100,6 +1134,53 @@ function clock_budget_ms() {
     return Math.max(120, Math.min((T / 30 + 0.6 * I) * 1000, T * 1000 / 8));
 }
 
+// time reserved (ms) to actually click the move + engine stop/flush overhead, so the SEARCH never
+// eats the whole budget and leave nothing to play it in
+const MOVE_MARGIN = 150;
+let search_start = 0; // when the current autoplay search was issued (for the residual think below)
+
+// The intended TOTAL time (ms) for the current move from the clock-aware modes, computed WITHOUT
+// the search results (Mirror = opponent's spend x0.9, Clock = the T/30 budget). Used to SIZE the
+// search in on_new_pos so the engine thinks the whole time instead of finding a shallow move fast
+// and then idling. null when no clock-aware mode is active or the clock is unreadable. This is an
+// estimate that omits humanize's kind-based caps (which need the results) -- humanize_pick stays
+// the authoritative think, and on_engine_best_move only waits out whatever the search didn't cover.
+function paced_move_target_ms() {
+    if (!clock_aware() || !last_clocks || last_clocks.mine == null) return null;
+    const T = last_clocks.mine - (Date.now() - last_clocks.at) / 1000; // seconds remaining
+    let ms;
+    if (config.mirror_mode && opp_spend != null) {
+        ms = opp_spend * 900;                                     // mirror: 90% of their spend
+        if (last_clocks.theirs != null && T < last_clocks.theirs) ms *= 0.7; // catch up when behind
+    } else {
+        ms = clock_budget_ms();
+        if (ms == null) return null;
+    }
+    ms = Math.min(ms, T * 1000 / 8);   // never sink an eighth of the clock into one move
+    if (T < 20) ms = Math.min(ms, 250);
+    if (T < 8) ms = 0;
+    return {ms, lowClock: T < 20};
+}
+
+// Pre-search estimate (ms) of humanize's think for THIS move, for humanize WITHOUT a clock-aware
+// mode (which would otherwise size the search itself). Humanize's real "long think" keys off the
+// position's criticality, only known after the search -- so here we estimate it from the signals
+// available BEFORE it: game phase and how balanced the game is (|last eval|). A tense, level game
+// gets a deep search; an opening or a decided game gets a quick one. It's just a search size --
+// humanize_pick still decides the actual think from the results, and any shortfall is waited out.
+function humanize_presearch_ms(fen) {
+    if (!config.humanize || clock_aware() || !config.autoplay
+        || config.help_mode || config.puzzle_mode) return null;
+    let fullmove = 999;
+    try { fullmove = parseInt(fen.split(' ')[5]) || 999; } catch (e) { /* variant fen */ }
+    if (fullmove < 8) return 500;                                   // opening: reel it off
+    const evalCp = (last_our_eval != null) ? Math.abs(last_our_eval) : 0;
+    if (evalCp > 600) return 500;                                  // game decided: moves matter less
+    if (evalCp < 150) return 2500;                                 // balanced & tense: think
+    return 1200;                                                   // ordinary middlegame
+}
+
+
 // {move, think}: which move to actually play, and how long to sit on it first
 function humanize_pick(best) {
     const fen = last_eval.fen;
@@ -1107,6 +1188,7 @@ function humanize_pick(best) {
     const bestLine = lines.find(l => l.move === best) || lines[0];
     const bestCp = bestLine ? line_cp_ours(bestLine) : 0;
 
+    let category = 'top move'; // which slice of the move mix the pick came from (for the countdown)
     // reflex moves first: a human ALWAYS bangs out the recapture / the only legal move --
     // instantly, and without ever "choosing" an alternative
     const lastOpp = last_eval.lastMove; // opponent's move that produced this position (lan)
@@ -1135,16 +1217,21 @@ function humanize_pick(best) {
             // the best move
         } else if (r < rates.top + rates.second) {
             cand = closeEnough(alts[0]);
+            if (cand) category = 'second line';
         } else if (r < rates.top + rates.second + rates.third) {
             cand = closeEnough(alts[1]);
+            if (cand) category = 'third line';
         } else if (r < rates.top + rates.second + rates.third + rates.mistake) {
             const pool = alts.filter(l => loss(l) > 60 && loss(l) <= 150);
             cand = pool[Math.floor(Math.random() * pool.length)];
+            if (cand) category = 'mistake';
         } else if (Math.abs(bestCp) < 600) { // blunder share; never in decided games
             const pool = alts.filter(l => loss(l) > 150 && loss(l) <= 450);
             cand = pool[Math.floor(Math.random() * pool.length)];
+            if (cand) category = 'blunder';
         }
         if (cand && playable(cand.move)) move = cand.move;
+        else category = 'top move'; // gate failed / pool empty / not playable -> best move after all
     }
 
     // ---- HOW LONG to think: classify the position, then sample a duration.
@@ -1172,6 +1259,7 @@ function humanize_pick(best) {
     // budget always. Reflex moves stay instant regardless, and both paths share the safety rails.
     // `source` = who decided the timing (priority: reflex > mirror > clock > humanize), for the
     // "Playing in ..." countdown under the score.
+    if (recapture || forced) category = 'reflex';
     let source = (kind === 'instant') ? 'Reflex' : 'Humanize';
     const budget = clock_budget_ms();
     if (budget != null) {
@@ -1189,26 +1277,27 @@ function humanize_pick(best) {
         if (T < 20) think = Math.min(think, 250);
         if (T < 8) think = 0;
     }
-    return {move, think: Math.round(think), source};
+    return {move, think: Math.round(think), source, category: config.humanize ? category : null};
 }
 
 // "Playing in X.Xs (Mirror Time)" countdown under the score -- shown whenever a pacing mode
 // (mirror/clock/humanize) decided a think delay for the move that is about to be played
 let eta_timer = null;
 
-function show_next_move_eta(thinkMs, source) {
+function show_next_move_eta(thinkMs, source, category = null) {
     const el = document.getElementById('next-move');
     if (!el) return;
     clearInterval(eta_timer);
     const target = Date.now() + (thinkMs || 0);
+    const suffix = category ? ` · ${category}` : ''; // humanize: which mix slice is coming
     const tick = () => {
         const left = target - Date.now();
         if (left <= 50) {
-            el.textContent = `Playing now (${source})`;
+            el.textContent = `Playing now (${source})${suffix}`;
             clearInterval(eta_timer);
             return;
         }
-        el.textContent = `Playing in ${(left / 1000).toFixed(1)}s (${source})`;
+        el.textContent = `Playing in ${(left / 1000).toFixed(1)}s (${source})${suffix}`;
     };
     tick();
     eta_timer = setInterval(tick, 100);
@@ -1251,11 +1340,50 @@ function request_clear_hint() {
 // ask the content-script to read the variant off the current game page; cb(variant | null)
 function request_detect_variant(cb) {
     const ask = tabId => chrome.tabs.sendMessage(tabId, {detectVariant: true}, resp => {
-        cb(chrome.runtime.lastError ? null : ((resp && resp.variant) || null));
+        if (chrome.runtime.lastError) return cb(null, null);
+        cb((resp && resp.variant) || null, (resp && resp.href) || null);
     });
     if (MY_TAB_ID) return ask(MY_TAB_ID);
     chrome.tabs.query({active: true, currentWindow: true}, tabs => (tabs[0] && tabs[0].id) && ask(tabs[0].id));
 }
+
+// fairy-only variants -- everything a mainline engine can't play. Chess960 is NOT here (mainline
+// Stockfish plays it via UCI_Chess960), so detecting it must not force the Fairy engine.
+function needs_fairy_engine(v) {
+    return v && v !== 'chess' && v !== 'fischerandom';
+}
+
+// apply a detected variant: set it AND switch to the Fairy engine when the variant requires it.
+// Without the engine switch, detection was a no-op on a non-Fairy engine -- the variant was saved
+// but the engine analysed the board as standard chess.
+function apply_detected_variant(v) {
+    localStorage.setItem('variant', JSON.stringify(v));
+    if (needs_fairy_engine(v) && config.engine !== 'fairy-stockfish-14-nnue') {
+        localStorage.setItem('engine', JSON.stringify('fairy-stockfish-14-nnue'));
+    }
+    location.reload();
+}
+
+// Auto-detect the variant on a chess.com / lichess variant GAME page so it just works -- apply the
+// detected variant (switching to Fairy when needed) without the user picking engine + variant by
+// hand. Runs at most once per game URL (sessionStorage guard) so a manual change afterwards is
+// respected and there's no reload loop.
+function maybe_autodetect_variant() {
+    request_detect_variant((v, href) => {
+        if (!v || !href) return;
+        // only AUTO-apply where detection is URL-definitive: chess.com /variants/ game pages. The
+        // lichess detector is DOM-heuristic and could false-positive on a standard game, so lichess
+        // stays on the explicit Detect button (which now switches to Fairy too).
+        if (!/\/variants\//.test(href)) return;
+        const targetEngine = needs_fairy_engine(v) ? 'fairy-stockfish-14-nnue' : config.engine;
+        if (config.variant === v && config.engine === targetEngine) return; // already correct
+        const key = 'mephisto.autodetected:' + href;
+        try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) { /* */ }
+        console.log('Mephisto: auto-detected variant', v, '-> applying (was', config.variant + '/' + config.engine + ')');
+        apply_detected_variant(v);
+    });
+}
+
 
 function request_draw_eval_bar(data) {
     send_to_active_tab({drawEvalBar: true, ...data});
