@@ -18,13 +18,15 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.28'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.37'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
         'lichess.org': 'lichess',
         'www.chess.com': 'chesscom',
-        'blitztactics.com': 'blitztactics'
+        'blitztactics.com': 'blitztactics',
+        'taketaketake.com': 'taketaketake',
+        'www.taketaketake.com': 'taketaketake'
     };
     site = siteMap[window.location.hostname];
     pullConfig();
@@ -37,7 +39,7 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
         return;
     }
     if (response.detectVariant) {
-        sendResponse({variant: detectVariant()});
+        sendResponse({variant: detectVariant(), href: location.href});
         return;
     }
     if (response.queryfen) {
@@ -452,6 +454,7 @@ function tryScrapePosition() {
 }
 
 function scrapePosition() {
+    if (site === 'taketaketake') return scrapePositionTT(); // state-based, no DOM to scrape
     if (!getBoard()) return;
 
     let prefix = '';
@@ -601,6 +604,11 @@ function scrapePositionPuz() {
 
 function getOrientation() {
     let orientedBlack = true;
+    if (site === 'taketaketake') {
+        // the app keeps the viewer's color at the bottom ('blackDown' when playing black);
+        // spectators default to white-down
+        return (ttQuery()?.myColor === 'black') ? 'black' : 'white';
+    }
     if (isChesscomVariants()) {
         return getChesscomVariantsOrientation();
     } else if (site === 'chesscom') {
@@ -657,6 +665,45 @@ function spriteLightness(piece) {
 }
 
 // -------------------------------------------------------------------------------------------
+// TakeTakeTake (taketaketake.com): the board is a WebGPU canvas with NO DOM pieces/squares, so
+// the position comes from the page's React state via tt-probe.js (MAIN-world content script).
+// The probe answers a 'mephisto-tt-query' CustomEvent SYNCHRONOUSLY with 'mephisto-tt-state'
+// (JSON: fen, moves[{san,uci}], myColor, clocks in ms, increment), so ttQuery() is a plain
+// synchronous read from the scrapers' point of view.
+
+let ttState = null;
+document.addEventListener('mephisto-tt-state', (e) => {
+    // query RESPONSE: update only. It must NOT schedulePush -- every push queries, so a push
+    // here would re-arm the debounce forever (a 33Hz self-sustaining loop).
+    try { ttState = JSON.parse(e.detail); } catch (err) { ttState = null; }
+});
+document.addEventListener('mephisto-tt-update', (e) => {
+    // unsolicited PUSH from the probe's actor subscription: the canvas repaints without DOM
+    // mutations, so this is what makes move detection instant instead of waiting for the
+    // move-list to re-render (or the 1s fallback poll). The probe only fires on real position
+    // changes, so this can't loop.
+    try { ttState = JSON.parse(e.detail); } catch (err) { return; }
+    if (config) schedulePush();
+});
+
+function ttQuery() {
+    try {
+        document.dispatchEvent(new CustomEvent('mephisto-tt-query'));
+    } catch (e) { /* probe not injected (stale page) */ }
+    return ttState;
+}
+
+// scrape = the SAN move list from the probe, shipped through the same 'fen***' path lichess and
+// chess.com use (standard start + SANs; the popup rebuilds the position with chess.js)
+function scrapePositionTT() {
+    const st = ttQuery();
+    if (!st || !st.fen) return; // no active game on this page
+    let res = '***ttfen***';
+    for (const m of st.moves) res += m.san + '*****';
+    return res.replace(/[^\w-+=#*@&]/g, '');
+}
+
+// -------------------------------------------------------------------------------------------
 // Clocks: best-effort scrape of both players' remaining time + the game's increment, shipped
 // with every position push so the popup's Clock Mode can budget its thinking. Missing/unparsable
 // clocks yield null fields -- the popup then just behaves as if Clock Mode were off.
@@ -671,6 +718,16 @@ function parseClockText(txt) {
 }
 
 function scrapeClocks() {
+    if (site === 'taketaketake') { // exact server clocks (ms) from the probe, no DOM parsing
+        const st = ttQuery();
+        if (!st || st.whiteClockMs == null || st.blackClockMs == null) return null;
+        const black = (st.myColor === 'black');
+        return {
+            mine: (black ? st.blackClockMs : st.whiteClockMs) / 1000,
+            theirs: (black ? st.whiteClockMs : st.blackClockMs) / 1000,
+            increment: st.increment,
+        };
+    }
     let mineTxt = null, theirsTxt = null, tcText = '';
     if (site === 'lichess') {
         mineTxt = document.querySelector('.rclock-bottom .time')?.textContent;
@@ -680,10 +737,21 @@ function scrapeClocks() {
         mineTxt = document.querySelector('.playerbox-bottom .clock-component')?.textContent;
         theirsTxt = document.querySelector('.playerbox-top .clock-component')?.textContent;
     } else if (site === 'chesscom') {
-        mineTxt = (document.querySelector('.clock-bottom')
-            || document.querySelector('#board-layout-player-bottom .clock-component'))?.textContent;
-        theirsTxt = (document.querySelector('.clock-top')
-            || document.querySelector('#board-layout-player-top .clock-component'))?.textContent;
+        // chess.com's clock DOM varies by surface: live games use `.clock-component`, the Play Bots
+        // layout reuses `.move-time` inside the player row. Read whichever exists in each player's
+        // container (bottom = us, top = them). Prefer the real clock; fall back to move-time only
+        // when there is no clock component (bot games, where move-time IS the running clock).
+        const clockIn = (container) => {
+            const c = document.querySelector(container);
+            if (!c) return null;
+            const el = c.querySelector('.clock-component')
+                || c.querySelector('.move-time-content') || c.querySelector('.move-time-time');
+            return el ? el.textContent : null;
+        };
+        mineTxt = clockIn('.board-layout-bottom') || clockIn('#board-layout-player-bottom')
+            || document.querySelector('.clock-bottom')?.textContent;
+        theirsTxt = clockIn('.board-layout-top') || clockIn('#board-layout-player-top')
+            || document.querySelector('.clock-top')?.textContent;
         tcText = document.querySelector('.time-control-component, .game-time-control')?.textContent || '';
     }
     const mine = parseClockText(mineTxt), theirs = parseClockText(theirsTxt);
@@ -803,6 +871,9 @@ function getSelectedMoveRecord() {
 
 function getMoveRecords() {
     let moves;
+    if (site === 'taketaketake') {
+        return ttQuery()?.moves || []; // move-count verification reads .length
+    }
     if (isChesscomVariants()) {
         // one <div.moves-table-cell.moves-move> per ply, textContent = SAN. Keep only real moves
         // (a SAN has a destination square, is castling, or a drop like P@e4) so trailing empty
@@ -843,6 +914,9 @@ function getMoveRecords() {
 
 function getMoveContainer() {
     let moveContainer;
+    if (site === 'taketaketake') {
+        return getBoard(); // unused on this site (scrapePositionTT bypasses the DOM paths)
+    }
     if (isChesscomVariants()) {
         moveContainer = document.querySelector('.moves-moves-list');
     } else if (site === 'chesscom') {
@@ -957,6 +1031,11 @@ function getRanksFiles() {
 
 function getBoard() {
     let board;
+    if (site === 'taketaketake') {
+        // the WebGPU canvas is exactly the 8x8 board (aspect-square) -- clicks, the eval bar and
+        // hint arrows all key off its bounding rect
+        return document.querySelector('canvas[class*="aspect-square"]') || document.querySelector('canvas');
+    }
     if (isChesscomVariants()) {
         board = document.querySelector('.TheBoard-layers');
     } else if (site === 'chesscom') {
@@ -970,6 +1049,9 @@ function getBoard() {
 }
 
 function getPieces() {
+    if (site === 'taketaketake') {
+        return []; // no DOM pieces; determineStartPosition's lichess-only cache never applies here
+    }
     if (site === 'chesscom') {
         return document.querySelectorAll('.piece');
     } else {
@@ -984,6 +1066,10 @@ function getPieces() {
 }
 
 function getPromotionSelection(promotion) {
+    // taketaketake: the promotion picker is part of the canvas app; there is no DOM to click yet.
+    // Returning undefined skips the promotion click cleanly (the site may auto-queen; if not, the
+    // move-verify retry + watchdog keep the extension unstuck).
+    if (site === 'taketaketake') return undefined;
     let promotions;
     if (site === 'chesscom') {
         const promotionElems = document.querySelectorAll('.promotion-piece');
@@ -1006,6 +1092,9 @@ function getPromotionSelection(promotion) {
 
 function isAnimating() {
     let anim;
+    if (site === 'taketaketake') {
+        return false; // state-based scrape -- there is no mid-animation DOM to misread
+    }
     if (site === 'chesscom') {
         anim = getBoard().getAttribute('data-test-animating');
     } else if (site === 'lichess' || site === 'blitztactics') {

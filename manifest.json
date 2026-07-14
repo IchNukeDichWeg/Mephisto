@@ -3,7 +3,7 @@
   "manifest_version": 3,
   "name": "Mephisto Chess Extension",
   "description": "Next best move analysis for your favorite chess websites",
-  "version": "3.1.28",
+  "version": "3.1.37",
   "homepage_url": "https://github.com/AlexPetrusca/Mephisto",
   "author": "Alex Petrusca",
   "icons": {
@@ -30,7 +30,9 @@
       "matches": [
         "*://www.chess.com/*",
         "*://lichess.org/*",
-        "*://blitztactics.com/*"
+        "*://blitztactics.com/*",
+        "*://taketaketake.com/*",
+        "*://www.taketaketake.com/*"
       ]
     }
   ],
@@ -51,12 +53,25 @@
       "matches": [
         "*://www.chess.com/*",
         "*://lichess.org/*",
-        "*://blitztactics.com/*"
+        "*://blitztactics.com/*",
+        "*://taketaketake.com/*",
+        "*://www.taketaketake.com/*"
       ],
       "js": [
         "lib/lru.min.js",
         "src/scripts/content-script.js"
       ]
+    },
+    {
+      "matches": [
+        "*://taketaketake.com/*",
+        "*://www.taketaketake.com/*"
+      ],
+      "js": [
+        "src/scripts/tt-probe.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_idle"
     }
   ],
   "options_ui": {
