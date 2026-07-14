@@ -48,6 +48,31 @@ function elo_stops(engine) {
 
 let turn = ''; // 'w' | 'b'
 
+// --- Background keep-alive --------------------------------------------------------------------
+// Chrome throttles timers in a hidden tab and freezes it after ~5 min, so alt-tabbing to another
+// app (or a fullscreen window) mid-game would stall autoplay. A tab that is playing audio is exempt
+// from both, so while Autoplay is on we run a single inaudible tone. Browsers require a user gesture
+// to start audio, so this is (re)started from the popup's own clicks and on visibility changes
+// (once the user has interacted, sticky activation lets resume() work even after tabbing away).
+let keep_alive_ctx = null;
+function keep_alive(active) {
+    try {
+        if (active) {
+            if (!keep_alive_ctx) {
+                keep_alive_ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = keep_alive_ctx.createOscillator();
+                const gain = keep_alive_ctx.createGain();
+                gain.gain.value = 0.001; // ~-60 dB: inaudible, but nonzero so the tab counts as "audible"
+                osc.connect(gain).connect(keep_alive_ctx.destination);
+                osc.start();
+            }
+            if (keep_alive_ctx.state !== 'running') keep_alive_ctx.resume().catch(() => {});
+        } else if (keep_alive_ctx && keep_alive_ctx.state === 'running') {
+            keep_alive_ctx.suspend().catch(() => {});
+        }
+    } catch (e) { /* Web Audio unavailable -> background throttling stays; no worse than before */ }
+}
+
 document.addEventListener('DOMContentLoaded', async function () {
     // load extension configurations from localStorage
     const computeTime = JSON.parse(localStorage.getItem('compute_time'));
@@ -95,6 +120,11 @@ document.addEventListener('DOMContentLoaded', async function () {
         dark_mode: JSON.parse(localStorage.getItem('dark_mode')) || false,
     };
     document.body.classList.toggle('mephisto-dark', config.dark_mode); // dark theme (set in Appearance)
+    // keep autoplay running when the tab is backgrounded: start/resume the keep-alive tone on any
+    // panel click and whenever visibility flips, so it's already playing before you tab away
+    document.addEventListener('pointerdown', () => { if (config.autoplay) keep_alive(true); }, true);
+    document.addEventListener('visibilitychange', () => { if (config.autoplay) keep_alive(true); });
+    keep_alive(config.autoplay); // arms/suspends to match the persisted setting (resumes on first gesture)
     push_config();
     init_quick_settings();
     maybe_autodetect_variant(); // variant game page -> auto-apply the variant (+ Fairy) once
@@ -238,6 +268,7 @@ function init_quick_settings() {
         elem.addEventListener('change', () => {
             config[key] = elem.checked;
             save(key, elem.checked);
+            keep_alive(config.autoplay); // this change is a user gesture -> can (re)start the tone now
             if (key === 'help_mode' && !elem.checked) request_clear_hint();
             if (key === 'eval_bar' && !elem.checked) request_clear_eval_bar();
             if (key === 'humanize' && !is_remote()) {
