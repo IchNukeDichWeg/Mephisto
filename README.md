@@ -1,13 +1,46 @@
 ![Mephisto](https://raw.githubusercontent.com/AlexPetrusca/Mephisto/master/res/mephisto_banner_lowercase.png)
 
-Mephisto is a browser extension for real‑time chess analysis and automated play on **Chess.com**, **Lichess**,
-**BlitzTactics**, and **TakeTakeTake**. It reads the position straight off the page, runs a local engine in your
-browser, and draws the best moves on the board — or plays them for you, with timing and move choices that can be
-tuned to look completely human.
+**Mephisto** is a browser extension for real‑time **chess analysis** and **automated play** on **Chess.com**,
+**Lichess**, **BlitzTactics**, and **TakeTakeTake**. It reads the position straight off the page, runs a local
+**Stockfish** (NNUE) or **Fairy‑Stockfish** engine entirely in your browser — no server, no account — and draws the
+**best move** on the board, or plays it for you with timing and move choices that can be tuned to look completely
+human.
+
+> Chess bot · best‑move finder · Stockfish in the browser · auto‑move · board scanner · eval bar · Chess960 &
+> variants · move analysis for Chess.com, Lichess, BlitzTactics and TakeTakeTake.
 
 Click Mephisto's toolbar icon to toggle its floating analysis panel directly on the page. The panel drags anywhere
 by its title bar, closes with the ✕, and — unlike a classic extension popup — stays open while you click and play,
 so analysis and autoplay keep running for the whole game.
+
+---
+
+## ⭐ Why this fork?
+
+This is an **actively maintained** continuation of the original
+[Mephisto by Alex Petrusca](https://github.com/AlexPetrusca/Mephisto). Installed from upstream today it detects
+nothing — the 2026 Chess.com and Lichess redesigns broke every scraper. This fork **revives it on today's sites and
+goes far beyond.** Everything the original did still works here; the table shows what's new.
+
+| Capability | Original | **This fork** |
+|---|:---:|:---:|
+| Best‑move analysis + board arrows (Chess.com, Lichess) | ✅ | ✅ |
+| Local Stockfish engine in the browser, no server | ✅ | ✅ |
+| Autoplay · Multiple lines · "Hand & Brain" · Remote engine | ✅ | ✅ |
+| **Works on the 2026 Chess.com / Lichess sites** | ❌ broken | ✅ |
+| **Modern engines** — Stockfish dev / 18 / 18‑Small NNUE | ❌ | ✅ |
+| **Elo strength cap** (engine‑aware slider) | ❌ | ✅ |
+| **Humanize** — human move mix, timing & reflex recaptures | ❌ | ✅ |
+| **Clock Mode & Mirror Time** management | ❌ | ✅ |
+| **Safe Premove** (+ human‑reflex gate) | ❌ | ✅ |
+| **Help Mode** — draw arrows on the real board | ❌ | ✅ |
+| **On‑board eval bar** with live search depth | ❌ | ✅ |
+| **Chess.com variants** (7) — detect · analyze · autoplay | ❌ | ✅ |
+| **TakeTakeTake** (WebGPU canvas board, incl. online games) | ❌ | ✅ |
+| **Chess960** on every mainline Stockfish | ❌ | ✅ |
+| Event‑driven detection · floating resizable panel · engine crash‑recovery | ❌ | ✅ |
+
+Issues and pull requests are watched and fixed — this fork is **updated and maintained**.
 
 ---
 
@@ -134,12 +167,19 @@ Each toggle's tooltip states this inline.
 
 ---
 
-## Supported sites
+## Supported sites & modes
 
-- **Chess.com** — live games, puzzles, and the **variants** boards (auto‑detect + engine switch).
-- **Lichess** — live, correspondence, and "From Position" custom‑start games.
-- **BlitzTactics** — puzzle streams.
-- **TakeTakeTake** — bot games and online (Lichess‑backed) games, including premoves.
+| Site | Analysis | Bot play / Autoplay | Premove | Puzzles | Online play | Variants |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Chess.com** | ✅ | ✅ incl. Play Bots | ✅ | ✅ Puzzle Rush / Storm | ✅ | ✅ 3‑Check, King of the Hill, Crazyhouse, Antichess, Atomic, Horde, Racing Kings — plus Chess960 |
+| **Lichess** | ✅ | ✅ incl. AI & "From Position" | ✅ | ✅ Puzzle Storm | ✅ live & correspondence | ✅ Chess960 |
+| **TakeTakeTake** | ✅ | ✅ bot games | ✅ | — | ✅ Lichess‑backed | — |
+| **BlitzTactics** | ✅ | ✅ | — | ✅ puzzle streams | — | — |
+
+- **Analysis** — best move(s) drawn on the board, with the eval bar and (optionally) alternative & threat lines.
+- **Bot play / Autoplay** — Mephisto plays the engine's move for you, including against the site's computer bots.
+- **Online play** — live games against other people; **Puzzles** — Puzzle Mode optimizes for solving speed.
+- **Variants** — variant games auto‑detect and switch to Fairy‑Stockfish; Chess960 runs on any mainline Stockfish.
 
 ---
 
