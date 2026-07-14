@@ -95,6 +95,16 @@ For more information, see [Getting Started](https://github.com/AlexPetrusca/Meph
 - **Chess960 with every engine**: all mainline Stockfish builds play it via `UCI_Chess960`; the variant
   survives engine switches.
 - **Stark theme**: analysis and settings text is pure black in light mode, pure white in dark mode.
+- **TakeTakeTake (taketaketake.com)**: full support for a site whose board is a WebGPU canvas with no DOM to
+  scrape — the position, move list and clocks are read from the page's game state and pushed the instant a
+  move commits, for both bot and online (Lichess-backed) games.
+- **Chess.com variants auto-detect**: opening a `chess.com/variants/…` game detects the variant from the URL
+  and applies it automatically, switching to Fairy-Stockfish when the variant needs it.
+- **Search fills the pacing time**: when a clock-aware or humanize mode intends to spend longer on a move, the
+  engine searches that whole time (deeper move) instead of finding a shallow move fast and idling — never
+  below your configured search time, faster only when the clock is low or the move is forced.
+- **Recheck button** next to the settings gear rescans the page and restarts analysis (handy for SPA rematches
+  that swap games without a reload).
 - New fresh-install defaults: SF dev engine, 300 ms search, 1 s fallback poll, 8 threads, 512 MB hash,
   200 ± 50 ms move time, autoplay off.
 
