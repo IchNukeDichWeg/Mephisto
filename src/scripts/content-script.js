@@ -18,7 +18,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.57'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.59'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -26,7 +26,8 @@ window.onload = () => {
         'www.chess.com': 'chesscom',
         'blitztactics.com': 'blitztactics',
         'taketaketake.com': 'taketaketake',
-        'www.taketaketake.com': 'taketaketake'
+        'www.taketaketake.com': 'taketaketake',
+        'tactics.chessbase.com': 'chessbase'
     };
     site = siteMap[window.location.hostname];
     pullConfig();
@@ -108,6 +109,32 @@ const POPUP_H = 672; // matches popup.css body height (score + WDL line + alt-li
 const OVERLAY_SCALE = 0.8; // default render scale for fresh installs; resizing the panel persists a width
 const OVERLAY_BOX_KEY = 'mephisto.overlayBox'; // per-site localStorage: {left, top, width}
 
+// 1b (anti-detection): every injected node -- the panel + its chrome-extension:// iframe, the
+// restore badge, the on-board hint arrows and the eval bar -- lives inside a single CLOSED shadow
+// root under one unstyled, attribute-less host div. A page cannot pierce a closed shadow root:
+// `document.querySelector('[id^="mephisto-"]')` finds nothing, `host.shadowRoot` is null, and
+// enumerating `<iframe>`s can't reach the panel's extension-URL frame. The internal ids keep the
+// `mephisto-` prefix on purpose -- they're only reachable from inside this closed root, so renaming
+// them would add churn for zero extra hiding. Lazily created once per tab.
+let overlayHost = null;
+let overlayRoot = null;
+
+function getOverlayRoot() {
+    if (overlayRoot && overlayHost && overlayHost.isConnected) return overlayRoot;
+    overlayHost = document.createElement('div'); // no id / class / attributes to grep for
+    // The host must NOT establish a containing block (no position/transform/filter/contain), so the
+    // absolutely-positioned board overlays inside still resolve against the document exactly as they
+    // did when they were direct children of <body>.
+    document.body.appendChild(overlayHost);
+    overlayRoot = overlayHost.attachShadow({mode: 'closed'});
+    return overlayRoot;
+}
+
+// look up one of our overlay nodes inside the shadow root (replaces document.getElementById)
+function overlayEl(id) {
+    return overlayRoot ? overlayRoot.querySelector(`#${id}`) : null;
+}
+
 function saveOverlayBox(wrap) {
     const r = wrap.getBoundingClientRect();
     try {
@@ -131,8 +158,8 @@ function readOverlayBox() {
 }
 
 function removeOverlay() {
-    document.getElementById(PANEL_OVERLAY_ID)?.remove();
-    document.getElementById(RESTORE_BADGE_ID)?.remove();
+    overlayEl(PANEL_OVERLAY_ID)?.remove();
+    overlayEl(RESTORE_BADGE_ID)?.remove();
     clearEvalBar();   // closing removes the iframe; the board overlays it drew must go too
     clearHintArrow();
 }
@@ -151,7 +178,7 @@ function minimizeOverlay(wrap) {
     // pointer-events:auto on the frame, which would override the wrap's inherited 'none' and keep
     // the invisible panel eating clicks. This makes the whole minimized panel click-through.
     if (frame) frame.style.pointerEvents = 'none';
-    if (document.getElementById(RESTORE_BADGE_ID)) return;
+    if (overlayEl(RESTORE_BADGE_ID)) return;
     const badge = document.createElement('div');
     badge.id = RESTORE_BADGE_ID;
     badge.title = 'Restore Mephisto (autoplay is still running)';
@@ -166,11 +193,11 @@ function minimizeOverlay(wrap) {
         if (frame) frame.style.pointerEvents = 'auto';
         badge.remove();
     });
-    document.body.appendChild(badge);
+    getOverlayRoot().appendChild(badge);
 }
 
 function toggleOverlay() {
-    if (document.getElementById(PANEL_OVERLAY_ID)) {
+    if (overlayEl(PANEL_OVERLAY_ID)) {
         removeOverlay();
         return;
     }
@@ -214,7 +241,7 @@ function toggleOverlay() {
         'border-bottom-right-radius: 8px;';
 
     wrap.append(bar, frame, grip);
-    document.body.appendChild(wrap);
+    getOverlayRoot().appendChild(wrap);
     bar.querySelector('.mephisto-overlay-close').addEventListener('click', removeOverlay);
     bar.querySelector('.mephisto-overlay-min').addEventListener('click', () => minimizeOverlay(wrap));
 
@@ -286,7 +313,7 @@ let lastHintKey = null;
 
 function clearHintArrow() {
     lastHintKey = null;
-    document.getElementById(HINT_OVERLAY_ID)?.remove();
+    overlayEl(HINT_OVERLAY_ID)?.remove();
 }
 
 // arrows: [{move: 'e2e4', width: 0..0.25 (in squares), color: '#rrggbb'}, ...] best line first --
@@ -295,7 +322,7 @@ function drawHintArrows(arrows) {
     arrows = (arrows || []).filter(a => a && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(a.move ?? ''));
     // help mode redraws on every engine update; skip the DOM churn while the arrows are unchanged
     const key = JSON.stringify(arrows);
-    if (key === lastHintKey && document.getElementById(HINT_OVERLAY_ID)) return;
+    if (key === lastHintKey && overlayEl(HINT_OVERLAY_ID)) return;
     clearHintArrow();
     if (!arrows.length) return;
     const board = getBoard();
@@ -339,7 +366,7 @@ function drawHintArrows(arrows) {
     svg.style.cssText = `position: absolute; left: ${bounds.left + window.scrollX}px; ` +
         `top: ${bounds.top + window.scrollY}px; z-index: 2147483647; pointer-events: none;`;
     svg.innerHTML = `<defs>${defs}</defs>${lines}`;
-    document.body.appendChild(svg);
+    getOverlayRoot().appendChild(svg);
     lastHintKey = key;
 }
 
@@ -351,7 +378,7 @@ function drawHintArrows(arrows) {
 const EVALBAR_OVERLAY_ID = 'mephisto-evalbar-overlay';
 
 function clearEvalBar() {
-    document.getElementById(EVALBAR_OVERLAY_ID)?.remove();
+    overlayEl(EVALBAR_OVERLAY_ID)?.remove();
 }
 
 // frac = white's share of the bar (0..1); text = score magnitude ("1.1" / "M3"); winningWhite
@@ -365,7 +392,7 @@ function drawEvalBar({frac, text, winningWhite}) {
     const flipped = getOrientation() === 'black';
     const BAR_W = 28, GAP = 8;
 
-    let bar = document.getElementById(EVALBAR_OVERLAY_ID);
+    let bar = overlayEl(EVALBAR_OVERLAY_ID);
     let white, num;
     if (!bar) {
         bar = document.createElement('div');
@@ -381,7 +408,7 @@ function drawEvalBar({frac, text, winningWhite}) {
         num.style.cssText = 'position: absolute; left: 0; width: 100%; text-align: center; ' +
             'font: 700 12px/1.4 Roboto, Arial, sans-serif;';
         bar.append(white, num);
-        document.body.appendChild(bar);
+        getOverlayRoot().appendChild(bar);
     } else {
         white = bar.querySelector('.mephisto-evalbar-white');
         num = bar.querySelector('.mephisto-evalbar-num');
@@ -456,6 +483,7 @@ function tryScrapePosition() {
 
 function scrapePosition() {
     if (site === 'taketaketake') return scrapePositionTT(); // state-based, no DOM to scrape
+    if (site === 'chessbase') return scrapePositionCB(); // FEN straight from the page's CB.* model
     if (!getBoard()) return;
 
     let prefix = '';
@@ -610,6 +638,11 @@ function getOrientation() {
         // spectators default to white-down
         return (ttQuery()?.myColor === 'black') ? 'black' : 'white';
     }
+    if (site === 'chessbase') {
+        // no site board to overlay; orient the popup's own board to the side to move so the solver
+        // sees the puzzle from the moving side's perspective
+        return (cbState && cbState.split(' ')[1] === 'b') ? 'black' : 'white';
+    }
     if (isChesscomVariants()) {
         return getChesscomVariantsOrientation();
     } else if (site === 'chesscom') {
@@ -672,13 +705,14 @@ function spriteLightness(piece) {
 // (JSON: fen, moves[{san,uci}], myColor, clocks in ms, increment), so ttQuery() is a plain
 // synchronous read from the scrapers' point of view.
 
+const TT_Q = 'w1q', TT_S = 'w1s', TT_U = 'w1u'; // de-branded MAIN-world probe channel, matches tt-probe.js (1c)
 let ttState = null;
-document.addEventListener('mephisto-tt-state', (e) => {
+document.addEventListener(TT_S, (e) => {
     // query RESPONSE: update only. It must NOT schedulePush -- every push queries, so a push
     // here would re-arm the debounce forever (a 33Hz self-sustaining loop).
     try { ttState = JSON.parse(e.detail); } catch (err) { ttState = null; }
 });
-document.addEventListener('mephisto-tt-update', (e) => {
+document.addEventListener(TT_U, (e) => {
     // unsolicited PUSH from the probe's actor subscription: the canvas repaints without DOM
     // mutations, so this is what makes move detection instant instead of waiting for the
     // move-list to re-render (or the 1s fallback poll). The probe only fires on real position
@@ -689,7 +723,7 @@ document.addEventListener('mephisto-tt-update', (e) => {
 
 function ttQuery() {
     try {
-        document.dispatchEvent(new CustomEvent('mephisto-tt-query'));
+        document.dispatchEvent(new CustomEvent(TT_Q));
     } catch (e) { /* probe not injected (stale page) */ }
     return ttState;
 }
@@ -702,6 +736,42 @@ function scrapePositionTT() {
     let res = '***ttfen***';
     for (const m of st.moves) res += m.san + '*****';
     return res.replace(/[^\w-+=#*@&]/g, '');
+}
+
+// -------------------------------------------------------------------------------------------
+// ChessBase Tactics (tactics.chessbase.com): the board is ChessBase's proprietary CB.* engine, with
+// no scrapeable FEN in the DOM. cb-probe.js (MAIN-world content script) reads the live model at
+// window.V35s.gameKernel.getCurPos().toFEN() and bridges it: 'mephisto-cb-query' is answered
+// synchronously with 'mephisto-cb-state', and 'mephisto-cb-update' is PUSHED on every move so a
+// newly-solved/taken-back position is seen instantly instead of on the fallback poll.
+
+const CB_Q = 'w2q', CB_S = 'w2s', CB_U = 'w2u'; // de-branded MAIN-world probe channel, matches cb-probe.js (1c)
+let cbState = null; // the current FEN string, or null when no puzzle is loaded
+document.addEventListener(CB_S, (e) => {
+    // query RESPONSE: update only. Must NOT schedulePush -- every push queries, so pushing here
+    // would re-arm the debounce forever (a self-sustaining loop).
+    try { cbState = JSON.parse(e.detail); } catch (err) { cbState = null; }
+});
+document.addEventListener(CB_U, (e) => {
+    // unsolicited PUSH from the probe's onCurPosChanged subscription -- what makes move detection
+    // instant. The probe fires only on real position changes, so this can't loop.
+    try { cbState = JSON.parse(e.detail); } catch (err) { return; }
+    if (config) schedulePush();
+});
+
+function cbQuery() {
+    try {
+        document.dispatchEvent(new CustomEvent(CB_Q));
+    } catch (e) { /* probe not injected (stale page) */ }
+    return cbState;
+}
+
+// scrape = the current FEN straight from the model, shipped WHOLE (spaces/slashes intact, no
+// sanitizer) as '***cbfen***<FEN>'. Puzzles start from arbitrary positions, so the popup feeds the
+// FEN to the engine directly rather than replaying moves from the standard start.
+function scrapePositionCB() {
+    const fen = cbQuery();
+    return (fen) ? '***cbfen***' + fen : undefined;
 }
 
 // -------------------------------------------------------------------------------------------
@@ -800,11 +870,12 @@ function startPositionObserver() {
     if (positionObserver) return; // config re-pushes must not stack observers
     positionObserver = new MutationObserver((mutations) => {
         for (const m of mutations) {
-            // ignore mutations inside our own injected overlays (panel drag = style mutations at
-            // 60/s, eval bar / hint arrows redraw on every eval) -- they can never change the
-            // scraped position, and reacting to them would turn our own UI into a mutation storm.
+            // ignore mutations from our own injected UI. It now lives in a closed shadow root, so
+            // its churn (panel drag, eval bar / hint redraws) never reaches this body observer at
+            // all; the only light-DOM node we add is the shadow HOST, so skip that. (The legacy
+            // `[id^="mephisto-"]` guard stays as a belt-and-suspenders for any stray light-DOM node.)
             const t = (m.target instanceof Element) ? m.target : m.target.parentElement;
-            if (t && t.closest('[id^="mephisto-"]')) continue;
+            if (t && (t === overlayHost || t.closest('[id^="mephisto-"]'))) continue;
             schedulePush();
             return;
         }
@@ -1195,8 +1266,13 @@ function getBrowserOffsetXY() {
 
 function getRandomSampledXY(bounds, range = 0.8) {
     const margin = (1 - range) / 2;
-    const x = bounds.x + (range * Math.random() + margin) * bounds.width;
-    const y = bounds.y + (range * Math.random() + margin) * bounds.height;
+    // CENTER-WEIGHTED, not uniform: a human aims for the middle of the square and scatters softly
+    // around it, so draw a triangular distribution peaking at the centre (average of two uniforms)
+    // instead of spreading clicks flatly across the band. Still bounded to the central `range`
+    // (default 80%), so a click can never land on an adjacent square.
+    const centered = () => (Math.random() + Math.random()) / 2; // triangular in [0,1], peak at 0.5
+    const x = bounds.x + (range * centered() + margin) * bounds.width;
+    const y = bounds.y + (range * centered() + margin) * bounds.height;
     const [correctX, correctY] = getOffsetCorrectionXY();
     return [x + correctX, y + correctY];
 }

@@ -1107,7 +1107,8 @@ function parse_position_from_response(txt) {
     const prefixMap = {
         li: 'Game detected on Lichess.org',
         cc: 'Game detected on Chess.com',
-        bt: 'Game detected on BlitzTactics.com'
+        bt: 'Game detected on BlitzTactics.com',
+        cb: 'Position detected on ChessBase Tactics'
     };
 
     function parse_position_from_moves(txt, startFen = null) {
@@ -1190,6 +1191,9 @@ function parse_position_from_response(txt) {
         return parse_position_from_moves(txt);
     } else if (metaTag.includes('puz')) { // chess.com & blitztactics.com puzzle pages
         return parse_position_from_pieces(txt);
+    } else if (metaTag === 'cbfen') { // ChessBase Tactics: a complete FEN shipped as-is
+        turn = txt.split(' ')[1] || 'w';
+        return {fen: txt};
     } else { // chess.com and lichess.org pages
         return parse_position_from_moves(txt);
     }

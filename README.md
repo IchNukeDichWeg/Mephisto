@@ -1,13 +1,13 @@
 ![Mephisto](https://raw.githubusercontent.com/AlexPetrusca/Mephisto/master/res/mephisto_banner_lowercase.png)
 
 **Mephisto** is a browser extension for real‑time **chess analysis** and **automated play** on **Chess.com**,
-**Lichess**, **BlitzTactics**, and **TakeTakeTake**. It reads the position straight off the page, runs a local
+**Lichess**, **BlitzTactics**, **TakeTakeTake**, and **ChessBase Tactics**. It reads the position straight off the page, runs a local
 **Stockfish** (NNUE) or **Fairy‑Stockfish** engine entirely in your browser — no server, no account — and draws the
 **best move** on the board, or plays it for you with timing and move choices that can be tuned to look completely
 human.
 
 > Chess bot · best‑move finder · Stockfish in the browser · auto‑move · board scanner · eval bar · Chess960 &
-> variants · move analysis for Chess.com, Lichess, BlitzTactics and TakeTakeTake.
+> variants · move analysis for Chess.com, Lichess, BlitzTactics, TakeTakeTake and ChessBase Tactics.
 
 Click Mephisto's toolbar icon to toggle its floating analysis panel directly on the page. The panel drags anywhere
 by its title bar, closes with the ✕, and — unlike a classic extension popup — stays open while you click and play,
@@ -247,11 +247,24 @@ Each toggle's tooltip states this inline.
 | **Lichess** | ✅ | ✅ incl. AI & "From Position" | ✅ | ✅ Puzzle Storm | ✅ live & correspondence | ✅ Crazyhouse, King of the Hill, Three‑Check, Antichess, Atomic, Horde, Racing Kings — plus Chess960 |
 | **TakeTakeTake** | ✅ | ✅ bot games | ✅ | — | ✅ Lichess‑backed | — |
 | **BlitzTactics** | ✅ | ✅ | — | ✅ puzzle streams | — | — |
+| **ChessBase Tactics** | ✅ | — | — | ✅ Solve / Sprint | — | — |
 
 - **Analysis** — best move(s) drawn on the board, with the eval bar and (optionally) alternative & threat lines.
 - **Bot play / Autoplay** — Mephisto plays the engine's move for you, including against the site's computer bots.
 - **Online play** — live games against other people; **Puzzles** — Puzzle Mode optimizes for solving speed.
 - **Variants** — variant games auto‑detect and switch to Fairy‑Stockfish; Chess960 runs on any mainline Stockfish.
+
+---
+
+## Page footprint
+
+Mephisto keeps the smallest page footprint it reasonably can:
+
+- **Panel in a closed shadow root** — the floating panel and its extension‑page iframe live inside a `mode: "closed"` shadow root under one attribute‑less host node. The page can't enumerate them (`document.querySelector('[id^="mephisto-"]')` finds nothing, `host.shadowRoot` is `null`, and the extension iframe isn't reachable from the page's `<iframe>` list).
+- **No branded page globals** — the MAIN‑world probes used on canvas/proprietary boards (TakeTakeTake, ChessBase) set **no** `window.*` flag and talk over neutral, de‑branded event names, so a page can't fingerprint them by a known global or event.
+- **Center‑weighted clicks** — simulated moves land on a soft, human‑like distribution around each square's center (not the exact pixel), via trusted browser input events.
+
+These reduce passive fingerprinting; they don't change that using an engine in a live game is against most sites' fair‑play rules. Use analysis features responsibly.
 
 ---
 

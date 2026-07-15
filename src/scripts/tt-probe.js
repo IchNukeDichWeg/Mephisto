@@ -22,8 +22,11 @@
 //     changes -- the canvas repaints without any DOM mutation, so without this the content-script
 //     would only notice a move on the 1s fallback poll.
 (() => {
-    if (window.__mephistoTTProbe) return;
-    window.__mephistoTTProbe = true;
+    // 1c (anti-detection): no persistent `window.__mephisto*` flag (a page could test
+    // `'__mephistoTTProbe' in window`) and no `mephisto-*` event names. This IIFE runs once per
+    // document load; a rare double injection only duplicates harmless events, so no global guard is
+    // needed. Bridge channel names are de-branded to neutral tokens shared with the content script.
+    const TT_Q = 'w1q', TT_S = 'w1s', TT_U = 'w1u'; // query / state / update
 
     const serverGame = (actor) => {
         try {
@@ -101,8 +104,8 @@
     // The two live surfaces store the game very differently:
     //   - BOT games: the machine's context.game is a full server object (fen, moves, ms clocks,
     //     viewer). This is what the earlier probe relied on -- and why it only worked on bot games.
-    //   - ONLINE games are LICHESS-BACKED: the machine is a Lichess-backed game actor (clock /
-    //     color, game id) and NO `.game` object at all. The move list lives ONLY in the board actor's
+    //   - ONLINE games are LICHESS-BACKED: the machine has lichessGameId / bearerToken / clock /
+    //     color and NO `.game` object at all. The move list lives ONLY in the board actor's
     //     gameTree, the position per node as a parsed `chess` object (no fen string).
     // The board's gameTree (SAN mainline) is therefore the ONE thing present on every surface, so
     // detection is anchored on it; the machine's `.game` is used as a bonus when it exists.
@@ -181,15 +184,15 @@
                 const key = p ? `${p.moves.length}|${p.moves[p.moves.length - 1]?.uci || ''}` : 'null';
                 if (key === lastKey) return;
                 lastKey = key;
-                send('mephisto-tt-update', p);
+                send(TT_U, p);
             });
         } catch (e) { /* no subscribe support -- queries + fallback poll still work */ }
     }
 
     // --- query side: always answers, synchronously, with the CURRENT game's state
-    document.addEventListener('mephisto-tt-query', () => {
+    document.addEventListener(TT_Q, () => {
         const {machine, board} = findActors();
         ensureSubscribed(machine, board);
-        send('mephisto-tt-state', buildPayload(machine, board));
+        send(TT_S, buildPayload(machine, board));
     });
 })();
