@@ -30,6 +30,7 @@ const ELO_RANGE = {
     'stockfish-18-small-nnue': [1320, 3190],
     'stockfish-11-hce': [1350, 2850],
     'fairy-stockfish-14-nnue': [500, 2850],
+    'sf-native': [1320, 3190], 'fairy-native': [500, 2850], // full-power native engines (opt-in)
     'remote': [1320, 3190], // unknown engine; assume the modern SF range
 };
 // Sits above every engine's ceiling (max is 3190), so it reads as "no cap / full strength". Both
@@ -45,6 +46,12 @@ function elo_stops(engine) {
     stops.push(FULL_STRENGTH_ELO);
     return stops;
 }
+
+// Opt-in full-power native engines (Chrome auto-launches the host; see native-host/install-native.sh).
+// The default WASM engines need NO setup -- these are extra options for users who install a native
+// Stockfish/Fairy binary. Engine value == host key in the background worker's NATIVE_HOSTS.
+const NATIVE_ENGINES = ['sf-native', 'fairy-native'];
+const FAIRY_ENGINES = ['fairy-stockfish-14-nnue', 'fairy-native']; // offer the full variant list
 
 let turn = ''; // 'w' | 'b'
 
@@ -316,7 +323,7 @@ function init_quick_settings() {
             // only Fairy-Stockfish plays fairy variants; other engines force standard chess so the
             // net + legality checks stay correct -- EXCEPT Chess960, which every mainline Stockfish
             // plays via UCI_Chess960 (sent at engine init), so it survives an engine switch.
-            if (key === 'engine' && parse(elem.value) !== 'fairy-stockfish-14-nnue'
+            if (key === 'engine' && !FAIRY_ENGINES.includes(parse(elem.value))
                 && !['chess', 'fischerandom'].includes(config.variant)) save('variant', 'chess');
             save(key, parse(elem.value));
             location.reload();
@@ -326,7 +333,7 @@ function init_quick_settings() {
     // (mainline SF speaks UCI_Chess960). The "detect" button reads the variant off the page.
     const variantRow = document.getElementById('qs_variant_row');
     if (variantRow) {
-        const fairy = (config.engine === 'fairy-stockfish-14-nnue');
+        const fairy = FAIRY_ENGINES.includes(config.engine);
         variantRow.style.display = '';
         document.querySelectorAll('#qs_variant option').forEach(o => {
             o.hidden = !fairy && !['chess', 'fischerandom'].includes(o.value);
@@ -445,6 +452,8 @@ async function initialize_engine() {
         request_remote_configure({
             // remote-engine.py skips options the engine doesn't declare, so this is safe everywhere
             ...(config.variant === 'fischerandom' ? {"UCI_Chess960": true} : {}),
+            // variant for the native Fairy host (engines without UCI_Variant just ignore it)
+            ...(config.variant && config.variant !== 'chess' ? {"UCI_Variant": config.variant} : {}),
             ...(config.elo > 0 && config.elo <= 3190 ? {"UCI_LimitStrength": true, "UCI_Elo": config.elo} : {}),
             "Hash": config.memory,
             "Threads": config.threads,
@@ -1822,14 +1831,96 @@ async function request_backend_move(x0, y0, x1, y1) {
 }
 
 function is_remote() {
-    return config.engine === 'remote';
+    return config.engine === 'remote' || uses_native();
+}
+
+// --- Native messaging transport (opt-in native Stockfish/Fairy) -------------------------------
+// Chrome auto-launches the host; the background worker relays a persistent Port both ways so the
+// host can STREAM per-depth 'info' frames, ending with a terminal frame (analyse 'done' /
+// configure 'ok'). No server, no setup for the default WASM engines.
+let native_bg_port = null;
+let native_seq = 0;
+const native_pending = new Map(); // id -> {resolve, reject, onInfo}
+
+function uses_native() {
+    return NATIVE_ENGINES.includes(config.engine);
+}
+function native_port_name() {
+    return config.engine; // sf-native / fairy-native == the host key in NATIVE_HOSTS
+}
+
+function native_bg() {
+    if (native_bg_port) return native_bg_port;
+    native_bg_port = chrome.runtime.connect({name: native_port_name()});
+    native_bg_port.onMessage.addListener(frame => {
+        if (frame.fatal) {
+            for (const p of native_pending.values()) p.reject(new Error(frame.fatal));
+            native_pending.clear();
+            return;
+        }
+        const p = native_pending.get(frame.id);
+        if (!p) return;
+        if (frame.error) { native_pending.delete(frame.id); p.reject(new Error(`Native engine: ${frame.error}`)); return; }
+        if (frame.info) { if (p.onInfo) p.onInfo(frame.info); return; } // streamed per-depth update
+        native_pending.delete(frame.id); // terminal frame
+        p.resolve(frame);
+    });
+    native_bg_port.onDisconnect.addListener(() => {
+        native_bg_port = null;
+        for (const p of native_pending.values()) p.reject(new Error('Native engine background port closed'));
+        native_pending.clear();
+    });
+    return native_bg_port;
+}
+
+function native_send(cmd, data, onInfo) {
+    const id = ++native_seq;
+    return new Promise((resolve, reject) => {
+        native_pending.set(id, {resolve, reject, onInfo});
+        try {
+            native_bg().postMessage({id, cmd, ...data});
+        } catch (e) {
+            native_pending.delete(id);
+            reject(e);
+        }
+    });
+}
+
+// A streamed per-depth update from a native engine (already in the popup line shape, pv as an
+// array). Mirrors the WASM `info depth` handling: refresh eval/best-move live AND feed the premove
+// tracker. Bound to the fen it was requested for, so late frames from a superseded search are dropped.
+function on_native_info(info, fen) {
+    if (premove_tracker.fen !== fen) return;
+    const pvIdx = (info.multipv || 1) - 1;
+    if (config.premove && Array.isArray(info.pv) && pvIdx <= 1 && Number.isInteger(info.depth)) {
+        const pred = info.pv[0], reply = info.pv[1];
+        const line = premove_tracker.lines[pvIdx] || (premove_tracker.lines[pvIdx] = {});
+        if (info.depth === 6) line.d6 = `${pred} ${reply}`;
+        if (info.depth === 9) line.d9 = `${pred} ${reply}`;
+        line.latest = `${pred} ${reply}`;
+        line.pred = pred; line.reply = reply; line.depth = info.depth;
+        if (pvIdx === 0) maybe_premove_forced_reply(line);
+    }
+    last_eval.activeLines = Math.max(last_eval.activeLines, info.multipv || 1);
+    last_eval.lines[pvIdx] = info;
+    if (pvIdx === 0) {
+        on_engine_evaluation(last_eval);
+        if (info.pv && info.pv[0]) on_engine_best_move(info.pv[0], info.pv[1], false);
+    } else {
+        render_alt_lines();
+    }
 }
 
 async function request_remote_configure(options) {
+    if (uses_native()) return native_send('configure', {options});
     return call_backend('http://localhost:9090/configure', options).then(parse_backend_json);
 }
 
 async function request_remote_analysis(fen, time, moves = null) {
+    if (uses_native()) {
+        const posFen = premove_tracker.fen; // bind streamed frames to the real current position
+        return native_send('analyse', {fen, time, moves}, info => on_native_info(info, posFen));
+    }
     return call_backend('http://localhost:9090/analyse', {
         fen: fen,
         moves: moves,

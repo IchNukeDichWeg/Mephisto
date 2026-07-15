@@ -46,7 +46,7 @@ class GeneralSettings extends SettingsPage {
             while (!section.classList.contains('section')) {
                 section = section.parentElement
             }
-            if (engine_select.getValue() === 'fairy-stockfish-14-nnue') {
+            if (['fairy-stockfish-14-nnue', 'fairy-native'].includes(engine_select.getValue())) {
                 section.classList.remove('hidden');
             } else {
                 section.classList.add('hidden');
@@ -58,7 +58,7 @@ class GeneralSettings extends SettingsPage {
             }
             // Elo cap range follows the engine (Stockfish ignores out-of-range UCI_Elo). Keep the
             // input min at 0 so "0 = full strength" stays enterable; only cap the top per engine.
-            const ELO_RANGE = { 'stockfish-11-hce': [1350, 2850], 'fairy-stockfish-14-nnue': [500, 2850] };
+            const ELO_RANGE = { 'stockfish-11-hce': [1350, 2850], 'fairy-stockfish-14-nnue': [500, 2850], 'fairy-native': [500, 2850], 'sf-native': [1320, 3190] };
             elo_input.elem.max = (ELO_RANGE[engine_select.getValue()] || [1320, 3190])[1];
             if (engine_select.getValue() === 'remote') {
                 engineLabelTooltiped.classList.remove('hidden');

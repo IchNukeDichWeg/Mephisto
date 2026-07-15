@@ -103,6 +103,71 @@ to the right engine automatically.
 
 ---
 
+## ⚡ Full-power native engines (optional)
+
+**You don't need this.** The bundled WASM engines above work out of the box with zero setup. But WASM
+is sandboxed — it can't use all your CPU cores or much RAM, so it runs maybe **5–70× slower** than a
+native engine. If you want *maximum* strength and speed, you can point Mephisto at a **native**
+Stockfish / Fairy-Stockfish installed on your machine. Chrome then **auto-launches** it for you — there
+is **no server to run**. This is entirely opt-in and doesn't affect the default WASM engines.
+
+When set up, two extra engines appear in the dropdown: **Stockfish ⚡ (native)** and
+**Fairy-Stockfish ⚡ (native)** — running at all cores + 2 GB hash.
+
+### What you need
+1. A native **Stockfish** binary (and optionally **Fairy-Stockfish** for variants).
+2. **Python 3** with `python-chess`:  `python3 -m pip install chess`
+3. Your **extension ID** (see below).
+
+> **Extension ID:** open `chrome://extensions` (Brave: `brave://extensions`, Edge: `edge://extensions`),
+> turn on **Developer mode**, and copy the long id shown under *Mephisto*.
+> ⚠️ An unpacked extension's id **changes when you reload it** — if native engines stop working after a
+> reload, just re-run the install command with the new id.
+
+### macOS
+```bash
+brew install stockfish fairy-stockfish        # or download the Apple-Silicon build from stockfishchess.org
+python3 -m pip install chess
+native-host/install-native.sh --ext-id YOUR_EXTENSION_ID
+```
+(A binary downloaded from the web is quarantined by Gatekeeper — the installer clears that for its copy.
+If you point at one yourself, `chmod +x` it and, if macOS blocks it, `xattr -d com.apple.quarantine <path>`.)
+
+### Linux
+```bash
+sudo apt install stockfish          # Debian/Ubuntu; or your distro's package / a release binary
+python3 -m pip install chess
+native-host/install-native.sh --ext-id YOUR_EXTENSION_ID
+```
+(Fairy-Stockfish: install `fairy-stockfish`, build it, or pass `--fairy /path/to/binary`.)
+
+### Windows
+The shell installer is macOS/Linux only; Windows native messaging needs a registry key, so it's a
+manual (advanced) setup:
+1. Install [Python](https://python.org) and run `pip install chess`; download `stockfish.exe`.
+2. Copy `native-host/uci-native-host.py` somewhere stable and create `sf-native.path` next to it
+   containing the full path to `stockfish.exe`.
+3. Write a host manifest `com.sf-native.host.json` with `"path"` pointing at a `.bat` that runs
+   `python <path>\uci-native-host.py`, and `"allowed_origins": ["chrome-extension://YOUR_EXTENSION_ID/"]`.
+4. Add registry key `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.sf-native.host` = the manifest path.
+
+(Prefer the bundled WASM engines on Windows unless you're comfortable with the registry.)
+
+### Which binary?
+Any native build unlocks full speed — the choice only matters at the margin. Pick the one matching your
+CPU: **Apple Silicon** build on M-series Macs; **AVX2** or **BMI2** on modern Intel/AMD. Difference
+between native builds is small; the jump from WASM to *any* native build is huge.
+
+### Browsers
+The installer registers the host for every Chromium-family browser it finds — **Chrome, Brave, Edge,
+Chromium, Vivaldi**. Use the matching `…://extensions` page to get the id. (Firefox isn't supported for
+native engines.)
+
+If a native engine ever shows *"native host unavailable"*, the binary or `python-chess` is missing, or the
+id changed — re-run the install command.
+
+---
+
 ## Analysis features
 
 - **Multiple lines** — show the top 1–5 candidate moves (MultiPV), each drawn on the board with its evaluation.
