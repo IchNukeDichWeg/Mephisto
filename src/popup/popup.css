@@ -203,13 +203,20 @@ html, body {
 
 /* the left column is 378px wide; without this the centered text spans the full
    body, drifts under the quick-settings panel and collides with the gear button */
-#game-detection, #moves, #evaluation, #next-move {
+#game-detection, #moves, #evaluation, #next-move, #nps {
     width: 378px;
 }
 
 /* analysis text is stark: pure black in light mode, pure white in dark (user: "no grey") */
-#moves, #evaluation, #alt-lines .alt-eval, #alt-lines .alt-moves, #next-move {
+#moves, #evaluation, #alt-lines .alt-eval, #alt-lines .alt-moves, #next-move, #nps {
     color: #000;
+}
+
+#nps {
+    height: 18px;
+    font: 13px 'Roboto', sans-serif;
+    line-height: 18px;
+    margin: 6px 0 0 0;
 }
 
 #next-move {
@@ -429,6 +436,7 @@ body.mephisto-dark #evaluation,
 body.mephisto-dark #chess_line_1,
 body.mephisto-dark #chess_line_2,
 body.mephisto-dark #next-move,
+body.mephisto-dark #nps,
 body.mephisto-dark #alt-lines .alt-eval,
 body.mephisto-dark #alt-lines .alt-moves {
     color: #fff; /* stark, matching the pure-black light mode -- no grey */

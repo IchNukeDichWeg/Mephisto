@@ -694,9 +694,19 @@ function update_eval_bar(line) {
     }
 }
 
+// nodes/second, grouped Swiss-style: 1019100 -> "1'019'100 NPS" (so you can see engine speed)
+function format_nps(n) {
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + ' NPS';
+}
+
 function on_engine_evaluation(info) {
     if (!info.lines[0]) return;
     update_eval_bar(info.lines[0]);
+    const npsEl = document.getElementById('nps');
+    if (npsEl && Number.isFinite(info.lines[0].nps) && info.lines[0].nps > 0) {
+        npsEl.textContent = format_nps(info.lines[0].nps);
+    }
 
     if ('mate' in info.lines[0]) {
         update_evaluation(`Checkmate in ${info.lines[0].mate}`);
