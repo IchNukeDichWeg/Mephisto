@@ -5,3 +5,4 @@ lib/engine/stockfish-dev/*.nnue -filter -diff -merge -text
 lib/engine/stockfish-18-small/*.nnue -filter -diff -merge -text
 lib/engine/stockfish-18/*.nnue -filter -diff -merge -text
 lib/engine/stockfish-17-79/*.nnue -filter -diff -merge -text
+lib/engine/fairy-stockfish-14/nnue/*.nnue -filter -diff -merge -text

@@ -35,7 +35,7 @@ goes far beyond.** Everything the original did still works here; the table shows
 | **Safe Premove** (+ human‑reflex gate) | ❌ | ✅ |
 | **Help Mode** — draw arrows on the real board | ❌ | ✅ |
 | **On‑board eval bar** with live search depth | ❌ | ✅ |
-| **Chess.com variants** (7) — detect · analyze · autoplay | ❌ | ✅ |
+| **Chess.com variants** (11) — detect · analyze · autoplay | ❌ | ✅ |
 | **TakeTakeTake** (WebGPU canvas board, incl. online games) | ❌ | ✅ |
 | **Chess960** on every mainline Stockfish | ❌ | ✅ |
 | Event‑driven detection · floating resizable panel · engine crash‑recovery | ❌ | ✅ |
@@ -97,9 +97,13 @@ within bounds automatically.
 ### Variants
 
 Standard chess and **Chess960 / Fischer Random** work on every mainline Stockfish (via `UCI_Chess960`).
-Fairy‑Stockfish additionally plays **Crazyhouse, King of the Hill, Three‑Check, Antichess, Atomic, Horde, and
-Racing Kings**. The **↻** button next to the variant selector detects the variant from the current game and switches
-to the right engine automatically.
+Fairy‑Stockfish ships its own NNUE net per variant and additionally plays:
+
+- **Lichess** — Crazyhouse, King of the Hill, Three‑Check, Antichess, Atomic, Horde, Racing Kings (all of Lichess's variants).
+- **Chess.com** — the above plus **Duck, Minihouse, Seirawan (S‑Chess), and Chaturanga** (Giveaway maps to Antichess).
+
+The **↻** button next to the variant selector detects the variant from the current game and switches to the right
+engine automatically. Each variant's net is bundled, so nothing extra to download.
 
 ---
 
@@ -268,6 +272,18 @@ No schedule — added whenever I feel like it.
       reply is near-instant once it's your move. Native engines only.
 - [ ] **NPS / depth sparkline** — a small history strip under the live NPS readout showing the last ~20
       samples, so you can watch an engine ramp or throttle instead of one flickering number.
+
+**More variant coverage** (as engines allow):
+
+- [ ] **Setup Chess** (chess.com) — custom starting position; scrape the placed pieces into a FEN and analyze from there.
+- [ ] **Spell Chess** (chess.com) — piece "spells" change legality mid‑game; needs a custom rules layer on top of Fairy‑Stockfish.
+- [ ] **Fog of War / Dark chess** — hidden‑information variant; only the visible squares are known, so analysis must
+      reason over the fog (best‑effort, not perfect).
+- [ ] **Duck Chess autoplay polish** — net is bundled; finish the duck‑placement move handling so it fully autoplays.
+- [ ] **4‑player variants** (4 Player Chess, Chaturaji, 4P Giveaway, Self Partnering) — different board/turn model than
+      chess.js; would need a separate 4‑player engine + board reader. Long shot.
+- [ ] **Bughouse / Doubles** and **Chess With Checkers** — two‑board / mixed‑ruleset games; out of scope for a single
+      Fairy‑Stockfish instance, tracked here for completeness.
 - [ ] More coming.
 
 ---

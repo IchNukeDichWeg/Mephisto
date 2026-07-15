@@ -440,7 +440,8 @@ function detectChesscomVariant() {
         '3-check': '3check', 'king-of-the-hill': 'kingofthehill', 'racing-kings': 'racingkings',
         'crazyhouse': 'crazyhouse', 'atomic': 'atomic', 'horde': 'horde',
         'antichess': 'antichess', 'giveaway': 'antichess', 'chess960': 'fischerandom',
-        'standard': 'chess',
+        'duck': 'duck', 'minihouse': 'minihouse', 's-chess': 'seirawan', 'seirawan': 'seirawan',
+        'chaturanga': 'chaturanga', 'standard': 'chess',
     };
     return map[slug] || map[slug.replace(/-/g, '')] || null;
 }
