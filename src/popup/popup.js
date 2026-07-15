@@ -477,7 +477,9 @@ async function initialize_engine() {
             "MultiPV": effective_multipv(), // bumped for Humanize (alt-line headroom), like WASM
         }).catch(on_remote_error);
     } else {
-        send_engine_uci(`setoption name Hash value ${config.memory}`);
+        // WASM engines can't allocate the big hash the slider now allows (2 GB) -- their heap is
+        // capped, so clamp to 512 MB here. Native engines (remote branch above) get the full value.
+        send_engine_uci(`setoption name Hash value ${Math.min(config.memory, 512)}`);
         send_engine_uci(`setoption name Threads value ${config.threads}`);
         send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
         // Chess960: a mainline Stockfish must be told, or it treats the game as standard chess and
