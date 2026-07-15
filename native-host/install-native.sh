@@ -86,11 +86,12 @@ for spec in "${SPECS[@]}"; do
     cp "$nnue"/*.nnue "$runnnue"/ 2>/dev/null || true
     echo "$runnnue" > "$RUNTIME_DIR/$slug.nnue-dir"
   fi
+  host_id="com.${slug//-/_}.host"   # host names allow only [a-z0-9._] -- no hyphens
   for d in "${DIRS[@]}"; do
     parent="$(dirname "$d")"; [ -d "$parent" ] || continue; mkdir -p "$d"
-    cat > "$d/com.$slug.host.json" <<JSON
+    cat > "$d/$host_id.json" <<JSON
 {
-  "name": "com.$slug.host",
+  "name": "$host_id",
   "description": "Mephisto native UCI engine ($slug)",
   "path": "$host",
   "type": "stdio",

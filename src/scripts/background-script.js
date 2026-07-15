@@ -20,8 +20,9 @@ chrome.action.onClicked.addListener(function (tab) {
 // both ways so a host can STREAM many frames per request (one per search depth). Keyed by port
 // name. The default WASM engines need none of this; native engines require native-host/install-native.sh.
 const NATIVE_HOSTS = {
-  'sf-native': {app: 'com.sf-native.host', label: 'Stockfish (native)'},
-  'fairy-native': {app: 'com.fairy-native.host', label: 'Fairy-Stockfish (native)'},
+  // native-messaging host names allow only [a-z0-9._] -- NO hyphens -> underscores in the app id
+  'sf-native': {app: 'com.sf_native.host', label: 'Stockfish (native)'},
+  'fairy-native': {app: 'com.fairy_native.host', label: 'Fairy-Stockfish (native)'},
 };
 const nativePorts = {};        // port name -> native stdio Port
 const popupPortsByName = {};   // port name -> Set of popup Ports

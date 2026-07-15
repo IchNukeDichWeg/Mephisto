@@ -52,6 +52,14 @@ function elo_stops(engine) {
 // Stockfish/Fairy binary. Engine value == host key in the background worker's NATIVE_HOSTS.
 const NATIVE_ENGINES = ['sf-native', 'fairy-native'];
 const FAIRY_ENGINES = ['fairy-stockfish-14-nnue', 'fairy-native']; // offer the full variant list
+// when a native engine is INSTALLED, its slower WASM equivalents are hidden from the dropdown (files
+// stay; the option is just hidden). Probed cheaply via the host's `ping`. native slug -> WASM ids.
+const NATIVE_SUPERSEDES = {
+    'sf-native': ['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue', 'stockfish-11-hce'],
+    'fairy-native': ['fairy-stockfish-14-nnue'],
+};
+const SUPERSEDED_BY = {};
+for (const [slug, wasms] of Object.entries(NATIVE_SUPERSEDES)) for (const w of wasms) SUPERSEDED_BY[w] = slug;
 
 let turn = ''; // 'w' | 'b'
 
@@ -331,6 +339,15 @@ function init_quick_settings() {
     }
     // The Variant selector: full list for Fairy-Stockfish; Standard + Chess960 for everything else
     // (mainline SF speaks UCI_Chess960). The "detect" button reads the variant off the page.
+    // hide WASM engines whose native equivalent is installed: apply the cached result instantly,
+    // then re-probe (ping only, cheap) if never checked or stale. Files are never touched.
+    const engineSel = document.getElementById('qs_engine');
+    if (engineSel) {
+        let cached = {};
+        try { cached = JSON.parse(localStorage.getItem('native_available')) || {}; } catch (e) { /* */ }
+        apply_native_availability(engineSel, new Set(cached.avail || []));
+        if (!cached.at || Date.now() - cached.at > 600000) refresh_native_availability(engineSel);
+    }
     const variantRow = document.getElementById('qs_variant_row');
     if (variantRow) {
         const fairy = FAIRY_ENGINES.includes(config.engine);
@@ -1847,6 +1864,35 @@ function uses_native() {
 }
 function native_port_name() {
     return config.engine; // sf-native / fairy-native == the host key in NATIVE_HOSTS
+}
+
+// Probe whether a native host is installed & alive, via a `ping` that does NOT launch the engine.
+function probe_native(portName, timeoutMs = 2500) {
+    return new Promise(resolve => {
+        let done = false, port;
+        const finish = (ok) => { if (!done) { done = true; try { port.disconnect(); } catch (e) {} resolve(ok); } };
+        try { port = chrome.runtime.connect({name: portName}); } catch (e) { return resolve(false); }
+        port.onMessage.addListener(f => finish(!!(f && f.ok)));
+        port.onDisconnect.addListener(() => finish(false));
+        try { port.postMessage({id: 0, cmd: 'ping'}); } catch (e) { finish(false); }
+        setTimeout(() => finish(false), timeoutMs);
+    });
+}
+// Hide the WASM option whose native equivalent is installed (never the selected one, so the select
+// can't blank out). Applied from cache for an instant UI, then refreshed by a probe.
+function apply_native_availability(sel, availSet) {
+    if (!sel) return;
+    sel.querySelectorAll('option').forEach(o => {
+        const slug = SUPERSEDED_BY[o.value];
+        if (slug) o.hidden = availSet.has(slug) && o.value !== sel.value;
+    });
+}
+async function refresh_native_availability(sel) {
+    const slugs = Object.keys(NATIVE_SUPERSEDES);
+    const results = await Promise.all(slugs.map(s => probe_native(s)));
+    const avail = slugs.filter((s, i) => results[i]);
+    localStorage.setItem('native_available', JSON.stringify({at: Date.now(), avail}));
+    apply_native_availability(sel, new Set(avail));
 }
 
 function native_bg() {

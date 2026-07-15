@@ -117,14 +117,11 @@ def format_lines(lines, terminal, bestmove, in_check=False):
         return {'bestmove': best, 'threat': threat, 'lines': lines}
     return {'bestmove': '(none)', 'threat': '(none)', 'lines': lines}
 
-# --- engine state ------------------------------------------------------------ #
-_ENGINE_PATH = _resolve_engine()
-_dbg(f"opening engine: {_ENGINE_PATH}")
-try:
-    engine = chess.engine.SimpleEngine.popen_uci(_ENGINE_PATH)
-except Exception:
-    _dbg("ENGINE OPEN FAILED:\n" + traceback.format_exc())
-    raise
+# --- engine state (opened LAZILY: a `ping` availability probe must NOT launch the engine, so the
+# extension can cheaply check which native engines are installed without spawning Stockfish x N) --- #
+_ENGINE_PATH = _resolve_engine()  # cheap: reads the sibling .path, validates it exists
+engine = None
+_engine_init_lock = threading.Lock()
 engine_options = {}
 engine_lock = threading.Lock()
 request_lock = threading.Lock()
@@ -137,6 +134,21 @@ def _set_if_declared(key, value):
     except Exception as e:
         _dbg(f"couldn't set {key}={value}: {e}")
 
+def get_engine():
+    global engine
+    if engine is not None:
+        return engine
+    with _engine_init_lock:
+        if engine is None:
+            _dbg(f"opening engine: {_ENGINE_PATH}")
+            engine = chess.engine.SimpleEngine.popen_uci(_ENGINE_PATH)
+            # full power on first real use; the extension leaves Threads/Hash alone for native hosts
+            _set_if_declared('Threads', FULL_THREADS)
+            _set_if_declared('Hash', FULL_HASH_MB)
+            _apply_variant_net(None)
+            _dbg(f"engine ready: Threads={FULL_THREADS} Hash={FULL_HASH_MB}")
+    return engine
+
 def _apply_variant_net(variant):
     # Fairy-Stockfish: each variant has its own net; standard chess uses the nn-* net.
     if not _NNUE_DIR:
@@ -148,14 +160,9 @@ def _apply_variant_net(variant):
         _set_if_declared('Use NNUE', True)
         _dbg(f"EvalFile -> {hits[0]}")
 
-# full power at startup; the extension leaves Threads/Hash alone for native hosts
-_set_if_declared('Threads', FULL_THREADS)
-_set_if_declared('Hash', FULL_HASH_MB)
-_apply_variant_net(None)
-_dbg(f"engine ready: Threads={FULL_THREADS} Hash={FULL_HASH_MB}")
-
 def do_analyse(data, mid):
     global request_counter
+    get_engine()  # open on first real use (not on a ping probe)
     with request_lock:
         request_counter += 1
         request_id = request_counter
@@ -193,6 +200,7 @@ def do_analyse(data, mid):
         return format_lines(analysis.multipv, terminal, bestmove, in_check)
 
 def do_configure(data):
+    get_engine()  # a configure is a real use -> open the engine (a ping never gets here)
     with engine_lock:
         for key, value in (data.get('options') or {}).items():
             engine_options[key] = value
@@ -213,7 +221,9 @@ def do_configure(data):
 def handle(msg):
     mid = msg.get('id')
     try:
-        if msg.get('cmd') == 'analyse':
+        if msg.get('cmd') == 'ping':
+            send_message({'id': mid, 'ok': True})  # host is installed & alive; does NOT open the engine
+        elif msg.get('cmd') == 'analyse':
             send_message({'id': mid, **do_analyse(msg, mid), 'done': True})
         elif msg.get('cmd') == 'configure':
             send_message({'id': mid, **do_configure(msg)})
