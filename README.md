@@ -183,6 +183,18 @@ Each toggle's tooltip states this inline.
 
 ---
 
+## Roadmap
+
+No schedule — added whenever I feel like it.
+
+- [ ] **lc0 (Leela Chess Zero)** — engine support running in the browser.
+- [ ] **Maia NNUE** — human-like move prediction as a selectable engine.
+- [ ] **Board from a screenshot** — capture any board shown online, render it in the popup, evaluate
+      it, and make the board **playable** — with a button to **reset back to the current (live) move**.
+- [ ] More coming.
+
+---
+
 ## Contributing
 
 Ideas, bug reports, and PRs are all welcome — open an issue or a pull request.
