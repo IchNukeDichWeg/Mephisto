@@ -111,8 +111,10 @@ native engine. If you want *maximum* strength and speed, you can point Mephisto 
 Stockfish / Fairy-Stockfish installed on your machine. Chrome then **auto-launches** it for you — there
 is **no server to run**. This is entirely opt-in and doesn't affect the default WASM engines.
 
-When set up, two extra engines appear in the dropdown: **Stockfish ⚡ (native)** and
-**Fairy-Stockfish ⚡ (native)** — running at all cores + 2 GB hash.
+When set up, two extra engines appear in the dropdown — **Stockfish (local)** and
+**Fairy-Stockfish (local)** — sitting next to their **WASM** counterparts so you can switch freely.
+They run at all cores + up to 2 GB hash (both follow your Threads/Hash sliders). Switching engines
+shuts the previous local engine down so the one you pick gets the whole CPU.
 
 ### What you need
 1. A native **Stockfish** binary (and optionally **Fairy-Stockfish** for variants).
@@ -147,9 +149,10 @@ manual (advanced) setup:
 1. Install [Python](https://python.org) and run `pip install chess`; download `stockfish.exe`.
 2. Copy `native-host/uci-native-host.py` somewhere stable and create `sf-native.path` next to it
    containing the full path to `stockfish.exe`.
-3. Write a host manifest `com.sf-native.host.json` with `"path"` pointing at a `.bat` that runs
-   `python <path>\uci-native-host.py`, and `"allowed_origins": ["chrome-extension://YOUR_EXTENSION_ID/"]`.
-4. Add registry key `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.sf-native.host` = the manifest path.
+3. Write a host manifest `com.sf_native.host.json` (underscores — Chrome rejects hyphens in host
+   names) with `"path"` pointing at a `.bat` that runs `python <path>\uci-native-host.py`, and
+   `"allowed_origins": ["chrome-extension://YOUR_EXTENSION_ID/"]`.
+4. Add registry key `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.sf_native.host` = the manifest path.
 
 (Prefer the bundled WASM engines on Windows unless you're comfortable with the registry.)
 
