@@ -284,6 +284,12 @@ No schedule — added whenever I feel like it.
       chess.js; would need a separate 4‑player engine + board reader. Long shot.
 - [ ] **Bughouse / Doubles** and **Chess With Checkers** — two‑board / mixed‑ruleset games; out of scope for a single
       Fairy‑Stockfish instance, tracked here for completeness.
+- [ ] **Auto‑download variant nets** — instead of bundling every net, fetch the needed variant net on first use and
+      cache it, so the download stays small and rare variants can be added without shipping big blobs.
+- [ ] **Graceful "unsupported variant" state** — when a site variant can't be analyzed (Fog of War, 4‑player, etc.),
+      show a clear "analysis not available for this variant" message instead of a blank or wrong eval.
+- [ ] **Setup / From‑Position FEN capture** — a button that reads the current board straight into a FEN (bypassing
+      move‑history replay), unlocking Setup Chess and any custom starting position in one shot.
 - [ ] More coming.
 
 ---
