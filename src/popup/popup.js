@@ -474,7 +474,7 @@ async function initialize_engine() {
             ...(config.elo > 0 && config.elo <= 3190 ? {"UCI_LimitStrength": true, "UCI_Elo": config.elo} : {}),
             "Hash": config.memory,
             "Threads": config.threads,
-            "MultiPV": config.multiple_lines,
+            "MultiPV": effective_multipv(), // bumped for Humanize (alt-line headroom), like WASM
         }).catch(on_remote_error);
     } else {
         send_engine_uci(`setoption name Hash value ${config.memory}`);
@@ -1036,10 +1036,13 @@ function on_new_pos(fen, startFen, moves) {
         }
     }
     if (is_remote()) {
+        // pure analysis (Help Mode / Autoplay off) keeps deepening like the WASM `go infinite`: give
+        // it a long budget that the next position (a new request supersedes this one) cuts short.
+        const rt = (config.help_mode || !config.autoplay) ? 3600000 : movetime;
         if (moves) {
-            request_remote_analysis(startFen, movetime, moves).then(on_engine_response).catch(on_remote_error);
+            request_remote_analysis(startFen, rt, moves).then(on_engine_response).catch(on_remote_error);
         } else {
-            request_remote_analysis(fen, movetime).then(on_engine_response).catch(on_remote_error);
+            request_remote_analysis(fen, rt).then(on_engine_response).catch(on_remote_error);
         }
     } else {
         if (search_in_flight) {

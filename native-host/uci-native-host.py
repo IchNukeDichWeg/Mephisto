@@ -8,9 +8,9 @@
 # sibling <slug>.path file. Optional sibling <slug>.nnue-dir points at a directory of
 # Fairy-Stockfish variant nets (EvalFile is switched per UCI_Variant).
 #
-# FULL POWER ON PURPOSE: a native engine is not sandboxed, so at startup this host sets
-# Threads = all CPU cores and Hash = 2048 MB (visible constants below, not env switches).
-# The extension deliberately does NOT push its WASM-sized Threads/Hash to these hosts.
+# Threads/Hash: the host opens with a full-power DEFAULT (all CPU cores, 2048 MB) so it's strong
+# even before the extension configures it -- but the extension's Threads/Hash sliders DO override
+# these (a native engine isn't sandboxed, so the sliders control it just like the WASM engines).
 import sys, os, glob, struct, json, threading, traceback, datetime
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
@@ -142,7 +142,7 @@ def get_engine():
         if engine is None:
             _dbg(f"opening engine: {_ENGINE_PATH}")
             engine = chess.engine.SimpleEngine.popen_uci(_ENGINE_PATH)
-            # full power on first real use; the extension leaves Threads/Hash alone for native hosts
+            # full-power default; the extension's configure (Threads/Hash sliders) overrides this
             _set_if_declared('Threads', FULL_THREADS)
             _set_if_declared('Hash', FULL_HASH_MB)
             _apply_variant_net(None)
@@ -206,8 +206,6 @@ def do_configure(data):
             engine_options[key] = value
             if key == 'UCI_Variant':
                 _apply_variant_net(value if value != 'chess' else None)
-            if key in ('Threads', 'Hash'):
-                continue  # host owns these -- keep full power, ignore the extension's WASM-sized values
             if key.lower() in MANAGED_OPTIONS:
                 continue
             if key not in engine.options:
