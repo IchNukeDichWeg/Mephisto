@@ -259,6 +259,15 @@ No schedule — added whenever I feel like it.
 - [ ] **Maia NNUE** — human-like move prediction as a selectable engine.
 - [ ] **Board from a screenshot** — capture any board shown online, render it in the popup, evaluate
       it, and make the board **playable** — with a button to **reset back to the current (live) move**.
+- [ ] **Native-engine health badge** — a live status dot by the engine picker showing whether the local
+      native host is connected, not installed, or crashed, so you always know if you're really on the
+      full-power binary and not silently on WASM.
+- [ ] **Smart default threads** — first native launch defaults threads to `cores − 1` from
+      `hardwareConcurrency`, so local engines run near full power out of the box without touching the slider.
+- [ ] **Ponder / background analysis** — keep analyzing on the opponent's turn (otherwise-idle CPU) so the
+      reply is near-instant once it's your move. Native engines only.
+- [ ] **NPS / depth sparkline** — a small history strip under the live NPS readout showing the last ~20
+      samples, so you can watch an engine ramp or throttle instead of one flickering number.
 - [ ] More coming.
 
 ---
