@@ -86,6 +86,13 @@ def format_line(line, terminal, bestmove, in_check=False):
             formatted['mate'] = score.mate()
         else:
             formatted['score'] = score.score()
+        wdl = line.get('wdl')  # present only when the engine declares UCI_ShowWDL
+        if wdl is not None:
+            try:
+                w = wdl.white()  # -> Wdl(wins, draws, losses) from White's perspective, permille
+                formatted['wdl'] = [w.wins, w.draws, w.losses]  # [white, draw, black]
+            except Exception:
+                pass  # unexpected wdl shape (old python-chess) -- just omit it, never crash analyse
         return formatted
     if terminal:
         score = line.get('score')
@@ -145,6 +152,7 @@ def get_engine():
             # full-power default; the extension's configure (Threads/Hash sliders) overrides this
             _set_if_declared('Threads', FULL_THREADS)
             _set_if_declared('Hash', FULL_HASH_MB)
+            _set_if_declared('UCI_ShowWDL', True)  # so info lines carry `wdl W D L` for the panel
             _apply_variant_net(None)
             _dbg(f"engine ready: Threads={FULL_THREADS} Hash={FULL_HASH_MB}")
     return engine

@@ -259,63 +259,37 @@ Each toggle's tooltip states this inline.
 
 No schedule — added whenever I feel like it.
 
-- [ ] **lc0 (Leela Chess Zero)** — engine support running in the browser.
-- [ ] **Maia NNUE** — human-like move prediction as a selectable engine, with pickable skill bands
-      (Maia-1100 / 1500 / 1900) so it mirrors a chosen rating instead of an Elo cap.
-- [ ] **Board from a screenshot** — capture any board shown online, render it in the popup, evaluate
-      it, and make the board **playable** — with a button to **reset back to the current (live) move**.
-- [ ] **Native-engine health badge** — a live status dot by the engine picker showing whether the local
-      native host is connected, not installed, or crashed, so you always know if you're really on the
-      full-power binary and not silently on WASM.
-- [ ] **Smart default threads** — first native launch defaults threads to `cores − 1` from
-      `hardwareConcurrency`, so local engines run near full power out of the box without touching the slider.
-- [ ] **Ponder / background analysis** — keep analyzing on the opponent's turn (otherwise-idle CPU) so the
-      reply is near-instant once it's your move. Native engines only.
-- [ ] **NPS / depth sparkline** — a small history strip under the live NPS readout showing the last ~20
-      samples, so you can watch an engine ramp or throttle instead of one flickering number.
+**Engines & analysis**
+- [ ] lc0 (Leela) in the browser
+- [ ] Maia NNUE — human-like, pickable skill bands (1100/1500/1900)
+- [ ] Opening explorer overlay (Lichess DB)
+- [ ] Blunder alert when the opponent errs
+- [ ] Syzygy tablebase probing (≤7 pieces)
 
-**More variant coverage** (as engines allow):
+**Board & position**
+- [ ] Board from a screenshot → playable
+- [ ] Setup / From-Position FEN capture
 
-- [ ] **Setup Chess** (chess.com) — custom starting position; scrape the placed pieces into a FEN and analyze from there.
-- [ ] **Spell Chess** (chess.com) — piece "spells" change legality mid‑game; needs a custom rules layer on top of Fairy‑Stockfish.
-- [ ] **Fog of War / Dark chess** — hidden‑information variant; only the visible squares are known, so analysis must
-      reason over the fog (best‑effort, not perfect).
-- [ ] **Duck Chess autoplay polish** — net is bundled; finish the duck‑placement move handling so it fully autoplays.
-- [ ] **4‑player variants** (4 Player Chess, Chaturaji, 4P Giveaway, Self Partnering) — different board/turn model than
-      chess.js; would need a separate 4‑player engine + board reader. Long shot.
-- [ ] **Bughouse / Doubles** and **Chess With Checkers** — two‑board / mixed‑ruleset games; out of scope for a single
-      Fairy‑Stockfish instance, tracked here for completeness.
-- [ ] **Auto‑download variant nets** — instead of bundling every net, fetch the needed variant net on first use and
-      cache it, so the download stays small and rare variants can be added without shipping big blobs.
-- [ ] **Graceful "unsupported variant" state** — when a site variant can't be analyzed (Fog of War, 4‑player, etc.),
-      show a clear "analysis not available for this variant" message instead of a blank or wrong eval.
-- [ ] **Setup / From‑Position FEN capture** — a button that reads the current board straight into a FEN (bypassing
-      move‑history replay), unlocking Setup Chess and any custom starting position in one shot.
+**More variants** (as engines allow)
+- [ ] Setup Chess · Spell Chess · Fog of War
+- [ ] Duck Chess autoplay polish
+- [ ] 4-player (4PC, Chaturaji, 4P Giveaway, Self Partnering)
+- [ ] Bughouse / Doubles · Chess with Checkers
+- [ ] Auto-download variant nets
+- [ ] Graceful "unsupported variant" message
 
-**Analysis & engines:**
+**Quality of life**
+- [ ] Native-engine health badge
+- [ ] Smart default threads (cores − 1)
+- [ ] Ponder / background analysis
+- [ ] NPS / depth sparkline
+- [ ] Compact / expanded panel toggle
+- [ ] Copy FEN / PGN button
+- [ ] Configurable hotkeys
 
-- [ ] **Opening explorer overlay** — show the top book moves + win rates for the current position (Lichess opening DB)
-      alongside the engine line, for theory context in the opening.
-- [ ] **Blunder alert** — when the *opponent* just blundered (eval swing past a threshold), flag it with a subtle
-      highlight so a free win doesn't slip by in a fast game.
-- [ ] **Syzygy tablebase probing** — perfect play in ≤7‑piece endgames via a local or online tablebase, so won/drawn
-      endings are exact instead of searched.
-
-**Quality of life:**
-
-- [ ] **Compact / expanded panel toggle** — a one‑click "minimal" mode showing just the best move + eval, for small
-      screens or when the full sidebar is too much.
-- [ ] **Copy FEN / PGN button** — grab the current position or full game to the clipboard in one click.
-- [ ] **Configurable hotkeys** — let users rebind show/hide, autoplay, and re‑detect instead of fixed keys.
-
-**Robustness:**
-
-- [ ] **Self‑test / diagnostics panel** — one button that checks content script injected · engine loaded · native host
-      reachable · COOP/COEP active, and reports what's broken.
-- [ ] **Auto‑recover on site DOM changes** — when scraping returns nothing for N seconds on a known site, surface a
-      "site layout changed — update needed" notice instead of silently going blank.
-
-- [ ] More coming.
+**Robustness**
+- [ ] Self-test / diagnostics panel
+- [ ] Auto-recover on site DOM changes
 
 ---
 

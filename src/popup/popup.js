@@ -467,6 +467,9 @@ async function initialize_engine() {
         send_engine_uci(`setoption name Hash value ${Math.min(config.memory, 512)}`);
         send_engine_uci(`setoption name Threads value ${config.threads}`);
         send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
+        // Win/Draw/Loss readout under the score. Modern Stockfish (dev/18) reports `wdl W D L` per
+        // info line once this is on; SF11/Fairy don't declare it and silently ignore this line.
+        send_engine_uci('setoption name UCI_ShowWDL value true');
         // Chess960: a mainline Stockfish must be told, or it treats the game as standard chess and
         // mishandles castling whenever the king/rooks aren't on their normal files. (Fairy-Stockfish
         // already gets this from its 'fischerandom' UCI_Variant above, so only the SF engines need it.)
@@ -700,7 +703,25 @@ function on_engine_evaluation(info) {
     } else {
         update_evaluation(`Score: ${info.lines[0].score / 100.0} at depth ${info.lines[0].depth}`)
     }
+    render_wdl(info.lines[0]);
     render_alt_lines();
+}
+
+// Win/Draw/Loss line under the score, from the engine's own UCI_ShowWDL output. `wdl` is
+// [white, draw, black] in permille. Shown from YOUR side (board orientation) so your colour is
+// always listed first and the order stays put across moves. Blank for engines that don't report
+// it (SF11, Fairy, remote engines without a WDL model) so the row just collapses.
+function render_wdl(line) {
+    const el = document.getElementById('wdl');
+    if (!el) return;
+    const wdl = line && line.wdl;
+    if (!Array.isArray(wdl) || wdl.length !== 3) { el.textContent = ''; el.style.display = 'none'; return; }
+    el.style.display = '';
+    const whitePct = (wdl[0] / 10).toFixed(1);
+    const drawPct = (wdl[1] / 10).toFixed(1);
+    const blackPct = (100 - wdl[0] / 10 - wdl[1] / 10).toFixed(1); // derive third -> always sums to 100
+    const w = `White ${whitePct}%`, d = `Draw ${drawPct}%`, b = `Black ${blackPct}%`;
+    el.textContent = (board.orientation() === 'black') ? `${b} | ${d} | ${w}` : `${w} | ${d} | ${b}`;
 }
 
 // pv arrives as a space-joined STRING from the wasm engines but as a LIST of UCI moves from
@@ -772,6 +793,12 @@ function on_engine_response(message) {
             if (token === 'score') {
                 lineInfo.rawScore = `${tokens[i + 1]} ${tokens[i + 2]}`;
                 i += 2; // take 2 tokens
+            } else if (token === 'wdl') {
+                // `wdl <win> <draw> <loss>` in permille, from the side-to-move's perspective.
+                // Normalize to [white, draw, black] so the display never needs the turn again.
+                const w = parseInt(tokens[i + 1]), d = parseInt(tokens[i + 2]), l = parseInt(tokens[i + 3]);
+                lineInfo.wdl = (turn === 'w') ? [w, d, l] : [l, d, w];
+                i += 3; // take 3 tokens
             } else if (token === 'pv') {
                 lineInfo['move'] = tokens[i + 1];
                 lineInfo[token] = tokens.slice(i + 1).join(' '); // take rest of tokens

@@ -1,6 +1,6 @@
 html, body {
     width: 568px; /* 378px left column (14px eval bar + 4px gap + 350px board + margins) + 190px quick settings */
-    height: 630px; /* room for the alternative-lines panel under the board + an uncramped settings column */
+    height: 672px; /* room for the score + WDL line + alternative-lines panel under the board, uncramped */
     overflow: hidden;
     background-color: rgb(240, 240, 240);
     color: #000; /* stark: pure black in light mode (user: "no grey") */
@@ -203,12 +203,12 @@ html, body {
 
 /* the left column is 378px wide; without this the centered text spans the full
    body, drifts under the quick-settings panel and collides with the gear button */
-#game-detection, #moves, #evaluation, #next-move, #nps {
+#game-detection, #moves, #evaluation, #next-move, #nps, #wdl {
     width: 378px;
 }
 
 /* analysis text is stark: pure black in light mode, pure white in dark (user: "no grey") */
-#moves, #evaluation, #alt-lines .alt-eval, #alt-lines .alt-moves, #next-move, #nps {
+#moves, #evaluation, #alt-lines .alt-eval, #alt-lines .alt-moves, #next-move, #nps, #wdl {
     color: #000;
 }
 
@@ -261,6 +261,17 @@ html, body {
     font: 17px 'Roboto', sans-serif;
     line-height: 23px;
     z-index: 5;
+    margin: 8px 0 0 0;
+}
+
+/* Win/Draw/Loss probabilities for the current position, straight from the engine's UCI_ShowWDL
+   ("White 50.0% | Draw 30.0% | Black 20.0%"). Blank for engines that don't report WDL. */
+#wdl {
+    height: 23px;
+    font: 16px 'Roboto', sans-serif;
+    line-height: 23px;
+    z-index: 5;
+    text-align: center;
     margin: 8px 0 0 0;
 }
 
@@ -438,6 +449,7 @@ body.mephisto-dark #chess_line_1,
 body.mephisto-dark #chess_line_2,
 body.mephisto-dark #next-move,
 body.mephisto-dark #nps,
+body.mephisto-dark #wdl,
 body.mephisto-dark #alt-lines .alt-eval,
 body.mephisto-dark #alt-lines .alt-moves {
     color: #fff; /* stark, matching the pure-black light mode -- no grey */
