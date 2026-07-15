@@ -50,7 +50,16 @@ chrome.runtime.onConnect.addListener(port => {
   if (!NATIVE_HOSTS[port.name]) return;
   const name = port.name;
   (popupPortsByName[name] = popupPortsByName[name] || new Set()).add(port);
-  port.onDisconnect.addListener(() => popupPortsByName[name].delete(port));
+  port.onDisconnect.addListener(() => {
+    popupPortsByName[name].delete(port);
+    // Last popup using this engine went away (you switched engines, or closed the page). Shut the
+    // native host DOWN so a lingering search can't keep burning all cores and throttle the engine
+    // you just selected. It relaunches on next use.
+    if (popupPortsByName[name].size === 0 && nativePorts[name]) {
+      try { nativePorts[name].disconnect(); } catch (e) { /* already gone */ }
+      delete nativePorts[name];
+    }
+  });
   port.onMessage.addListener(req => {
     try {
       ensureNative(name).postMessage(req);

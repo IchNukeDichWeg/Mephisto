@@ -70,10 +70,13 @@ let turn = ''; // 'w' | 'b'
 // to start audio, so this is (re)started from the popup's own clicks and on visibility changes
 // (once the user has interacted, sticky activation lets resume() work even after tabbing away).
 let keep_alive_ctx = null;
-function keep_alive(active) {
+// allowCreate is true ONLY from a real user gesture -- creating/resuming an AudioContext without one
+// logs Chrome's "AudioContext was not allowed to start" warning; non-gesture callers only resume.
+function keep_alive(active, allowCreate = false) {
     try {
         if (active) {
             if (!keep_alive_ctx) {
+                if (!allowCreate) return; // no gesture yet -> don't create (would warn)
                 keep_alive_ctx = new (window.AudioContext || window.webkitAudioContext)();
                 const osc = keep_alive_ctx.createOscillator();
                 const gain = keep_alive_ctx.createGain();
@@ -137,9 +140,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     document.body.classList.toggle('mephisto-dark', config.dark_mode); // dark theme (set in Appearance)
     // keep autoplay running when the tab is backgrounded: start/resume the keep-alive tone on any
     // panel click and whenever visibility flips, so it's already playing before you tab away
-    document.addEventListener('pointerdown', () => { if (config.autoplay) keep_alive(true); }, true);
-    document.addEventListener('visibilitychange', () => { if (config.autoplay) keep_alive(true); });
-    keep_alive(config.autoplay); // arms/suspends to match the persisted setting (resumes on first gesture)
+    document.addEventListener('pointerdown', () => keep_alive(config.autoplay, true), true); // gesture: may create
+    document.addEventListener('visibilitychange', () => keep_alive(config.autoplay)); // resume-only (no create)
     push_config();
     init_quick_settings();
     maybe_autodetect_variant(); // variant game page -> auto-apply the variant (+ Fairy) once
@@ -283,7 +285,7 @@ function init_quick_settings() {
         elem.addEventListener('change', () => {
             config[key] = elem.checked;
             save(key, elem.checked);
-            keep_alive(config.autoplay); // this change is a user gesture -> can (re)start the tone now
+            keep_alive(config.autoplay, true); // this change is a user gesture -> can (re)start the tone now
             if (key === 'help_mode' && !elem.checked) request_clear_hint();
             if (key === 'eval_bar' && !elem.checked) request_clear_eval_bar();
             if (key === 'humanize' && !is_remote()) {
@@ -1199,6 +1201,8 @@ function update_best_move(line1, line2) {
 }
 
 function send_to_active_tab(message) {
+  try { // chrome.* throws "Extension context invalidated" if the extension was reloaded while this
+        // popup iframe is still live on the page -- harmless (a page reload re-injects a fresh popup)
     // read lastError so "Receiving end does not exist" (no content-script on tab) stays unlogged
     if (MY_TAB_ID) { // normal path: talk to OUR tab only, even when it's in the background
         chrome.tabs.sendMessage(MY_TAB_ID, message, () => void chrome.runtime.lastError);
@@ -1208,6 +1212,7 @@ function send_to_active_tab(message) {
         if (!tabs[0]?.id) return;
         chrome.tabs.sendMessage(tabs[0].id, message, () => void chrome.runtime.lastError);
     });
+  } catch (e) { /* extension context invalidated (reloaded under a live popup) -- ignore */ }
 }
 
 let fen_request_inflight = false;
