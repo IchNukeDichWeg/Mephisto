@@ -16,7 +16,12 @@
     // `'__mephistoCBProbe' in window`) and no `mephisto-*` event names. This IIFE runs once per
     // document load; a rare double injection only duplicates harmless events, so no global guard is
     // needed. Bridge channel names are de-branded to neutral tokens shared with the content script.
-    const CB_Q = 'w2q', CB_S = 'w2s', CB_U = 'w2u'; // query / state / update
+    // item 1: a per-SESSION RANDOM channel id, so the data-carrying events have no fixed name to
+    // fingerprint. The only fixed string is the rendezvous the probe uses once to hand its id over.
+    const SID = 'n' + Math.random().toString(36).slice(2, 10);
+    const CB_Q = SID + 'q', CB_S = SID + 's', CB_U = SID + 'u';
+    const RDV = 'm9';
+    let acked = false;
 
     const isFen = (s) => typeof s === 'string' &&
         /^([1-8pnbrqkPNBRQK]+\/){7}[1-8pnbrqkPNBRQK]+\s+[wb]\s/.test(s);
@@ -50,9 +55,17 @@
 
     // query side: always answers synchronously with the CURRENT position (null if no game yet)
     document.addEventListener(CB_Q, () => {
+        acked = true; // the content script is talking on our channel -> stop announcing
         ensureSubscribed();
         send(CB_S, curFen());
     });
+
+    // hand our random channel id to the ISOLATED content script over the fixed rendezvous, retrying
+    // until it starts querying on that id (covers either injection order); then stop.
+    const announce = () => document.dispatchEvent(new CustomEvent(RDV, {detail: JSON.stringify({t: 'cb', s: SID})}));
+    announce();
+    const annInt = setInterval(() => acked ? clearInterval(annInt) : announce(), 100);
+    setTimeout(() => clearInterval(annInt), 5000);
 
     // The app boots async; poll briefly until the model exists, then push the first position and
     // wire the subscription. After that, onCurPosChanged pushes and queries carry the state.

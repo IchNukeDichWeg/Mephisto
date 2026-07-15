@@ -26,7 +26,12 @@
     // `'__mephistoTTProbe' in window`) and no `mephisto-*` event names. This IIFE runs once per
     // document load; a rare double injection only duplicates harmless events, so no global guard is
     // needed. Bridge channel names are de-branded to neutral tokens shared with the content script.
-    const TT_Q = 'w1q', TT_S = 'w1s', TT_U = 'w1u'; // query / state / update
+    // item 1: a per-SESSION RANDOM channel id, so the data-carrying events have no fixed name to
+    // fingerprint. The only fixed string is the rendezvous the probe uses once to hand its id over.
+    const SID = 'm' + Math.random().toString(36).slice(2, 10);
+    const TT_Q = SID + 'q', TT_S = SID + 's', TT_U = SID + 'u';
+    const RDV = 'm9';
+    let acked = false;
 
     const serverGame = (actor) => {
         try {
@@ -191,8 +196,16 @@
 
     // --- query side: always answers, synchronously, with the CURRENT game's state
     document.addEventListener(TT_Q, () => {
+        acked = true; // the content script is talking on our channel -> stop announcing
         const {machine, board} = findActors();
         ensureSubscribed(machine, board);
         send(TT_S, buildPayload(machine, board));
     });
+
+    // hand our random channel id to the ISOLATED content script over the fixed rendezvous, retrying
+    // until it starts querying on that id (covers either injection order); then stop.
+    const announce = () => document.dispatchEvent(new CustomEvent(RDV, {detail: JSON.stringify({t: 'tt', s: SID})}));
+    announce();
+    const annInt = setInterval(() => acked ? clearInterval(annInt) : announce(), 100);
+    setTimeout(() => clearInterval(annInt), 5000);
 })();

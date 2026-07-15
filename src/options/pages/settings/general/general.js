@@ -24,6 +24,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
         this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);
         this.initHumanizeMix();
+        this.initUiMode();
         this.registerFormElement('puzzle_mode', 'Puzzle Mode:', 'checkbox', false);
         this.registerFormElement('python_autoplay_backend', 'Python Autoplay Backend:', 'checkbox', false);
         this.registerFormElement('think_time', 'Simulated Think Time (ms):', 'input', 0);
@@ -76,6 +77,17 @@ class GeneralSettings extends SettingsPage {
     // picking, so an off-100 mix still behaves proportionally in the meantime.) NOT FormElements:
     // one logical setting spans two inputs per row. Values persist per-key in localStorage; the
     // popup reads them fresh on every pick, so edits apply to the very next move.
+    // Panel Style: 'floating' (in-page overlay) or 'popup' (toolbar bubble = no page footprint).
+    // Unlike every other setting this one lives in chrome.storage.local, NOT localStorage: the
+    // background service worker flips the toolbar popup on/off (chrome.action.setPopup) and can't
+    // read the popup page's localStorage. Writing it fires chrome.storage.onChanged in the worker.
+    initUiMode() {
+        const sel = document.getElementById('ui_mode_select');
+        if (!sel) return; // stale cached page html
+        chrome.storage.local.get('ui_mode', ({ui_mode}) => { sel.value = ui_mode || 'floating'; });
+        sel.addEventListener('change', () => chrome.storage.local.set({ui_mode: sel.value}));
+    }
+
     initHumanizeMix() {
         const MIX = [
             ['humanize_top', 50], ['humanize_second', 40], ['humanize_third', 4],

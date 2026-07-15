@@ -258,10 +258,24 @@ Each toggle's tooltip states this inline.
 
 ## Page footprint
 
-Mephisto keeps the smallest page footprint it reasonably can:
+### Panel Style — pick your footprint (Settings → General → **Panel Style**)
 
-- **Panel in a closed shadow root** — the floating panel and its extension‑page iframe live inside a `mode: "closed"` shadow root under one attribute‑less host node. The page can't enumerate them (`document.querySelector('[id^="mephisto-"]')` finds nothing, `host.shadowRoot` is `null`, and the extension iframe isn't reachable from the page's `<iframe>` list).
-- **No branded page globals** — the MAIN‑world probes used on canvas/proprietary boards (TakeTakeTake, ChessBase) set **no** `window.*` flag and talk over neutral, de‑branded event names, so a page can't fingerprint them by a known global or event.
+Two ways to show the panel:
+
+- **Floating panel** (default) — the draggable window over the board. Richer UX, but it's injected into the web
+  page, so a chess site can detect it more easily.
+- **Toolbar popup** — the classic bubble anchored to the browser toolbar. It renders in the browser's own chrome,
+  so the page has **no handle to it at all — zero page footprint**. This is the **safer** mode.
+
+**To switch to the safe mode:** open **Settings** (the extension's options page) → **General** → **Panel Style** →
+choose **"Toolbar popup (safer — no page footprint)"**. Same features, sliders and buttons either way; the popup just
+closes when you click away instead of floating over the board. It takes effect immediately (any open floating panel is
+closed for you).
+
+### While the floating panel is in use, its footprint is minimized:
+
+- **Panel in a closed shadow root** — the panel and its extension‑page iframe live inside a `mode: "closed"` shadow root under one attribute‑less host node. The page can't enumerate them (`document.querySelector('[id^="mephisto-"]')` finds nothing, `host.shadowRoot` is `null`, and the extension iframe isn't reachable from the page's `<iframe>` list).
+- **No branded page globals** — the MAIN‑world probes used on canvas/proprietary boards (TakeTakeTake, ChessBase) set **no** `window.*` flag and talk over **per‑session random** event channels, so a page has no fixed global or event name to fingerprint (just a single rendezvous).
 - **Center‑weighted clicks** — simulated moves land on a soft, human‑like distribution around each square's center (not the exact pixel), via trusted browser input events.
 
 These reduce passive fingerprinting; they don't change that using an engine in a live game is against most sites' fair‑play rules. Use analysis features responsibly.

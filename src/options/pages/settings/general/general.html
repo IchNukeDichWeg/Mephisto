@@ -101,6 +101,27 @@
                         </p>
                     </label>
                 </div>
+                <div class="section">
+                    <label>
+                        <span class="tooltipped" data-position="right"
+                              data-tooltip="How the Mephisto panel is shown. Floating = the draggable window over the
+                                            board; it lives in the page, so a chess site can detect it more easily.
+                                            Toolbar popup = the classic bubble in the browser toolbar; it leaves NO
+                                            trace in the page (the safer choice).">
+                            Panel Style <i class="material-icons info-tooltip">info</i>
+                        </span>
+                        <select name="ui_mode" id="ui_mode_select">
+                            <option value="floating">Floating panel (over the board)</option>
+                            <option value="popup">Toolbar popup (safer — no page footprint)</option>
+                        </select>
+                    </label>
+                    <p id="ui_mode_note" style="margin: 6px 0 0; font-size: 12px; line-height: 1.4;">
+                        ⚠️ The <b>floating panel</b> is embedded in the web page, which makes the extension easier for a
+                        chess site to detect. The <b>toolbar popup</b> runs entirely in the browser and leaves no page
+                        footprint — pick it for the safer mode. (Same features either way; the popup closes when you
+                        click away.)
+                    </p>
+                </div>
                 <div class="flex-group">
                     <div class="section switch">
                         <label class="switch-label">Show Computer Evaluation</label>

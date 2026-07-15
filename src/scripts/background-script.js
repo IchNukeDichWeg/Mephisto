@@ -9,7 +9,31 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   }
 });
 
-// no default_popup anymore: the toolbar icon toggles the draggable in-page overlay instead
+// UI mode toggle (Settings -> General). Two ways to show the panel:
+//   'floating' (default) -- an in-page overlay injected on toolbar click. Richer UX, but the panel
+//               and its iframe live in the page DOM (a larger, page-detectable footprint).
+//   'popup'    -- the classic toolbar bubble. It renders in the browser's own chrome, so the page
+//               has NO handle to it at all (zero page footprint = the "safer" mode).
+// Implemented purely with chrome.action.setPopup: when a popup is SET the icon opens the bubble and
+// onClicked never fires; when it's CLEARED onClicked fires and we inject the overlay. The service
+// worker can't read the popup's localStorage, so this one setting lives in chrome.storage.local.
+function applyUiMode(mode) {
+  chrome.action.setPopup({popup: mode === 'popup' ? 'src/popup/popup.html' : ''});
+}
+// re-applied on every service-worker spin-up (top-level), so the mode survives SW restarts
+chrome.storage.local.get('ui_mode', ({ui_mode}) => applyUiMode(ui_mode || 'floating'));
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes.ui_mode) return;
+  const mode = changes.ui_mode.newValue || 'floating';
+  applyUiMode(mode);
+  if (mode === 'popup') { // tear down any overlay that's open when the user switches to the safe mode
+    chrome.tabs.query({}, tabs => tabs.forEach(t => t.id &&
+      chrome.tabs.sendMessage(t.id, {closeOverlay: true}, () => void chrome.runtime.lastError)));
+  }
+});
+
+// Floating mode only: clicking the icon toggles the draggable in-page overlay. (In popup mode a
+// popup is set, so this listener never fires -- Chrome shows the bubble instead.)
 chrome.action.onClicked.addListener(function (tab) {
   if (!tab.id) return;
   chrome.tabs.sendMessage(tab.id, {toggleOverlay: true}, () => void chrome.runtime.lastError);

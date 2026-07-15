@@ -18,7 +18,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.59'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.60'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -37,6 +37,10 @@ window.onload = () => {
 chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
     if (response.toggleOverlay) {
         toggleOverlay();
+        return;
+    }
+    if (response.closeOverlay) { // sent to every tab when the user switches to toolbar-popup mode
+        removeOverlay();
         return;
     }
     if (response.detectVariant) {
@@ -705,26 +709,30 @@ function spriteLightness(piece) {
 // (JSON: fen, moves[{san,uci}], myColor, clocks in ms, increment), so ttQuery() is a plain
 // synchronous read from the scrapers' point of view.
 
-const TT_Q = 'w1q', TT_S = 'w1s', TT_U = 'w1u'; // de-branded MAIN-world probe channel, matches tt-probe.js (1c)
-let ttState = null;
-document.addEventListener(TT_S, (e) => {
-    // query RESPONSE: update only. It must NOT schedulePush -- every push queries, so a push
-    // here would re-arm the debounce forever (a 33Hz self-sustaining loop).
-    try { ttState = JSON.parse(e.detail); } catch (err) { ttState = null; }
-});
-document.addEventListener(TT_U, (e) => {
-    // unsolicited PUSH from the probe's actor subscription: the canvas repaints without DOM
-    // mutations, so this is what makes move detection instant instead of waiting for the
-    // move-list to re-render (or the 1s fallback poll). The probe only fires on real position
-    // changes, so this can't loop.
-    try { ttState = JSON.parse(e.detail); } catch (err) { return; }
-    if (config) schedulePush();
+// item 1: the MAIN-world probes (tt-probe.js / cb-probe.js) each pick a RANDOM per-session channel
+// id and announce it over the fixed 'm9' rendezvous. We capture it and wire the state/update
+// listeners onto that random channel, so the data-carrying events have no fixed name to fingerprint.
+// (state = query RESPONSE, update only, never schedulePush or it self-loops; update = unsolicited
+// PUSH from the probe's subscription, which refreshes + schedules a scrape.)
+let ttState = null, ttSid = null;
+let cbState = null, cbSid = null; // cb is wired in the SAME rendezvous below; declared here for it
+document.addEventListener('m9', (e) => {
+    let d;
+    try { d = JSON.parse(e.detail); } catch (err) { return; }
+    if (!d || !d.s) return;
+    if (d.t === 'tt' && d.s !== ttSid) {
+        ttSid = d.s;
+        document.addEventListener(ttSid + 's', ev => { try { ttState = JSON.parse(ev.detail); } catch (err) { ttState = null; } });
+        document.addEventListener(ttSid + 'u', ev => { try { ttState = JSON.parse(ev.detail); } catch (err) { return; } if (config) schedulePush(); });
+    } else if (d.t === 'cb' && d.s !== cbSid) {
+        cbSid = d.s;
+        document.addEventListener(cbSid + 's', ev => { try { cbState = JSON.parse(ev.detail); } catch (err) { cbState = null; } });
+        document.addEventListener(cbSid + 'u', ev => { try { cbState = JSON.parse(ev.detail); } catch (err) { return; } if (config) schedulePush(); });
+    }
 });
 
 function ttQuery() {
-    try {
-        document.dispatchEvent(new CustomEvent(TT_Q));
-    } catch (e) { /* probe not injected (stale page) */ }
+    if (ttSid) { try { document.dispatchEvent(new CustomEvent(ttSid + 'q')); } catch (e) { /* stale */ } }
     return ttState;
 }
 
@@ -745,24 +753,10 @@ function scrapePositionTT() {
 // synchronously with 'mephisto-cb-state', and 'mephisto-cb-update' is PUSHED on every move so a
 // newly-solved/taken-back position is seen instantly instead of on the fallback poll.
 
-const CB_Q = 'w2q', CB_S = 'w2s', CB_U = 'w2u'; // de-branded MAIN-world probe channel, matches cb-probe.js (1c)
-let cbState = null; // the current FEN string, or null when no puzzle is loaded
-document.addEventListener(CB_S, (e) => {
-    // query RESPONSE: update only. Must NOT schedulePush -- every push queries, so pushing here
-    // would re-arm the debounce forever (a self-sustaining loop).
-    try { cbState = JSON.parse(e.detail); } catch (err) { cbState = null; }
-});
-document.addEventListener(CB_U, (e) => {
-    // unsolicited PUSH from the probe's onCurPosChanged subscription -- what makes move detection
-    // instant. The probe fires only on real position changes, so this can't loop.
-    try { cbState = JSON.parse(e.detail); } catch (err) { return; }
-    if (config) schedulePush();
-});
-
+// cbState + its state/update listeners are wired in the shared 'm9' rendezvous handler above
+// (same mechanism as tt); cbQuery just fires a query on the captured random channel.
 function cbQuery() {
-    try {
-        document.dispatchEvent(new CustomEvent(CB_Q));
-    } catch (e) { /* probe not injected (stale page) */ }
+    if (cbSid) { try { document.dispatchEvent(new CustomEvent(cbSid + 'q')); } catch (e) { /* stale */ } }
     return cbState;
 }
 
