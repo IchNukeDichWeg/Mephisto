@@ -213,9 +213,10 @@ html, body {
 }
 
 #nps {
-    height: 18px;
-    font: 13px 'Roboto', sans-serif;
-    line-height: 18px;
+    height: 23px;
+    font: 17px 'Roboto', sans-serif; /* same size as the best-move + score lines it sits between */
+    line-height: 23px;
+    text-align: center;
     margin: 6px 0 0 0;
 }
 
