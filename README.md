@@ -260,7 +260,8 @@ Each toggle's tooltip states this inline.
 No schedule — added whenever I feel like it.
 
 - [ ] **lc0 (Leela Chess Zero)** — engine support running in the browser.
-- [ ] **Maia NNUE** — human-like move prediction as a selectable engine.
+- [ ] **Maia NNUE** — human-like move prediction as a selectable engine, with pickable skill bands
+      (Maia-1100 / 1500 / 1900) so it mirrors a chosen rating instead of an Elo cap.
 - [ ] **Board from a screenshot** — capture any board shown online, render it in the popup, evaluate
       it, and make the board **playable** — with a button to **reset back to the current (live) move**.
 - [ ] **Native-engine health badge** — a live status dot by the engine picker showing whether the local
@@ -290,6 +291,30 @@ No schedule — added whenever I feel like it.
       show a clear "analysis not available for this variant" message instead of a blank or wrong eval.
 - [ ] **Setup / From‑Position FEN capture** — a button that reads the current board straight into a FEN (bypassing
       move‑history replay), unlocking Setup Chess and any custom starting position in one shot.
+
+**Analysis & engines:**
+
+- [ ] **Opening explorer overlay** — show the top book moves + win rates for the current position (Lichess opening DB)
+      alongside the engine line, for theory context in the opening.
+- [ ] **Blunder alert** — when the *opponent* just blundered (eval swing past a threshold), flag it with a subtle
+      highlight so a free win doesn't slip by in a fast game.
+- [ ] **Syzygy tablebase probing** — perfect play in ≤7‑piece endgames via a local or online tablebase, so won/drawn
+      endings are exact instead of searched.
+
+**Quality of life:**
+
+- [ ] **Compact / expanded panel toggle** — a one‑click "minimal" mode showing just the best move + eval, for small
+      screens or when the full sidebar is too much.
+- [ ] **Copy FEN / PGN button** — grab the current position or full game to the clipboard in one click.
+- [ ] **Configurable hotkeys** — let users rebind show/hide, autoplay, and re‑detect instead of fixed keys.
+
+**Robustness:**
+
+- [ ] **Self‑test / diagnostics panel** — one button that checks content script injected · engine loaded · native host
+      reachable · COOP/COEP active, and reports what's broken.
+- [ ] **Auto‑recover on site DOM changes** — when scraping returns nothing for N seconds on a known site, surface a
+      "site layout changed — update needed" notice instead of silently going blank.
+
 - [ ] More coming.
 
 ---
