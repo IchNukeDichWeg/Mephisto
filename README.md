@@ -96,7 +96,7 @@ within bounds automatically.
 
 ### Variants
 
-Standard chess and **Chess960 / Fischer Random** work on every mainline Stockfish (via `UCI_Chess960`).
+Standard chess and **Chess960 / Fischer Random** work on every mainline Stockfish (via `UCI_Chess960`) — including every castling case (king‑takes‑rook UCI, the king already standing on its castled square, and rooks on non‑standard files).
 Fairy‑Stockfish ships its own NNUE net per variant and additionally plays:
 
 - **Lichess** — Crazyhouse, King of the Hill, Three‑Check, Antichess, Atomic, Horde, Racing Kings (all of Lichess's variants).
