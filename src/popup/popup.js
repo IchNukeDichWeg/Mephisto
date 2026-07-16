@@ -1,9 +1,38 @@
-import {Chess} from '../../lib/chess.js';
+// Loaded as a CLASSIC script in two places: the popup PAGE (toolbar popup) and, once the panel
+// moves in-page, the content-script isolated world. It can't be an ES module (content scripts
+// aren't) and must not be dynamic-imported (that needs web_accessible_resources and leaks the
+// extension id via Resource Timing -- issue #35 §3.4). IIFE-wrapped so its globals (config,
+// engine, board, ...) can't collide with content-script.js's in the shared isolated world.
+(function () {
 
 // the tab this popup iframe was injected into (passed by the content-script). Everything this popup
 // sends/receives is scoped to THIS tab, so a background tab's popup can't drive the foreground tab
 // or turn on its modes. Null only if opened before the content-script learned its id (falls back).
-const MY_TAB_ID = parseInt(new URLSearchParams(location.search).get('tab'), 10) || null;
+let MY_TAB_ID = parseInt(new URLSearchParams(location.search).get('tab'), 10) || null;
+let PANEL_BOOTED = false; // popup.js also loads on every chess page as a content script --
+// its listeners must stay inert until THIS tab's panel is actually opened.
+
+// When shown as the toolbar POPUP (Panel Style = "popup") this page is top-level; when shown as the
+// floating panel it's an iframe the content-script scales down itself. Only the top-level toolbar
+// popup renders at full 568x672, so shrink just that one (CSP blocks an inline <head> script, so we
+// tag it here — a brief flash as the popup opens is fine). The floating iframe is left untouched.
+if (location.protocol === 'chrome-extension:' && window.top === window.self) {
+    document.documentElement.classList.add('toolbar-popup'); // real toolbar popup only, never the host page
+}
+
+// Where the panel's own DOM lives. It's `document` while the panel is an iframe (and the toolbar
+// popup); Phase 4c repoints PANEL_ROOT at the closed shadow root when the panel moves in-page, and
+// the panel's element lookups go through it. (Global page listeners -- pointerdown/visibilitychange
+// for keep-alive -- stay on `document`.)
+// popup.js runs in two contexts. As a CONTENT SCRIPT (panel in-page) chrome.tabs doesn't exist and
+// runtime.sendMessage can't reach content-script.js -- but it shares our realm, so we call it
+// directly. As the toolbar popup it's a real extension page and must use tabs messaging.
+const IS_CONTENT_SCRIPT = (location.protocol !== 'chrome-extension:');
+let PANEL_MSG_HANDLER = null; // content-script -> panel, invoked directly when in-page
+let PANEL_ROOT = document;
+const BOARD_THEMES = ['brown','red','orange','tan','green','sky','blue','purple','grey','wood','marble','newspaper'];
+let PANEL_ASSETS = null; // {pieces:{wP:dataURI,...}} when the panel is in-page
+let PANEL_TIP_HOST = document.body || document.documentElement;
 
 let engine;
 let board;
@@ -17,27 +46,38 @@ let search_active = false; // a 'go' was issued whose bestmove hasn't arrived ye
 let premove_tracker = {fen: '', lines: {}}; // per-multipv reply stability while the opponent thinks
 let prog = 0;
 let last_eval = {fen: '', activeLines: 0, lines: []};
+let detected_prefix = null; // which site the last scrape came from ('li'/'cc'/'bt'/'tt')
 let last_clocks = null;   // {mine, theirs, increment, at} scraped off the page (Clock Mode)
 let last_our_eval = null; // our-perspective cp after our previous move (humanize criticality)
 let opp_clock_mark = null; // opponent's clock when their turn started...
 let opp_spend = null;      // ...so their spend on their LAST move = mark - now (Clock Mode mirroring)
-// UCI_Elo [min, max] per engine, from each engine's own source (out-of-range values are silently
-// ignored by Stockfish, so the slider stays within these): modern SF = 1320/3190; SF 11 = 1350/2850;
-// Fairy-SF 14 = 500/2850.
+let prev_ply_count = 0;    // plies in the last-seen position; a drop back to the start = a NEW GAME
+
+// engines that speak native messaging (Chrome auto-launches the host, no server -- see
+// native-host/install-native.sh). The port name == the engine value (see NATIVE_HOSTS).
+const NATIVE_ENGINES = ['sf-native', 'fairy-native'];
+// native engines that ARE full Fairy-Stockfish -> offer the whole variant list, like the WASM Fairy
+const FAIRY_ENGINES = ['fairy-stockfish-14-nnue', 'fairy-native'];
+
+// UCI_Elo [min, max] per engine, taken from each engine's own source (out-of-range values are
+// silently ignored by Stockfish, so the slider must stay within these): modern SF uses
+// Skill::LowestElo/HighestElo = 1320/3190; SF 11 = 1350/2850; Fairy-SF 14 = 500/2850.
 const ELO_RANGE = {
     'stockfish-dev-nnue': [1320, 3190],
     'stockfish-18-nnue': [1320, 3190],
     'stockfish-18-small-nnue': [1320, 3190],
     'stockfish-11-hce': [1350, 2850],
     'fairy-stockfish-14-nnue': [500, 2850],
-    'sf-native': [1320, 3190], 'fairy-native': [500, 2850], // full-power native engines (opt-in)
+    // full-power native engines (real Stockfish/Fairy -> same UCI_Elo ranges)
+    'sf-native': [1320, 3190],
+    'fairy-native': [500, 2850],
     'remote': [1320, 3190], // unknown engine; assume the modern SF range
 };
-// Sits above every engine's ceiling (max is 3190), so it reads as "no cap / full strength". Both
-// slider ends map to full strength: 0 on the left (Off) and this on the right.
+// Sits above every engine's ceiling (max is 3190), so it reads as "no cap / full strength".
+// Both slider ends map to full strength: 0 on the left (Off) and this on the right.
 const FULL_STRENGTH_ELO = 3200;
-// Slider stops: index 0 = 0 (Off / full strength), then the engine's range in 50-Elo steps with the
-// true max always included, and FULL_STRENGTH_ELO as the final right-hand "max+" stop.
+// Slider stops: index 0 = 0 (Off / full strength), then the engine's range in 50-Elo steps with
+// the true max always included, and FULL_STRENGTH_ELO as the final right-hand "3200+" stop.
 function elo_stops(engine) {
     const [min, max] = ELO_RANGE[engine] || [1320, 3190];
     const stops = [0];
@@ -46,12 +86,6 @@ function elo_stops(engine) {
     stops.push(FULL_STRENGTH_ELO);
     return stops;
 }
-
-// Opt-in full-power native engines (Chrome auto-launches the host; see native-host/install-native.sh).
-// The default WASM engines need NO setup -- these are extra options for users who install a native
-// Stockfish/Fairy binary. Engine value == host key in the background worker's NATIVE_HOSTS.
-const NATIVE_ENGINES = ['sf-native', 'fairy-native'];
-const FAIRY_ENGINES = ['fairy-stockfish-14-nnue', 'fairy-native']; // offer the full variant list
 
 let turn = ''; // 'w' | 'b'
 
@@ -62,8 +96,9 @@ let turn = ''; // 'w' | 'b'
 // to start audio, so this is (re)started from the popup's own clicks and on visibility changes
 // (once the user has interacted, sticky activation lets resume() work even after tabbing away).
 let keep_alive_ctx = null;
-// allowCreate is true ONLY from a real user gesture -- creating/resuming an AudioContext without one
-// logs Chrome's "AudioContext was not allowed to start" warning; non-gesture callers only resume.
+// allowCreate is true ONLY when called from a real user gesture -- creating/resuming an AudioContext
+// without one logs Chrome's "AudioContext was not allowed to start" warning, so non-gesture callers
+// (page load, visibilitychange) only resume an already-created context (sticky activation permits that).
 function keep_alive(active, allowCreate = false) {
     try {
         if (active) {
@@ -83,53 +118,68 @@ function keep_alive(active, allowCreate = false) {
     } catch (e) { /* Web Audio unavailable -> background throttling stays; no worse than before */ }
 }
 
-document.addEventListener('DOMContentLoaded', async function () {
-    // load extension configurations from localStorage
-    const computeTime = JSON.parse(localStorage.getItem('compute_time'));
-    const fenRefresh = JSON.parse(localStorage.getItem('fen_refresh'));
-    const thinkTime = JSON.parse(localStorage.getItem('think_time'));
-    const thinkVariance = JSON.parse(localStorage.getItem('think_variance'));
-    const moveTime = JSON.parse(localStorage.getItem('move_time'));
-    const moveVariance = JSON.parse(localStorage.getItem('move_variance'));
-    const autoplay = JSON.parse(localStorage.getItem('autoplay'));
-    const computerEval = JSON.parse(localStorage.getItem('computer_evaluation'));
+async function initPanel(root, tabId) {
+    // root = the closed shadow root when the panel lives in-page (4c-2); unset in the popup PAGE
+    // (toolbar popup), where the panel owns the whole document.
+    if (root) { PANEL_ROOT = root; PANEL_TIP_HOST = root; }
+    else { PANEL_TIP_HOST = document.body || document.documentElement; }
+    if (tabId != null) { MY_TAB_ID = tabId; ENGINE_CLIENT = String(tabId); } // no ?tab= when in-page
+    PANEL_BOOTED = true;
+    await MephistoConfig.init(); // load config from chrome.storage.local into the sync cache first
+    // load extension configurations from the config store (chrome.storage.local, cached)
+    const computeTime = JSON.parse(MephistoConfig.get('compute_time'));
+    const fenRefresh = JSON.parse(MephistoConfig.get('fen_refresh'));
+    const thinkTime = JSON.parse(MephistoConfig.get('think_time'));
+    const thinkVariance = JSON.parse(MephistoConfig.get('think_variance'));
+    const moveTime = JSON.parse(MephistoConfig.get('move_time'));
+    const moveVariance = JSON.parse(MephistoConfig.get('move_variance'));
+    const autoplay = JSON.parse(MephistoConfig.get('autoplay'));
+    const computerEval = JSON.parse(MephistoConfig.get('computer_evaluation'));
     // engines dropped in this version — migrate stale selections to the current default
     const REMOVED_ENGINES = ['stockfish-6', 'stockfish-16-nnue-40', 'stockfish-16-nnue-7', 'lc0', 'stockfish-17-nnue-79'];
-    let storedEngine = JSON.parse(localStorage.getItem('engine'));
+    let storedEngine = JSON.parse(MephistoConfig.get('engine'));
     if (REMOVED_ENGINES.includes(storedEngine)) storedEngine = null;
     config = {
         // general settings
         engine: storedEngine || 'stockfish-dev-nnue',
-        variant: JSON.parse(localStorage.getItem('variant')) || 'chess',
-        elo: JSON.parse(localStorage.getItem('elo')) || 0, // strength cap; 0 = full strength (no UCI_LimitStrength)
+        variant: JSON.parse(MephistoConfig.get('variant')) || 'chess',
+        elo: JSON.parse(MephistoConfig.get('elo')) || 0, // strength cap; 0 = full strength (no UCI_LimitStrength)
         compute_time: (computeTime != null) ? computeTime : 300,
         fen_refresh: (fenRefresh != null) ? fenRefresh : 1000, // FALLBACK poll; positions arrive event-driven
-        multiple_lines: JSON.parse(localStorage.getItem('multiple_lines')) || 1,
-        threads: JSON.parse(localStorage.getItem('threads')) || 8,
-        memory: JSON.parse(localStorage.getItem('memory')) || 512,
+        multiple_lines: JSON.parse(MephistoConfig.get('multiple_lines')) || 1,
+        threads: JSON.parse(MephistoConfig.get('threads')) || 8,
+        memory: JSON.parse(MephistoConfig.get('memory')) || 512,
         think_time: (thinkTime != null) ? thinkTime : 0,
         think_variance: (thinkVariance != null) ? thinkVariance : 0,
         move_time: (moveTime != null) ? moveTime : 200,
         move_variance: (moveVariance != null) ? moveVariance : 50,
-        humanize: JSON.parse(localStorage.getItem('humanize')) || false,
-        clock_mode: JSON.parse(localStorage.getItem('clock_mode')) || false,
-        mirror_mode: JSON.parse(localStorage.getItem('mirror_mode')) || false,
+        humanize: JSON.parse(MephistoConfig.get('humanize')) || false,
+        clock_mode: JSON.parse(MephistoConfig.get('clock_mode')) || false,
+        mirror_mode: JSON.parse(MephistoConfig.get('mirror_mode')) || false,
         computer_evaluation: (computerEval != null) ? computerEval : true,
-        threat_analysis: JSON.parse(localStorage.getItem('threat_analysis')) || false,
-        simon_says_mode: JSON.parse(localStorage.getItem('simon_says_mode')) || false,
+        threat_analysis: JSON.parse(MephistoConfig.get('threat_analysis')) || false,
+        simon_says_mode: JSON.parse(MephistoConfig.get('simon_says_mode')) || false,
         autoplay: (autoplay != null) ? autoplay : false,
-        premove: JSON.parse(localStorage.getItem('premove')) || false,
-        puzzle_mode: JSON.parse(localStorage.getItem('puzzle_mode')) || false,
-        help_mode: JSON.parse(localStorage.getItem('help_mode')) || false,
-        eval_bar: JSON.parse(localStorage.getItem('eval_bar')) || false,
-        python_autoplay_backend: JSON.parse(localStorage.getItem('python_autoplay_backend')) || false,
-        // appearance settings
-        pieces: JSON.parse(localStorage.getItem('pieces')) || 'wikipedia.svg',
-        board: JSON.parse(localStorage.getItem('board')) || 'brown',
-        coordinates: JSON.parse(localStorage.getItem('coordinates')) || false,
-        dark_mode: JSON.parse(localStorage.getItem('dark_mode')) || false,
+        premove: JSON.parse(MephistoConfig.get('premove')) || false,
+        puzzle_mode: JSON.parse(MephistoConfig.get('puzzle_mode')) || false,
+        help_mode: JSON.parse(MephistoConfig.get('help_mode')) || false,
+        eval_bar: JSON.parse(MephistoConfig.get('eval_bar')) || false,
+        python_autoplay_backend: JSON.parse(MephistoConfig.get('python_autoplay_backend')) || false,
+        // undetectability: by default only move while the game tab is focused+visible (humans don't
+        // play while tabbed away). Opt in to keep autoplay running in the background.
+        background_play: JSON.parse(MephistoConfig.get('background_play')) || false,
     };
-    document.body.classList.toggle('mephisto-dark', config.dark_mode); // dark theme (set in Appearance)
+    Object.assign(config, {
+        // appearance settings
+        pieces: JSON.parse(MephistoConfig.get('pieces')) || 'wikipedia.svg',
+        board: JSON.parse(MephistoConfig.get('board')) || 'brown',
+        coordinates: JSON.parse(MephistoConfig.get('coordinates')) || false,
+        dark_mode: JSON.parse(MephistoConfig.get('dark_mode')) || false,
+    });
+    const darkTarget = (PANEL_ROOT === document)
+        ? document.body
+        : PANEL_ROOT.getElementById('mephisto-panel-body');
+    darkTarget?.classList.toggle('mephisto-dark', config.dark_mode); // dark theme (set in Appearance)
     // keep autoplay running when the tab is backgrounded: start/resume the keep-alive tone on any
     // panel click and whenever visibility flips, so it's already playing before you tab away
     document.addEventListener('pointerdown', () => keep_alive(config.autoplay, true), true); // gesture: may create
@@ -139,15 +189,28 @@ document.addEventListener('DOMContentLoaded', async function () {
     maybe_autodetect_variant(); // variant game page -> auto-apply the variant (+ Fairy) once
 
     // init chess board
-    document.getElementById('board').classList.add(config.board);
+    const boardEl = PANEL_ROOT.getElementById('board');
+    // clear any stale theme first, then apply -- a missing/unknown value would leave the squares
+    // unthemed (falling back to chessboard.css's defaults), which is what "had to switch the board
+    // colour to get the board back" looked like.
+    BOARD_THEMES.forEach(t => boardEl.classList.remove(t));
+    boardEl.classList.add(BOARD_THEMES.includes(config.board) ? config.board : 'brown');
     const [pieceSet, ext] = config.pieces.split('.');
-    board = ChessBoard('board', {
+    // In-page panel: piece images MUST be inlined data: URIs. A chrome-extension:// <img src> would
+    // surface in the page's Resource Timing and identify the extension (issue #35 §3.4) -- exactly the
+    // leak we removed the iframe to avoid. The popup PAGE keeps the plain extension path.
+    if (PANEL_ROOT !== document) {
+        try {
+            const r = await chrome.runtime.sendMessage({getPieces: true, pieceSet, pieceExt: ext});
+            if (r && r.pieces) PANEL_ASSETS = {pieces: r.pieces};
+        } catch (e) { /* fall back to the path below */ }
+    }
+    board = MephistoBoard('board', {
+        root: PANEL_ROOT, // in-page the board element is inside the shadow root, not `document`
         position: 'start',
-        pieceTheme: `/res/chesspieces/${pieceSet}/{piece}.${ext}`,
-        appearSpeed: 'fast',
-        moveSpeed: 'fast',
+        pieceMap: PANEL_ASSETS?.pieces || null,               // in-page: inlined data: URIs
+        pieceTheme: `/res/chesspieces/${pieceSet}/{piece}.${ext}`, // popup page: plain extension path
         showNotation: config.coordinates,
-        draggable: false
     });
 
     // init fen LRU cache
@@ -157,7 +220,10 @@ document.addEventListener('DOMContentLoaded', async function () {
     await initialize_engine();
 
     // listen to messages from content-script
-    chrome.runtime.onMessage.addListener(function (response, sender) {
+    PANEL_MSG_HANDLER = function (response, sender) {
+        // popup.js is a content script on EVERY chess page now: stay completely inert unless this
+        // tab's panel is actually open, or a panel-less page would act on another tab's traffic.
+        if (!PANEL_BOOTED) return;
         // the content-script broadcasts (runtime.sendMessage) reach EVERY tab's popup -- ignore any
         // that came from a different tab's content-script so tabs never cross-talk. (Background
         // messages have no sender.tab and pass through.)
@@ -185,6 +251,13 @@ document.addEventListener('DOMContentLoaded', async function () {
                 console.warn('Mephisto: skipping illegal scraped position:', fen);
                 return;
             }
+            if (response.displayOnly) {
+                // mid-move mirror: just show the settled position on the panel board so it tracks the
+                // move in real time. NO analysis/autoplay -- the authoritative full push (sent when the
+                // content-script's `moving` clears) drives those.
+                board.position(fen);
+                return;
+            }
             if (last_eval.fen !== fen) {
                 // Clock Mode mirroring: bookkeep the opponent's clock at turn boundaries. When a
                 // position lands on OUR turn, they just moved -- their spend = their clock at the
@@ -198,12 +271,13 @@ document.addEventListener('DOMContentLoaded', async function () {
                 } else if (last_clocks?.theirs != null) {
                     opp_clock_mark = last_clocks.theirs;
                 }
-                // check BEFORE on_new_pos: chain/tracker belong to the position we were analysing.
+                // check BEFORE on_new_pos: the tracker belongs to the position we were analysing
                 const instant = premove_instant_reply(fen, moves);
                 on_new_pos(fen, startFen, moves);
                 if (instant) {
-                    // SAFETY: only play a certified reply if it moves OUR piece and (on our turn)
-                    // is legal right now -- never click the opponent's move or an illegal move.
+                    // SAFETY: a certified reply is only played if it moves OUR piece and (on our
+                    // turn) is legal right now. Guards against a stale/mismatched reply making us
+                    // click the opponent's move or an illegal move -- discard it, normal search plays.
                     if (premove_reply_playable(fen, instant)) {
                         console.log('Premove: certified instant reply', instant);
                         request_automove(instant);
@@ -221,7 +295,10 @@ document.addEventListener('DOMContentLoaded', async function () {
             // there and fails ("Cannot access a chrome:// URL").
             dispatch_click_event(response.x, response.y, sender?.tab?.id);
         }
-    });
+    };
+    // Only the toolbar popup needs the runtime listener; in-page, content-script.js calls
+    // PANEL_MSG_HANDLER directly (runtime.sendMessage can't cross to a sibling content script).
+    if (!IS_CONTENT_SCRIPT) chrome.runtime.onMessage.addListener(PANEL_MSG_HANDLER);
 
     // FALLBACK poll only: the content-script pushes positions event-driven (MutationObserver);
     // this slow poll just heals a missed push (e.g. a mutation the observer filter skipped).
@@ -233,7 +310,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     }, Math.max(1000, config.fen_refresh));
 
     // register button click listeners
-    document.getElementById('analyze').addEventListener('click', () => {
+    PANEL_ROOT.getElementById('analyze').addEventListener('click', () => {
         const variantNameMap = {
             'chess': 'standard',
             'fischerandom': 'chess960',
@@ -246,32 +323,96 @@ document.addEventListener('DOMContentLoaded', async function () {
             'racingkings': 'racingKings',
         }
         const variant = variantNameMap[config.variant];
-        window.open(`https://lichess.org/analysis/${variant}?fen=${last_eval.fen}`, '_blank');
+        // Board only: just the piece-placement field, no side-to-move / castling / clocks. Keep the
+        // '/' separators raw -- encodeURIComponent would turn them into %2F and lichess won't parse it.
+        const url = `https://lichess.org/analysis/${variant}?fen=${last_eval.fen.split(' ')[0]}`;
+        // the background opens it: window.open from a content script runs in the SITE's context and
+        // gets swallowed by popup blocking / page policy
+        chrome.runtime.sendMessage({openUrl: url});
     });
-    document.getElementById('config').addEventListener('click', () => {
-        window.open('/src/options/options.html', '_blank');
+    PANEL_ROOT.getElementById('copyfen')?.addEventListener('click', async () => {
+        const fen = last_eval.fen;
+        if (!fen) return;
+        const btn = PANEL_ROOT.getElementById('copyfen');
+        const icon = btn.querySelector('.mp-icon');
+        const ok = await copy_text(fen);
+        if (!icon) return;
+        const was = icon.textContent;
+        icon.textContent = ok ? '✓' : '✕';
+        setTimeout(() => { icon.textContent = was; }, 900);
+    });
+    PANEL_ROOT.getElementById('config').addEventListener('click', () => {
+        chrome.runtime.sendMessage({openOptions: true}); // the background opens it (see above)
     });
     // force re-detection: an SPA can swap games without any reload (e.g. a rematch), and if a
     // scrape ever goes stale this rescans the page and restarts the analysis from scratch
-    document.getElementById('recheck')?.addEventListener('click', () => {
+    PANEL_ROOT.getElementById('recheck')?.addEventListener('click', () => {
         last_eval.fen = '';   // treat whatever comes back as a brand-new position
+        prev_ply_count = 0;   // treat it as a fresh game...
+        opp_spend = opp_clock_mark = last_our_eval = null; // ...and clear stale clock/mirror/humanize pacing
         send_engine_uci('stop');
+        fen_request_inflight = false; // don't let an in-flight poll's 500ms guard swallow the re-query
         push_config();        // resets the content-script's push dedupe + triggers an immediate push
-        request_fen();        // and poll right now as well
+        request_fen();        // and poll right now as well -- fires immediately now the guard is clear
     });
 
-    // initialize materialize
-    M.Tooltip.init(document.querySelectorAll('.tooltipped'), {});
-});
+    // tooltips (replaces Materialize's M.Tooltip -- Materialize's JS looks elements up via `document`
+    // and can't run in a shadow root; this queries a passed root instead). PANEL_ROOT/PANEL_TIP_HOST
+    // default to `document`/`document.body` in the iframe; the shadow-root phase passes the root.
+    init_tooltips(PANEL_ROOT, PANEL_TIP_HOST);
+
+    // The content-script's first push (fired ~30ms after push_config above) can arrive before this
+    // panel's message handler exists -- it's dropped, but its dedupe key is already recorded, so the
+    // board would stay stale until the position next CHANGES (an opponent move). Now that we're fully
+    // wired, force one clean re-fetch: reset the dedupe and re-scrape immediately.
+    last_eval.fen = '';
+    fen_request_inflight = false;
+    push_config();  // resets the content-script's push dedupe + triggers an immediate push
+    request_fen();
+}
+// In the iframe (and toolbar popup) the panel boots on DOMContentLoaded. Once the panel moves in-page
+// (4c-2) the content-script imports this module and calls initPanel(shadowRoot) directly instead --
+// by then DOMContentLoaded has long fired, so this listener simply never runs there.
+if (!IS_CONTENT_SCRIPT) document.addEventListener('DOMContentLoaded', () => initPanel());
+// (in-page, content-script.js calls initPanel(shadowRoot, tabId) on toolbar click instead)
+
+// lightweight hover tooltip for `.tooltipped[data-tooltip]` elements (Materialize replacement)
+function init_tooltips(queryRoot, appendTo) {
+    const tip = document.createElement('div');
+    tip.className = 'mephisto-tip';
+    tip.style.cssText = 'position:fixed;z-index:2147483647;max-width:240px;padding:6px 9px;'
+        + 'background:#323232;color:#fff;font:12px/1.4 Roboto,Arial,sans-serif;border-radius:4px;'
+        + 'pointer-events:none;opacity:0;transition:opacity .12s;display:none;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+    appendTo.appendChild(tip);
+    let hideTimer = null;
+    const show = (el) => {
+        const text = el.getAttribute('data-tooltip');
+        if (!text) return;
+        clearTimeout(hideTimer);
+        tip.textContent = text;
+        tip.style.display = 'block';
+        const r = el.getBoundingClientRect();
+        // place below by default; nudge left so a wide tip stays on-screen
+        const left = Math.min(Math.max(4, r.left), (window.innerWidth || 1200) - 250);
+        tip.style.left = left + 'px';
+        tip.style.top = (r.bottom + 6) + 'px';
+        requestAnimationFrame(() => { tip.style.opacity = '1'; });
+    };
+    const hide = () => { tip.style.opacity = '0'; hideTimer = setTimeout(() => { tip.style.display = 'none'; }, 150); };
+    queryRoot.querySelectorAll('.tooltipped').forEach(el => {
+        el.addEventListener('mouseenter', () => show(el));
+        el.addEventListener('mouseleave', hide);
+    });
+}
 
 function init_quick_settings() {
-    const save = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+    const save = (key, value) => MephistoConfig.set(key, JSON.stringify(value));
     // toggles apply live
     for (const [id, key] of [['qs_autoplay', 'autoplay'], ['qs_premove', 'premove'],
                              ['qs_puzzle', 'puzzle_mode'], ['qs_help', 'help_mode'],
                              ['qs_evalbar', 'eval_bar'], ['qs_humanize', 'humanize'],
                              ['qs_clock', 'clock_mode'], ['qs_mirror', 'mirror_mode']]) {
-        const elem = document.getElementById(id);
+        const elem = PANEL_ROOT.getElementById(id);
         if (!elem) continue; // stale cached popup.html mid-update; don't let one missing control kill the popup
         elem.checked = config[key];
         elem.addEventListener('change', () => {
@@ -299,7 +440,7 @@ function init_quick_settings() {
     // timing settings apply live: compute_time is read at every 'go', think/move times are pushed to the page
     for (const [id, key] of [['qs_search', 'compute_time'],
                              ['qs_move', 'move_time'], ['qs_move_var', 'move_variance']]) {
-        const elem = document.getElementById(id);
+        const elem = PANEL_ROOT.getElementById(id);
         if (!elem) continue;
         elem.value = config[key];
         elem.addEventListener('change', () => {
@@ -318,7 +459,7 @@ function init_quick_settings() {
         ['qs_memory', 'memory', v => parseInt(v) || 512],
         ['qs_lines', 'multiple_lines', v => parseInt(v) || 1],
     ]) {
-        const elem = document.getElementById(id);
+        const elem = PANEL_ROOT.getElementById(id);
         if (!elem) continue;
         elem.value = config[key];
         elem.addEventListener('change', () => {
@@ -328,20 +469,20 @@ function init_quick_settings() {
             if (key === 'engine' && !FAIRY_ENGINES.includes(parse(elem.value))
                 && !['chess', 'fischerandom'].includes(config.variant)) save('variant', 'chess');
             save(key, parse(elem.value));
-            location.reload();
+            panel_reload();
         });
     }
     // The Variant selector: full list for Fairy-Stockfish; Standard + Chess960 for everything else
     // (mainline SF speaks UCI_Chess960). The "detect" button reads the variant off the page.
-    const variantRow = document.getElementById('qs_variant_row');
+    const variantRow = PANEL_ROOT.getElementById('qs_variant_row');
     if (variantRow) {
         const fairy = FAIRY_ENGINES.includes(config.engine);
         variantRow.style.display = '';
-        document.querySelectorAll('#qs_variant option').forEach(o => {
+        PANEL_ROOT.querySelectorAll('#qs_variant option').forEach(o => {
             o.hidden = !fairy && !['chess', 'fischerandom'].includes(o.value);
         });
     }
-    const detectBtn = document.getElementById('qs_variant_detect');
+    const detectBtn = PANEL_ROOT.getElementById('qs_variant_detect');
     if (detectBtn) {
         detectBtn.addEventListener('click', () => {
             detectBtn.disabled = true;
@@ -354,13 +495,13 @@ function init_quick_settings() {
     }
     // Elo slider: index-mapped so its stops follow the selected engine's real UCI_Elo range
     // (position 0 = Off / full strength). Saves the mapped Elo and reloads to re-init the engine.
-    const eloSlider = document.getElementById('qs_elo');
-    const eloLabel = document.getElementById('qs_elo_val');
+    const eloSlider = PANEL_ROOT.getElementById('qs_elo');
+    const eloLabel = PANEL_ROOT.getElementById('qs_elo_val');
     if (eloSlider && eloLabel) {
         const stops = elo_stops(config.engine);
         const idxOf = (elo) => { // nearest stop to the stored Elo
             if (!(elo > 0)) return 0;                              // Off (far left)
-            if (elo >= FULL_STRENGTH_ELO) return stops.length - 1; // max+ (far right)
+            if (elo >= FULL_STRENGTH_ELO) return stops.length - 1; // 3200+ (far right)
             let best = 1, bestD = Infinity;
             stops.forEach((e, i) => { // nearest real stop; skip the full-strength sentinel
                 if (i && e < FULL_STRENGTH_ELO && Math.abs(e - elo) < bestD) { bestD = Math.abs(e - elo); best = i; }
@@ -371,95 +512,76 @@ function init_quick_settings() {
         eloSlider.value = String(idxOf(config.elo));
         const paint = () => {
             const v = stops[+eloSlider.value];
-            // the right-hand full-strength stop shows the engine's OWN ceiling, not the 3200 sentinel
+            // the right-hand full-strength stop shows the engine's OWN ceiling (SF dev 3190,
+            // SF 11 / Fairy 2850), not the internal 3200 sentinel -- stops[len-2] is that max.
             eloLabel.textContent = v === 0 ? 'Off / Full Strength'
                 : v >= FULL_STRENGTH_ELO ? `${stops[stops.length - 2]}+ / Full Strength` : v;
         };
         paint();
         eloSlider.addEventListener('input', paint);
-        eloSlider.addEventListener('change', () => { save('elo', stops[+eloSlider.value]); location.reload(); });
+        eloSlider.addEventListener('change', () => { save('elo', stops[+eloSlider.value]); panel_reload(); });
     }
     // range sliders show their value in the label while dragging ('change' above still does the
     // save+reload when the thumb is released)
     for (const id of ['qs_lines', 'qs_threads', 'qs_memory']) {
-        const slider = document.getElementById(id);
-        const label = document.getElementById(`${id}_val`);
+        const slider = PANEL_ROOT.getElementById(id);
+        const label = PANEL_ROOT.getElementById(`${id}_val`);
         if (!slider || !label) continue;
         label.textContent = slider.value;
         slider.addEventListener('input', () => { label.textContent = slider.value; });
     }
 }
 
+// N1: the WASM engine now lives in the offscreen document (extension origin, cross-origin isolated),
+// not in this in-page iframe. `offscreen_engine` is a proxy with the same `.uci(line)` interface the
+// popup used on the in-iframe engine object, so send_engine_uci and initialize_engine barely change;
+// engine output/errors come back over chrome.runtime and route to the existing handlers below.
+let ENGINE_CLIENT = (MY_TAB_ID != null) ? String(MY_TAB_ID) : 'toolbar'; // one engine per panel
+const WASM_ENGINES = ['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue',
+                      'fairy-stockfish-14-nnue', 'stockfish-11-hce'];
+const offscreen_engine = {
+    uci: (line) => { try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'uci', line}); } catch (e) { /* SW/offscreen gone */ } },
+};
+// engine output -> existing handlers (filtered to THIS panel's engine)
+chrome.runtime.onMessage.addListener((msg) => {
+    if (!PANEL_BOOTED || !msg || !msg.fromOffscreen || msg.clientId !== ENGINE_CLIENT) return;
+    if (msg.kind === 'line') on_engine_response(msg.line);
+    else if (msg.kind === 'error') on_engine_error(msg.error);
+});
+// Create/replace this panel's offscreen engine and load its NNUE; resolves when it reports 'ready'.
+// The setoption/ucinewgame/isready lines that follow in initialize_engine are then forwarded in order.
+async function ensure_offscreen_engine(engineName) {
+    try { await chrome.runtime.sendMessage({ensureOffscreen: true}); } catch (e) { /* SW spinning up */ }
+    // Fire the init and return WITHOUT waiting for 'ready'. The offscreen host queues any uci sent
+    // while it loads and flushes it in order, so nothing is lost -- and the panel no longer stalls
+    // behind a slow engine load (Fairy's per-variant NNUE), which is why its board used to appear late.
+    chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'init',
+                                engine: engineName, variant: config.variant});
+}
+
 async function initialize_engine() {
     discard_stale_search = false; // a crashed engine never flushes its bestmove; don't eat the new engine's first result
     search_active = false;
-    const engineMap = {
-        'stockfish-dev-nnue': 'stockfish-dev/sf_dev.js',
-        'stockfish-18-nnue': 'stockfish-18/sf_18.js',
-        'stockfish-18-small-nnue': 'stockfish-18-small/sf_18_smallnet.js',
-        'stockfish-11-hce': 'stockfish-11-hce/sfhce.js',
-        'fairy-stockfish-14-nnue': 'fairy-stockfish-14/fsf14.js',
-    }
-    const enginePath = `/lib/engine/${engineMap[config.engine]}`;
-    const engineBasePath = enginePath.substring(0, enginePath.lastIndexOf('/'));
-    if (['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue', 'fairy-stockfish-14-nnue', 'stockfish-11-hce'].includes(config.engine)) {
-        if (typeof SharedArrayBuffer === 'undefined') {
-            // the stockfish builds are pthread builds; without cross-origin isolation their
-            // worker just dies with an opaque "worker sent an error! undefined:undefined"
-            update_best_move('Engine blocked: this page does not provide SharedArrayBuffer '
-                + '(cross-origin isolation). Try the Remote Engine, or report which site this happened on.', '');
-            return;
-        }
-        const module = await import(enginePath);
-        engine = await module.default();
-        engine.listen = (message) => on_engine_response(message);
-        engine.onError = (message) => on_engine_error(message);
-        if (config.engine.includes('nnue')) {
-            async function fetchNnueModels(engine, engineBasePath) {
-                if (config.engine !== 'fairy-stockfish-14-nnue') {
-                    const nnues = [];
-                    for (let i = 0; ; i++) {
-                        let nnue = engine.getRecommendedNnue(i);
-                        if (!nnue || nnues.includes(nnue)) break;
-                        nnues.push(nnue);
-                    }
-                    return await Promise.all(nnues.map(nnue => fetch_nnue(engineBasePath, nnue)));
-                } else {
-                    const variantNnueMap = {
-                        'chess': 'nn-46832cfbead3.nnue',
-                        'fischerandom': 'nn-46832cfbead3.nnue',
-                        'crazyhouse': 'crazyhouse-8ebf84784ad2.nnue',
-                        'kingofthehill': 'kingofthehill-978b86d0e6a4.nnue',
-                        '3check': '3check-cb5f517c228b.nnue',
-                        'antichess': 'antichess-dd3cbe53cd4e.nnue',
-                        'atomic': 'atomic-2cf13ff256cc.nnue',
-                        'horde': 'horde-28173ddccabe.nnue',
-                        'racingkings': 'racingkings-636b95f085e3.nnue',
-                    };
-                    const variantNnue = variantNnueMap[config.variant];
-                    const nnue_response = await fetch(`${engineBasePath}/nnue/${variantNnue}`);
-                    return [await nnue_response.arrayBuffer()];
-                }
-            }
-
-            if (config.engine === 'fairy-stockfish-14-nnue') {
-                send_engine_uci(`setoption name UCI_Variant value ${config.variant}`);
-            }
-            const nnues = await fetchNnueModels(engine, engineBasePath);
-            nnues.forEach((model, i) => engine.setNnueBuffer(new Uint8Array(model), i))
-        }
+    if (WASM_ENGINES.includes(config.engine)) {
+        // WASM engine runs in the offscreen document now (see offscreen_engine above). This creates
+        // it + loads its NNUE net(s) for THIS panel and resolves when ready; the setoption lines in
+        // the `else` below then forward to it in order. Cross-origin isolation / SharedArrayBuffer is
+        // guaranteed there (it's an extension page), so the old in-popup SAB check is gone.
+        engine = offscreen_engine;
+        await ensure_offscreen_engine(config.engine);
     }
 
     if (is_remote()) {
         request_remote_configure({
-            // remote-engine.py skips options the engine doesn't declare, so this is safe everywhere
-            ...(config.variant === 'fischerandom' ? {"UCI_Chess960": true} : {}),
-            // variant for the native Fairy host (engines without UCI_Variant just ignore it)
-            ...(config.variant && config.variant !== 'chess' ? {"UCI_Variant": config.variant} : {}),
-            ...(config.elo > 0 && config.elo <= 3190 ? {"UCI_LimitStrength": true, "UCI_Elo": config.elo} : {}),
             "Hash": config.memory,
             "Threads": config.threads,
-            "MultiPV": effective_multipv(), // bumped for Humanize (alt-line headroom), like WASM
+            "MultiPV": effective_multipv(), // bumped for Humanize (needs alt-line headroom), like WASM
+            "Premove": !!config.premove, // PM-01 opt-in; engines without the option skip it
+            // remote-engine.py skips options the engine doesn't declare, so this is safe everywhere
+            ...(config.variant === 'fischerandom' ? {"UCI_Chess960": true} : {}),
+            // variant for the native Fairy host (real UCI engines without UCI_Variant just ignore it)
+            ...(config.variant && config.variant !== 'chess' ? {"UCI_Variant": config.variant} : {}),
+            ...(config.elo > 0 && config.elo <= 3190 ? {"UCI_LimitStrength": true, "UCI_Elo": config.elo} : {}),
         }).catch(on_remote_error);
     } else {
         // WASM engines can't allocate the big hash the slider now allows (2 GB) -- their heap is
@@ -476,8 +598,9 @@ async function initialize_engine() {
         if (config.variant === 'fischerandom' && config.engine !== 'fairy-stockfish-14-nnue') {
             send_engine_uci('setoption name UCI_Chess960 value true');
         }
-        // Strength cap: Stockfish/Fairy clamp UCI_Elo to their own range. 0 = full strength (Off),
-        // and the "max+" slider stop sits above every ceiling -> also full strength (limiting off).
+        // Strength cap: every Stockfish/Fairy build clamps UCI_Elo to its own range, so send it raw.
+        // Cap only within the engine's own range; 0 (Off) or anything above its max (the "3200+"
+        // slider stop) means full strength -> leave limiting off.
         const eloMax = (ELO_RANGE[config.engine] || [1320, 3190])[1];
         if (config.elo > 0 && config.elo <= eloMax) {
             send_engine_uci('setoption name UCI_LimitStrength value true');
@@ -659,7 +782,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
 }
 
 function update_eval_bar(line) {
-    const bar = document.getElementById('eval-bar-white');
+    const bar = PANEL_ROOT.getElementById('eval-bar-white');
     if (!bar || !line) return;
     let frac; // white's share of the bar; scores/mates are white-relative here
     if ('mate' in line) {
@@ -693,11 +816,11 @@ function format_nps(n) {
 function on_engine_evaluation(info) {
     if (!info.lines[0]) return;
     update_eval_bar(info.lines[0]);
-    const npsEl = document.getElementById('nps');
+
+    const npsEl = PANEL_ROOT.getElementById('nps');
     if (npsEl && Number.isFinite(info.lines[0].nps) && info.lines[0].nps > 0) {
         npsEl.textContent = format_nps(info.lines[0].nps);
     }
-
     if ('mate' in info.lines[0]) {
         update_evaluation(`Checkmate in ${info.lines[0].mate}`);
     } else {
@@ -712,7 +835,7 @@ function on_engine_evaluation(info) {
 // always listed first and the order stays put across moves. Blank for engines that don't report
 // it (SF11, Fairy, remote engines without a WDL model) so the row just collapses.
 function render_wdl(line) {
-    const el = document.getElementById('wdl');
+    const el = PANEL_ROOT.getElementById('wdl');
     if (!el) return;
     const wdl = line && line.wdl;
     if (!Array.isArray(wdl) || wdl.length !== 3) { el.textContent = ''; el.style.display = 'none'; return; }
@@ -724,8 +847,8 @@ function render_wdl(line) {
     el.textContent = (board.orientation() === 'black') ? `${b} | ${d} | ${w}` : `${w} | ${d} | ${b}`;
 }
 
-// pv arrives as a space-joined STRING from the wasm engines but as a LIST of UCI moves from
-// remote-engine.py (it formats python-chess pv arrays) -- normalize before any .split use
+// pv arrives as a space-joined STRING from the wasm engines but can be a LIST of UCI moves from a
+// native/remote host (python-chess formats pv as an array) -- normalize before any .split use
 function pv_moves(pv) {
     return Array.isArray(pv) ? pv.map(String) : (pv || '').split(' ');
 }
@@ -744,7 +867,7 @@ function san_preview(fen, pv, plies = 6) {
 // the panel under the board: one row per engine line (eval + start of the line) when the
 // Multi Lines slider asks for more than one; hidden otherwise
 function render_alt_lines() {
-    const panel = document.getElementById('alt-lines');
+    const panel = PANEL_ROOT.getElementById('alt-lines');
     if (!panel) return;
     if (config.multiple_lines <= 1) {
         panel.style.display = 'none';
@@ -851,7 +974,7 @@ function on_engine_response(message) {
     if (is_calculating) {
         prog++;
         let progMapping = 100 * (1 - Math.exp(-prog / 30));
-        document.getElementById('progBar')?.setAttribute('value', `${Math.round(progMapping)}`);
+        PANEL_ROOT.getElementById('progBar')?.setAttribute('value', `${Math.round(progMapping)}`);
     }
 }
 
@@ -889,8 +1012,8 @@ function is_legal_position(fen) {
 // move meant for a different position.
 // Final gate before ANY premove reply is clicked: it must move OUR piece, and when it is already
 // our turn (an instant reply, not a premove queued during the opponent's turn) it must be fully
-// legal right now. This rejects a stale/mismatched reply that would otherwise click the opponent's
-// move or an illegal move.
+// legal right now. This rejects a stale/mismatched chain that would otherwise click the opponent's
+// move or an illegal move (the observed "it plays the opponent's move and gets stuck" bug).
 function premove_reply_playable(fen, uci) {
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci ?? '')) return false;
     try {
@@ -957,6 +1080,10 @@ function premove_human_reflex(fen, pred, reply) {
 // site premove (clicks during their turn) whenever premove_is_safe says it can't misfire.
 function maybe_premove_forced_reply(line) {
     if (premove_tracker.premoved || !config.autoplay) return;
+    // taketaketake: blind premoves RE-ENABLED (user testing) -- the site has its own premove
+    // system (ctx.premove in the board actor), so the same contract as chess.com/lichess should
+    // hold. The earlier queen blunder predates the optimistic-state probe (v3); if it recurs,
+    // gate this on `detected_prefix === 'tt'` again.
     if (config.help_mode || config.puzzle_mode || config.simon_says_mode) return;
     if (line.depth < 10 || !line.d6 || line.d6 !== line.d9 || line.d6 !== line.latest) return;
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(line.reply ?? '')) return;
@@ -988,8 +1115,8 @@ function premove_instant_reply(new_fen, new_moves) {
         if (!line || line.depth < 10 || !line.d6 || line.d6 !== line.d9 || line.d6 !== line.latest) continue;
         if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(line.reply ?? '')) continue;
         certified++;
-        // primary match: the exact MOVE, per the premove contract -- robust across sites
-        // (fen-string reconstruction proved fragile on some site DOMs)
+        // primary match: the exact MOVE, per the premove contract (robust across sites --
+        // fen string reconstruction proved fragile)
         // Humanize holds non-reflex replies (returns null -> normal humanized search plays it);
         // off when Humanize is off, so plain Premove / Clock / Mirror keep full instant speed.
         const held = config.humanize && !premove_human_reflex(premove_tracker.fen, line.pred, line.reply);
@@ -1020,6 +1147,18 @@ function on_new_pos(fen, startFen, moves) {
     humanize_roll = null;  // and so did any pre-rolled humanize outcome
     if (config.help_mode) request_clear_hint(); // position changed; last hint is stale
     premove_tracker = {fen: fen, startFen: startFen || fen, moves: moves || '', lines: {}}; // certifications belong to exactly one position
+    // NEW-GAME RESET. On sites that swap games WITHOUT a page reload (taketaketake rematch, SPA
+    // rematches), per-game pacing state would otherwise carry over -- Mirror Time mirroring the LAST
+    // opponent's spend, or the wall-clock idle gap between games, and Humanize's swing keyed off the
+    // finished game's eval. When the ply count drops back to the start, start the new game clean.
+    const ply_count = moves ? moves.trim().split(/\s+/).filter(Boolean).length : 0;
+    // a DROP in ply count back near the start = a new game (live-game plies only ever climb). The
+    // `<= 4` keeps it to real restarts (catches fast bullet where a couple plies land before the
+    // first scrape) while a transient mid-game mis-scrape can't trip it from a deep position.
+    if (ply_count < prev_ply_count && ply_count <= 4) {
+        opp_spend = null; opp_clock_mark = null; last_our_eval = null;
+    }
+    prev_ply_count = ply_count;
     const search_in_flight = search_active;
     toggle_calculating(true);
     // SIZE THE SEARCH TO THE PACE. When a clock-aware mode intends to spend, say, 1.2s on this move,
@@ -1108,6 +1247,7 @@ function parse_position_from_response(txt) {
         li: 'Game detected on Lichess.org',
         cc: 'Game detected on Chess.com',
         bt: 'Game detected on BlitzTactics.com',
+        tt: 'Game detected on TakeTakeTake',
         cb: 'Position detected on ChessBase Tactics'
     };
 
@@ -1175,7 +1315,8 @@ function parse_position_from_response(txt) {
 
     const metaTag = txt.substring(3, 8);
     const prefix = metaTag.substring(0, 2);
-    document.getElementById('game-detection').innerText = prefixMap[prefix];
+    detected_prefix = prefix;
+    PANEL_ROOT.getElementById('game-detection').innerText = prefixMap[prefix];
     txt = txt.substring(11);
 
     if (metaTag.includes('var')) {
@@ -1201,22 +1342,57 @@ function parse_position_from_response(txt) {
 
 function update_evaluation(eval_string) {
     if (eval_string != null && config.computer_evaluation) {
-        document.getElementById('evaluation').innerHTML = eval_string;
+        PANEL_ROOT.getElementById('evaluation').innerHTML = eval_string;
     }
 }
 
 function update_best_move(line1, line2) {
     if (line1 != null) {
-        document.getElementById('chess_line_1').innerHTML = line1;
+        PANEL_ROOT.getElementById('chess_line_1').innerHTML = line1;
     }
     if (line2 != null) {
-        document.getElementById('chess_line_2').innerHTML = line2;
+        PANEL_ROOT.getElementById('chess_line_2').innerHTML = line2;
     }
 }
 
+
+// Config changes that need a full engine re-init used to just reload the popup page. In-page that
+// would reload the SITE, so rebuild the panel instead -- same outcome: fresh config, fresh engine.
+// Copy to the clipboard. navigator.clipboard needs a secure context + focus; the button click gives
+// us the gesture, but fall back to the old execCommand path if it's unavailable/denied.
+async function copy_text(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (e) { /* fall through */ }
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+        (document.body || document.documentElement).appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+    } catch (e) {
+        return false;
+    }
+}
+
+function panel_reload() {
+    if (IS_CONTENT_SCRIPT) { self.MephistoContent?.reopenPanel?.(); return; }
+    location.reload();
+}
+
 function send_to_active_tab(message) {
+  // In-page panel: content-script.js is in THIS isolated world -- call it directly. chrome.tabs is
+  // undefined here, and runtime.sendMessage would go to the extension, never to a sibling content script.
+  if (IS_CONTENT_SCRIPT) {
+      try { self.MephistoContent?.handle(message); } catch (e) { console.warn('Mephisto: panel->content failed', e); }
+      return;
+  }
   try { // chrome.* throws "Extension context invalidated" if the extension was reloaded while this
-        // popup iframe is still live on the page -- harmless (a page reload re-injects a fresh popup)
+        // popup page is still live -- harmless (a reload re-injects a fresh one)
     // read lastError so "Receiving end does not exist" (no content-script on tab) stays unlogged
     if (MY_TAB_ID) { // normal path: talk to OUR tab only, even when it's in the background
         chrome.tabs.sendMessage(MY_TAB_ID, message, () => void chrome.runtime.lastError);
@@ -1226,7 +1402,7 @@ function send_to_active_tab(message) {
         if (!tabs[0]?.id) return;
         chrome.tabs.sendMessage(tabs[0].id, message, () => void chrome.runtime.lastError);
     });
-  } catch (e) { /* extension context invalidated (reloaded under a live popup) -- ignore */ }
+  } catch (e) { /* extension context invalidated -- ignore */ }
 }
 
 let fen_request_inflight = false;
@@ -1283,7 +1459,7 @@ function effective_multipv() {
 function humanize_rates() {
     const get = (key, dflt) => {
         try {
-            const v = JSON.parse(localStorage.getItem(key));
+            const v = JSON.parse(MephistoConfig.get(key));
             return (v != null && isFinite(+v)) ? Math.max(0, +v) : dflt;
         } catch (e) {
             return dflt;
@@ -1399,7 +1575,6 @@ function humanize_presearch_ms(fen) {
     if (evalCp < 150) return 2500;                                 // balanced & tense: think
     return 1200;                                                   // ordinary middlegame
 }
-
 
 // {move, think}: which move to actually play, and how long to sit on it first
 function humanize_pick(best) {
@@ -1520,7 +1695,7 @@ function set_move_countdown(target, source, category = null) {
     eta_target = target; eta_source = source; eta_category = category;
     clearInterval(eta_timer);
     const tick = () => {
-        const el = document.getElementById('next-move');
+        const el = PANEL_ROOT.getElementById('next-move');
         if (!el) { clearInterval(eta_timer); return; }
         const left = eta_target - Date.now();
         const suffix = eta_category ? ` · ${eta_category}` : ''; // humanize: which move it plays next
@@ -1538,7 +1713,7 @@ function set_move_countdown(target, source, category = null) {
 function clear_next_move_eta() {
     clearInterval(eta_timer);
     eta_target = 0;
-    const el = document.getElementById('next-move');
+    const el = PANEL_ROOT.getElementById('next-move');
     if (el) el.textContent = '';
 }
 
@@ -1556,6 +1731,22 @@ function estimated_move_total_ms(fen) {
     return null;
 }
 
+// The four think/move timing values, read fresh from localStorage (options page + quick settings
+// both write here). Falls back to the loaded config value when a key is unset. JSON.parse(null)
+// is null, so `!= null` keeps a legitimate 0.
+function fresh_timing() {
+    const num = (key, fallback) => {
+        const v = JSON.parse(MephistoConfig.get(key));
+        return (v != null) ? v : fallback;
+    };
+    return {
+        think_time: num('think_time', config.think_time),
+        think_variance: num('think_variance', config.think_variance),
+        move_time: num('move_time', config.move_time),
+        move_variance: num('move_variance', config.move_variance),
+    };
+}
+
 function request_automove(move, think = null) {
     // Is this a REAL move on our own turn, or a BLIND premove during the opponent's turn? The site
     // queues a blind premove (it won't appear in the move list until they move), so it must NOT be
@@ -1566,9 +1757,13 @@ function request_automove(move, think = null) {
     const our = (board.orientation() === 'white') ? 'w' : 'b';
     const verify = (last_eval.fen?.split(' ')[1] === our);
     const deselect = safe_deselect_square(last_eval.fen, move);
+    // Read the think/move timing FRESH from storage on every move (the options page shares this
+    // localStorage), so editing the sliders mid-game applies to the next move -- not the snapshot
+    // taken when the panel/config first loaded. `?? config.x` keeps the loaded value if unset.
+    const timing = fresh_timing();
     const message = (config.puzzle_mode)
-        ? {automove: true, pv: last_eval.lines[0]?.pv ? pv_moves(last_eval.lines[0].pv) : [move], deselect, verify}
-        : {automove: true, move: move, deselect, verify, think};
+        ? {automove: true, pv: last_eval.lines[0]?.pv ? pv_moves(last_eval.lines[0].pv) : [move], deselect, verify, timing}
+        : {automove: true, move: move, deselect, verify, think, timing};
     send_to_active_tab(message);
 }
 
@@ -1584,8 +1779,22 @@ function request_clear_hint() {
     send_to_active_tab({clearHint: true});
 }
 
+function request_draw_eval_bar(data) {
+    send_to_active_tab({drawEvalBar: true, ...data});
+}
+
+function request_clear_eval_bar() {
+    send_to_active_tab({clearEvalBar: true});
+}
+
 // ask the content-script to read the variant off the current game page; cb(variant | null)
 function request_detect_variant(cb) {
+    if (IS_CONTENT_SCRIPT) { // same realm -> ask content-script.js straight out
+        try {
+            const r = self.MephistoContent?.detectVariant();
+            return cb((r && r.variant) || null, (r && r.href) || null);
+        } catch (e) { return cb(null, null); }
+    }
     const ask = tabId => chrome.tabs.sendMessage(tabId, {detectVariant: true}, resp => {
         if (chrome.runtime.lastError) return cb(null, null);
         cb((resp && resp.variant) || null, (resp && resp.href) || null);
@@ -1600,15 +1809,37 @@ function needs_fairy_engine(v) {
     return v && v !== 'chess' && v !== 'fischerandom';
 }
 
+// Is a native host actually installed? Open a throwaway port to it and `ping` (the host answers that
+// WITHOUT launching the engine); any reply means installed, a 'fatal'/disconnect means not. ~1s cap.
+function native_host_available(portName) {
+    return new Promise(resolve => {
+        let done = false, port;
+        const finish = (ok) => { if (done) return; done = true; try { port.disconnect(); } catch (e) { /* */ } resolve(ok); };
+        try { port = chrome.runtime.connect({name: portName}); } catch (e) { return resolve(false); }
+        port.onMessage.addListener(frame => finish(!frame.fatal)); // a non-fatal frame = the host answered
+        port.onDisconnect.addListener(() => finish(false));
+        try { port.postMessage({id: -1, cmd: 'ping'}); } catch (e) { return finish(false); }
+        setTimeout(() => finish(false), 1000);
+    });
+}
+
+// Which Fairy engine to switch to on variant detect: the LOCAL (native) full-power Fairy whenever its
+// host is installed (probed directly, so it's preferred even from a WASM engine), else the bundled
+// WASM Fairy so variant detection still works with zero setup.
+async function preferred_fairy_engine() {
+    return (await native_host_available('fairy-native')) ? 'fairy-native' : 'fairy-stockfish-14-nnue';
+}
+
 // apply a detected variant: set it AND switch to the Fairy engine when the variant requires it.
-// Without the engine switch, detection was a no-op on a non-Fairy engine -- the variant was saved
+// Without the engine switch, detection was a no-op on a mainline Stockfish -- the variant was saved
 // but the engine analysed the board as standard chess.
-function apply_detected_variant(v) {
-    localStorage.setItem('variant', JSON.stringify(v));
-    if (needs_fairy_engine(v) && config.engine !== 'fairy-stockfish-14-nnue') {
-        localStorage.setItem('engine', JSON.stringify('fairy-stockfish-14-nnue'));
+async function apply_detected_variant(v) {
+    MephistoConfig.set('variant', JSON.stringify(v));
+    // switch to Fairy only if not already on one (native or WASM) -- don't downgrade native->WASM
+    if (needs_fairy_engine(v) && !FAIRY_ENGINES.includes(config.engine)) {
+        MephistoConfig.set('engine', JSON.stringify(await preferred_fairy_engine()));
     }
-    location.reload();
+    panel_reload();
 }
 
 // Auto-detect the variant on a chess.com / lichess variant GAME page so it just works -- apply the
@@ -1622,22 +1853,14 @@ function maybe_autodetect_variant() {
         // lichess detector is DOM-heuristic and could false-positive on a standard game, so lichess
         // stays on the explicit Detect button (which now switches to Fairy too).
         if (!/\/variants\//.test(href)) return;
-        const targetEngine = needs_fairy_engine(v) ? 'fairy-stockfish-14-nnue' : config.engine;
-        if (config.variant === v && config.engine === targetEngine) return; // already correct
+        // already correct: right variant AND (no Fairy needed, or already on some Fairy engine).
+        // (Which Fairy engine — native vs WASM — is resolved by an async probe inside apply.)
+        if (config.variant === v && (!needs_fairy_engine(v) || FAIRY_ENGINES.includes(config.engine))) return;
         const key = 'mephisto.autodetected:' + href;
         try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) { /* */ }
         console.log('Mephisto: auto-detected variant', v, '-> applying (was', config.variant + '/' + config.engine + ')');
         apply_detected_variant(v);
     });
-}
-
-
-function request_draw_eval_bar(data) {
-    send_to_active_tab({drawEvalBar: true, ...data});
-}
-
-function request_clear_eval_bar() {
-    send_to_active_tab({clearEvalBar: true});
 }
 
 function push_config() {
@@ -1696,7 +1919,7 @@ function draw_moves() {
 
         const arrow_color = (i === 0) ? '#004db8' : '#4a4a4a';
         const stroke_width = strokeFunc(last_eval.lines[i]);
-        draw_move(last_eval.lines[i].move, arrow_color, document.getElementById('move-annotations'), stroke_width);
+        draw_move(last_eval.lines[i].move, arrow_color, PANEL_ROOT.getElementById('move-annotations'), stroke_width);
         if (config.help_mode && stroke_width > 0 && last_eval.lines[i].move) {
             hint_arrows.push({move: last_eval.lines[i].move, width: stroke_width, color: arrow_color});
         }
@@ -1711,7 +1934,7 @@ function draw_moves() {
 
 function draw_threat() {
     if (last_eval.threat) {
-        draw_move(last_eval.threat, '#bf0000', document.getElementById('response-annotations'));
+        draw_move(last_eval.threat, '#bf0000', PANEL_ROOT.getElementById('response-annotations'));
     }
 }
 
@@ -1800,11 +2023,11 @@ function draw_move(move, color, overlay, stroke_width = 0.225) {
 }
 
 function clear_annotations() {
-    let move_annotation = document.getElementById('move-annotations');
+    let move_annotation = PANEL_ROOT.getElementById('move-annotations');
     while (move_annotation.childElementCount) {
         move_annotation.lastElementChild.remove();
     }
-    let response_annotation = document.getElementById('response-annotations');
+    let response_annotation = PANEL_ROOT.getElementById('response-annotations');
     while (response_annotation.childElementCount) {
         response_annotation.lastElementChild.remove();
     }
@@ -1834,44 +2057,25 @@ async function dispatch_click_event(x, y, tabId) {
 function resolve_click_tab(tabId) {
     // prefer the game tab (content-script sender); fall back to the active tab if unknown
     if (tabId) return Promise.resolve(tabId);
+    if (MY_TAB_ID) return Promise.resolve(MY_TAB_ID);
+    if (IS_CONTENT_SCRIPT) return Promise.resolve(null); // chrome.tabs doesn't exist here
     return new Promise(res => chrome.tabs.query({active: true, currentWindow: true}, t => res(t[0]?.id)));
 }
 
 async function request_debugger_click(x, y, tabId) {
-    resolve_click_tab(tabId).then((id) => {
-        if (!id) return;
-        const debugee = {tabId: id};
-        chrome.debugger.attach(debugee, '1.3', async () => {
-            // "Another debugger is already attached" is expected: we stay attached after the first click
-            void chrome.runtime.lastError;
-            await dispatch_mouse_event(debugee, 'Input.dispatchMouseEvent', {
-                type: 'mousePressed',
-                button: 'left',
-                clickCount: 1,
-                x: x,
-                y: y,
-            });
-            await dispatch_mouse_event(debugee, 'Input.dispatchMouseEvent', {
-                type: 'mouseReleased',
-                button: 'left',
-                clickCount: 1,
-                x: x,
-                y: y,
-            });
-        });
-    });
+    // chrome.debugger is NOT available to a content script (which is what this file is once the panel
+    // lives in-page), so the background owns the attach + Input.dispatchMouseEvent. Still a TRUSTED
+    // click -- isTrusted can't tell it from a human one (issue #35 §2).
+    const id = await resolve_click_tab(tabId);
+    if (!id) return;
+    try {
+        const r = await chrome.runtime.sendMessage({cdpClick: true, tabId: id, x, y});
+        if (r && r.error) console.warn('CDP click failed:', r.error);
+    } catch (e) {
+        console.warn('CDP click failed:', e);
+    }
 }
 
-async function dispatch_mouse_event(debugee, mouseEvent, mouseEventOpts) {
-    return new Promise(resolve => {
-        chrome.debugger.sendCommand(debugee, mouseEvent, mouseEventOpts, (result) => {
-            if (chrome.runtime.lastError) {
-                console.warn(`${mouseEvent} failed: ${chrome.runtime.lastError.message}`);
-            }
-            resolve(result);
-        });
-    });
-}
 
 async function request_backend_click(x, y) {
     return call_backend(`http://localhost:8080/performClick`, {x: x, y: y});
@@ -1881,18 +2085,24 @@ async function request_backend_move(x0, y0, x1, y1) {
     return call_backend('http://localhost:8080/performMove', {x0: x0, y0: y0, x1: x1, y1: y1});
 }
 
+// Both the HTTP "Remote Engine" and the serverless native engines speak the same request/response
+// shape and reuse the same on_engine_response remote branch.
 function is_remote() {
+    // "remote" = anything that isn't an in-browser WASM engine: HTTP remote-engine.py, or a native
+    // messaging host. The HTTP-vs-native split happens in request_remote_* below.
     return config.engine === 'remote' || uses_native();
 }
 
-// --- Native messaging transport (opt-in native Stockfish/Fairy) -------------------------------
-// Chrome auto-launches the host; the background worker relays a persistent Port both ways so the
-// host can STREAM per-depth 'info' frames, ending with a terminal frame (analyse 'done' /
-// configure 'ok'). No server, no setup for the default WASM engines.
+// --- Native messaging over a persistent Port to the BACKGROUND worker (connectNative from a
+// content script is torn down by Chrome). The Port lets the host STREAM per-depth 'info' frames
+// (live depth like Stockfish), ending with a 'done' frame. Each request's onInfo gets the
+// intermediate frames; the promise resolves on 'done'.
 let native_bg_port = null;
 let native_seq = 0;
 const native_pending = new Map(); // id -> {resolve, reject, onInfo}
 
+// engines that speak native messaging (Chrome auto-launches the host, no server) and the port
+// name that selects the host in the background worker (see NATIVE_HOSTS there)
 function uses_native() {
     return NATIVE_ENGINES.includes(config.engine);
 }
@@ -1913,7 +2123,7 @@ function native_bg() {
         if (!p) return;
         if (frame.error) { native_pending.delete(frame.id); p.reject(new Error(`Native engine: ${frame.error}`)); return; }
         if (frame.info) { if (p.onInfo) p.onInfo(frame.info); return; } // streamed per-depth update
-        native_pending.delete(frame.id); // terminal frame
+        native_pending.delete(frame.id); // terminal frame (analyse 'done', or configure 'ok')
         p.resolve(frame);
     });
     native_bg_port.onDisconnect.addListener(() => {
@@ -1937,28 +2147,32 @@ function native_send(cmd, data, onInfo) {
     });
 }
 
-// A streamed per-depth update from a native engine (already in the popup line shape, pv as an
-// array). Mirrors the WASM `info depth` handling: refresh eval/best-move live AND feed the premove
-// tracker. Bound to the fen it was requested for, so late frames from a superseded search are dropped.
+// A streamed per-depth update from a native host (already in the panel's line shape). Mirrors the
+// WASM `info depth` handling: refresh the eval/best-move display live AND feed premove_tracker.
+// Bound to the fen it was requested for, so late frames from a superseded search are ignored.
 function on_native_info(info, fen) {
-    if (premove_tracker.fen !== fen) return;
+    if (premove_tracker.fen !== fen) return; // stale: position already moved on
     const pvIdx = (info.multipv || 1) - 1;
-    if (config.premove && Array.isArray(info.pv) && pvIdx <= 1 && Number.isInteger(info.depth)) {
-        const pred = info.pv[0], reply = info.pv[1];
+    // Premove certification for the native engines: track how stable each line's reply is across
+    // depths 6 / 9 / latest, exactly like the WASM `info depth` parser -- without this they'd
+    // never premove, since certification is what the premove path waits on.
+    if (config.premove && info.pv && info.pv[0] != null
+            && pvIdx <= 1 && Number.isInteger(info.depth)) {
+        const pred = String(info.pv[0]), reply = (info.pv[1] != null) ? String(info.pv[1]) : '';
         const line = premove_tracker.lines[pvIdx] || (premove_tracker.lines[pvIdx] = {});
         if (info.depth === 6) line.d6 = `${pred} ${reply}`;
         if (info.depth === 9) line.d9 = `${pred} ${reply}`;
         line.latest = `${pred} ${reply}`;
-        line.pred = pred; line.reply = reply; line.depth = info.depth;
+        line.pred = pred;
+        line.reply = reply;
+        line.depth = info.depth;
         if (pvIdx === 0) maybe_premove_forced_reply(line);
     }
     last_eval.activeLines = Math.max(last_eval.activeLines, info.multipv || 1);
     last_eval.lines[pvIdx] = info;
     if (pvIdx === 0) {
         on_engine_evaluation(last_eval);
-        if (info.pv && info.pv[0]) on_engine_best_move(info.pv[0], info.pv[1], false);
-    } else {
-        render_alt_lines();
+        if (info.pv && info.pv[0]) on_engine_best_move(info.pv[0], info.pv[1], false); // live arrow, non-terminal
     }
 }
 
@@ -1969,7 +2183,9 @@ async function request_remote_configure(options) {
 
 async function request_remote_analysis(fen, time, moves = null) {
     if (uses_native()) {
-        const posFen = premove_tracker.fen; // bind streamed frames to the real current position
+        // guard streamed frames by the ACTUAL position (moves-mode passes startFen here, but
+        // premove_tracker.fen holds the real current fen), so late frames don't leak across moves
+        const posFen = premove_tracker.fen;
         return native_send('analyse', {fen, time, moves}, info => on_native_info(info, posFen));
     }
     return call_backend('http://localhost:9090/analyse', {
@@ -2006,3 +2222,12 @@ async function call_backend(url, data) {
         body: JSON.stringify(data)
     });
 }
+
+// the content-script calls this to boot the panel inside its closed shadow root
+self.MephistoPanel = {
+    initPanel,
+    isBooted: () => PANEL_BOOTED,
+    // content-script.js pushes positions/clocks straight in (same realm, no messaging)
+    onContentMessage: (msg) => { try { PANEL_MSG_HANDLER && PANEL_MSG_HANDLER(msg, {}); } catch (e) { console.warn('Mephisto: content->panel failed', e); } },
+};
+})();

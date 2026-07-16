@@ -1,0 +1,92 @@
+// Mephisto config store (N1 Phase 3).
+// The panel config used to live in the popup iframe's localStorage (extension origin). When the panel
+// moves out of the iframe into the page's ISOLATED WORLD (Phase 4), that localStorage becomes the
+// SITE's localStorage -- wrong, and writing config keys there would even be a fingerprint. So config
+// moves to chrome.storage.local, which every extension context (isolated-world content script,
+// offscreen doc, options page, service worker) can read.
+//
+// Design: a synchronous in-memory CACHE over chrome.storage.local, so the many existing SYNC readers
+// (pullConfig, fresh_timing, humanize_rates) don't have to become async -- they read the cache, which
+// init() fills once and chrome.storage.onChanged keeps live. Values are the SAME JSON strings
+// localStorage held, so existing JSON.parse/stringify call sites are unchanged: get()==getItem,
+// set(k, jsonString)==setItem.
+//
+// Backends by context (see EXT_PAGE below):
+//   * popup PAGE / options page (extension origin): chrome.storage.local, with the old localStorage
+//     kept as a migration source and a read-fallback -- harmless there, it's OUR storage.
+//   * content script (panel in-page): chrome.storage.local ONLY. `localStorage` there is the SITE's,
+//     so writing config into it would hand the page a trivially readable fingerprint.
+// chrome.storage.local is the single source of truth; anything that reads synchronously must await
+// `MephistoConfig.ready` first, or it will read an empty cache and can push stale values back.
+(function () {
+    const CACHE = {};
+    let ready = false;
+
+    // In the popup PAGE / options page, `localStorage` is the EXTENSION's -- the old config backend,
+    // still useful as a migration source and a transition mirror. In a CONTENT SCRIPT it is the
+    // SITE's localStorage, which must never be touched:
+    //   * writing there leaks config keys (autoplay, humanize, engine, ...) into storage the page can
+    //     simply read -- a fingerprint, and exactly what removing the iframe was for;
+    //   * reading there returns the site's data, not ours.
+    // So on the content-script side chrome.storage.local is the ONLY backend.
+    const EXT_PAGE = (location.protocol === 'chrome-extension:');
+
+    function lsGet(key) { if (!EXT_PAGE) return null; try { return localStorage.getItem(key); } catch (e) { return null; } }
+    function lsSet(key, val) { if (!EXT_PAGE) return; try { localStorage.setItem(key, val); } catch (e) { /* */ } }
+    function lsRemove(key) { if (!EXT_PAGE) return; try { localStorage.removeItem(key); } catch (e) { /* */ } }
+
+    const api = {
+        // mimics localStorage.getItem: the stored JSON string, or null when absent
+        get(key) {
+            if (key in CACHE) return CACHE[key];
+            return lsGet(key); // Phase-3 fallback (extension origin); empty/null in the isolated world
+        },
+        // mimics localStorage.setItem(key, jsonString)
+        set(key, val) {
+            const s = String(val);
+            CACHE[key] = s;
+            try { chrome.storage.local.set({[key]: s}); } catch (e) { /* SW asleep is fine, cache still set */ }
+            lsSet(key, s); // Phase-3 mirror -- REMOVE in Phase 4
+        },
+        remove(key) {
+            delete CACHE[key];
+            try { chrome.storage.local.remove(key); } catch (e) { /* */ }
+            lsRemove(key);
+        },
+        // load chrome.storage into the cache once; one-time migrate the old localStorage config in.
+        async init() {
+            if (ready) return;
+            let all = {};
+            try { all = await chrome.storage.local.get(null); } catch (e) { all = {}; }
+            if (!all.__cfg_migrated && EXT_PAGE) {
+                try {
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const k = localStorage.key(i);
+                        // config keys only -- skip the content-script's page caches (mephisto.*)
+                        if (k && !k.startsWith('mephisto.') && !(k in all)) all[k] = localStorage.getItem(k);
+                    }
+                } catch (e) { /* no localStorage here */ }
+                all.__cfg_migrated = '1';
+                try { await chrome.storage.local.set(all); } catch (e) { /* */ }
+            }
+            Object.assign(CACHE, all);
+            ready = true;
+        },
+    };
+
+    try {
+        chrome.storage.onChanged.addListener((changes, area) => {
+            if (area !== 'local') return;
+            for (const k in changes) {
+                if ('newValue' in changes[k]) CACHE[k] = changes[k].newValue;
+                else delete CACHE[k];
+            }
+        });
+    } catch (e) { /* chrome.storage unavailable -> get() falls back to localStorage */ }
+
+    // Start loading immediately and expose the promise: the options page's form code reads
+    // synchronously, so it must await this or it would read a stale/empty cache -- which used to make
+    // it push stale values back over newer ones set from the panel.
+    api.ready = api.init();
+    self.MephistoConfig = api;
+})();

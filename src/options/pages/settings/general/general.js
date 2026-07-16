@@ -19,6 +19,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('simon_says_mode', '"Hand and Brain" Mode:', 'checkbox', false);
         this.registerFormElement('autoplay', 'Autoplay:', 'checkbox', false);
         this.registerFormElement('premove', 'Premove:', 'checkbox', false);
+        this.registerFormElement('background_play', 'Background Play:', 'checkbox', false);
         this.registerFormElement('help_mode', 'Help Mode:', 'checkbox', false);
         this.registerFormElement('humanize', 'Humanize:', 'checkbox', false);
         this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
@@ -75,12 +76,13 @@ class GeneralSettings extends SettingsPage {
     // balances them by hand, and the Total row shows the sum plus what's off: "90 (-10)" means
     // add 10 somewhere, "110 (+10)" means remove 10. (The popup normalizes by the sum when
     // picking, so an off-100 mix still behaves proportionally in the meantime.) NOT FormElements:
-    // one logical setting spans two inputs per row. Values persist per-key in localStorage; the
-    // popup reads them fresh on every pick, so edits apply to the very next move.
+    // one logical setting spans two inputs per row. Values persist per-key via MephistoConfig
+    // (chrome.storage.local); the panel reads them fresh on every pick, so edits apply to the very
+    // next move.
     // Panel Style: 'floating' (in-page overlay) or 'popup' (toolbar bubble = no page footprint).
-    // Unlike every other setting this one lives in chrome.storage.local, NOT localStorage: the
-    // background service worker flips the toolbar popup on/off (chrome.action.setPopup) and can't
-    // read the popup page's localStorage. Writing it fires chrome.storage.onChanged in the worker.
+    // Read straight off chrome.storage.local rather than through MephistoConfig: the background
+    // service worker flips the toolbar popup on/off (chrome.action.setPopup) off the same key, and
+    // writing it here fires chrome.storage.onChanged in the worker.
     initUiMode() {
         const sel = document.getElementById('ui_mode_select');
         if (!sel) return; // stale cached page html
@@ -104,7 +106,7 @@ class GeneralSettings extends SettingsPage {
             el.style.setProperty('--fill', ((el.value - el.min) / (el.max - el.min) * 100) + '%');
         const load = (key, dflt) => {
             try {
-                const v = JSON.parse(localStorage.getItem(key));
+                const v = JSON.parse(MephistoConfig.get(key));
                 return (v != null && isFinite(+v)) ? +v : dflt;
             } catch (e) {
                 return dflt;
@@ -124,7 +126,7 @@ class GeneralSettings extends SettingsPage {
             row.range.value = val;
             row.num.value = val;
             paint(row.range);
-            if (persist) localStorage.setItem(row.key, val);
+            if (persist) MephistoConfig.set(row.key, val);
             updateTotal();
         };
 

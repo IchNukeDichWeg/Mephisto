@@ -15,24 +15,28 @@ export class SettingsPage {
         throw new Error("init() must be implemented!");
     }
 
-    onInit() {
+    async onInit() {
         this.resetButton = document.getElementById('reset_btn');
         this.resetButton.addEventListener('click', () => this.onResetConfigValues());
 
+        // chrome.storage.local is the source of truth (the panel writes only there). Wait for the
+        // cache before touching the forms -- reading early gave stale values, and any later change
+        // then pushed those stale values back, silently reverting settings made in the panel.
+        await MephistoConfig.ready;
         this.init();
         this.pullConfigValues();
     }
 
     clearConfigValues() {
         this.formElements.forEach(formElement => {
-            localStorage.removeItem(formElement.name);
+            MephistoConfig.remove(formElement.name);
         });
     }
 
     // localstorage values push/pull
     pullConfigValues() {
         this.formElements.forEach(formElement => {
-            const localStorageVal = localStorage.getItem(formElement.name);
+            const localStorageVal = MephistoConfig.get(formElement.name);
             if (localStorageVal) {
                 formElement.setValue(JSON.parse(localStorageVal));
             } else {
@@ -46,7 +50,7 @@ export class SettingsPage {
             const formValue = (formElement.valueType === 'string')
                 ? `"${formElement.getValue()}"`
                 : formElement.getValue();
-            localStorage.setItem(formElement.name, formValue);
+            MephistoConfig.set(formElement.name, formValue);
         });
     }
 
@@ -57,7 +61,7 @@ export class SettingsPage {
             const formValue = (formElement.valueType === 'string')
                 ? `"${formElement.getValue()}"`
                 : formElement.getValue();
-            localStorage.setItem(formElement.name, formValue);
+            MephistoConfig.set(formElement.name, formValue);
         });
         this.formElements.push(formElement);
         return formElement;
