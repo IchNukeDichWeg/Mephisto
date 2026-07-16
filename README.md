@@ -378,31 +378,38 @@ footprint. See the [disclaimer](#️-read-this-first--disclaimer--fair-play).)
 No schedule — added whenever I feel like it.
 
 **Engines & analysis**
-- [ ] lc0 (Leela) in the browser
-- [ ] Maia NNUE — human-like, pickable skill bands (1100/1500/1900)
-- [ ] Opening explorer overlay (Lichess DB)
-- [ ] Blunder alert when the opponent errs
-- [ ] Syzygy tablebase probing (≤7 pieces)
+- [ ] **lc0 (Leela) in the browser** — Leela's neural-net engine as a WASM alternative to Stockfish. A large
+  download for play that isn't stronger; mainly for comparing styles.
+- [ ] **Maia NNUE** — human-like nets with pickable skill bands (1100/1500/1900). Trained on real human games, so it
+  plays like a human of that rating instead of a Stockfish told to play badly.
+- [ ] **Opening explorer overlay** (Lichess DB) — win rates and popular replies for the position on the board.
+- [ ] **Blunder alert** — flags the moment the opponent's move tanks their evaluation.
+- [ ] **Syzygy tablebase probing** (≤7 pieces) — perfect endgame play once few enough pieces are left.
 
 **Board & position**
-- [ ] Board from a screenshot → playable
-- [ ] Setup / From-Position FEN capture
+- [ ] **Board from a screenshot** — point it at an image of a board and get a playable position back.
+- [ ] **Setup / From-Position FEN capture** — read custom start positions properly, including black-to-move.
 
 **More variants** (as engines allow)
-- [ ] Setup Chess · Spell Chess · Fog of War
-- [ ] Duck Chess autoplay polish
-- [ ] 4-player (4PC, Chaturaji, 4P Giveaway, Self Partnering)
-- [ ] Bughouse / Doubles · Chess with Checkers
-- [ ] Auto-download variant nets
-- [ ] Graceful "unsupported variant" message
+- [ ] **Setup Chess · Spell Chess · Fog of War** — Fog of War is imperfect-information, so a normal engine can't
+  play it at all; the other two need engine support that doesn't exist yet.
+- [ ] **Duck Chess autoplay polish** — make the duck-placement step work end to end (detection and analysis already do).
+- [ ] **4-player** (4PC, Chaturaji, 4P Giveaway, Self Partnering) — no engine supports four-player boards today.
+- [ ] **Bughouse / Doubles · Chess with Checkers** — two-board and hybrid variants; no engine support.
+- [ ] **Auto-download variant nets** — fetch Fairy nets on demand instead of bundling every one. Would cut the
+  download enormously, at the cost of the zero-setup, works-offline install.
+- [ ] **Graceful "unsupported variant" message** — say so plainly instead of sitting there detecting nothing.
 
 **Quality of life**
-- [ ] Native-engine health badge
-- [ ] Smart default threads (cores − 1)
-- [ ] Ponder / background analysis
-- [ ] NPS / depth sparkline
-- [ ] Compact / expanded panel toggle
-- [x] Copy FEN button — *done*; PGN still open
+- [ ] **Native-engine health badge** — a dot showing whether the native engine actually connected, instead of
+  debugging it blind.
+- [ ] **Smart default threads** (cores − 1) — pick a sensible thread count from your CPU instead of shipping one
+  fixed number.
+- [ ] **Ponder / background analysis** — keep searching on the opponent's clock instead of idling. Costs CPU and
+  battery the whole time it runs.
+- [ ] **NPS / depth sparkline** — a small live graph of search speed and depth.
+- [ ] **Compact / expanded panel toggle** — shrink to just the move, or expand for the full analysis.
+- [x] **Copy FEN button** — *done*. **Copy PGN** still open: the whole game, the way Copy FEN does the position.
 - [ ] **Configurable hotkeys** — keyboard shortcuts for the common actions (toggle panel, autoplay, help mode,
   re-detect, play best move, copy FEN). **Every binding rebindable to any key combo** from Settings, with conflict
   detection against the site's own shortcuts, and a reset-to-defaults.
@@ -415,8 +422,10 @@ No schedule — added whenever I feel like it.
   also the most human thing the panel can do with a clock. Key rebindable via **Configurable hotkeys**.
 
 **Robustness**
-- [ ] Self-test / diagnostics panel
-- [ ] Auto-recover on site DOM changes
+- [ ] **Self-test / diagnostics panel** — one button that checks scraping, engine and native host, and names what's
+  broken.
+- [ ] **Auto-recover on site DOM changes** — spot a scraper that has stopped matching and re-anchor, instead of
+  silently seeing nothing.
 
 ---
 
