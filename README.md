@@ -15,6 +15,66 @@ so analysis and autoplay keep running for the whole game.
 
 ---
 
+## ⚠️ Read this first — disclaimer & fair play
+
+**Using this in a live game against another person violates the Terms of Service of Chess.com, Lichess,
+TakeTakeTake, and effectively every chess site.** Not a grey area — every one of them prohibits outside
+assistance in rated or casual games against humans. Read this section before you install.
+
+### What actually happens if you do it
+
+- **Account closure.** Chess.com's Fair Play closures are typically permanent and rarely reversed. Lichess marks
+  accounts publicly ("this account violated the Terms of Service") — the mark is visible on your profile forever.
+- **It follows you.** Bans are applied at the device/network/payment level too, so alt accounts and your *other*
+  legitimate accounts commonly get caught in the same closure.
+- **Rollbacks.** Ratings, prizes, titles and tournament results get reverted; opponents get their points back.
+- **Your opponents report you.** Suspicious games get flagged by real people, which is what opens a case.
+
+### The honest part: this extension cannot make you undetectable
+
+**The detection that catches engine users is server-side and behavioural. Nothing in this extension defeats it:**
+
+- **Move agreement** — how often you play the engine's top choice, measured over many games.
+- **Think-time distribution** — humans think longer on hard moves and vary wildly; engines are eerily consistent.
+- **Premoving the exact predicted reply**, repeatedly.
+- **Accuracy spikes** — play that doesn't fit your own rating history, or that's too good in exactly the positions
+  where it's hardest to be good.
+
+These are **statistical, aggregated across your account**. They don't care what your DOM looks like. Hiding the
+extension's page footprint does **nothing** against them. Anyone telling you a setting makes you safe is wrong.
+
+The anti-detection work in this fork addresses one narrow thing: **passive client-side fingerprinting** — a site
+noticing the extension is *installed*. Even the people writing detection for it
+([see this write-up](https://github.com/AlexPetrusca/Mephisto/issues/35)) call that a *corroborating* signal that
+should never trigger a sanction on its own, and say plainly that the robust signal is server-side. Reducing your
+footprint changes a footnote in a case file. It does not change the case.
+
+### If you want a smaller footprint anyway
+
+These reduce *client-side* fingerprinting and make automated play look less mechanical. They do not make it safe.
+
+| Setting | What it does |
+|---|---|
+| **Panel Style → Toolbar popup** | No in-page panel at all — **zero page footprint**. The safest mode; analysis only (Autoplay/Premove need the floating panel). |
+| **Humanize** | Don't play engine-perfect: mixes in 2nd/3rd lines and occasional real mistakes at rates you set, and varies think time by how critical the position is. |
+| **Clock Mode / Mirror Time** | Paces moves against the real clock, or mirrors your opponent's time use, instead of answering instantly. |
+| **Elo cap** | Cap engine strength. Playing 3200 in a 1400 pool is the loudest signal there is. |
+| **Background Play → Off** (default) | Only moves while the tab is focused and visible — humans don't play while tabbed away. |
+| **Move/Think Time** | Slower, varianced timing beats instant robotic replies. |
+
+The single most effective thing on this list is **not using it in rated games against people.**
+
+### What this is genuinely good for
+
+Reviewing your own finished games · studying openings and endgames · puzzles and tactics training · benchmarking
+and developing engines · testing this extension · analysis boards and offline/vs-computer play · unrated games
+where your opponent knows.
+
+**You are responsible for how you use this.** It's provided for analysis, engine development, research and
+education. If you use it to cheat people out of fair games, that's on you — and you will probably lose the account.
+
+---
+
 ## ⭐ Why this fork?
 
 This is an **actively maintained** continuation of the original
@@ -38,6 +98,8 @@ goes far beyond.** Everything the original did still works here; the table shows
 | **Chess.com variants** (11) — detect · analyze · autoplay | ❌ | ✅ |
 | **TakeTakeTake** (WebGPU canvas board, incl. online games) | ❌ | ✅ |
 | **Chess960** on every mainline Stockfish | ❌ | ✅ |
+| **Zero‑iframe panel** — no page‑visible browsing context or extension URLs | ❌ | ✅ |
+| **Background Play gating** — only moves while the tab is focused | ❌ | ✅ |
 | Event‑driven detection · floating resizable panel · engine crash‑recovery | ❌ | ✅ |
 
 Issues and pull requests are watched and fixed — this fork is **updated and maintained**.
@@ -66,7 +128,8 @@ To pick up a code change: reload the extension on `chrome://extensions`, then re
 - **Quick Settings** — every setting is editable inline: engine, Elo cap, variant, search time, threads, memory,
   number of lines, and all timing/mode toggles. Changes apply on the next move (engine changes reload the panel).
 - **Re‑detect (↻)** — rescan the page and restart analysis, e.g. after a new game loads without a full page reload.
-- **Analysis board** — open the current position on Lichess's analysis board in one click.
+- **Analysis board (⧉)** — open the current position on Lichess's analysis board in one click.
+- **Copy FEN (⎘)** — copy the current position's FEN to the clipboard.
 
 ---
 
@@ -196,6 +259,9 @@ id changed — re-run the install command.
 - **Help Mode** — instead of autoplaying, all analysis arrows are mirrored onto the site's board while the engine
   keeps evaluating; you play the move yourself when ready. Overrides Autoplay while on.
 - **Puzzle Mode** — optimizes for solving puzzles as fast as possible (Puzzle Rush / Puzzle Storm).
+- **Background Play** (off by default) — with it off, moves only fire while the game tab is **focused and visible**;
+  a move that comes due while you're tabbed away is deferred until you come back. Humans don't play while looking at
+  another tab. Turn it on to keep autoplay/premove running in the background.
 
 ### Safe Premove
 
@@ -268,17 +334,40 @@ Two ways to show the panel:
   so the page has **no handle to it at all — zero page footprint**. This is the **safer** mode.
 
 **To switch to the safe mode:** open **Settings** (the extension's options page) → **General** → **Panel Style** →
-choose **"Toolbar popup (safer — no page footprint)"**. Same features, sliders and buttons either way; the popup just
-closes when you click away instead of floating over the board. It takes effect immediately (any open floating panel is
+choose **"Toolbar popup (safer — no page footprint)"**. It takes effect immediately (any open floating panel is
 closed for you).
+
+> **Note:** the toolbar popup closes the moment you click the board, so it's best for **analysis** (glance at the best
+> move). **Autoplay and Premove work only with the Floating panel**, which stays open during the game.
 
 ### While the floating panel is in use, its footprint is minimized:
 
-- **Panel in a closed shadow root** — the panel and its extension‑page iframe live inside a `mode: "closed"` shadow root under one attribute‑less host node. The page can't enumerate them (`document.querySelector('[id^="mephisto-"]')` finds nothing, `host.shadowRoot` is `null`, and the extension iframe isn't reachable from the page's `<iframe>` list).
-- **No branded page globals** — the MAIN‑world probes used on canvas/proprietary boards (TakeTakeTake, ChessBase) set **no** `window.*` flag and talk over **per‑session random** event channels, so a page has no fixed global or event name to fingerprint (just a single rendezvous).
-- **Center‑weighted clicks** — simulated moves land on a soft, human‑like distribution around each square's center (not the exact pixel), via trusted browser input events.
+- **No iframe.** The floating panel used to be an extension‑page `<iframe>`, and an iframe is a *browsing context* — it
+  is counted by `window.length` and throws on cross‑origin access, which a closed shadow root cannot hide. **The panel
+  no longer uses one at all:** it renders directly in the page's isolated world, and the WASM engine moved to an
+  **offscreen document** (an invisible extension page that still gets the cross‑origin isolation / SharedArrayBuffer
+  the pthread engine builds need, but that the page cannot see or count).
+- **No extension URLs reach the page.** `web_accessible_resources` is gone from the manifest, so nothing can probe for
+  a known file. The panel's markup, CSS, board textures and piece images are fetched extension‑side and injected as
+  inlined bytes / `data:` URIs — so no `chrome-extension://` URL appears in the DOM **or in the page's Resource
+  Timing**, and the extension id can't be read back.
+- **Panel in a closed shadow root** — the panel lives inside a `mode: "closed"` shadow root under one attribute‑less
+  host node. The page can't enumerate it: `document.querySelector('[id^="mephisto-"]')` finds nothing and
+  `host.shadowRoot` is `null`.
+- **No branded page globals** — the MAIN‑world probes used on canvas/proprietary boards (TakeTakeTake, ChessBase) set
+  **no** `window.*` flag and talk over **per‑session random** event channels, so a page has no fixed global or event
+  name to fingerprint (just a single rendezvous).
+- **Human‑shaped clicks** — a move is a bare *from → to*, exactly like a human plays it: no lead click on an empty
+  square, and the timings are randomized. Clicks land on a center‑weighted distribution within each square, via
+  trusted input (`isTrusted` cannot distinguish them from real clicks).
+- **No config in the site's storage** — settings live in `chrome.storage.local`, never the page's `localStorage`, so
+  the site can't read the extension's keys.
+- **Background Play → Off** (default) — moves only fire while the tab is focused and visible, so there's no
+  "moved while tabbed away" anomaly.
 
-These reduce passive fingerprinting; they don't change that using an engine in a live game is against most sites' fair‑play rules. Use analysis features responsibly.
+(These reduce passive fingerprinting; engine use in a live game still breaks most sites' fair‑play rules — use
+responsibly. Note that the signal that actually catches engine use is server‑side behavioural analysis, not DOM
+footprint. See the [disclaimer](#️-read-this-first--disclaimer--fair-play).)
 
 ---
 
@@ -311,7 +400,7 @@ No schedule — added whenever I feel like it.
 - [ ] Ponder / background analysis
 - [ ] NPS / depth sparkline
 - [ ] Compact / expanded panel toggle
-- [ ] Copy FEN / PGN button
+- [x] Copy FEN button — *done*; PGN still open
 - [ ] Configurable hotkeys
 
 **Robustness**
