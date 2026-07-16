@@ -37,7 +37,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.70'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.71'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -97,17 +97,17 @@ function handleExtensionMessage(response, sender, sendResponse) {
         // apply the think/move timing the popup read FRESH from storage for this move, so changing the
         // Think/Move Time sliders mid-game takes effect on the very next move (not the game-start snapshot)
         if (response.timing) Object.assign(config, response.timing);
-        toggleMoving();
+        beginMoving(response.think);
         try {
             if (config.puzzle_mode) {
                 console.log(response.pv);
-                simulatePvMoves(response.pv).finally(toggleMoving);
+                simulatePvMoves(response.pv).finally(endMoving);
             } else {
                 console.log(response.move);
-                simulateMoveVerified(response.move, response.deselect, response.verify, response.think ?? null).finally(toggleMoving);
+                simulateMoveVerified(response.move, response.deselect, response.verify, response.think ?? null).finally(endMoving);
             }
         } catch (e) {
-            toggleMoving(); // a sync throw (e.g. board vanished) must not leave `moving` stuck true
+            endMoving(); // a sync throw (e.g. board vanished) must not leave `moving` stuck true
             console.warn('Mephisto: automove failed:', e);
         }
     } else if (response.pushConfig) {
@@ -915,18 +915,26 @@ function scrapeClocks() {
 
 let movingWatchdog = null;
 
-function toggleMoving() {
-    moving = !moving;
-    // Safety net: while `moving` is true the content-script ignores ALL scrape requests, so a
-    // move simulation that never resolves (a hung click / promotion) would freeze the extension
-    // ("gets stuck and doesn't play anything"). Force `moving` back to false after 15s -- far
-    // longer than any real move takes -- so scraping always resumes.
+// `moving` is set/cleared explicitly, never toggled. Both the watchdog and the move's own `.finally`
+// call endMoving, and for a think longer than the watchdog BOTH fire -- a toggle flipped the second
+// call false->true and stranded `moving` true with no move in progress, freezing every scrape for a
+// further 15s (and re-arming the watchdog to do it again).
+function beginMoving(thinkMs = 0) {
+    moving = true;
+    // Safety net: while `moving` is true the content-script ignores ALL scrape requests, so a move
+    // simulation that never resolves (a hung click / promotion) would freeze the extension ("gets
+    // stuck and doesn't play anything"). The grace sits ON TOP of this move's think, which is
+    // user-configurable and uncapped: a flat timeout would expire mid-think on a legitimately slow
+    // move and drop the `moving` guard -- and that guard is what stops a second automove starting
+    // on top of the one still waiting to click.
     clearTimeout(movingWatchdog);
-    if (moving) {
-        movingWatchdog = setTimeout(() => { moving = false; schedulePush(); }, 15000);
-    } else {
-        schedulePush(); // catch up: board mutations during the automove were suppressed
-    }
+    movingWatchdog = setTimeout(endMoving, (Number(thinkMs) || 0) + 15000);
+}
+
+function endMoving() {
+    clearTimeout(movingWatchdog);
+    moving = false;
+    schedulePush(); // catch up: board mutations during the automove were suppressed
 }
 
 function pullConfig() {
