@@ -37,7 +37,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.71'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.72'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -643,7 +643,15 @@ function scrapePositionFen() {
     }
     if (site === 'chesscom') {
         for (const moveWrapper of getMoveRecords()) {
-            const move = moveWrapper.lastElementChild
+            const move = moveWrapper.lastElementChild;
+            // This branch takes `.node` unfiltered, unlike the variants branch above which already
+            // skips "trailing empty placeholder cells". A childless one made this a TypeError, and
+            // tryScrapePosition catches that and returns 'no' for the WHOLE scrape -- so a single
+            // placeholder meant the extension saw nothing at all. Skip rather than break: a trailing
+            // placeholder makes them equivalent, and if one ever landed mid-list the resulting gap
+            // makes the popup's SAN replay throw (caught, safe), whereas truncating to a valid
+            // shorter prefix would silently analyse a stale position and play a move for it.
+            if (!move) continue;
             if (move.lastElementChild?.classList.contains('icon-font-chess')) {
                 res += move.lastElementChild.getAttribute('data-figurine') + move.innerText + '*****';
             } else {

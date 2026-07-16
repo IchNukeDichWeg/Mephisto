@@ -43,9 +43,18 @@ export class FormElement {
             this.elem.checked = val;
             this.elem.dispatchEvent(new Event('change'));
         } else if (this.type === 'select') {
-            this.elem.value = val;
-            this.elem.parentElement.querySelector('input').value =
-                this.elem.querySelector(`option[value="${val}"]`).innerText;
+            // A stored value whose <option> no longer exists -- e.g. an engine dropped since it was
+            // saved, exactly the migration case popup.js handles and this page did not -- used to
+            // throw here. setValue runs inside SettingsPage.pullConfigValues' forEach, so that throw
+            // aborted the loop: every field AFTER this one silently kept its markup default and the
+            // page rendered half-initialized. Fall back to this element's own default instead.
+            // Scanning options also beats the old querySelector, which interpolated `val` straight
+            // into the selector -- a stored value containing a quote threw SyntaxError just as fatally.
+            const pick = (v) => [...this.elem.options].find(o => o.value === String(v));
+            const opt = pick(val) || pick(this.default);
+            if (!opt) return; // no default option either -- keep the markup's own rather than throw
+            this.elem.value = opt.value;
+            this.elem.parentElement.querySelector('input').value = opt.innerText;
             this.elem.dispatchEvent(new Event('change'));
         }
     }
