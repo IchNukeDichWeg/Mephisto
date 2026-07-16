@@ -409,6 +409,10 @@ No schedule — added whenever I feel like it.
 - [ ] **Export / import settings** — save the whole config to a **JSON file** and load it back, so a reinstall, a
   second machine or a browser profile switch doesn't mean re-entering every setting by hand. Round-trips everything
   in `chrome.storage.local` (engine, Elo, variant, timing, Humanize/Clock/Mirror, panel style, hotkeys).
+- [ ] **Manual mode** — a switch that lets the engine keep thinking for as long as you like, then plays the best move
+  it has found the instant you press **Spacebar**. No timer decides for you: the search gets every second you give it,
+  and the move lands exactly when you choose. Because the timing is *yours* rather than a sampled distribution, it is
+  also the most human thing the panel can do with a clock. Key rebindable via **Configurable hotkeys**.
 
 **Robustness**
 - [ ] Self-test / diagnostics panel
