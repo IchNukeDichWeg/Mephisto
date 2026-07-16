@@ -40,7 +40,7 @@ let fen_cache;
 let config;
 
 let is_calculating = false;
-let discard_stale_search = false; // drop engine output (incl. the flushed bestmove) of a search we stopped
+let pending_stops = 0; // bestmoves still owed by searches we abandoned -- drop that many (see abandon_search)
 let search_active = false; // a 'go' was issued whose bestmove hasn't arrived yet (is_calculating can't be
                            // used for this: it flips false on the first info line, not on bestmove)
 let premove_tracker = {fen: '', lines: {}}; // per-multipv reply stability while the opponent thinks
@@ -350,7 +350,7 @@ async function initPanel(root, tabId) {
         last_eval.fen = '';   // treat whatever comes back as a brand-new position
         prev_ply_count = 0;   // treat it as a fresh game...
         opp_spend = opp_clock_mark = last_our_eval = null; // ...and clear stale clock/mirror/humanize pacing
-        send_engine_uci('stop');
+        abandon_search(); // the stopped search still flushes a bestmove -- for the position we're discarding
         fen_request_inflight = false; // don't let an in-flight poll's 500ms guard swallow the re-query
         push_config();        // resets the content-script's push dedupe + triggers an immediate push
         request_fen();        // and poll right now as well -- fires immediately now the guard is clear
@@ -424,14 +424,14 @@ function init_quick_settings() {
             if (key === 'humanize' && !is_remote()) {
                 // humanize picks among alternative lines, so it needs MultiPV headroom;
                 // re-apply and restart the search under the new setting
-                send_engine_uci('stop');
+                abandon_search();
                 send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
                 last_eval.fen = '';
             }
             if (key === 'help_mode' || key === 'autoplay' || key === 'clock_mode' || key === 'mirror_mode') {
                 // the go mode (infinite vs movetime) / search budget depends on these; abandon the
                 // current search and re-analyse the position under the new mode on the next push
-                send_engine_uci('stop');
+                abandon_search();
                 last_eval.fen = '';
             }
             push_config();
@@ -560,7 +560,7 @@ async function ensure_offscreen_engine(engineName) {
 }
 
 async function initialize_engine() {
-    discard_stale_search = false; // a crashed engine never flushes its bestmove; don't eat the new engine's first result
+    pending_stops = 0; // a crashed/replaced engine never flushes what it owed; don't eat the new engine's first result
     search_active = false;
     if (WASM_ENGINES.includes(config.engine)) {
         // WASM engine runs in the offscreen document now (see offscreen_engine above). This creates
@@ -645,6 +645,20 @@ function send_engine_uci(message) {
         // wasm engine crashed on the main thread (e.g. RuntimeError: unaligned access / Aborted)
         on_engine_error(`${e}`);
     }
+}
+
+// Abandon the search in flight. UCI: `stop` makes the engine flush ONE bestmove for the position it
+// was searching. By the time it lands, the position has moved on -- so it must be dropped, or it gets
+// played as our move in a position it was never chosen for.
+//
+// Counted, not a flag: A->B->C arriving before bestmove(A) lands issues two flush-producing stops and
+// so owes TWO bestmoves. A flag cleared by the first would let bestmove(B) through as a terminal
+// result for the superseded position B. Only a search actually in flight flushes anything -- the
+// engine ignores a `stop` with no `go` outstanding, so counting that would eat the NEXT real bestmove.
+function abandon_search() {
+    if (search_active) pending_stops++;
+    search_active = false;
+    send_engine_uci('stop');
 }
 
 let engine_restarts = 0;
@@ -894,9 +908,10 @@ function on_engine_response(message) {
         return;
     }
 
-    if (discard_stale_search) {
-        // output of the search we just stopped; UCI ordering ends it with its flushed bestmove
-        if (message.startsWith('bestmove')) discard_stale_search = false;
+    if (pending_stops > 0) {
+        // output of a search we abandoned; UCI ordering ends each one with its flushed bestmove, so
+        // one bestmove settles one owed stop -- the rest of that search's info lines are dropped too
+        if (message.startsWith('bestmove')) pending_stops--;
         return;
     }
 
@@ -1159,7 +1174,6 @@ function on_new_pos(fen, startFen, moves) {
         opp_spend = null; opp_clock_mark = null; last_our_eval = null;
     }
     prev_ply_count = ply_count;
-    const search_in_flight = search_active;
     toggle_calculating(true);
     // SIZE THE SEARCH TO THE PACE. When a clock-aware mode intends to spend, say, 1.2s on this move,
     // the engine should SEARCH ~1.2s (minus a margin to play it) rather than find a shallow move in
@@ -1208,14 +1222,10 @@ function on_new_pos(fen, startFen, moves) {
             request_remote_analysis(fen, rt).then(on_engine_response).catch(on_remote_error);
         }
     } else {
-        if (search_in_flight) {
-            // 'stop' makes the engine flush a bestmove for the position it was searching. By the
-            // time it arrives, `turn` already belongs to the NEW position -- if the old search was
-            // for the opponent's side (they replied mid-search), that stale bestmove would be
-            // automoved as OUR move. Discard everything up to and including that flushed bestmove.
-            discard_stale_search = true;
-        }
-        send_engine_uci('stop');
+        // discards the flushed bestmove of the search we're superseding -- `turn` already belongs to
+        // the NEW position, so if the old search was for the opponent's side (they replied mid-search)
+        // that stale bestmove would otherwise be automoved as OUR move
+        abandon_search();
         if (moves) {
             send_engine_uci(`position fen ${startFen} moves ${moves}`);
         } else {
