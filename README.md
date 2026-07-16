@@ -101,6 +101,7 @@ goes far beyond.** Everything the original did still works here; the table shows
 | **Zero‑iframe panel** — no page‑visible browsing context or extension URLs | ❌ | ✅ |
 | **Background Play gating** — only moves while the tab is focused | ❌ | ✅ |
 | **Move‑correctness guards** — never plays a superseded search's move; no freeze or double‑move on long thinks | ❌ | ✅ |
+| **Scrape & settings robustness** — one stray move‑list node can't kill detection; settings survive an engine being removed | ❌ | ✅ |
 | Event‑driven detection · floating resizable panel · engine crash‑recovery | ❌ | ✅ |
 
 Issues and pull requests are watched and fixed — this fork is **updated and maintained**.
