@@ -37,7 +37,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.72'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.73'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -135,6 +135,14 @@ chrome.runtime.onMessage.addListener(handleExtensionMessage); // background + to
 self.MephistoContent = {
     handle: (msg) => handleExtensionMessage(msg, {}, () => {}),
     detectVariant: () => ({variant: detectVariant(), href: location.href}),
+    // popup.js's apply_compact calls this: the panel is a fixed-size scaled box, so hiding its
+    // contents can't shrink it -- see setPanelCompact. Also keeps the title-bar icon in sync when
+    // the panel boots with a compact state remembered from last time.
+    setPanelCompact: (on) => {
+        setPanelCompact(on);
+        const icon = overlayEl(PANEL_OVERLAY_ID)?.querySelector('.mephisto-overlay-compact');
+        if (icon) icon.textContent = on ? '▤' : '▣';
+    },
     // Settings that need a full engine re-init (engine/variant/elo) used to reload the popup page.
     // In-page that would reload the SITE, so tear the panel down and rebuild it: fresh config, fresh
     // engine, same effect. See panel_reload() in popup.js.
@@ -155,6 +163,9 @@ function sendToPanel(msg) {
 
 const PANEL_OVERLAY_ID = 'mephisto-overlay';
 const RESTORE_BADGE_ID = 'mephisto-restore-badge';
+const COMPACT_H = 210;     // compact mode: status + move lines + score, with the board/quick-settings hidden
+let panelCompact = false;  // popup.js owns the setting; this mirrors it for the sizing math below
+const panelH = () => panelCompact ? COMPACT_H : POPUP_H;
 const POPUP_W = 568;       // the popup page's fixed layout size (popup.css html,body)
 const POPUP_H = 672; // matches popup.css body height (score + WDL line + alt-lines panel)
 const OVERLAY_SCALE = 0.8; // default render scale for fresh installs; resizing the panel persists a width
@@ -221,6 +232,21 @@ function removeOverlay() {
 // the frame stays full-size and in the viewport so Chrome treats it as VISIBLE and never throttles
 // its timers (a cross-origin hidden iframe gets throttled to ~1/s -> laggy autoplay). pointer-events
 // :none makes it click-through so it can't sit over a destination square and eat the autoplay click.
+// Compact mode's resize half. popup.js owns the setting and the class on the panel body; hiding the
+// contents can't shrink anything by itself, because the panel is a FIXED POPUP_W x POPUP_H box that
+// we scale -- so the box and its wrapper have to be told the new height. Called by popup.js's
+// apply_compact (see MephistoContent below). No-op in the toolbar popup: no overlay there, and
+// Chrome sizes the bubble around the content anyway.
+function setPanelCompact(on) {
+    panelCompact = !!on;
+    const wrap = overlayEl(PANEL_OVERLAY_ID);
+    const frame = wrap?.querySelector('.mephisto-panel-box');
+    if (!wrap || !frame) return;
+    const scale = wrap.offsetWidth / POPUP_W; // the live scale: the user may have resized the panel
+    frame.style.height = `${panelH()}px`;
+    wrap.style.height = `${Math.round(24 + panelH() * scale)}px`;
+}
+
 function minimizeOverlay(wrap) {
     const frame = wrap.querySelector('.mephisto-panel-box'); // the panel is a plain div now, not an iframe
     wrap.style.opacity = '0';
@@ -286,6 +312,8 @@ async function toggleOverlay() {
         'font: 12px Roboto, sans-serif; cursor: move; user-select: none;';
     bar.innerHTML = '<span>Mephisto</span>' +
         '<span style="display: flex; align-items: center; gap: 2px;">' +
+        '<span class="mephisto-overlay-compact" title="Compact / expanded: collapse to just the move and score" ' +
+        'style="cursor: pointer; padding: 0 6px; font-size: 13px; line-height: 1;">▣</span>' +
         '<span class="mephisto-overlay-min" title="Minimize (autoplay keeps running)" ' +
         'style="cursor: pointer; padding: 0 6px; font-size: 18px; line-height: 1;">–</span>' +
         '<span class="mephisto-overlay-close" title="Close" ' +
@@ -327,6 +355,10 @@ async function toggleOverlay() {
     overlayRoot.appendChild(wrap);
     bar.querySelector('.mephisto-overlay-close').addEventListener('click', removeOverlay);
     bar.querySelector('.mephisto-overlay-min').addEventListener('click', () => minimizeOverlay(wrap));
+    // popup.js owns the compact setting (persists it, drives the class) and calls straight back into
+    // MephistoContent.setPanelCompact -- which resizes us AND repaints this icon. Just ask it to flip.
+    bar.querySelector('.mephisto-overlay-compact')
+        .addEventListener('click', () => self.MephistoPanel?.toggleCompact?.());
     // Boot the panel. popup.js is a content script in THIS isolated world, so this is a direct call --
     // no module import (which would need web_accessible_resources and leak the id via Resource Timing).
     // It looks its elements up through the shadow root we hand it, and talks to our tab by id.
@@ -356,7 +388,7 @@ async function toggleOverlay() {
             Math.round(window.innerWidth * 0.95));
         scale = w / POPUP_W;
         wrap.style.width = `${w}px`;
-        wrap.style.height = `${Math.round(24 + POPUP_H * scale)}px`;
+        wrap.style.height = `${Math.round(24 + panelH() * scale)}px`; // panelH(): compact must survive a resize
         frame.style.transform = `scale(${scale})`;
     });
     window.addEventListener('mouseup', () => {

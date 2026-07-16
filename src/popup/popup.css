@@ -527,3 +527,45 @@ body.mephisto-dark #alt-lines::-webkit-scrollbar-thumb { background: #34353d; bo
    which a host page's CSP can block (the icons then rendered as the ligature TEXT), and a remote
    fetch is one more thing for a page to notice. */
 .mp-icon { font-style: normal; font-size: 20px; line-height: 1; }
+
+/* Compact mode: just the status line, the move and the score. The class is toggled on the panel
+   body (see apply_compact); the in-page panel is a fixed-size scaled box, so content-script.js
+   resizes the box + wrapper to COMPACT_H to match -- hiding these alone would leave a tall panel
+   full of empty space. `body.mephisto-*` is rehomed onto #mephisto-panel-body for the in-page
+   panel, which also lifts specificity to (1,1,0) so it beats the (1,0,0) base height rule. */
+body.mephisto-compact {
+    height: 210px; /* keep in sync with COMPACT_H in content-script.js */
+}
+body.mephisto-compact #board,
+body.mephisto-compact #eval-bar,
+body.mephisto-compact #quick-settings,
+body.mephisto-compact #alt-lines,
+body.mephisto-compact #wdl,
+body.mephisto-compact #nps {
+    display: none !important;
+}
+/* the buttons are anchored to the bottom, so they follow the panel up on their own; the
+   quick-settings column is gone in compact, so reclaim the space it was reserved out of */
+body.mephisto-compact #config { right: 75px; }
+body.mephisto-compact #recheck { right: 145px; }
+
+/* Native-engine health dot. Native engines are a separate process that may not be installed --
+   without this the only symptom is a panel that never evaluates. Hidden for the bundled WASM
+   engines, which are always present. */
+#engine-health {
+    position: absolute;
+    top: 8px;
+    right: 198px; /* top-right of the LEFT column: right:0 would sit inside the 190px quick-settings */
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    z-index: 6;
+    background: #9aa0a6;                 /* .probing -- no answer yet */
+}
+#engine-health.ok { background: #35c46a; }
+#engine-health.down { background: #e5534b; }
+body.mephisto-compact #engine-health { right: 8px; } /* quick-settings is hidden: reclaim the corner */
+
+/* A variant chess.js can't replay: say so rather than showing a confident wrong analysis. */
+#game-detection.unsupported { color: #c0392b; font-weight: 500; }
+body.mephisto-dark #game-detection.unsupported { color: #ff7a70; }

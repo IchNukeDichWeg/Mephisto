@@ -43,6 +43,7 @@ let is_calculating = false;
 let pending_stops = 0; // bestmoves still owed by searches we abandoned -- drop that many (see abandon_search)
 let search_active = false; // a 'go' was issued whose bestmove hasn't arrived yet (is_calculating can't be
                            // used for this: it flips false on the first info line, not on bestmove)
+let last_pos = {startFen: null, moves: ''}; // the position's own start + UCI move list, for Copy PGN
 let premove_tracker = {fen: '', lines: {}}; // per-multipv reply stability while the opponent thinks
 let prog = 0;
 let last_eval = {fen: '', activeLines: 0, lines: []};
@@ -58,6 +59,15 @@ let prev_ply_count = 0;    // plies in the last-seen position; a drop back to th
 const NATIVE_ENGINES = ['sf-native', 'fairy-native'];
 // native engines that ARE full Fairy-Stockfish -> offer the whole variant list, like the WASM Fairy
 const FAIRY_ENGINES = ['fairy-stockfish-14-nnue', 'fairy-native'];
+
+// The variants our bundled chess.js can actually REPLAY. The dropdown offers four more (Duck,
+// Minihouse, Seirawan, Chaturanga) because Fairy ships nets for them and the engine can evaluate
+// them -- but chess.js can't, and `new Chess(<unknown variant>)` does NOT throw: it silently falls
+// back to the standard start position (see its constructor -> _getDefaultStartingPosition). So the
+// scrape would be replayed as an ordinary game and analysed as the wrong position entirely, with
+// nothing on screen to say so. `set_detection_status` turns that silence into a plain message.
+const CHESSJS_VARIANTS = ['chess', 'fischerandom', 'crazyhouse', 'kingofthehill', '3check',
+                          'antichess', 'atomic', 'horde', 'racingkings'];
 
 // UCI_Elo [min, max] per engine, taken from each engine's own source (out-of-range values are
 // silently ignored by Stockfish, so the slider must stay within these): modern SF uses
@@ -147,7 +157,7 @@ async function initPanel(root, tabId) {
         compute_time: (computeTime != null) ? computeTime : 300,
         fen_refresh: (fenRefresh != null) ? fenRefresh : 1000, // FALLBACK poll; positions arrive event-driven
         multiple_lines: JSON.parse(MephistoConfig.get('multiple_lines')) || 1,
-        threads: JSON.parse(MephistoConfig.get('threads')) || 8,
+        threads: JSON.parse(MephistoConfig.get('threads')) || MephistoConfig.defaultThreads(),
         memory: JSON.parse(MephistoConfig.get('memory')) || 512,
         think_time: (thinkTime != null) ? thinkTime : 0,
         think_variance: (thinkVariance != null) ? thinkVariance : 0,
@@ -175,11 +185,10 @@ async function initPanel(root, tabId) {
         board: JSON.parse(MephistoConfig.get('board')) || 'brown',
         coordinates: JSON.parse(MephistoConfig.get('coordinates')) || false,
         dark_mode: JSON.parse(MephistoConfig.get('dark_mode')) || false,
+        compact: JSON.parse(MephistoConfig.get('compact')) || false,
     });
-    const darkTarget = (PANEL_ROOT === document)
-        ? document.body
-        : PANEL_ROOT.getElementById('mephisto-panel-body');
-    darkTarget?.classList.toggle('mephisto-dark', config.dark_mode); // dark theme (set in Appearance)
+    panel_body()?.classList.toggle('mephisto-dark', config.dark_mode); // dark theme (set in Appearance)
+    apply_compact();
     // keep autoplay running when the tab is backgrounded: start/resume the keep-alive tone on any
     // panel click and whenever visibility flips, so it's already playing before you tab away
     document.addEventListener('pointerdown', () => keep_alive(config.autoplay, true), true); // gesture: may create
@@ -330,17 +339,8 @@ async function initPanel(root, tabId) {
         // gets swallowed by popup blocking / page policy
         chrome.runtime.sendMessage({openUrl: url});
     });
-    PANEL_ROOT.getElementById('copyfen')?.addEventListener('click', async () => {
-        const fen = last_eval.fen;
-        if (!fen) return;
-        const btn = PANEL_ROOT.getElementById('copyfen');
-        const icon = btn.querySelector('.mp-icon');
-        const ok = await copy_text(fen);
-        if (!icon) return;
-        const was = icon.textContent;
-        icon.textContent = ok ? '✓' : '✕';
-        setTimeout(() => { icon.textContent = was; }, 900);
-    });
+    PANEL_ROOT.getElementById('copyfen')?.addEventListener('click', () => copy_to_button('copyfen', last_eval.fen));
+    PANEL_ROOT.getElementById('copypgn')?.addEventListener('click', () => copy_to_button('copypgn', current_pgn()));
     PANEL_ROOT.getElementById('config').addEventListener('click', () => {
         chrome.runtime.sendMessage({openOptions: true}); // the background opens it (see above)
     });
@@ -369,6 +369,9 @@ async function initPanel(root, tabId) {
     fen_request_inflight = false;
     push_config();  // resets the content-script's push dedupe + triggers an immediate push
     request_fen();
+    // Engine switches go through panel_reload(), so probing here covers them too. Not awaited: the
+    // probe waits up to 1s on a host that may not exist, and the panel must not boot behind it.
+    refresh_engine_health();
 }
 // In the iframe (and toolbar popup) the panel boots on DOMContentLoaded. Once the panel moves in-page
 // (4c-2) the content-script imports this module and calls initPanel(shadowRoot) directly instead --
@@ -455,7 +458,7 @@ function init_quick_settings() {
         ['qs_engine', 'engine', v => v],
         ['qs_variant', 'variant', v => v],
         ['qs_fen', 'fen_refresh', v => Math.max(1000, parseInt(v) || 1000)], // fallback poll, floor 1s (see interval clamp)
-        ['qs_threads', 'threads', v => parseInt(v) || 8],
+        ['qs_threads', 'threads', v => parseInt(v) || MephistoConfig.defaultThreads()],
         ['qs_memory', 'memory', v => parseInt(v) || 512],
         ['qs_lines', 'multiple_lines', v => parseInt(v) || 1],
     ]) {
@@ -1158,6 +1161,7 @@ function premove_instant_reply(new_fen, new_moves) {
 
 function on_new_pos(fen, startFen, moves) {
     console.log("on_new_pos", fen, startFen, moves);
+    last_pos = {startFen: startFen || null, moves: moves || ''}; // Copy PGN reads this
     clear_next_move_eta(); // the countdown belonged to the position that just changed
     humanize_roll = null;  // and so did any pre-rolled humanize outcome
     if (config.help_mode) request_clear_hint(); // position changed; last hint is stale
@@ -1326,7 +1330,7 @@ function parse_position_from_response(txt) {
     const metaTag = txt.substring(3, 8);
     const prefix = metaTag.substring(0, 2);
     detected_prefix = prefix;
-    PANEL_ROOT.getElementById('game-detection').innerText = prefixMap[prefix];
+    set_detection_status(prefixMap[prefix]);
     txt = txt.substring(11);
 
     if (metaTag.includes('var')) {
@@ -1387,6 +1391,109 @@ async function copy_text(text) {
     } catch (e) {
         return false;
     }
+}
+
+// Copy `text`, flashing the button's own icon as the receipt. Shared by Copy FEN and Copy PGN.
+async function copy_to_button(id, text) {
+    if (!text) return;
+    const icon = PANEL_ROOT.getElementById(id)?.querySelector('.mp-icon');
+    const ok = await copy_text(text);
+    if (!icon) return;
+    const was = icon.textContent;
+    icon.textContent = ok ? '✓' : '✕';
+    setTimeout(() => { icon.textContent = was; }, 900);
+}
+
+// The game so far, as PGN. chess.js has no pgn() of its own, so build it from history()'s SAN --
+// the same replay the analysis already does. Returns null when there's nothing to copy, or when the
+// variant is one chess.js can't replay (see CHESSJS_VARIANTS), rather than emitting a wrong game.
+function current_pgn() {
+    const {startFen, moves} = last_pos;
+    if (!moves) return null;
+    let san;
+    try {
+        const chess = new Chess(config.variant, startFen || undefined);
+        for (const uci of moves.split(' ').filter(Boolean)) chess.move(uci);
+        san = chess.history();
+    } catch (e) { return null; }
+    if (!san.length) return null;
+
+    const tags = [`[Variant "${config.variant}"]`];
+    // A non-standard start (chess960, "From Position") MUST ship as SetUp+FEN tags -- without them
+    // the PGN reads back from move 1 of the standard position, i.e. a different game entirely.
+    if (startFen) tags.push('[SetUp "1"]', `[FEN "${startFen}"]`);
+
+    // Number from the START position rather than from "1." with white: a From-Position game can
+    // begin at any move number, and with black to play -- which PGN writes as `12... Nf6`.
+    const fields = (startFen || '').split(' ');
+    let num = parseInt(fields[5]) || 1;
+    let black = fields[1] === 'b';
+    let body = '';
+    for (let i = 0; i < san.length; i++) {
+        if (!black) body += `${num}. `;
+        else if (i === 0) body += `${num}... `; // black to move at the start needs the ellipsis once
+        body += san[i] + ' ';
+        if (black) num++;
+        black = !black;
+    }
+    return `${tags.join('\n')}\n\n${body.trim()}`;
+}
+
+// The element the panel's own classes live on: the panel body in-page, <body> in the toolbar popup.
+function panel_body() {
+    return (PANEL_ROOT === document) ? document.body : PANEL_ROOT.getElementById('mephisto-panel-body');
+}
+
+// Compact mode: collapse to just the status + move lines + score, hiding the board, the eval bar,
+// quick-settings and the extras. The toggle lives in the floating panel's TITLE BAR (window chrome,
+// next to minimize) -- the button row along the bottom is full, and a control that hides the panel's
+// contents shouldn't live among the contents it hides.
+function toggle_compact() {
+    config.compact = !config.compact;
+    MephistoConfig.set('compact', config.compact);
+    apply_compact();
+}
+
+function apply_compact() {
+    panel_body()?.classList.toggle('mephisto-compact', !!config.compact);
+    // Hiding elements can't shrink the panel on its own: it's a FIXED-size box that the content
+    // script scales, so the box and its wrapper have to be resized too. No-op in the toolbar popup,
+    // where Chrome sizes the bubble around the content.
+    self.MephistoContent?.setPanelCompact?.(!!config.compact);
+}
+
+// Native engines are a separate process that may simply not be installed, and the failure is
+// otherwise silent (the panel just never evaluates). Probe the host -- `ping` answers WITHOUT
+// launching the engine -- and show a dot. WASM engines are bundled, so the dot is hidden for them.
+async function refresh_engine_health() {
+    const el = PANEL_ROOT.getElementById('engine-health');
+    if (!el) return;
+    if (!NATIVE_ENGINES.includes(config.engine)) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.className = 'probing';
+    el.title = 'Checking the native host…';
+    const want = config.engine; // a switch mid-probe must not let a stale result paint the new engine
+    const ok = await native_host_available(native_port_name());
+    if (config.engine !== want) return;
+    el.className = ok ? 'ok' : 'down';
+    el.title = ok ? 'Native host is responding' : 'Native host not responding — run native-host/install.sh once';
+}
+
+// The status line under the buttons. A variant chess.js can't replay would otherwise sit there
+// showing a normal "Game detected on ..." while analysing the wrong position -- say so instead.
+function set_detection_status(text) {
+    const el = PANEL_ROOT.getElementById('game-detection');
+    if (!el) return;
+    if (!CHESSJS_VARIANTS.includes(config.variant)) {
+        // reuse the dropdown's own label rather than keeping a second name map in sync
+        const opt = [...(PANEL_ROOT.getElementById('qs_variant')?.options || [])]
+            .find(o => o.value === config.variant);
+        el.innerText = `${opt ? opt.innerText : config.variant}: analysis not supported`;
+        el.classList.add('unsupported');
+        return;
+    }
+    el.classList.remove('unsupported');
+    el.innerText = text;
 }
 
 function panel_reload() {
@@ -2237,6 +2344,8 @@ async function call_backend(url, data) {
 self.MephistoPanel = {
     initPanel,
     isBooted: () => PANEL_BOOTED,
+    // the floating panel's title bar owns the compact toggle; the panel owns the state
+    toggleCompact: () => toggle_compact(),
     // content-script.js pushes positions/clocks straight in (same realm, no messaging)
     onContentMessage: (msg) => { try { PANEL_MSG_HANDLER && PANEL_MSG_HANDLER(msg, {}); } catch (e) { console.warn('Mephisto: content->panel failed', e); } },
 };

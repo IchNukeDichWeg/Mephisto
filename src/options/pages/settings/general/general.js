@@ -12,7 +12,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('compute_time', 'Stockfish Compute Time (ms):', 'input', 300);
         this.registerFormElement('fen_refresh', 'Fallback Poll Interval (ms):', 'input', 1000);
         const multipv_range = this.registerFormElement('multiple_lines', 'Multiple Lines:', 'range', 1);
-        const threads_range = this.registerFormElement('threads', 'Threads:', 'range', 8);
+        const threads_range = this.registerFormElement('threads', 'Threads:', 'range', MephistoConfig.defaultThreads());
         const memory_range = this.registerFormElement('memory', 'Memory:', 'range', 512);
         this.registerFormElement('computer_evaluation', 'Show Computer Evaluation:', 'checkbox', true);
         this.registerFormElement('threat_analysis', 'Show Threat Analysis', 'checkbox', false);

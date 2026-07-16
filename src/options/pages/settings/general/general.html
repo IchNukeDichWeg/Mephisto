@@ -396,6 +396,11 @@
         <div class="big-section">
             <div class="flex-group flex-small-gap">
                 <button id="reset_btn" class="waves-effect waves-light btn">Restore Defaults</button>
+                <button id="export_btn" class="waves-effect waves-light btn">Export Settings</button>
+                <button id="import_btn" class="waves-effect waves-light btn">Import Settings</button>
+                <!-- the real file picker; the visible button clicks it (a bare file input can't be
+                     styled to match, and Materialize's file field needs its JS) -->
+                <input id="import_file" type="file" accept="application/json,.json" style="display: none">
             </div>
         </div>
     </div>

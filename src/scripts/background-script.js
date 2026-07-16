@@ -89,7 +89,9 @@ async function buildPanelAssets() {
     // `html, body` base rule (0,0,1). Rewriting the base to an ID (#..., 1,0,0) would flip that and
     // the light background would win over dark mode -- white text on a light panel. So the dark rules
     // must carry the id too: `#mephisto-panel-body.mephisto-dark` (1,1,0) > `#mephisto-panel-body` (1,0,0).
-    css = css.replace(/body\.mephisto-dark/g, '#mephisto-panel-body.mephisto-dark')
+    // Matches EVERY `body.mephisto-*` state class, not just dark: a rule left as a bare `body.…`
+    // would escape the rehome and style the SITE's <body> instead of our panel.
+    css = css.replace(/\bbody\.mephisto-/g, '#mephisto-panel-body.mephisto-')
              .replace(/html,\s*body/g, '#mephisto-panel-body');
     // Inline every url() asset (the wood/marble/newspaper board textures). Injected into the page's
     // shadow root, a path like /res/chessboards/wood.jpeg would resolve against the SITE (404), and a

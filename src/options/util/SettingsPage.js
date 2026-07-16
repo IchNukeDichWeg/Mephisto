@@ -19,6 +19,18 @@ export class SettingsPage {
         this.resetButton = document.getElementById('reset_btn');
         this.resetButton.addEventListener('click', () => this.onResetConfigValues());
 
+        // Export/import live on the General page only (they're global, not per-page), so guard: the
+        // Appearance page shares this class and has no such buttons.
+        const exportBtn = document.getElementById('export_btn');
+        const importBtn = document.getElementById('import_btn');
+        const importFile = document.getElementById('import_file');
+        exportBtn?.addEventListener('click', () => this.onExportConfigValues());
+        importBtn?.addEventListener('click', () => importFile?.click());
+        importFile?.addEventListener('change', async () => {
+            if (importFile.files[0]) await this.onImportConfigValues(importFile.files[0]);
+            importFile.value = ''; // re-selecting the SAME file must fire 'change' again
+        });
+
         // chrome.storage.local is the source of truth (the panel writes only there). Wait for the
         // cache before touching the forms -- reading early gave stale values, and any later change
         // then pushed those stale values back, silently reverting settings made in the panel.
@@ -71,5 +83,45 @@ export class SettingsPage {
     onResetConfigValues() {
         this.clearConfigValues();
         this.pullConfigValues();
+    }
+
+    // Export EVERY setting, not just this page's form elements: the point is that a reinstall or a
+    // second machine restores the whole config, and plenty of it (panel geometry, per-site state)
+    // was never on a form. Values are the JSON strings the store already holds, so it round-trips
+    // byte-for-byte through import.
+    async onExportConfigValues() {
+        let all;
+        try { all = await chrome.storage.local.get(null); } catch (e) { all = {}; }
+        delete all.__cfg_migrated; // internal marker: exporting it would suppress the one-time
+                                   // localStorage migration on a fresh install that imports this
+        const url = URL.createObjectURL(new Blob([JSON.stringify(all, null, 2)], {type: 'application/json'}));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'mephisto-settings.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    async onImportConfigValues(file) {
+        let obj;
+        try {
+            obj = JSON.parse(await file.text());
+        } catch (e) {
+            alert('Import failed: that file is not valid JSON.');
+            return;
+        }
+        // A hand-edited or wrong file shouldn't half-apply and leave the config in a mixed state.
+        // The store holds JSON STRINGS for every key, so anything else means it isn't ours.
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)
+            || Object.values(obj).some(v => typeof v !== 'string')) {
+            alert('Import failed: that does not look like a Mephisto settings file.');
+            return;
+        }
+        delete obj.__cfg_migrated;
+        // Set through MephistoConfig, not chrome.storage directly: it updates the SYNC cache now,
+        // rather than waiting on the async onChanged that pullConfigValues would otherwise race.
+        for (const [k, v] of Object.entries(obj)) MephistoConfig.set(k, v);
+        this.pullConfigValues();
+        alert(`Imported ${Object.keys(obj).length} settings. Open panels pick them up on their next move; reload the game tab to apply an engine change now.`);
     }
 }

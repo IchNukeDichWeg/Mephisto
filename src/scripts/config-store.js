@@ -53,6 +53,14 @@
             try { chrome.storage.local.remove(key); } catch (e) { /* */ }
             lsRemove(key);
         },
+        // Default thread count, shared by the panel and the options page (both load this file) so the
+        // two can't drift apart. cores-1 leaves one for the browser/OS -- handing the engine EVERY
+        // core makes the page it's scraping stutter. Clamped to the sliders' 1..24; hardwareConcurrency
+        // is undefined in some contexts, so fall back to the old fixed default.
+        defaultThreads() {
+            const cores = navigator.hardwareConcurrency;
+            return cores ? Math.max(1, Math.min(24, cores - 1)) : 8;
+        },
         // load chrome.storage into the cache once; one-time migrate the old localStorage config in.
         async init() {
             if (ready) return;
