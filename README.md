@@ -402,7 +402,12 @@ No schedule — added whenever I feel like it.
 - [ ] NPS / depth sparkline
 - [ ] Compact / expanded panel toggle
 - [x] Copy FEN button — *done*; PGN still open
-- [ ] Configurable hotkeys
+- [ ] **Configurable hotkeys** — keyboard shortcuts for the common actions (toggle panel, autoplay, help mode,
+  re-detect, play best move, copy FEN). **Every binding rebindable to any key combo** from Settings, with conflict
+  detection against the site's own shortcuts, and a reset-to-defaults.
+- [ ] **Export / import settings** — save the whole config to a **JSON file** and load it back, so a reinstall, a
+  second machine or a browser profile switch doesn't mean re-entering every setting by hand. Round-trips everything
+  in `chrome.storage.local` (engine, Elo, variant, timing, Humanize/Clock/Mirror, panel style, hotkeys).
 
 **Robustness**
 - [ ] Self-test / diagnostics panel
