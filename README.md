@@ -132,7 +132,7 @@ To pick up a code change: reload the extension on `chrome://extensions`, then re
   number of lines, and all timing/mode toggles. Changes apply on the next move (engine changes reload the panel).
 - **Re‑detect (↻)** — rescan the page and restart analysis, e.g. after a new game loads without a full page reload.
 - **Analysis board (⧉)** — open the current position on Lichess's analysis board in one click.
-- **Copy FEN (⎘) / Copy PGN (≡)** — the position, or the whole game so far. A game that began from a custom start
+- **Copy FEN / Copy PGN** (two labelled buttons) — the position, or the whole game so far. A game that began from a custom start
   (Chess960, "From Position") exports with `SetUp`/`FEN` tags, so it reads back as the same game rather than as a
   standard one.
 - **Compact (▣, in the title bar)** — collapse the panel to just the status line, move and score; press again to
@@ -421,7 +421,7 @@ No schedule — added whenever I feel like it.
 - [ ] **NPS / depth sparkline** — a small live graph of search speed and depth.
 - [x] **Compact / expanded panel toggle** — *done*: the **▣** button in the panel's title bar collapses it to just
   the status line, move and score; press again to restore. The choice is remembered.
-- [x] **Copy FEN button** — *done*. **Copy PGN** — *done*: the **≡** button copies the game so far, with SetUp/FEN
+- [x] **Copy FEN button** — *done*. **Copy PGN** — *done*: a labelled **PGN** button copies the game so far, with SetUp/FEN
   tags when it started from a custom position.
 - [ ] **Configurable hotkeys** — keyboard shortcuts for the common actions (toggle panel, autoplay, help mode,
   re-detect, play best move, copy FEN). **Every binding rebindable to any key combo** from Settings, with conflict
