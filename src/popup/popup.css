@@ -440,6 +440,16 @@ html, body {
     left: 75px; /* beside the analysis-board button */
 }
 
+#copypgn {
+    position: absolute;
+    bottom: 5px;
+    left: 145px; /* beside Copy FEN. absolute like the others -- in normal flow it pushed the board
+                    down and knocked the move arrows out of alignment. */
+}
+
+/* FEN / PGN read as words, not icons: smaller and bold so they fit the square button */
+.mp-label { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
+
 .material-tooltip {
     top: 429px !important;
     /* Cap the width so long hints wrap onto several lines instead of running off the
@@ -507,14 +517,16 @@ body.mephisto-dark #quick-settings::-webkit-scrollbar-thumb {
 body.mephisto-dark #config,
 body.mephisto-dark #recheck,
 body.mephisto-dark #analyze,
-body.mephisto-dark #copyfen {
+body.mephisto-dark #copyfen,
+body.mephisto-dark #copypgn {
     background-color: #2a2b31;
     box-shadow: none;
 }
 body.mephisto-dark #config:hover,
 body.mephisto-dark #recheck:hover,
 body.mephisto-dark #analyze:hover,
-body.mephisto-dark #copyfen:hover {
+body.mephisto-dark #copyfen:hover,
+body.mephisto-dark #copypgn:hover {
     background-color: #363740;
 }
 body.mephisto-dark #eval-bar {
