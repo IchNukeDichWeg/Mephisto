@@ -5,10 +5,11 @@ let registerPageScript;
 // dark mode: a single class on <html>, toggled from the Appearance settings. Applied before
 // anything renders and re-applied live when the toggle changes (window.mephistoApplyTheme).
 function applyTheme() {
-    const dark = JSON.parse(localStorage.getItem('dark_mode') || 'false');
+    const dark = JSON.parse(MephistoConfig.get('dark_mode') || 'false');
     document.documentElement.classList.toggle('dark', dark);
 }
 applyTheme();
+MephistoConfig.ready.then(applyTheme); // re-apply once chrome.storage (source of truth) is loaded
 window.mephistoApplyTheme = applyTheme;
 
 document.addEventListener('DOMContentLoaded', function () {

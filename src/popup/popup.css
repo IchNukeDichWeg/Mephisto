@@ -1,3 +1,10 @@
+/* Toolbar-popup mode (Panel Style = "popup"): the page is top-level, so shrink the whole thing with
+   zoom — Chrome sizes the popup window to the zoomed content, so it takes up much less screen. The
+   floating-panel iframe never gets this class (the content-script scales it separately). */
+html.toolbar-popup {
+    zoom: 0.7;
+}
+
 html, body {
     width: 568px; /* 378px left column (14px eval bar + 4px gap + 350px board + margins) + 190px quick settings */
     height: 672px; /* room for the score + WDL line + alternative-lines panel under the board, uncramped */
@@ -264,8 +271,8 @@ html, body {
     margin: 8px 0 0 0;
 }
 
-/* Win/Draw/Loss probabilities for the current position, straight from the engine's UCI_ShowWDL
-   ("White 50.0% | Draw 30.0% | Black 20.0%"). Blank for engines that don't report WDL. */
+/* Win/Draw/loss probabilities for the current position, straight from the engine's UCI_ShowWDL
+   ("White 50% | Draw 30% | Black 20%"). Blank for engines that don't report WDL. */
 #wdl {
     height: 23px;
     font: 16px 'Roboto', sans-serif;
@@ -427,6 +434,12 @@ html, body {
     left: 5px;
 }
 
+#copyfen {
+    position: absolute;
+    bottom: 5px;
+    left: 75px; /* beside the analysis-board button */
+}
+
 .material-tooltip {
     top: 429px !important;
     /* Cap the width so long hints wrap onto several lines instead of running off the
@@ -493,13 +506,15 @@ body.mephisto-dark #quick-settings::-webkit-scrollbar-thumb {
 /* flatten the two floating action buttons so they sit in the theme instead of glowing teal */
 body.mephisto-dark #config,
 body.mephisto-dark #recheck,
-body.mephisto-dark #analyze {
+body.mephisto-dark #analyze,
+body.mephisto-dark #copyfen {
     background-color: #2a2b31;
     box-shadow: none;
 }
 body.mephisto-dark #config:hover,
 body.mephisto-dark #recheck:hover,
-body.mephisto-dark #analyze:hover {
+body.mephisto-dark #analyze:hover,
+body.mephisto-dark #copyfen:hover {
     background-color: #363740;
 }
 body.mephisto-dark #eval-bar {
@@ -507,3 +522,8 @@ body.mephisto-dark #eval-bar {
 }
 body.mephisto-dark #alt-lines::-webkit-scrollbar { width: 8px; }
 body.mephisto-dark #alt-lines::-webkit-scrollbar-thumb { background: #34353d; border-radius: 4px; }
+
+/* Panel button glyphs. Replaces the Material-Icons webfont: it loaded from fonts.gstatic.com,
+   which a host page's CSP can block (the icons then rendered as the ligature TEXT), and a remote
+   fetch is one more thing for a page to notice. */
+.mp-icon { font-style: normal; font-size: 20px; line-height: 1; }

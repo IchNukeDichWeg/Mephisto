@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Mephisto engine host</title>
+</head>
+<body>
+<!-- Invisible extension-origin document (chrome.offscreen). Hosts the WASM engine off the page so
+     the floating panel no longer needs an in-page iframe. Gets cross-origin isolation (SharedArrayBuffer)
+     from the manifest COEP/COOP keys, like the popup iframe did. -->
+<script src="offscreen.js"></script>
+</body>
+</html>

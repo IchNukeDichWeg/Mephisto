@@ -3,6 +3,25 @@ let config; // configuration pulled from popup
 let startPosCache; // cache of non-standard starting positions as puzzle strings (to support chess960)
 let moving = false; // whether the content-script is performing a move
 let mephistoTabId = null; // this tab's id, so the popup iframe talks to ONLY this tab (see below)
+let deferredWhileHidden = false; // an autoplay/premove was held because the tab wasn't focused/visible
+
+// The tab is "active" only when it's the visible tab AND the window has system focus. `hasFocus()`
+// stays true when focus is inside our floating-panel iframe (same top-level browsing context), so
+// using the panel doesn't count as tabbed-away.
+function tabActive() {
+    return document.visibilityState === 'visible' && document.hasFocus();
+}
+
+// When the tab becomes active again after a move was held, re-scrape so the popup re-analyses the
+// (still-current) position and re-issues the move -- now that we're allowed to click.
+function resumeIfDeferred() {
+    if (deferredWhileHidden && tabActive()) {
+        deferredWhileHidden = false;
+        schedulePush();
+    }
+}
+document.addEventListener('visibilitychange', resumeIfDeferred);
+window.addEventListener('focus', resumeIfDeferred);
 
 // ask the background for our own tab id as early as possible (content-script sender.tab is always
 // populated). The popup iframe uses it to message just this tab instead of the globally-active tab.
@@ -18,7 +37,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.60'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.70'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -34,7 +53,7 @@ window.onload = () => {
     determineStartPosition();
 };
 
-chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
+function handleExtensionMessage(response, sender, sendResponse) {
     if (response.toggleOverlay) {
         toggleOverlay();
         return;
@@ -58,7 +77,7 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
             orient = getOrientation();
         }
         try {
-            chrome.runtime.sendMessage({ dom: res, orient: orient, clocks: scrapeClocks(), fenresponse: true });
+            sendToPanel({ dom: res, orient: orient, clocks: scrapeClocks(), fenresponse: true });
         } catch (e) {
             // extension was reloaded — this orphaned content-script can't reach it anymore
         }
@@ -67,6 +86,17 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
     if (moving) return;
     if (response.automove) {
         if (!config.autoplay) return; // safety: never auto-move if autoplay was turned off since the message was sent
+        // undetectability: don't click while the tab is backgrounded/unfocused -- a human wouldn't
+        // move while tabbed away, and "moved while hidden" is an easy anomaly to flag. It's still our
+        // turn (or a queued premove), so the position is stable: hold the move and re-scrape the
+        // instant the tab is active again, which makes the popup re-issue it. Opt out with background_play.
+        if (!config.background_play && !tabActive()) {
+            deferredWhileHidden = true;
+            return;
+        }
+        // apply the think/move timing the popup read FRESH from storage for this move, so changing the
+        // Think/Move Time sliders mid-game takes effect on the very next move (not the game-start snapshot)
+        if (response.timing) Object.assign(config, response.timing);
         toggleMoving();
         try {
             if (config.puzzle_mode) {
@@ -86,7 +116,7 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
         // config in hand = we can scrape. Start the event-driven pipeline and sync the panel
         // immediately (a re-opened panel must not wait for the next board mutation or fallback poll).
         startPositionObserver();
-        lastPushKey = null; // config may change how we scrape (variant) -> never dedupe across configs
+        lastPushKey = lastDisplayKey = null; // config may change how we scrape (variant) -> never dedupe across configs
         schedulePush();
     } else if (response.drawHint) {
         drawHintArrows(response.arrows);
@@ -99,7 +129,24 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
     } else if (response.consoleMessage) {
         console.log(response.consoleMessage);
     }
-});
+}
+chrome.runtime.onMessage.addListener(handleExtensionMessage); // background + toolbar-popup traffic
+// The in-page panel is popup.js running in THIS isolated world, so it talks to us by direct call.
+self.MephistoContent = {
+    handle: (msg) => handleExtensionMessage(msg, {}, () => {}),
+    detectVariant: () => ({variant: detectVariant(), href: location.href}),
+    // Settings that need a full engine re-init (engine/variant/elo) used to reload the popup page.
+    // In-page that would reload the SITE, so tear the panel down and rebuild it: fresh config, fresh
+    // engine, same effect. See panel_reload() in popup.js.
+    reopenPanel: async () => { removeOverlay(); await toggleOverlay(); },
+};
+
+// Deliver a scrape/clock push to whichever panel is live: the in-page one shares our realm (direct
+// call); the toolbar popup is a real extension page and needs runtime messaging.
+function sendToPanel(msg) {
+    if (self.MephistoPanel?.isBooted?.()) { self.MephistoPanel.onContentMessage(msg); return; }
+    try { chrome.runtime.sendMessage(msg); } catch (e) { /* orphaned content-script after a reload */ }
+}
 
 // ------------------------------------------------------------------------------------------
 // In-page overlay: the whole Mephisto panel (popup.html) injected into the page as a
@@ -175,7 +222,7 @@ function removeOverlay() {
 // its timers (a cross-origin hidden iframe gets throttled to ~1/s -> laggy autoplay). pointer-events
 // :none makes it click-through so it can't sit over a destination square and eat the autoplay click.
 function minimizeOverlay(wrap) {
-    const frame = wrap.querySelector('iframe');
+    const frame = wrap.querySelector('.mephisto-panel-box'); // the panel is a plain div now, not an iframe
     wrap.style.opacity = '0';
     wrap.style.pointerEvents = 'none';
     // set it on the iframe TOO, explicitly: the drag handler's mouseup leaves an inline
@@ -200,9 +247,25 @@ function minimizeOverlay(wrap) {
     getOverlayRoot().appendChild(badge);
 }
 
-function toggleOverlay() {
+async function toggleOverlay() {
     if (overlayEl(PANEL_OVERLAY_ID)) {
         removeOverlay();
+        return;
+    }
+    // The panel's markup + CSS arrive from the background as BYTES. They are deliberately NOT loaded
+    // by URL: a <link>/<iframe> pointing at chrome-extension://<id>/... would both hand the page our
+    // id and land in its Resource Timing (issue #35 §3.1/§3.4). getOverlayRoot() first -- the style
+    // is injected into the shadow root, which must exist.
+    const overlayRoot = getOverlayRoot();
+    let assets;
+    try {
+        assets = await chrome.runtime.sendMessage({getPanelAssets: true});
+    } catch (e) {
+        console.warn('Mephisto: could not load panel assets', e);
+        return;
+    }
+    if (!assets || assets.error || !assets.html) {
+        console.warn('Mephisto: panel assets unavailable', assets && assets.error);
         return;
     }
     // saved geometry wins (drag/resize persists it); fresh installs get the scaled default at top-right
@@ -229,10 +292,26 @@ function toggleOverlay() {
         'style="cursor: pointer; padding: 0 4px; font-size: 14px;">✕</span>' +
         '</span>';
 
-    const frame = document.createElement('iframe');
-    frame.src = chrome.runtime.getURL('src/popup/popup.html') + (mephistoTabId ? `?tab=${mephistoTabId}` : '');
+    // THE PANEL ITSELF -- no iframe. popup.html's body is injected straight into the closed shadow
+    // root and driven by popup.js running in this isolated world. An <iframe> is a browsing CONTEXT:
+    // the page counts it in window.length and gets a throw from window[i].location, which a closed
+    // shadow root does NOT hide (issue #35 §3.1/§3.3). A plain <div> has no such tell. The markup,
+    // CSS and piece images are all delivered as bytes by the background, so no chrome-extension://
+    // URL is ever visible to the page or its Resource Timing (§3.4).
+    const frame = document.createElement('div');
+    frame.className = 'mephisto-panel-box';
     frame.style.cssText = `width: ${POPUP_W}px; height: ${POPUP_H}px; border: none; display: block; background: #f0f0f0; ` +
-        `transform: scale(${scale}); transform-origin: top left;`;
+        `overflow: hidden; transform: scale(${scale}); transform-origin: top left;`;
+    const panelBody = document.createElement('div');
+    panelBody.id = 'mephisto-panel-body'; // stands in for popup.html's <body> (CSS is rehomed onto it)
+    panelBody.innerHTML = assets.html;
+    frame.appendChild(panelBody);
+    if (!overlayRoot.querySelector('style[data-mp]')) {
+        const style = document.createElement('style'); // scoped to the shadow root; never touches the page
+        style.setAttribute('data-mp', '');
+        style.textContent = assets.css;
+        overlayRoot.appendChild(style);
+    }
 
     // resize grip: a corner handle that rescales the whole panel (aspect-locked -- the popup is a
     // fixed layout, so resizing changes the SCALE, not the layout). Native CSS `resize` doesn't
@@ -245,9 +324,17 @@ function toggleOverlay() {
         'border-bottom-right-radius: 8px;';
 
     wrap.append(bar, frame, grip);
-    getOverlayRoot().appendChild(wrap);
+    overlayRoot.appendChild(wrap);
     bar.querySelector('.mephisto-overlay-close').addEventListener('click', removeOverlay);
     bar.querySelector('.mephisto-overlay-min').addEventListener('click', () => minimizeOverlay(wrap));
+    // Boot the panel. popup.js is a content script in THIS isolated world, so this is a direct call --
+    // no module import (which would need web_accessible_resources and leak the id via Resource Timing).
+    // It looks its elements up through the shadow root we hand it, and talks to our tab by id.
+    try {
+        self.MephistoPanel.initPanel(overlayRoot, mephistoTabId);
+    } catch (e) {
+        console.warn('Mephisto: panel failed to start', e);
+    }
 
     // corner-drag resize; persists like drag does
     let resizing = false, resizeFromX, resizeStartW;
@@ -858,7 +945,8 @@ function pullConfig() {
 
 let positionObserver = null;
 let pushDebounce = null;  // pending debounce timer id, or null
-let lastPushKey = null;   // orientation|scrape of the last push, for dedupe
+let lastPushKey = null;   // orientation|scrape of the last full (analysed) push, for dedupe
+let lastDisplayKey = null; // orientation|scrape of the last displayOnly push (mid-move panel mirror)
 
 function startPositionObserver() {
     if (positionObserver) return; // config re-pushes must not stack observers
@@ -896,15 +984,26 @@ function schedulePush() {
 }
 
 function pushPosition() {
-    if (!config || moving) return; // can't scrape yet / mid-automove (toggleMoving catches up)
+    if (!config) return;           // no config yet -> can't scrape
     const res = tryScrapePosition();
     if (res === 'no') return;      // transient (animating, no board): never push, never dedupe
     const orient = getOrientation();
     const key = `${orient}|${res}`;
-    if (key === lastPushKey) return; // the mutation didn't change the position -> panel hears nothing
-    lastPushKey = key;
+    if (key === lastPushKey) return; // already delivered as a full (analysed) push -> nothing to do
     try {
-        chrome.runtime.sendMessage({ dom: res, orient: orient, clocks: scrapeClocks(), fenresponse: true });
+        if (moving) {
+            // mid-automove: mirror the position on the panel board the INSTANT it settles, so the
+            // small board tracks the move in real time instead of freezing until the move verifies.
+            // Flag it displayOnly -- the popup only redraws, never re-analyses/auto-moves mid-move
+            // (the `moving` guard on incoming automoves is the real double-move protection). Do NOT
+            // advance lastPushKey: the authoritative full push must still fire once `moving` clears.
+            if (key === lastDisplayKey) return; // dedupe repeat display pushes of the same position
+            lastDisplayKey = key;
+            sendToPanel({ dom: res, orient, clocks: scrapeClocks(), fenresponse: true, displayOnly: true });
+            return;
+        }
+        lastPushKey = key;
+        sendToPanel({ dom: res, orient: orient, clocks: scrapeClocks(), fenresponse: true });
     } catch (e) {
         // extension was reloaded -- this orphaned content-script can't reach it anymore
     }
@@ -1274,12 +1373,14 @@ function getRandomSampledXY(bounds, range = 0.8) {
 // -------------------------------------------------------------------------------------------
 
 function dispatchSimulateClick(x, y) {
-    console.log([x, y]);
-    chrome.runtime.sendMessage({
-        click: true,
-        x: x,
-        y: y
-    });
+    try {
+        // goes to the PANEL (it picks CDP vs the python backend), which is in our own realm when the
+        // panel is in-page -- runtime.sendMessage would only reach the extension, never our sibling.
+        sendToPanel({click: true, x: x, y: y});
+    } catch (e) {
+        // "Extension context invalidated" -- this content-script was orphaned by an extension reload
+        // (a fresh one loads on the next page refresh). Swallow it like the other sendMessage sites.
+    }
 }
 
 function simulateClickSquare(bounds, range = 0.8) {
@@ -1315,12 +1416,17 @@ function simulateMove(move, deselect, think = null) {
     }
 
     async function performSimulatedMoveClicks() {
-        // clear any stale selection first (a piece left selected by a prior failed click would be
-        // DESELECTED by our from-click, making the move a no-op). `deselect` is an empty square the
-        // moving piece can't reach, so clicking it only ever deselects -- never moves anything.
+        // Clear a stale selection (a piece left selected by a prior failed click would be DESELECTED
+        // by our from-click, making the move a no-op). `deselect` is an empty square the moving piece
+        // can't reach, so clicking it only ever deselects -- never moves anything.
+        // ONLY on a RETRY: simulateMoveVerified passes deselect=null on the first attempt. Leading
+        // EVERY move with a click on an empty, unreachable square is a deterministic non-human
+        // 3-click signature; a human just clicks from->to. The rare stale selection is what makes the
+        // first attempt fail, and the retry (which does clear it) recovers. Lead delay is randomized
+        // -- a fixed 60ms was itself a fingerprint next to the varianced from->to gap.
         if (/^[a-h][1-8]$/.test(deselect ?? '')) {
             simulateClickSquare(getBoundsFromCoords(deselect));
-            await promiseTimeout(60);
+            await promiseTimeout(40 + Math.random() * 90);
         }
         simulateClickSquare(getBoundsFromCoords(move.substring(0, 2)));
         await promiseTimeout(getMoveTime());
@@ -1348,18 +1454,24 @@ async function simulateMoveVerified(move, deselect, verify, think = null, retrie
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
         return simulateMove(move, deselect); // invalid -> simulateMove logs + no-ops
     }
+    // Human moves are a bare from->to. The `deselect` lead-click only exists to recover from a stale
+    // selection -- which is precisely what makes an attempt FAIL -- so spend it only on a retry, not
+    // on every move (see performSimulatedMoveClicks). `before !== null` == we're in the retry
+    // recursion, since the first call always enters with the default null.
+    const ds = (before !== null) ? deselect : null;
     // A BLIND premove (verify=false) is clicked while it is NOT our turn: the site queues it and it
     // won't appear in the move list until the opponent moves. Verifying/retrying it would re-click
     // and clobber the queued premove -- so only verify real moves played on our own turn. The popup
-    // decides this from the position's side-to-move and passes it in (see request_automove).
-    if (!verify) return simulateMove(move, deselect, think);
+    // decides this from the position's side-to-move and passes it in (see request_automove). It is a
+    // single attempt, so it never gets the deselect lead either.
+    if (!verify) return simulateMove(move, ds, think);
     // Capture the move count ONCE, before the FIRST attempt. Re-reading it on each retry breaks the
     // check: chess.com's move list can update later than a fixed wait (board animation), so a move
     // that DID land shows up only after we'd have re-read `before` as the already-grown count -- the
     // retry then replays into a changed board and still reports "failed". Compare against the
     // original count throughout, and POLL for it to grow instead of a single snapshot.
     if (before === null) before = getMoveRecords()?.length ?? 0;
-    await simulateMove(move, deselect, think);
+    await simulateMove(move, ds, think);
     for (let waited = 0; waited < 1500; waited += 50) { // poll up to 1.5s for the move to register
         await promiseTimeout(50);
         if ((getMoveRecords()?.length ?? 0) > before) return; // a move was played -> success

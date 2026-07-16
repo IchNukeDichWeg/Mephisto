@@ -118,8 +118,8 @@
                     <p id="ui_mode_note" style="margin: 6px 0 0; font-size: 12px; line-height: 1.4;">
                         ⚠️ The <b>floating panel</b> is embedded in the web page, which makes the extension easier for a
                         chess site to detect. The <b>toolbar popup</b> runs entirely in the browser and leaves no page
-                        footprint — pick it for the safer mode. (Same features either way; the popup closes when you
-                        click away.)
+                        footprint — the safer choice for pure <b>analysis</b>. Note: the popup closes when you click the
+                        board, so <b>Autoplay and Premove work only with the Floating panel</b>.
                     </p>
                 </div>
                 <div class="flex-group">
@@ -181,6 +181,22 @@
                         <label>
                             Off
                             <input id="premove_checkbox" type="checkbox">
+                            <span class="lever"></span>
+                            On
+                        </label>
+                    </div>
+                    <div class="section switch">
+                        <label class="switch-label tooltipped" data-position="right"
+                               data-tooltip="When OFF (default), moves only fire while this tab is focused and visible --
+                                             a human doesn't play while tabbed away, so this avoids a 'moved in the
+                                             background' anomaly. Turn ON to keep autoplay/premove running when the tab
+                                             is hidden or unfocused."
+                        >
+                            Background Play <i class="material-icons info-tooltip">info</i>
+                        </label>
+                        <label>
+                            Off
+                            <input id="background_play_checkbox" type="checkbox">
                             <span class="lever"></span>
                             On
                         </label>
