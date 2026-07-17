@@ -673,13 +673,13 @@ function on_engine_error(message) {
     if (!/RuntimeError|Aborted|worker sent an error/.test(String(message))) return;
     if (engine_restarts >= 3) {
         // ponytail: cap restarts — a build that keeps trapping (some wasm builds on some machines) shouldn't loop forever
-        update_best_move('Engine keeps crashing — pick a different engine in Settings.', '');
+        update_best_move('Engine keeps crashing — pick a different engine in Settings.');
         return;
     }
     engine_restarts++;
     engine_restarting = true;
     engine = null; // drop the dead instance; send_engine_uci becomes a no-op meanwhile
-    update_best_move(`Engine crashed — restarting (attempt ${engine_restarts}/3)`, '');
+    update_best_move(`Engine crashed — restarting (attempt ${engine_restarts}/3)`);
     initialize_engine()
         .then(() => { last_eval = {fen: '', activeLines: 0, lines: []}; }) // force re-analysis on next fen poll
         .catch((e) => console.error('Engine restart failed:', e))
@@ -700,16 +700,16 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         if ('mate' in pvLine) {
             update_evaluation('Checkmate!');
             if (config.variant === 'antichess') {
-                update_best_move(`${toplay} Wins`, '');
+                update_best_move(`${toplay} Wins`);
             } else {
-                update_best_move(`${next} Wins`, '');
+                update_best_move(`${next} Wins`);
             }
         } else {
             update_evaluation('Stalemate!');
             if (config.variant === 'antichess') {
-                update_best_move(`${toplay} Wins`, '');
+                update_best_move(`${toplay} Wins`);
             } else {
-                update_best_move('Draw', '');
+                update_best_move('Draw');
             }
         }
         clear_next_move_eta(); // game over: no move coming, drop any countdown started at search time
@@ -727,11 +727,9 @@ function on_engine_best_move(best, threat, isTerminal=false) {
             update_best_move('');
         }
     } else {
-        if (config.threat_analysis && threat && threat !== '(none)') {
-            update_best_move(`${toplay} to play, best move is ${best}`, `Best response for ${next} is ${threat}`);
-        } else {
-            update_best_move(`${toplay} to play, best move is ${best}`, '');
-        }
+        // Threat Analysis draws the red arrow (draw_threat) -- it no longer prints a second text
+        // line; the "Best response for ..." readout was removed.
+        update_best_move(`${toplay} to play, best move is ${best}`);
     }
 
     if (toplay.toLowerCase() === board.orientation()) {
@@ -824,6 +822,10 @@ function update_eval_bar(line) {
     }
 }
 
+// Don't believe the engine's nps until it has searched this long: below it, nodes/elapsed is
+// dividing by a 0-1ms integer and the number is meaningless (see on_engine_evaluation).
+const NPS_MIN_MS = 200;
+
 // nodes/second, grouped Swiss-style: 1019100 -> "1'019'100 NPS" (so you can see engine speed)
 function format_nps(n) {
     if (!Number.isFinite(n) || n <= 0) return '';
@@ -834,9 +836,14 @@ function on_engine_evaluation(info) {
     if (!info.lines[0]) return;
     update_eval_bar(info.lines[0]);
 
+    // The engine's nps is nodes/elapsed and its `time` is INTEGER milliseconds, so the first info
+    // lines of a search divide by almost nothing and report impossible speeds -- a real report was
+    // 843'779'000 NPS, which is exactly 843'779 nodes "in 1ms". Only trust nps once the search has
+    // run long enough for that division to mean something; until then leave the last good value.
     const npsEl = PANEL_ROOT.getElementById('nps');
-    if (npsEl && Number.isFinite(info.lines[0].nps) && info.lines[0].nps > 0) {
-        npsEl.textContent = format_nps(info.lines[0].nps);
+    const l0 = info.lines[0];
+    if (npsEl && Number.isFinite(l0.nps) && l0.nps > 0 && Number.isFinite(l0.time) && l0.time >= NPS_MIN_MS) {
+        npsEl.textContent = format_nps(l0.nps);
     }
     if ('mate' in info.lines[0]) {
         update_evaluation(`Checkmate in ${info.lines[0].mate}`);
@@ -1360,12 +1367,11 @@ function update_evaluation(eval_string) {
     }
 }
 
-function update_best_move(line1, line2) {
+// One line: the "Best response for X is Y" threat readout used to occupy a second line here, and
+// its empty reserved row showed as a gap under the move. Threat Analysis is now arrow-only.
+function update_best_move(line1) {
     if (line1 != null) {
         PANEL_ROOT.getElementById('chess_line_1').innerHTML = line1;
-    }
-    if (line2 != null) {
-        PANEL_ROOT.getElementById('chess_line_2').innerHTML = line2;
     }
 }
 
@@ -2154,7 +2160,7 @@ function toggle_calculating(on) {
     prog = 0;
     is_calculating = on;
     if (is_calculating) {
-        update_best_move(`<div>Calculating...<div><progress id='progBar' value='2' max='100'>`, '');
+        update_best_move(`<div>Calculating...<div><progress id='progBar' value='2' max='100'>`);
     }
 }
 
@@ -2324,7 +2330,7 @@ async function parse_backend_json(res) {
 
 function on_remote_error(err) {
     console.error(err);
-    update_best_move(err.message, '');
+    update_best_move(err.message);
     toggle_calculating(false);
 }
 
