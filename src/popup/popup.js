@@ -822,9 +822,26 @@ function update_eval_bar(line) {
     }
 }
 
-// Don't believe the engine's nps until it has searched this long: below it, nodes/elapsed is
-// dividing by a 0-1ms integer and the number is meaningless (see on_engine_evaluation).
-const NPS_MIN_MS = 200;
+// Below this much search, the engine's nodes/elapsed is dividing by a 0-1ms integer and the answer
+// is noise rather than a speed (see nps_is_trustworthy).
+const NPS_MIN_MS = 50;
+// Nothing reaches 30M nps -- not even a native build with every thread. Anything above it is the
+// same divide-by-almost-zero artifact wearing a plausible-looking number.
+const NPS_MAX = 30_000_000;
+
+// Is this line's nps a real speed, or the artifact?
+//
+// Elapsed is derived as nodes/nps rather than read from the info's own `time`, because that field's
+// UNIT depends on which engine path produced it: the WASM engines are parsed straight from raw UCI,
+// where `time` is INTEGER MILLISECONDS, while the native + remote hosts go through python-chess,
+// which does `info["time"] = int(time_ms) / 1000.0` -- FLOAT SECONDS. A single threshold can't mean
+// both, and gating on it hid nps entirely on every native engine. nodes/nps is the engine's own
+// elapsed whichever path it came from, and needs no unit at all.
+function nps_is_trustworthy(line) {
+    if (!Number.isFinite(line.nps) || line.nps <= 0 || line.nps > NPS_MAX) return false;
+    if (!Number.isFinite(line.nodes) || line.nodes <= 0) return true; // can't derive: the cap stands alone
+    return (line.nodes / line.nps) * 1000 >= NPS_MIN_MS;
+}
 
 // nodes/second, grouped Swiss-style: 1019100 -> "1'019'100 NPS" (so you can see engine speed)
 function format_nps(n) {
@@ -836,13 +853,12 @@ function on_engine_evaluation(info) {
     if (!info.lines[0]) return;
     update_eval_bar(info.lines[0]);
 
-    // The engine's nps is nodes/elapsed and its `time` is INTEGER milliseconds, so the first info
-    // lines of a search divide by almost nothing and report impossible speeds -- a real report was
-    // 843'779'000 NPS, which is exactly 843'779 nodes "in 1ms". Only trust nps once the search has
-    // run long enough for that division to mean something; until then leave the last good value.
+    // nps is nodes/elapsed, so the opening instants of a search divide by ~0 and report impossible
+    // speeds -- one real report read 843'779'000 NPS, which is exactly 843'779 nodes "in 1ms". Show
+    // it only once it's believable (see nps_is_trustworthy); until then keep the last good value.
     const npsEl = PANEL_ROOT.getElementById('nps');
     const l0 = info.lines[0];
-    if (npsEl && Number.isFinite(l0.nps) && l0.nps > 0 && Number.isFinite(l0.time) && l0.time >= NPS_MIN_MS) {
+    if (npsEl && nps_is_trustworthy(l0)) {
         npsEl.textContent = format_nps(l0.nps);
     }
     if ('mate' in info.lines[0]) {
