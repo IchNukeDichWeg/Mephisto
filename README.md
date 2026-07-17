@@ -421,7 +421,6 @@ No schedule — added whenever I feel like it. Only the not-yet-built items live
 **Quality of life**
 - [ ] **Ponder / background analysis** — keep searching on the opponent's clock instead of idling. Costs CPU and
   battery the whole time it runs.
-- [ ] **NPS / depth sparkline** — a small live graph of search speed and depth.
 
 **Robustness**
 - [ ] **Auto-recover on site DOM changes** — spot a scraper that has stopped matching and re-anchor, instead of
@@ -456,6 +455,8 @@ Shipped and in the current build.
   drop) and only when both positions were searched deep enough to trust.
 - [x] **Self-test button** — beside Re-detect: one tap checks scraping, the engine, and the native host, and shows
   what's working in the status line.
+- [x] **NPS / depth sparkline** — two tiny live line charts under the NPS text: search depth climbing and speed
+  ramping, redrawn as the engine streams and reset each move.
 
 ---
 

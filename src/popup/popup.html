@@ -27,7 +27,10 @@
 </button>
 <button id="selftest" class="waves-effect waves-light btn tooltipped" data-position="left"
         data-tooltip="Self-test: check scraping, the engine, and the native host">
-    <i class="mp-icon">🩺</i>
+    <!-- inline SVG (not a font glyph): a heartbeat/pulse line renders identically everywhere, unlike
+         the emoji it replaced which showed as a tofu box in many panel fonts -->
+    <svg class="mp-svg-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l2-6 3 12 2-6h5"/></svg>
 </button>
 <button id="analyze" class="waves-effect waves-light btn tooltipped" data-position="right" data-tooltip="Analysis Board">
     <i class="mp-icon">⧉</i>
@@ -165,6 +168,7 @@
     <div id="chess_line_1">If your chess game is not detected<br>try reloading the page</div>
 </div>
 <div id="nps"></div>
+<div id="sparkline"></div>
 <div id="evaluation"></div>
 <div id="wdl" style="display: none"></div>
 <div id="alt-lines" style="display: none"></div>

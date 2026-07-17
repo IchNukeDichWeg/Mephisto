@@ -227,6 +227,17 @@ html, body {
     margin: 6px 0 0 0;
 }
 
+/* NPS / depth sparkline: two tiny inline-SVG line charts under the NPS text (depth staircase +
+   speed curve), redrawn from the info stream and reset each position. Empty (0 height) until the
+   search has a couple of samples, so it doesn't reserve a gap when there's nothing to show. */
+#sparkline {
+    width: 378px;
+    text-align: center;
+    line-height: 0;
+    margin: 2px 0 0 0;
+}
+#sparkline svg { display: inline-block; vertical-align: middle; }
+
 #next-move {
     height: 21px;
     font: 17px 'Roboto', sans-serif; /* match the move/score lines */
@@ -551,6 +562,9 @@ body.mephisto-dark #alt-lines::-webkit-scrollbar-thumb { background: #34353d; bo
    which a host page's CSP can block (the icons then rendered as the ligature TEXT), and a remote
    fetch is one more thing for a page to notice. */
 .mp-icon { font-style: normal; font-size: 20px; line-height: 1; }
+/* inline-SVG button icon (self-test): vertically centred, inherits the button's text colour */
+.mp-svg-icon { display: block; }
+#selftest { display: flex; align-items: center; justify-content: center; }
 
 /* Compact mode: just the status line, the move and the score. The class is toggled on the panel
    body (see apply_compact); the in-page panel is a fixed-size scaled box, so content-script.js
@@ -566,6 +580,7 @@ body.mephisto-compact #board,
 body.mephisto-compact #eval-bar,
 body.mephisto-compact #wdl,
 body.mephisto-compact #nps,
+body.mephisto-compact #sparkline,
 /* the move/threat arrows are SVG overlays positioned where the board is; the board is hidden in
    compact but these are separate layers, so they'd float over the collapsed panel -- hide them too */
 body.mephisto-compact #move-annotations,
