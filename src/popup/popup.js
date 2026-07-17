@@ -887,6 +887,14 @@ function render_wdl(line) {
     el.textContent = (board.orientation() === 'black') ? `${b} | ${d} | ${w}` : `${w} | ${d} | ${b}`;
 }
 
+// One distinct colour per engine line, so with Multi Lines on you can tell which arrow is which:
+// line 1 (best) blue, then green / amber / orange / purple for 2nd..5th. Used for the arrows on BOTH
+// the panel board and (in Help Mode) the site board, and echoed on the alternative-lines panel so it
+// reads as a legend -- the green row is the green arrow. Was: line 1 blue, every other line the same
+// grey, so 2nd/3rd/4th/5th were indistinguishable.
+const LINE_COLORS = ['#0a5bd3', '#0f9d58', '#e0a400', '#e8710a', '#9333ea'];
+function line_color(i) { return LINE_COLORS[Math.min(i, LINE_COLORS.length - 1)]; }
+
 // pv arrives as a space-joined STRING from the wasm engines but can be a LIST of UCI moves from a
 // native/remote host (python-chess formats pv as an array) -- normalize before any .split use
 function pv_moves(pv) {
@@ -919,7 +927,9 @@ function render_alt_lines() {
         const line = last_eval.lines?.[i];
         if (!line || !line.pv) continue;
         const evalTxt = ('mate' in line) ? `#${line.mate}` : (line.score / 100).toFixed(2);
-        rows.push(`<div class="alt-line"><span class="alt-eval">${evalTxt}</span> ` +
+        // colour the eval to match this line's board arrow, so the panel is a legend for the arrows.
+        // inline style -- beats the dark-mode `#alt-lines .alt-eval` colour rule (no !important there).
+        rows.push(`<div class="alt-line"><span class="alt-eval" style="color:${line_color(i)}">${evalTxt}</span> ` +
             `<span class="alt-moves">${san_preview(last_eval.fen, line.pv)}</span></div>`);
     }
     panel.innerHTML = rows.join('');
@@ -994,17 +1004,16 @@ function on_engine_response(message) {
         }
         last_eval.activeLines = Math.max(last_eval.activeLines, lineInfo.multipv);
         if (pvIdx === 0) {
-            // continuously show the best move for each depth
-            if (last_eval.lines[0] != null) {
-                const arr = last_eval.lines[0].pv.split(' ');
-                const best = arr[0];
-                const threat = arr[1];
-                on_engine_best_move(best, threat);
-            }
-            // reset lines
+            // fresh depth: clear last depth's lines, then set line 0
             last_eval.lines = new Array(config.multiple_lines);
-            // trigger an evaluation update
             last_eval.lines[pvIdx] = lineInfo;
+            // Show THIS depth's best move right away. It used to show the PREVIOUS depth's line 0
+            // instead, so on the first depth (no previous line) the move text stayed "Calculating..."
+            // while the score and NPS had already updated -- a visible one-depth lag. The native path
+            // (on_native_info) already shows the current move; this makes WASM match it, so the panel
+            // streams the move from the very first depth.
+            const arr = lineInfo.pv.split(' ');
+            on_engine_best_move(arr[0], arr[1]);
             on_engine_evaluation(last_eval);
         } else {
             last_eval.lines[pvIdx] = lineInfo;
@@ -2143,7 +2152,7 @@ function draw_moves() {
     for (let i = 0; i < last_eval.activeLines; i++) {
         if (!last_eval.lines[i]) continue;
 
-        const arrow_color = (i === 0) ? '#004db8' : '#4a4a4a';
+        const arrow_color = line_color(i); // per-rank colour (was blue for #1, grey for all the rest)
         const stroke_width = strokeFunc(last_eval.lines[i]);
         draw_move(last_eval.lines[i].move, arrow_color, PANEL_ROOT.getElementById('move-annotations'), stroke_width);
         if (config.help_mode && stroke_width > 0 && last_eval.lines[i].move) {
