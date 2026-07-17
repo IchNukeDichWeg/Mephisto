@@ -1253,6 +1253,12 @@ function on_new_pos(fen, startFen, moves) {
         // the NEW position, so if the old search was for the opponent's side (they replied mid-search)
         // that stale bestmove would otherwise be automoved as OUR move
         abandon_search();
+        // Re-assert the line count every move: humanize_rates() is read fresh per pick, so turning
+        // the Mistakes/Blunders sliders on has to widen the engine's list NOW (see
+        // effective_multipv). Set at engine init only, those sliders would silently do nothing until
+        // the next re-init -- the exact trap that made the whole mix look broken. The remote/native
+        // path already sends it per request. Free between searches; we just stopped one.
+        send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
         if (moves) {
             send_engine_uci(`position fen ${startFen} moves ${moves}`);
         } else {
@@ -1612,10 +1618,24 @@ function safe_deselect_square(fen, move) {
 // HOW LONG to visibly "think" (instant recaptures/forced moves, long thinks on critical
 // positions, everything scaled to the clock when Clock Mode reads one off the page).
 
+// How many lines the ENGINE searches. Humanize picks its move out of that list, so the list has to
+// actually contain the move it wants; the DISPLAY still honours config.multiple_lines.
+//
+// The mistake/blunder bands (200-400cp / 400-600cp worse, see humanize_pick) can only be filled by
+// moves the engine ranks LOW. Its top 3 all sit within ~40cp of each other, so at MultiPV 3 those
+// pools were always empty and every mistake/blunder roll silently fell back to the best move --
+// which is exactly why the mix produced 97%-accuracy, 0-mistake games. Moves that bad usually start
+// around rank 6-12 in a middlegame, so ask for a deep list when those bands are switched on.
+//
+// Only when they're switched on: a wide MultiPV makes the engine search every one of those root
+// moves properly, which costs real depth. Nobody who leaves mistakes/blunders at 0 should pay it.
+const HUMANIZE_DEEP_MULTIPV = 20;
+
 function effective_multipv() {
-    // humanize picks among alternatives, so it quietly searches a few extra lines; the DISPLAY
-    // still honours config.multiple_lines
-    return config.humanize ? Math.max(3, config.multiple_lines) : config.multiple_lines;
+    if (!config.humanize) return config.multiple_lines;
+    const rates = humanize_rates();
+    const wantsBadMoves = (rates.mistake + rates.blunder) > 0;
+    return Math.max(wantsBadMoves ? HUMANIZE_DEEP_MULTIPV : 3, config.multiple_lines);
 }
 
 // Humanize move mix in PERCENT (top/second/third/mistake/blunder, summing to 100), tuned by the
@@ -1633,10 +1653,10 @@ function humanize_rates() {
     };
     const r = {
         top: get('humanize_top', 50),         // the engine's best move
-        second: get('humanize_second', 40),   // second line (unless way worse)
-        third: get('humanize_third', 4),      // third line (unless way worse)
-        mistake: get('humanize_mistake', 5),  // 60-150cp worse
-        blunder: get('humanize_blunder', 1),  // 150-450cp worse, never in decided games
+        second: get('humanize_second', 40),   // second line (unless >200cp worse)
+        third: get('humanize_third', 4),      // third line (unless >200cp worse)
+        mistake: get('humanize_mistake', 5),  // 200-400cp worse
+        blunder: get('humanize_blunder', 1),  // 400-600cp worse, never in decided games
     };
     const sum = r.top + r.second + r.third + r.mistake + r.blunder;
     if (sum > 0) for (const k in r) r[k] = r[k] * 100 / sum;
@@ -1779,8 +1799,17 @@ function humanize_pick(best) {
         const rates = humanize_rates(); // move mix percents; live-tunable in the options page
         // reuse the roll made at search start (so the countdown's shown move matches what's played)
         const r = (humanize_roll != null) ? humanize_roll.r : Math.random() * 100;
-        // second/third line only when not way worse (>60cp) -- otherwise the roll falls to best
-        const closeEnough = (l) => (l && loss(l) <= 60) ? l : null;
+        // The four bands, in centipawns lost against the best move. They don't overlap and they stop
+        // at 600: a move worse than that is a hanging-queen calamity, not a human error, so the roll
+        // falls back to the best move rather than throwing the game.
+        //   second/third : 0-200   (a plausible alternative -- usually only ~20-40 in practice)
+        //   mistake      : 200-400
+        //   blunder      : 400-600, and only in a game that isn't already decided
+        const closeEnough = (l) => (l && loss(l) <= 200) ? l : null;
+        const fromBand = (lo, hi) => {
+            const pool = alts.filter(l => loss(l) > lo && loss(l) <= hi);
+            return pool[Math.floor(Math.random() * pool.length)];
+        };
         let cand = null;
         if (r < rates.top) {
             // the best move
@@ -1791,12 +1820,10 @@ function humanize_pick(best) {
             cand = closeEnough(alts[1]);
             if (cand) category = 'third line';
         } else if (r < rates.top + rates.second + rates.third + rates.mistake) {
-            const pool = alts.filter(l => loss(l) > 60 && loss(l) <= 150);
-            cand = pool[Math.floor(Math.random() * pool.length)];
+            cand = fromBand(200, 400);
             if (cand) category = 'mistake';
         } else if (Math.abs(bestCp) < 600) { // blunder share; never in decided games
-            const pool = alts.filter(l => loss(l) > 150 && loss(l) <= 450);
-            cand = pool[Math.floor(Math.random() * pool.length)];
+            cand = fromBand(400, 600);
             if (cand) category = 'blunder';
         }
         if (cand && playable(cand.move)) move = cand.move;
