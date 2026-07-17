@@ -293,10 +293,11 @@ Make automated play look like a real person instead of a flawless engine:
   "mistake" strays. Above every threshold is a **live accuracy estimate** computed with **Lichess's own formulas**
   ([win‑percent model](https://lichess.org/page/accuracy) + accuracy), showing the move accuracy and win‑chance drop
   a setting produces. The defaults sit exactly on Lichess's own labels — **110cp = 10% win drop = Inaccuracy, 230cp =
-  20% = Mistake, 377cp = 30% = Blunder** — so the categories mean what they mean in a Lichess game review. Turning on
-  Inaccuracy/Mistake/Blunder makes the engine search more lines so it has moves that bad to pick from; nothing past
-  the blunder threshold is ever played, and blunders never fire in an already‑decided game. Edits apply to the very
-  next move.
+  20% = Mistake, 377cp = 30% = Blunder** — so the categories mean what they mean in a Lichess game review. Giving a
+  share to any category worse than the near‑best (third line and below) makes the engine search a wider list of moves,
+  so it actually *has* a move that bad to pick — otherwise that roll just replays the top move (a pure top + close‑second
+  mix keeps the cheaper search). Nothing past the blunder threshold is ever played, and blunders never fire in an
+  already‑decided game. Edits apply to the very next move.
 - **Human timing** — quick on obvious moves and openings, long thinks in critical positions, and an **instant
   reflex** *only* for true recaptures (the opponent actually captured, and you take back on that square) and forced
   moves. Snapping off a piece that merely moved in to attack is **not** treated as a reflex — that used to look
