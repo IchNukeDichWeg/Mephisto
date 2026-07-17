@@ -1321,7 +1321,9 @@ function parse_position_from_response(txt) {
         return record;
     }
 
-    function parse_position_from_pieces(txt) {
+    // isStartPos: this is a game's move-0 position (chess960 / lichess "From Position"), not a
+    // puzzle. It decides whether castling rights are inferred -- see the block below.
+    function parse_position_from_pieces(txt, isStartPos = false) {
         const directHit = fen_cache.get(txt);
         if (directHit) { // reuse position
             turn = directHit.fen.charAt(directHit.fen.indexOf(' ') + 1);
@@ -1330,10 +1332,33 @@ function parse_position_from_response(txt) {
 
         const chess = new Chess(config.variant);
         chess.clear(); // clear the board so we can place our pieces
+        // A position built by clear()+put() can NEVER hold castling rights: _put only records the
+        // king/rook "initial" squares while _castling is ALREADY non-zero, and clear() zeroes it --
+        // a chicken-and-egg that made every position parsed here serialize with "-". For a game's
+        // start that's wrong and fatal: the replay of the real move list hits the first O-O and
+        // throws "Invalid move: O-O", so EVERY scrape of a "From Position" game (queen odds, etc.)
+        // was skipped and the panel showed "no game detected". Arming the bits first lets the
+        // placements below register the true king/rook squares -- chess960 included, since _put
+        // reads a rook placed before the king as queenside and after it as kingside, and the pieces
+        // arrive in file order. Only for a start position: in a puzzle the king has usually already
+        // moved, and granting rights there would invent a castle that isn't legal.
+        if (isStartPos) {
+            chess.setCastlingRights('w', {k: true, q: true});
+            chess.setCastlingRights('b', {k: true, q: true});
+        }
         const [playerTurn, ...pieces] = txt.split('*****').slice(0, -1);
         for (const piece of pieces) {
             const attributes = piece.split('-');
             chess.put({type: attributes[1], color: attributes[0]}, attributes[2]);
+        }
+        if (isStartPos) {
+            // Keep only the rights the board actually backs. A start with no rook on a side (an
+            // endgame position, say) would otherwise serialize a right nothing supports -- an
+            // illegal FEN, and those are what crash the wasm engine (see the en-prise guard below).
+            for (const color of ['w', 'b']) {
+                const backed = chess._rooksInitial[color].reduce((flags, r) => flags | r.flag, 0);
+                chess._castling[color] &= backed;
+            }
         }
         chess.setTurn(playerTurn);
         turn = chess.turn();
@@ -1360,10 +1385,12 @@ function parse_position_from_response(txt) {
         if (txt.includes('&')) { // a custom start position is shipped along (chess960 / "From Position")
             const puzTxt = txt.substring(0, txt.indexOf('&'));
             const fenTxt = txt.substring(txt.indexOf('&') + 6);
-            let startFen = parse_position_from_pieces(puzTxt).fen;
-            if (config.variant === 'fischerandom') {
-                startFen = startFen.replace('-', 'KQkq'); // chess960 always starts with full castling rights
-            }
+            // `true` = this is the game's move-0 position, so castling rights are inferred from the
+            // board (see parse_position_from_pieces). That replaces a chess960-only string patch
+            // (`startFen.replace('-', 'KQkq')`) which papered over the same missing-rights bug for
+            // 960 alone -- which is why 960 castled fine while every standard "From Position" game
+            // died on its first O-O.
+            const startFen = parse_position_from_pieces(puzTxt, true).fen;
             return parse_position_from_moves(fenTxt, startFen);
         }
         return parse_position_from_moves(txt);
