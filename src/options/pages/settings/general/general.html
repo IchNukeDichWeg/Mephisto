@@ -310,10 +310,11 @@
                                         is a band of how-much-worse-than-best, set in centipawns just below (Move-Quality
                                         Thresholds); a rolled category plays a random move inside its band, or the best
                                         move if nothing that bad exists. Nothing past the Blunder threshold is ever
-                                        played, and blunders never fire in an already-decided game. Setting Inaccuracy,
-                                        Mistake or Blunder above 0 makes the engine search 20 lines instead of a few so it
-                                        has moves that bad to choose from -- that costs search depth, so leave them at 0
-                                        if you don't want them. Changes apply to the very next move, no reload needed."
+                                        played, and blunders never fire in an already-decided game. Giving a share to any
+                                        category worse than the near-best (Third line and below) makes the engine search a
+                                        wider list so it has a move that bad to choose from -- otherwise that roll just
+                                        replays the top move. That costs search depth, so a pure Top + Second mix keeps the
+                                        cheaper search. Changes apply to the very next move, no reload needed."
                     >
                         Humanize Move Mix (%) <i class="material-icons info-tooltip">info</i>
                     </span>
