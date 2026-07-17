@@ -272,6 +272,36 @@
                         </label>
                     </div>
                     <div class="section switch">
+                        <label class="switch-label tooltipped" data-position="right"
+                               data-tooltip="The engine keeps thinking until YOU press the play-move hotkey (Spacebar
+                                             by default -- rebind it under Hotkeys below), then it plays the best move it
+                                             has found. Your own timing: overrides the Clock/Mirror/Humanize timing and
+                                             never fires on its own.">
+                            Manual Mode <i class="material-icons info-tooltip">info</i>
+                        </label>
+                        <label>
+                            Off
+                            <input id="manual_mode_checkbox" type="checkbox">
+                            <span class="lever"></span>
+                            On
+                        </label>
+                    </div>
+                    <div class="section switch">
+                        <label class="switch-label tooltipped" data-position="right"
+                               data-tooltip="Flash a small toast over the board when your OPPONENT plays an inaccuracy,
+                                             mistake or blunder -- judged by the same Lichess win% method the move mix
+                                             uses (30/20/10% win-chance drop). Only fires when both positions were
+                                             searched deep enough to trust, so it won't invent blunders from shallow evals.">
+                            Opponent Mistake Alert <i class="material-icons info-tooltip">info</i>
+                        </label>
+                        <label>
+                            Off
+                            <input id="opp_alert_checkbox" type="checkbox">
+                            <span class="lever"></span>
+                            On
+                        </label>
+                    </div>
+                    <div class="section switch">
                     <label class="switch-label tooltipped" data-position="right"
                            data-tooltip="Mephisto optimizes for solving chess puzzles as quickly as possible, at the
                                          expense of accuracy. This should be enabled when autoplaying puzzle minigames,
@@ -461,6 +491,19 @@
                             <input id="move_variance_input" type="number">
                         </label>
                     </div>
+                </div>
+            </div>
+            <div id="hotkeys" class="scrollspy">
+                <h3 class="header">Hotkeys</h3>
+                <p style="margin: 0 0 10px; font-size: 13px; line-height: 1.4;">
+                    Keyboard shortcuts that work while you're on the game page (they only fire when the floating panel
+                    is open). Click a key to rebind it — the next key you press (with any Ctrl/Alt/Shift/Meta) becomes
+                    the binding; press <b>Esc</b> to cancel, or <b>Backspace/Delete</b> to clear it. Defaults use
+                    <b>Alt+letter</b> to avoid clashing with the site's own shortcuts; the play-move key is Spacebar.
+                </p>
+                <div id="hotkey_rows"></div>
+                <div class="section">
+                    <button id="hotkey_reset_btn" class="waves-effect waves-light btn-small">Reset hotkeys to defaults</button>
                 </div>
             </div>
         </div>

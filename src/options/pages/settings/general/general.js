@@ -24,9 +24,12 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('humanize', 'Humanize:', 'checkbox', false);
         this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
         this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);
+        this.registerFormElement('manual_mode', 'Manual Mode:', 'checkbox', false);
+        this.registerFormElement('opp_alert', 'Opponent Mistake Alert:', 'checkbox', false);
         this.initHumanizeMix();
         this.initHumanizeThresholds();
         this.initUiMode();
+        this.initHotkeys();
         this.registerFormElement('puzzle_mode', 'Puzzle Mode:', 'checkbox', false);
         this.registerFormElement('python_autoplay_backend', 'Python Autoplay Backend:', 'checkbox', false);
         this.registerFormElement('think_time', 'Simulated Think Time (ms):', 'input', 0);
@@ -84,6 +87,77 @@ class GeneralSettings extends SettingsPage {
     // Read straight off chrome.storage.local rather than through MephistoConfig: the background
     // service worker flips the toolbar popup on/off (chrome.action.setPopup) off the same key, and
     // writing it here fires chrome.storage.onChanged in the worker.
+    // Hotkeys: one rebindable key per action, stored together in config.hotkeys (a single JSON key,
+    // so settings export/import carries them). DEFAULTS + labels must match content-script.js's
+    // HOTKEY_DEFAULTS. Clicking a key captures the next keydown (Esc cancels, Backspace/Delete clears).
+    initHotkeys() {
+        const container = document.getElementById('hotkey_rows');
+        const resetBtn = document.getElementById('hotkey_reset_btn');
+        if (!container || !resetBtn) return; // stale cached page html
+        const DEFAULTS = {
+            manual_play: ' ',
+            autoplay: 'Alt+a', premove: 'Alt+p', help_mode: 'Alt+h', humanize: 'Alt+u',
+            clock_mode: 'Alt+c', mirror_mode: 'Alt+m', manual_mode: 'Alt+n',
+            eval_bar: 'Alt+e', puzzle_mode: 'Alt+z', copy_fen: 'Alt+f', copy_pgn: 'Alt+g', redetect: 'Alt+r',
+        };
+        const LABELS = {
+            manual_play: 'Play move (Manual Mode)', autoplay: 'Toggle Autoplay', premove: 'Toggle Premove',
+            help_mode: 'Toggle Help Mode', humanize: 'Toggle Humanize', clock_mode: 'Toggle Clock Mode',
+            mirror_mode: 'Toggle Mirror Time', manual_mode: 'Toggle Manual Mode', eval_bar: 'Toggle Eval Bar',
+            puzzle_mode: 'Toggle Puzzle Mode', copy_fen: 'Copy FEN', copy_pgn: 'Copy PGN', redetect: 'Re-detect game',
+        };
+        const ORDER = ['manual_play', 'manual_mode', 'autoplay', 'premove', 'help_mode', 'humanize',
+            'clock_mode', 'mirror_mode', 'eval_bar', 'puzzle_mode', 'copy_fen', 'copy_pgn', 'redetect'];
+        // same normalization as the content-script listener, so what we store matches what it compares
+        const keyString = (e) => {
+            const parts = [];
+            if (e.ctrlKey) parts.push('Ctrl');
+            if (e.altKey) parts.push('Alt');
+            if (e.shiftKey) parts.push('Shift');
+            if (e.metaKey) parts.push('Meta');
+            parts.push(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+            return parts.join('+');
+        };
+        const pretty = (k) => !k ? '—' : k.split('+').map(p => p === ' ' ? 'Space' : (p.length === 1 ? p.toUpperCase() : p)).join(' + ');
+        const load = () => { try { return {...DEFAULTS, ...(JSON.parse(MephistoConfig.get('hotkeys')) || {})}; } catch (e) { return {...DEFAULTS}; } };
+        const save = (obj) => MephistoConfig.set('hotkeys', JSON.stringify(obj));
+        let bindings = load();
+        let capturing = null; // the action currently being rebound
+
+        const render = () => {
+            container.innerHTML = '';
+            for (const action of ORDER) {
+                const row = document.createElement('div');
+                row.className = 'section';
+                row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; margin:4px 0;';
+                const label = document.createElement('span');
+                label.textContent = LABELS[action];
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'waves-effect waves-light btn-small';
+                btn.textContent = (capturing === action) ? 'press a key…' : pretty(bindings[action]);
+                btn.style.minWidth = '120px';
+                btn.addEventListener('click', () => { capturing = (capturing === action) ? null : action; render(); });
+                row.append(label, btn);
+                container.appendChild(row);
+            }
+        };
+        // one document-level capture listener; only acts while rebinding
+        document.addEventListener('keydown', (e) => {
+            if (!capturing) return;
+            e.preventDefault(); e.stopPropagation();
+            if (e.key === 'Escape') { capturing = null; return render(); }
+            if (e.key === 'Backspace' || e.key === 'Delete') { bindings[capturing] = ''; save(bindings); capturing = null; return render(); }
+            if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return; // wait for the real key
+            bindings[capturing] = keyString(e);
+            save(bindings);
+            capturing = null;
+            render();
+        }, true);
+        resetBtn.addEventListener('click', () => { MephistoConfig.remove('hotkeys'); bindings = {...DEFAULTS}; capturing = null; render(); });
+        render();
+    }
+
     initUiMode() {
         const sel = document.getElementById('ui_mode_select');
         if (!sel) return; // stale cached page html
