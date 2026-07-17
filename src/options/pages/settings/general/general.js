@@ -25,6 +25,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
         this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);
         this.initHumanizeMix();
+        this.initHumanizeThresholds();
         this.initUiMode();
         this.registerFormElement('puzzle_mode', 'Puzzle Mode:', 'checkbox', false);
         this.registerFormElement('python_autoplay_backend', 'Python Autoplay Backend:', 'checkbox', false);
@@ -93,6 +94,7 @@ class GeneralSettings extends SettingsPage {
     initHumanizeMix() {
         const MIX = [
             ['humanize_top', 50], ['humanize_second', 40], ['humanize_third', 4],
+            ['humanize_fourth', 0], ['humanize_inaccuracy', 0],
             ['humanize_mistake', 5], ['humanize_blunder', 1],
         ];
         const rows = MIX.map(([key, dflt]) => ({
@@ -132,6 +134,54 @@ class GeneralSettings extends SettingsPage {
 
         rows.forEach(r => {
             set(r, load(r.key, r.dflt), false); // initial sync, don't churn storage on page open
+            r.range.addEventListener('input', () => set(r, r.range.value));
+            r.num.addEventListener('change', () => set(r, r.num.value));
+        });
+    }
+
+    // Per-category centipawn thresholds, each with a live accuracy/win-drop readout. The two formulas
+    // are Lichess's own, so "what does this cp cost" reads the same as a Lichess game review:
+    //   winPercent(cp)  -- lila WinPercent.scala, the PR #11148 regression (NOT SF's own formula)
+    //   accuracy        -- lila AccuracyPercent.scala, from the before/after win%
+    // The readout takes an equal position as the reference (win% 50 before the move), the standard way
+    // these are illustrated: a 110cp loss is a 10% win-drop = Inaccuracy, 230cp = 20% = Mistake,
+    // 377cp = 30% = Blunder -- which is where the defaults sit.
+    initHumanizeThresholds() {
+        const CP = [
+            ['humanize_cp_second', 40], ['humanize_cp_third', 75], ['humanize_cp_fourth', 110],
+            ['humanize_cp_inaccuracy', 230], ['humanize_cp_mistake', 377], ['humanize_cp_blunder', 600],
+        ];
+        const rows = CP.map(([key, dflt]) => ({
+            key, dflt,
+            range: document.getElementById(`${key}_range`),
+            num: document.getElementById(`${key}_num`),
+            readout: document.getElementById(`${key}_readout`),
+        }));
+        if (!rows.every(r => r.range && r.num && r.readout)) return; // stale cached page html
+
+        const winPct = (cp) => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
+        const readoutText = (loss) => {
+            const after = winPct(-loss);           // our win% after a move that loses `loss` cp from equal
+            const drop = 50 - after;
+            const acc = Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * drop) - 3.1669 + 1));
+            return `≈ ${Math.round(acc)}% accuracy · ${Math.round(drop)}% win drop`;
+        };
+        const paint = (el) =>
+            el.style.setProperty('--fill', ((el.value - el.min) / (el.max - el.min) * 100) + '%');
+        const load = (key, dflt) => {
+            try { const v = JSON.parse(MephistoConfig.get(key)); return (v != null && isFinite(+v)) ? +v : dflt; }
+            catch (e) { return dflt; }
+        };
+        const set = (row, val, persist = true) => {
+            val = Math.min(800, Math.max(0, Math.round(+val / 5) * 5 || 0)); // snap to the 5cp step
+            row.range.value = val;
+            row.num.value = val;
+            row.readout.textContent = readoutText(val);
+            paint(row.range);
+            if (persist) MephistoConfig.set(row.key, val);
+        };
+        rows.forEach(r => {
+            set(r, load(r.key, r.dflt), false);
             r.range.addEventListener('input', () => set(r, r.range.value));
             r.num.addEventListener('change', () => set(r, r.num.value));
         });
