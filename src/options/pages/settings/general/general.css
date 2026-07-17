@@ -56,3 +56,46 @@
 
 #humanize_mix_total.ok { color: #26a69a; }
 #humanize_mix_total.off { color: #e57373; }
+
+/* Move-quality thresholds: per category a name + Lichess accuracy/win-drop estimate on top, the
+   centipawn slider + number below it. */
+#humanize-thresholds .cp-row {
+    margin-bottom: 10px;
+}
+
+#humanize-thresholds .cp-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 2px;
+}
+
+#humanize-thresholds .cp-name {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* the estimate that sits ABOVE the slider */
+#humanize-thresholds .cp-readout {
+    font-size: 12px;
+    opacity: 0.75;
+}
+
+#humanize-thresholds .cp-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#humanize-thresholds .range-field {
+    flex: 1 1 auto;
+    margin: 0;
+}
+
+#humanize-thresholds input[type=number] {
+    flex: 0 0 64px;
+    height: 32px;
+    margin: 0;
+    text-align: center;
+}

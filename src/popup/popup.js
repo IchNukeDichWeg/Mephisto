@@ -1634,33 +1634,85 @@ const HUMANIZE_DEEP_MULTIPV = 20;
 function effective_multipv() {
     if (!config.humanize) return config.multiple_lines;
     const rates = humanize_rates();
-    const wantsBadMoves = (rates.mistake + rates.blunder) > 0;
-    return Math.max(wantsBadMoves ? HUMANIZE_DEEP_MULTIPV : 3, config.multiple_lines);
+    // Filling the inaccuracy/mistake/blunder bands needs LOW-ranked engine moves (they start ~rank
+    // 6-12 in a middlegame); the line bands (2nd-4th) only need the near-best few. Pay the wide,
+    // depth-costing search only when a bad band is actually in the mix.
+    const wantsBadMoves = (rates.inaccuracy + rates.mistake + rates.blunder) > 0;
+    return Math.max(wantsBadMoves ? HUMANIZE_DEEP_MULTIPV : 6, config.multiple_lines);
 }
 
-// Humanize move mix in PERCENT (top/second/third/mistake/blunder, summing to 100), tuned by the
-// five sliders in the options page. Read fresh from localStorage on EVERY pick: the options page
-// and this popup share the extension's localStorage, so changes apply to the very next move --
-// no reload needed. Normalized here so hand-edited storage can't break the roll.
+// Ordered worst-to... no: BEST-to-worst. The roll walks these as cumulative % slices; each non-top
+// category is a centipawn BAND whose upper bound is its own threshold and lower bound is the
+// previous category's threshold (top = 0). Shared by the roll and the pick so they can't drift.
+const HUMANIZE_ORDER = ['top', 'second', 'third', 'fourth', 'inaccuracy', 'mistake', 'blunder'];
+const HUMANIZE_LABEL = {
+    top: 'top engine', second: 'second line', third: 'third line', fourth: 'fourth line',
+    inaccuracy: 'inaccuracy', mistake: 'mistake', blunder: 'blunder',
+};
+
+function humanize_get(key, dflt) {
+    try {
+        const v = JSON.parse(MephistoConfig.get(key));
+        return (v != null && isFinite(+v)) ? Math.max(0, +v) : dflt;
+    } catch (e) { return dflt; }
+}
+
+// Humanize move mix in PERCENT (the seven HUMANIZE_ORDER categories, normalized to sum 100). Tuned
+// by the sliders in the options page and read fresh on EVERY pick -- the options page and this popup
+// share the extension's storage, so edits apply to the very next move, no reload. fourth/inaccuracy
+// default to 0 so adding them didn't change any existing user's behaviour.
 function humanize_rates() {
-    const get = (key, dflt) => {
-        try {
-            const v = JSON.parse(MephistoConfig.get(key));
-            return (v != null && isFinite(+v)) ? Math.max(0, +v) : dflt;
-        } catch (e) {
-            return dflt;
-        }
-    };
     const r = {
-        top: get('humanize_top', 50),         // the engine's best move
-        second: get('humanize_second', 40),   // second line (unless >200cp worse)
-        third: get('humanize_third', 4),      // third line (unless >200cp worse)
-        mistake: get('humanize_mistake', 5),  // 200-400cp worse
-        blunder: get('humanize_blunder', 1),  // 400-600cp worse, never in decided games
+        top: humanize_get('humanize_top', 50),
+        second: humanize_get('humanize_second', 40),
+        third: humanize_get('humanize_third', 4),
+        fourth: humanize_get('humanize_fourth', 0),
+        inaccuracy: humanize_get('humanize_inaccuracy', 0),
+        mistake: humanize_get('humanize_mistake', 5),
+        blunder: humanize_get('humanize_blunder', 1),
     };
-    const sum = r.top + r.second + r.third + r.mistake + r.blunder;
+    const sum = HUMANIZE_ORDER.reduce((a, k) => a + r[k], 0);
     if (sum > 0) for (const k in r) r[k] = r[k] * 100 / sum;
     return r;
+}
+
+// Per-category centipawn thresholds -- each is a band's UPPER bound; the lower bound is the previous
+// category's. Defaults trace Lichess's own move-quality boundaries (WinPercent.scala / Advice.scala):
+// from an equal position a 110cp loss is a 10% win-chance drop (Inaccuracy), 230cp a 20% drop
+// (Mistake), 377cp a 30% drop (Blunder). Clamped strictly ascending so a hand-edited/again-misordered
+// store can't invert a band.
+function humanize_thresholds() {
+    const t = {
+        second: humanize_get('humanize_cp_second', 40),
+        third: humanize_get('humanize_cp_third', 75),
+        fourth: humanize_get('humanize_cp_fourth', 110),
+        inaccuracy: humanize_get('humanize_cp_inaccuracy', 230),
+        mistake: humanize_get('humanize_cp_mistake', 377),
+        blunder: humanize_get('humanize_cp_blunder', 600),
+    };
+    let prev = 0;
+    for (const k of ['second', 'third', 'fourth', 'inaccuracy', 'mistake', 'blunder']) {
+        t[k] = Math.max(prev + 1, t[k]);
+        prev = t[k];
+    }
+    return t;
+}
+
+// (lo, hi] cp band per non-top category, from the ascending thresholds.
+function humanize_band_bounds() {
+    const t = humanize_thresholds();
+    return {
+        second: [0, t.second], third: [t.second, t.third], fourth: [t.third, t.fourth],
+        inaccuracy: [t.fourth, t.inaccuracy], mistake: [t.inaccuracy, t.mistake],
+        blunder: [t.mistake, t.blunder],
+    };
+}
+
+// Which category a 0-100 roll lands in, given the % shares. Cumulative over HUMANIZE_ORDER.
+function category_for_roll(r, rates) {
+    let acc = 0;
+    for (const cat of HUMANIZE_ORDER) { acc += rates[cat] || 0; if (r < acc) return cat; }
+    return 'top';
 }
 
 // Pre-rolled humanize outcome for the current move, decided at SEARCH START so the countdown can
@@ -1675,16 +1727,8 @@ function roll_humanize_category(fen) {
     try {
         if (new Chess(config.variant, fen).moves().length === 1) return {r: 0, category: 'instant response'};
     } catch (e) { /* variant fen chess.js can't parse -- fall through to the mix roll */ }
-    const rates = humanize_rates();
     const r = Math.random() * 100;
-    const t = rates.top, s = t + rates.second, th = s + rates.third, mi = th + rates.mistake;
-    let category = 'top engine';
-    if (r < t) category = 'top engine';
-    else if (r < s) category = 'second line';
-    else if (r < th) category = 'third line';
-    else if (r < mi) category = 'mistake';
-    else category = 'blunder';
-    return {r, category};
+    return {r, category: HUMANIZE_LABEL[category_for_roll(r, humanize_rates())]};
 }
 
 // our-perspective centipawns for a line whose score/mate are stored white-relative;
@@ -1799,35 +1843,24 @@ function humanize_pick(best) {
         const rates = humanize_rates(); // move mix percents; live-tunable in the options page
         // reuse the roll made at search start (so the countdown's shown move matches what's played)
         const r = (humanize_roll != null) ? humanize_roll.r : Math.random() * 100;
-        // The four bands, in centipawns lost against the best move. They don't overlap and they stop
-        // at 600: a move worse than that is a hanging-queen calamity, not a human error, so the roll
-        // falls back to the best move rather than throwing the game.
-        //   second/third : 0-200   (a plausible alternative -- usually only ~20-40 in practice)
-        //   mistake      : 200-400
-        //   blunder      : 400-600, and only in a game that isn't already decided
-        const closeEnough = (l) => (l && loss(l) <= 200) ? l : null;
-        const fromBand = (lo, hi) => {
+        // Each non-top category is a (lo, hi] centipawn band whose edges the user sets in the options
+        // page (Move-Quality Thresholds); pick a random alternative whose loss falls in the rolled
+        // band. A move worse than the top of the blunder band is never played -- that's a hanging
+        // queen, not a human error -- so an out-of-band roll falls back to the best move.
+        const bands = humanize_band_bounds();
+        const fromBand = ([lo, hi]) => {
             const pool = alts.filter(l => loss(l) > lo && loss(l) <= hi);
             return pool[Math.floor(Math.random() * pool.length)];
         };
+        const cat = category_for_roll(r, rates);
         let cand = null;
-        if (r < rates.top) {
-            // the best move
-        } else if (r < rates.top + rates.second) {
-            cand = closeEnough(alts[0]);
-            if (cand) category = 'second line';
-        } else if (r < rates.top + rates.second + rates.third) {
-            cand = closeEnough(alts[1]);
-            if (cand) category = 'third line';
-        } else if (r < rates.top + rates.second + rates.third + rates.mistake) {
-            cand = fromBand(200, 400);
-            if (cand) category = 'mistake';
-        } else if (Math.abs(bestCp) < 600) { // blunder share; never in decided games
-            cand = fromBand(400, 600);
-            if (cand) category = 'blunder';
+        // blunders never in an already-decided game (we're the ones winning/losing big)
+        if (cat !== 'top' && !(cat === 'blunder' && Math.abs(bestCp) >= 600)) {
+            cand = fromBand(bands[cat]);
+            if (cand) category = HUMANIZE_LABEL[cat];
         }
         if (cand && playable(cand.move)) move = cand.move;
-        else category = 'top engine'; // gate failed / pool empty / not playable -> best move after all
+        else category = 'top engine'; // top slice / pool empty / not playable -> best move after all
     }
 
     // ---- HOW LONG to think: classify the position, then sample a duration.

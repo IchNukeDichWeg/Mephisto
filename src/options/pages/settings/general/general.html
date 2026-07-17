@@ -305,14 +305,15 @@
                 </div>
                 <div class="section" id="humanize-mix">
                     <span class="switch-label tooltipped" data-position="right"
-                          data-tooltip="Humanize move mix: how often each choice is played. Make the five values
-                                        add up to 100 -- the Total row shows what to add or remove. Second/third lines
-                                        are skipped when more than 2 pawns worse (the best move is played instead);
-                                        mistakes are 2-4 pawns worse, blunders 4-6 (never in decided games, never into
-                                        mate). Anything worse than 6 pawns is never played. Setting mistakes or blunders
-                                        above 0 makes the engine search 20 lines instead of 3, so it has moves that bad
-                                        to choose from -- that costs search depth, so leave them at 0 if you don't want
-                                        them. Changes apply to the very next move, no reload needed."
+                          data-tooltip="Humanize move mix: how often each quality of move is played. Make the seven
+                                        values add up to 100 -- the Total row shows what to add or remove. Each category
+                                        is a band of how-much-worse-than-best, set in centipawns just below (Move-Quality
+                                        Thresholds); a rolled category plays a random move inside its band, or the best
+                                        move if nothing that bad exists. Nothing past the Blunder threshold is ever
+                                        played, and blunders never fire in an already-decided game. Setting Inaccuracy,
+                                        Mistake or Blunder above 0 makes the engine search 20 lines instead of a few so it
+                                        has moves that bad to choose from -- that costs search depth, so leave them at 0
+                                        if you don't want them. Changes apply to the very next move, no reload needed."
                     >
                         Humanize Move Mix (%) <i class="material-icons info-tooltip">info</i>
                     </span>
@@ -332,6 +333,16 @@
                         <input id="humanize_third_mixnum" type="number" min="0" max="100" step="1">
                     </div>
                     <div class="mix-row">
+                        <span class="mix-label">Fourth line</span>
+                        <p class="range-field"><input id="humanize_fourth_mixrange" type="range" min="0" max="100" step="1"></p>
+                        <input id="humanize_fourth_mixnum" type="number" min="0" max="100" step="1">
+                    </div>
+                    <div class="mix-row">
+                        <span class="mix-label">Inaccuracies</span>
+                        <p class="range-field"><input id="humanize_inaccuracy_mixrange" type="range" min="0" max="100" step="1"></p>
+                        <input id="humanize_inaccuracy_mixnum" type="number" min="0" max="100" step="1">
+                    </div>
+                    <div class="mix-row">
                         <span class="mix-label">Mistakes</span>
                         <p class="range-field"><input id="humanize_mistake_mixrange" type="range" min="0" max="100" step="1"></p>
                         <input id="humanize_mistake_mixnum" type="number" min="0" max="100" step="1">
@@ -344,6 +355,62 @@
                     <div class="mix-row mix-total-row">
                         <span class="mix-label">Total</span>
                         <span id="humanize_mix_total"></span>
+                    </div>
+                </div>
+                <div class="section" id="humanize-thresholds">
+                    <label>
+                        <span class="tooltipped" data-position="right"
+                              data-tooltip="How much worse than the best move each category may be, in centipawns
+                                            (100cp = 1 pawn). Each is the top of its band; the bottom is the category
+                                            above it, so Second line is 0 up to its value, Third from there up to its
+                                            value, and so on. The accuracy % under each is what a move that bad scores
+                                            on Lichess's own move-accuracy formula (from an equal position); the
+                                            win-drop % is Lichess's move-quality measure -- ~10% = Inaccuracy, ~20% =
+                                            Mistake, ~30% = Blunder. The defaults sit exactly on those boundaries.">
+                            Move-Quality Thresholds (cp) <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </label>
+                    <div class="cp-row">
+                        <div class="cp-head"><span class="cp-name">Second line</span><span class="cp-readout" id="humanize_cp_second_readout"></span></div>
+                        <div class="cp-controls">
+                            <p class="range-field"><input id="humanize_cp_second_range" type="range" min="0" max="800" step="5"></p>
+                            <input id="humanize_cp_second_num" type="number" min="0" max="800" step="5">
+                        </div>
+                    </div>
+                    <div class="cp-row">
+                        <div class="cp-head"><span class="cp-name">Third line</span><span class="cp-readout" id="humanize_cp_third_readout"></span></div>
+                        <div class="cp-controls">
+                            <p class="range-field"><input id="humanize_cp_third_range" type="range" min="0" max="800" step="5"></p>
+                            <input id="humanize_cp_third_num" type="number" min="0" max="800" step="5">
+                        </div>
+                    </div>
+                    <div class="cp-row">
+                        <div class="cp-head"><span class="cp-name">Fourth line</span><span class="cp-readout" id="humanize_cp_fourth_readout"></span></div>
+                        <div class="cp-controls">
+                            <p class="range-field"><input id="humanize_cp_fourth_range" type="range" min="0" max="800" step="5"></p>
+                            <input id="humanize_cp_fourth_num" type="number" min="0" max="800" step="5">
+                        </div>
+                    </div>
+                    <div class="cp-row">
+                        <div class="cp-head"><span class="cp-name">Inaccuracy</span><span class="cp-readout" id="humanize_cp_inaccuracy_readout"></span></div>
+                        <div class="cp-controls">
+                            <p class="range-field"><input id="humanize_cp_inaccuracy_range" type="range" min="0" max="800" step="5"></p>
+                            <input id="humanize_cp_inaccuracy_num" type="number" min="0" max="800" step="5">
+                        </div>
+                    </div>
+                    <div class="cp-row">
+                        <div class="cp-head"><span class="cp-name">Mistake</span><span class="cp-readout" id="humanize_cp_mistake_readout"></span></div>
+                        <div class="cp-controls">
+                            <p class="range-field"><input id="humanize_cp_mistake_range" type="range" min="0" max="800" step="5"></p>
+                            <input id="humanize_cp_mistake_num" type="number" min="0" max="800" step="5">
+                        </div>
+                    </div>
+                    <div class="cp-row">
+                        <div class="cp-head"><span class="cp-name">Blunder</span><span class="cp-readout" id="humanize_cp_blunder_readout"></span></div>
+                        <div class="cp-controls">
+                            <p class="range-field"><input id="humanize_cp_blunder_range" type="range" min="0" max="800" step="5"></p>
+                            <input id="humanize_cp_blunder_num" type="number" min="0" max="800" step="5">
+                        </div>
                     </div>
                 </div>
                 <div class="flex-group">
