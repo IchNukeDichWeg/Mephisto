@@ -94,12 +94,7 @@ class GeneralSettings extends SettingsPage {
         const container = document.getElementById('hotkey_rows');
         const resetBtn = document.getElementById('hotkey_reset_btn');
         if (!container || !resetBtn) return; // stale cached page html
-        const DEFAULTS = {
-            manual_play: ' ',
-            autoplay: 'Alt+a', premove: 'Alt+p', help_mode: 'Alt+h', humanize: 'Alt+u',
-            clock_mode: 'Alt+c', mirror_mode: 'Alt+m', manual_mode: 'Alt+n',
-            eval_bar: 'Alt+e', puzzle_mode: 'Alt+z', copy_fen: 'Alt+f', copy_pgn: 'Alt+g', redetect: 'Alt+r',
-        };
+        const DEFAULTS = MephistoConfig.HOTKEY_DEFAULTS; // shared source (config-store.js)
         const LABELS = {
             manual_play: 'Play move (Manual Mode)', autoplay: 'Toggle Autoplay', premove: 'Toggle Premove',
             help_mode: 'Toggle Help Mode', humanize: 'Toggle Humanize', clock_mode: 'Toggle Clock Mode',

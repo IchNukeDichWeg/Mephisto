@@ -227,16 +227,6 @@ html, body {
     margin: 6px 0 0 0;
 }
 
-/* NPS / depth sparkline: two tiny inline-SVG line charts under the NPS text (depth staircase +
-   speed curve), redrawn from the info stream and reset each position. Empty (0 height) until the
-   search has a couple of samples, so it doesn't reserve a gap when there's nothing to show. */
-#sparkline {
-    width: 378px;
-    text-align: center;
-    line-height: 0;
-    margin: 2px 0 0 0;
-}
-#sparkline svg { display: inline-block; vertical-align: middle; }
 
 #next-move {
     height: 21px;
@@ -580,7 +570,6 @@ body.mephisto-compact #board,
 body.mephisto-compact #eval-bar,
 body.mephisto-compact #wdl,
 body.mephisto-compact #nps,
-body.mephisto-compact #sparkline,
 /* the move/threat arrows are SVG overlays positioned where the board is; the board is hidden in
    compact but these are separate layers, so they'd float over the collapsed panel -- hide them too */
 body.mephisto-compact #move-annotations,

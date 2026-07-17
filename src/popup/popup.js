@@ -366,6 +366,7 @@ async function initPanel(root, tabId) {
     // tooltips (replaces Materialize's M.Tooltip -- Materialize's JS looks elements up via `document`
     // and can't run in a shadow root; this queries a passed root instead). PANEL_ROOT/PANEL_TIP_HOST
     // default to `document`/`document.body` in the iframe; the shadow-root phase passes the root.
+    annotate_hotkey_labels(); // show each toggle's shortcut next to it, e.g. "Autoplay (A)"
     init_tooltips(PANEL_ROOT, PANEL_TIP_HOST);
 
     // The content-script's first push (fired ~30ms after push_config above) can arrive before this
@@ -851,44 +852,6 @@ function nps_is_trustworthy(line) {
     return (line.nodes / line.nps) * 1000 >= NPS_MIN_MS;
 }
 
-// ---- NPS / depth sparkline. Each info line the search streams is one sample; we keep the last
-// SPARK_MAX and draw two tiny charts under the NPS text: DEPTH climbing 1..N, and NPS ramping. Reset
-// each position (spark_reset), so you watch the current search grow left-to-right. Pure inline SVG
-// in the shadow root -- no library, no page footprint.
-const SPARK_MAX = 48;
-let spark_data = []; // [{depth, nps}, ...] for the position being searched
-
-function spark_reset() { spark_data = []; const el = PANEL_ROOT?.getElementById('sparkline'); if (el) el.innerHTML = ''; }
-
-function spark_push(depth, nps) {
-    if (!Number.isFinite(depth) || !Number.isFinite(nps) || nps <= 0) return;
-    spark_data.push({depth, nps});
-    if (spark_data.length > SPARK_MAX) spark_data.shift();
-    render_sparkline();
-}
-
-// one small SVG per metric: a polyline normalised to its own max, y inverted (bigger = up).
-function spark_svg(values, color, w = 120, h = 22) {
-    if (values.length < 2) return '';
-    const max = Math.max(...values, 1);
-    const dx = w / (values.length - 1);
-    const pts = values.map((v, i) => `${(i * dx).toFixed(1)},${(h - (v / max) * (h - 3) - 1.5).toFixed(1)}`).join(' ');
-    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
-        `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" ` +
-        `stroke-linejoin="round" stroke-linecap="round"/></svg>`;
-}
-
-function render_sparkline() {
-    const el = PANEL_ROOT?.getElementById('sparkline');
-    if (!el) return;
-    if (spark_data.length < 2) { el.innerHTML = ''; return; }
-    const depth = spark_svg(spark_data.map(s => s.depth), '#0a5bd3'); // blue: depth staircase
-    const nps = spark_svg(spark_data.map(s => s.nps), '#0f9d58');     // green: speed curve
-    // labels so a monochrome print still tells them apart; kept tiny
-    el.innerHTML = `<span style="font:10px Roboto,sans-serif;opacity:0.7;margin-right:2px">depth</span>${depth}` +
-        `<span style="font:10px Roboto,sans-serif;opacity:0.7;margin:0 2px 0 8px">nps</span>${nps}`;
-}
-
 // nodes/second, grouped Swiss-style: 1019100 -> "1'019'100 NPS" (so you can see engine speed)
 function format_nps(n) {
     if (!Number.isFinite(n) || n <= 0) return '';
@@ -921,7 +884,6 @@ function on_engine_evaluation(info) {
         const cpWhite = ('mate' in l0d) ? (l0d.mate > 0 ? 100000 : -100000) : l0d.score; // score is white-relative
         last_pos_eval = {fen: last_eval.fen, cpWhite, depth: l0d.depth, sideToMove: turn};
         opp_alert_maybe_fire();
-        spark_push(l0d.depth, l0d.nps); // feed the NPS / depth sparkline
     }
 }
 
@@ -1249,7 +1211,6 @@ function premove_instant_reply(new_fen, new_moves) {
 function on_new_pos(fen, startFen, moves) {
     console.log("on_new_pos", fen, startFen, moves);
     opp_alert_on_new_pos(fen); // arm the opponent-mistake check from the just-finished position's eval
-    spark_reset(); // the sparkline follows the CURRENT search only
     last_pos = {startFen: startFen || null, moves: moves || ''}; // Copy PGN reads this
     clear_next_move_eta(); // the countdown belonged to the position that just changed
     humanize_roll = null;  // and so did any pre-rolled humanize outcome
@@ -2163,6 +2124,27 @@ const HOTKEY_TOGGLES = { // action -> the quick-settings checkbox it flips
 };
 // Returns true if it handled the action (the content-script listener only swallows the key then, so
 // an inert binding -- e.g. Space while Manual Mode is off -- doesn't block the page's own use of it).
+// "Alt+a" -> "Alt+A", " " -> "Space" (for the little "(A)" hint on each toggle)
+function hotkey_pretty(k) {
+    if (!k) return '';
+    return k.split('+').map(p => p === ' ' ? 'Space' : (p.length === 1 ? p.toUpperCase() : p)).join('+');
+}
+// Append the bound key to each quick-settings toggle label, e.g. "Autoplay (A)", so the shortcut is
+// visible where you use it. Reads the live bindings; run once after the toggles are wired.
+function annotate_hotkey_labels() {
+    const keys = MephistoConfig.hotkeys();
+    for (const action in HOTKEY_TOGGLES) {
+        const input = PANEL_ROOT.getElementById(HOTKEY_TOGGLES[action]);
+        const label = input?.closest('.qs-row')?.querySelector('.qs-label');
+        if (!label || !keys[action] || label.querySelector('.qs-hk')) continue;
+        const s = document.createElement('span');
+        s.className = 'qs-hk';
+        s.style.cssText = 'opacity:0.5;font-size:0.82em;margin-left:3px';
+        s.textContent = `(${hotkey_pretty(keys[action])})`;
+        label.appendChild(s);
+    }
+}
+
 function do_hotkey(action) {
     if (action === 'manual_play') return manual_play();
     if (action === 'copy_fen') { copy_to_button('copyfen', last_eval.fen); return true; }

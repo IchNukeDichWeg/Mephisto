@@ -37,7 +37,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.87'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.88'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -156,19 +156,8 @@ self.MephistoContent = {
 // ------------------------------------------------------------------------------------------
 // Hotkeys. Keys land on the GAME page, so the listener lives here (isolated world); it maps the key
 // to an action and hands it to the panel (do_hotkey in popup.js). Bindings are ACTION -> key-combo
-// stored in config.hotkeys (one JSON key -> rides along in settings export/import); defaults below.
-// Alt+letter defaults dodge the sites' own single-letter shortcuts; the play-move key is Spacebar.
-const HOTKEY_DEFAULTS = {
-    manual_play: ' ',
-    autoplay: 'Alt+a', premove: 'Alt+p', help_mode: 'Alt+h', humanize: 'Alt+u',
-    clock_mode: 'Alt+c', mirror_mode: 'Alt+m', manual_mode: 'Alt+n',
-    eval_bar: 'Alt+e', puzzle_mode: 'Alt+z', copy_fen: 'Alt+f', copy_pgn: 'Alt+g', redetect: 'Alt+r',
-};
-function hotkeyBindings() {
-    let saved = {};
-    try { saved = JSON.parse(MephistoConfig.get('hotkeys')) || {}; } catch (e) { /* unset/corrupt */ }
-    return {...HOTKEY_DEFAULTS, ...saved};
-}
+// in config.hotkeys (one JSON key -> rides along in settings export/import); defaults + merge live in
+// config-store.js so the listener, the rebind UI and the panel labels can't drift.
 // canonical combo string for a keydown: "Alt+a", "Shift+Ctrl+k", " " (space), "ArrowUp"
 function hotkeyString(e) {
     const parts = [];
@@ -187,7 +176,7 @@ document.addEventListener('keydown', (e) => {
     const t = e.target;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return; // typing
     const pressed = hotkeyString(e);
-    const bindings = hotkeyBindings();
+    const bindings = MephistoConfig.hotkeys();
     for (const action in bindings) {
         if (bindings[action] && bindings[action] === pressed) {
             // only swallow the key if the panel actually acted on it -- so e.g. Space stays a page
