@@ -229,7 +229,7 @@ html, body {
 
 #next-move {
     height: 21px;
-    font: 15px 'Roboto', sans-serif;
+    font: 17px 'Roboto', sans-serif; /* match the move/score lines */
     line-height: 21px;
     margin: 4px 0 0 0;
 }
@@ -256,7 +256,8 @@ html, body {
 }
 
 #moves {
-    height: 46px;
+    height: auto; /* was 46px (two lines). The threat line (chess_line_2) is empty unless Threat
+                     Analysis is on, so the reserved second line showed as a gap before NPS. */
     font: 17px 'Roboto', sans-serif;
     line-height: 23px;
     z-index: 5;
@@ -275,7 +276,7 @@ html, body {
    ("White 50% | Draw 30% | Black 20%"). Blank for engines that don't report WDL. */
 #wdl {
     height: 23px;
-    font: 16px 'Roboto', sans-serif;
+    font: 17px 'Roboto', sans-serif; /* match the move/score lines */
     line-height: 23px;
     z-index: 5;
     text-align: center;
@@ -290,7 +291,7 @@ html, body {
     margin: 6px 0 0 5px;
     padding: 0 4px;
     overflow-y: hidden;
-    font: 15px 'Roboto', sans-serif;
+    font: 17px 'Roboto', sans-serif; /* match the move/score lines; line-height stays 21 so 5 fit */
     line-height: 21px;
     text-align: left;
     white-space: nowrap;
@@ -432,23 +433,29 @@ html, body {
     position: absolute;
     bottom: 5px;
     left: 5px;
+    width: 48px; /* pinned so the FEN/PGN pair beside it lands at a known offset (no overlap) */
+    min-width: 0;
+    padding: 0;
 }
 
-#copyfen {
+/* Copy FEN / PGN: a tight pair of small buttons right after the analysis-board button, not the
+   full-size action buttons the rest of the row uses. absolute like the others -- in normal flow
+   #copypgn pushed the board down and knocked the move arrows out of alignment. bottom:9 centres
+   the 28px button against the 36px analysis button beside it. */
+#copyfen, #copypgn {
     position: absolute;
-    bottom: 5px;
-    left: 75px; /* beside the analysis-board button */
+    bottom: 9px;
+    height: 28px;
+    line-height: 28px;
+    width: 46px;
+    min-width: 0;
+    padding: 0;
 }
+#copyfen { left: 58px; }  /* snug after the analysis-board button (#analyze, left:5) */
+#copypgn { left: 106px; }
 
-#copypgn {
-    position: absolute;
-    bottom: 5px;
-    left: 145px; /* beside Copy FEN. absolute like the others -- in normal flow it pushed the board
-                    down and knocked the move arrows out of alignment. */
-}
-
-/* FEN / PGN read as words, not icons: smaller and bold so they fit the square button */
-.mp-label { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
+/* FEN / PGN read as words, not icons: smaller and bold so they fit the little button */
+.mp-label { font-size: 11px; font-weight: 700; letter-spacing: 0.3px; }
 
 .material-tooltip {
     top: 429px !important;
@@ -553,7 +560,11 @@ body.mephisto-compact #eval-bar,
 body.mephisto-compact #quick-settings,
 body.mephisto-compact #alt-lines,
 body.mephisto-compact #wdl,
-body.mephisto-compact #nps {
+body.mephisto-compact #nps,
+/* the move/threat arrows are SVG overlays positioned where the board is; the board is hidden in
+   compact but these are separate layers, so they'd float over the collapsed panel -- hide them too */
+body.mephisto-compact #move-annotations,
+body.mephisto-compact #response-annotations {
     display: none !important;
 }
 /* the buttons are anchored to the bottom, so they follow the panel up on their own; the
