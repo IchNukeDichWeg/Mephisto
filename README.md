@@ -432,30 +432,16 @@ No schedule — added whenever I feel like it. Only the not-yet-built items live
 
 Shipped and in the current build.
 
-- [x] **Copy FEN / Copy PGN** — labelled **FEN** and **PGN** buttons copy the position, or the whole game so far
-  (with `SetUp`/`FEN` tags when it began from a custom position).
-- [x] **Compact / expanded panel toggle** — the **▣** button in the title bar collapses the panel to just the status
-  line, move and score; press again to restore. Remembered between sessions.
-- [x] **Export / import settings** — **Settings → General** writes the whole config to a JSON file and loads it back
-  (all of `chrome.storage.local`, not just the form fields), for a reinstall, a second machine or a profile switch.
-- [x] **Native-engine health badge** — a dot in the panel's top corner: green if the native host answered, red if it
-  isn't installed. Hidden for the bundled WASM engines.
-- [x] **Smart default threads** (cores − 1) — new installs default to your CPU's cores − 1 (capped at 24) instead of a
-  fixed 8. An explicit setting is never overridden.
-- [x] **Graceful "unsupported variant" message** — a variant chess.js can't replay says so in the panel instead of
-  showing a confident analysis of the wrong position.
-- [x] **Manual mode** — a toggle (below Mirror Time, and in compact) that keeps the engine thinking until you press
-  the play-move hotkey (**Spacebar** by default), then plays the best move it found. Your own timing.
-- [x] **Configurable hotkeys** — **Settings → Hotkeys**: a rebindable key for Manual-mode play and for most toggles
-  (Autoplay, Premove, Help, Humanize, Clock, Mirror, Manual, Eval Bar, Puzzle) plus Copy FEN/PGN and Re-detect.
-  Default keys are single letters (Autoplay **A**, Premove **P**, … Manual **N**; play move = **Space**); each
-  toggle in the panel shows its key next to it (e.g. "Autoplay (A)"). Click a key in Settings to rebind, and they
-  ride along in settings export/import.
-- [x] **Opponent Mistake Alert** — an opt-in toast over the board (**Settings → General**) that flags when your
-  **opponent** plays an inaccuracy/mistake/blunder, judged by the same Lichess win% method (30/20/10% win-chance
-  drop) and only when both positions were searched deep enough to trust.
-- [x] **Self-test button** — beside Re-detect: one tap checks scraping, the engine, and the native host, and shows
-  what's working in the status line.
+- [x] **Copy FEN / Copy PGN** — buttons that copy the position, or the whole game (with `SetUp`/`FEN` tags for a custom start).
+- [x] **Compact / expanded panel** — the **▣** title-bar button collapses the panel to the move + score; remembered.
+- [x] **Export / import settings** — **Settings → General** writes/loads the whole config as a JSON file.
+- [x] **Native-engine health badge** — a dot showing whether the native host answered (hidden for WASM engines).
+- [x] **Smart default threads** — new installs default to your CPU's cores − 1 (capped at 24).
+- [x] **Graceful "unsupported variant" message** — says so instead of analysing the wrong position.
+- [x] **Manual mode** — the engine thinks until you press the play-move key (**Space**), then plays its best move.
+- [x] **Configurable hotkeys** — **Settings → Hotkeys**; single-letter defaults, each toggle shows its key, carried in export/import.
+- [x] **Opponent Mistake Alert** — opt-in toast over the board for the opponent's inaccuracy/mistake/blunder (Lichess win%, depth-gated).
+- [x] **Self-test button** — beside Re-detect; checks scraping, the engine, and the native host.
 
 ---
 
