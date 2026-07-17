@@ -37,7 +37,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.86'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.87'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -85,7 +85,9 @@ function handleExtensionMessage(response, sender, sendResponse) {
     }
     if (moving) return;
     if (response.automove) {
-        if (!config.autoplay) return; // safety: never auto-move if autoplay was turned off since the message was sent
+        // Manual Mode moves (response.manual) are triggered by YOUR keypress, so they're allowed even
+        // with Autoplay off. Otherwise: never auto-move if Autoplay was turned off since the message.
+        if (!config.autoplay && !response.manual) return;
         // undetectability: don't click while the tab is backgrounded/unfocused -- a human wouldn't
         // move while tabbed away, and "moved while hidden" is an easy anomaly to flag. It's still our
         // turn (or a queued premove), so the position is stable: hold the move and re-scrape the
@@ -127,7 +129,7 @@ function handleExtensionMessage(response, sender, sendResponse) {
     } else if (response.clearEvalBar) {
         clearEvalBar();
     } else if (response.oppAlert) {
-        showOppAlert(response.label, response.drop);
+        showOppAlert(response.label, response.drop, response.san, response.uci);
     } else if (response.consoleMessage) {
         console.log(response.consoleMessage);
     }
@@ -553,7 +555,7 @@ const OPP_ALERT_STYLE = {
 };
 let oppAlertTimer = null;
 
-function showOppAlert(label, drop) {
+function showOppAlert(label, drop, san, uci) {
     const style = OPP_ALERT_STYLE[label];
     const board = getBoard();
     if (!style || !board) return;
@@ -561,21 +563,25 @@ function showOppAlert(label, drop) {
     const bounds = board.getBoundingClientRect();
     const el = document.createElement('div');
     el.id = OPP_ALERT_ID;
-    el.textContent = `⚠ Opponent: ${style.text}${Number.isFinite(drop) ? ` (−${drop}%)` : ''}`;
+    const title = `⚠ Opponent ${style.text}${Number.isFinite(drop) ? ` (−${drop}%)` : ''}`;
+    // move in SAN and UCI on a second, smaller line (e.g. "Nf6 · g8f6")
+    const moveBits = [san, uci].filter(Boolean);
+    const moveLine = moveBits.length ? `<div style="font-size:15px;font-weight:500;opacity:0.92;margin-top:2px">${moveBits.join(' · ')}</div>` : '';
+    el.innerHTML = `<div>${title}</div>${moveLine}`;
     // centred over the top of the board; fixed so it tracks the viewport, high z-index, no pointer capture
     el.style.cssText =
-        `position: fixed; left: ${bounds.left + bounds.width / 2}px; top: ${bounds.top + 8}px; ` +
-        `transform: translateX(-50%); z-index: 2147483647; pointer-events: none; ` +
-        `background: ${style.bg}; color: #fff; font: 600 14px Roboto, sans-serif; ` +
-        `padding: 5px 12px; border-radius: 6px; box-shadow: 0 3px 12px rgba(0,0,0,0.45); ` +
+        `position: fixed; left: ${bounds.left + bounds.width / 2}px; top: ${bounds.top + 10}px; ` +
+        `transform: translateX(-50%); z-index: 2147483647; pointer-events: none; text-align: center; ` +
+        `background: ${style.bg}; color: #fff; font: 700 19px Roboto, sans-serif; ` +
+        `padding: 9px 18px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); ` +
         `opacity: 0; transition: opacity 0.2s;`;
     getOverlayRoot().appendChild(el);
     requestAnimationFrame(() => { el.style.opacity = '1'; });
     clearTimeout(oppAlertTimer);
-    oppAlertTimer = setTimeout(() => {
+    oppAlertTimer = setTimeout(() => { // stay ~3.5s, then fade
         el.style.opacity = '0';
-        setTimeout(() => el.remove(), 250);
-    }, 2200);
+        setTimeout(() => el.remove(), 300);
+    }, 3500);
 }
 
 // ------------------------------------------------------------------------------------------

@@ -2105,8 +2105,18 @@ function opp_alert_on_new_pos(newFen) {
     if (last_pos_eval.depth < OPP_ALERT_MIN_DEPTH) return; // shallow "before" -> don't trust it
     const our = (board.orientation() === 'white') ? 'w' : 'b';
     if (last_pos_eval.sideToMove !== our) { // it was the OPPONENT to move -> they just made this move
-        opp_alert_armed = {beforeCpWhite: last_pos_eval.cpWhite, oppColor: last_pos_eval.sideToMove};
+        // keep the "before" fen too, so we can render their move in SAN at fire time
+        opp_alert_armed = {beforeCpWhite: last_pos_eval.cpWhite, oppColor: last_pos_eval.sideToMove,
+                           beforeFen: last_pos_eval.fen};
     }
+}
+
+// UCI -> SAN in the position it was played from; falls back to the raw UCI if chess.js can't parse.
+function uci_to_san(fen, uci) {
+    if (!fen || !/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci ?? '')) return uci || '';
+    try {
+        return new Chess(config.variant, fen).move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]}).san;
+    } catch (e) { return uci; }
 }
 
 // Called when the CURRENT position's eval updates (on_engine_evaluation). Fires once the new position
@@ -2117,9 +2127,12 @@ function opp_alert_maybe_fire() {
     const sign = (opp_alert_armed.oppColor === 'w') ? 1 : -1; // opponent-relative eval
     const drop = win_percent(sign * opp_alert_armed.beforeCpWhite) - win_percent(sign * last_pos_eval.cpWhite);
     const label = win_drop_label(drop);
+    const uci = last_eval.lastMove || ''; // the opponent's move that produced this position
+    const san = uci_to_san(opp_alert_armed.beforeFen, uci);
     opp_alert_armed = null; // fire at most once per opponent move
-    if (label) send_to_active_tab({oppAlert: true, label, drop: Math.round(drop)});
+    if (label) send_to_active_tab({oppAlert: true, label, drop: Math.round(drop), san, uci});
 }
+
 
 // ---- Manual Mode: play the engine's current best move on YOUR keypress (the play-move hotkey).
 // The search runs `go infinite` in Manual Mode, so it never fires on its own; this is the trigger.
@@ -2134,7 +2147,7 @@ function manual_play() {
     if (last_eval.fen?.split(' ')[1] === our) {
         const best = last_eval.bestmove || last_eval.lines?.[0]?.move;
         if (best && premove_reply_playable(last_eval.fen, best)) {
-            request_automove(best); // Manual Mode plays the BEST move -- your timing, the engine's choice
+            request_automove(best, null, true); // manual:true bypasses the content-script's autoplay gate
         }
     }
     return true; // Manual Mode is on: swallow the key even if there was nothing to play this instant
@@ -2162,7 +2175,7 @@ function do_hotkey(action) {
     return true;
 }
 
-function request_automove(move, think = null) {
+function request_automove(move, think = null, manual = false) {
     // Is this a REAL move on our own turn, or a BLIND premove during the opponent's turn? The site
     // queues a blind premove (it won't appear in the move list until they move), so it must NOT be
     // verified/retried; an on-turn move must be. The popup is authoritative here -- decide from the
@@ -2177,8 +2190,8 @@ function request_automove(move, think = null) {
     // taken when the panel/config first loaded. `?? config.x` keeps the loaded value if unset.
     const timing = fresh_timing();
     const message = (config.puzzle_mode)
-        ? {automove: true, pv: last_eval.lines[0]?.pv ? pv_moves(last_eval.lines[0].pv) : [move], deselect, verify, timing}
-        : {automove: true, move: move, deselect, verify, think, timing};
+        ? {automove: true, pv: last_eval.lines[0]?.pv ? pv_moves(last_eval.lines[0].pv) : [move], deselect, verify, timing, manual}
+        : {automove: true, move: move, deselect, verify, think, timing, manual};
     send_to_active_tab(message);
 }
 
