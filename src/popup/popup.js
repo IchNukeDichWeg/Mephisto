@@ -1639,15 +1639,26 @@ function safe_deselect_square(fen, move) {
 // Only when they're switched on: a wide MultiPV makes the engine search every one of those root
 // moves properly, which costs real depth. Nobody who leaves mistakes/blunders at 0 should pay it.
 const HUMANIZE_DEEP_MULTIPV = 20;
+// Roughly how far down the cp ladder a short (6-line) list reaches in a typical middlegame: its 6th
+// move is usually only ~40-60cp worse than best. Any band that extends past this needs a wide list.
+const HUMANIZE_SHALLOW_REACH_CP = 60;
 
 function effective_multipv() {
     if (!config.humanize) return config.multiple_lines;
     const rates = humanize_rates();
-    // Filling the inaccuracy/mistake/blunder bands needs LOW-ranked engine moves (they start ~rank
-    // 6-12 in a middlegame); the line bands (2nd-4th) only need the near-best few. Pay the wide,
-    // depth-costing search only when a bad band is actually in the mix.
-    const wantsBadMoves = (rates.inaccuracy + rates.mistake + rates.blunder) > 0;
-    return Math.max(wantsBadMoves ? HUMANIZE_DEEP_MULTIPV : 6, config.multiple_lines);
+    const t = humanize_thresholds();
+    // Every non-top band picks its move from the engine's LINE LIST, so the list must reach as deep
+    // as the worst band you've given a share. This used to trigger the wide search only for
+    // inaccuracy/mistake/blunder -- but a "third/fourth line" move sits just as far down the list
+    // (rank ~8-13), so with a 6-line list those rolls found an empty pool and silently fell back to
+    // the TOP move. That's why a 60%-non-top mix still played like a 96%-accuracy engine: the deeper
+    // bands never had candidates. Go wide whenever the deepest band with a share reaches past what a
+    // short list covers -- which correctly keeps a pure top+near-best mix on the cheap 6-line search.
+    let deepest = 0;
+    for (const cat of ['second', 'third', 'fourth', 'inaccuracy', 'mistake', 'blunder'])
+        if ((rates[cat] || 0) > 0) deepest = Math.max(deepest, t[cat]);
+    const wantsDeep = deepest > HUMANIZE_SHALLOW_REACH_CP;
+    return Math.max(wantsDeep ? HUMANIZE_DEEP_MULTIPV : 6, config.multiple_lines);
 }
 
 // Ordered worst-to... no: BEST-to-worst. The roll walks these as cumulative % slices; each non-top
