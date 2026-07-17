@@ -37,7 +37,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.75'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.76'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -163,7 +163,8 @@ function sendToPanel(msg) {
 
 const PANEL_OVERLAY_ID = 'mephisto-overlay';
 const RESTORE_BADGE_ID = 'mephisto-restore-badge';
-const COMPACT_H = 210;     // compact mode: status + move lines + score, with the board/quick-settings hidden
+const COMPACT_H = 240;     // compact: status/move/score + up to 3 lines, and the 6 mid-game toggles
+                           // (board + full settings hidden). Keep in sync with popup.css .mephisto-compact
 let panelCompact = false;  // popup.js owns the setting; this mirrors it for the sizing math below
 const panelH = () => panelCompact ? COMPACT_H : POPUP_H;
 const POPUP_W = 568;       // the popup page's fixed layout size (popup.css html,body)

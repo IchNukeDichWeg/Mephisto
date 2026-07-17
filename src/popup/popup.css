@@ -256,8 +256,8 @@ html, body {
 }
 
 #moves {
-    height: auto; /* was 46px (two lines). The threat line (chess_line_2) is empty unless Threat
-                     Analysis is on, so the reserved second line showed as a gap before NPS. */
+    height: auto; /* was a fixed 46px for a second line that no longer exists (the threat readout
+                     was removed) -- the reserved empty row showed as a gap before NPS. */
     font: 17px 'Roboto', sans-serif;
     line-height: 23px;
     z-index: 5;
@@ -476,7 +476,6 @@ body.mephisto-dark {
 body.mephisto-dark #moves,
 body.mephisto-dark #evaluation,
 body.mephisto-dark #chess_line_1,
-body.mephisto-dark #chess_line_2,
 body.mephisto-dark #next-move,
 body.mephisto-dark #nps,
 body.mephisto-dark #wdl,
@@ -553,24 +552,31 @@ body.mephisto-dark #alt-lines::-webkit-scrollbar-thumb { background: #34353d; bo
    full of empty space. `body.mephisto-*` is rehomed onto #mephisto-panel-body for the in-page
    panel, which also lifts specificity to (1,1,0) so it beats the (1,0,0) base height rule. */
 body.mephisto-compact {
-    height: 210px; /* keep in sync with COMPACT_H in content-script.js */
+    height: 240px; /* keep in sync with COMPACT_H in content-script.js. Fits the taller of the two
+                      columns: 6 toggles on the right (~185px), or status + move + score + 3
+                      alternative lines on the left, above the button row. */
 }
 body.mephisto-compact #board,
 body.mephisto-compact #eval-bar,
-body.mephisto-compact #quick-settings,
-body.mephisto-compact #alt-lines,
 body.mephisto-compact #wdl,
 body.mephisto-compact #nps,
 /* the move/threat arrows are SVG overlays positioned where the board is; the board is hidden in
    compact but these are separate layers, so they'd float over the collapsed panel -- hide them too */
 body.mephisto-compact #move-annotations,
-body.mephisto-compact #response-annotations {
+body.mephisto-compact #response-annotations,
+/* Quick Settings STAYS in compact, but trimmed to the switches you actually flip mid-game
+   (.qs-compact = Autoplay/Premove/Help/Humanize/Clock/Mirror). Everything else -- engine, Elo,
+   variant, threads, memory, the time boxes -- is set-once, so it only clutters a short panel. */
+body.mephisto-compact #quick-settings .qs-title,
+body.mephisto-compact #quick-settings .qs-row:not(.qs-compact) {
     display: none !important;
 }
-/* the buttons are anchored to the bottom, so they follow the panel up on their own; the
-   quick-settings column is gone in compact, so reclaim the space it was reserved out of */
-body.mephisto-compact #config { right: 75px; }
-body.mephisto-compact #recheck { right: 145px; }
+
+/* Alternative lines survive compact (they're the point of Multi Lines), capped to 3 rows: the
+   panel is short, and render_alt_lines already hides the whole block when Multi Lines is 1. */
+body.mephisto-compact #alt-lines {
+    max-height: 63px; /* 3 x the 21px line-height; #alt-lines already clips the overflow */
+}
 
 /* Native-engine health dot. Native engines are a separate process that may not be installed --
    without this the only symptom is a panel that never evaluates. Hidden for the bundled WASM
@@ -587,7 +593,7 @@ body.mephisto-compact #recheck { right: 145px; }
 }
 #engine-health.ok { background: #35c46a; }
 #engine-health.down { background: #e5534b; }
-body.mephisto-compact #engine-health { right: 8px; } /* quick-settings is hidden: reclaim the corner */
+/* (the health dot keeps its right:198 in compact -- quick-settings is still there, trimmed) */
 
 /* A variant chess.js can't replay: say so rather than showing a confident wrong analysis. */
 #game-detection.unsupported { color: #c0392b; font-weight: 500; }

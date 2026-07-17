@@ -42,11 +42,11 @@
 
 <div id="quick-settings">
     <div class="qs-title">Quick Settings</div>
-    <div class="qs-row switch">
+    <div class="qs-row switch qs-compact">
         <span class="qs-label">Autoplay</span>
         <label><input id="qs_autoplay" type="checkbox"><span class="lever"></span></label>
     </div>
-    <div class="qs-row switch">
+    <div class="qs-row switch qs-compact">
         <span class="qs-label tooltipped" data-position="left"
               data-tooltip="While the opponent thinks, certify a reply to their predicted move (stable across depths 6/9/10+, max 2 candidates). If they play exactly that move, answer instantly; anything else searches normally. If the reply could never be legal after any other opponent move (forced moves, recaptures), it's queued as a real premove immediately -- an illegal premove gets auto-cancelled. Never fires in a wrong position. Needs Autoplay.">Premove</span>
         <label><input id="qs_premove" type="checkbox"><span class="lever"></span></label>
@@ -55,7 +55,7 @@
         <span class="qs-label">Puzzle Mode</span>
         <label><input id="qs_puzzle" type="checkbox"><span class="lever"></span></label>
     </div>
-    <div class="qs-row switch">
+    <div class="qs-row switch qs-compact">
         <span class="qs-label tooltipped" data-position="left"
               data-tooltip="Draws the best move as an arrow on the game board so you can play it yourself. Overrides Autoplay while on.">Help Mode</span>
         <label><input id="qs_help" type="checkbox"><span class="lever"></span></label>
@@ -65,17 +65,17 @@
               data-tooltip="Show a vertical evaluation bar to the left of the game board, with the score shown inside it (chess.com-style).">Eval Bar</span>
         <label><input id="qs_evalbar" type="checkbox"><span class="lever"></span></label>
     </div>
-    <div class="qs-row switch">
+    <div class="qs-row switch qs-compact">
         <span class="qs-label tooltipped" data-position="left"
               data-tooltip="Play like a human: instant recaptures and forced moves, quick obvious moves, long thinks in critical positions -- and occasionally a second-best move, a mistake, or (rarely) a blunder. Priority — Time: Mirror > Clock > Humanize > Search Time (first one enabled sets the duration; recaptures & forced moves always instant). Move: Humanize > engine best.">Humanize</span>
         <label><input id="qs_humanize" type="checkbox"><span class="lever"></span></label>
     </div>
-    <div class="qs-row switch">
+    <div class="qs-row switch qs-compact">
         <span class="qs-label tooltipped" data-position="left"
               data-tooltip="Read the game clock off the page and budget every move to it: roughly time/30 plus 60% of the increment, shrinking the engine search too, near-instant when short on time. Priority — Time: Mirror > Clock > Humanize > Search Time (first one enabled sets the duration; recaptures & forced moves always instant). Move: Humanize > engine best.">Clock Mode</span>
         <label><input id="qs_clock" type="checkbox"><span class="lever"></span></label>
     </div>
-    <div class="qs-row switch">
+    <div class="qs-row switch qs-compact">
         <span class="qs-label tooltipped" data-position="left"
               data-tooltip="Pace to the opponent instead: spend what they spent on their last move, minus 10%, staying just ahead on the clock (30% extra haste when behind). Uses the Clock Mode budget for the first move / when their spend is unknown. Recaptures and forced moves stay instant. Priority — Time: Mirror > Clock > Humanize > Search Time (first one enabled sets the duration; recaptures & forced moves always instant). Move: Humanize > engine best.">Mirror Time</span>
         <label><input id="qs_mirror" type="checkbox"><span class="lever"></span></label>
@@ -154,7 +154,6 @@
 
 <div id="moves">
     <div id="chess_line_1">If your chess game is not detected<br>try reloading the page</div>
-    <div id="chess_line_2"></div>
 </div>
 <div id="nps"></div>
 <div id="evaluation"></div>
