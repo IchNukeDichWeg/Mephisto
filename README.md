@@ -385,7 +385,8 @@ footprint. See the [disclaimer](#️-read-this-first--disclaimer--fair-play).)
 
 ## Roadmap
 
-No schedule — added whenever I feel like it.
+No schedule — added whenever I feel like it. Only the not-yet-built items live here; everything shipped is under
+**Implemented** below.
 
 **Engines & analysis**
 - [ ] **lc0 (Leela) in the browser** — Leela's neural-net engine as a WASM alternative to Stockfish. A large
@@ -408,27 +409,14 @@ No schedule — added whenever I feel like it.
 - [ ] **Bughouse / Doubles · Chess with Checkers** — two-board and hybrid variants; no engine support.
 - [ ] **Auto-download variant nets** — fetch Fairy nets on demand instead of bundling every one. Would cut the
   download enormously, at the cost of the zero-setup, works-offline install.
-- [x] **Graceful "unsupported variant" message** — *done*: a variant chess.js can't replay now says so in the
-  panel instead of showing a confident analysis of the wrong position.
 
 **Quality of life**
-- [x] **Native-engine health badge** — *done*: a dot in the panel's top corner — green if the native host answered,
-  red if it isn't there. Hidden for the bundled WASM engines, which are always present.
-- [x] **Smart default threads** (cores − 1) — *done*: the default is taken from your CPU (clamped 1–24) instead of
-  a fixed 8. Only affects fresh installs; an explicit setting is never overridden.
 - [ ] **Ponder / background analysis** — keep searching on the opponent's clock instead of idling. Costs CPU and
   battery the whole time it runs.
 - [ ] **NPS / depth sparkline** — a small live graph of search speed and depth.
-- [x] **Compact / expanded panel toggle** — *done*: the **▣** button in the panel's title bar collapses it to just
-  the status line, move and score; press again to restore. The choice is remembered.
-- [x] **Copy FEN button** — *done*. **Copy PGN** — *done*: a labelled **PGN** button copies the game so far, with SetUp/FEN
-  tags when it started from a custom position.
 - [ ] **Configurable hotkeys** — keyboard shortcuts for the common actions (toggle panel, autoplay, help mode,
   re-detect, play best move, copy FEN). **Every binding rebindable to any key combo** from Settings, with conflict
   detection against the site's own shortcuts, and a reset-to-defaults.
-- [x] **Export / import settings** — *done*: **Settings → General → Export / Import Settings** writes the whole
-  config to a **JSON file** and loads it back, so a reinstall, a second machine or a profile switch doesn't mean
-  re-entering everything by hand. Round-trips all of `chrome.storage.local`, not just the form fields.
 - [ ] **Manual mode** — a switch that lets the engine keep thinking for as long as you like, then plays the best move
   it has found the instant you press **Spacebar**. No timer decides for you: the search gets every second you give it,
   and the move lands exactly when you choose. Because the timing is *yours* rather than a sampled distribution, it is
@@ -439,6 +427,25 @@ No schedule — added whenever I feel like it.
   broken.
 - [ ] **Auto-recover on site DOM changes** — spot a scraper that has stopped matching and re-anchor, instead of
   silently seeing nothing.
+
+---
+
+## Implemented
+
+Shipped and in the current build.
+
+- [x] **Copy FEN / Copy PGN** — labelled **FEN** and **PGN** buttons copy the position, or the whole game so far
+  (with `SetUp`/`FEN` tags when it began from a custom position).
+- [x] **Compact / expanded panel toggle** — the **▣** button in the title bar collapses the panel to just the status
+  line, move and score; press again to restore. Remembered between sessions.
+- [x] **Export / import settings** — **Settings → General** writes the whole config to a JSON file and loads it back
+  (all of `chrome.storage.local`, not just the form fields), for a reinstall, a second machine or a profile switch.
+- [x] **Native-engine health badge** — a dot in the panel's top corner: green if the native host answered, red if it
+  isn't installed. Hidden for the bundled WASM engines.
+- [x] **Smart default threads** (cores − 1) — new installs default to your CPU's cores − 1 (capped at 24) instead of a
+  fixed 8. An explicit setting is never overridden.
+- [x] **Graceful "unsupported variant" message** — a variant chess.js can't replay says so in the panel instead of
+  showing a confident analysis of the wrong position.
 
 ---
 
