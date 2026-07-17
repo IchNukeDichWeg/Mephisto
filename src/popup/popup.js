@@ -166,6 +166,12 @@ async function initPanel(root, tabId) {
         humanize: JSON.parse(MephistoConfig.get('humanize')) || false,
         clock_mode: JSON.parse(MephistoConfig.get('clock_mode')) || false,
         mirror_mode: JSON.parse(MephistoConfig.get('mirror_mode')) || false,
+        // Manual Mode: the engine searches until YOU press the play-move hotkey, then it plays the
+        // best move it found. Your own timing -- overrides the clock-pacing modes and never auto-fires.
+        manual_mode: JSON.parse(MephistoConfig.get('manual_mode')) || false,
+        // Opponent-mistake toast: flag when the opponent plays an inaccuracy/mistake/blunder (Lichess
+        // win% method), but only when both evals reached a trustworthy depth.
+        opp_alert: JSON.parse(MephistoConfig.get('opp_alert')) || false,
         computer_evaluation: (computerEval != null) ? computerEval : true,
         threat_analysis: JSON.parse(MephistoConfig.get('threat_analysis')) || false,
         simon_says_mode: JSON.parse(MephistoConfig.get('simon_says_mode')) || false,
@@ -355,6 +361,7 @@ async function initPanel(root, tabId) {
         push_config();        // resets the content-script's push dedupe + triggers an immediate push
         request_fen();        // and poll right now as well -- fires immediately now the guard is clear
     });
+    PANEL_ROOT.getElementById('selftest')?.addEventListener('click', run_self_test);
 
     // tooltips (replaces Materialize's M.Tooltip -- Materialize's JS looks elements up via `document`
     // and can't run in a shadow root; this queries a passed root instead). PANEL_ROOT/PANEL_TIP_HOST
@@ -414,7 +421,8 @@ function init_quick_settings() {
     for (const [id, key] of [['qs_autoplay', 'autoplay'], ['qs_premove', 'premove'],
                              ['qs_puzzle', 'puzzle_mode'], ['qs_help', 'help_mode'],
                              ['qs_evalbar', 'eval_bar'], ['qs_humanize', 'humanize'],
-                             ['qs_clock', 'clock_mode'], ['qs_mirror', 'mirror_mode']]) {
+                             ['qs_clock', 'clock_mode'], ['qs_mirror', 'mirror_mode'],
+                             ['qs_manual', 'manual_mode']]) {
         const elem = PANEL_ROOT.getElementById(id);
         if (!elem) continue; // stale cached popup.html mid-update; don't let one missing control kill the popup
         elem.checked = config[key];
@@ -431,7 +439,7 @@ function init_quick_settings() {
                 send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
                 last_eval.fen = '';
             }
-            if (key === 'help_mode' || key === 'autoplay' || key === 'clock_mode' || key === 'mirror_mode') {
+            if (['help_mode', 'autoplay', 'clock_mode', 'mirror_mode', 'manual_mode'].includes(key)) {
                 // the go mode (infinite vs movetime) / search budget depends on these; abandon the
                 // current search and re-analyse the position under the new mode on the next push
                 abandon_search();
@@ -868,6 +876,14 @@ function on_engine_evaluation(info) {
     }
     render_wdl(info.lines[0]);
     render_alt_lines();
+
+    // track this position's eval (white-relative cp + depth) for the opponent-mistake alert
+    const l0d = info.lines[0];
+    if (l0d && Number.isFinite(l0d.depth)) {
+        const cpWhite = ('mate' in l0d) ? (l0d.mate > 0 ? 100000 : -100000) : l0d.score; // score is white-relative
+        last_pos_eval = {fen: last_eval.fen, cpWhite, depth: l0d.depth, sideToMove: turn};
+        opp_alert_maybe_fire();
+    }
 }
 
 // Win/Draw/Loss line under the score, from the engine's own UCI_ShowWDL output. `wdl` is
@@ -1193,6 +1209,7 @@ function premove_instant_reply(new_fen, new_moves) {
 
 function on_new_pos(fen, startFen, moves) {
     console.log("on_new_pos", fen, startFen, moves);
+    opp_alert_on_new_pos(fen); // arm the opponent-mistake check from the just-finished position's eval
     last_pos = {startFen: startFen || null, moves: moves || ''}; // Copy PGN reads this
     clear_next_move_eta(); // the countdown belonged to the position that just changed
     humanize_roll = null;  // and so did any pre-rolled humanize outcome
@@ -1239,7 +1256,8 @@ function on_new_pos(fen, startFen, moves) {
     // start the countdown NOW (the search fills the pace), on our turn, when a mode changes the
     // base time -- so the full time counts down while the engine thinks. Category is added once the
     // move is picked. Cleared at the top of this function, so a non-pacing move shows nothing.
-    if (config.autoplay && !config.help_mode && !config.puzzle_mode
+    // Manual Mode times the move itself (you press the key), so no auto-countdown.
+    if (config.autoplay && !config.help_mode && !config.puzzle_mode && !config.manual_mode
         && ((turn === 'w') ? 'white' : 'black') === board.orientation()) {
         const est = estimated_move_total_ms(fen);
         if (est) {
@@ -1251,7 +1269,7 @@ function on_new_pos(fen, startFen, moves) {
     if (is_remote()) {
         // pure analysis (Help Mode / Autoplay off) keeps deepening like the WASM `go infinite`: give
         // it a long budget that the next position (a new request supersedes this one) cuts short.
-        const rt = (config.help_mode || !config.autoplay) ? 3600000 : movetime;
+        const rt = (config.help_mode || !config.autoplay || config.manual_mode) ? 3600000 : movetime;
         if (moves) {
             request_remote_analysis(startFen, rt, moves).then(on_engine_response).catch(on_remote_error);
         } else {
@@ -1273,8 +1291,9 @@ function on_new_pos(fen, startFen, moves) {
         } else {
             send_engine_uci(`position fen ${fen}`);
         }
-        if (config.help_mode || !config.autoplay) {
-            send_engine_uci('go infinite'); // pure analysis: keep deepening until the position changes
+        // Manual Mode searches forever too: it plays on YOUR keypress, never on a timer.
+        if (config.help_mode || !config.autoplay || config.manual_mode) {
+            send_engine_uci('go infinite'); // pure analysis / manual: keep deepening until the position changes
         } else {
             send_engine_uci(`go movetime ${movetime}`); // autoplay needs a final bestmove to act on
         }
@@ -1993,6 +2012,116 @@ function fresh_timing() {
     };
 }
 
+// ---- Self-test: a one-tap health check shown in the status line for a few seconds. Scrape = a
+// position is currently detected; Engine = it has produced analysis for it; Native = for a native
+// engine, the host actually answered a ping (the real active check -- a missing host is the usual
+// "nothing happens" cause). Restores the status line after ~6s.
+async function run_self_test() {
+    const el = PANEL_ROOT.getElementById('game-detection');
+    if (!el) return;
+    const prev = el.innerText, wasUnsupported = el.classList.contains('unsupported');
+    el.classList.remove('unsupported');
+    el.innerText = 'Self-test: running…';
+    const scrapeOK = !!last_eval.fen;
+    const engineOK = !!(last_eval.lines && last_eval.lines[0] && last_eval.lines[0].pv);
+    let nativePart = '', nativeOK = true;
+    if (NATIVE_ENGINES.includes(config.engine)) {
+        nativeOK = await native_host_available(native_port_name());
+        nativePart = nativeOK ? ' · Native ✓' : ' · Native ✗ (run native-host/install.sh)';
+    }
+    const mark = (b) => b ? '✓' : '✗';
+    const allOK = scrapeOK && engineOK && nativeOK;
+    el.innerText = `Self-test — Scrape ${mark(scrapeOK)} · Engine ${mark(engineOK)}${nativePart}`;
+    el.classList.toggle('unsupported', !allOK);
+    setTimeout(() => { el.innerText = prev; el.classList.toggle('unsupported', wasUnsupported); }, 6000);
+}
+
+// ---- Lichess win% + accuracy (win-percent model, PR #11148 + AccuracyPercent.scala). cp is
+// white/side-relative centipawns. Used by the opponent-mistake alert and mirrored in the options
+// page's threshold readout, so both label a move exactly as a Lichess game review would.
+function win_percent(cp) {
+    return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
+}
+// judgement label from a win% DROP (before - after), matching Lichess's 30/20/10 thresholds.
+function win_drop_label(drop) {
+    if (drop >= 30) return 'blunder';
+    if (drop >= 20) return 'mistake';
+    if (drop >= 10) return 'inaccuracy';
+    return null;
+}
+
+// ---- Opponent-mistake alert. Flag when the opponent plays an inaccuracy/mistake/blunder, judged by
+// the same Lichess win% method. Only when BOTH the position they moved from and the one they moved to
+// were searched to a trustworthy depth -- a shallow eval swings wildly and would invent blunders.
+const OPP_ALERT_MIN_DEPTH = 14;
+let last_pos_eval = null; // {fen, cpWhite, depth, sideToMove} of the position currently on the board
+let opp_alert_armed = null; // {beforeCpWhite, oppColor} set when the opponent just moved; cleared on fire
+
+// Called when a NEW position arrives (on_new_pos), BEFORE last_eval is reset. If the position we were
+// just analysing was the opponent's turn and reached depth, its eval is the "before their move" value.
+function opp_alert_on_new_pos(newFen) {
+    opp_alert_armed = null;
+    if (!config.opp_alert || !last_pos_eval || last_pos_eval.fen === newFen) return;
+    if (last_pos_eval.depth < OPP_ALERT_MIN_DEPTH) return; // shallow "before" -> don't trust it
+    const our = (board.orientation() === 'white') ? 'w' : 'b';
+    if (last_pos_eval.sideToMove !== our) { // it was the OPPONENT to move -> they just made this move
+        opp_alert_armed = {beforeCpWhite: last_pos_eval.cpWhite, oppColor: last_pos_eval.sideToMove};
+    }
+}
+
+// Called when the CURRENT position's eval updates (on_engine_evaluation). Fires once the new position
+// is also deep enough, comparing the opponent's win% before vs after their move.
+function opp_alert_maybe_fire() {
+    if (!config.opp_alert || !opp_alert_armed || !last_pos_eval) return;
+    if (last_pos_eval.fen !== last_eval.fen || last_pos_eval.depth < OPP_ALERT_MIN_DEPTH) return;
+    const sign = (opp_alert_armed.oppColor === 'w') ? 1 : -1; // opponent-relative eval
+    const drop = win_percent(sign * opp_alert_armed.beforeCpWhite) - win_percent(sign * last_pos_eval.cpWhite);
+    const label = win_drop_label(drop);
+    opp_alert_armed = null; // fire at most once per opponent move
+    if (label) send_to_active_tab({oppAlert: true, label, drop: Math.round(drop)});
+}
+
+// ---- Manual Mode: play the engine's current best move on YOUR keypress (the play-move hotkey).
+// The search runs `go infinite` in Manual Mode, so it never fires on its own; this is the trigger.
+// Returns whether it CONSUMED the key: true whenever Manual Mode is on (so the play-move key -- e.g.
+// Space -- is swallowed during a game), false otherwise (so Space still scrolls the page when Manual
+// Mode is off). Actually plays only on our turn with a legal, ours move.
+function manual_play() {
+    if (!config.manual_mode) return false; // not our concern -> let the key through (Space scrolls)
+    // only on OUR turn, and only a move that's actually ours + legal right now (same guard autoplay
+    // uses). last_eval.bestmove is set only on our turn, so a stale opponent-turn value can't leak.
+    const our = (board.orientation() === 'white') ? 'w' : 'b';
+    if (last_eval.fen?.split(' ')[1] === our) {
+        const best = last_eval.bestmove || last_eval.lines?.[0]?.move;
+        if (best && premove_reply_playable(last_eval.fen, best)) {
+            request_automove(best); // Manual Mode plays the BEST move -- your timing, the engine's choice
+        }
+    }
+    return true; // Manual Mode is on: swallow the key even if there was nothing to play this instant
+}
+
+// ---- Hotkeys. The content script owns the keydown listener (keys land on the game page) and calls
+// this with an action name; here we perform it. Toggles flip the quick-settings checkbox and fire
+// its change event, so they reuse ALL the existing wiring (config write, push, engine re-init).
+const HOTKEY_TOGGLES = { // action -> the quick-settings checkbox it flips
+    autoplay: 'qs_autoplay', premove: 'qs_premove', help_mode: 'qs_help', humanize: 'qs_humanize',
+    clock_mode: 'qs_clock', mirror_mode: 'qs_mirror', manual_mode: 'qs_manual',
+    eval_bar: 'qs_evalbar', puzzle_mode: 'qs_puzzle',
+};
+// Returns true if it handled the action (the content-script listener only swallows the key then, so
+// an inert binding -- e.g. Space while Manual Mode is off -- doesn't block the page's own use of it).
+function do_hotkey(action) {
+    if (action === 'manual_play') return manual_play();
+    if (action === 'copy_fen') { copy_to_button('copyfen', last_eval.fen); return true; }
+    if (action === 'copy_pgn') { copy_to_button('copypgn', current_pgn()); return true; }
+    if (action === 'redetect') { PANEL_ROOT.getElementById('recheck')?.click(); return true; }
+    const box = HOTKEY_TOGGLES[action] && PANEL_ROOT.getElementById(HOTKEY_TOGGLES[action]);
+    if (!box) return false;
+    box.checked = !box.checked;
+    box.dispatchEvent(new Event('change'));
+    return true;
+}
+
 function request_automove(move, think = null) {
     // Is this a REAL move on our own turn, or a BLIND premove during the opponent's turn? The site
     // queues a blind premove (it won't appear in the move list until they move), so it must NOT be
@@ -2475,6 +2604,9 @@ self.MephistoPanel = {
     isBooted: () => PANEL_BOOTED,
     // the floating panel's title bar owns the compact toggle; the panel owns the state
     toggleCompact: () => toggle_compact(),
+    // the content-script's keydown listener dispatches hotkey actions here; returns whether it was
+    // handled, so the listener only swallows the key then (see do_hotkey / the keydown listener).
+    hotkey: (action) => { try { return do_hotkey(action); } catch (e) { console.warn('Mephisto: hotkey failed', e); return false; } },
     // content-script.js pushes positions/clocks straight in (same realm, no messaging)
     onContentMessage: (msg) => { try { PANEL_MSG_HANDLER && PANEL_MSG_HANDLER(msg, {}); } catch (e) { console.warn('Mephisto: content->panel failed', e); } },
 };

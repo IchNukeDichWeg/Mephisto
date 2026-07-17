@@ -329,6 +329,12 @@ html, body {
     right: 265px; /* beside the settings gear */
 }
 
+#selftest {
+    position: absolute;
+    bottom: 5px;
+    right: 335px; /* beside re-detect */
+}
+
 #quick-settings {
     position: absolute;
     top: 0;
@@ -552,9 +558,9 @@ body.mephisto-dark #alt-lines::-webkit-scrollbar-thumb { background: #34353d; bo
    full of empty space. `body.mephisto-*` is rehomed onto #mephisto-panel-body for the in-page
    panel, which also lifts specificity to (1,1,0) so it beats the (1,0,0) base height rule. */
 body.mephisto-compact {
-    height: 240px; /* keep in sync with COMPACT_H in content-script.js. Fits the taller of the two
-                      columns: 6 toggles on the right (~185px), or status + move + score + 3
-                      alternative lines on the left, above the button row. */
+    height: 280px; /* keep in sync with COMPACT_H in content-script.js. Fits the taller of the two
+                      columns: 7 toggles on the right (Autoplay..Manual), or status + move + score +
+                      4 alternative lines on the left, above the button row. */
 }
 body.mephisto-compact #board,
 body.mephisto-compact #eval-bar,
@@ -575,7 +581,7 @@ body.mephisto-compact #quick-settings .qs-row:not(.qs-compact) {
 /* Alternative lines survive compact (they're the point of Multi Lines), capped to 3 rows: the
    panel is short, and render_alt_lines already hides the whole block when Multi Lines is 1. */
 body.mephisto-compact #alt-lines {
-    max-height: 63px; /* 3 x the 21px line-height; #alt-lines already clips the overflow */
+    max-height: 84px; /* 4 x the 21px line-height; #alt-lines already clips the overflow */
 }
 
 /* Native-engine health dot. Native engines are a separate process that may not be installed --

@@ -37,7 +37,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.83'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.84'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
     const siteMap = {
@@ -126,6 +126,8 @@ function handleExtensionMessage(response, sender, sendResponse) {
         drawEvalBar(response);
     } else if (response.clearEvalBar) {
         clearEvalBar();
+    } else if (response.oppAlert) {
+        showOppAlert(response.label, response.drop);
     } else if (response.consoleMessage) {
         console.log(response.consoleMessage);
     }
@@ -149,6 +151,51 @@ self.MephistoContent = {
     reopenPanel: async () => { removeOverlay(); await toggleOverlay(); },
 };
 
+// ------------------------------------------------------------------------------------------
+// Hotkeys. Keys land on the GAME page, so the listener lives here (isolated world); it maps the key
+// to an action and hands it to the panel (do_hotkey in popup.js). Bindings are ACTION -> key-combo
+// stored in config.hotkeys (one JSON key -> rides along in settings export/import); defaults below.
+// Alt+letter defaults dodge the sites' own single-letter shortcuts; the play-move key is Spacebar.
+const HOTKEY_DEFAULTS = {
+    manual_play: ' ',
+    autoplay: 'Alt+a', premove: 'Alt+p', help_mode: 'Alt+h', humanize: 'Alt+u',
+    clock_mode: 'Alt+c', mirror_mode: 'Alt+m', manual_mode: 'Alt+n',
+    eval_bar: 'Alt+e', puzzle_mode: 'Alt+z', copy_fen: 'Alt+f', copy_pgn: 'Alt+g', redetect: 'Alt+r',
+};
+function hotkeyBindings() {
+    let saved = {};
+    try { saved = JSON.parse(MephistoConfig.get('hotkeys')) || {}; } catch (e) { /* unset/corrupt */ }
+    return {...HOTKEY_DEFAULTS, ...saved};
+}
+// canonical combo string for a keydown: "Alt+a", "Shift+Ctrl+k", " " (space), "ArrowUp"
+function hotkeyString(e) {
+    const parts = [];
+    if (e.ctrlKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    if (e.metaKey) parts.push('Meta');
+    parts.push(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+    return parts.join('+');
+}
+// exposed so the options page can capture a new binding with the same normalization
+self.MephistoHotkeyString = hotkeyString;
+
+document.addEventListener('keydown', (e) => {
+    if (!self.MephistoPanel?.isBooted?.()) return; // no in-page panel -> don't swallow the site's keys
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return; // typing
+    const pressed = hotkeyString(e);
+    const bindings = hotkeyBindings();
+    for (const action in bindings) {
+        if (bindings[action] && bindings[action] === pressed) {
+            // only swallow the key if the panel actually acted on it -- so e.g. Space stays a page
+            // scroll while Manual Mode is off (its handler returns false there).
+            if (self.MephistoPanel.hotkey(action)) { e.preventDefault(); e.stopPropagation(); }
+            return;
+        }
+    }
+}, true);
+
 // Deliver a scrape/clock push to whichever panel is live: the in-page one shares our realm (direct
 // call); the toolbar popup is a real extension page and needs runtime messaging.
 function sendToPanel(msg) {
@@ -163,7 +210,7 @@ function sendToPanel(msg) {
 
 const PANEL_OVERLAY_ID = 'mephisto-overlay';
 const RESTORE_BADGE_ID = 'mephisto-restore-badge';
-const COMPACT_H = 240;     // compact: status/move/score + up to 3 lines, and the 6 mid-game toggles
+const COMPACT_H = 280;     // compact: status/move/score + up to 4 lines, and the 7 mid-game toggles
                            // (board + full settings hidden). Keep in sync with popup.css .mephisto-compact
 let panelCompact = false;  // popup.js owns the setting; this mirrors it for the sizing math below
 const panelH = () => panelCompact ? COMPACT_H : POPUP_H;
@@ -492,6 +539,43 @@ function drawHintArrows(arrows) {
     svg.innerHTML = `<defs>${defs}</defs>${lines}`;
     getOverlayRoot().appendChild(svg);
     lastHintKey = key;
+}
+
+// ------------------------------------------------------------------------------------------
+// Opponent-mistake toast: a small label that fades in over the TOP of the board when the popup
+// judges the opponent's last move an inaccuracy/mistake/blunder. Lives in the same CLOSED shadow
+// root as everything else, so it adds no page-detectable DOM (the point of "undetectable").
+const OPP_ALERT_ID = 'mephisto-opp-alert';
+const OPP_ALERT_STYLE = {
+    inaccuracy: {text: 'Inaccuracy', bg: '#1e6fb8'},
+    mistake:    {text: 'Mistake',    bg: '#c8901a'},
+    blunder:    {text: 'Blunder',    bg: '#c0392b'},
+};
+let oppAlertTimer = null;
+
+function showOppAlert(label, drop) {
+    const style = OPP_ALERT_STYLE[label];
+    const board = getBoard();
+    if (!style || !board) return;
+    overlayEl(OPP_ALERT_ID)?.remove();
+    const bounds = board.getBoundingClientRect();
+    const el = document.createElement('div');
+    el.id = OPP_ALERT_ID;
+    el.textContent = `⚠ Opponent: ${style.text}${Number.isFinite(drop) ? ` (−${drop}%)` : ''}`;
+    // centred over the top of the board; fixed so it tracks the viewport, high z-index, no pointer capture
+    el.style.cssText =
+        `position: fixed; left: ${bounds.left + bounds.width / 2}px; top: ${bounds.top + 8}px; ` +
+        `transform: translateX(-50%); z-index: 2147483647; pointer-events: none; ` +
+        `background: ${style.bg}; color: #fff; font: 600 14px Roboto, sans-serif; ` +
+        `padding: 5px 12px; border-radius: 6px; box-shadow: 0 3px 12px rgba(0,0,0,0.45); ` +
+        `opacity: 0; transition: opacity 0.2s;`;
+    getOverlayRoot().appendChild(el);
+    requestAnimationFrame(() => { el.style.opacity = '1'; });
+    clearTimeout(oppAlertTimer);
+    oppAlertTimer = setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 250);
+    }, 2200);
 }
 
 // ------------------------------------------------------------------------------------------

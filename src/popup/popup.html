@@ -25,6 +25,10 @@
         data-tooltip="Re-detect the game: rescan the page and restart the analysis">
     <i class="mp-icon">↻</i>
 </button>
+<button id="selftest" class="waves-effect waves-light btn tooltipped" data-position="left"
+        data-tooltip="Self-test: check scraping, the engine, and the native host">
+    <i class="mp-icon">🩺</i>
+</button>
 <button id="analyze" class="waves-effect waves-light btn tooltipped" data-position="right" data-tooltip="Analysis Board">
     <i class="mp-icon">⧉</i>
 </button>
@@ -79,6 +83,11 @@
         <span class="qs-label tooltipped" data-position="left"
               data-tooltip="Pace to the opponent instead: spend what they spent on their last move, minus 10%, staying just ahead on the clock (30% extra haste when behind). Uses the Clock Mode budget for the first move / when their spend is unknown. Recaptures and forced moves stay instant. Priority — Time: Mirror > Clock > Humanize > Search Time (first one enabled sets the duration; recaptures & forced moves always instant). Move: Humanize > engine best.">Mirror Time</span>
         <label><input id="qs_mirror" type="checkbox"><span class="lever"></span></label>
+    </div>
+    <div class="qs-row switch qs-compact">
+        <span class="qs-label tooltipped" data-position="left"
+              data-tooltip="The engine keeps thinking until YOU press the play-move hotkey (Spacebar by default), then it plays the best move it has found. Your own timing — overrides Clock/Mirror/Humanize timing and never fires on its own. Rebind the key in Settings → Hotkeys.">Manual Mode</span>
+        <label><input id="qs_manual" type="checkbox"><span class="lever"></span></label>
     </div>
     <div class="qs-row">
         <span class="qs-label">Engine</span>

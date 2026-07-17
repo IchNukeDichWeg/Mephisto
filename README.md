@@ -92,6 +92,7 @@ goes far beyond.** Everything the original did still works here; the table shows
 | **Elo strength cap** (engine‑aware slider) | ❌ | ✅ |
 | **Humanize** — human move mix, timing & reflex recaptures | ❌ | ✅ |
 | **Clock Mode & Mirror Time** management | ❌ | ✅ |
+| **Manual Mode · rebindable hotkeys · opponent-mistake alert** | ❌ | ✅ |
 | **Safe Premove** (+ human‑reflex gate) | ❌ | ✅ |
 | **Help Mode** — draw arrows on the real board | ❌ | ✅ |
 | **On‑board eval bar** with live search depth | ❌ | ✅ |
@@ -421,17 +422,8 @@ No schedule — added whenever I feel like it. Only the not-yet-built items live
 - [ ] **Ponder / background analysis** — keep searching on the opponent's clock instead of idling. Costs CPU and
   battery the whole time it runs.
 - [ ] **NPS / depth sparkline** — a small live graph of search speed and depth.
-- [ ] **Configurable hotkeys** — keyboard shortcuts for the common actions (toggle panel, autoplay, help mode,
-  re-detect, play best move, copy FEN). **Every binding rebindable to any key combo** from Settings, with conflict
-  detection against the site's own shortcuts, and a reset-to-defaults.
-- [ ] **Manual mode** — a switch that lets the engine keep thinking for as long as you like, then plays the best move
-  it has found the instant you press **Spacebar**. No timer decides for you: the search gets every second you give it,
-  and the move lands exactly when you choose. Because the timing is *yours* rather than a sampled distribution, it is
-  also the most human thing the panel can do with a clock. Key rebindable via **Configurable hotkeys**.
 
 **Robustness**
-- [ ] **Self-test / diagnostics panel** — one button that checks scraping, engine and native host, and names what's
-  broken.
 - [ ] **Auto-recover on site DOM changes** — spot a scraper that has stopped matching and re-anchor, instead of
   silently seeing nothing.
 
@@ -453,6 +445,17 @@ Shipped and in the current build.
   fixed 8. An explicit setting is never overridden.
 - [x] **Graceful "unsupported variant" message** — a variant chess.js can't replay says so in the panel instead of
   showing a confident analysis of the wrong position.
+- [x] **Manual mode** — a toggle (below Mirror Time, and in compact) that keeps the engine thinking until you press
+  the play-move hotkey (**Spacebar** by default), then plays the best move it found. Your own timing.
+- [x] **Configurable hotkeys** — **Settings → Hotkeys**: a rebindable key for Manual-mode play and for most toggles
+  (Autoplay, Premove, Help, Humanize, Clock, Mirror, Manual, Eval Bar, Puzzle) plus Copy FEN/PGN and Re-detect.
+  Defaults use **Alt+letter** to dodge the sites' own shortcuts; click a key to rebind, and they ride along in
+  settings export/import.
+- [x] **Opponent Mistake Alert** — an opt-in toast over the board (**Settings → General**) that flags when your
+  **opponent** plays an inaccuracy/mistake/blunder, judged by the same Lichess win% method (30/20/10% win-chance
+  drop) and only when both positions were searched deep enough to trust.
+- [x] **Self-test button** — beside Re-detect: one tap checks scraping, the engine, and the native host, and shows
+  what's working in the status line.
 
 ---
 
