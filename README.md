@@ -448,15 +448,14 @@ Shipped and in the current build.
   the play-move hotkey (**Spacebar** by default), then plays the best move it found. Your own timing.
 - [x] **Configurable hotkeys** — **Settings → Hotkeys**: a rebindable key for Manual-mode play and for most toggles
   (Autoplay, Premove, Help, Humanize, Clock, Mirror, Manual, Eval Bar, Puzzle) plus Copy FEN/PGN and Re-detect.
-  Defaults use **Alt+letter** to dodge the sites' own shortcuts; click a key to rebind, and they ride along in
-  settings export/import.
+  Default keys are single letters (Autoplay **A**, Premove **P**, … Manual **N**; play move = **Space**); each
+  toggle in the panel shows its key next to it (e.g. "Autoplay (A)"). Click a key in Settings to rebind, and they
+  ride along in settings export/import.
 - [x] **Opponent Mistake Alert** — an opt-in toast over the board (**Settings → General**) that flags when your
   **opponent** plays an inaccuracy/mistake/blunder, judged by the same Lichess win% method (30/20/10% win-chance
   drop) and only when both positions were searched deep enough to trust.
 - [x] **Self-test button** — beside Re-detect: one tap checks scraping, the engine, and the native host, and shows
   what's working in the status line.
-- [x] **NPS / depth sparkline** — two tiny live line charts under the NPS text: search depth climbing and speed
-  ramping, redrawn as the engine streams and reset each move.
 
 ---
 

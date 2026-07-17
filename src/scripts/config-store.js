@@ -61,6 +61,22 @@
             const cores = navigator.hardwareConcurrency;
             return cores ? Math.max(1, Math.min(24, cores - 1)) : 8;
         },
+        // Default hotkeys (action -> key-combo), shared by the keydown listener (content script), the
+        // rebind UI (options page), and the panel's "(A)" label hints -- ONE source so they can't drift.
+        // Single letters: they fire only when you're not typing in a field, and our capture-phase
+        // listener preventDefaults them so the site's own letter shortcut doesn't also run.
+        HOTKEY_DEFAULTS: {
+            manual_play: ' ',
+            manual_mode: 'n', autoplay: 'a', premove: 'p', help_mode: 'h', humanize: 'u',
+            clock_mode: 'c', mirror_mode: 'm', eval_bar: 'e', puzzle_mode: 'z',
+            copy_fen: 'f', copy_pgn: 'g', redetect: 'r',
+        },
+        // the effective bindings: defaults overlaid with whatever the user saved in config.hotkeys
+        hotkeys() {
+            let saved = {};
+            try { saved = JSON.parse(this.get('hotkeys')) || {}; } catch (e) { /* unset/corrupt */ }
+            return {...this.HOTKEY_DEFAULTS, ...saved};
+        },
         // load chrome.storage into the cache once; one-time migrate the old localStorage config in.
         async init() {
             if (ready) return;
