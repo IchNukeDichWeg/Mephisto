@@ -192,7 +192,16 @@ body.parallax-demo footer {
 
 .flex-group {
     display: flex;
+    flex-wrap: wrap; /* wrap onto more rows instead of overflowing into a horizontal scroll */
     gap: 50px;
+}
+
+/* Toggle groups (the mode switches) stack vertically -- there are a dozen-plus, and a horizontal
+   row ran off the page. `:has` targets only the switch groups, leaving the input pairs side by side. */
+.flex-group:has(.section.switch) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
 }
 
 .flex-group.flex-space-between {
