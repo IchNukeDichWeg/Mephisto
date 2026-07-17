@@ -56,7 +56,7 @@ These reduce *client-side* fingerprinting and make automated play look less mech
 | Setting | What it does |
 |---|---|
 | **Panel Style → Toolbar popup** | No in-page panel at all — **zero page footprint**. The safest mode; analysis only (Autoplay/Premove need the floating panel). |
-| **Humanize** | Don't play engine-perfect: mixes in 2nd/3rd lines and occasional real mistakes at rates you set, and varies think time by how critical the position is. |
+| **Humanize** | Don't play engine-perfect: mixes in 2nd/3rd/4th lines, inaccuracies, mistakes and blunders at rates and centipawn thresholds you set (with a Lichess accuracy readout), and varies think time by how critical the position is. |
 | **Clock Mode / Mirror Time** | Paces moves against the real clock, or mirrors your opponent's time use, instead of answering instantly. |
 | **Elo cap** | Cap engine strength. Playing 3200 in a 1400 pool is the loudest signal there is. |
 | **Background Play → Off** (default) | Only moves while the tab is focused and visible — humans don't play while tabbed away. |
@@ -287,18 +287,24 @@ auto‑cancelled so it can never fire in the wrong position.
 
 Make automated play look like a real person instead of a flawless engine:
 
-- **Move mix** — five tunable sliders control how often Mephisto plays the top move, the 2nd line, the 3rd line, a
-  *mistake*, or a *blunder*. Second/third lines are only used when they're not much worse than best; mistakes are
-  ~0.6–1.5 pawns worse, blunders ~1.5–4.5 — and never in already‑decided games or into a mate. Edits apply to the
-  very next move.
+- **Move mix** — seven tunable sliders control how often Mephisto plays the **top move**, a **2nd / 3rd / 4th line**,
+  an **inaccuracy**, a **mistake**, or a **blunder**. A separate **Move‑Quality Thresholds** section sets, in
+  centipawns, how much worse than the best move each of those may be — so *you* decide how far a "second line" or a
+  "mistake" strays. Above every threshold is a **live accuracy estimate** computed with **Lichess's own formulas**
+  ([win‑percent model](https://lichess.org/page/accuracy) + accuracy), showing the move accuracy and win‑chance drop
+  a setting produces. The defaults sit exactly on Lichess's own labels — **110cp = 10% win drop = Inaccuracy, 230cp =
+  20% = Mistake, 377cp = 30% = Blunder** — so the categories mean what they mean in a Lichess game review. Turning on
+  Inaccuracy/Mistake/Blunder makes the engine search more lines so it has moves that bad to pick from; nothing past
+  the blunder threshold is ever played, and blunders never fire in an already‑decided game. Edits apply to the very
+  next move.
 - **Human timing** — quick on obvious moves and openings, long thinks in critical positions, and an **instant
   reflex** *only* for true recaptures (the opponent actually captured, and you take back on that square) and forced
   moves. Snapping off a piece that merely moved in to attack is **not** treated as a reflex — that used to look
   suspiciously fast.
 - **Reflex‑aware premove** — with Humanize on, premoves fire instantly only for those same true recaptures / forced
   replies; everything else waits for a natural think time. (With Humanize off, premove keeps full speed.)
-- **Coming‑move countdown** — the panel shows what kind of move is coming (top / 2nd / 3rd / mistake / blunder /
-  instant) and counts down until it's played.
+- **Coming‑move countdown** — the panel shows what kind of move is coming (top / 2nd / 3rd / 4th / inaccuracy /
+  mistake / blunder / instant) and counts down until it's played.
 
 ### Clock Mode & Mirror Time
 
