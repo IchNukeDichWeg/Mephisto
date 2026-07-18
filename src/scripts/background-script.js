@@ -30,13 +30,19 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   // Trusted clicks: chrome.debugger is unavailable to a content script, so the panel routes CDP
   // clicks through here now that it lives in the page's isolated world.
   if (msg.cdpClick) {
-    cdpClick(msg.tabId, msg.x, msg.y).then(() => sendResponse({ok: true})).catch(e => sendResponse({error: String(e)}));
+    // sender.tab is authenticated by Chrome; never trust a message-supplied tab id (issue #36 §1).
+    const tabId = sender.tab?.id;
+    if (!tabId) { sendResponse({error: 'no sender tab'}); return; }
+    cdpClick(tabId, msg.x, msg.y).then(() => sendResponse({ok: true})).catch(e => sendResponse({error: String(e)}));
     return true;
   }
   // The panel can't open the options page itself: it's a content script, so a relative URL resolves
   // against the SITE and chrome-extension:// navigation from a page is blocked.
   if (msg.openUrl) { // analysis board etc. -- a content script can't reliably window.open
-    chrome.tabs.create({url: msg.openUrl});
+    // Pin to the one destination we actually open (lichess analysis board, issue #36 §1).
+    if (msg.openUrl.startsWith('https://lichess.org/analysis/')) {
+      chrome.tabs.create({url: msg.openUrl});
+    }
     return;
   }
   if (msg.openOptions) {
