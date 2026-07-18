@@ -32,6 +32,28 @@ engine_lock = threading.Lock()
 request_lock = threading.Lock()
 
 app = Flask(__name__)
+
+
+# The sites the extension runs on (mirrors manifest.json content_scripts matches). The panel runs in
+# the page's isolated world, so its fetches carry the SITE's Origin — not chrome-extension://.
+ALLOWED_HOSTS = {'www.chess.com', 'lichess.org', 'blitztactics.com', 'taketaketake.com',
+                 'www.taketaketake.com', 'tactics.chessbase.com'}
+
+
+@app.before_request
+def _reject_foreign_origins():
+    # Only the extension may drive this server (issue #36 §2): allow extension-context fetches,
+    # fetches from the sites the panel runs on, and no-Origin callers (curl / manual testing) —
+    # the guard targets requests from arbitrary web pages. An Origin header can't be spoofed by
+    # page script.
+    origin = request.headers.get('Origin', '')
+    if not origin or origin.startswith('chrome-extension://'):
+        return
+    host = origin.split('://', 1)[-1].split('/', 1)[0].split(':', 1)[0]
+    if host not in ALLOWED_HOSTS:
+        return {'error': 'forbidden origin'}, 403
+
+
 parser = argparse.ArgumentParser(description='A backend to remotely communicate with a chess engine over UCI.')
 parser.add_argument('executable', action='store', help='The path to the UCI chess engine executable.')
 parser.add_argument('--option', '-o', dest='options', action='append',
@@ -256,7 +278,7 @@ if __name__ == '__main__':
     print("In the extension, set Engine = \"Remote Engine\". Keep this window open while you play.")
     print("Press Ctrl+C here to stop.")
     try:
-        app.run(port=args.port)
+        app.run(host='127.0.0.1', port=args.port)  # loopback only — never expose on the LAN
     except OSError as ex:
         sys.exit(f"Couldn't start the server on port {args.port}:\n    {ex}\n"
                  f"That port may already be in use (is this script already running?). "
