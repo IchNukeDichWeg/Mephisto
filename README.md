@@ -402,7 +402,6 @@ No schedule — added whenever I feel like it. Only the not-yet-built items live
 - [ ] **Maia NNUE** — human-like nets with pickable skill bands (1100/1500/1900). Trained on real human games, so it
   plays like a human of that rating instead of a Stockfish told to play badly.
 - [ ] **Opening explorer overlay** (Lichess DB) — win rates and popular replies for the position on the board.
-- [ ] **Blunder alert** — flags the moment the opponent's move tanks their evaluation.
 - [ ] **Syzygy tablebase probing** (≤7 pieces) — perfect endgame play once few enough pieces are left.
 
 **Board & position**
@@ -440,7 +439,7 @@ Shipped and in the current build.
 - [x] **Graceful "unsupported variant" message** — says so instead of analysing the wrong position.
 - [x] **Manual mode** — the engine thinks until you press the play-move key (**Space**), then plays its best move.
 - [x] **Configurable hotkeys** — **Settings → Hotkeys**; single-letter defaults, each toggle shows its key, carried in export/import.
-- [x] **Opponent Mistake Alert** — opt-in toast over the board for the opponent's inaccuracy/mistake/blunder (Lichess win%, depth-gated).
+- [x] **Opponent Mistake Alert** (the roadmap's *Blunder alert*) — opt-in toast over the board for the opponent's inaccuracy/mistake/blunder (Lichess win%, depth-gated).
 - [x] **Self-test button** — beside Re-detect; checks scraping, the engine, and the native host.
 
 ---
