@@ -68,9 +68,9 @@ function wdlToCp(wdl) {                    // [loss, draw, win] logits (side to 
 // ---- adapter -----------------------------------------------------------------------------------
 export async function createMaia3Engine(listen, initialElo) {
     const Chess = self.Chess;
-    const bytes = new Uint8Array(await fetch('/lib/engine/maia3/maia3-5m.onnx').then(r => r.arrayBuffer()));
+    const bytes = new Uint8Array(await fetch('/lib/engine/maia3/maia3-23m.onnx').then(r => r.arrayBuffer()));
     const session = await ort.InferenceSession.create(bytes);
-    console.log('[Maia-3] model loaded, onnxruntime ready');
+    console.log(`[Maia-3] 23M model loaded (${bytes.length} bytes), onnxruntime ready`);
 
     let fen = null, moves = '', selfElo = initialElo || 1500, oppoElo = initialElo || 1500, multipv = 1;
 
