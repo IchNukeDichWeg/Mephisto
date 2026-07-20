@@ -34,8 +34,8 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('python_autoplay_backend', 'Python Autoplay Backend:', 'checkbox', false);
         this.registerFormElement('think_time', 'Simulated Think Time (ms):', 'input', 0);
         this.registerFormElement('think_variance', 'Simulated Think Variance (ms):', 'input', 0);
-        this.registerFormElement('move_time', 'Simulated Move Time (ms):', 'input', 200);
-        this.registerFormElement('move_variance', 'Simulated Move Variance (ms):', 'input', 50);
+        this.registerFormElement('move_time', 'Simulated Move Time (ms):', 'input', 400);
+        this.registerFormElement('move_variance', 'Simulated Move Variance (ms):', 'input', 400);
         const engineLabelTooltiped = document.querySelector('#engine-label-tooltiped');
         const engineLabelUntooltiped = document.querySelector('#engine-label-untooltiped');
         for (const range of [multipv_range, threads_range, memory_range]) {

@@ -37,9 +37,9 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.89'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.90'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
-    console.log(`Mephisto is listening! (content-script build ${MEPHISTO_BUILD})`);
+    console.log(`content-script build ${MEPHISTO_BUILD}`); // debranded: no product name in the page console (L8)
     const siteMap = {
         'lichess.org': 'lichess',
         'www.chess.com': 'chesscom',
@@ -190,8 +190,10 @@ document.addEventListener('keydown', (e) => {
 // Deliver a scrape/clock push to whichever panel is live: the in-page one shares our realm (direct
 // call); the toolbar popup is a real extension page and needs runtime messaging.
 function sendToPanel(msg) {
-    if (self.MephistoPanel?.isBooted?.()) { self.MephistoPanel.onContentMessage(msg); return; }
-    try { chrome.runtime.sendMessage(msg); } catch (e) { /* orphaned content-script after a reload */ }
+    // returns a promise for the in-page panel so a click dispatch can be awaited (its cursor travel
+    // paces the move); pushes ignore the return.
+    if (self.MephistoPanel?.isBooted?.()) { return self.MephistoPanel.onContentMessage(msg); }
+    try { return chrome.runtime.sendMessage(msg); } catch (e) { /* orphaned content-script after a reload */ }
 }
 
 // ------------------------------------------------------------------------------------------
@@ -1264,14 +1266,27 @@ function getLastMoveHighlights() {
 }
 
 function getTurn() {
+    // Manual override: when auto-detect gets the side-to-move wrong (rare, but the classic case is
+    // a lichess "From Position" black-to-move start), the panel exposes an Auto/White/Black switch
+    // (config.force_turn = null / 'w' / 'b'). Any explicit value wins outright.
+    if (config?.force_turn === 'w' || config?.force_turn === 'b') return config.force_turn;
     let toSquare;
     try {
         toSquare = getLastMoveHighlights()[1];
     } catch (e) {
-        // no last-move highlight to read the turn from. If a move list exists, derive the
-        // turn from how many moves have been played (even count => white is to move).
+        // no last-move highlight to read the turn from. If a move list exists, derive the turn from
+        // how many moves have been played. Normally White moved first, so an even count => White to
+        // move. But a lichess "From Position" game can START with Black to move -- its cached start
+        // string leads with the side-to-move token -- so count parity from THAT side (M4). Absent a
+        // custom start (every normal game) firstTurn stays 'w' and this is unchanged.
         if (getMoveContainer()) {
-            return (getMoveRecords().length % 2 === 0) ? 'w' : 'b';
+            let firstTurn = 'w';
+            if (site === 'lichess') {
+                const startPos = startPosCache?.get?.(location.href)?.position;
+                if (startPos && startPos[0] === 'b') firstTurn = 'b';
+            }
+            const secondTurn = (firstTurn === 'w') ? 'b' : 'w';
+            return (getMoveRecords().length % 2 === 0) ? firstTurn : secondTurn;
         }
         // no move list at all: on lichess that's a GAME at the starting position -- white
         // moves first (regardless of which colour the user plays), so autoplay must fire for
@@ -1500,20 +1515,21 @@ function getRandomSampledXY(bounds, range = 0.8) {
 
 // -------------------------------------------------------------------------------------------
 
-function dispatchSimulateClick(x, y) {
+function dispatchSimulateClick(x, y, travelMs = 0) {
     try {
         // goes to the PANEL (it picks CDP vs the python backend), which is in our own realm when the
         // panel is in-page -- runtime.sendMessage would only reach the extension, never our sibling.
-        sendToPanel({click: true, x: x, y: y});
+        // travelMs is how long the cursor should take travelling to (x, y) before the click (M2).
+        return sendToPanel({click: true, x: x, y: y, travelMs});
     } catch (e) {
         // "Extension context invalidated" -- this content-script was orphaned by an extension reload
         // (a fresh one loads on the next page refresh). Swallow it like the other sendMessage sites.
     }
 }
 
-function simulateClickSquare(bounds, range = 0.8) {
+function simulateClickSquare(bounds, range = 0.8, travelMs = 0) {
     const [x, y] = getRandomSampledXY(bounds, range);
-    dispatchSimulateClick(x, y);
+    return dispatchSimulateClick(x, y, travelMs);
 }
 
 function simulateMove(move, deselect, think = null) {
@@ -1543,30 +1559,35 @@ function simulateMove(move, deselect, think = null) {
         return config.move_time + Math.random() * config.move_variance;
     }
 
-    async function performSimulatedMoveClicks() {
+    async function performSimulatedMoveClicks(approachMs, travelMs) {
         // Clear a stale selection (a piece left selected by a prior failed click would be DESELECTED
         // by our from-click, making the move a no-op). `deselect` is an empty square the moving piece
-        // can't reach, so clicking it only ever deselects -- never moves anything.
-        // ONLY on a RETRY: simulateMoveVerified passes deselect=null on the first attempt. Leading
-        // EVERY move with a click on an empty, unreachable square is a deterministic non-human
-        // 3-click signature; a human just clicks from->to. The rare stale selection is what makes the
-        // first attempt fail, and the retry (which does clear it) recovers. Lead delay is randomized
-        // -- a fixed 60ms was itself a fingerprint next to the varianced from->to gap.
+        // can't reach, so clicking it only ever deselects -- never moves anything. ONLY on a RETRY:
+        // simulateMoveVerified passes deselect=null on the first attempt (a bare from->to). Retries
+        // are rare, so its short lead click sits OUTSIDE the move_time budget on purpose.
         if (/^[a-h][1-8]$/.test(deselect ?? '')) {
-            simulateClickSquare(getBoundsFromCoords(deselect));
+            await simulateClickSquare(getBoundsFromCoords(deselect), 0.8, 80);
             await promiseTimeout(40 + Math.random() * 90);
         }
-        simulateClickSquare(getBoundsFromCoords(move.substring(0, 2)));
-        await promiseTimeout(getMoveTime());
-        simulateClickSquare(getBoundsFromCoords(move.substring(2)));
+        // Two clicks: piece then target. Both are awaited, and each is a real cursor path -- so the
+        // wall-clock IS approachMs + travelMs, spent as motion (M2). The caller splits the total
+        // move_time budget between them (default 25% / 75%).
+        await simulateClickSquare(getBoundsFromCoords(move.substring(0, 2)), 0.8, approachMs);
+        await simulateClickSquare(getBoundsFromCoords(move.substring(2)), 0.8, travelMs);
     }
 
+    // move_time (+ variance) is the TOTAL wall-clock budget for the click sequence -- whatever the
+    // user sets is what a move takes. On a normal move: piece (25%) + target (75%). On a promotion:
+    // piece (20%) + target (55%) + promo picker (25%). Think time stays a separate slider (that's
+    // the pause BEFORE the move; this budget is the physical act of playing it).
     async function performSimulatedMoveSequence() {
         await promiseTimeout(getThinkTime());
-        await performSimulatedMoveClicks();
+        const total = getMoveTime();
         if (move[4]) {
-            await promiseTimeout(getMoveTime());
-            await simulatePromotionClicks(move[4]); // conditional promotion click
+            await performSimulatedMoveClicks(total * 0.20, total * 0.55);
+            await simulatePromotionClicks(move[4], total * 0.25);
+        } else {
+            await performSimulatedMoveClicks(total * 0.25, total * 0.75);
         }
     }
 
@@ -1664,9 +1685,11 @@ function simulatePvMoves(pv) {
     return performSimulatedPvMoveSequence();
 }
 
-async function simulatePromotionClicks(promotion) {
+async function simulatePromotionClicks(promotion, travelMs = 250) {
     const promotionChoice = getPromotionSelection(promotion);
     if (promotionChoice) {
-        await simulateClickSquare(promotionChoice.getBoundingClientRect())
+        // the promotion picker pops up after the to-click; the cursor travels to the chosen piece
+        // over the caller-supplied budget slice (~25% of the move_time total for a promo move)
+        await simulateClickSquare(promotionChoice.getBoundingClientRect(), 0.8, travelMs)
     }
 }
