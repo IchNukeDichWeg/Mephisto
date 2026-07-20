@@ -108,6 +108,7 @@
             <option value="fairy-native">Fairy (local)</option>
             <option value="fairy-stockfish-14-nnue">Fairy WASM</option>
             <option value="maia">Maia (human-like)</option>
+            <option value="maia3">Maia-3 (600-2600)</option>
             <option value="remote">Remote Engine</option>
         </select>
     </div>
@@ -115,6 +116,11 @@
         <span class="qs-label tooltipped" data-position="left"
               data-tooltip="Cap the engine's strength to a target Elo (UCI_LimitStrength + UCI_Elo). The slider stops follow the selected engine's own range (SF dev/18: 1320-3190, SF 11: 1350-2850, Fairy: 500-2850). Both ends mean full strength (no cap): Off on the far left, or past the engine's own max on the far right.">Elo (<span id="qs_elo_val">Off / Full Strength</span>)</span>
         <input id="qs_elo" class="browser-default" type="range" min="0" max="1" step="1">
+    </div>
+    <div class="qs-row" id="qs_maia3_row">
+        <span class="qs-label tooltipped" data-position="left"
+              data-tooltip="Maia-3 target rating. One transformer model conditioned on the Elo you set, so it plays like a human of that strength — anywhere from 600 to 2600, in fine steps. Changing it applies instantly (no reload).">Maia-3 Elo (<span id="qs_maia3_val">1500</span>)</span>
+        <input id="qs_maia3_elo" class="browser-default" type="range" min="600" max="2600" step="50">
     </div>
     <div class="qs-row" id="qs_maia_row">
         <span class="qs-label tooltipped" data-position="left"

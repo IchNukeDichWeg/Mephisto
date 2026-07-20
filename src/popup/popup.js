@@ -178,6 +178,7 @@ async function initPanel(root, tabId) {
         variant: JSON.parse(MephistoConfig.get('variant')) || 'chess',
         elo: JSON.parse(MephistoConfig.get('elo')) || 0, // strength cap; 0 = full strength (no UCI_LimitStrength)
         maia_level: JSON.parse(MephistoConfig.get('maia_level')) || '1500', // which Maia net (rating band) when engine=maia
+        maia3_elo: JSON.parse(MephistoConfig.get('maia3_elo')) || 1500, // Maia-3 target Elo (600-2600, live input, not a reload)
         compute_time: (computeTime != null) ? computeTime : 300,
         fen_refresh: (fenRefresh != null) ? fenRefresh : 1000, // FALLBACK poll; positions arrive event-driven
         multiple_lines: JSON.parse(MephistoConfig.get('multiple_lines')) || 1,
@@ -533,7 +534,7 @@ function init_quick_settings() {
             // standard-chess only (its nets have no 960), so switching to it always forces chess.
             if (key === 'engine') {
                 const eng = parse(elem.value);
-                if (eng === 'maia') save('variant', 'chess');
+                if (eng === 'maia' || eng === 'maia3') save('variant', 'chess');
                 else if (!FAIRY_ENGINES.includes(eng) && !['chess', 'fischerandom'].includes(config.variant)) save('variant', 'chess');
             }
             save(key, parse(elem.value));
@@ -543,19 +544,42 @@ function init_quick_settings() {
     // Maia: strength is the NET (the Maia Level dropdown), not UCI_Elo, and it's standard-chess only
     // -> hide the Elo + Variant rows, show the level dropdown.
     const isMaia = config.engine === 'maia';
+    const isMaia3 = config.engine === 'maia3';
     const maiaRow = PANEL_ROOT.getElementById('qs_maia_row');
     if (maiaRow) {
         maiaRow.style.display = isMaia ? '' : 'none';
         const ml = PANEL_ROOT.getElementById('qs_maia_level');
         if (ml) ml.value = config.maia_level;
     }
+    // Maia-3 Elo slider: one model conditioned on a target Elo, applied LIVE via setoption (no reload).
+    const maia3Row = PANEL_ROOT.getElementById('qs_maia3_row');
+    if (maia3Row) {
+        maia3Row.style.display = isMaia3 ? '' : 'none';
+        const sl = PANEL_ROOT.getElementById('qs_maia3_elo');
+        const lbl = PANEL_ROOT.getElementById('qs_maia3_val');
+        if (sl && lbl) {
+            sl.value = String(config.maia3_elo);
+            lbl.textContent = config.maia3_elo;
+            sl.addEventListener('input', () => { lbl.textContent = sl.value; });
+            sl.addEventListener('change', () => {
+                const v = parseInt(sl.value) || 1500;
+                config.maia3_elo = v;
+                save('maia3_elo', v);
+                send_engine_uci(`setoption name SelfElo value ${v}`);
+                send_engine_uci(`setoption name OppoElo value ${v}`);
+                abandon_search();
+                last_eval.fen = '';
+                push_config();
+            });
+        }
+    }
     const eloRowEl = PANEL_ROOT.getElementById('qs_elo_row');
-    if (eloRowEl) eloRowEl.style.display = isMaia ? 'none' : '';
+    if (eloRowEl) eloRowEl.style.display = (isMaia || isMaia3) ? 'none' : '';
     // The Variant selector: full list for Fairy-Stockfish; Standard + Chess960 for everything else
     // (mainline SF speaks UCI_Chess960); hidden for Maia. The "detect" button reads the variant off the page.
     const variantRow = PANEL_ROOT.getElementById('qs_variant_row');
     if (variantRow) {
-        if (isMaia) {
+        if (isMaia || isMaia3) {
             variantRow.style.display = 'none';
         } else {
             const fairy = FAIRY_ENGINES.includes(config.engine);
@@ -621,7 +645,7 @@ function init_quick_settings() {
 // engine output/errors come back over chrome.runtime and route to the existing handlers below.
 let ENGINE_CLIENT = (MY_TAB_ID != null) ? String(MY_TAB_ID) : 'toolbar'; // one engine per panel
 const WASM_ENGINES = ['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue',
-                      'fairy-stockfish-14-nnue', 'stockfish-11-hce', 'maia'];
+                      'fairy-stockfish-14-nnue', 'stockfish-11-hce', 'maia', 'maia3'];
 const offscreen_engine = {
     uci: (line) => { try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'uci', line}); } catch (e) { /* SW/offscreen gone */ } },
 };
@@ -639,7 +663,7 @@ async function ensure_offscreen_engine(engineName) {
     // while it loads and flushes it in order, so nothing is lost -- and the panel no longer stalls
     // behind a slow engine load (Fairy's per-variant NNUE), which is why its board used to appear late.
     chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'init',
-                                engine: engineName, variant: config.variant, maiaLevel: config.maia_level});
+                                engine: engineName, variant: config.variant, maiaLevel: engineName === 'maia3' ? config.maia3_elo : config.maia_level});
 }
 
 async function initialize_engine(reuseWarm = false) {
