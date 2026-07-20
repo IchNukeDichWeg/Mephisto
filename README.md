@@ -401,8 +401,6 @@ No schedule — added whenever I feel like it. Only the not-yet-built items live
 **Engines & analysis**
 - [ ] **lc0 (Leela) in the browser** — Leela's neural-net engine as a WASM alternative to Stockfish. A large
   download for play that isn't stronger; mainly for comparing styles.
-- [ ] **Maia NNUE** — human-like nets with pickable skill bands (1100/1500/1900). Trained on real human games, so it
-  plays like a human of that rating instead of a Stockfish told to play badly.
 - [ ] **Opening explorer overlay** (Lichess DB) — win rates and popular replies for the position on the board.
 - [ ] **Syzygy tablebase probing** (≤7 pieces) — perfect endgame play once few enough pieces are left.
 
@@ -433,6 +431,7 @@ No schedule — added whenever I feel like it. Only the not-yet-built items live
 
 Shipped and in the current build.
 
+- [x] **Maia (human-like play)** (v3.1.93) — pick **Engine → Maia** and a rating band (**1100–1900**). These are the [Maia](https://maiachess.com/) neural nets trained on real human games, so they play like a human of that rating — human-like mistakes, not a strong engine told to play badly. Runs entirely in the browser as a single ONNX forward pass per move (onnxruntime-web, no lc0, no server); moves match the lc0 reference implementation. Changing the band loads a different net.
 - [x] **Copy FEN / Copy PGN** — buttons that copy the position, or the whole game (with `SetUp`/`FEN` tags for a custom start).
 - [x] **Compact / expanded panel** — the **▣** title-bar button collapses the panel to the move + score; remembered.
 - [x] **Export / import settings** — **Settings → General** writes/loads the whole config as a JSON file.

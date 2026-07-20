@@ -107,6 +107,7 @@
             <option value="stockfish-11-hce">SF 11 WASM</option>
             <option value="fairy-native">Fairy (local)</option>
             <option value="fairy-stockfish-14-nnue">Fairy WASM</option>
+            <option value="maia">Maia (human-like)</option>
             <option value="remote">Remote Engine</option>
         </select>
     </div>
@@ -114,6 +115,21 @@
         <span class="qs-label tooltipped" data-position="left"
               data-tooltip="Cap the engine's strength to a target Elo (UCI_LimitStrength + UCI_Elo). The slider stops follow the selected engine's own range (SF dev/18: 1320-3190, SF 11: 1350-2850, Fairy: 500-2850). Both ends mean full strength (no cap): Off on the far left, or past the engine's own max on the far right.">Elo (<span id="qs_elo_val">Off / Full Strength</span>)</span>
         <input id="qs_elo" class="browser-default" type="range" min="0" max="1" step="1">
+    </div>
+    <div class="qs-row" id="qs_maia_row">
+        <span class="qs-label tooltipped" data-position="left"
+              data-tooltip="Which Maia network to use. Each is trained on human games at that rating, so it plays like a human of that strength — human-like mistakes, not a strong engine told to play badly. Changing this loads a different net.">Maia Level</span>
+        <select id="qs_maia_level" class="browser-default">
+            <option value="1100">1100</option>
+            <option value="1200">1200</option>
+            <option value="1300">1300</option>
+            <option value="1400">1400</option>
+            <option value="1500">1500</option>
+            <option value="1600">1600</option>
+            <option value="1700">1700</option>
+            <option value="1800">1800</option>
+            <option value="1900">1900</option>
+        </select>
     </div>
     <div class="qs-row" id="qs_variant_row">
         <span class="qs-label">Variant</span>

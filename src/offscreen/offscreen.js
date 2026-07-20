@@ -6,7 +6,7 @@
 // tabs stay independent, exactly as when each had its own iframe engine.
 //
 // Protocol (over chrome.runtime.sendMessage, filtered by clientId):
-//   popup  -> offscreen : {toOffscreen, clientId, cmd:'init', engine, variant}
+//   popup  -> offscreen : {toOffscreen, clientId, cmd:'init', engine, variant, maiaLevel?}
 //                         {toOffscreen, clientId, cmd:'uci', line}
 //                         {toOffscreen, clientId, cmd:'dispose'}
 //   offscreen -> popup  : {fromOffscreen, clientId, kind:'ready'}
@@ -71,8 +71,19 @@ function disposeClient(clientId) {
 // Create (or replace) the engine for one panel and load its NNUE net(s). Mirrors the WASM half of
 // popup.js initialize_engine EXACTLY (incl. Fairy's UCI_Variant-before-NNUE quirk); everything after
 // (Hash/Threads/MultiPV/Elo/ucinewgame/isready) stays in the popup and arrives as 'uci' commands.
-async function initEngine(clientId, engineName, variant) {
+async function initEngine(clientId, engineName, variant, maiaLevel) {
     disposeClient(clientId);
+    // Maia: not a Stockfish WASM build -- a UCI adapter running one onnxruntime forward pass of the
+    // selected lc0 Maia net (no search). Same interface, so the panel drives it like any engine.
+    if (engineName === 'maia') {
+        const { createMaiaEngine } = await import('/src/offscreen/maia.js');
+        const engine = await createMaiaEngine(maiaLevel || '1500', (line) => send(clientId, { kind: 'line', line }));
+        clients[clientId] = engine;
+        const queued = pending[clientId] || []; delete pending[clientId];
+        for (const line of queued) { try { engine.uci(line); } catch (e) { send(clientId, { kind: 'error', error: String(e) }); } }
+        send(clientId, { kind: 'ready' });
+        return;
+    }
     const enginePath = `/lib/engine/${engineMap[engineName]}`;
     const base = enginePath.substring(0, enginePath.lastIndexOf('/'));
     const module = await import(enginePath);
@@ -108,7 +119,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || !msg.toOffscreen) return;
     const {clientId, cmd} = msg;
     if (cmd === 'init') {
-        initEngine(clientId, msg.engine, msg.variant).catch(e => send(clientId, {kind: 'error', error: String(e)}));
+        initEngine(clientId, msg.engine, msg.variant, msg.maiaLevel).catch(e => send(clientId, {kind: 'error', error: String(e)}));
     } else if (cmd === 'uci') {
         const engine = clients[clientId];
         if (engine) {
