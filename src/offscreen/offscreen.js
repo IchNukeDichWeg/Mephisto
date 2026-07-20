@@ -75,9 +75,10 @@ async function initEngine(clientId, engineName, variant, maiaLevel) {
     disposeClient(clientId);
     // Maia: not a Stockfish WASM build -- a UCI adapter running one onnxruntime forward pass of the
     // selected lc0 Maia net (no search). Same interface, so the panel drives it like any engine.
-    if (engineName === 'maia') {
-        const { createMaiaEngine } = await import('/src/offscreen/maia.js');
-        const engine = await createMaiaEngine(maiaLevel || '1500', (line) => send(clientId, { kind: 'line', line }));
+    if (engineName === 'maia' || engineName === 'maia3') {
+        const engine = engineName === 'maia3'
+            ? await (await import('/src/offscreen/maia3.js')).createMaia3Engine((line) => send(clientId, { kind: 'line', line }), maiaLevel)
+            : await (await import('/src/offscreen/maia.js')).createMaiaEngine(maiaLevel || '1500', (line) => send(clientId, { kind: 'line', line }));
         clients[clientId] = engine;
         const queued = pending[clientId] || []; delete pending[clientId];
         for (const line of queued) { try { engine.uci(line); } catch (e) { send(clientId, { kind: 'error', error: String(e) }); } }

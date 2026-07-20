@@ -55,7 +55,8 @@ These reduce *client-side* fingerprinting and make automated play look less mech
 
 | Setting | What it does |
 |---|---|
-| **Maia (human-like play)** | Play the actual moves a human of a chosen rating (**1100–1900**, plus a **2200**) would — real human mistakes and move distribution, not a strong engine throttled down. The most human-looking option here, since the *moves themselves* come from a net trained on human games. |
+| **Maia-3 (human-like play)** | The transformer Maia model conditioned on a **target rating you set (600–2600, fine steps)** — one model, slide the strength live. Plays the actual moves a human of that rating would; the most human-looking option here. |
+| **Maia (human-like play)** | The original Maia-1 nets, one per rating (**1100–1900**, plus a **2200**) — real human mistakes and move distribution, not a strong engine throttled down. |
 | **Panel Style → Toolbar popup** | No in-page panel at all — **zero page footprint**. The safest mode; analysis only (Autoplay/Premove need the floating panel). |
 | **Humanize** | Don't play engine-perfect: mixes in 2nd/3rd/4th lines, inaccuracies, mistakes and blunders at rates and centipawn thresholds you set (with a Lichess accuracy readout), and varies think time by how critical the position is. |
 | **Clock Mode / Mirror Time** | Paces moves against the real clock, or mirrors your opponent's time use, instead of answering instantly. |
@@ -93,6 +94,7 @@ goes far beyond.** Everything the original did still works here; the table shows
 | **Works on the 2026 Chess.com / Lichess sites** | ❌ broken | ✅ |
 | **Modern engines** — Stockfish dev / 18 / 18‑Small NNUE | ❌ | ✅ |
 | **Elo strength cap** (engine‑aware slider) | ❌ | ✅ |
+| **Maia-3** — human-like transformer, one model, live 600–2600 rating slider | ❌ | ✅ |
 | **Maia** — human-like neural nets (1100–1900 + 2200), in-browser, no server | ❌ | ✅ |
 | **Humanize** — human move mix, timing & reflex recaptures | ❌ | ✅ |
 | **Clock Mode & Mirror Time** management | ❌ | ✅ |
@@ -433,6 +435,7 @@ No schedule — added whenever I feel like it. Only the not-yet-built items live
 
 Shipped and in the current build.
 
+- [x] **Maia-3 (human-like play)** (v3.1.95) — pick **Engine → Maia-3** and set a **target Elo (600–2600)** with the slider. This is [Maia-3](https://github.com/CSSLab/maia3), a transformer trained on human games and conditioned on rating — one model, so sliding the Elo changes strength instantly (no reload). Runs entirely in the browser as a single ONNX forward pass per move (onnxruntime-web, no server); its moves reproduce the CSSLab Maia-3 reference exactly. Multi Lines shows the top human-likely candidates.
 - [x] **Maia (human-like play)** (v3.1.93) — pick **Engine → Maia** and a rating band (**1100–1900**, plus a community-trained **2200**). These are the [Maia](https://maiachess.com/) neural nets trained on real human games, so they play like a human of that rating — human-like mistakes, not a strong engine told to play badly. Runs entirely in the browser as a single ONNX forward pass per move (onnxruntime-web, no lc0, no server); moves match the lc0 reference implementation. Changing the band loads a different net. (The 2200 net is [@CallOn84](https://github.com/CallOn84/LeelaNets)'s Maia-architecture net; 1100–1900 are the original CSSLab Maia-1 nets.)
 - [x] **Copy FEN / Copy PGN** (v3.1.73) — buttons that copy the position, or the whole game (with `SetUp`/`FEN` tags for a custom start).
 - [x] **Compact / expanded panel** (v3.1.73) — the **▣** title-bar button collapses the panel to the move + score; remembered.
