@@ -39,6 +39,28 @@ let board;
 let fen_cache;
 let config;
 
+// Warm-engine tracking so a closed-then-reopened panel skips the expensive engine re-init (net
+// reload). popup.js module state -- including the offscreen engine keyed by ENGINE_CLIENT -- survives
+// panel close (only the DOM is torn down), so a reopen can reuse the loaded engine instead of
+// disposing and reloading its NNUE. Reset on engine crash (initialize_engine reruns) and naturally
+// on tab close (the whole context dies).
+let engine_ready = false;
+let last_init_engine = null;
+let last_init_variant = null;
+let last_init_fp = null; // fingerprint of the engine-affecting config at last init; unchanged => skip setup
+
+let turn_override = null;      // header king switch: 'w'|'b' forced side to move, or null (auto). Transient.
+let turn_detected_prev = null; // last RAW detected side; when it changes, the override auto-clears.
+
+// Swap a FEN's side-to-move (and drop the now-invalid en-passant square). Used by the manual turn
+// override to hand the move to the other side.
+function flip_fen_turn(fen) {
+    const p = fen.split(' ');
+    p[1] = (p[1] === 'w') ? 'b' : 'w';
+    if (p.length > 3) p[3] = '-';
+    return p.join(' ');
+}
+
 let is_calculating = false;
 let pending_stops = 0; // bestmoves still owed by searches we abandoned -- drop that many (see abandon_search)
 let search_active = false; // a 'go' was issued whose bestmove hasn't arrived yet (is_calculating can't be
@@ -163,9 +185,6 @@ async function initPanel(root, tabId) {
         think_variance: (thinkVariance != null) ? thinkVariance : 0,
         move_time: (moveTime != null) ? moveTime : 400, // ms of cursor travel to the target square (M2)
         move_variance: (moveVariance != null) ? moveVariance : 400,
-        // Manual side-to-move override for when auto-detection guesses wrong (e.g. lichess
-        // From-Position black-first games). null = auto (default); 'w'/'b' = force that side.
-        force_turn: JSON.parse(MephistoConfig.get('force_turn')) || null,
         humanize: JSON.parse(MephistoConfig.get('humanize')) || false,
         clock_mode: JSON.parse(MephistoConfig.get('clock_mode')) || false,
         mirror_mode: JSON.parse(MephistoConfig.get('mirror_mode')) || false,
@@ -234,8 +253,9 @@ async function initPanel(root, tabId) {
     // init fen LRU cache
     fen_cache = new LRU(100);
 
-    // init engine webworker
-    await initialize_engine();
+    // init engine webworker -- reuseWarm=true so a reopen reuses the engine left loaded by the last
+    // close (see initialize_engine); a first-ever open has engine_ready=false and does a full init.
+    await initialize_engine(true);
 
     // listen to messages from content-script
     PANEL_MSG_HANDLER = function (response, sender) {
@@ -262,7 +282,7 @@ async function initPanel(root, tabId) {
                 console.warn('Mephisto: skipping unparseable scrape:', e.message);
                 return; // transient scrape garbage — the next poll (100ms) retries
             }
-            const {fen, startFen, moves} = parsed;
+            let {fen, startFen, moves} = parsed;
             if (!is_legal_position(fen)) {
                 // a corrupt/transient scrape (mid-animation, wrong turn guess) can yield an
                 // illegal position; feeding one to the wasm engine crashes it (OOB). Skip it.
@@ -276,6 +296,21 @@ async function initPanel(root, tabId) {
                 board.position(fen);
                 return;
             }
+            // Manual turn override (header king switch): force which side is to move. STICKY per
+            // position -- held while the same position sits on the board so you can toggle back and
+            // forth -- and auto-cleared the instant a real move changes the detected side (below) or
+            // the panel closes, so normal play keeps auto-tracking. Flipping rewrites the FEN's turn
+            // field (dropping the now-invalid en passant); if handing the move to that side would be
+            // illegal we refuse the flip. When forced, treat it as a fresh position (no move chain).
+            const rawTurn = fen.split(' ')[1];
+            if (rawTurn !== turn_detected_prev) { turn_override = null; turn_detected_prev = rawTurn; }
+            if (turn_override && turn_override !== rawTurn) {
+                const flipped = flip_fen_turn(fen);
+                if (is_legal_position(flipped)) { fen = flipped; startFen = flipped; moves = ''; turn = turn_override; }
+                else turn_override = null;
+            }
+            // Header switch mirrors the side we're actually about to analyse (post-override).
+            update_turn_badge(fen);
             if (last_eval.fen !== fen) {
                 // Clock Mode mirroring: bookkeep the opponent's clock at turn boundaries. When a
                 // position lands on OUR turn, they just moved -- their spend = their clock at the
@@ -452,18 +487,15 @@ function init_quick_settings() {
             push_config();
         });
     }
-    // Manual turn override (Auto/White/Black): live-applied to the content-script's getTurn(),
-    // and re-analyse immediately so the new side-to-move takes effect without waiting for a scrape.
-    const forceTurnEl = PANEL_ROOT.getElementById('qs_force_turn');
-    if (forceTurnEl) {
-        forceTurnEl.value = config.force_turn || '';
-        forceTurnEl.addEventListener('change', () => {
-            const v = forceTurnEl.value || null; // '' -> null (Auto)
-            config.force_turn = v;
-            save('force_turn', v);
-            abandon_search();
-            last_eval.fen = '';
-            push_config();
+    // Header turn switch: a king-glyph toggle (White = left, Black = right) in place of the old
+    // "Quick Settings" title. It shows the analysed side to move and flips it on tap (routes to
+    // flipTurn, same as the on-board badge). Its state is set by update_turn_badge on every position.
+    const turnSwitchEl = PANEL_ROOT.getElementById('qs_turn_switch');
+    if (turnSwitchEl) {
+        const flip = () => self.MephistoPanel.flipTurn();
+        turnSwitchEl.addEventListener('click', flip);
+        turnSwitchEl.addEventListener('keydown', (e) => { // space/enter toggles (it's role=button)
+            if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(); }
         });
     }
     // timing settings apply live: compute_time is read at every 'go', think/move times are pushed to the page
@@ -588,16 +620,33 @@ async function ensure_offscreen_engine(engineName) {
                                 engine: engineName, variant: config.variant});
 }
 
-async function initialize_engine() {
+async function initialize_engine(reuseWarm = false) {
     pending_stops = 0; // a crashed/replaced engine never flushes what it owed; don't eat the new engine's first result
     search_active = false;
+    // Fingerprint every engine-affecting setting. If NONE changed since the last init, a reopen can
+    // skip engine setup ENTIRELY: the engine is still loaded, still configured, and its hash is warm,
+    // so it's ready to take `position ... / go` the instant the first fen lands. This is what makes a
+    // warm reopen instant -- no NNUE reload, no Hash realloc, and crucially no `ucinewgame`, which
+    // would clear a multi-GB hash (the stall you saw on a native engine with a big Hash). Keeping the
+    // hash across a reopen is a bonus: the next search starts warm.
+    const fp = [config.engine, config.variant, config.memory, config.threads,
+                effective_multipv(), config.elo, !!config.premove].join('|');
+    if (reuseWarm && engine_ready && fp === last_init_fp) {
+        if (WASM_ENGINES.includes(config.engine)) engine = offscreen_engine;
+        console.log('Engine warm — reused as-is (no reconfigure)');
+        return;
+    }
+    // Net stays loaded when only the engine + variant are unchanged (the net depends on just those);
+    // a settings-only change (threads/hash/lines/elo) still reconfigures but skips the reload.
+    const warm = reuseWarm && engine_ready && config.engine === last_init_engine
+        && config.variant === last_init_variant;
     if (WASM_ENGINES.includes(config.engine)) {
         // WASM engine runs in the offscreen document now (see offscreen_engine above). This creates
         // it + loads its NNUE net(s) for THIS panel and resolves when ready; the setoption lines in
         // the `else` below then forward to it in order. Cross-origin isolation / SharedArrayBuffer is
         // guaranteed there (it's an extension page), so the old in-popup SAB check is gone.
         engine = offscreen_engine;
-        await ensure_offscreen_engine(config.engine);
+        if (!warm) await ensure_offscreen_engine(config.engine); // else keep the already-loaded engine
     }
 
     if (is_remote()) {
@@ -640,6 +689,10 @@ async function initialize_engine() {
         send_engine_uci('ucinewgame');
         send_engine_uci('isready');
     }
+    engine_ready = true;
+    last_init_engine = config.engine;
+    last_init_variant = config.variant;
+    last_init_fp = fp;
     console.log('Engine ready!', engine);
 }
 
@@ -705,6 +758,7 @@ function on_engine_error(message) {
     engine_restarts++;
     engine_restarting = true;
     engine = null; // drop the dead instance; send_engine_uci becomes a no-op meanwhile
+    engine_ready = false; // a reopen mid-restart must do a full init, not warm-reuse the dead engine
     update_best_move(`Engine crashed — restarting (attempt ${engine_restarts}/3)`);
     initialize_engine()
         .then(() => { last_eval = {fen: '', activeLines: 0, lines: []}; }) // force re-analysis on next fen poll
@@ -2214,6 +2268,24 @@ function request_clear_eval_bar() {
     send_to_active_tab({clearEvalBar: true});
 }
 
+// Board turn badge: driven by the panel's authoritative side-to-move (the parsed FEN's turn field),
+// NOT the raw scrape -- so it shows the same side the engine is actually analysing. Always on while
+// a position is detected (no config gate); cleared when detection is lost or the panel closes.
+function update_turn_badge(fen) {
+    const t = (typeof fen === 'string') ? fen.split(' ')[1] : null;
+    if (t === 'w' || t === 'b') set_turn_switch(t); // header king switch (the on-board pill was removed)
+}
+
+// Reflect the current side to move on the header king-switch (thumb left = White, right = Black).
+function set_turn_switch(turn) {
+    const el = PANEL_ROOT.getElementById('qs_turn_switch');
+    if (!el) return;
+    const black = turn === 'b';
+    el.classList.toggle('black', black);
+    const thumb = el.querySelector('.turn-thumb');
+    if (thumb) thumb.innerHTML = black ? '&#9818;' : '&#9812;'; // ♚ / ♔
+}
+
 // ask the content-script to read the variant off the current game page; cb(variant | null)
 function request_detect_variant(cb) {
     if (IS_CONTENT_SCRIPT) { // same realm -> ask content-script.js straight out
@@ -2668,19 +2740,31 @@ self.MephistoPanel = {
     // content-script.js pushes positions/clocks straight in (same realm, no messaging)
     // returns the handler's value so a click can be awaited (the click branch returns its dispatch promise)
     onContentMessage: (msg) => { try { return PANEL_MSG_HANDLER && PANEL_MSG_HANDLER(msg, {}); } catch (e) { console.warn('Mephisto: content->panel failed', e); } },
-    // Called by the content-script when the panel is being torn down (X button, panel-style change,
-    // page unload). Free the engine so an idle WASM offscreen doc or native host doesn't keep
-    // burning cores until the tab itself closes. WASM: dispose the offscreen client (tabs.onRemoved
-    // handles the tab-close case; this handles the panel-close-but-tab-lives case). Native: stop the
-    // current search then disconnect the Port -- the background sees the last peer go, calls
-    // np.disconnect(), and Chrome kills the host process (see nativePorts cleanup in background-script).
-    disposeEngine: () => {
+    // Called by the content-script when the panel closes (X button, panel-style change, page unload).
+    // STOP everything so nothing burns CPU while closed -- abandon_search() sends `stop`, and
+    // PANEL_BOOTED=false makes every incoming position push inert (see the guard atop PANEL_MSG_HANDLER),
+    // which halts new analysis, autoplay and premove. We deliberately keep the engine PROCESS warm:
+    // the offscreen WASM engine and the native host stay loaded so REOPENING is instant instead of
+    // paying a net reload / host relaunch. Real tab close still frees it -- background tabs.onRemoved
+    // disposes the offscreen engine, and the native Port dies with the page (its onDisconnect kills
+    // the host), so a warm idle engine can never outlive its tab.
+    suspend: () => {
         try { abandon_search(); } catch (e) { /* ignore */ }
-        try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'dispose'},
-            () => void chrome.runtime.lastError); } catch (e) { /* SW gone */ }
-        try { if (typeof native_bg_port !== 'undefined' && native_bg_port) native_bg_port.disconnect(); } catch (e) { /* already gone */ }
-        try { native_bg_port = null; } catch (e) { /* */ }
+        // Drop any manual turn override so reopening auto-adjusts to the current position's real side.
+        turn_override = null;
+        turn_detected_prev = null;
         PANEL_BOOTED = false;
+    },
+    // Header king-switch tap: flip the manual side-to-move override from whatever's currently shown.
+    // Sticky per position (held across re-scrapes of the same board so you can toggle back and forth),
+    // auto-cleared when a real move changes the side or on close. Re-analyses immediately.
+    flipTurn: () => {
+        const cur = (last_eval.fen && last_eval.fen.split(' ')[1]) === 'b' ? 'b' : 'w';
+        turn_override = (cur === 'w') ? 'b' : 'w';
+        set_turn_switch(turn_override); // instant feedback; the re-analysis repaints it from the FEN
+        try { abandon_search(); } catch (e) { /* */ }
+        last_eval.fen = '';
+        push_config();
     },
 };
 })();

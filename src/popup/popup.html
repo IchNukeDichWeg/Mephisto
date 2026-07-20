@@ -48,7 +48,12 @@
 <div id="response-annotations"></div>
 
 <div id="quick-settings">
-    <div class="qs-title">Quick Settings</div>
+    <div class="qs-title-row">
+        <div id="qs_turn_switch" class="turn-switch" role="button" tabindex="0"
+             title="Whose turn to move — tap to flip if it's wrong (puzzles / custom positions)">
+            <span class="turn-thumb">&#9812;</span>
+        </div>
+    </div>
     <div class="qs-row switch qs-compact">
         <span class="qs-label">Autoplay</span>
         <label><input id="qs_autoplay" type="checkbox"><span class="lever"></span></label>
@@ -91,15 +96,6 @@
         <span class="qs-label tooltipped" data-position="left"
               data-tooltip="The engine keeps thinking until YOU press the play-move hotkey (Spacebar by default), then it plays the best move it has found. Your own timing — overrides Clock/Mirror/Humanize timing and never fires on its own. Rebind the key in Settings → Hotkeys.">Manual Mode</span>
         <label><input id="qs_manual" type="checkbox"><span class="lever"></span></label>
-    </div>
-    <div class="qs-row">
-        <span class="qs-label tooltipped" data-position="left"
-              data-tooltip="Override whose turn it is when the scraper guesses wrong (e.g. a From-Position black-to-move start). Auto = detect from the board; White/Black = force that side.">Turn</span>
-        <select id="qs_force_turn" class="browser-default">
-            <option value="">Auto</option>
-            <option value="w">White</option>
-            <option value="b">Black</option>
-        </select>
     </div>
     <div class="qs-row">
         <span class="qs-label">Engine</span>

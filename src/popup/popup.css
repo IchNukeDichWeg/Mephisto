@@ -360,6 +360,50 @@ html, body {
     margin-bottom: 8px;
 }
 
+/* Turn switch: sits in the header (replaces the "Quick Settings" title). A king-glyph thumb slides
+   left = White / right = Black; tapping flips the side to move. Driven by the analysed position. */
+#quick-settings .qs-title-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 8px;
+}
+.turn-switch {
+    position: relative;
+    width: 44px;
+    height: 22px;
+    border-radius: 999px;
+    background: #a99fd6;            /* purple track (matches the lever accent family) */
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+    outline: none;
+}
+.turn-switch .turn-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    line-height: 1;
+    background: #f5f5f5;
+    color: #181817;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    transition: left 0.15s, background 0.15s, color 0.15s;
+}
+.turn-switch.black .turn-thumb {
+    left: 24px;
+    background: #3a3833;
+    color: #f5f5f5;
+}
+.turn-switch:focus-visible {
+    box-shadow: 0 0 0 2px rgba(38, 166, 154, 0.6);
+}
+
 #quick-settings .qs-row {
     margin-bottom: 9px;
 }
