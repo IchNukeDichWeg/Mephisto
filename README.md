@@ -445,6 +445,9 @@ Shipped and in the current build.
 - [x] **Self-test button** — beside Re-detect; checks scraping, the engine, and the native host.
 - [x] **Turn override** (v3.1.90) — Auto/White/Black switch in the panel; force the side-to-move when the scraper guesses wrong (e.g. lichess *From Position* black-to-move).
 - [x] **Human cursor travel** (v3.1.90) — every synthetic click is now preceded by an eased, jittered `mouseMoved` path from the cursor's last position; travel time consumes the Move Time budget so the whole click sequence fits inside whatever number you set.
+- [x] **Turn badge above the board** (v3.1.91) — small ♔/♚ pill anchored just above the board that auto-updates every move; tap to flip when auto-detect got it wrong (per-position, clears on the next real DOM change). Complements the panel's sticky Turn override.
+- [x] **Auto engine shutdown** (v3.1.91) — closing the panel (X, Panel Style change, or a hard refresh / SPA route change) now disposes the WASM engine (offscreen doc) or disconnects the native-messaging port, so an idle engine can't keep burning cores until you close the tab.
+- [x] **Faster response** (v3.1.91) — the panel no longer parks a "Calculating…" placeholder for a beat; it shows only the progress bar until the first `info depth 1` line arrives (~a few ms), then streams the real eval, move and best-line from depth 1 onward.
 
 ---
 
