@@ -128,10 +128,11 @@ export async function createMaiaEngine(level, listen) {
         const scored = scoreMoves(out['/output/policy'].data, legalUcis, black);
         const cp = valueToCp(Array.from(out['/output/wdl'].data)); // one position eval (same for every line)
         // Emit one info line per requested line, ranked by human-likelihood. The multipv field is
-        // REQUIRED: without it the panel's activeLines goes NaN and no arrows draw. Worst-to-best so
-        // the panel keeps line 1 = best.
+        // REQUIRED: without it the panel's activeLines goes NaN and no arrows draw. BEST-FIRST
+        // (multipv 1 first): the panel resets last_eval.lines when it sees multipv 1, so it must
+        // arrive before lines 2..N or they get wiped (which left only one arrow/line showing).
         const n = Math.min(multipv, scored.length);
-        for (let i = n - 1; i >= 0; i--)
+        for (let i = 0; i < n; i++)
             listen(`info depth 1 multipv ${i + 1} score cp ${cp} pv ${scored[i][0]}`);
         console.log(`[Maia] level ${level} played ${scored[0][0]} (${(scored[0][1] * 100).toFixed(1)}%) — net pass ${(performance.now() - t0).toFixed(1)}ms`);
         listen(`bestmove ${scored[0][0]}`);
