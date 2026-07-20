@@ -421,6 +421,23 @@ async function initPanel(root, tabId) {
     // Engine switches go through panel_reload(), so probing here covers them too. Not awaited: the
     // probe waits up to 1s on a host that may not exist, and the panel must not boot behind it.
     refresh_engine_health();
+    hide_unavailable_natives();
+}
+
+// Native "(local)" engines only work if their messaging host is installed. Probe each on panel load
+// and HIDE the dropdown options whose host isn't responding, so the list only offers engines you can
+// actually run (a fresh install with no host shows just the WASM + Maia engines + Remote). Probing a
+// host that isn't installed fails fast; only installed hosts are briefly launched to answer the ping.
+// The currently-selected engine is never hidden -- the health badge already flags it if it's down.
+async function hide_unavailable_natives() {
+    const sel = PANEL_ROOT.getElementById('qs_engine');
+    if (!sel) return;
+    await Promise.all(NATIVE_ENGINES.map(async (eng) => {
+        const opt = [...sel.options].find(o => o.value === eng);
+        if (!opt) return;
+        const ok = await native_host_available(eng); // native port name == engine value here
+        opt.hidden = !ok && eng !== config.engine;
+    }));
 }
 // In the iframe (and toolbar popup) the panel boots on DOMContentLoaded. Once the panel moves in-page
 // (4c-2) the content-script imports this module and calls initPanel(shadowRoot) directly instead --
