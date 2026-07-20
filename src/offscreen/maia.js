@@ -76,14 +76,20 @@ function toPerspUci(uci, black) {
     const flip = (s) => black ? s[0] + (9 - +s[1]) : s;
     return flip(uci.slice(0, 2)) + flip(uci.slice(2, 4)) + (uci[4] || '');
 }
-function pickMove(logits, legalUcis, black) {
-    let best = null, bestLogit = -Infinity;
+// Rank every legal move by the net's policy (softmax over the legal subset). Returns
+// [[uci, prob], ...] best-first -- the top is the move to play; the rest are the multi-PV candidates.
+function scoreMoves(logits, legalUcis, black) {
+    const scored = [];
     for (const uci of legalUcis) {
         const idx = moveToIdx.get(toPerspUci(uci, black));
-        if (idx === undefined) continue;
-        if (logits[idx] > bestLogit) { bestLogit = logits[idx]; best = uci; }
+        if (idx !== undefined) scored.push([uci, logits[idx]]);
     }
-    return best || legalUcis[0];
+    if (!scored.length) return [[legalUcis[0], 1]];
+    const mx = Math.max(...scored.map(s => s[1]));
+    let sum = 0; for (const s of scored) { s[2] = Math.exp(s[1] - mx); sum += s[2]; }
+    for (const s of scored) s[1] = s[2] / sum;
+    scored.sort((a, b) => b[1] - a[1]);
+    return scored;
 }
 function valueToCp(wdl) {
     let win = (Array.isArray(wdl) && wdl.length === 3) ? wdl[0] + wdl[1] / 2 : (wdl[0] + 1) / 2;
@@ -101,7 +107,7 @@ export async function createMaiaEngine(level, listen) {
     const session = await ort.InferenceSession.create(bytes);
     console.log(`[Maia] net maia-${level} loaded (${bytes.length} bytes), onnxruntime ready`);
 
-    let history = [], legalUcis = [], black = false;
+    let history = [], legalUcis = [], black = false, multipv = 1;
 
     function setPosition(fen, moves) {
         const chess = new Chess('chess', fen || undefined);
@@ -119,11 +125,16 @@ export async function createMaiaEngine(level, listen) {
         if (!legalUcis.length) { listen('bestmove (none)'); return; }
         const t0 = performance.now();
         const out = await session.run({ '/input/planes': new ort.Tensor('float32', encode(history.slice(0, 8)), [1, 112, 8, 8]) });
-        const move = pickMove(out['/output/policy'].data, legalUcis, black);
-        const cp = valueToCp(Array.from(out['/output/wdl'].data));
-        console.log(`[Maia] level ${level} played ${move} (cp ${cp}) — net pass ${(performance.now() - t0).toFixed(1)}ms`);
-        listen(`info depth 1 score cp ${cp} pv ${move}`);
-        listen(`bestmove ${move}`);
+        const scored = scoreMoves(out['/output/policy'].data, legalUcis, black);
+        const cp = valueToCp(Array.from(out['/output/wdl'].data)); // one position eval (same for every line)
+        // Emit one info line per requested line, ranked by human-likelihood. The multipv field is
+        // REQUIRED: without it the panel's activeLines goes NaN and no arrows draw. Worst-to-best so
+        // the panel keeps line 1 = best.
+        const n = Math.min(multipv, scored.length);
+        for (let i = n - 1; i >= 0; i--)
+            listen(`info depth 1 multipv ${i + 1} score cp ${cp} pv ${scored[i][0]}`);
+        console.log(`[Maia] level ${level} played ${scored[0][0]} (${(scored[0][1] * 100).toFixed(1)}%) — net pass ${(performance.now() - t0).toFixed(1)}ms`);
+        listen(`bestmove ${scored[0][0]}`);
     }
 
     return {
@@ -131,6 +142,10 @@ export async function createMaiaEngine(level, listen) {
             line = line.trim();
             if (line === 'uci') { listen('id name Maia'); listen('uciok'); }
             else if (line === 'isready') listen('readyok');
+            else if (line.startsWith('setoption')) {
+                const m = /name\s+MultiPV\s+value\s+(\d+)/i.exec(line);
+                if (m) multipv = Math.max(1, parseInt(m[1]) || 1);
+            }
             else if (line.startsWith('position')) {
                 const fenM = /position\s+fen\s+(.+?)(?:\s+moves\s+(.*))?$/.exec(line);
                 const startM = /position\s+startpos(?:\s+moves\s+(.*))?$/.exec(line);
@@ -138,7 +153,7 @@ export async function createMaiaEngine(level, listen) {
                 else if (startM) setPosition(null, startM[1]);
             }
             else if (line.startsWith('go')) go().catch(e => listen(`info string maia error ${e}`));
-            // ucinewgame/setoption/stop/quit: no-ops (single pass, no search state)
+            // ucinewgame/stop/quit: no-ops (single pass, no search state)
         },
         terminate() { try { session.release && session.release(); } catch (e) { /* */ } },
     };
