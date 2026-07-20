@@ -69,6 +69,7 @@ let search_active = false; // a 'go' was issued whose bestmove hasn't arrived ye
 let last_pos = {startFen: null, moves: ''}; // the position's own start + UCI move list, for Copy PGN
 let premove_tracker = {fen: '', lines: {}}; // per-multipv reply stability while the opponent thinks
 let search_threads_set = null; // last Threads value pushed to the engine; opponent-turn search drops to 1 unless Pondering
+let premove_lines = 2; // top-N lines premove tracks/certifies; widened to the ponder width while pondering (see ponder_line_count)
 let prog = 0;
 let last_eval = {fen: '', activeLines: 0, lines: []};
 let detected_prefix = null; // which site the last scrape came from ('li'/'cc'/'bt'/'tt')
@@ -1149,7 +1150,7 @@ function on_engine_response(message) {
         const pvIdx = (lineInfo.multipv - 1) || 0;
         // premove: while this position is searched, track how stable each line's 2nd move
         // (our reply to the predicted opponent move) is across depths 6 / 9 / latest
-        if (config.premove && lineInfo.pv && pvIdx <= 1 && Number.isInteger(lineInfo.depth)) {
+        if (config.premove && lineInfo.pv && pvIdx < premove_lines && Number.isInteger(lineInfo.depth)) {
             const [pred, reply] = lineInfo.pv.split(' ');
             const line = premove_tracker.lines[pvIdx] || (premove_tracker.lines[pvIdx] = {});
             if (lineInfo.depth === 6) line.d6 = `${pred} ${reply}`;
@@ -1318,7 +1319,7 @@ function premove_instant_reply(new_fen, new_moves) {
     const mover = (new_fen.split(' ')[1] === 'w') ? 'white' : 'black';
     if (mover !== board.orientation()) return null; // the certified reply must be OUR move
     let certified = 0;
-    for (const idx of [0, 1]) {
+    for (let idx = 0; idx < premove_lines; idx++) {
         const line = premove_tracker.lines[idx];
         if (!line || line.depth < 10 || !line.d6 || line.d6 !== line.d9 || line.d6 !== line.latest) continue;
         if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(line.reply ?? '')) continue;
@@ -1347,6 +1348,23 @@ function premove_instant_reply(new_fen, new_moves) {
             {tracked: premove_tracker.moves, got: new_moves});
     }
     return null;
+}
+
+// While pondering we don't know which move the opponent will pick -- and they won't mirror the
+// engine's #1 -- so ponder the top 5 candidate replies: it warms the TT for whichever they play and
+// lets Premove certify a reply to any of them. Narrow it when the position is forcing, where the
+// realistic replies are few and the width is better spent on depth: 1-2 legal moves (a real forced
+// move), or a recapture of the piece we just moved (lastUci's destination is capturable).
+function ponder_line_count(fen, lastUci) {
+    try {
+        const legal = new Chess(config.variant, fen).moves({verbose: true});
+        if (legal.length <= 2) return Math.max(1, legal.length);
+        const ourDest = /^[a-h][1-8][a-h][1-8]/.test(lastUci || '') ? lastUci.slice(2, 4) : null;
+        if (ourDest && legal.some(m => m.to === ourDest && m.captured)) return 2; // recapture likely
+        return 5;
+    } catch (e) {
+        return 5; // variant fen chess.js can't parse: default to the wide ponder
+    }
 }
 
 function on_new_pos(fen, startFen, moves) {
@@ -1439,7 +1457,12 @@ function on_new_pos(fen, startFen, moves) {
         // effective_multipv). Set at engine init only, those sliders would silently do nothing until
         // the next re-init -- the exact trap that made the whole mix look broken. The remote/native
         // path already sends it per request. Free between searches; we just stopped one.
-        send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
+        // Pondering overrides the width: the opponent's turn is searched over their top few candidate
+        // replies (ponder_line_count), not our configured line count -- premove_lines mirrors it so an
+        // instant reply can be certified for any of them.
+        const ponder_now = config.ponder && !our_turn;
+        premove_lines = ponder_now ? ponder_line_count(fen, moves ? moves.trim().split(' ').pop() : null) : 2;
+        send_engine_uci(`setoption name MultiPV value ${ponder_now ? premove_lines : effective_multipv()}`);
         if (moves) {
             send_engine_uci(`position fen ${startFen} moves ${moves}`);
         } else {
