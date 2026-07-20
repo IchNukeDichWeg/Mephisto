@@ -37,7 +37,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.98'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.99'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`content-script build ${MEPHISTO_BUILD}`); // debranded: no product name in the page console (L8)
     const siteMap = {
@@ -1696,10 +1696,22 @@ function simulatePvMoves(pv) {
 }
 
 async function simulatePromotionClicks(promotion, travelMs = 250) {
-    const promotionChoice = getPromotionSelection(promotion);
+    // taketaketake has no DOM picker (canvas app; it auto-queens) -- don't poll, just skip.
+    if (site === 'taketaketake') return;
+    // The promotion picker renders a frame or two AFTER the to-click lands, and on a slow render it
+    // isn't in the DOM when we first look. Checking once (the old behaviour) meant we'd skip the
+    // promo click on those, leaving the pawn stuck on the 8th rank with the dialog open -- the
+    // intermittent "promotion sometimes fails" on lichess. Poll up to ~1.5s for the picker instead.
+    let promotionChoice = getPromotionSelection(promotion);
+    for (let waited = 0; !promotionChoice && waited < 1500; waited += 40) {
+        await promiseTimeout(40);
+        promotionChoice = getPromotionSelection(promotion);
+    }
     if (promotionChoice) {
-        // the promotion picker pops up after the to-click; the cursor travels to the chosen piece
-        // over the caller-supplied budget slice (~25% of the move_time total for a promo move)
-        await simulateClickSquare(promotionChoice.getBoundingClientRect(), 0.8, travelMs)
+        // the cursor travels to the chosen piece over the caller-supplied budget slice (~25% of the
+        // move_time total for a promo move)
+        await simulateClickSquare(promotionChoice.getBoundingClientRect(), 0.8, travelMs);
+    } else {
+        console.warn('Mephisto: promotion picker never appeared; move may need a retry');
     }
 }
