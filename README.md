@@ -62,7 +62,7 @@ These reduce *client-side* fingerprinting and make automated play look less mech
 | **Background Play → Off** (default) | Only moves while the tab is focused and visible — humans don't play while tabbed away. |
 | **Move/Think Time** | Slower, varianced timing beats instant robotic replies. **Move Time** is now the *total* wall-clock for a move (piece-click + cursor travel + any promotion picker); whatever number you set is how long a move takes, no hidden extras. |
 | **Cursor travel before every click** (automatic since v3.1.90) | The synthetic mouse now traces an eased, slightly bowed, jittered path from its last position to the target before each click, spread across your Move Time budget — instead of teleporting straight to `(x, y)`. Removes the "click with no preceding mousemove" tell, the loudest client-side behavioural signal after the 3-click deselect fingerprint (which was fixed earlier). |
-| **Turn override** (Auto / White / Black) | Force the side-to-move when the scraper guesses wrong (the classic case is a lichess *From Position* black-to-move start). Under the Manual Mode row in the panel. |
+| **Turn switch** (♔/♚) | A king-glyph toggle at the top of the panel shows whose turn it is and lets you flip it when the scraper guesses wrong (puzzles / custom "From Position" starts). Tap to switch back and forth; it auto-tracks each move and resets on close. |
 
 The single most effective thing on this list is **not using it in rated games against people.**
 
@@ -443,11 +443,10 @@ Shipped and in the current build.
 - [x] **Configurable hotkeys** — **Settings → Hotkeys**; single-letter defaults, each toggle shows its key, carried in export/import.
 - [x] **Opponent Mistake Alert** (the roadmap's *Blunder alert*) — opt-in toast over the board for the opponent's inaccuracy/mistake/blunder (Lichess win%, depth-gated).
 - [x] **Self-test button** — beside Re-detect; checks scraping, the engine, and the native host.
-- [x] **Turn override** (v3.1.90) — Auto/White/Black switch in the panel; force the side-to-move when the scraper guesses wrong (e.g. lichess *From Position* black-to-move).
-- [x] **Human cursor travel** (v3.1.90) — every synthetic click is now preceded by an eased, jittered `mouseMoved` path from the cursor's last position; travel time consumes the Move Time budget so the whole click sequence fits inside whatever number you set.
-- [x] **Turn badge above the board** (v3.1.91) — small ♔/♚ pill anchored just above the board that auto-updates every move; tap to flip when auto-detect got it wrong (per-position, clears on the next real DOM change). Complements the panel's sticky Turn override.
-- [x] **Auto engine shutdown** (v3.1.91) — closing the panel (X, Panel Style change, or a hard refresh / SPA route change) now disposes the WASM engine (offscreen doc) or disconnects the native-messaging port, so an idle engine can't keep burning cores until you close the tab.
-- [x] **Faster response** (v3.1.91) — the panel no longer parks a "Calculating…" placeholder for a beat; it shows only the progress bar until the first `info depth 1` line arrives (~a few ms), then streams the real eval, move and best-line from depth 1 onward.
+- [x] **Human cursor travel** (v3.1.90) — every synthetic click is preceded by an eased, jittered `mouseMoved` path from the cursor's last position; travel time consumes the Move Time budget so the whole click sequence fits inside whatever number you set.
+- [x] **Faster response** (v3.1.91) — no "Calculating…" placeholder; the panel shows only the progress bar until the first `info depth 1` line arrives (~a few ms), then streams the real eval, move and best-line from depth 1 onward.
+- [x] **Turn switch** (v3.1.92) — a small king-glyph toggle at the top of the panel (replacing the "Quick Settings" title) shows the side to move and flips it on tap. Sticky per position so you can switch back and forth, auto-tracks each move, and resets on close. Replaces the earlier on-board pill + Auto/White/Black dropdown.
+- [x] **Instant reopen, warm engine** (v3.1.92) — closing the panel with X stops the search (frees CPU) but keeps the engine loaded, so reopening is instant instead of reloading the neural net. A fingerprint of the engine settings means an unchanged reopen skips *all* setup (no net reload, no `ucinewgame` hash clear); a settings change reconfigures without reloading. A real tab close still frees the engine.
 
 ---
 
