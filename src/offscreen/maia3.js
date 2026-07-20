@@ -101,8 +101,8 @@ export async function createMaia3Engine(listen, initialElo) {
         scored.sort((a, b) => b[2] - a[2]);
         const cp = wdlToCp(Array.from(out.value_logits.data));
         const n = Math.min(multipv, scored.length);
-        for (let i = n - 1; i >= 0; i--)   // emit worst-to-best so the panel keeps line 1 = best
-            listen(`info depth 1 multipv ${i + 1} score cp ${cp} pv ${scored[i][0]}`);
+        for (let i = 0; i < n; i++)   // BEST-FIRST: multipv 1 resets the panel's lines array, so it
+            listen(`info depth 1 multipv ${i + 1} score cp ${cp} pv ${scored[i][0]}`); // must precede 2..N
         console.log(`[Maia-3] elo ${selfElo} played ${scored[0][0]} (${(scored[0][2] * 100).toFixed(1)}%) — ${(performance.now() - t0).toFixed(1)}ms`);
         listen(`bestmove ${scored[0][0]}`);
     }
