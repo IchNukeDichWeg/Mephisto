@@ -47,6 +47,7 @@ let config;
 let engine_ready = false;
 let last_init_engine = null;
 let last_init_variant = null;
+let last_init_maia = null; // Maia rating at last init; a change loads a different net (part of net identity)
 let last_init_fp = null; // fingerprint of the engine-affecting config at last init; unchanged => skip setup
 
 let turn_override = null;      // header king switch: 'w'|'b' forced side to move, or null (auto). Transient.
@@ -176,6 +177,7 @@ async function initPanel(root, tabId) {
         engine: storedEngine || 'stockfish-dev-nnue',
         variant: JSON.parse(MephistoConfig.get('variant')) || 'chess',
         elo: JSON.parse(MephistoConfig.get('elo')) || 0, // strength cap; 0 = full strength (no UCI_LimitStrength)
+        maia_level: JSON.parse(MephistoConfig.get('maia_level')) || '1500', // which Maia net (rating band) when engine=maia
         compute_time: (computeTime != null) ? computeTime : 300,
         fen_refresh: (fenRefresh != null) ? fenRefresh : 1000, // FALLBACK poll; positions arrive event-driven
         multiple_lines: JSON.parse(MephistoConfig.get('multiple_lines')) || 1,
@@ -519,6 +521,7 @@ function init_quick_settings() {
         ['qs_threads', 'threads', v => parseInt(v) || MephistoConfig.defaultThreads()],
         ['qs_memory', 'memory', v => parseInt(v) || 512],
         ['qs_lines', 'multiple_lines', v => parseInt(v) || 1],
+        ['qs_maia_level', 'maia_level', v => v], // changing the Maia rating loads a different net (reload)
     ]) {
         const elem = PANEL_ROOT.getElementById(id);
         if (!elem) continue;
@@ -526,22 +529,41 @@ function init_quick_settings() {
         elem.addEventListener('change', () => {
             // only Fairy-Stockfish plays fairy variants; other engines force standard chess so the
             // net + legality checks stay correct -- EXCEPT Chess960, which every mainline Stockfish
-            // plays via UCI_Chess960 (sent at engine init), so it survives an engine switch.
-            if (key === 'engine' && !FAIRY_ENGINES.includes(parse(elem.value))
-                && !['chess', 'fischerandom'].includes(config.variant)) save('variant', 'chess');
+            // plays via UCI_Chess960 (sent at engine init), so it survives an engine switch. Maia is
+            // standard-chess only (its nets have no 960), so switching to it always forces chess.
+            if (key === 'engine') {
+                const eng = parse(elem.value);
+                if (eng === 'maia') save('variant', 'chess');
+                else if (!FAIRY_ENGINES.includes(eng) && !['chess', 'fischerandom'].includes(config.variant)) save('variant', 'chess');
+            }
             save(key, parse(elem.value));
             panel_reload();
         });
     }
+    // Maia: strength is the NET (the Maia Level dropdown), not UCI_Elo, and it's standard-chess only
+    // -> hide the Elo + Variant rows, show the level dropdown.
+    const isMaia = config.engine === 'maia';
+    const maiaRow = PANEL_ROOT.getElementById('qs_maia_row');
+    if (maiaRow) {
+        maiaRow.style.display = isMaia ? '' : 'none';
+        const ml = PANEL_ROOT.getElementById('qs_maia_level');
+        if (ml) ml.value = config.maia_level;
+    }
+    const eloRowEl = PANEL_ROOT.getElementById('qs_elo_row');
+    if (eloRowEl) eloRowEl.style.display = isMaia ? 'none' : '';
     // The Variant selector: full list for Fairy-Stockfish; Standard + Chess960 for everything else
-    // (mainline SF speaks UCI_Chess960). The "detect" button reads the variant off the page.
+    // (mainline SF speaks UCI_Chess960); hidden for Maia. The "detect" button reads the variant off the page.
     const variantRow = PANEL_ROOT.getElementById('qs_variant_row');
     if (variantRow) {
-        const fairy = FAIRY_ENGINES.includes(config.engine);
-        variantRow.style.display = '';
-        PANEL_ROOT.querySelectorAll('#qs_variant option').forEach(o => {
-            o.hidden = !fairy && !['chess', 'fischerandom'].includes(o.value);
-        });
+        if (isMaia) {
+            variantRow.style.display = 'none';
+        } else {
+            const fairy = FAIRY_ENGINES.includes(config.engine);
+            variantRow.style.display = '';
+            PANEL_ROOT.querySelectorAll('#qs_variant option').forEach(o => {
+                o.hidden = !fairy && !['chess', 'fischerandom'].includes(o.value);
+            });
+        }
     }
     const detectBtn = PANEL_ROOT.getElementById('qs_variant_detect');
     if (detectBtn) {
@@ -599,7 +621,7 @@ function init_quick_settings() {
 // engine output/errors come back over chrome.runtime and route to the existing handlers below.
 let ENGINE_CLIENT = (MY_TAB_ID != null) ? String(MY_TAB_ID) : 'toolbar'; // one engine per panel
 const WASM_ENGINES = ['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue',
-                      'fairy-stockfish-14-nnue', 'stockfish-11-hce'];
+                      'fairy-stockfish-14-nnue', 'stockfish-11-hce', 'maia'];
 const offscreen_engine = {
     uci: (line) => { try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'uci', line}); } catch (e) { /* SW/offscreen gone */ } },
 };
@@ -617,7 +639,7 @@ async function ensure_offscreen_engine(engineName) {
     // while it loads and flushes it in order, so nothing is lost -- and the panel no longer stalls
     // behind a slow engine load (Fairy's per-variant NNUE), which is why its board used to appear late.
     chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'init',
-                                engine: engineName, variant: config.variant});
+                                engine: engineName, variant: config.variant, maiaLevel: config.maia_level});
 }
 
 async function initialize_engine(reuseWarm = false) {
@@ -630,7 +652,7 @@ async function initialize_engine(reuseWarm = false) {
     // would clear a multi-GB hash (the stall you saw on a native engine with a big Hash). Keeping the
     // hash across a reopen is a bonus: the next search starts warm.
     const fp = [config.engine, config.variant, config.memory, config.threads,
-                effective_multipv(), config.elo, !!config.premove].join('|');
+                effective_multipv(), config.elo, !!config.premove, config.maia_level].join('|');
     if (reuseWarm && engine_ready && fp === last_init_fp) {
         if (WASM_ENGINES.includes(config.engine)) engine = offscreen_engine;
         console.log('Engine warm — reused as-is (no reconfigure)');
@@ -639,7 +661,7 @@ async function initialize_engine(reuseWarm = false) {
     // Net stays loaded when only the engine + variant are unchanged (the net depends on just those);
     // a settings-only change (threads/hash/lines/elo) still reconfigures but skips the reload.
     const warm = reuseWarm && engine_ready && config.engine === last_init_engine
-        && config.variant === last_init_variant;
+        && config.variant === last_init_variant && config.maia_level === last_init_maia;
     if (WASM_ENGINES.includes(config.engine)) {
         // WASM engine runs in the offscreen document now (see offscreen_engine above). This creates
         // it + loads its NNUE net(s) for THIS panel and resolves when ready; the setoption lines in
@@ -692,6 +714,7 @@ async function initialize_engine(reuseWarm = false) {
     engine_ready = true;
     last_init_engine = config.engine;
     last_init_variant = config.variant;
+    last_init_maia = config.maia_level;
     last_init_fp = fp;
     console.log('Engine ready!', engine);
 }
