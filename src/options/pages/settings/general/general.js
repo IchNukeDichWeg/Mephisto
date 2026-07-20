@@ -19,6 +19,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('simon_says_mode', '"Hand and Brain" Mode:', 'checkbox', false);
         this.registerFormElement('autoplay', 'Autoplay:', 'checkbox', false);
         this.registerFormElement('premove', 'Premove:', 'checkbox', false);
+        this.registerFormElement('ponder', 'Pondering:', 'checkbox', false);
         this.registerFormElement('background_play', 'Background Play:', 'checkbox', false);
         this.registerFormElement('help_mode', 'Help Mode:', 'checkbox', false);
         this.registerFormElement('humanize', 'Humanize:', 'checkbox', false);
