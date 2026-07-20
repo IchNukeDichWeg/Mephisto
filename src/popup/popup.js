@@ -2464,7 +2464,12 @@ function toggle_calculating(on) {
     prog = 0;
     is_calculating = on;
     if (is_calculating) {
-        update_best_move(`<div>Calculating...<div><progress id='progBar' value='2' max='100'>`);
+        // Depth-1 streams in a few ms and replaces this line with the real eval + move (see the
+        // `info depth` branch: `on_engine_best_move(arr[0], arr[1]); on_engine_evaluation(...)`).
+        // Show ONLY the progress bar in the gap -- the old "Calculating..." placeholder made the
+        // panel look frozen for a moment when in fact it was already searching. Anything remembered
+        // from the previous position is stale, so we clear the text rather than leave it there.
+        update_best_move(`<progress id='progBar' value='2' max='100'>`);
     }
 }
 
@@ -2663,5 +2668,19 @@ self.MephistoPanel = {
     // content-script.js pushes positions/clocks straight in (same realm, no messaging)
     // returns the handler's value so a click can be awaited (the click branch returns its dispatch promise)
     onContentMessage: (msg) => { try { return PANEL_MSG_HANDLER && PANEL_MSG_HANDLER(msg, {}); } catch (e) { console.warn('Mephisto: content->panel failed', e); } },
+    // Called by the content-script when the panel is being torn down (X button, panel-style change,
+    // page unload). Free the engine so an idle WASM offscreen doc or native host doesn't keep
+    // burning cores until the tab itself closes. WASM: dispose the offscreen client (tabs.onRemoved
+    // handles the tab-close case; this handles the panel-close-but-tab-lives case). Native: stop the
+    // current search then disconnect the Port -- the background sees the last peer go, calls
+    // np.disconnect(), and Chrome kills the host process (see nativePorts cleanup in background-script).
+    disposeEngine: () => {
+        try { abandon_search(); } catch (e) { /* ignore */ }
+        try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'dispose'},
+            () => void chrome.runtime.lastError); } catch (e) { /* SW gone */ }
+        try { if (typeof native_bg_port !== 'undefined' && native_bg_port) native_bg_port.disconnect(); } catch (e) { /* already gone */ }
+        try { native_bg_port = null; } catch (e) { /* */ }
+        PANEL_BOOTED = false;
+    },
 };
 })();

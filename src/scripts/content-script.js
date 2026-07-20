@@ -37,7 +37,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.90'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.91'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`content-script build ${MEPHISTO_BUILD}`); // debranded: no product name in the page console (L8)
     const siteMap = {
@@ -81,6 +81,10 @@ function handleExtensionMessage(response, sender, sendResponse) {
         } catch (e) {
             // extension was reloaded — this orphaned content-script can't reach it anymore
         }
+        // Repaint the turn badge with the currently-detected side. getTurn() honours the panel's
+        // sticky force_turn AND the badge-tap flip. Guarded: sites/positions where turn can't be
+        // read (no board, no highlights, no move list) simply skip the render.
+        try { if (res && res !== 'no') drawTurnBadge(getTurn()); } catch (e) { /* skip */ }
         return;
     }
     if (moving) return;
@@ -261,11 +265,23 @@ function readOverlayBox() {
 }
 
 function removeOverlay() {
+    // Kill the engine BEFORE tearing the panel down. Otherwise a WASM offscreen doc / native host
+    // keeps burning cores until the tab itself closes (tabs.onRemoved cleans that up, but that only
+    // fires on TAB close -- not on panel-close-with-tab-alive, panel-style change, or reload).
+    try { self.MephistoPanel?.disposeEngine?.(); } catch (e) { /* not yet booted */ }
     overlayEl(PANEL_OVERLAY_ID)?.remove();
     overlayEl(RESTORE_BADGE_ID)?.remove();
     clearEvalBar();   // closing removes the iframe; the board overlays it drew must go too
     clearHintArrow();
+    clearTurnBadge();
 }
+
+// Page unload = tab is going away (navigation, close, reload). tabs.onRemoved fires the same
+// dispose in the background, but on navigation-within-tab it does NOT -- the tab id survives. Do
+// it here too so an SPA route change or hard refresh doesn't leak a running engine either.
+window.addEventListener('pagehide', () => {
+    try { self.MephistoPanel?.disposeEngine?.(); } catch (e) { /* */ }
+});
 
 // Minimize = HIDE the panel without tearing it down, so the engine + autoplay/premove/help keep
 // running exactly as if it were open (closing with X, which removes the iframe, is what STOPS
@@ -581,6 +597,48 @@ function showOppAlert(label, drop, san, uci) {
 // chess.com-style. The popup computes the numbers and pushes them on every eval update.
 
 const EVALBAR_OVERLAY_ID = 'mephisto-evalbar-overlay';
+
+// ---- Turn badge above the board -------------------------------------------------------------
+// Small pill anchored just above the board showing whose turn it is (♔/♚). Auto-refreshes on every
+// scrape push, tap to flip when auto-detect got it wrong (per _turnFlipped, above). Lives in the
+// same closed shadow root as every other overlay; no page-visible node.
+const TURN_BADGE_ID = 'mephisto-turn-badge';
+
+function clearTurnBadge() { overlayEl(TURN_BADGE_ID)?.remove(); }
+
+function drawTurnBadge(turn) {
+    const board = getBoard();
+    if (!board || (turn !== 'w' && turn !== 'b')) { clearTurnBadge(); return; }
+    const bounds = board.getBoundingClientRect();
+    if (!bounds.width) { clearTurnBadge(); return; }
+
+    let el = overlayEl(TURN_BADGE_ID);
+    if (!el) {
+        el = document.createElement('div');
+        el.id = TURN_BADGE_ID;
+        el.style.cssText = 'position: absolute; z-index: 2147483646; cursor: pointer; ' +
+            'display: flex; align-items: center; gap: 6px; padding: 3px 12px 3px 8px; ' +
+            'border-radius: 999px; font: 600 13px/1 Roboto, Arial, sans-serif; ' +
+            'user-select: none; box-shadow: 0 1px 3px rgba(0,0,0,0.4); ' +
+            'transition: background 0.15s, color 0.15s;';
+        el.title = 'Whose turn — tap to flip if the scraper guessed wrong';
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            _turnFlipped = !_turnFlipped;
+            schedulePush(); // re-scrape now so the panel picks up the corrected turn immediately
+        });
+        getOverlayRoot().appendChild(el);
+    }
+    const isWhite = turn === 'w';
+    // classic king glyphs; the pill's own background stands in for the "piece color"
+    el.textContent = isWhite ? '♔ White' : '♚ Black';
+    el.style.background = isWhite ? '#f0f0f0' : '#403d39';
+    el.style.color = isWhite ? '#181817' : '#f0f0f0';
+    // above the board, centered horizontally; if the board sits at page top, drop it INSIDE the top edge
+    const above = bounds.top > 44;
+    el.style.left = `${bounds.left + window.scrollX + bounds.width / 2 - 42}px`;
+    el.style.top = `${(above ? bounds.top - 34 : bounds.top + 6) + window.scrollY}px`;
+}
 
 function clearEvalBar() {
     overlayEl(EVALBAR_OVERLAY_ID)?.remove();
@@ -1265,11 +1323,25 @@ function getLastMoveHighlights() {
     return [fromSquare, toSquare];
 }
 
+let _lastAutoTurn = null;   // last raw auto-detect result: used to clear _turnFlipped on DOM change
+let _turnFlipped = false;   // tap on the board-side turn badge inverts the current auto value
+
 function getTurn() {
     // Manual override: when auto-detect gets the side-to-move wrong (rare, but the classic case is
     // a lichess "From Position" black-to-move start), the panel exposes an Auto/White/Black switch
     // (config.force_turn = null / 'w' / 'b'). Any explicit value wins outright.
     if (config?.force_turn === 'w' || config?.force_turn === 'b') return config.force_turn;
+    const auto = _getTurnAuto();
+    // Board badge tap flips the current auto value STICKILY until the DOM state genuinely changes
+    // (i.e. auto-detect starts returning a different value -- opponent moved, a new position loaded).
+    // Otherwise every re-scrape while the same position sits on the board would revert the badge to
+    // the wrong auto value the user just corrected. Cleared on the next real DOM change.
+    if (auto !== _lastAutoTurn) { _lastAutoTurn = auto; _turnFlipped = false; }
+    if (_turnFlipped && (auto === 'w' || auto === 'b')) return auto === 'w' ? 'b' : 'w';
+    return auto;
+}
+
+function _getTurnAuto() {
     let toSquare;
     try {
         toSquare = getLastMoveHighlights()[1];
