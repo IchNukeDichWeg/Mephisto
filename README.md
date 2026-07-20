@@ -457,3 +457,18 @@ Shipped and in the current build.
 ## Contributing
 
 Ideas, bug reports, and PRs are all welcome — open an issue or a pull request.
+
+## License & credits
+
+This project's own source code (and the original [Mephisto](https://github.com/AlexPetrusca/Mephisto)
+by Alexandru Petrusca) is under the **MIT License** ([`LICENSE`](LICENSE)). But it **bundles copyleft
+components** — GPL-3.0 engines and nets, and the **AGPL-3.0** Maia-3 model — so the **combined
+distribution is governed by AGPL-3.0**. Before redistributing, please read [`LICENSING.md`](LICENSING.md)
+and [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md); the full texts are in [`licenses/`](licenses/).
+
+Built on the work of others, with thanks:
+
+- **[Stockfish](https://github.com/official-stockfish/Stockfish)** & **[Fairy-Stockfish](https://github.com/fairy-stockfish/Fairy-Stockfish)** (GPL-3.0) — the analysis engines, run in the browser via the [Lichess Stockfish-web](https://github.com/lichess-org) builds.
+- **[Maia](https://github.com/CSSLab/maia-chess) / [Maia-3](https://github.com/CSSLab/maia3)** (CSSLab, University of Toronto; GPL-3.0 / AGPL-3.0) and the **[Maia 2200](https://github.com/CallOn84/LeelaNets)** net (CallOn84; GPL-3.0) — the human-like networks; **[Leela Chess Zero](https://github.com/LeelaChessZero/lc0)** (GPL-3.0) for the input/policy encoding.
+- **[ONNX Runtime Web](https://github.com/microsoft/onnxruntime)** (Microsoft; MIT) — in-browser neural-net inference.
+- **[chess.js](https://github.com/jhlywa/chess.js)** (BSD-2), **[chessboard.js](https://github.com/oakmac/chessboardjs)**, **[jQuery](https://jquery.com)**, **[Materialize](https://materializecss.com)**, and `lru` (all MIT).
