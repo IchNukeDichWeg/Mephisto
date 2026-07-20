@@ -55,6 +55,7 @@ These reduce *client-side* fingerprinting and make automated play look less mech
 
 | Setting | What it does |
 |---|---|
+| **Maia (human-like play)** | Play the actual moves a human of a chosen rating (**1100–1900**) would — real human mistakes and move distribution, not a strong engine throttled down. The most human-looking option here, since the *moves themselves* come from a net trained on human games. |
 | **Panel Style → Toolbar popup** | No in-page panel at all — **zero page footprint**. The safest mode; analysis only (Autoplay/Premove need the floating panel). |
 | **Humanize** | Don't play engine-perfect: mixes in 2nd/3rd/4th lines, inaccuracies, mistakes and blunders at rates and centipawn thresholds you set (with a Lichess accuracy readout), and varies think time by how critical the position is. |
 | **Clock Mode / Mirror Time** | Paces moves against the real clock, or mirrors your opponent's time use, instead of answering instantly. |
@@ -92,6 +93,7 @@ goes far beyond.** Everything the original did still works here; the table shows
 | **Works on the 2026 Chess.com / Lichess sites** | ❌ broken | ✅ |
 | **Modern engines** — Stockfish dev / 18 / 18‑Small NNUE | ❌ | ✅ |
 | **Elo strength cap** (engine‑aware slider) | ❌ | ✅ |
+| **Maia** — human-like neural nets (1100–1900), in-browser, no server | ❌ | ✅ |
 | **Humanize** — human move mix, timing & reflex recaptures | ❌ | ✅ |
 | **Clock Mode & Mirror Time** management | ❌ | ✅ |
 | **Manual Mode · rebindable hotkeys · opponent-mistake alert** | ❌ | ✅ |
@@ -432,16 +434,16 @@ No schedule — added whenever I feel like it. Only the not-yet-built items live
 Shipped and in the current build.
 
 - [x] **Maia (human-like play)** (v3.1.93) — pick **Engine → Maia** and a rating band (**1100–1900**). These are the [Maia](https://maiachess.com/) neural nets trained on real human games, so they play like a human of that rating — human-like mistakes, not a strong engine told to play badly. Runs entirely in the browser as a single ONNX forward pass per move (onnxruntime-web, no lc0, no server); moves match the lc0 reference implementation. Changing the band loads a different net.
-- [x] **Copy FEN / Copy PGN** — buttons that copy the position, or the whole game (with `SetUp`/`FEN` tags for a custom start).
-- [x] **Compact / expanded panel** — the **▣** title-bar button collapses the panel to the move + score; remembered.
-- [x] **Export / import settings** — **Settings → General** writes/loads the whole config as a JSON file.
-- [x] **Native-engine health badge** — a dot showing whether the native host answered (hidden for WASM engines).
-- [x] **Smart default threads** — new installs default to your CPU's cores − 1 (capped at 24).
-- [x] **Graceful "unsupported variant" message** — says so instead of analysing the wrong position.
-- [x] **Manual mode** — the engine thinks until you press the play-move key (**Space**), then plays its best move.
-- [x] **Configurable hotkeys** — **Settings → Hotkeys**; single-letter defaults, each toggle shows its key, carried in export/import.
-- [x] **Opponent Mistake Alert** (the roadmap's *Blunder alert*) — opt-in toast over the board for the opponent's inaccuracy/mistake/blunder (Lichess win%, depth-gated).
-- [x] **Self-test button** — beside Re-detect; checks scraping, the engine, and the native host.
+- [x] **Copy FEN / Copy PGN** (v3.1.73) — buttons that copy the position, or the whole game (with `SetUp`/`FEN` tags for a custom start).
+- [x] **Compact / expanded panel** (v3.1.73) — the **▣** title-bar button collapses the panel to the move + score; remembered.
+- [x] **Export / import settings** (v3.1.73) — **Settings → General** writes/loads the whole config as a JSON file.
+- [x] **Native-engine health badge** (v3.1.55) — a dot showing whether the native host answered (hidden for WASM engines).
+- [x] **Smart default threads** (v3.1.55) — new installs default to your CPU's cores − 1 (capped at 24).
+- [x] **Graceful "unsupported variant" message** (v3.1.73) — says so instead of analysing the wrong position.
+- [x] **Manual mode** (v3.1.84) — the engine thinks until you press the play-move key (**Space**), then plays its best move.
+- [x] **Configurable hotkeys** (v3.1.84) — **Settings → Hotkeys**; single-letter defaults, each toggle shows its key, carried in export/import.
+- [x] **Opponent Mistake Alert** (v3.1.84) (the roadmap's *Blunder alert*) — opt-in toast over the board for the opponent's inaccuracy/mistake/blunder (Lichess win%, depth-gated).
+- [x] **Self-test button** (v3.1.84) — beside Re-detect; checks scraping, the engine, and the native host.
 - [x] **Human cursor travel** (v3.1.90) — every synthetic click is preceded by an eased, jittered `mouseMoved` path from the cursor's last position; travel time consumes the Move Time budget so the whole click sequence fits inside whatever number you set.
 - [x] **Faster response** (v3.1.91) — no "Calculating…" placeholder; the panel shows only the progress bar until the first `info depth 1` line arrives (~a few ms), then streams the real eval, move and best-line from depth 1 onward.
 - [x] **Turn switch** (v3.1.92) — a small king-glyph toggle at the top of the panel (replacing the "Quick Settings" title) shows the side to move and flips it on tap. Sticky per position so you can switch back and forth, auto-tracks each move, and resets on close. Replaces the earlier on-board pill + Auto/White/Black dropdown.
