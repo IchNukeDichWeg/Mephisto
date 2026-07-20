@@ -33,7 +33,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     // sender.tab is authenticated by Chrome; never trust a message-supplied tab id (issue #36 §1).
     const tabId = sender.tab?.id;
     if (!tabId) { sendResponse({error: 'no sender tab'}); return; }
-    cdpClick(tabId, msg.x, msg.y).then(() => sendResponse({ok: true})).catch(e => sendResponse({error: String(e)}));
+    cdpClick(tabId, msg.x, msg.y, msg.travelMs).then(() => sendResponse({ok: true})).catch(e => sendResponse({error: String(e)}));
     return true;
   }
   // The panel can't open the options page itself: it's a content script, so a relative URL resolves
@@ -131,19 +131,49 @@ async function buildPieces(pieceSet, pieceExt) {
 
 // --- Trusted CDP click (moved here from the panel; content scripts can't use chrome.debugger) -----
 const attached = new Set();
-function cdpClick(tabId, x, y) {
+const lastPos = new Map(); // tabId -> {x, y}: where the synthetic cursor was left after the last click
+const cdpSleep = (ms) => new Promise(r => setTimeout(r, ms));
+const cdpDispatch = (target, params) => new Promise((resolve, reject) => {
+  chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', params, () =>
+    chrome.runtime.lastError ? reject(new Error(chrome.runtime.lastError.message)) : resolve());
+});
+
+// Move the synthetic cursor from its last position to (x, y) as a series of mouseMoved events before
+// we click there. A click dispatched with NO preceding mouseMoved is a dead giveaway -- a human's
+// cursor always travels to the square first (audit M2). The path is eased (accelerate, decelerate),
+// gently bowed, and jittered so it isn't a ruler-straight teleport, and it is spread across
+// travelMs so the motion actually consumes the caller's move-time budget instead of snapping.
+async function cdpMove(target, fromX, fromY, x, y, travelMs) {
+  const dist = Math.hypot(x - fromX, y - fromY);
+  const steps = Math.max(3, Math.min(40, Math.round(travelMs / 16))); // ~60fps, bounded either way
+  const px = dist ? -(y - fromY) / dist : 0, py = dist ? (x - fromX) / dist : 0; // perpendicular unit
+  const bow = (Math.random() - 0.5) * Math.min(dist * 0.15, 24); // sideways arc, scales with distance
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const ease = t * t * (3 - 2 * t);         // smoothstep: slow-fast-slow
+    const arc = Math.sin(t * Math.PI) * bow;  // 0 at both ends, peak mid-path
+    const mx = fromX + (x - fromX) * ease + px * arc + (Math.random() - 0.5) * 1.5;
+    const my = fromY + (y - fromY) * ease + py * arc + (Math.random() - 0.5) * 1.5;
+    await cdpDispatch(target, {type: 'mouseMoved', x: mx, y: my, button: 'none'});
+    if (travelMs > 0) await cdpSleep(travelMs / steps);
+  }
+}
+
+function cdpClick(tabId, x, y, travelMs = 0) {
   return new Promise((resolve, reject) => {
     if (!tabId) return reject(new Error('no tabId'));
     const target = {tabId};
-    const send = () => {
-      const opts = {x, y, button: 'left', clickCount: 1};
-      chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {...opts, type: 'mousePressed'}, () => {
-        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
-        chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {...opts, type: 'mouseReleased'}, () => {
-          if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
-          resolve();
-        });
-      });
+    const send = async () => {
+      try {
+        // first click on a fresh tab: no known cursor pos -- start a short hop away so there's still travel
+        const from = lastPos.get(tabId) || {x: x - 40 - Math.random() * 40, y: y - 30 - Math.random() * 30};
+        await cdpMove(target, from.x, from.y, x, y, Math.max(0, travelMs));
+        lastPos.set(tabId, {x, y});
+        const opts = {x, y, button: 'left', clickCount: 1};
+        await cdpDispatch(target, {...opts, type: 'mousePressed'});
+        await cdpDispatch(target, {...opts, type: 'mouseReleased'});
+        resolve();
+      } catch (e) { reject(e); }
     };
     if (attached.has(tabId)) return send();
     chrome.debugger.attach(target, '1.3', () => {
@@ -156,7 +186,9 @@ function cdpClick(tabId, x, y) {
     });
   });
 }
-chrome.debugger.onDetach?.addListener((src) => { if (src.tabId) attached.delete(src.tabId); });
+chrome.debugger.onDetach?.addListener((src) => {
+  if (src.tabId) { attached.delete(src.tabId); lastPos.delete(src.tabId); }
+});
 
 // Free a panel's offscreen engine when its tab closes (the popup iframe is gone with it). Tab events
 // don't need the "tabs" permission. clientId == String(tabId), matching ENGINE_CLIENT in popup.js.

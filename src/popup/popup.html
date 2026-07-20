@@ -93,6 +93,15 @@
         <label><input id="qs_manual" type="checkbox"><span class="lever"></span></label>
     </div>
     <div class="qs-row">
+        <span class="qs-label tooltipped" data-position="left"
+              data-tooltip="Override whose turn it is when the scraper guesses wrong (e.g. a From-Position black-to-move start). Auto = detect from the board; White/Black = force that side.">Turn</span>
+        <select id="qs_force_turn" class="browser-default">
+            <option value="">Auto</option>
+            <option value="w">White</option>
+            <option value="b">Black</option>
+        </select>
+    </div>
+    <div class="qs-row">
         <span class="qs-label">Engine</span>
         <select id="qs_engine" class="browser-default">
             <option value="sf-native">Stockfish (local)</option>

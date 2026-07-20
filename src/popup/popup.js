@@ -161,8 +161,11 @@ async function initPanel(root, tabId) {
         memory: JSON.parse(MephistoConfig.get('memory')) || 512,
         think_time: (thinkTime != null) ? thinkTime : 0,
         think_variance: (thinkVariance != null) ? thinkVariance : 0,
-        move_time: (moveTime != null) ? moveTime : 200,
-        move_variance: (moveVariance != null) ? moveVariance : 50,
+        move_time: (moveTime != null) ? moveTime : 400, // ms of cursor travel to the target square (M2)
+        move_variance: (moveVariance != null) ? moveVariance : 400,
+        // Manual side-to-move override for when auto-detection guesses wrong (e.g. lichess
+        // From-Position black-first games). null = auto (default); 'w'/'b' = force that side.
+        force_turn: JSON.parse(MephistoConfig.get('force_turn')) || null,
         humanize: JSON.parse(MephistoConfig.get('humanize')) || false,
         clock_mode: JSON.parse(MephistoConfig.get('clock_mode')) || false,
         mirror_mode: JSON.parse(MephistoConfig.get('mirror_mode')) || false,
@@ -304,11 +307,11 @@ async function initPanel(root, tabId) {
         } else if (response.pullConfig) {
             push_config();
         } else if (response.click) {
-            console.log(response);
             // click the GAME tab (the content-script's sender tab), not whatever tab is active --
             // otherwise a move firing while you're on another tab (e.g. chrome://extensions) dispatches
-            // there and fails ("Cannot access a chrome:// URL").
-            dispatch_click_event(response.x, response.y, sender?.tab?.id);
+            // there and fails ("Cannot access a chrome:// URL"). Returned so the in-page caller can
+            // AWAIT the click (its cursor travel paces the from->to gap -- see performSimulatedMoveClicks).
+            return dispatch_click_event(response.x, response.y, sender?.tab?.id, response.travelMs);
         }
     };
     // Only the toolbar popup needs the runtime listener; in-page, content-script.js calls
@@ -446,6 +449,20 @@ function init_quick_settings() {
                 abandon_search();
                 last_eval.fen = '';
             }
+            push_config();
+        });
+    }
+    // Manual turn override (Auto/White/Black): live-applied to the content-script's getTurn(),
+    // and re-analyse immediately so the new side-to-move takes effect without waiting for a scrape.
+    const forceTurnEl = PANEL_ROOT.getElementById('qs_force_turn');
+    if (forceTurnEl) {
+        forceTurnEl.value = config.force_turn || '';
+        forceTurnEl.addEventListener('change', () => {
+            const v = forceTurnEl.value || null; // '' -> null (Auto)
+            config.force_turn = v;
+            save('force_turn', v);
+            abandon_search();
+            last_eval.fen = '';
             push_config();
         });
     }
@@ -2451,16 +2468,16 @@ function toggle_calculating(on) {
     }
 }
 
-async function dispatch_click_event(x, y, tabId) {
+async function dispatch_click_event(x, y, tabId, travelMs) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
         // NaN/undefined coords (e.g. a crazyhouse drop move) serialize badly and the debugger rejects them
         console.warn(`Ignoring click with invalid coordinates: (${x}, ${y})`);
         return;
     }
     if (config.python_autoplay_backend) {
-        await request_backend_click(x, y);
+        await request_backend_click(x, y); // the python clicker moves the real mouse itself
     } else {
-        await request_debugger_click(x, y, tabId);
+        await request_debugger_click(x, y, tabId, travelMs);
     }
 }
 
@@ -2472,14 +2489,15 @@ function resolve_click_tab(tabId) {
     return new Promise(res => chrome.tabs.query({active: true, currentWindow: true}, t => res(t[0]?.id)));
 }
 
-async function request_debugger_click(x, y, tabId) {
+async function request_debugger_click(x, y, tabId, travelMs) {
     // chrome.debugger is NOT available to a content script (which is what this file is once the panel
     // lives in-page), so the background owns the attach + Input.dispatchMouseEvent. Still a TRUSTED
-    // click -- isTrusted can't tell it from a human one (issue #35 §2).
+    // click -- isTrusted can't tell it from a human one (issue #35 §2). The background traces a
+    // mouseMoved cursor path over travelMs before the click (M2); awaiting it paces the move.
     const id = await resolve_click_tab(tabId);
     if (!id) return;
     try {
-        const r = await chrome.runtime.sendMessage({cdpClick: true, tabId: id, x, y});
+        const r = await chrome.runtime.sendMessage({cdpClick: true, tabId: id, x, y, travelMs});
         if (r && r.error) console.warn('CDP click failed:', r.error);
     } catch (e) {
         console.warn('CDP click failed:', e);
@@ -2643,6 +2661,7 @@ self.MephistoPanel = {
     // handled, so the listener only swallows the key then (see do_hotkey / the keydown listener).
     hotkey: (action) => { try { return do_hotkey(action); } catch (e) { console.warn('Mephisto: hotkey failed', e); return false; } },
     // content-script.js pushes positions/clocks straight in (same realm, no messaging)
-    onContentMessage: (msg) => { try { PANEL_MSG_HANDLER && PANEL_MSG_HANDLER(msg, {}); } catch (e) { console.warn('Mephisto: content->panel failed', e); } },
+    // returns the handler's value so a click can be awaited (the click branch returns its dispatch promise)
+    onContentMessage: (msg) => { try { return PANEL_MSG_HANDLER && PANEL_MSG_HANDLER(msg, {}); } catch (e) { console.warn('Mephisto: content->panel failed', e); } },
 };
 })();

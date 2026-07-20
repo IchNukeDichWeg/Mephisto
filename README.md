@@ -60,7 +60,9 @@ These reduce *client-side* fingerprinting and make automated play look less mech
 | **Clock Mode / Mirror Time** | Paces moves against the real clock, or mirrors your opponent's time use, instead of answering instantly. |
 | **Elo cap** | Cap engine strength. Playing 3200 in a 1400 pool is the loudest signal there is. |
 | **Background Play → Off** (default) | Only moves while the tab is focused and visible — humans don't play while tabbed away. |
-| **Move/Think Time** | Slower, varianced timing beats instant robotic replies. |
+| **Move/Think Time** | Slower, varianced timing beats instant robotic replies. **Move Time** is now the *total* wall-clock for a move (piece-click + cursor travel + any promotion picker); whatever number you set is how long a move takes, no hidden extras. |
+| **Cursor travel before every click** (automatic since v3.1.90) | The synthetic mouse now traces an eased, slightly bowed, jittered path from its last position to the target before each click, spread across your Move Time budget — instead of teleporting straight to `(x, y)`. Removes the "click with no preceding mousemove" tell, the loudest client-side behavioural signal after the 3-click deselect fingerprint (which was fixed earlier). |
+| **Turn override** (Auto / White / Black) | Force the side-to-move when the scraper guesses wrong (the classic case is a lichess *From Position* black-to-move start). Under the Manual Mode row in the panel. |
 
 The single most effective thing on this list is **not using it in rated games against people.**
 
@@ -441,6 +443,8 @@ Shipped and in the current build.
 - [x] **Configurable hotkeys** — **Settings → Hotkeys**; single-letter defaults, each toggle shows its key, carried in export/import.
 - [x] **Opponent Mistake Alert** (the roadmap's *Blunder alert*) — opt-in toast over the board for the opponent's inaccuracy/mistake/blunder (Lichess win%, depth-gated).
 - [x] **Self-test button** — beside Re-detect; checks scraping, the engine, and the native host.
+- [x] **Turn override** (v3.1.90) — Auto/White/Black switch in the panel; force the side-to-move when the scraper guesses wrong (e.g. lichess *From Position* black-to-move).
+- [x] **Human cursor travel** (v3.1.90) — every synthetic click is now preceded by an eased, jittered `mouseMoved` path from the cursor's last position; travel time consumes the Move Time budget so the whole click sequence fits inside whatever number you set.
 
 ---
 
