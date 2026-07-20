@@ -880,7 +880,10 @@ function on_engine_best_move(best, threat, isTerminal=false) {
     } else {
         // Threat Analysis draws the red arrow (draw_threat) -- it no longer prints a second text
         // line; the "Best response for ..." readout was removed.
-        update_best_move(`${toplay} to play, best move is ${best}`);
+        // Pondering the opponent's turn (their move, ponder on): flag it so the live readout reads
+        // "Pondering -- Black to play, ..." rather than looking like a stalled search on our move.
+        const pondering = config.ponder && toplay.toLowerCase() !== board.orientation();
+        update_best_move(`${pondering ? 'Pondering — ' : ''}${toplay} to play, best move is ${best}`);
     }
 
     if (toplay.toLowerCase() === board.orientation()) {
