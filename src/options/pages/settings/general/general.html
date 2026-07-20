@@ -187,6 +187,23 @@
                     </div>
                     <div class="section switch">
                         <label class="switch-label tooltipped" data-position="right"
+                               data-tooltip="Use the opponent's thinking time. ON: keep searching at full threads while
+                                             it's the opponent's turn, so a deeper reply is ready the moment they move
+                                             (pairs with Premove for instant answers). OFF (default): the opponent's turn
+                                             is still analysed for premove/threat/help, but capped to 1 thread so idle
+                                             time isn't a full-core burn."
+                        >
+                            Pondering <i class="material-icons info-tooltip">info</i>
+                        </label>
+                        <label>
+                            Off
+                            <input id="ponder_checkbox" type="checkbox">
+                            <span class="lever"></span>
+                            On
+                        </label>
+                    </div>
+                    <div class="section switch">
+                        <label class="switch-label tooltipped" data-position="right"
                                data-tooltip="When OFF (default), moves only fire while this tab is focused and visible --
                                              a human doesn't play while tabbed away, so this avoids a 'moved in the
                                              background' anomaly. Turn ON to keep autoplay/premove running when the tab

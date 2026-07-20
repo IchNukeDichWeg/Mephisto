@@ -68,6 +68,7 @@ let search_active = false; // a 'go' was issued whose bestmove hasn't arrived ye
                            // used for this: it flips false on the first info line, not on bestmove)
 let last_pos = {startFen: null, moves: ''}; // the position's own start + UCI move list, for Copy PGN
 let premove_tracker = {fen: '', lines: {}}; // per-multipv reply stability while the opponent thinks
+let search_threads_set = null; // last Threads value pushed to the engine; opponent-turn search drops to 1 unless Pondering
 let prog = 0;
 let last_eval = {fen: '', activeLines: 0, lines: []};
 let detected_prefix = null; // which site the last scrape came from ('li'/'cc'/'bt'/'tt')
@@ -202,6 +203,10 @@ async function initPanel(root, tabId) {
         simon_says_mode: JSON.parse(MephistoConfig.get('simon_says_mode')) || false,
         autoplay: (autoplay != null) ? autoplay : false,
         premove: JSON.parse(MephistoConfig.get('premove')) || false,
+        // Pondering (settings page only): keep searching, at full threads, while it's the OPPONENT's
+        // turn -- burn the wait on a deeper reply. OFF (default) still analyses the opponent's turn for
+        // premove/threat/help, but capped to 1 thread so idle time isn't a full-core burn.
+        ponder: JSON.parse(MephistoConfig.get('ponder')) || false,
         puzzle_mode: JSON.parse(MephistoConfig.get('puzzle_mode')) || false,
         help_mode: JSON.parse(MephistoConfig.get('help_mode')) || false,
         eval_bar: JSON.parse(MephistoConfig.get('eval_bar')) || false,
@@ -729,6 +734,7 @@ async function initialize_engine(reuseWarm = false) {
         // capped, so clamp to 512 MB here. Native engines (remote branch above) get the full value.
         send_engine_uci(`setoption name Hash value ${Math.min(config.memory, 512)}`);
         send_engine_uci(`setoption name Threads value ${config.threads}`);
+        search_threads_set = config.threads; // baseline; on_new_pos re-pushes only when the per-turn target differs
         send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
         // Win/Draw/Loss readout under the score. Modern Stockfish (dev/18) reports `wdl W D L` per
         // info line once this is on; SF11/Fairy don't declare it and silently ignore this line.
@@ -1416,6 +1422,18 @@ function on_new_pos(fen, startFen, moves) {
         // the NEW position, so if the old search was for the opponent's side (they replied mid-search)
         // that stale bestmove would otherwise be automoved as OUR move
         abandon_search();
+        // Thread budget per turn: our move gets the full count; the opponent's turn is background
+        // work, so drop to 1 thread unless Pondering is on (then keep full strength -- see the go
+        // below, which also lets a ponder run infinite for the whole opponent think). Maia is a single
+        // forward pass with no Threads option, so leave it alone. Only re-push when the target changes.
+        const our_turn = ((turn === 'w') ? 'white' : 'black') === board.orientation();
+        if (config.engine !== 'maia' && config.engine !== 'maia3') {
+            const want_threads = (our_turn || config.ponder) ? config.threads : 1;
+            if (want_threads !== search_threads_set) {
+                send_engine_uci(`setoption name Threads value ${want_threads}`);
+                search_threads_set = want_threads;
+            }
+        }
         // Re-assert the line count every move: humanize_rates() is read fresh per pick, so turning
         // the Mistakes/Blunders sliders on has to widen the engine's list NOW (see
         // effective_multipv). Set at engine init only, those sliders would silently do nothing until
@@ -1427,9 +1445,11 @@ function on_new_pos(fen, startFen, moves) {
         } else {
             send_engine_uci(`position fen ${fen}`);
         }
-        // Manual Mode searches forever too: it plays on YOUR keypress, never on a timer.
-        if (config.help_mode || !config.autoplay || config.manual_mode) {
-            send_engine_uci('go infinite'); // pure analysis / manual: keep deepening until the position changes
+        // Manual Mode searches forever too: it plays on YOUR keypress, never on a timer. Pondering on
+        // the opponent's turn is also open-ended: ponder the whole think, abandon_search cuts it off
+        // the instant they move (its bestmove is discarded, being for the opponent's side).
+        if (config.help_mode || !config.autoplay || config.manual_mode || (config.ponder && !our_turn)) {
+            send_engine_uci('go infinite'); // pure analysis / manual / ponder: keep deepening until the position changes
         } else {
             send_engine_uci(`go movetime ${movetime}`); // autoplay needs a final bestmove to act on
         }
