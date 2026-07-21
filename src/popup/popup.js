@@ -882,7 +882,10 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         // line; the "Best response for ..." readout was removed.
         // Pondering the opponent's turn (their move, ponder on): flag it so the live readout reads
         // "Pondering -- Black to play, ..." rather than looking like a stalled search on our move.
-        const pondering = config.ponder && toplay.toLowerCase() !== board.orientation();
+        // Maia is a single forward pass -- it can't deepen, so it never really ponders; every other
+        // engine (WASM, native SF/Fairy, remote) does.
+        const pondering = config.ponder && toplay.toLowerCase() !== board.orientation()
+            && config.engine !== 'maia' && config.engine !== 'maia3';
         update_best_move(`${pondering ? 'Pondering — ' : ''}${toplay} to play, best move is ${best}`);
     }
 
@@ -1310,8 +1313,40 @@ function maybe_premove_forced_reply(line) {
     // Humanize: hold premoves that aren't a true recapture / forced reply (see premove_human_reflex)
     if (config.humanize && !premove_human_reflex(premove_tracker.fen, line.pred, line.reply)) return;
     premove_tracker.premoved = true;
-    console.log('Premove: reply cannot misfire (forced/bound to predicted move) -- premoving', line.reply);
-    request_automove(line.reply);
+    // DOUBLE PREMOVE (chess.com only): if the continuation after our reply is also forced, queue a
+    // second premove in the same click session. Only when the whole 2-ply line is forced can the
+    // second move never land in a wrong position -- see forced_second_premove.
+    const second = forced_second_premove(premove_tracker.fen, line.pred, line.reply);
+    if (second) {
+        console.log('Premove: forced 2-ply chain -- double premove', line.reply, second);
+        request_double_premove([line.reply, second]);
+    } else {
+        console.log('Premove: reply cannot misfire (forced/bound to predicted move) -- premoving', line.reply);
+        request_automove(line.reply);
+    }
+}
+
+// Second premove for a DOUBLE premove. Returns its UCI, or null if the line isn't forced enough to
+// stack one safely. chess.com only, standard chess only. The bar is "1 legal move back to back": the
+// opponent's move (pred) must be their ONLY legal move here, and after our reply the opponent must be
+// forced again (1 legal move), and our follow-up then forced (1 legal move) -- that lone move is the
+// second premove. Anything less and a different opponent move could leave the second premove in a
+// position it was never meant for, so we return null and queue just the one.
+function forced_second_premove(fen, pred, reply) {
+    if (detected_prefix !== 'cc' || (config.variant && config.variant !== 'chess')) return null;
+    try {
+        const c = new Chess(config.variant, fen);
+        if (c.moves().length !== 1) return null;                                      // opp not forced -> pred uncertain
+        c.move({from: pred.slice(0, 2), to: pred.slice(2, 4), promotion: pred[4]});   // M1: opp's only move
+        c.move({from: reply.slice(0, 2), to: reply.slice(2, 4), promotion: reply[4]}); // R1: our first premove
+        if (c.moves().length !== 1) return null;                                      // opp not forced next -> no known M2
+        c.move(c.moves({verbose: true})[0]);                                          // M2: opp's only move
+        if (c.moves().length !== 1) return null;                                      // our follow-up not forced
+        const r2 = c.moves({verbose: true})[0];                                       // R2: our only legal move
+        return `${r2.from}${r2.to}${r2.promotion || ''}`;
+    } catch (e) {
+        return null; // couldn't build/verify the chain -> just the single premove
+    }
 }
 
 function premove_instant_reply(new_fen, new_moves) {
@@ -1429,10 +1464,16 @@ function on_new_pos(fen, startFen, moves) {
             set_move_countdown(search_start + est.ms, est.source, humanize_roll ? humanize_roll.category : null);
         }
     }
+    // whose move is it -- drives the ponder budget (remote/native) and the per-turn thread cap (WASM)
+    const our_turn = ((turn === 'w') ? 'white' : 'black') === board.orientation();
     if (is_remote()) {
         // pure analysis (Help Mode / Autoplay off) keeps deepening like the WASM `go infinite`: give
         // it a long budget that the next position (a new request supersedes this one) cuts short.
-        const rt = (config.help_mode || !config.autoplay || config.manual_mode) ? 3600000 : movetime;
+        // PONDERING rides the same rail on the opponent's turn: the native hosts and remote engine
+        // turn this `time` into their search limit, so the engine thinks through their whole move
+        // instead of stopping after our move time. Superseded by the next position like Help Mode.
+        const rt = (config.help_mode || !config.autoplay || config.manual_mode
+                    || (config.ponder && !our_turn)) ? 3600000 : movetime;
         if (moves) {
             request_remote_analysis(startFen, rt, moves).then(on_engine_response).catch(on_remote_error);
         } else {
@@ -1447,9 +1488,12 @@ function on_new_pos(fen, startFen, moves) {
         // work, so drop to 1 thread unless Pondering is on (then keep full strength -- see the go
         // below, which also lets a ponder run infinite for the whole opponent think). Maia is a single
         // forward pass with no Threads option, so leave it alone. Only re-push when the target changes.
-        const our_turn = ((turn === 'w') ? 'white' : 'black') === board.orientation();
         if (config.engine !== 'maia' && config.engine !== 'maia3') {
-            const want_threads = (our_turn || config.ponder) ? config.threads : 1;
+            // 1 thread ONLY for the real in-game wait on the opponent. Analysis / Help / Manual have
+            // no opponent to save cores for, so they keep the full count -- as does our own move.
+            const bg_wait = config.autoplay && !config.help_mode && !config.manual_mode
+                && !our_turn && !config.ponder;
+            const want_threads = bg_wait ? 1 : config.threads;
             if (want_threads !== search_threads_set) {
                 send_engine_uci(`setoption name Threads value ${want_threads}`);
                 search_threads_set = want_threads;
@@ -2356,6 +2400,14 @@ function request_automove(move, think = null, manual = false) {
         ? {automove: true, pv: last_eval.lines[0]?.pv ? pv_moves(last_eval.lines[0].pv) : [move], deselect, verify, timing, manual}
         : {automove: true, move: move, deselect, verify, think, timing, manual};
     send_to_active_tab(message);
+}
+
+// Queue two forced premoves back-to-back in ONE click session. Both are blind (opponent to move), so
+// verify=false; they must ship in a single message because the content-script's `moving` guard drops a
+// second automove that arrives while the first is still clicking.
+function request_double_premove(moves) {
+    send_to_active_tab({automove: true, premoves: moves, deselect: null, verify: false,
+        timing: fresh_timing(), manual: false});
 }
 
 function request_console_log(message) {
