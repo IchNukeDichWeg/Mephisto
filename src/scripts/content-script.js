@@ -37,7 +37,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.104'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.107'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`content-script build ${MEPHISTO_BUILD}`); // debranded: no product name in the page console (L8)
     const siteMap = {
@@ -105,6 +105,9 @@ function handleExtensionMessage(response, sender, sendResponse) {
             if (config.puzzle_mode) {
                 console.log(response.pv);
                 simulatePvMoves(response.pv).finally(endMoving);
+            } else if (response.premoves) {
+                console.log(response.premoves);
+                simulatePremoveSequence(response.premoves).finally(endMoving);
             } else {
                 console.log(response.move);
                 simulateMoveVerified(response.move, response.deselect, response.verify, response.think ?? null).finally(endMoving);
@@ -1641,6 +1644,16 @@ async function simulateMoveVerified(move, deselect, verify, think = null, retrie
         return simulateMoveVerified(move, deselect, verify, 0, retries - 1, before);
     }
     console.warn(`Mephisto: move '${move}' failed to register after retries`);
+}
+
+// Double premove: click each of our forced moves from->to back-to-back, no verify and no waiting for
+// the opponent (a queued premove won't appear in the move list until they move). chess.com renders a
+// premoved piece at its destination, so the second click lands on the right square. The popup only
+// sends this when the whole 2-ply line is forced, so neither click can misfire.
+async function simulatePremoveSequence(moves) {
+    for (const move of moves) {
+        await simulateMove(move, false);
+    }
 }
 
 function simulatePvMoves(pv) {
