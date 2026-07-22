@@ -296,51 +296,26 @@ id changed — re-run the install command.
 
 ### Safe Premove
 
-While the opponent is thinking, Mephisto certifies a reply to their **predicted** move (the reply must be identical
-at depth 6, 9 and 10+). If they play exactly that move, the reply fires **instantly**; anything else falls back to a
-normal search — a wrong guess costs nothing. When the reply could never be legal after any other opponent move
-(forced moves and true recaptures), it's queued as a real site premove immediately, and an illegal premove is
-auto‑cancelled so it can never fire in the wrong position.
-
-**Double premove** (chess.com, standard chess). When the line is forced *two* moves deep — the opponent's move is
-their only legal move, and after your reply they're forced again — both of your replies are queued at once instead
-of one at a time. Because every branch in that chain is forced, neither queued move can end up in a position it
-wasn't meant for; anything less than fully forced falls back to a single premove.
+- While the opponent thinks, certifies a reply to their **predicted** move (stable at depth 6 / 9 / 10+).
+- Exact predicted move → fires **instantly**; anything else → normal search, so a wrong guess costs nothing.
+- Forced moves and true recaptures → queued as a real site premove; an illegal one auto-cancels, so it never fires in the wrong position.
+- **Double premove** (chess.com, standard) — when the line is forced *two* moves deep, both replies queue at once. Every branch is forced, so neither can misfire; less than fully forced → a single premove.
 
 ### Pondering
 
-Off by default — turn it on in **Settings → General → Pondering**.
+Off by default (**Settings → General → Pondering**). Uses the opponent's think time.
 
-The panel already analyses the position while the opponent is on move (that's what feeds Premove, Threat Analysis
-and Help Mode). Pondering decides what that wait is worth:
-
-- **Off** — the opponent's turn is searched with a **single thread**, so waiting on them isn't a full‑core burn.
-  Your own move always gets the full thread count you configured, and analysis‑only work (Help Mode, Autoplay off)
-  is never throttled.
-- **On** — the opponent's turn is searched at **full threads** and keeps running for their *whole* think, so a
-  deeper reply is ready the moment they move. Instead of your configured line count it covers their **top 5
-  candidate replies** (they won't play the engine's #1), narrowing to 1–2 when the position is forced or a
-  recapture and the depth is worth more than the width. Pairs naturally with Premove, which can then certify an
-  instant answer to any of those replies.
-
-The ponder search is abandoned the instant the position changes and its result is discarded, so it can never leak
-out as one of your moves. The readout shows `Pondering — <side> to play …` while it's running.
+- **Off** — opponent's turn searched on a **single thread**, so idle waiting isn't a full-core burn. Your move and analysis-only work always get full threads.
+- **On** — opponent's turn searched at **full threads** for their whole think, over their **top 5 candidate replies** (1–2 when forced or a recapture). Pairs with Premove for an instant answer to any of them.
+- Abandoned and discarded the moment the position changes, so it never leaks out as your move. Readout shows `Pondering — <side> to play`.
 
 ### Humanize
 
 Make automated play look like a real person instead of a flawless engine:
 
-- **Move mix** — seven tunable sliders control how often Mephisto plays the **top move**, a **2nd / 3rd / 4th line**,
-  an **inaccuracy**, a **mistake**, or a **blunder**. A separate **Move‑Quality Thresholds** section sets, in
-  centipawns, how much worse than the best move each of those may be — so *you* decide how far a "second line" or a
-  "mistake" strays. Above every threshold is a **live accuracy estimate** computed with **Lichess's own formulas**
-  ([win‑percent model](https://lichess.org/page/accuracy) + accuracy), showing the move accuracy and win‑chance drop
-  a setting produces. The defaults sit exactly on Lichess's own labels — **110cp = 10% win drop = Inaccuracy, 230cp =
-  20% = Mistake, 377cp = 30% = Blunder** — so the categories mean what they mean in a Lichess game review. Giving a
-  share to any category worse than the near‑best (third line and below) makes the engine search a wider list of moves,
-  so it actually *has* a move that bad to pick — otherwise that roll just replays the top move (a pure top + close‑second
-  mix keeps the cheaper search). Nothing past the blunder threshold is ever played, and blunders never fire in an
-  already‑decided game. Edits apply to the very next move.
+- **Move mix** — seven sliders set how often it plays the **top move**, a **2nd / 3rd / 4th line**, an **inaccuracy**, a **mistake**, or a **blunder**.
+- **Thresholds** — a separate section sets, in centipawns, how far each may stray, with a **live Lichess accuracy estimate** ([win-% model](https://lichess.org/page/accuracy)) of the win-chance drop. Defaults match Lichess's labels: **110cp = Inaccuracy, 230cp = Mistake, 377cp = Blunder**.
+- Sharing to a deep category widens the engine's search so it has such a move to pick; nothing past the blunder threshold is played, and blunders never fire in a decided game. Edits apply next move.
 - **Human timing** — quick on obvious moves and openings, long thinks in critical positions, and an **instant
   reflex** *only* for true recaptures (the opponent actually captured, and you take back on that square) and forced
   moves. Snapping off a piece that merely moved in to attack is **not** treated as a reflex — that used to look
@@ -352,18 +327,11 @@ Make automated play look like a real person instead of a flawless engine:
 
 ### Clock Mode & Mirror Time
 
-Two ways to manage the clock, both of which also size the engine's search to the time they intend to spend (so the
-wait becomes a deeper move instead of idle time):
+Both also size the engine's search to the time they'll spend, so the wait becomes a deeper move.
 
-- **Clock Mode** — reads the game clock off the page and budgets each move to it (roughly time/30 plus 60% of the
-  increment), playing near‑instantly when short on time.
-- **Mirror Time** — paces to the *opponent* instead: spends what they spent on their last move minus 10%, staying
-  just ahead on the clock (with extra haste when behind), and falls back to the Clock Mode budget when their spend
-  is unknown.
-
-**Priority when several are on** — *Time:* Mirror ▸ Clock ▸ Humanize ▸ Search Time (the first one enabled sets the
-duration; recaptures & forced moves stay instant). *Move:* Humanize picks which move; otherwise the engine's best.
-Each toggle's tooltip states this inline.
+- **Clock Mode** — budgets each move off the page clock (~time/30 + 60% of the increment); near-instant when low.
+- **Mirror Time** — paces to the *opponent*: their last spend −10%, staying just ahead (haste when behind); falls back to Clock Mode when unknown.
+- **Priority** — *Time:* Mirror ▸ Clock ▸ Humanize ▸ Search Time. *Move:* Humanize else engine best. (Also in each tooltip.)
 
 ---
 
@@ -456,10 +424,6 @@ No schedule — added whenever I feel like it. Only the not-yet-built items live
 - [ ] **Auto-download variant nets** — fetch Fairy nets on demand instead of bundling every one. Would cut the
   download enormously, at the cost of the zero-setup, works-offline install.
 
-**Robustness**
-- [ ] **Auto-recover on site DOM changes** — spot a scraper that has stopped matching and re-anchor, instead of
-  silently seeing nothing.
-
 ---
 
 ## Implemented
@@ -483,7 +447,8 @@ Shipped and in the current build.
 - [x] **Turn switch** (v3.1.92) — a small king-glyph toggle at the top of the panel (replacing the "Quick Settings" title) shows the side to move and flips it on tap. Sticky per position so you can switch back and forth, auto-tracks each move, and resets on close. Replaces the earlier on-board pill + Auto/White/Black dropdown.
 - [x] **Pondering** (v3.1.107) — the roadmap's *Ponder / background analysis*. Opt in under **Settings → General → Pondering**: the opponent's turn is then searched at full threads for their *whole* think, across their **top 5 candidate replies** (narrowing to 1–2 when the position is forced or a recapture), so a deeper answer is ready the moment they move — and Premove can certify an instant reply to any of those five. The roadmap's CPU/battery cost is handled by the default rather than ignored: with Pondering **off**, the opponent's turn drops to a **single thread**, so idle waiting now costs *less* than it used to, not more. Your own move always gets the full thread count, and analysis-only work is never throttled. Works with the in-browser and native Stockfish/Fairy builds and the remote engine; Maia is a single forward pass and can't deepen, so it's excluded.
 - [x] **Opening Explorer** (v3.1.119) — **Settings → General → Opening Explorer**, or the **Explorer** toggle in the panel. Shows how humans played the opening: the opening name, the most-played replies with their win/draw/loss split, and coloured arrows on the board. Turn on **Play Book Moves** to play a *weighted-random* book move instead of the engine's pick — so you don't repeat the same line every game — with a 20-game floor and an engine check (within 40cp of best) so the variety never costs you a worse move. Pick the **Opening Database** (Masters / all Lichess / club 1600–2200). The lookup runs in the background and never delays a move; standard chess only.
-- [x] **Set up a position** (v3.1.119) — the grid button in the panel's button row opens a box to paste a **FEN** and analyse that position instead of the page. The panel stops following the page while one is set; click again (or Re-detect) to return to the live game.
+- [x] **Set up a position** (v3.1.119) — grid button in the panel row: paste a **FEN** to analyse any position instead of the page. Stops following the page while set; click again (or Re-detect) to go back.
+- [x] **Auto-recover on DOM changes** (v3.1.119) — if a site renames its move-list tags, Mephisto finds the move list structurally instead of silently seeing nothing.
 - [x] **Double premove** (v3.1.107) — on chess.com (standard chess), when the line is forced two moves deep, both of your replies are queued at once instead of one at a time. Every branch in that chain is forced, so neither queued move can fire in a position it wasn't meant for; anything less falls back to a single premove.
 - [x] **Instant reopen, warm engine** (v3.1.92) — closing the panel with X stops the search (frees CPU) but keeps the engine loaded, so reopening is instant instead of reloading the neural net. A fingerprint of the engine settings means an unchanged reopen skips *all* setup (no net reload, no `ucinewgame` hash clear); a settings change reconfigures without reloading. A real tab close still frees the engine.
 
