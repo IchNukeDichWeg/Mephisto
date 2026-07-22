@@ -100,6 +100,7 @@ goes far beyond.** Everything the original did still works here; the table shows
 | **Clock Mode & Mirror Time** management | ❌ | ✅ |
 | **Manual Mode · rebindable hotkeys · opponent-mistake alert** | ❌ | ✅ |
 | **Safe Premove** (+ human‑reflex gate, + double premove) | ❌ | ✅ |
+| **Opening Explorer** — human opening data + optional weighted-random book play | ❌ | ✅ |
 | **Pondering** — think on the opponent's clock | ❌ | ✅ |
 | **Help Mode** — draw arrows on the real board | ❌ | ✅ |
 | **On‑board eval bar** with live search depth | ❌ | ✅ |
@@ -140,6 +141,8 @@ To pick up a code change: reload the extension on `chrome://extensions`, then re
   number of lines, and all timing/mode toggles. Changes apply on the next move (engine changes reload the panel).
 - **Re‑detect (↻)** — rescan the page and restart analysis, e.g. after a new game loads without a full page reload.
 - **Analysis board (⧉)** — open the current position on Lichess's analysis board in one click.
+- **Set up a position (grid button)** — paste a **FEN** to analyse any position instead of the board on the page.
+  The panel stops following the page while one is set; click again (or Re-detect) to return to the live game.
 - **Copy FEN / Copy PGN** (two labelled buttons) — the position, or the whole game so far. A game that began from a custom start
   (Chess960, "From Position") exports with `SetUp`/`FEN` tags, so it reads back as the same game rather than as a
   standard one.
@@ -270,6 +273,10 @@ id changed — re-run the install command.
   (choose the actual move).
 - **Continuous analysis** — with Autoplay off, the engine keeps analyzing indefinitely instead of stopping after
   the search time.
+- **Opening Explorer** — shows how humans played the opening (Lichess database): the opening name, the most-played
+  replies with their win/draw/loss split, and coloured arrows on the board. Pick the database — Masters, all
+  Lichess games, or a club rating band. Read-out only; standard chess. See **Play Book Moves** below to actually
+  play from it.
 
 ---
 
@@ -279,6 +286,10 @@ id changed — re-run the install command.
 - **Help Mode** — instead of autoplaying, all analysis arrows are mirrored onto the site's board while the engine
   keeps evaluating; you play the move yourself when ready. Overrides Autoplay while on.
 - **Puzzle Mode** — optimizes for solving puzzles as fast as possible (Puzzle Rush / Puzzle Storm).
+- **Play Book Moves** — plays the opening from the Opening Explorer instead of the engine's pick: a
+  *weighted-random* choice among the popular replies, so you don't repeat the same line every game. A move must
+  appear in at least 20 games and rate within 40cp of the engine's best, so the variety never costs you a worse
+  move. The lookup runs in the background and never delays a move; out of book, the engine takes over. Needs Autoplay.
 - **Background Play** (off by default) — with it off, moves only fire while the game tab is **focused and visible**;
   a move that comes due while you're tabbed away is deferred until you come back. Humans don't play while looking at
   another tab. Turn it on to keep autoplay/premove running in the background.
@@ -430,7 +441,6 @@ No schedule — added whenever I feel like it. Only the not-yet-built items live
 **Engines & analysis**
 - [ ] **lc0 (Leela) in the browser** — Leela's neural-net engine as a WASM alternative to Stockfish. A large
   download for play that isn't stronger; mainly for comparing styles.
-- [ ] **Opening explorer overlay** (Lichess DB) — win rates and popular replies for the position on the board.
 - [ ] **Syzygy tablebase probing** (≤7 pieces) — perfect endgame play once few enough pieces are left.
 
 **Board & position**
