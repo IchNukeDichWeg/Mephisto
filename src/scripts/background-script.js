@@ -21,6 +21,15 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     buildPanelAssets().then(sendResponse).catch(e => sendResponse({error: String(e)}));
     return true;
   }
+  // Opening-explorer lookup. Deliberately done HERE, in the service worker, and never in the panel:
+  // the panel runs in the PAGE's isolated world, so a fetch from there is issued by the page's
+  // renderer with the page's origin -- lichess/chess.com would see a request to the explorer
+  // correlated with your game, exactly the footprint the toolbar-popup mode exists to avoid. From
+  // the SW it is the extension's own request and the page makes none.
+  if (msg.explorerLookup) {
+    explorerLookup(msg.explorerLookup).then(sendResponse).catch(e => sendResponse({error: String(e)}));
+    return true; // async sendResponse
+  }
   // the panel asks for its piece set separately -- only it knows the configured theme
   if (msg.getPieces) {
     buildPieces(msg.pieceSet, msg.pieceExt).then(pieces => sendResponse({pieces}))
@@ -68,6 +77,61 @@ const PANEL_CSS = [
 const PIECES = ['wP', 'wN', 'wB', 'wR', 'wQ', 'wK', 'bP', 'bN', 'bB', 'bR', 'bQ', 'bK'];
 const MIME = {svg: 'image/svg+xml', png: 'image/png', gif: 'image/gif', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp'};
 let panelAssetCache = null; // {html, css} -- theme-independent parts
+
+// --- Opening explorer (lichess) --------------------------------------------------------------
+// Which database the dropdown in Settings maps to. Masters is the default: cleanest opening play,
+// and its move list is small enough that a weighted pick stays sane.
+// Two hosts, tried in order: explorer.lichess.org is what the current lichess API spec documents,
+// explorer.lichess.ovh is the older name that a lot of clients still use. Either can be the live one
+// (and either can be edge-blocked for a given network), so fall through rather than pick one.
+const EXPLORER_HOSTS = ['https://explorer.lichess.org', 'https://explorer.lichess.ovh'];
+const EXPLORER_DB = {
+  masters: {path: '/masters', params: {}},
+  lichess: {path: '/lichess', params: {variant: 'standard'}},
+  club:    {path: '/lichess',
+            params: {variant: 'standard', ratings: '1600,1800,2000,2200', speeds: 'blitz,rapid,classical'}},
+};
+const explorerCache = new Map(); // `${db}|${fen}` -> response; the fallback poll rescrapes the same
+const EXPLORER_CACHE_MAX = 300;  // position constantly, so without this every rescan is a request
+
+async function explorerLookup({fen, db}) {
+  const cfg = EXPLORER_DB[db] || EXPLORER_DB.masters;
+  const key = `${db}|${fen}`;
+  if (explorerCache.has(key)) return explorerCache.get(key);
+  // NOT URLSearchParams: it form-encodes, turning the FEN's spaces into '+'. A parser that doesn't
+  // read '+' as a space then sees "...RNBQKBNR+w+KQkq+-+0+1" and matches nothing -- a 200 with an
+  // empty move list, which is indistinguishable from "out of book". encodeURIComponent gives %20.
+  const params = Object.entries({...cfg.params, fen, topGames: '0', recentGames: '0'})
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+  let out = {error: 'no host reachable'};
+  for (const host of EXPLORER_HOSTS) {
+    // never let a hung request pile up: a miss means "no book" and the engine's move is played
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 4000);
+    try {
+      const url = `${host}${cfg.path}?${params}`;
+      const r = await fetch(url, {signal: ctl.signal});
+      out = r.ok ? await r.json() : {error: `HTTP ${r.status}`};
+      // log the REQUEST, not just the verdict: "no moves" is indistinguishable from "wrong FEN"
+      // without seeing exactly what was asked for
+      console.log('[Explorer]', r.status, url, out.error ? out.error : `${out.moves?.length ?? 0} moves`);
+    } catch (e) {
+      out = {error: String(e)}; // offline / aborted / DNS
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!out.error) break; // this host answered -- don't try the other
+  }
+  if (out.error) {
+    // Surface it. Failing silently here is what made a blocked endpoint look like "the feature is
+    // broken": the panel drew nothing and said nothing. Same lesson as the scraper re-anchor.
+    console.warn('Mephisto: opening explorer lookup failed -', out.error);
+  } else { // never cache a failure: the next position should retry
+    if (explorerCache.size >= EXPLORER_CACHE_MAX) explorerCache.delete(explorerCache.keys().next().value);
+    explorerCache.set(key, out);
+  }
+  return out;
+}
 
 async function text(path) {
   const r = await fetch(chrome.runtime.getURL(path));

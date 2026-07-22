@@ -190,6 +190,15 @@ html, body {
     color: white;
 }
 
+#book-annotations {
+    position: absolute;
+    z-index: 50; /* UNDER the engine arrows: book is context, the engine line is the answer */
+    top: 26px;
+    left: 23px;
+    width: 344px;
+    height: 344px;
+}
+
 #move-annotations {
     position: absolute;
     z-index: 51;
@@ -318,23 +327,25 @@ html, body {
     text-align: center;
 }
 
-#config {
+/* The four icon buttons share one row with the FEN/PGN pair, which ends at x=152 in a 378px column,
+   so the row is genuinely full: widths are pinned and the spacing tightened to 56px to fit a fourth
+   (set-up-position) without colliding. Right-anchored, so they stay clear of the 190px quick
+   settings. Left edges land at 157 / 213 / 269 / 325 -- every gap >= 5px. */
+#config, #recheck, #selftest, #setupfen {
     position: absolute;
     bottom: 5px;
-    right: 195px; /* stay inside the left column, clear of the (190px) quick-settings panel */
+    width: 48px;
+    min-width: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-#recheck {
-    position: absolute;
-    bottom: 5px;
-    right: 265px; /* beside the settings gear */
-}
-
-#selftest {
-    position: absolute;
-    bottom: 5px;
-    right: 335px; /* beside re-detect */
-}
+#config  { right: 195px; }
+#recheck { right: 251px; } /* beside the settings gear */
+#selftest { right: 307px; } /* beside re-detect */
+#setupfen { right: 363px; } /* set up a position -- snug after the PGN button (ends at x=152) */
 
 #quick-settings {
     position: absolute;
@@ -573,6 +584,7 @@ body.mephisto-dark #quick-settings::-webkit-scrollbar-thumb {
 /* flatten the two floating action buttons so they sit in the theme instead of glowing teal */
 body.mephisto-dark #config,
 body.mephisto-dark #recheck,
+body.mephisto-dark #setupfen,
 body.mephisto-dark #analyze,
 body.mephisto-dark #copyfen,
 body.mephisto-dark #copypgn {
@@ -581,6 +593,7 @@ body.mephisto-dark #copypgn {
 }
 body.mephisto-dark #config:hover,
 body.mephisto-dark #recheck:hover,
+body.mephisto-dark #setupfen:hover,
 body.mephisto-dark #analyze:hover,
 body.mephisto-dark #copyfen:hover,
 body.mephisto-dark #copypgn:hover {
@@ -598,13 +611,65 @@ body.mephisto-dark #alt-lines::-webkit-scrollbar-thumb { background: #34353d; bo
 .mp-icon { font-style: normal; font-size: 20px; line-height: 1; }
 /* inline-SVG button icon (self-test): vertically centred, inherits the button's text colour */
 .mp-svg-icon { display: block; }
-#selftest { display: flex; align-items: center; justify-content: center; }
 
 /* Compact mode: just the status line, the move and the score. The class is toggled on the panel
    body (see apply_compact); the in-page panel is a fixed-size scaled box, so content-script.js
    resizes the box + wrapper to COMPACT_H to match -- hiding these alone would leave a tall panel
    full of empty space. `body.mephisto-*` is rehomed onto #mephisto-panel-body for the in-page
    panel, which also lifts specificity to (1,1,0) so it beats the (1,0,0) base height rule. */
+/* Opening-explorer overlay under the alternative lines. Sized so the heading + 5 book moves all
+   fit WITHOUT scrolling (6 x 21px = 126 < 132); the panel grows by BOOK_H to make room, and only
+   while the overlay is actually shown. :not(.mephisto-compact) so compact still wins, matching
+   panelH() in content-script.js. */
+#book-lines {
+    width: 368px;
+    max-height: 126px;
+    margin: 6px 0 0 5px;
+    padding: 0 4px;
+    overflow-y: hidden;
+    font: 17px 'Roboto', sans-serif;
+    line-height: 21px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+#book-lines .bk-opening {
+    font-weight: 500;
+    opacity: 0.75;
+}
+
+#book-lines .bk-pct {
+    opacity: 0.65;
+}
+
+/* Set-up-position row: shown under the lines while a manual FEN is being entered/held. */
+#setup-fen-row {
+    width: 368px;
+    margin: 4px 0 0 5px;
+    padding: 0 4px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+#setup_fen_input {
+    width: 100%;
+    height: 26px;
+    font: 13px 'Roboto', monospace;
+    line-height: 26px;
+    padding: 0 6px;
+    box-sizing: border-box;
+}
+
+#setup_fen_msg {
+    font: 13px 'Roboto', sans-serif;
+    line-height: 18px;
+    opacity: 0.75;
+}
+
+body.mephisto-book:not(.mephisto-compact) {
+    height: 804px; /* 672 + BOOK_H (132) -- keep in sync with content-script.js */
+}
+
 body.mephisto-compact {
     height: 280px; /* keep in sync with COMPACT_H in content-script.js. Fits the taller of the two
                       columns: 7 toggles on the right (Autoplay..Manual), or status + move + score +
