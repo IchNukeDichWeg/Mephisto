@@ -25,6 +25,13 @@
         data-tooltip="Re-detect the game: rescan the page and restart the analysis">
     <i class="mp-icon">↻</i>
 </button>
+<button id="setupfen" class="waves-effect waves-light btn tooltipped" data-position="left"
+        data-tooltip="Set up a position: paste a FEN to analyse it instead of the board on the page. While a position is set the panel stops following the page; click again (or Re-detect) to go back to the live game.">
+    <!-- inline SVG, not a glyph: the same tofu problem the self-test icon documents -->
+    <svg class="mp-svg-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+    </svg>
 <button id="selftest" class="waves-effect waves-light btn tooltipped" data-position="left"
         data-tooltip="Self-test: check scraping, the engine, and the native host">
     <!-- inline SVG (not a font glyph): a heartbeat/pulse line renders identically everywhere, unlike
@@ -44,6 +51,7 @@
 </button>
 <span id="engine-health" title="" style="display: none"></span>
 
+<div id="book-annotations"></div>
 <div id="move-annotations"></div>
 <div id="response-annotations"></div>
 
@@ -62,6 +70,16 @@
         <span class="qs-label tooltipped" data-position="left"
               data-tooltip="While the opponent thinks, certify a reply to their predicted move (stable across depths 6/9/10+, max 2 candidates). If they play exactly that move, answer instantly; anything else searches normally. If the reply could never be legal after any other opponent move (forced moves, recaptures), it's queued as a real premove immediately -- an illegal premove gets auto-cancelled. Never fires in a wrong position. Needs Autoplay.">Premove</span>
         <label><input id="qs_premove" type="checkbox"><span class="lever"></span></label>
+    </div>
+    <div class="qs-row switch qs-compact">
+        <span class="qs-label tooltipped" data-position="left"
+              data-tooltip="Show how humans actually played this opening (lichess database): the opening name plus the most-played replies with their win/draw/loss split. Read-out only -- it never changes which move you play. Standard chess only; stops once the game leaves book.">Explorer</span>
+        <label><input id="qs_explorer" type="checkbox"><span class="lever"></span></label>
+    </div>
+    <div class="qs-row switch qs-compact">
+        <span class="qs-label tooltipped" data-position="left"
+              data-tooltip="Play the opening from the database instead of the engine's pick: a WEIGHTED-RANDOM choice among the popular replies, so you don't repeat the same line every game. A move must be played in at least 20 games AND rate within 40cp of the engine's best, so it varies without playing worse. Falls back to the engine move if the lookup hasn't arrived. Priority — Move: Book > Humanize > engine best. Needs Autoplay.">Book Moves</span>
+        <label><input id="qs_book" type="checkbox"><span class="lever"></span></label>
     </div>
     <div class="qs-row switch">
         <span class="qs-label">Puzzle Mode</span>
@@ -199,6 +217,12 @@
 <div id="evaluation"></div>
 <div id="wdl" style="display: none"></div>
 <div id="alt-lines" style="display: none"></div>
+<div id="book-lines" style="display: none"></div>
+<div id="setup-fen-row" style="display: none">
+    <input id="setup_fen_input" class="browser-default" type="text" spellcheck="false"
+           placeholder="Paste a FEN, then press Enter">
+    <span id="setup_fen_msg"></span>
+</div>
 <div id="next-move"></div>
 </body>
 

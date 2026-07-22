@@ -37,7 +37,7 @@ const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
     'w-n-b1*****w-b-c1*****w-q-d1*****w-k-e1*****w-b-f1*****w-n-g1*****w-r-h1*****';
 
-const MEPHISTO_BUILD = '3.1.107'; // bump on every content-script change; verify in the page console after reload
+const MEPHISTO_BUILD = '3.1.119'; // bump on every content-script change; verify in the page console after reload
 window.onload = () => {
     console.log(`content-script build ${MEPHISTO_BUILD}`); // debranded: no product name in the page console (L8)
     const siteMap = {
@@ -146,6 +146,9 @@ self.MephistoContent = {
     // popup.js's apply_compact calls this: the panel is a fixed-size scaled box, so hiding its
     // contents can't shrink it -- see setPanelCompact. Also keeps the title-bar icon in sync when
     // the panel boots with a compact state remembered from last time.
+    // popup.js's apply_explorer calls this when the overlay is shown/hidden, so the fixed-size box
+    // grows to fit the book block instead of clipping it (the overlay never scrolls).
+    setPanelBook: (on) => setPanelBook(on),
     setPanelCompact: (on) => {
         setPanelCompact(on);
         const icon = overlayEl(PANEL_OVERLAY_ID)?.querySelector('.mephisto-overlay-compact');
@@ -210,7 +213,10 @@ const RESTORE_BADGE_ID = 'mephisto-restore-badge';
 const COMPACT_H = 280;     // compact: status/move/score + up to 4 lines, and the 7 mid-game toggles
                            // (board + full settings hidden). Keep in sync with popup.css .mephisto-compact
 let panelCompact = false;  // popup.js owns the setting; this mirrors it for the sizing math below
-const panelH = () => panelCompact ? COMPACT_H : POPUP_H;
+const BOOK_H = 132;        // extra height for the opening-explorer overlay (heading + 5 book moves at
+                           // 21px, no scrolling). Keep in sync with popup.css body.mephisto-book.
+let panelBook = false;     // likewise mirrored: the overlay only grows the panel while it's shown
+const panelH = () => panelCompact ? COMPACT_H : (POPUP_H + (panelBook ? BOOK_H : 0));
 const POPUP_W = 568;       // the popup page's fixed layout size (popup.css html,body)
 const POPUP_H = 672; // matches popup.css body height (score + WDL line + alt-lines panel)
 const OVERLAY_SCALE = 0.8; // default render scale for fresh installs; resizing the panel persists a width
@@ -293,14 +299,25 @@ window.addEventListener('pagehide', () => {
 // we scale -- so the box and its wrapper have to be told the new height. Called by popup.js's
 // apply_compact (see MephistoContent below). No-op in the toolbar popup: no overlay there, and
 // Chrome sizes the bubble around the content anyway.
-function setPanelCompact(on) {
-    panelCompact = !!on;
+function resizePanelBox() {
     const wrap = overlayEl(PANEL_OVERLAY_ID);
     const frame = wrap?.querySelector('.mephisto-panel-box');
     if (!wrap || !frame) return;
     const scale = wrap.offsetWidth / POPUP_W; // the live scale: the user may have resized the panel
     frame.style.height = `${panelH()}px`;
     wrap.style.height = `${Math.round(24 + panelH() * scale)}px`;
+}
+
+function setPanelCompact(on) {
+    panelCompact = !!on;
+    resizePanelBox();
+}
+
+// Same story as compact, the other direction: the opening-explorer overlay adds a block under the
+// alternative lines, and a fixed-size scaled box can't grow just because content appeared.
+function setPanelBook(on) {
+    panelBook = !!on;
+    resizePanelBox();
 }
 
 function minimizeOverlay(wrap) {
@@ -1219,7 +1236,56 @@ function getMoveRecords() {
             }
         }
     }
+    // every known selector came up empty -> read the moves off the re-anchored container instead
+    // (a renamed tag inside an otherwise-intact move list lands here rather than above)
+    if (!moves?.length && (site === 'lichess' || site === 'chesscom')) {
+        const recovered = recoverMoveContainer();
+        if (recovered) moves = sanChildren(recovered);
+    }
     return moves;
+}
+
+// --- Auto-recover from a site DOM change ------------------------------------------------------
+// Sites rename or re-obfuscate their move-list tags without warning (lichess went kwdb -> z7yx once
+// already). When that happens the site-specific selectors quietly return nothing and a LIVE game
+// falls through to the puzzle path: it still looks like it works, but it scrapes pieces instead of
+// the move list, so castling rights, en-passant and repetition are silently lost -- the worst kind
+// of failure. Rather than chase each new tag name, find the move list STRUCTURALLY: the element with
+// the most SAN-looking leaf children. LAST RESORT ONLY -- it runs where the normal selectors already
+// came up empty, so a working scrape can never be affected.
+const SAN_TEXT = /^(?:[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?|O-O(?:-O)?)[+#]?$/;
+const RECOVER_MIN_MOVES = 6; // a real game's list -- not a stray "e4" in prose or a 2-move puzzle
+let recoveredMoves = null;   // cached container the scan found
+let lastRecoverScan = 0;     // throttle: don't rescan the whole DOM on every poll
+
+function sanChildren(el) {
+    return el ? Array.from(el.children).filter(c => SAN_TEXT.test(c.textContent.trim())) : [];
+}
+
+function recoverMoveContainer() {
+    // still good? keep it -- this is the common path once we've re-anchored
+    if (recoveredMoves?.isConnected && sanChildren(recoveredMoves).length >= RECOVER_MIN_MOVES) {
+        return recoveredMoves;
+    }
+    const now = Date.now();
+    if (now - lastRecoverScan < 2000) return null; // a page with genuinely no move list (puzzles)
+    lastRecoverScan = now;
+    const counts = new Map();
+    for (const el of document.querySelectorAll('body *')) {
+        if (el.children.length) continue; // the SAN sits on a leaf
+        const t = el.textContent.trim();
+        if (!t || t.length > 8 || !SAN_TEXT.test(t)) continue;
+        const p = el.parentElement;
+        if (p) counts.set(p, (counts.get(p) || 0) + 1);
+    }
+    let best = null, most = 0;
+    for (const [el, n] of counts) if (n > most) { best = el; most = n; }
+    if (most < RECOVER_MIN_MOVES) return (recoveredMoves = null);
+    if (best !== recoveredMoves) {
+        console.warn(`Mephisto: move-list selectors matched nothing - re-anchored on <${best.tagName.toLowerCase()}>`
+            + ` holding ${most} moves. The site's DOM has probably changed.`);
+    }
+    return (recoveredMoves = best);
 }
 
 function getMoveContainer() {
@@ -1235,6 +1301,11 @@ function getMoveContainer() {
         moveContainer = getLichessMovesApp() // live game (real-time + correspondence)
             || document.querySelector('l4x') // live game (older lichess DOM)
             || document.querySelector('.tview2'); // analysis / puzzle / training
+    }
+    // nothing matched on a site that should have a move list -> try the structural re-anchor before
+    // letting scrapePosition fall through to the puzzle path and quietly drop the move history
+    if (!moveContainer && (site === 'lichess' || site === 'chesscom')) {
+        moveContainer = recoverMoveContainer();
     }
     return moveContainer;
 }

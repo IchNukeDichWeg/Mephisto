@@ -3,7 +3,7 @@
   "manifest_version": 3,
   "name": "Mephisto Chess Extension",
   "description": "Next best move analysis for your favorite chess websites",
-  "version": "3.1.107",
+  "version": "3.1.119",
   "homepage_url": "https://github.com/AlexPetrusca/Mephisto",
   "author": "Alex Petrusca",
   "icons": {
@@ -86,7 +86,9 @@
   },
   "host_permissions": [
     "http://localhost:8080/*",
-    "http://localhost:9090/*"
+    "http://localhost:9090/*",
+    "https://explorer.lichess.ovh/*",
+    "https://explorer.lichess.org/*"
   ],
   "default_locale": "en"
 }

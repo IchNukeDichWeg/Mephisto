@@ -208,6 +208,11 @@ async function initPanel(root, tabId) {
         // turn -- burn the wait on a deeper reply. OFF (default) still analyses the opponent's turn for
         // premove/threat/help, but capped to 1 thread so idle time isn't a full-core burn.
         ponder: JSON.parse(MephistoConfig.get('ponder')) || false,
+        // Opening explorer: `explorer` draws the overlay, `book_play` actually plays a weighted-random
+        // book move. Two independent toggles -- turning on the overlay must never change how you play.
+        explorer: JSON.parse(MephistoConfig.get('explorer')) || false,
+        book_play: JSON.parse(MephistoConfig.get('book_play')) || false,
+        explorer_db: JSON.parse(MephistoConfig.get('explorer_db') || '"masters"'),
         puzzle_mode: JSON.parse(MephistoConfig.get('puzzle_mode')) || false,
         help_mode: JSON.parse(MephistoConfig.get('help_mode')) || false,
         eval_bar: JSON.parse(MephistoConfig.get('eval_bar')) || false,
@@ -281,6 +286,9 @@ async function initPanel(root, tabId) {
             if (response.clocks) last_clocks = {...response.clocks, at: Date.now()}; // for Clock Mode budgeting
         }
         if (response.fenresponse && response.dom && response.dom !== 'no') {
+            // A manually set position OWNS the panel: the page keeps scraping and would otherwise
+            // overwrite it on the very next poll (~1s), which is what makes a paste-a-FEN box useless.
+            if (setup_fen) return;
             if (board.orientation() !== response.orient) {
                 board.orientation(response.orient);
             }
@@ -400,6 +408,12 @@ async function initPanel(root, tabId) {
     // force re-detection: an SPA can swap games without any reload (e.g. a rematch), and if a
     // scrape ever goes stale this rescans the page and restarts the analysis from scratch
     PANEL_ROOT.getElementById('recheck')?.addEventListener('click', () => {
+        // Re-detect always returns to the live game: clear any manually set position first, or the
+        // scrape guard would swallow the very response this button just asked for. Set directly
+        // rather than via clear_setup_fen(), which clicks THIS button (and would recurse).
+        setup_fen = null;
+        const setupRow = PANEL_ROOT.getElementById('setup-fen-row');
+        if (setupRow) setupRow.style.display = 'none';
         last_eval.fen = '';   // treat whatever comes back as a brand-new position
         prev_ply_count = 0;   // treat it as a fresh game...
         opp_spend = opp_clock_mark = last_our_eval = null; // ...and clear stale clock/mirror/humanize pacing
@@ -409,6 +423,11 @@ async function initPanel(root, tabId) {
         request_fen();        // and poll right now as well -- fires immediately now the guard is clear
     });
     PANEL_ROOT.getElementById('selftest')?.addEventListener('click', run_self_test);
+    PANEL_ROOT.getElementById('setupfen')?.addEventListener('click', toggle_setup_fen);
+    PANEL_ROOT.getElementById('setup_fen_input')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); apply_setup_fen(); }
+        if (e.key === 'Escape') { e.preventDefault(); clear_setup_fen(); }
+    });
 
     // tooltips (replaces Materialize's M.Tooltip -- Materialize's JS looks elements up via `document`
     // and can't run in a shadow root; this queries a passed root instead). PANEL_ROOT/PANEL_TIP_HOST
@@ -487,7 +506,8 @@ function init_quick_settings() {
                              ['qs_puzzle', 'puzzle_mode'], ['qs_help', 'help_mode'],
                              ['qs_evalbar', 'eval_bar'], ['qs_humanize', 'humanize'],
                              ['qs_clock', 'clock_mode'], ['qs_mirror', 'mirror_mode'],
-                             ['qs_manual', 'manual_mode']]) {
+                             ['qs_manual', 'manual_mode'],
+                             ['qs_explorer', 'explorer'], ['qs_book', 'book_play']]) {
         const elem = PANEL_ROOT.getElementById(id);
         if (!elem) continue; // stale cached popup.html mid-update; don't let one missing control kill the popup
         elem.checked = config[key];
@@ -497,6 +517,13 @@ function init_quick_settings() {
             keep_alive(config.autoplay, true); // this change is a user gesture -> can (re)start the tone now
             if (key === 'help_mode' && !elem.checked) request_clear_hint();
             if (key === 'eval_bar' && !elem.checked) request_clear_eval_bar();
+            if (key === 'explorer' || key === 'book_play') {
+                // turning either on mid-game should look this position up right away rather than
+                // waiting for the next move; the out-of-book latch is per game, so clear it too
+                explorer_out_of_book = false; explorer_empty_streak = 0;
+                render_explorer();
+                if (last_eval.fen) request_explorer(last_eval.fen);
+            }
             if (key === 'humanize' && !is_remote()) {
                 // humanize picks among alternative lines, so it needs MultiPV headroom;
                 // re-apply and restart the search under the new setting
@@ -920,8 +947,20 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 // humanize: maybe swap in a close alternative + a human-looking think delay;
                 // a clock-aware mode alone still shapes the timing (budget / opponent mirror).
                 // Never in puzzle mode, whose PV playback must follow the engine line exactly.
+                // Book move (weighted random over the human distribution) outranks the engine's pick
+                // while we're still in book -- Move priority: Book > Humanize > engine best. It only
+                // replaces WHICH move is played; the timing below is untouched, so Clock/Mirror/
+                // Humanize still pace it exactly as they would have. Null whenever the lookup hasn't
+                // landed, we're out of book, or every candidate failed the games/engine filters.
+                const book = book_pick(last_eval.fen);
+                if (book && !premove_reply_playable(last_eval.fen, book)) {
+                    console.warn('Mephisto: ignoring a book move that is not ours/legal here:', book);
+                }
+                const played = (book && premove_reply_playable(last_eval.fen, book)) ? book : best;
+                if (played !== best) console.log(`Book: playing ${played} over ${best} (weighted random)`);
                 if ((config.humanize || clock_aware()) && !config.puzzle_mode) {
                     const pick = humanize_pick(best);
+                    if (played !== best) pick.move = played; // book wins the move, humanize keeps the clock
                     if (pick.move !== best) console.log(`Humanize: playing ${pick.move} over ${best}`);
                     // the search already burned most of the intended think (on_new_pos sized it to
                     // the pace), so only wait out the RESIDUAL -- never idle time the engine could
@@ -935,7 +974,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                     set_move_countdown(search_start + pick.think, pick.source, pick.category);
                     request_automove(pick.move, residual);
                 } else {
-                    request_automove(best); // in help mode draw_moves() mirrors the arrows instead
+                    request_automove(played); // in help mode draw_moves() mirrors the arrows instead
                 }
             } else {
                 console.warn('Mephisto: not autoplaying a move that is not ours/legal here:', best);
@@ -1079,6 +1118,46 @@ function san_preview(fen, pv, plies = 6) {
 
 // the panel under the board: one row per engine line (eval + start of the line) when the
 // Multi Lines slider asks for more than one; hidden otherwise
+// The overlay. Draws the opening name and the most-played replies with their win/draw/loss split,
+// straight from the database -- it reflects what the lookup returned and never decides anything.
+function render_explorer() {
+    const panel = PANEL_ROOT.getElementById('book-lines');
+    if (!panel) return;
+    // show the block whenever the explorer is on and we have either data OR something to report
+    const show = config.explorer && (explorer_data?.moves?.length || explorer_error || explorer_out_of_book);
+    panel.style.display = show ? '' : 'none';
+    apply_explorer(!!show); // grow/shrink the fixed-size panel box to match
+    if (!show) { panel.innerHTML = ''; return; }
+    if (!explorer_data?.moves?.length) { // no book data -- say WHY rather than render an empty box
+        panel.innerHTML = `<div class="bk-opening">${explorer_error
+            ? `Explorer unavailable (${explorer_error})` : 'Out of book'}</div>`;
+        return;
+    }
+    const rows = [];
+    if (explorer_data.opening?.name) {
+        const eco = explorer_data.opening.eco ? `${explorer_data.opening.eco} ` : '';
+        rows.push(`<div class="bk-opening">${eco}${explorer_data.opening.name}</div>`);
+    }
+    for (const m of explorer_data.moves.slice(0, 5)) {
+        const w = m.white || 0, d = m.draws || 0, b = m.black || 0, n = w + d + b;
+        if (!n) continue;
+        const pct = v => Math.round(100 * v / n);
+        // W/D/L is always White's side of it, matching how the database reports it
+        rows.push(`<div class="bk-line"><b>${m.san}</b> ` +
+            `<span class="bk-pct">${pct(w)}/${pct(d)}/${pct(b)}%</span> ` +
+            `<span class="bk-pct">(${n.toLocaleString()})</span></div>`);
+    }
+    panel.innerHTML = rows.join('');
+    draw_book_moves();
+}
+
+// The panel is a fixed-size box the content script scales, so showing the overlay can't enlarge it
+// on its own -- same problem compact mode has, and the same fix (see setPanelBook).
+function apply_explorer(show) {
+    panel_body()?.classList.toggle('mephisto-book', !!show);
+    self.MephistoContent?.setPanelBook?.(!!show);
+}
+
 function render_alt_lines() {
     const panel = PANEL_ROOT.getElementById('alt-lines');
     if (!panel) return;
@@ -1405,6 +1484,167 @@ function ponder_line_count(fen, lastUci) {
     }
 }
 
+// --- Opening explorer -------------------------------------------------------------------------
+// Human opening data from lichess, used two ways: an overlay in the panel (`explorer`), and an
+// actual weighted-random book move (`book_play`). They are separate toggles on purpose -- switching
+// on a read-out must never silently change your play.
+//
+// It is NEVER on the critical path. The lookup is fired the moment a position arrives and never
+// awaited: if the answer hasn't landed by the time the engine's move is ready, the engine move is
+// played and the book is simply skipped for that move. A slow or rate-limited request can therefore
+// never delay a move or eat into a Clock/Mirror time budget.
+const BOOK_MIN_GAMES = 20;   // drop 3-game oddities -- the move must be statistically real
+const BOOK_MAX_LOSS = 40;    // cp: the engine's veto. A book move this far below its best is "worse"
+let explorer_data = null;    // {fen, moves:[...], opening} for the position we last looked up
+let explorer_out_of_book = false; // latched per game: first empty answer stops all further lookups
+let explorer_error = null;   // last lookup failure, shown in the overlay instead of drawing nothing
+const INITIAL_PLACEMENT = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR'; // standard start array
+let setup_fen = null;        // a manually set position: while held, page scrapes are IGNORED
+let explorer_empty_streak = 0; // consecutive empty lookups; 3 = genuinely out of book
+
+function explorer_enabled() {
+    return (config.explorer || config.book_play)
+        && (!config.variant || config.variant === 'chess') // API is standard-chess only here
+        && !config.puzzle_mode;                            // puzzles are not book positions
+}
+
+// Fire-and-forget. Never awaited by the move path (see the note above).
+function request_explorer(fen) {
+    if (!explorer_enabled() || explorer_out_of_book) return;
+    if (document.hidden) return; // don't make third-party requests from a tab nobody is looking at
+    if (explorer_data?.fen === fen) return; // already have this position
+    chrome.runtime.sendMessage({explorerLookup: {fen, db: config.explorer_db || 'masters'}}, (res) => {
+        // A failed lookup must SAY so. Drawing nothing is indistinguishable from "the feature is
+        // broken" -- which is exactly how a blocked endpoint presented.
+        if (chrome.runtime.lastError || !res || res.error) {
+            explorer_error = res?.error || chrome.runtime.lastError?.message || 'no response';
+            explorer_data = null;
+            console.warn('Mephisto: explorer lookup failed -', explorer_error);
+            render_explorer();
+            return;
+        }
+        explorer_error = null;
+        if (!res.moves?.length) {
+            // Don't latch on a SINGLE empty answer. "Out of book" at move 1 is impossible, so one
+            // empty response means something is wrong with the lookup, not that the game left book
+            // -- and latching there would kill the feature for the rest of the game with no retry.
+            // Three in a row is a real exit from book; anything less retries on the next move.
+            explorer_empty_streak++;
+            console.warn(`Mephisto: explorer returned no moves for ${fen} (${explorer_empty_streak}/3)`);
+            if (explorer_empty_streak >= 3) explorer_out_of_book = true;
+            explorer_data = null;
+            render_explorer();
+            return;
+        }
+        explorer_empty_streak = 0;
+        explorer_data = {fen, moves: res.moves, opening: res.opening || null};
+        render_explorer();
+    });
+}
+
+// Weighted-random pick, with BOTH filters the design calls for:
+//   1. minimum games   -- the move has to be statistically real, not a 3-game curiosity
+//   2. the engine veto -- it must also be within BOOK_MAX_LOSS cp of the engine's own best, judged
+//      from the MultiPV lines the engine is already producing (no extra search)
+// Returns a UCI move, or null to let the engine's move stand.
+function book_pick(fen) {
+    if (!config.book_play || !explorer_data || explorer_data.fen !== fen) return null;
+    const evals = engine_line_scores();          // uci -> cp, from the current MultiPV lines
+    const best = Math.max(...Object.values(evals), -Infinity);
+    const pool = [];
+    for (const m of explorer_data.moves) {
+        const games = (m.white || 0) + (m.draws || 0) + (m.black || 0);
+        if (games < BOOK_MIN_GAMES) continue;                       // filter 1: statistically real
+        const cp = evals[m.uci];
+        if (cp === undefined) continue;                             // engine never looked at it -> skip
+        if (Number.isFinite(best) && best - cp > BOOK_MAX_LOSS) continue; // filter 2: engine veto
+        pool.push({uci: m.uci, games});
+    }
+    if (!pool.length) return null;
+    let roll = Math.random() * pool.reduce((s, m) => s + m.games, 0);
+    for (const m of pool) { if ((roll -= m.games) <= 0) return m.uci; }
+    return pool[pool.length - 1].uci;
+}
+
+// cp score per first-move-of-PV, from the lines the engine has already returned for this position.
+// Mate scores collapse to a large cp so a mate never loses the veto comparison.
+function engine_line_scores() {
+    const out = {};
+    for (const line of last_eval.lines || []) {
+        if (!line?.pv) continue;
+        const uci = pv_moves(line.pv)[0];
+        if (!uci) continue;
+        const cp = ('mate' in line) ? (line.mate > 0 ? 100000 : -100000) : line.score;
+        if (typeof cp === 'number') out[uci] = cp;
+    }
+    return out;
+}
+
+// --- Set up a position by FEN ------------------------------------------------------------------
+// Opens an input under the lines; a valid FEN is analysed instead of the page's board. While one is
+// held the panel stops following the page entirely (see the `setup_fen` guard in the scrape handler),
+// because a live scrape would otherwise replace it on the next poll.
+function setup_fen_msg(text) {
+    const el = PANEL_ROOT.getElementById('setup_fen_msg');
+    if (el) el.textContent = text || '';
+}
+
+function toggle_setup_fen() {
+    const row = PANEL_ROOT.getElementById('setup-fen-row');
+    if (!row) return;
+    if (setup_fen || row.style.display !== 'none') return clear_setup_fen(); // second click = back to live
+    row.style.display = '';
+    setup_fen_msg('');
+    const input = PANEL_ROOT.getElementById('setup_fen_input');
+    if (input) { input.value = last_eval.fen || ''; input.focus(); input.select(); }
+}
+
+function apply_setup_fen() {
+    const input = PANEL_ROOT.getElementById('setup_fen_input');
+    const fen = (input?.value || '').trim();
+    if (!fen) return clear_setup_fen();
+    // Validate BEFORE anything downstream sees it. A bad position is worse than no position: an
+    // illegal one crashes the wasm engine outright (the same OOB guard the scrape path has).
+    let parsed;
+    try {
+        parsed = new Chess(config.variant, fen).fen();
+    } catch (e) {
+        setup_fen_msg('Not a valid FEN');
+        return;
+    }
+    // chess.js SILENTLY falls back to the standard start position for input it can't read, so a
+    // successful parse is not proof the FEN was understood -- typing junk would quietly set up a new
+    // game. The piece placement round-trips exactly, so compare it: if it doesn't match what was
+    // typed, chess.js substituted its default and the input was never a FEN.
+    if (parsed.split(' ')[0] !== fen.split(/\s+/)[0]) {
+        setup_fen_msg('Not a valid FEN');
+        return;
+    }
+    if (!is_legal_position(parsed)) {
+        setup_fen_msg('Illegal position');
+        return;
+    }
+    setup_fen = parsed;
+    setup_fen_msg('Set — the panel is no longer following the page');
+    // treat it as a brand-new game so no stale pacing/premove/book state carries over
+    last_eval.fen = ''; prev_ply_count = 0;
+    opp_spend = opp_clock_mark = last_our_eval = null;
+    explorer_out_of_book = false; explorer_data = null;
+    abandon_search();
+    turn = parsed.split(' ')[1];
+    board.orientation(turn === 'w' ? 'white' : 'black');
+    on_new_pos(parsed, parsed, '');
+}
+
+function clear_setup_fen() {
+    const row = PANEL_ROOT.getElementById('setup-fen-row');
+    if (row) row.style.display = 'none';
+    if (!setup_fen) return;         // was only open, never applied -- nothing to restore
+    setup_fen = null;
+    setup_fen_msg('');
+    PANEL_ROOT.getElementById('recheck')?.click(); // back to the live game, same path as Re-detect
+}
+
 function on_new_pos(fen, startFen, moves) {
     console.log("on_new_pos", fen, startFen, moves);
     opp_alert_on_new_pos(fen); // arm the opponent-mistake check from the just-finished position's eval
@@ -1423,7 +1663,10 @@ function on_new_pos(fen, startFen, moves) {
     // first scrape) while a transient mid-game mis-scrape can't trip it from a deep position.
     if (ply_count < prev_ply_count && ply_count <= 4) {
         opp_spend = null; opp_clock_mark = null; last_our_eval = null;
+        explorer_out_of_book = false; explorer_data = null; explorer_empty_streak = 0; // new game = back in book
     }
+    // fire the book lookup NOW so the answer has the whole search to arrive; never awaited
+    request_explorer(fen);
     prev_ply_count = ply_count;
     toggle_calculating(true);
     // SIZE THE SEARCH TO THE PACE. When a clock-aware mode intends to spend, say, 1.2s on this move,
@@ -1528,6 +1771,7 @@ function on_new_pos(fen, startFen, moves) {
 
     board.position(fen);
     clear_annotations();
+    clear_book_annotations(); // stale book arrows go now; the new position's lookup redraws them
     if (config.simon_says_mode) {
         const toplay = (turn === 'w') ? 'White' : 'Black';
         if (toplay.toLowerCase() !== board.orientation()) {
@@ -1628,6 +1872,19 @@ function parse_position_from_response(txt) {
         const opponent = (turn === 'w') ? 'b' : 'w';
         if (chess._isKingAttacked(opponent)) {
             throw Error('illegal position scraped (opponent king en prise)');
+        }
+
+        // The STANDARD initial array can only ever occur at move 0 -- pawns cannot move backwards, so
+        // it is unreachable once a game is under way. Its castling rights are therefore necessarily
+        // KQkq, which makes this a fact rather than a guess. It matters because this path builds
+        // positions with clear()+put(), which cannot carry rights (see above), and lichess has no
+        // move list before the first move -- so a live game's opening position came through here and
+        // serialized as "w - -". The engine then analysed a start position where neither side may
+        // castle, and the opening-explorer lookup matched nothing (no master game has that position).
+        // Rebuild it as a start position so the rights are armed before the pieces are placed.
+        // Variant-safe by construction: chess960 and the other variants don't have this placement.
+        if (!isStartPos && chess.fen().split(' ')[0] === INITIAL_PLACEMENT) {
+            return parse_position_from_pieces(txt, true); // isStartPos=true -> cannot recurse again
         }
 
         const record =  {fen: chess.fen()};
@@ -2346,6 +2603,7 @@ const HOTKEY_TOGGLES = { // action -> the quick-settings checkbox it flips
     autoplay: 'qs_autoplay', premove: 'qs_premove', help_mode: 'qs_help', humanize: 'qs_humanize',
     clock_mode: 'qs_clock', mirror_mode: 'qs_mirror', manual_mode: 'qs_manual',
     eval_bar: 'qs_evalbar', puzzle_mode: 'qs_puzzle',
+    explorer: 'qs_explorer', book_play: 'qs_book',
 };
 // Returns true if it handled the action (the content-script listener only swallows the key then, so
 // an inert binding -- e.g. Space while Manual Mode is off -- doesn't block the page's own use of it).
@@ -2589,8 +2847,58 @@ function draw_moves() {
         if (config.threat_analysis && last_eval.threat && last_eval.threat !== '(none)') {
             hint_arrows.push({move: last_eval.threat, width: 0.2, color: '#bf0000'});
         }
-        request_draw_hint(hint_arrows);
+        engine_hint_arrows = hint_arrows;
+        push_hint_arrows(); // engine arrows + the book, in one replace
     }
+}
+
+// One colour per book move, like the engine's per-rank line colours -- all five chosen to clash with
+// neither LINE_COLORS nor the red threat arrow, so a book arrow is never mistaken for an engine line.
+const BOOK_COLORS = ['#14b8a6', '#ec4899', '#22d3ee', '#a3e635', '#fb7185'];
+
+let engine_hint_arrows = []; // last set draw_moves built, kept so a late book lookup can re-send both
+
+// Book arrows as {move,width,color}. ONE builder for both boards so the panel and the site board can
+// never drift apart. Offered whenever a lookup ran for THIS position -- so Help Mode shows the book
+// whether you switched on the overlay or Book Moves.
+function book_arrow_specs(fen) {
+    const at = fen || last_eval.fen;
+    if (explorer_data?.fen !== at) return [];
+    const top = explorer_data.moves.slice(0, 5);
+    const most = Math.max(...top.map(m => (m.white || 0) + (m.draws || 0) + (m.black || 0)), 1);
+    return top.map((m, i) => ({
+        move: m.uci,
+        // the least-played stays a real arrow; the main line matches the engine's best-move stroke
+        width: 0.13 + 0.13 * (((m.white || 0) + (m.draws || 0) + (m.black || 0)) / most),
+        color: BOOK_COLORS[Math.min(i, BOOK_COLORS.length - 1)],
+    }));
+}
+
+// Help Mode draws onto the SITE's board. request_draw_hint REPLACES the whole set, so the engine's
+// arrows and the book's must go in a SINGLE call -- sending them separately would make whichever
+// landed last erase the other, and the book lookup always lands after the first engine depth.
+function push_hint_arrows() {
+    if (!config.help_mode) return;
+    request_draw_hint([...engine_hint_arrows, ...book_arrow_specs()]);
+}
+
+function clear_book_annotations() {
+    const layer = PANEL_ROOT.getElementById('book-annotations');
+    while (layer?.childElementCount) layer.lastElementChild.remove();
+    return layer;
+}
+
+function draw_book_moves(fen) {
+    push_hint_arrows(); // Help Mode: re-send the site-board set now the book is known
+    const layer = clear_book_annotations();
+    if (!layer || !config.explorer) return;
+    // Draw only for the position actually on the board. The caller passes it explicitly: during
+    // on_new_pos, last_eval still describes the PREVIOUS position (it isn't reassigned until the very
+    // end), so comparing against it there matched the old fen and painted the previous position's
+    // book onto the new one -- which is why the arrows went wrong the moment a move was played.
+    const at = fen || last_eval.fen;
+    if (explorer_data?.fen !== at) return;
+    for (const a of book_arrow_specs(at)) draw_move(a.move, a.color, layer, a.width);
 }
 
 function draw_threat() {
