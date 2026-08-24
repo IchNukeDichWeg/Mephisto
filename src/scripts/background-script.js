@@ -784,8 +784,19 @@ const TABLEBASE_CACHE_MAX = 300;
 // again. THE GAME LEAVES THIS MACHINE (that is the point): the PGN goes to chess.com, as on their
 // own analysis page.
 //
-// Still as-captured until a second capture maps them: the strength tier (f3) and the option flags
-// (the Strength select is carried but not yet applied). Player UUIDs are omitted (a PGN has none).
+// THE STRENGTH TIER IS , an ordinal 1-4, MEASURED by capturing chess.com's own outgoing
+// request at each setting of their own Strength select and diffing the four frames -- it was the
+// only field that moved:
+//     Fast (~1 sec, 3270)      select 18 -> 1
+//     Standard (~5 sec, 3430)  select 22 -> 2
+//     Deep (~20 sec, 3500)     select 24 -> 3
+//     Maximum (~1m30, 3560)    select 26 -> 4
+// Their select's own values are search DEPTHS (18/22/24/26); the seconds in the label are just how
+// long that depth takes. f3 is NOT the tier: it is 10 in every capture including theirs, and six
+// different values of it returned byte-identical reviews. This was hardcoded to 2 here, so every
+// review we ever asked for came back at Standard whatever the dropdown said -- which the ladder's
+// own 340-byte capture confirms from the other side: that frame, taken from their site, carries
+// .2.3.1 = 2. Player UUIDs are omitted (a PGN has none).
 
 // >>> CCR_PROTO_BEGIN  (pure; the ladder slices this block and runs it against the captured bytes)
 function ccrVarint(n) {
@@ -832,10 +843,14 @@ function ccrEncodeGameReview(g) {
     ccrVf(10, 0),
   ));
   const game = moves.concat(meta);
+  // Their CURRENT client also sends .1.1.3.14 = 1, which the 340-byte capture the ladder pins
+  // against does not. Not sent: our requests are accepted without it, its meaning is unknown, and
+  // adding an unknown field would cost the byte-exact oracle for no measured gain.
   const inner = [].concat(ccrMf(1, game), ccrMf(3, ccrVf(3, 1)));
+  const tier = Math.min(4, Math.max(1, Math.trunc(g.tier || 2)));
   return [].concat(
     ccrMf(1, ccrMf(1, inner)),
-    ccrMf(2, ccrMf(3, ccrVf(1, 2))),
+    ccrMf(2, ccrMf(3, ccrVf(1, tier))),
     ccrVf(3, g.strength || 10),
     ccrMf(4, ccrVf(1, 1)),
     ccrMf(5, [].concat(ccrVf(1, 1), ccrVf(2, 2), ccrMf(3, [].concat(ccrVf(1, g.ts || 0), ccrVf(2, g.ns || 0))))),

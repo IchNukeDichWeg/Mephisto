@@ -560,3 +560,7 @@ html.dark .rv-ev-strong  { color: #d15050; }
        to scroll sideways to reach, and overflow-x:hidden then simply CUTS the tail of the game. */
     .rv-moves { max-height: 420px; }
 }
+
+/* The three ratings whose own first choice matched most often, under the likelihood curve. */
+.rv-str-top3 { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--mp-hair); }
+.rv-str-top3-h { display: block; font-size: 11px; color: var(--mp-dim); margin-bottom: 3px; }

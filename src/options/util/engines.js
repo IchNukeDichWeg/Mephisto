@@ -61,6 +61,7 @@ const CFG_DEFAULTS = {
 
     rv_batch: false,
     rv_mode: 'own',          // which of the three reviews the page shows: own | local | online
+    rv_ee_tier: 'card',      // chess.com classifier search budget: card | fast | standard | deep | max
 };
 
 // A game whose clocks and blunders make the whole report show something. Deliberately a famous
