@@ -81,7 +81,30 @@
             <section id="rv-analysis" class="set-sec scrollspy">
                 <h3 data-i18n="rv.analysis" class="set-h">Analysis</h3>
 
+                <!-- Three ways to review, one at a time. They used to sit stacked as three rows of
+                     buttons with three status lines under them, which read as one dense block of
+                     unrelated controls; the selector shows only the one in use. -->
                 <div class="set-row">
+                    <div class="set-lbl">
+                        <span class="tooltipped" data-position="right"
+                              data-tooltip="Which review to run. Mephisto's own engine is fully configurable and
+                                            offline. chess.com's classifier reproduces their post-game card on this
+                                            machine, also offline, after a one-time engine download. chess.com Game
+                                            Review is the real thing from their site and is the only one that sends
+                                            the game off this machine.">
+                            Review with <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <select id="rv_mode" class="rv-select browser-default">
+                            <option value="own">Mephisto's engine - offline, configurable</option>
+                            <option value="local">chess.com's classifier - offline, on this machine</option>
+                            <option value="online">chess.com Game Review - sends the game to chess.com</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="set-row" data-for="own">
                     <div class="set-lbl">
                         <span data-i18n="panel.engine" data-i18n-tip="rv.tip.engine" class="tooltipped" data-position="right"
                               data-tooltip="Which engine judges the game. The WASM builds run inside the extension and
@@ -96,7 +119,7 @@
                     </div>
                 </div>
 
-                <div class="set-row">
+                <div class="set-row" data-for="own">
                     <div class="set-lbl">
                         <span data-i18n="rv.human_model" data-i18n-tip="rv.tip.human_model" class="tooltipped" data-position="right"
                               data-tooltip="An optional second pass with Maia, a network trained to predict what a
@@ -132,7 +155,7 @@
                     </div>
                 </div>
 
-                <div class="set-row">
+                <div class="set-row" data-for="own">
                     <div class="set-lbl">
                         <span data-i18n="rv.budget" data-i18n-tip="rv.tip.budget" class="tooltipped" data-position="right"
                               data-tooltip="How hard the engine works on EACH position. Depth is the better choice
@@ -163,7 +186,7 @@
                     </div>
                 </div>
 
-                <div class="set-row">
+                <div class="set-row" data-for="own">
                     <div class="set-lbl">
                         <span data-i18n="rv.lines" data-i18n-tip="rv.tip.lines" class="tooltipped" data-position="right"
                               data-tooltip="How many alternatives the engine keeps per position. More lines let the
@@ -182,7 +205,7 @@
                     </div>
                 </div>
 
-                <div class="set-row">
+                <div class="set-row" data-for="own">
                     <div class="set-lbl"><span data-i18n="panel.threads">Threads</span></div>
                     <div class="set-ctl">
                         <span class="set-step">
@@ -193,7 +216,7 @@
                     </div>
                 </div>
 
-                <div class="set-row">
+                <div class="set-row" data-for="own">
                     <div class="set-lbl"><span data-i18n="rv.hash">Hash (MB)</span></div>
                     <div class="set-ctl">
                         <span class="set-step">
@@ -206,7 +229,7 @@
 
 
                 <div id="rv_limits_warn" class="limit-warn"></div>
-                <div class="set-row set-toggle">
+                <div class="set-row set-toggle" data-for="own">
                     <div class="set-lbl">
                         <span data-i18n="rv.human_report" data-i18n-tip="rv.tip.human_report" class="tooltipped" data-position="right"
                               data-tooltip="A second reading of the same game by the human model instead of the engine:
@@ -224,7 +247,7 @@
                     </div>
                 </div>
 
-                <div class="set-row">
+                <div class="set-row" data-for="own">
                     <div class="set-lbl">
                         <span data-i18n="rv.strength" data-i18n-tip="rv.tip.strength" class="tooltipped" data-position="right"
                               data-tooltip="Which rating best explains the moves that were actually played. The human
@@ -244,7 +267,7 @@
                     </div>
                 </div>
 
-                <div class="set-row set-toggle">
+                <div class="set-row set-toggle" data-for="own">
                     <div class="set-lbl">
                         <span data-i18n="rv.batch" data-i18n-tip="rv.tip.batch" class="tooltipped" data-position="right"
                               data-tooltip="Analyse EVERY game in the box rather than the one picked above, and add a
@@ -263,7 +286,7 @@
                     </div>
                 </div>
 
-                <div class="set-row set-toggle">
+                <div class="set-row set-toggle" data-for="own local">
                     <div class="set-lbl">
                         <span data-i18n="rv.opening_book" data-i18n-tip="rv.tip.opening_book" class="tooltipped" data-position="right"
                               data-tooltip="Look the opening up in the Lichess masters database, so book moves are
@@ -281,29 +304,6 @@
                     </div>
                 </div>
 
-                <!-- Three ways to review, one at a time. They used to sit stacked as three rows of
-                     buttons with three status lines under them, which read as one dense block of
-                     unrelated controls; the selector shows only the one in use. -->
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span class="tooltipped" data-position="right"
-                              data-tooltip="Which review to run. Mephisto's own engine is fully configurable and
-                                            offline. chess.com's classifier reproduces their post-game card on this
-                                            machine, also offline, after a one-time engine download. chess.com Game
-                                            Review is the real thing from their site and is the only one that sends
-                                            the game off this machine.">
-                            Review with <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <select id="rv_mode" class="rv-select browser-default">
-                            <option value="own">Mephisto's engine - offline, configurable</option>
-                            <option value="local">chess.com's classifier - offline, on this machine</option>
-                            <option value="online">chess.com Game Review - sends the game to chess.com</option>
-                        </select>
-                    </div>
-                </div>
-
                 <div class="rv-mode" data-mode="own">
                 <div class="set-row">
                     <div class="set-lbl"><span data-i18n="rv.run">Run</span></div>
@@ -314,10 +314,13 @@
                     </div>
                 </div>
 
+                </div>
+
+                <!-- Outside the mode blocks: every path searches and every path needs to show it.
+                     Wrapped in `own` it vanished for the classifier, which is the SLOWEST path. -->
                 <div id="rv_progress_wrap" class="rv-progress-wrap hidden">
                     <div class="rv-progress"><div id="rv_progress_bar"></div></div>
                     <div id="rv_progress_text" class="rv-status"></div>
-                </div>
                 </div>
 
                 <div class="rv-mode hidden" data-mode="online">
@@ -332,7 +335,12 @@
                                             tiers. It uses YOUR chess.com session: if a chess.com tab is open it runs
                                             there, otherwise it opens one in the background and closes it again -- you
                                             just need to be signed in to chess.com in this browser. This is the one part
-                                            of Game Review that leaves your machine: the PGN goes to chess.com.">
+                                            of Game Review that leaves your machine: the PGN goes to chess.com.
+                                            The strength tier is the field their own client sends (measured by diffing
+                                            their requests across all four settings), but chess.com's server currently
+                                            returns the same review whichever you pick -- verified on a Diamond account
+                                            with their cache defeated. For tiers that really change the search, use the
+                                            offline classifier below.">
                             Chess.com Game review <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
@@ -356,6 +364,22 @@
                      explanation engine is 28.7 MB and is their commercial Torch build, so it is not
                      shipped with the extension -- it is downloaded from chess.com on request and
                      cached. Nothing about the game leaves the machine either way. -->
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span class="tooltipped" data-position="right"
+                              data-tooltip="How hard the engine looks before their classifier judges the move.
+                                            The first setting reproduces chess.com's free post-game card exactly --
+                                            their engine at their depth. The other four mirror the strength tiers
+                                            their Game Review offers, which are time budgets PER POSITION, with
+                                            chess.com's own advertised ratings. Deeper is slower: a 40-move game at
+                                            Maximum is over an hour of searching.">
+                            Search budget <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <select id="rv_ee_tier" class="rv-select browser-default"></select>
+                    </div>
+                </div>
                 <div class="set-row">
                     <div class="set-lbl">
                         <span class="tooltipped" data-position="right"

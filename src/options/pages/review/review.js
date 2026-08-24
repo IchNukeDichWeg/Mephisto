@@ -1,7 +1,7 @@
 import {define} from "../../framework/require.js";
 import {wirePgnDrop} from "../../util/dragdrop.js";
 import {refreshLimitWarnings} from "../../util/limits.js";
-import {EE_VERSION, EE_CLASS, eeCached, eeDownload, eeForget, eeRun, eeCommands, eeVersion, eeNewer, eeCheckUpdate, eeUpdate, SF_BUILD, sfCached, sfDownload, sfForget, sfSearch} from "./ee-host.js";
+import {EE_VERSION, EE_CLASS, eeCached, eeDownload, eeForget, eeRun, eeCommands, eeVersion, eeNewer, eeCheckUpdate, eeUpdate, SF_BUILD, SF16_BUILD, EE_TIERS, eeTier, sfCached, sfDownload, sfForget, sfSearch} from "./ee-host.js";
 
 // Game Review: analyse a finished game on THIS page, in the background, with the extension's own
 // engines. Nothing is uploaded -- the PGN stays in the tab, the engine runs in the offscreen
@@ -193,9 +193,10 @@ async function runReview(game, rig, onProgress) {
 const STRENGTH_MULTIPV = 64;   // every legal move, near enough; one forward pass either way
 
 function strengthBands(kind) {
-    // Maia 3 is one net on a dial, so it can be asked anywhere -- but 21 bands x every position is a
-    // long wait for a curve that is smooth, so it is walked in 200s.
-    return kind === 'maia3' ? Array.from({length: 11}, (_, i) => String(600 + i * 200))
+    // Maia 3 is one net on a dial, so it can be asked anywhere. Walked in 100s (user call
+    // 2026-08-24, was 200s): 21 bands instead of 11 doubles this pass, but the estimate is the point
+    // of the pass and a 100-point grid is the resolution people read it at.
+    return kind === 'maia3' ? Array.from({length: 21}, (_, i) => String(600 + i * 100))
                             : MAIA_BANDS.slice();
 }
 
@@ -297,11 +298,26 @@ function strengthEstimateOver(records, bands) {
         for (const r of records) ll += Math.log(Math.max(r.prob[band] ?? 0, 1e-6));
         return {band: +band, ll};
     });
+    // How often the band would have played the move that was actually played. The sweep already
+    // recorded each band's own first choice per position, so this is arithmetic over data we have --
+    // no second pass, no extra engine work. It is the reading most people mean by "which rating
+    // plays like this", and it sits beside the likelihood rather than replacing it: likelihood uses
+    // the whole distribution, match uses only the top move, and they can disagree.
+    for (const r of curve) {
+        let hit = 0;
+        for (const rec of records) if (rec.top?.[r.band]?.uci && rec.top[r.band].uci === rec.uci) hit++;
+        r.hit = hit;
+        r.match = records.length ? hit / records.length : 0;
+    }
     const best = curve.reduce((a, c) => (c.ll > a.ll ? c : a));
     // Everything within 2 log-likelihood units of the peak is the standard support interval: the
     // ratings this game cannot tell apart. The peak alone claims a precision the moves cannot carry.
     const near = curve.filter(r => best.ll - r.ll <= 2).map(r => r.band);
-    return {best: best.band, n: records.length, low: Math.min(...near), high: Math.max(...near), curve};
+    // The three bands whose own first choice matched the played move most often. Ties break toward
+    // the better likelihood, so two bands that agree equally often are ordered by the fuller reading.
+    const top3 = curve.slice().sort((a, b) => (b.match - a.match) || (b.ll - a.ll)).slice(0, 3);
+    return {best: best.band, n: records.length, low: Math.min(...near), high: Math.max(...near),
+            curve, top3, bestMatch: top3[0]?.band ?? best.band};
 }
 
 function strengthForSide(rec, side, bands, phases) {
@@ -626,10 +642,14 @@ function renderHeader() {
     if (report.ccr) {
         bits.push(`chess.com Game Review${report.ccrStrength ? ` - ${esc(report.ccrStrength)}` : ''}`);
     } else {
+        // engineName is set when something OTHER than the configured engine did the searching --
+        // chess.com's own Stockfish on the classifier path. Without it the header named our engine
+        // for a search theirs had run, which is the one line a reader would take at face value.
         const eng = ENGINES.find(e => e.id === report.engineId);
         const budget = report.opts.limitKind === 'depth'
             ? `depth ${report.opts.limitValue}` : `${report.opts.limitValue}ms/move`;
-        bits.push(`${esc(eng ? eng.label : report.engineId)}, ${budget}, ${report.opts.multipv} line(s)`);
+        const name = report.opts.engineName || (eng ? eng.label : report.engineId);
+        bits.push(`${esc(name)}, ${budget}, ${report.opts.multipv} line(s)`);
     }
     $('rv_header').innerHTML =
         `<div class="rv-vs">${esc(playerLine('w'))} &ndash; ${esc(playerLine('b'))}`
@@ -916,6 +936,10 @@ function renderStrength() {
             <div class="rv-big">${s.best}</div>
             <div class="rv-kv"><span>Ratings this game cannot tell apart</span><span>${spread}</span></div>
             <div class="rv-kv"><span>Decisions it is drawn from</span><span>${s.n}</span></div>
+            <div class="rv-str-top3"><span class="rv-str-top3-h">Closest ratings by moves matched</span>${
+                s.top3.map((r, i) => `<div class="rv-kv"><span>${i + 1}. ${r.band}</span>`
+                    + `<span>${r.hit}/${s.n} &middot; ${(r.match * 100).toFixed(0)}%</span></div>`).join('')
+            }</div>
             <div class="rv-str-curve">${bars}</div>
             <div class="rv-sub">${st.bands[0]} to ${st.bands[st.bands.length - 1]}, taller is a better fit</div>
             ${phase}
@@ -1732,6 +1756,9 @@ async function onRun() {
 // since the response gives from/to squares, not SAN. The classification enum was mapped from a full
 // capture (futzmutz111 vs dgango66): all 76 moves + the site's per-side counts + ten named moves
 // (Qf2=brilliant .. Qb7=blunder) agree. 11=forced is the only-legal-move tier the collapsed panel folds away.
+// chess.com's own Strength select -> the ordinal their request carries. Measured, not guessed.
+const CCR_TIER = {Fast: 1, Standard: 2, Deep: 3, Maximum: 4};
+
 const CCR_CLASS = {
     1: 'book', 2: 'brilliant', 3: 'great', 4: 'best', 5: 'excellent', 6: 'good',
     7: 'inaccuracy', 8: 'mistake', 9: 'blunder', 10: 'miss', 11: 'forced',
@@ -1946,8 +1973,10 @@ function buildCcrGame(pgnText) {
         reqUuid: (crypto.randomUUID ? crypto.randomUUID() : `${now}-${Math.random()}`),
         ts: Math.floor(now / 1000),
         ns: (now % 1000) * 1e6,
-        // sent EXACTLY as the captured (working) hello until a second capture maps the strength tier
+        // f3 in the wire format; a constant in every capture of theirs, tier or not.
         strength: 10,
+        // The real strength tier, an ordinal 1-4 -- see ccrEncodeGameReview for how it was mapped.
+        tier: CCR_TIER[document.getElementById('rv_ccr_strength')?.value] || 2,
         coach: 'Botez_coach',
         locale: 'en-US',
     };
@@ -2148,13 +2177,24 @@ class ReviewPage {
         });
         // Their Stockfish: the same one-rule download, its own button, entirely optional.
         const sfSay = (t, bad) => { const el = $('rv_sf_status'); if (el) { el.textContent = t; el.classList.toggle('rv-bad', !!bad); } };
+        // Which engine this row is about follows the TIER: the post-game card is their Stockfish 18
+        // Lite, the four Game Review budgets are their Stockfish 16.1 Lite. One row, so the button
+        // always refers to the engine the selected budget actually needs.
+        const sfBuildNow = () => eeTier(cfg('rv_ee_tier')).build;
+        const sfNiceName = (b) => b === SF16_BUILD ? 'Stockfish 16.1' : 'Stockfish 18 Lite';
+        const sfSize = (b) => b === SF16_BUILD ? '69 MB' : '7 MB';
         const sfSync = async () => {
-            const have = await sfCached();
-            $('rv_sf_get')?.classList.toggle('hidden', !!have);
+            const build = sfBuildNow();
+            const have = await sfCached(build);
+            const get = $('rv_sf_get');
+            if (get) get.textContent = `Download ${sfNiceName(build)} (${sfSize(build)})`;
+            get?.classList.toggle('hidden', !!have);
             $('rv_sf_forget')?.classList.toggle('hidden', !have);
             sfSay(have
-                ? `chess.com\u2019s Stockfish ready (${(have.bytes / 1048576).toFixed(1)} MB) - the review now uses their engine as well as their classifier.`
-                : 'Optional. Without it the classifier is fed our Stockfish 18 Small, which differs from theirs by a few moves a game.');
+                ? `chess.com\u2019s ${sfNiceName(build)} ready (${(have.bytes / 1048576).toFixed(1)} MB) - the review now uses their engine as well as their classifier.`
+                : sfBuildNow() === SF16_BUILD
+                    ? `${sfNiceName(build)} is required for this budget: it IS chess.com\u2019s Game Review engine, and ours at the same seconds would be a different engine.`
+                    : 'Optional. Without it the classifier is fed our Stockfish 18 Small, which differs from theirs by a few moves a game.');
             return have;
         };
         sfSync();
@@ -2162,17 +2202,18 @@ class ReviewPage {
             const btn = $('rv_sf_get');
             btn.disabled = true;
             try {
-                sfSay('Downloading chess.com\u2019s Stockfish\u2026');
+                const build = sfBuildNow();
+                sfSay(`Downloading chess.com\u2019s ${sfNiceName(build)}\u2026`);
                 await sfDownload((got, total) => {
                     const mb = (got / 1048576).toFixed(1);
                     sfSay(total ? `Downloading\u2026 ${mb} MB of ${(total / 1048576).toFixed(1)} MB` : `Downloading\u2026 ${mb} MB`);
-                });
+                }, build);
                 await sfSync();
             } catch (e) { sfSay(`Could not download it: ${e.message || e}`, true); }
             finally { btn.disabled = false; }
         });
         $('rv_sf_forget')?.addEventListener('click', async () => {
-            await sfForget();
+            await sfForget(sfBuildNow());
             sfSay('Removed. The review will search with our own engine again.');
             await sfSync();
         });
@@ -2193,17 +2234,28 @@ class ReviewPage {
                 // depth, same line count -- which is the only way to remove the eval difference
                 // entirely. Without it we search with our own closest build and say so, because the
                 // handful of moves that then disagree are worth knowing about rather than hiding.
-                const sf = await sfCached();
+                const tier = eeTier(cfg('rv_ee_tier'));
+                const budget = tier.movetime ? `${tier.movetime / 1000}s a position` : `depth ${tier.depth}`;
+                const sf = await sfCached(tier.build);
                 let built;
                 if (sf) {
-                    eeSay('Searching with chess.com\u2019s own Stockfish (depth 10, 2 lines)\u2026');
+                    eeSay(`Searching with chess.com\u2019s own Stockfish (${budget}, ${EE_MULTIPV} lines)\u2026`);
                     const {positions, moves} = buildPositions(game);
-                    await sfSearch(sf, positions, {depth: EE_DEPTH, multipv: EE_MULTIPV,
+                    await sfSearch(sf, positions, {depth: tier.depth || EE_DEPTH, movetime: tier.movetime,
+                        multipv: EE_MULTIPV,
                         uciMoves: moves.map(m => m.uci),
                         onProgress: (frac, i, n) => progress(frac * 0.9, `position ${i} of ${n}`)});
                     const book = cfg('rv_book') ? await lookupOpening(positions) : {name: null, plies: 0};
-                    built = assemble(game, positions, moves, book,
-                        {variant: 'chess', multipv: EE_MULTIPV, limitKind: 'depth', limitValue: EE_DEPTH});
+                    built = assemble(game, positions, moves, book, {variant: 'chess', multipv: EE_MULTIPV,
+                        limitKind: tier.movetime ? 'movetime' : 'depth',
+                        limitValue: tier.movetime || tier.depth,
+                        engineName: `chess.com's ${sfNiceName(tier.build)}`});
+                } else if (tier.build === SF16_BUILD) {
+                    // The Game Review tiers are chess.com's ENGINE at a time budget. Without it there
+                    // is nothing to imitate -- our own build at the same seconds is a different
+                    // engine, and saying "Deep" over it would be a claim we have not measured.
+                    eeSay(`${tier.label} needs chess.com\u2019s Stockfish 16.1 \u2014 press Download Stockfish 16.1 first.`, true);
+                    return;
                 } else {
                     eeSay('Searching at chess.com\u2019s settings (depth 10, 2 lines, 1 thread)\u2026');
                     rig = await startRig({depth: EE_DEPTH, multipv: EE_MULTIPV, threads: EE_THREADS, engineId: EE_ENGINE});
@@ -2293,7 +2345,8 @@ class ReviewPage {
                 $('rv_ccr_save').classList.remove('hidden');
                 const rt = review.ratings && review.ratings.white != null
                     ? `, ~${review.ratings.white}/${review.ratings.black} rating` : '';
-                say(`Reviewed by chess.com via your logged-in tab${rt}. The board below is playable; Save for the raw protobuf.`);
+                say(`Reviewed by chess.com via your logged-in tab${rt}. The board below is playable; Save for the raw protobuf.`
+                + ' Their server returns the same review for all four strength tiers.');
                 return;
             }
             if (!n) {
@@ -2381,9 +2434,28 @@ class ReviewPage {
             const sel = $('rv_mode');
             if (sel && sel.value !== m) sel.value = m;
             document.querySelectorAll('.rv-mode').forEach(el => el.classList.toggle('hidden', el.dataset.mode !== m));
+            // ...and the settings themselves: a control that cannot affect the selected review is
+            // worse than absent, because changing it looks like it did something.
+            document.querySelectorAll('[data-for]').forEach(el =>
+                el.classList.toggle('hidden', !el.dataset.for.split(' ').includes(m)));
         };
         $('rv_mode')?.addEventListener('change', () => { setCfg('rv_mode', $('rv_mode').value); rvModeSync(); });
         rvModeSync();
+
+        // The tier list is BUILT from EE_TIERS, so a label can never claim a budget the code does
+        // not run, and a measured match percentage appears only where one has actually been measured.
+        const tierSel = $('rv_ee_tier');
+        if (tierSel) {
+            tierSel.innerHTML = Object.entries(EE_TIERS).map(([k, t]) => {
+                const bits = [];
+                bits.push(t.movetime ? `${t.movetime / 1000}s a move` : `depth ${t.depth}`);
+                if (t.rating) bits.push(`~${t.rating}`);
+                if (t.match != null) bits.push(`${t.match.toFixed(1)}% match to ${t.matchOf}`);
+                return `<option value="${k}">${t.label} \u2014 ${bits.join(', ')}</option>`;
+            }).join('');
+            tierSel.value = cfg('rv_ee_tier') || 'card';
+            tierSel.addEventListener('change', () => { setCfg('rv_ee_tier', tierSel.value); eeSync(); sfSync(); });
+        }
 
         for (const key of ['rv_book', 'rv_human_report', 'rv_strength', 'rv_batch']) {
             const el = $(key);

@@ -30,7 +30,55 @@ const EE_STORE = 'assets';
 // small net, single-threaded, GPLv3 (so unlike the classifier it COULD be shipped; it is fetched
 // anyway, to keep the two halves of this feature on one rule and the download opt-in).
 const SF_BUILD = 'stockfish-18-lite-single-a7c6773';
+// The engine chess.com's GAME REVIEW runs, as opposed to the post-game card's. Their settings page
+// calls it "Stockfish 16"; the asset on their own CDN is 16.1, and they serve four of them --
+// lite/full x single/threaded. FOUND by probing their CDN, not guessed.
+//
+// THE FULL NET, not the lite one, and that is the single biggest accuracy lever here. Measured over
+// ten games x 16 moves a side against chess.com's own Game Review:
+//     lite  depth 18  92.19%      lite  depth 24  93.44%
+//     lite  depth 22  93.44%      lite  depth 26  94.06%
+//     FULL  depth 18  95.31%      FULL  depth 22  97.40%
+// The full net at depth 18 beats the lite net at depth 26 while running six times faster, so the
+// net was the ceiling all along, not the depth. It costs 69 MB instead of 7 MB; it is an opt-in
+// download behind a button, and the accuracy is why.
+const SF16_BUILD = 'stockfish-16.1-single';
+const SF16_LITE = 'stockfish-16.1-lite-single';   // their smaller build, kept for the record
 const SF_BASE = 'https://www.chess.com/r2/assets-chess-engine/Stockfish/';
+// chess.com serves more than Stockfish from the same root -- Torch 4 lives under /Torch/. A build
+// id containing a slash is taken as a path from the assets root; a bare one keeps the Stockfish
+// folder, so the ids already cached stay valid and nobody re-downloads.
+const sfUrl = (build) => build.includes('/')
+    ? SF_BASE.replace(/Stockfish\/$/, '') + build
+    : SF_BASE + build;
+
+// The five ways to run the classifier. The first reproduces chess.com's free post-game card exactly
+// -- their engine, their depth, their line count. The other four are chess.com's own Game Review
+// strength tiers, and they are DEPTHS, not times: their select's option values are literally 18,
+// 22, 24 and 26 (read off their settings UI), and the "~1 sec / ~5 sec / ~20 sec / ~1 min 30" in
+// the labels is just how long that depth takes. Depth is also reproducible -- the same depth is the
+// same answer on any machine -- which a seconds budget is not.
+// `match` is the measured agreement over NINE DIVERSE GAMES (337 plies: wins, losses, draws, 14 to
+// 47 moves, ratings 1080-2812), against the chess.com product each tier imitates -- `matchOf` names
+// it. Both sides read the ratings and result from the SAME pgn text, or the classifier is judging
+// two different games.
+//
+// An earlier campaign put these at 95-96%. That set was ten quiet opening lines and 83% of its
+// plies were BOOK -- free agreement both sides get from the same opening book, measuring nothing.
+// On plies that need a judgement the honest figures are lower and are in the README.
+const EE_TIERS = {
+    card:     {label: 'Post-game review', build: SF_BUILD,   depth: 10, movetime: 0, rating: null,
+               match: 96.2, matchOf: 'their post-game card'},
+    fast:     {label: 'Fast',             build: SF16_BUILD, depth: 18, movetime: 0, rating: 3270,
+               match: 83.1, matchOf: 'their Game Review'},
+    standard: {label: 'Standard',         build: SF16_BUILD, depth: 22, movetime: 0, rating: 3430,
+               match: 83.7, matchOf: 'their Game Review'},
+    deep:     {label: 'Deep',             build: SF16_BUILD, depth: 24, movetime: 0, rating: 3500,
+               match: 86.7, matchOf: 'their Game Review'},
+    max:      {label: 'Maximum',          build: SF16_BUILD, depth: 26, movetime: 0, rating: 3560,
+               match: 84.9, matchOf: 'their Game Review'},
+};
+const eeTier = (k) => EE_TIERS[k] || EE_TIERS.card;
 // Their WASM finds its binary through location.hash and splits it on a comma; the second field is a
 // MODE it must not misread. A bare wasm URL works, `#wasm,` works, and `#wasm,worker` silently
 // produces an engine that never answers `uci` -- measured all three.
@@ -60,24 +108,26 @@ const kJs = () => `js:${eeVer}`;
 const kWasm = () => `wasm:${eeVer}`;
 const K_VER = 'installed-version';
 
-const kSfJs = () => `sfjs:${SF_BUILD}`;
-const kSfWasm = () => `sfwasm:${SF_BUILD}`;
+// Keyed by BUILD, so the card's engine and the Game Review's engine can both be kept and neither
+// is ever silently served in place of the other.
+const kSfJs = (b = SF_BUILD) => `sfjs:${b}`;
+const kSfWasm = (b = SF_BUILD) => `sfwasm:${b}`;
 
-async function sfCached() {
+async function sfCached(build = SF_BUILD) {
     try {
-        const js = await eeIdb('readonly', s => s.get(kSfJs()));
-        const wasm = await eeIdb('readonly', s => s.get(kSfWasm()));
+        const js = await eeIdb('readonly', s => s.get(kSfJs(build)));
+        const wasm = await eeIdb('readonly', s => s.get(kSfWasm(build)));
         return (js && wasm) ? {js, wasm, bytes: js.length + wasm.byteLength} : null;
     } catch (e) { return null; }
 }
 
-async function sfDownload(onProgress) {
+async function sfDownload(onProgress, build = SF_BUILD) {
     const say = (n, total) => { try { onProgress(n, total); } catch (e) { /* caller's problem */ } };
-    const jsRes = await fetch(SF_BASE + SF_BUILD + '.js');
-    if (!jsRes.ok) throw new Error(`${SF_BUILD}.js: HTTP ${jsRes.status}`);
+    const jsRes = await fetch(sfUrl(build) + '.js');
+    if (!jsRes.ok) throw new Error(`${build}.js: HTTP ${jsRes.status}`);
     const js = await jsRes.text();
-    const res = await fetch(SF_BASE + SF_BUILD + '.wasm');
-    if (!res.ok) throw new Error(`${SF_BUILD}.wasm: HTTP ${res.status}`);
+    const res = await fetch(sfUrl(build) + '.wasm');
+    if (!res.ok) throw new Error(`${build}.wasm: HTTP ${res.status}`);
     const total = Number(res.headers.get('content-length')) || 0;
     const chunks = [];
     let got = 0;
@@ -90,15 +140,15 @@ async function sfDownload(onProgress) {
         say(got, total);
     }
     const wasm = await new Blob(chunks).arrayBuffer();
-    await eeIdb('readwrite', s => s.put(js, kSfJs()));
-    await eeIdb('readwrite', s => s.put(wasm, kSfWasm()));
+    await eeIdb('readwrite', s => s.put(js, kSfJs(build)));
+    await eeIdb('readwrite', s => s.put(wasm, kSfWasm(build)));
     return {js, wasm, bytes: js.length + wasm.byteLength};
 }
 
-async function sfForget() {
+async function sfForget(build = SF_BUILD) {
     try {
-        await eeIdb('readwrite', s => s.delete(kSfJs()));
-        await eeIdb('readwrite', s => s.delete(kSfWasm()));
+        await eeIdb('readwrite', s => s.delete(kSfJs(build)));
+        await eeIdb('readwrite', s => s.delete(kSfWasm(build)));
     } catch (e) { /* nothing cached */ }
 }
 
@@ -264,7 +314,9 @@ function eeRun(assets, commands, {timeoutMs = 180000} = {}) {
 // `positions` is filled IN PLACE with {lines, depth} in the same shape our own engine transport
 // produces -- white-relative cp, pv as an array of UCI moves -- so everything downstream (assemble,
 // eeCommands, the renderer) cannot tell which engine searched.
-function sfSearch(assets, positions, {depth = 10, multipv = 2, uciMoves = null, onProgress, timeoutMs = 60000} = {}) {
+// `movetime` (ms) OR `depth`. A time budget cannot filter on a known final depth the way `go depth`
+// can, so the collector keeps the DEEPEST line seen per multipv slot, which is correct for both.
+function sfSearch(assets, positions, {depth = 10, movetime = 0, multipv = 2, hash = 0, uciMoves = null, onProgress, timeoutMs = 60000} = {}) {
     return new Promise((resolve, reject) => {
         const frame = document.createElement('iframe');
         frame.src = chrome.runtime.getURL('src/options/ee-sandbox.html');
@@ -306,17 +358,24 @@ function sfSearch(assets, positions, {depth = 10, multipv = 2, uciMoves = null, 
                 send('setoption name Contempt value 0');
                 send(`setoption name MultiPV value ${multipv}`);
                 send('setoption name Threads value 1');
+                // Only when asked. chess.com's post-game card never sets Hash, so the card tier must
+                // not either -- it would stop being a reproduction of their run.
+                if (hash) send(`setoption name Hash value ${hash}`);
                 send('isready'); await until(/^readyok/);
                 for (let i = 0; i < positions.length; i++) {
                     const p = positions[i];
                     const best = {};
-                    // Keep only lines at the FINAL depth: the search reports every depth on its way
-                    // up, and an early one would be a shallower answer wearing the same shape.
+                    // Deepest line per slot. The search reports every depth on the way up, and a
+                    // shallower one would be an early answer wearing the same shape -- but with a
+                    // time budget the final depth is not known in advance, so it cannot be a filter.
                     collect = (l) => {
                         const mp = l.match(/multipv (\d+)/), dp = l.match(/depth (\d+)/);
                         const sc = l.match(/score (cp|mate) (-?\d+)/), pv = l.match(/ pv (.*)$/);
-                        if (!mp || !dp || !sc || !pv || Number(dp[1]) !== depth) return;
-                        best[Number(mp[1])] = {
+                        if (!mp || !dp || !sc || !pv) return;
+                        const d = Number(dp[1]), k = Number(mp[1]);
+                        if (movetime ? (best[k] && best[k].depth > d) : d !== depth) return;
+                        best[k] = {
+                            depth: d,
                             cp: sc[1] === 'cp' ? Number(sc[2]) : null,
                             mate: sc[1] === 'mate' ? Number(sc[2]) : null,
                             pv: pv[1].split(' '),
@@ -329,7 +388,7 @@ function sfSearch(assets, positions, {depth = 10, multipv = 2, uciMoves = null, 
                     // Costs nothing and is exactly what their command line says.
                     if (uciMoves) send(`position fen ${positions[0].fen} moves ${uciMoves.slice(0, i).join(' ')}`.trimEnd());
                     else send(`position fen ${p.fen}`);
-                    send(`go depth ${depth}`);
+                    send(movetime ? `go movetime ${movetime}` : `go depth ${depth}`);
                     await until(/^bestmove/);
                     collect = null;
                     bump();
@@ -343,7 +402,7 @@ function sfSearch(assets, positions, {depth = 10, multipv = 2, uciMoves = null, 
                     p.lines = [1, 2].filter(k => best[k]).slice(0, multipv)
                         .map(k => ({cp: Core.toWhiteCp(best[k].cp, best[k].mate, p.turn),
                                     mate: best[k].mate, pv: best[k].pv}));
-                    p.depth = depth;
+                    p.depth = best[1]?.depth ?? depth;
                     if (onProgress) { try { onProgress((i + 1) / positions.length, i + 1, positions.length); } catch (e) { /* */ } }
                 }
                 finish(null, positions);
@@ -431,4 +490,4 @@ const EE_CLASS = {
     inaccuracy: 'inaccuracy', mistake: 'mistake', miss: 'miss', blunder: 'blunder',
 };
 
-export {EE_VERSION, eeBase, eeVersion, eeNewer, eeCheckUpdate, eeUpdate, EE_CLASS, EE_SCORE_CAP, eeScore, SF_BUILD, sfCached, sfDownload, sfForget, sfSearch, eeCached, eeDownload, eeForget, eeRun, eeCommands};
+export {EE_VERSION, eeBase, eeVersion, eeNewer, eeCheckUpdate, eeUpdate, EE_CLASS, EE_SCORE_CAP, eeScore, SF_BUILD, SF16_BUILD, SF16_LITE, EE_TIERS, eeTier, sfCached, sfDownload, sfForget, sfSearch, eeCached, eeDownload, eeForget, eeRun, eeCommands};
