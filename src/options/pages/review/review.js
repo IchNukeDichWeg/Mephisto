@@ -220,7 +220,9 @@ async function strengthPass(positions, moves, prog, rig) {
     // under each band, and each band's own most-likely move -- so none of them costs a second pass.
     const rec = usable.map(({m, i}) => ({
         ply: m.ply, color: m.color === 'w' ? 'w' : 'b', san: m.san, uci: m.uci,
-        prob: {}, top: {},   // band -> played-move probability ; band -> {uci, prob} the band would play
+        prob: {}, top: {}, rank: {},   // band -> played-move probability ; band -> {uci, prob} the
+                                       // band would play ; band -> where the played move sat in the
+                                       // band's own ordering (1 = it played it), null if not listed
     }));
     let shared = null;
     let borrowed = false;
@@ -263,6 +265,11 @@ async function strengthPass(positions, moves, prog, rig) {
                 rec[k].prob[band] = lines.find(l => l.pv?.[0] === m.uci)?.prob ?? 0;
                 const top = lines.reduce((a, l) => ((l.prob ?? 0) > (a?.prob ?? -1) ? l : a), null);
                 rec[k].top[band] = top?.pv?.[0] ? {uci: top.pv[0], prob: top.prob ?? 0} : null;
+                // MultiPV is 64 -- every legal move -- so this rank is exact, and "was it in the
+                // band's top 2 / top 3" costs a sort we were already paying for in effect.
+                const order = lines.slice().sort((a, b) => (b.prob ?? 0) - (a.prob ?? 0));
+                const at = order.findIndex(l => l.pv?.[0] === m.uci);
+                rec[k].rank[band] = at >= 0 ? at + 1 : null;
             }
             if (!shared) e.dispose?.();
         }
@@ -304,20 +311,32 @@ function strengthEstimateOver(records, bands) {
     // plays like this", and it sits beside the likelihood rather than replacing it: likelihood uses
     // the whole distribution, match uses only the top move, and they can disagree.
     for (const r of curve) {
-        let hit = 0;
-        for (const rec of records) if (rec.top?.[r.band]?.uci && rec.top[r.band].uci === rec.uci) hit++;
-        r.hit = hit;
-        r.match = records.length ? hit / records.length : 0;
+        let h1 = 0, h2 = 0, h3 = 0;
+        for (const rec of records) {
+            const at = rec.rank?.[r.band];
+            if (at == null) continue;
+            if (at <= 1) h1++;
+            if (at <= 2) h2++;
+            if (at <= 3) h3++;
+        }
+        const n = records.length || 1;
+        r.hit = h1;  r.match = h1 / n;    // the band played the same move
+        r.hit2 = h2; r.match2 = h2 / n;   // ...or had it second
+        r.hit3 = h3; r.match3 = h3 / n;   // ...or third
     }
     const best = curve.reduce((a, c) => (c.ll > a.ll ? c : a));
     // Everything within 2 log-likelihood units of the peak is the standard support interval: the
     // ratings this game cannot tell apart. The peak alone claims a precision the moves cannot carry.
     const near = curve.filter(r => best.ll - r.ll <= 2).map(r => r.band);
-    // The three bands whose own first choice matched the played move most often. Ties break toward
-    // the better likelihood, so two bands that agree equally often are ordered by the fuller reading.
-    const top3 = curve.slice().sort((a, b) => (b.match - a.match) || (b.ll - a.ll)).slice(0, 3);
+    // The three closest bands, ranked three ways: by how often the band would have played the move,
+    // how often it had it in its top two, and its top three. A player who is never the engine's
+    // first choice but is usually in its top three is a different reading from one who is neither,
+    // and the single list could not show that. Ties break toward the better likelihood.
+    const rank = (key) => curve.slice().sort((a, b) => (b[key] - a[key]) || (b.ll - a.ll)).slice(0, 3);
+    const top3 = rank('match');
     return {best: best.band, n: records.length, low: Math.min(...near), high: Math.max(...near),
-            curve, top3, bestMatch: top3[0]?.band ?? best.band};
+            curve, top3, top3in2: rank('match2'), top3in3: rank('match3'),
+            bestMatch: top3[0]?.band ?? best.band};
 }
 
 function strengthForSide(rec, side, bands, phases) {
@@ -936,10 +955,15 @@ function renderStrength() {
             <div class="rv-big">${s.best}</div>
             <div class="rv-kv"><span>Ratings this game cannot tell apart</span><span>${spread}</span></div>
             <div class="rv-kv"><span>Decisions it is drawn from</span><span>${s.n}</span></div>
-            <div class="rv-str-top3"><span class="rv-str-top3-h">Closest ratings by moves matched</span>${
-                s.top3.map((r, i) => `<div class="rv-kv"><span>${i + 1}. ${r.band}</span>`
-                    + `<span>${r.hit}/${s.n} &middot; ${(r.match * 100).toFixed(0)}%</span></div>`).join('')
-            }</div>
+            ${[['top3', 'match', 'hit', 'played the same move'],
+                ['top3in2', 'match2', 'hit2', 'had it in its top 2'],
+                ['top3in3', 'match3', 'hit3', 'had it in its top 3']]
+                .filter(([key]) => s[key]?.length)
+                .map(([key, pct, cnt, what]) => `<div class="rv-str-top3">
+                    <span class="rv-str-top3-h">Closest ratings &mdash; ${what}</span>${
+                    s[key].map((r, i) => `<div class="rv-kv"><span>${i + 1}. ${r.band}</span>`
+                        + `<span>${r[cnt]}/${s.n} &middot; ${(r[pct] * 100).toFixed(0)}%</span></div>`).join('')
+                }</div>`).join('')}
             <div class="rv-str-curve">${bars}</div>
             <div class="rv-sub">${st.bands[0]} to ${st.bands[st.bands.length - 1]}, taller is a better fit</div>
             ${phase}
