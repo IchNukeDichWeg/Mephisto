@@ -54,10 +54,19 @@ const sfUrl = (build) => build.includes('/')
 
 // The five ways to run the classifier. The first reproduces chess.com's free post-game card exactly
 // -- their engine, their depth, their line count. The other four are chess.com's own Game Review
-// strength tiers, and they are DEPTHS, not times: their select's option values are literally 18,
-// 22, 24 and 26 (read off their settings UI), and the "~1 sec / ~5 sec / ~20 sec / ~1 min 30" in
-// the labels is just how long that depth takes. Depth is also reproducible -- the same depth is the
-// same answer on any machine -- which a seconds budget is not.
+// strength tiers, and they are DEPTHS, not times.
+//
+// That is chess.com's own word, not an inference from the numbers looking depth-shaped. Their
+// settings select carries 18/22/24/26, and their analysis bundle maps exactly those four:
+//     function t9e(e){switch(e){case 18:return Gz.Strength.Fast;case 22:return Gz.Strength.Standard;
+//                              case 24:return Gz.Strength.Deep;case 26:return Gz.Strength.Maximum;}}
+// and carries the value throughout as `analysisDepth`, including in what they post to their own
+// metrics endpoint: `{analysisDepth: Number(d.analysisDepth), engineType: ...Stockfish16}`.
+// The DOM id is `settings-analysis-time`, which is misleading -- the property is the depth.
+// No `go depth 22` is ever seen in the browser because the Game Review search runs on their server.
+//
+// Depth is also the better unit for us: the same depth is the same answer on any machine, which a
+// seconds budget is not.
 // `match` is the measured agreement over NINE DIVERSE GAMES (337 plies: wins, losses, draws, 14 to
 // 47 moves, ratings 1080-2812), against the chess.com product each tier imitates -- `matchOf` names
 // it. Both sides read the ratings and result from the SAME pgn text, or the classifier is judging

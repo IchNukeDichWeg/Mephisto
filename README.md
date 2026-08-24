@@ -335,9 +335,8 @@ review instead, see the next section.)
 ### chess.com Game Review
 
 **chess.com's own Game Review, on Mephisto's board.** This is the real thing: it calls chess.com's actual
-Game Review service and shows you *their* review, not a Mephisto imitation of it. Load a game, pick a
-strength (**Fast**, **Standard**, **Deep** or **Maximum** - chess.com's own tiers), and press **Ask
-Chess.com**. Every move comes back with chess.com's own verdict - brilliant, great, best, excellent,
+Game Review service and shows you *their* review, not a Mephisto imitation of it. Load a game and press
+**Ask Chess.com**. Every move comes back with chess.com's own verdict - brilliant, great, best, excellent,
 good, book, forced, inaccuracy, mistake, miss or blunder - the coach's commentary, both accuracies and
 the named opening, rendered on the same board and move list as the offline review, with the verdict icon
 before each move.
@@ -358,7 +357,17 @@ above runs Stockfish or Maia entirely in your browser and uploads nothing.
 
 - **chess.com's real review** - the request goes to chess.com's own `game-review` endpoint and the reply
   is decoded as-is: the eleven move classes chess.com uses, its one-line commentary per move, the two
-  game accuracies and the named opening. The strength tiers are chess.com's own.
+  game accuracies and the named opening, plus the **centipawn score and mate distance for every move**,
+  which drive the eval bar and the eval graph.
+- **The strength tier is sent, and it is the right field.** It rides `.2.3.1` as an ordinal 1-4,
+  found by capturing chess.com's own outgoing request at each setting of their own Strength select
+  and diffing the four frames - it was the only field that moved. Mephisto used to hardcode `2`
+  there, so every review ever asked for came back at **Standard** whatever the dropdown said; the
+  ladder's own captured frame from their site carries `2` as well, which is how that went unnoticed.
+  **Measured caveat:** on a Diamond account, with the server cache defeated by a distinct game id,
+  chess.com's endpoint returns a byte-identical review for all four tiers - same evals, same
+  classifications, same accuracy to ten decimal places. The field is correct and is what their own
+  client sends; their server simply does not act on it here. If that changes, this works.
 - **On the shared board** - it drives the same board, move list and navigation as the offline review; the
   classification icon sits before each move and each summary-card label.
 - **Your account, no credentials** - the request carries your first-party chess.com session, so being
@@ -373,6 +382,123 @@ above runs Stockfish or Maia entirely in your browser and uploads nothing.
 A one-time heads-up before the first review explains that the game leaves your machine on your own
 session. Signed out, it tells you so rather than failing silently. This uses chess.com's service on your
 account - use it at your own discretion.
+
+</details>
+
+### chess.com's classifier, offline
+
+**chess.com's own move classifier, running on your machine — free, unlimited, and with the network off.**
+Not an imitation that approximates their labels: it downloads chess.com's own engines and their own
+explanation engine and drives them the way their site does, so the verdicts are theirs. Book, Brilliant,
+Great, Best, Excellent, Good, Forced, Inaccuracy, Mistake, Miss and Blunder, the accuracy percentages,
+and the coach's one-line commentary.
+
+**Measured, not asserted.** Nine diverse games — 337 plies, wins, losses, draws and unfinished, 14 to 47
+moves, ratings from 1080 to 2812 — each also reviewed by chess.com itself so there is something to score
+against. Both sides read the ratings and the result from the *same* PGN text.
+
+Two figures are given for every row. **All plies** is what you see over a whole game. **Decision plies**
+excludes book moves, which both sides get free from the same opening book and which measure nothing:
+
+| what it is reproducing | all plies | decision plies |
+|---|---|---|
+| **Post-game review** vs chess.com's free post-game card | **96.2%** | **77.4%** |
+| chess.com's free card vs **itself**, run twice | 94.1% | 64.2% |
+| **Deep** vs chess.com's full **paid** Game Review | **86.7%** | **73.7%** |
+| **Maximum** / **Standard** / **Fast** vs the same | 84.9 / 83.7 / 83.1% | 70.2 / 67.8 / 66.7% |
+| *chess.com's own free card* vs their own paid Game Review | *76.6%* | *53.8%* |
+
+The post-game tier reproduces chess.com's card **more often than two of chess.com's own runs agree with
+each other** — 77.4% against 64.2% on the plies that need a judgement. Their four workers pull positions
+off a shared queue, so which positions share a transposition table changes run to run; ours searches in
+order on one worker, so there is no race to lose. And every Game Review tier beats chess.com's own free
+card at reproducing their paid product, by twenty points on decision plies.
+
+**An earlier version of this table claimed 95–96%.** That campaign used ten quiet opening lines, and
+**83% of its plies were book moves** — agreement that is free and measures nothing. The numbers above
+come from a set that is 22% book. Nothing about the software changed; the earlier measurement was wrong.
+
+**There is a ceiling, and it has been measured.** Feeding the classifier chess.com's *own* centipawn for
+every position — our search replaced entirely by theirs — reaches **88.7%**, not 100%. Their reply
+carries no second line (the `.7` blocks are one principal variation, alternating white and black down a
+single line at constant eval), and the runner-up line is worth **3.6 points**: dropping it takes us from
+83.7% to 80.1%. So a few points below 88.7% is as close as this can get without their server's own
+configuration, and depth is not the lever — d24 beats d26.
+
+<details>
+<summary>the five search budgets, and how they were chosen</summary>
+
+The classifier judges whatever evaluation it is handed, so the budget is the whole game:
+
+| budget | engine | per position | rating | agreement |
+|---|---|---|---|---|
+| **Post-game review** | their Stockfish 18 Lite (7 MB) | depth 10, 2 lines | — | 96.2% vs their card |
+| **Fast** | their Stockfish 16.1 (69 MB) | depth 18 | ~3270 | 83.1% vs their Game Review |
+| **Standard** | their Stockfish 16.1 | depth 22 | ~3430 | 83.7% |
+| **Deep** | their Stockfish 16.1 | depth 24 | ~3500 | **86.7%** |
+| **Maximum** | their Stockfish 16.1 | depth 26 | ~3560 | 84.9% |
+
+**Deep is the one to pick**, not Maximum: d24 measures higher than d26 and costs less. Depth is spent as
+a lever past that point.
+
+The first reproduces the free post-game card exactly: measured on chess.com's site, that card is already
+wholly local — zero engine work before the game ends, 1,275 worker messages the instant it does, and no
+server request carrying any analysis. Four `stockfish-18-lite-single` workers at `go depth 10` with
+MultiPV 2 feed the explanation engine, and that is what this runs.
+
+The other four are chess.com's own Game Review tiers, and they are **depths, not times** — which is
+chess.com's own word for them, not a guess from the numbers. Their settings select carries `18`, `22`,
+`24` and `26`, and their analysis bundle maps exactly those four onto `Strength.Fast`, `.Standard`,
+`.Deep` and `.Maximum`, carrying the value throughout as **`analysisDepth`** — including in what they
+post to their own metrics endpoint, next to `engineType: Stockfish16`. (Their DOM id says
+`settings-analysis-time`, which is misleading; the property is the depth. You never see a `go depth 22`
+in the browser because that search runs on their server.) Depth is also the better unit for us: the
+same depth is the same answer on any machine, which a seconds budget is not.
+
+Their settings page calls the engine "Stockfish 16"; the asset on their own CDN is **16.1**, and they
+serve four of them — lite and full net, single-threaded and not. Which one they use was settled by
+measurement rather than by the label: against the cp series their real Game Review returned for a
+45-ply game,
+
+| engine and budget | mean difference from their Game Review |
+|---|---|
+| **their Stockfish 16.1 Lite (wasm) at 1s** | **16.8 cp** |
+| Stockfish 16.1 native at 1s | 17.3 cp |
+| Stockfish 16 native at 1s | 24.3 cp |
+| Stockfish 16.1 native at 5s | 24.4 cp |
+| Stockfish 16 native at 5s | 35.4 cp |
+
+16.1 beats 16 at both budgets, which is why these tiers run 16.1 despite the "Stockfish 16" label.
+
+**The net, not the depth, is what closes the gap.** On the book-heavy set the full net at depth 18 beat
+the lite net at depth 26 *and* ran six times faster, so the small net was the ceiling — that finding
+holds even though the absolute figures from that set were inflated. Past the net, depth buys very
+little: on the diverse set d18 → d24 moves 83.1% to 86.7% and d26 falls back to 84.9%.
+
+Two other knobs were tested and rejected on the numbers: **MultiPV 3** scored *worse* than 2, so their
+classifier really is fed two lines; and a **256 MB hash** made no measurable difference, so the search
+runs on Stockfish's default.
+
+Deeper budgets are not "more accurate", they are *a different product*: they reproduce a stronger review
+than the free card does. Pick the tier by which chess.com output you want to match, not by which number
+is biggest.
+
+</details>
+
+<details>
+<summary>the two downloads, and what leaves your machine (nothing)</summary>
+
+- **The classifier**, 28.7 MB. Chess.com's commercial Torch build (its own strings say
+  `TORCH_LICENSE_OWNER` / `KOMODO_TEP`), so it is fetched from chess.com on request and never shipped
+  inside the extension. A **Check for update** button asks chess.com for newer builds by name — they
+  publish no directory listing and no `latest` alias, both 404.
+- **Their Stockfish**, GPLv3 — 18 Lite (7 MB) for the post-game tier, 16.1 full net (69 MB) for the four
+  Game Review tiers. The button follows the tier you picked. The big one is worth its size: it was worth
+  about three points of agreement over their small net at every depth tested.
+
+Both are cached after the first download and the review then runs **with chess.com unreachable** —
+verified with the network cut. The game itself never leaves the machine on this path; the only thing that
+ever did was the two engine downloads.
 
 </details>
 
@@ -454,8 +580,7 @@ position would be a guaranteed miss.
 **Chess.com puzzles.** The reader shipped in v3.1.207 - the same settings page, the same import button, and the
 format is detected from the file, so there is nothing extra to choose. Importing both databases gives you both: they
 key on the position, so neither overwrites the other. A database of **820,000+ Chess.com puzzles with their
-solutions** will be published once [the upstream pull request](https://github.com/AlexPetrusca/Mephisto/pull/37) is
-merged; it covers rated tactics and the daily archive.
+solutions** will be published here; it covers rated tactics and the daily archive.
 
 **Read solutions from the page** (v3.1.276, off by default) - the puzzle sites hand their own client the answer so
 it can score your moves locally, which means the solution is already sitting in the tab. With this on, Puzzle Mode
