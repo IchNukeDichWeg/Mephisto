@@ -245,6 +245,11 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     tablebaseLookup(msg.tablebaseLookup).then(sendResponse).catch(e => sendResponse({error: String(e)}));
     return true; // async sendResponse
   }
+  // Settings' "Check" on the local tablebase folder: inventory or a fixable error, never a probe.
+  if (msg.tbInfo) {
+    tbInfoForSettings().then(sendResponse).catch(e => sendResponse({error: String(e)}));
+    return true; // async sendResponse
+  }
   // The panel's book probe: one binary search over the stored .bin, no network. `moves: null`
   // means NO BOOK IS LOADED (the panel then never asks again this game); an empty array means
   // "loaded, nothing here" (the out-of-book latch's food).
@@ -772,11 +777,13 @@ function lichess_note_response(res, label) {
     return true;
 }
 
-// --- Syzygy tablebase (lichess) ---------------------------------------------------------------
-// Perfect play once the position is down to <=7 men. PROBED OVER THE NETWORK on purpose: the real
-// tablebases are hundreds of gigabytes and nobody is downloading those to use a browser extension,
-// so the only shippable form is the lookup. Fetched HERE in the service worker, like the explorer,
-// so the chess page itself never issues the request.
+// --- Syzygy tablebase (lichess, or the user's own files) --------------------------------------
+// Perfect play once the position is down to <=7 men. The DEFAULT is the network lookup: the real
+// tablebases are hundreds of gigabytes and nobody is downloading those to use a browser extension.
+// But a user who HAS them on disk can point Settings -> Local Tablebase Folder at them, and the
+// answer then comes from this machine (see "Local Syzygy probing" below) with the network as the
+// fallback. Either way it happens HERE in the service worker, like the explorer, so the chess page
+// itself never issues the request.
 //
 // A hit is not an opinion, it is the answer -- so unlike the opening book there is no "is the engine
 // close enough" filter on the caller side. `moves` comes back sorted best-first; each move's
@@ -790,6 +797,82 @@ const TABLEBASE_HOST = 'https://tablebase.lichess.ovh';
 const TABLEBASE_PATHS = {chess: 'standard', atomic: 'atomic', antichess: 'antichess'};
 const tablebaseCache = new Map(); // `${variant}|${fen}` -> response
 const TABLEBASE_CACHE_MAX = 300;
+
+// --- Local Syzygy probing ------------------------------------------------------------------------
+// If the user points Mephisto at a Syzygy folder on disk (Settings -> Local Tablebase Folder), the
+// lookup is answered HERE, off the network, by the native UCI host (python-chess probes the files
+// directly -- no engine process is opened). The wire is chrome.runtime.sendNativeMessage: one shot,
+// one reply, no port to manage; the host exits when Chrome closes its stdin. Standard chess only --
+// the .rtbw/.rtbz set is standard chess, variants keep the online path. EVERY local failure (no
+// host installed, a stale host copy that predates tbprobe, a missing table over a partial set)
+// falls through to the lichess path unchanged, so the feature can only add, never subtract.
+const TB_HOST_APPS = ['com.sf_native.host', 'com.fairy_native.host'];
+let tbHostApp;              // undefined = not probed yet; null = none installed (this SW lifetime)
+const tbMenByFolder = {};   // folder -> largest piece count installed, so 6-man positions over a
+                            // 3-4-5 set go straight online instead of launching a doomed probe
+
+function tbNative(app, msg) {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendNativeMessage(app, msg, (res) => {
+        if (chrome.runtime.lastError) resolve({error: chrome.runtime.lastError.message});
+        else resolve(res || {error: 'empty reply'});
+      });
+    } catch (e) { resolve({error: String(e)}); }
+  });
+}
+
+async function tbLocalFolder() {
+  const {tb_path} = await chrome.storage.local.get('tb_path').catch(() => ({}));
+  try { return JSON.parse(tb_path ?? '""') || null; } catch (e) { return null; }
+}
+
+async function tbHost() {
+  if (tbHostApp !== undefined) return tbHostApp;
+  for (const app of TB_HOST_APPS) {
+    if ((await tbNative(app, {cmd: 'ping'})).ok) return (tbHostApp = app);
+  }
+  return (tbHostApp = null);
+}
+
+async function tablebaseLocal(fen) {
+  const folder = await tbLocalFolder();
+  if (!folder) return null;
+  const [board, , castling] = fen.split(' ');
+  if (castling !== '-') return null;   // Syzygy has no notion of castling rights: ask online instead
+  const men = (board.match(/[a-zA-Z]/g) || []).length;
+  if (men > 7) return null;
+  const app = await tbHost();
+  if (!app) return null;
+  if (tbMenByFolder[folder] === undefined) {
+    const info = await tbNative(app, {cmd: 'tbinfo', path: folder});
+    tbMenByFolder[folder] = info?.men ? Math.max(0, ...Object.keys(info.men).map(Number)) : 0;
+  }
+  if (men > tbMenByFolder[folder]) return null;
+  const r = await tbNative(app, {cmd: 'tbprobe', fen, path: folder});
+  if (!r || r.error || !r.category) {
+    console.warn('Mephisto: local tablebase probe fell back online -', r?.error || 'no answer');
+    return null;
+  }
+  return r; // {category, dtz, moves: [...best-first], source: 'local'} -- the online response's shape
+}
+
+// Settings' "Check" button: what does the folder hold, and can the host see it at all? The errors
+// are the product here -- "no host installed" and "host copy predates tbprobe" are the two states
+// a user can actually fix, and neither is visible from the probe path (it just falls back online).
+async function tbInfoForSettings() {
+  const folder = await tbLocalFolder();
+  if (!folder) return {error: 'no folder set'};
+  tbHostApp = undefined;                 // a just-installed host should be found NOW, not next SW life
+  delete tbMenByFolder[folder];
+  const app = await tbHost();
+  if (!app) return {error: 'no native engine host installed - run native-host/install-native.sh once'};
+  const r = await tbNative(app, {cmd: 'tbinfo', path: folder});
+  if (r?.error?.startsWith('unknown cmd')) {
+    return {error: 'the installed native host predates tablebase probing - re-run native-host/install-native.sh'};
+  }
+  return r;
+}
 
 // ---- chess.com's game review, v2 -----------------------------------------------------------------
 // The endpoint (wss://analysis.chess.com/v2/game-review) speaks PROTOBUF, not JSON. The first message
@@ -1201,6 +1284,17 @@ async function tablebaseLookup({fen, variant}) {
   if (!path) return {error: `no tablebase for variant ${variant}`};
   const key = `${path}|${fen}`;
   if (tablebaseCache.has(key)) return tablebaseCache.get(key);
+  // LOCAL FIRST: a configured folder on this machine answers without any network. Only for
+  // standard chess, and only when it actually answers -- anything else falls through to lichess.
+  if ((variant || 'chess') === 'chess') {
+    const local = await tablebaseLocal(fen);
+    if (local) {
+      console.log('[Tablebase] local', fen, `${local.category} (${local.moves?.length ?? 0} moves)`);
+      if (tablebaseCache.size >= TABLEBASE_CACHE_MAX) tablebaseCache.delete(tablebaseCache.keys().next().value);
+      tablebaseCache.set(key, local);
+      return local;
+    }
+  }
   if (lichess_blocked()) return {error: 'lichess cooling down'}; // cached hits above still answer
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 4000); // a miss just means the engine plays instead
@@ -1211,7 +1305,7 @@ async function tablebaseLookup({fen, variant}) {
     const url = `${TABLEBASE_HOST}/${path}?fen=${encodeURIComponent(fen)}`;
     const r = await fetch(url, {signal: ctl.signal});
     lichess_note_response(r, 'tablebase');
-    out = r.ok ? await r.json() : {error: `HTTP ${r.status}`};
+    out = r.ok ? {...await r.json(), source: 'online'} : {error: `HTTP ${r.status}`};
     console.log('[Tablebase]', r.status, fen, out.error ? out.error : `${out.category} (${out.moves?.length ?? 0} moves)`);
   } catch (e) {
     out = {error: String(e)}; // offline / aborted / DNS

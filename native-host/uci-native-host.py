@@ -252,6 +252,69 @@ def do_configure(data):
                 _dbg(f"configure {key}={value} failed: {e}")
         return {'ok': True}
 
+# --- Syzygy tablebases, probed DIRECTLY (python-chess), no engine involved ------------------- #
+# The extension's local-tablebase feature: the service worker sends the user's folder path and a
+# FEN; the answer mimics the lichess tablebase API's shape ({category, dtz, moves:[...]}) so the
+# panel's existing consumer needs no second parser. Any missing table -- a 6-man position over a
+# 3-4-5 set, a half-copied folder -- raises here and returns an error, which is the worker's cue
+# to fall back to the online endpoint for that position. Castling rights are refused loudly:
+# Syzygy cannot represent them, and a silent wrong answer would outrank the engine's real move.
+_tb_cache = {}     # folder path -> open_tablebase handle (kept for the host's lifetime)
+_TB_CATEGORY = {2: 'win', 1: 'cursed-win', 0: 'draw', -1: 'blessed-loss', -2: 'loss'}
+
+def _tb_open(path):
+    if not path or not os.path.isdir(path):
+        raise ValueError('tablebase folder not found')
+    if path not in _tb_cache:
+        import chess.syzygy
+        _tb_cache[path] = chess.syzygy.open_tablebase(path)
+    return _tb_cache[path]
+
+def do_tbinfo(data):
+    path = data.get('path') or ''
+    if not path or not os.path.isdir(path):
+        return {'error': 'folder not found'}
+    men = {}
+    for f in os.listdir(path):
+        if f.endswith('.rtbw'):
+            n = len(f[:-5].replace('v', ''))
+            men[n] = men.get(n, 0) + 1
+    return {'men': men, 'tables': sum(men.values())}
+
+def do_tbprobe(data):
+    import chess as _c
+    import chess.syzygy as _s
+    fen = data.get('fen') or ''
+    board = _c.Board(fen)
+    if board.castling_rights:
+        return {'error': 'castling rights: syzygy cannot represent them'}
+    if not board.is_valid():
+        return {'error': 'illegal position'}
+    tb = _tb_open(data.get('path'))
+    try:
+        wdl = tb.probe_wdl(board)      # side-to-move relative, like the lichess API
+        dtz = tb.probe_dtz(board)
+        moves = []
+        for mv in board.legal_moves:
+            san = board.san(mv)
+            board.push(mv)
+            # each move's verdict is from the perspective of the side to move AFTER it, exactly
+            # like the lichess API (the panel picks moves[0] on that convention: a move to 'loss'
+            # loses FOR THEM, i.e. what we want) -- so NO negation here
+            child_dtz = tb.probe_dtz(board)
+            child_wdl = tb.probe_wdl(board)
+            board.pop()
+            moves.append({'uci': mv.uci(), 'san': san,
+                          'category': _TB_CATEGORY.get(child_wdl, 'unknown'), 'dtz': child_dtz})
+        # lichess's ordering, best for the mover first: their losses (our wins) by fastest dtz,
+        # then draws, then their wins (our losses) holding out longest. Child dtz is negative when
+        # they are losing, so (rank, -dtz) orders both ends correctly.
+        rank = {'loss': 0, 'blessed-loss': 1, 'draw': 2, 'cursed-win': 3, 'win': 4, 'unknown': 5}
+        moves.sort(key=lambda m: (rank[m['category']], -m['dtz']))
+        return {'category': _TB_CATEGORY.get(wdl, 'unknown'), 'dtz': dtz, 'moves': moves, 'source': 'local'}
+    except (_s.MissingTableError, KeyError) as e:
+        return {'error': f'missing table: {e}'}
+
 def handle(msg):
     mid = msg.get('id')
     try:
@@ -261,6 +324,10 @@ def handle(msg):
             send_message({'id': mid, **do_analyse(msg, mid), 'done': True})
         elif msg.get('cmd') == 'configure':
             send_message({'id': mid, **do_configure(msg)})
+        elif msg.get('cmd') == 'tbprobe':
+            send_message({'id': mid, **do_tbprobe(msg)})   # no engine opened: a pure file probe
+        elif msg.get('cmd') == 'tbinfo':
+            send_message({'id': mid, **do_tbinfo(msg)})
         else:
             send_message({'id': mid, 'error': f"unknown cmd {msg.get('cmd')!r}"})
     except Exception as e:  # never let one bad request kill the host

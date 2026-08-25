@@ -174,6 +174,8 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('premove', 'Premove:', 'checkbox', false);
         this.registerFormElement('ponder', 'Pondering:', 'checkbox', false);
         this.registerFormElement('tablebase', 'Endgame Tablebase:', 'checkbox', false);
+        // a folder path on THIS machine; the service worker probes it via the native host
+        this.registerFormElement('tb_path', 'Local Tablebase Folder:', 'input', '');
         this.registerFormElement('move_reason', 'Explain Moves:', 'checkbox', false);
         this.registerFormElement('hide_opponent', 'Hide Opponent Name:', 'checkbox', false);
         this.registerFormElement('explorer', 'Opening Explorer:', 'checkbox', false);
@@ -192,6 +194,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('opp_alert', 'Opponent Mistake Alert:', 'checkbox', false);
         this.registerFormElement('verbose_log', 'Verbose Logging:', 'checkbox', false);
         this.initOwnBook();
+        this.initTablebaseCheck();
         this.initSteppers();
         this.initHumanizeMix();
         this.initHumanizeThresholds();
@@ -340,6 +343,28 @@ class GeneralSettings extends SettingsPage {
             await sync();
         });
         sync();
+    }
+
+    // Local Tablebase Folder's "Check": ask the worker what the folder holds. The two states a user
+    // can fix -- no native host installed, or a host copy that predates tbprobe -- only surface
+    // here; the probe path itself just falls back online without a word.
+    initTablebaseCheck() {
+        const $ = (id) => document.getElementById(id);
+        const say = (t, bad) => {
+            const el = $('tb_path_status');
+            if (el) { el.textContent = t || ''; el.style.color = bad ? 'var(--mp-bad, #c0392b)' : ''; }
+        };
+        $('tb_check')?.addEventListener('click', () => {
+            const path = $('tb_path_input')?.value?.trim();
+            if (!path) { say('Set a folder path first.', true); return; }
+            say('Checking…');
+            chrome.runtime.sendMessage({tbInfo: true}, (res) => {
+                if (!res || res.error) { say(`Not usable: ${res?.error || 'no answer'}`, true); return; }
+                if (!res.tables) { say('Folder found, but it holds no Syzygy files (.rtbw).', true); return; }
+                const men = Object.keys(res.men).sort().map(n => `${n}-man: ${res.men[n]}`).join(', ');
+                say(`${res.tables} tables (${men}). Endgame Tablebase answers from this folder first.`);
+            });
+        });
     }
 
     initSteppers() {

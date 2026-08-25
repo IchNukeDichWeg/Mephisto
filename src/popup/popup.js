@@ -2979,11 +2979,13 @@ function tablebase_label() {
     if (!tablebase_data || tablebase_data.fen !== last_eval.fen) return '';
     const c = tablebase_data.category;
     const n = Math.abs(tablebase_data.dtm ?? tablebase_data.dtz ?? 0);
-    if (c === 'win') return i18n('panel.tb.win', 'Tablebase: win in {n}', {n});
-    if (c === 'loss') return i18n('panel.tb.loss', 'Tablebase: lost in {n}', {n});
-    if (c === 'draw') return i18n('panel.tb.draw', 'Tablebase: draw');
-    if (c === 'cursed-win') return i18n('panel.tb.cursed', 'Tablebase: win in {n} (50-move drawn)', {n});
-    if (c === 'blessed-loss') return i18n('panel.tb.blessed', 'Tablebase: loss (50-move drawn)');
+    // name the source: "(local)" means the user's own files answered and nothing left this machine
+    const s = tablebase_data.source === 'local' ? ' ' + i18n('panel.tb.local', '(local)') : '';
+    if (c === 'win') return i18n('panel.tb.win', 'Tablebase: win in {n}', {n}) + s;
+    if (c === 'loss') return i18n('panel.tb.loss', 'Tablebase: lost in {n}', {n}) + s;
+    if (c === 'draw') return i18n('panel.tb.draw', 'Tablebase: draw') + s;
+    if (c === 'cursed-win') return i18n('panel.tb.cursed', 'Tablebase: win in {n} (50-move drawn)', {n}) + s;
+    if (c === 'blessed-loss') return i18n('panel.tb.blessed', 'Tablebase: loss (50-move drawn)') + s;
     return '';
 }
 
