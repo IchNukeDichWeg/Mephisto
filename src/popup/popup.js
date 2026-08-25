@@ -7111,9 +7111,17 @@ function revive_if_engine_silent() {
         revive_attempts = 0;
         console.warn('Mephisto: still silent -- rebuilding the engine');
         try { initialize_engine(); } catch (e) { console.warn('Mephisto: engine rebuild failed', e); }
+        // A held setup position is OURS to restart -- no scrape will ever re-drive it (the handler
+        // drops fenresponses while setup_fen is held). Safe to issue while the rebuild is still
+        // loading: the host queues in order and initialize_engine now stops the queued search
+        // before its ucinewgame preamble, then re-drives last_eval.fen behind it.
+        if (setup_fen) on_new_pos(setup_fen, setup_fen, '');
         return;
     }
     fen_request_inflight = false;
+    // Same reason as above: with a setup position held, asking the page is a no-op by design --
+    // re-drive the position the panel owns instead.
+    if (setup_fen) { on_new_pos(setup_fen, setup_fen, ''); return; }
     request_fen();
 }
 setInterval(revive_if_engine_silent, 2000);
