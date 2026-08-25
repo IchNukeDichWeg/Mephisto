@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-3.1.289-3fb950)
+![Version](https://img.shields.io/badge/version-3.1.290-3fb950)
 ![Engines](https://img.shields.io/badge/engines-9-58a6ff)
 ![Sites](https://img.shields.io/badge/sites-5-8b949e)
 ![Languages](https://img.shields.io/badge/languages-14-f0883e)
@@ -242,8 +242,11 @@ one engine at a time. Studying wants the opposite.
 - **Both answers side by side.** The engine's candidate lines, and next to them what a **human of a
   chosen rating** would actually play, with the net's own probability per move. That contrast is the
   point of the page, which is why the human model is a column rather than a toggle.
-- **Search time, or none.** A slider from 1 to 60 seconds, and one notch past 60 that means exactly
-  `go infinite`: the engine keeps thinking about the position in front of you until you move on.
+- **Search time, depth, or none.** The budget has two units, picked by a dropdown. **Time** is a
+  slider from 1 to 60 seconds, and one notch past 60 that means exactly `go infinite`: the engine
+  keeps thinking about the position in front of you until you move on. **Depth** searches every
+  position to exactly that many plies (1-40) and stops there - the same answer on any machine.
+  Either way the value rides above the slider's thumb, with notch ticks on the track.
 - **Moves by rating.** Every candidate swept across the whole rating range - ten bands for Maia 1, 600
   to 2600 in hundreds for Maia 3 - drawn as one chart so the lines can be compared, each named at its
   own end, with a readout that follows the pointer and gives every move's probability at the band under
