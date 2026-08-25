@@ -2978,13 +2978,20 @@ function tablebase_pick(fen) {
 function tablebase_label() {
     if (!tablebase_data || tablebase_data.fen !== last_eval.fen) return '';
     const c = tablebase_data.category;
-    const n = Math.abs(tablebase_data.dtm ?? tablebase_data.dtz ?? 0);
+    // dtm is a real MATE distance (lichess sends it for <=5 men); dtz is plies to a CAPTURE OR
+    // PAWN MOVE, which is a different thing -- "lost in 2" for dtz 2 read as mate-in-2 while it
+    // meant "the knight falls in 2". Local answers and 6-7-man online answers only have dtz, so
+    // they say DTZ instead of pretending to count mate.
+    const hasDtm = tablebase_data.dtm != null;
+    const n = Math.abs((hasDtm ? tablebase_data.dtm : tablebase_data.dtz) ?? 0);
     // name the source: "(local)" means the user's own files answered and nothing left this machine
     const s = tablebase_data.source === 'local' ? ' ' + i18n('panel.tb.local', '(local)') : '';
-    if (c === 'win') return i18n('panel.tb.win', 'Tablebase: win in {n}', {n}) + s;
-    if (c === 'loss') return i18n('panel.tb.loss', 'Tablebase: lost in {n}', {n}) + s;
+    if (c === 'win') return (hasDtm ? i18n('panel.tb.win', 'Tablebase: win in {n}', {n})
+                                    : i18n('panel.tb.win_dtz', 'Tablebase: winning, DTZ {n}', {n})) + s;
+    if (c === 'loss') return (hasDtm ? i18n('panel.tb.loss', 'Tablebase: lost in {n}', {n})
+                                     : i18n('panel.tb.loss_dtz', 'Tablebase: losing, DTZ {n}', {n})) + s;
     if (c === 'draw') return i18n('panel.tb.draw', 'Tablebase: draw') + s;
-    if (c === 'cursed-win') return i18n('panel.tb.cursed', 'Tablebase: win in {n} (50-move drawn)', {n}) + s;
+    if (c === 'cursed-win') return i18n('panel.tb.cursed', 'Tablebase: winning, DTZ {n} (50-move drawn)', {n}) + s;
     if (c === 'blessed-loss') return i18n('panel.tb.blessed', 'Tablebase: loss (50-move drawn)') + s;
     return '';
 }

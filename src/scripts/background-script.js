@@ -262,6 +262,27 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     sendResponse({ok: true});
     return false;
   }
+  // A /practice/custom drill with no fen anywhere in the URL: read the start FEN off the page's
+  // own board object. MAIN world only (content scripts cannot see it), one-shot injection, and
+  // gated on the tab's REAL url -- the panel asking is convenience, this check is the gate.
+  if (msg.ccPracticeFen) {
+    (async () => {
+      const tab = sender.tab;
+      if (!tab || !/^https:\/\/www\.chess\.com\/practice\/custom/.test(tab.url || '')) return {error: 'not a practice tab'};
+      const out = await chrome.scripting.executeScript({
+        target: {tabId: tab.id}, world: 'MAIN',
+        func: () => {
+          try {
+            const g = document.querySelector('wc-chess-board')?.game;
+            // the SetUp/FEN header survives the whole game; getFEN() only helps at move 0
+            return {fen: g?.getHeaders?.()?.FEN || null};
+          } catch (e) { return {error: String(e)}; }
+        },
+      });
+      return out?.[0]?.result || {error: 'no result'};
+    })().then(sendResponse).catch(e => sendResponse({error: String(e)}));
+    return true; // async sendResponse
+  }
   // The panel's book probe: one binary search over the stored .bin, no network. `moves: null`
   // means NO BOOK IS LOADED (the panel then never asks again this game); an empty array means
   // "loaded, nothing here" (the out-of-book latch's food).
