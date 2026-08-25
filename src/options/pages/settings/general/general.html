@@ -777,6 +777,26 @@
                     </div>
                 </div>
 
+                                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.own_book" class="tooltipped" data-position="right"
+                              data-tooltip="Load your own Polyglot .bin and Play Book Moves plays from IT instead of
+                                            the online database: same weighted-random pick, same never-delays-a-move
+                                            rule, and the engine takes over at the first position the book does not
+                                            know. One book at a time -- loading another replaces it. Stored on this
+                                            machine only, works offline, and a file that is not a Polyglot book is
+                                            refused when you load it, not discovered mid-game.">
+                            Own Opening Book <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <button id="own_book_load" class="set-btn" type="button">Load .bin&hellip;</button>
+                        <button id="own_book_remove" class="set-btn hidden" type="button">Remove</button>
+                        <input id="own_book_file" type="file" accept=".bin" hidden>
+                    </div>
+                </div>
+                <div id="own_book_status" class="set-status"></div>
+
                 <div class="set-row set-toggle">
                     <div class="set-lbl">
                         <span data-i18n="set.endgame_tablebase">Endgame Tablebase</span>

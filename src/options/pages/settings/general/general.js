@@ -191,6 +191,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('manual_mode', 'Manual Mode:', 'checkbox', false);
         this.registerFormElement('opp_alert', 'Opponent Mistake Alert:', 'checkbox', false);
         this.registerFormElement('verbose_log', 'Verbose Logging:', 'checkbox', false);
+        this.initOwnBook();
         this.initSteppers();
         this.initHumanizeMix();
         this.initHumanizeThresholds();
@@ -299,6 +300,48 @@ class GeneralSettings extends SettingsPage {
     // saved NOTHING. Leave the page, come back, and it had reverted. Typing into the same field
     // always worked, which is what hid it. 'change' is kept because other rows (the humanize mix)
     // listen for it on their own inputs.
+    // The panel's own Polyglot book: import into the extension's IndexedDB (book-store.js), tell
+    // the worker its cache is stale, and always SAY what is loaded -- a book row that shows nothing
+    // is indistinguishable from a book that failed to load.
+    initOwnBook() {
+        const $ = (id) => document.getElementById(id);
+        const say = (t, bad) => {
+            const el = $('own_book_status');
+            if (el) { el.textContent = t || ''; el.style.color = bad ? 'var(--mp-bad, #c0392b)' : ''; }
+        };
+        const sync = async () => {
+            let info = null;
+            try { info = await self.MephistoBooks.info(); } catch (e) { /* no store yet */ }
+            $('own_book_remove')?.classList.toggle('hidden', !info);
+            say(info
+                ? `${info.name} - ${info.entries.toLocaleString()} positions (${(info.bytes / 1048576).toFixed(1)} MB). Play Book Moves uses this book.`
+                : 'No book loaded - Play Book Moves uses the online database.');
+        };
+        $('own_book_load')?.addEventListener('click', () => $('own_book_file')?.click());
+        $('own_book_file')?.addEventListener('change', async (e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (!file) return;
+            try {
+                say(`Reading ${file.name}…`);
+                const buffer = await file.arrayBuffer();
+                await self.MephistoBooks.save(file.name, buffer);
+                try { chrome.runtime.sendMessage({bookChanged: true}); } catch (e2) { /* SW asleep: it re-reads on wake */ }
+                await sync();
+            } catch (err) {
+                say(`Refused: ${err.message || err}`, true);
+            }
+        });
+        $('own_book_remove')?.addEventListener('click', async () => {
+            try {
+                await self.MephistoBooks.remove();
+                try { chrome.runtime.sendMessage({bookChanged: true}); } catch (e2) { /* */ }
+            } catch (err) { /* removing a missing book is fine */ }
+            await sync();
+        });
+        sync();
+    }
+
     initSteppers() {
         for (const btn of document.querySelectorAll('.set-step-btn')) {
             btn.addEventListener('click', () => {

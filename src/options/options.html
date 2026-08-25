@@ -27,6 +27,10 @@
     <script src="/src/options/pages/review/review-core.js"></script>
     <!-- the Polyglot key table: data the .bin book format cannot be read without -->
     <script src="/lib/polyglot-random.js"></script>
+    <!-- the Polyglot reader (self.MephistoPolyglot) and the panel-book store (self.MephistoBooks):
+         classic scripts because the service worker importScripts the same two files -->
+    <script src="/src/options/util/polyglot.js"></script>
+    <script src="/src/scripts/book-store.js"></script>
     <!-- the engine drivers, shared by Game Review and Analysis (self.MephistoEngines) -->
     <script src="/src/options/util/engines.js"></script>
     <script src="/src/scripts/bot-games.js"></script>

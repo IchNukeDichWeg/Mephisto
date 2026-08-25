@@ -16,6 +16,13 @@ function mark(what) { startupMarks.push(`${what} +${Date.now() - WORKER_T0}ms`);
 // SITE's. Same file the options page uses for the import, so the key format cannot drift apart.
 importScripts('/src/scripts/puzzle-db.js');
 mark('puzzle-db');
+// The panel's Polyglot book, same architecture as the puzzle database: the options page imports
+// into the extension's IndexedDB, this worker answers the panel's per-position probes. The reader
+// is the ONE verified implementation the options pages already use (classic scripts on purpose).
+importScripts('/lib/polyglot-random.js');
+importScripts('/src/options/util/polyglot.js');
+importScripts('/src/scripts/book-store.js');
+mark('book-store');
 // The language list + the locale loader, shared with the options page and the panel so there is one
 // definition of which codes exist -- which is also what makes the fetch below safe, since `lang`
 // arrives from a setting.
@@ -237,6 +244,21 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg.tablebaseLookup) {
     tablebaseLookup(msg.tablebaseLookup).then(sendResponse).catch(e => sendResponse({error: String(e)}));
     return true; // async sendResponse
+  }
+  // The panel's book probe: one binary search over the stored .bin, no network. `moves: null`
+  // means NO BOOK IS LOADED (the panel then never asks again this game); an empty array means
+  // "loaded, nothing here" (the out-of-book latch's food).
+  if (msg.bookLookup) {
+    MephistoBooks.probe(msg.bookLookup.fen)
+      .then(moves => sendResponse({moves}))
+      .catch(e => sendResponse({error: String(e)}));
+    return true; // async sendResponse
+  }
+  // The options page changed the stored book; the worker's cached buffer is stale.
+  if (msg.bookChanged) {
+    MephistoBooks.dropCache();
+    sendResponse({ok: true});
+    return;
   }
   // One local IndexedDB read. No network and no cache: it is already a disk lookup, and a puzzle
   // position is asked about once.
