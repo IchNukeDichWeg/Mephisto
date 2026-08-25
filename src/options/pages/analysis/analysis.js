@@ -19,8 +19,7 @@ const {ENGINES, MAIA_BANDS, makeEngine, nativeHostAvailable} = self.MephistoEngi
 const $ = (id) => document.getElementById(id);
 
 // Its own settings: an analysis runs on different numbers from live play, and sharing one set would
-// silently make the other wrong. There is no DEPTH here on purpose -- the budget is a time, and its
-// last notch is no budget at all.
+// silently make the other wrong.
 const CFG = {
     an_variant: 'chess',
     an_engine2: '',       // off: the second column is a choice, not a default
@@ -32,12 +31,18 @@ const CFG = {
     an_hash: 128,
     an_wdl: true,
     an_book: true,
+    an_limit_kind: 'time',// time | depth -- which slider the budget row shows and spends
     an_time: 61,          // AN_INFINITE: the page's old behaviour is still the default
+    an_depth: 22,         // plies, when an_limit_kind is 'depth'; its own key so switching
+                          // kinds never reinterprets one unit as the other (the rv_limit lesson)
 };
 
 // The search-time slider: 1..60 seconds, and one notch past 60 that means `go infinite` -- the same
 // shape as Game Review's budget, because it is the same question.
 const AN_INFINITE = 61;
+// The depth slider's ceiling. 40 plies is already a very long sit on the WASM builds; past it the
+// honest control is the Time slider's no-limit notch.
+const AN_DEPTH_MAX = 40;
 
 function cfg(key) {
     const raw = MephistoConfig.get(key);
@@ -150,6 +155,8 @@ class AnalysisPage extends SettingsPage {
         this.registerFormElement('an_wdl', 'Win / draw / loss:', 'checkbox', CFG.an_wdl);
         this.registerFormElement('an_book', 'Opening book:', 'checkbox', CFG.an_book);
         this.registerFormElement('an_time', 'Search time:', 'range', CFG.an_time);
+        this.registerFormElement('an_limit_kind', 'Budget kind:', 'select', CFG.an_limit_kind);
+        this.registerFormElement('an_depth', 'Search depth:', 'range', CFG.an_depth);
 
         // THE TWO ENGINES ARE INDEPENDENT (user report 2026-08-15): switching the human model used
         // to drop the whole rig, which threw away the analysis you were looking at and started it
@@ -185,10 +192,14 @@ class AnalysisPage extends SettingsPage {
         setTimeout(anWarn, 300);   // once the stored values have been pulled into the form
         $('an_wdl_checkbox')?.addEventListener('change', () => reloadEngine());
         $('an_book_checkbox')?.addEventListener('change', () => renderBook());
-        // The budget needs no engine reload -- it is spent by THIS page, not sent as a UCI option.
-        // Dragging only re-reads the number; letting go restarts the search on the new budget.
+        // The budget needs no engine reload -- it is spent by THIS page (time) or by the go command
+        // (depth), never as a setoption. Dragging only re-reads the number; letting go restarts the
+        // search on the new budget. The kind select swaps which slider is visible.
         $('an_time_range')?.addEventListener('input', () => syncTimeUi());
         $('an_time_range')?.addEventListener('change', () => { syncTimeUi(); go(cursor); });
+        $('an_depth_range')?.addEventListener('input', () => syncTimeUi());
+        $('an_depth_range')?.addEventListener('change', () => { syncTimeUi(); go(cursor); });
+        $('an_limit_kind_select')?.addEventListener('change', () => { syncTimeUi(); go(cursor); });
 
         $('an_load')?.addEventListener('click', () => loadFromInput());
         // drop a .pgn anywhere on the page; one shared helper with Game Review (util/dragdrop.js)
@@ -219,6 +230,7 @@ class AnalysisPage extends SettingsPage {
         };
         window.addEventListener('hashchange', onRoute);
         syncBandRow();
+        installTicks();
         syncTimeUi();
         loadStart();
         watchBoardSize();
@@ -287,14 +299,57 @@ function bandChoices() {
         : MAIA_BANDS.slice();
 }
 
-// The readout under the slider says what the notch MEANS, not what number it is. The last one is
-// the honest sentence for it: the search has no budget and ends when the position does.
+// The readout beside the slider says what the notch MEANS; the bubble riding the thumb says the
+// number itself. One readout, two sliders -- only the active kind's slider is visible, so the row
+// cannot show a number the search is not using.
+
+// One hard 1px line per labelled step, as a gradient layer the slider's CSS composes over the fill.
+// Built once per slider: the notch positions are properties of the scale, not of the value.
+function tickGradient(values, min, max) {
+    const C = 'rgba(140, 140, 140, 0.85)';
+    const parts = ['transparent 0'];
+    for (const v of values) {
+        const p = (((v - min) / (max - min)) * 100).toFixed(3);
+        parts.push(`transparent calc(${p}% - 0.5px)`, `${C} calc(${p}% - 0.5px)`,
+                   `${C} calc(${p}% + 0.5px)`, `transparent calc(${p}% + 0.5px)`);
+    }
+    parts.push('transparent 100%');
+    return `linear-gradient(to right, ${parts.join(', ')})`;
+}
+function installTicks() {
+    $('an_time_range')?.style.setProperty('--ticks',
+        tickGradient([10, 20, 30, 40, 50, 60], 1, AN_INFINITE));
+    $('an_depth_range')?.style.setProperty('--ticks',
+        tickGradient([5, 10, 15, 20, 25, 30, 35], 1, AN_DEPTH_MAX));
+}
+
 function syncTimeUi() {
-    const slider = $('an_time_range'), out = $('an_time_unit');
-    if (!slider) return;
-    const secs = Math.max(1, Math.min(AN_INFINITE, +slider.value || AN_INFINITE));
+    const kind = String(cfg('an_limit_kind') || 'time');
+    const t = $('an_time_range'), d = $('an_depth_range'), out = $('an_time_unit');
+    $('an_time_wrap')?.classList.toggle('hidden', kind === 'depth');
+    $('an_depth_wrap')?.classList.toggle('hidden', kind !== 'depth');
+    // the bubble: value text above the thumb, sharing the thumb's travel (7px..width-7px)
+    const bubble = (id, frac, text) => {
+        const el = $(id);
+        if (!el) return;
+        el.textContent = text;
+        el.style.setProperty('--f', String(frac));
+    };
+    if (kind === 'depth') {
+        if (!d) return;
+        const plies = Math.max(1, Math.min(AN_DEPTH_MAX, +d.value || CFG.an_depth));
+        if (out) out.textContent = `depth ${plies}, then stop`;
+        const frac = (plies - 1) / (AN_DEPTH_MAX - 1);
+        d.style.setProperty('--fill', `${frac * 100}%`);
+        bubble('an_depth_bubble', frac, String(plies));
+        return;
+    }
+    if (!t) return;
+    const secs = Math.max(1, Math.min(AN_INFINITE, +t.value || AN_INFINITE));
     if (out) out.textContent = secs >= AN_INFINITE ? 'no limit - until you move on' : `${secs}s per position`;
-    slider.style.setProperty('--fill', `${((secs - 1) / (AN_INFINITE - 1)) * 100}%`);
+    const frac = (secs - 1) / (AN_INFINITE - 1);
+    t.style.setProperty('--fill', `${frac * 100}%`);
+    bubble('an_time_bubble', frac, secs >= AN_INFINITE ? '∞' : `${secs}s`);
 }
 
 function syncBandRow() {
@@ -848,6 +903,12 @@ async function analyseNow() {
     // through as if they described this one.
     if (cursor !== at || positions[at]?.fen !== pos.fen) return;
     const secs = +cfg('an_time');
+    // Depth mode caps the go command itself; the engine stops on its own and the meta line says so.
+    // `res.depth` in the meta is read off the engine's info lines, so what the row reports is what
+    // was actually searched, not what the slider claims.
+    const wantDepth = String(cfg('an_limit_kind')) === 'depth'
+        ? Math.max(1, Math.min(AN_DEPTH_MAX, +cfg('an_depth') || CFG.an_depth)) : 0;
+    const meta1 = (res) => `depth ${res.depth}${res.nodes ? ` · ${(res.nodes / 1000).toFixed(0)}k` : ''}${res.done ? ' · done' : ''}`;
     // the engine sees the node's FULL state -- crazyhouse pockets, three-check counts -- while the
     // page keeps keying its caches by the plain fen the board renders
     const search = e.startInfinite(engineFen(pos), pos.turn, (res) => {
@@ -857,8 +918,8 @@ async function analyseNow() {
         renderEngineLines(pos, res);
         renderArrows(pos, res, humanCache.get(humanCacheKey(pos.fen)));
         const m = $('an_engine_meta');
-        if (m) m.textContent = `depth ${res.depth}${res.nodes ? ` · ${(res.nodes / 1000).toFixed(0)}k` : ''}`;
-    });
+        if (m) m.textContent = meta1(res);
+    }, {depth: wantDepth});
     liveSearch = search;
     if (cfg('an_engine2')) {
         try {
@@ -869,16 +930,17 @@ async function analyseNow() {
                     evalCache2.set(pos.fen, res);
                     renderEngine2Lines(pos, res);
                     const m2 = $('an_engine2_meta');
-                    if (m2) m2.textContent = `depth ${res.depth}${res.nodes ? ` · ${(res.nodes / 1000).toFixed(0)}k` : ''}`;
-                });
+                    if (m2) m2.textContent = meta1(res);
+                }, {depth: wantDepth});
             }
         } catch (err) { status(`Second engine unavailable (${err.message || err})`, 'err'); }
     }
     // THE BUDGET IS A CHOICE (user call 2026-08-15). The last notch means the search runs until the
     // position changes, the way an analysis board always did; every other notch stops it after that
     // many seconds. `stop` rather than `go movetime` on purpose: it is the one search path, so the
-    // streaming and the drain-before-the-next-position both stay exactly as they are.
-    if (secs < AN_INFINITE) {
+    // streaming and the drain-before-the-next-position both stay exactly as they are. In depth mode
+    // the go command carries the whole budget and no timer runs.
+    if (!wantDepth && secs < AN_INFINITE) {
         searchTimer = setTimeout(() => {
             searchTimer = null;
             if (liveSearch !== search) return;

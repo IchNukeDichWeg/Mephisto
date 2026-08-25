@@ -32,10 +32,10 @@
     display: flex; flex-direction: row; align-items: center; gap: 16px;
     padding: 9px 2px; min-height: 46px; font-size: 13.5px; color: var(--mp-text);
 }
-.an-grid-budget > .an-f > span:first-child { flex: 1 1 auto; white-space: normal; overflow: visible; font-weight: 500; }
-/* a slider and a paste box are not 234px controls: they take the room the label leaves */
-.an-grid-budget > .an-f > input[type=range],
-.an-grid-budget > .an-f > textarea { flex: 1 1 auto; max-width: 620px; }
+/* The label hugs its text and the whole control cluster sits BESIDE it, left-packed like the load
+   row below -- letting the label take the slack shoved the cluster to the far edge, with a dead
+   gap in the middle of the row (user call 2026-08-25). */
+.an-grid-budget > .an-f > span:first-child { flex: 0 0 auto; white-space: normal; overflow: visible; font-weight: 500; }
 .an-grid-load { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
 .an-grid-load > * { flex: 0 0 auto; }
 .an-f { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--mp-dim); min-width: 0; }
@@ -268,26 +268,40 @@
 .an-mcell:hover { background: var(--mp-hover); }
 .an-mcell.an-sel { background: var(--mp-sel); font-weight: 600; }
 
-/* the search budget: the slider is the control, the sentence under it is the readout */
+/* the search budget: the kind picks the unit, the slider is the control, the sentence beside it is
+   the readout. The kind select is fixed-width for the same reason the readout is -- nothing in this
+   row may resize when its text changes, or the slider jumps under the pointer mid-drag. */
 .an-f-budget { flex: 1 1 100%; }
-.an-budget-row { display: flex; align-items: center; gap: 12px; flex: 1 1 auto; }
-.an-budget-row > .an-slider { flex: 1 1 auto; min-width: 0; }
-.an-slider {
-    flex: 1 1 auto;
-    max-width: 420px;
-    height: 4px;
-    -webkit-appearance: none;
-    appearance: none;
-    border-radius: 3px;
-    background: linear-gradient(to right, var(--mp-accent, #3fa45b) var(--fill, 100%), var(--mp-hair) var(--fill, 100%));
-    outline: none;
+/* the row may grow (so the slider reaches its full 420px) but its content stays left-packed:
+   the wrap's max-width is what stops the cluster smearing across a wide window */
+.an-budget-row { display: flex; align-items: center; gap: 12px; flex: 1 1 auto; min-width: 0; }
+.an-budget-row > .an-kind { flex: 0 0 150px; width: 150px; }
+/* The wrap exists so the value bubble can ride the thumb: it is the positioning context, and it
+   reserves the height the bubble needs so nothing above the row is overdrawn. */
+.an-sliderwrap { position: relative; flex: 1 1 auto; min-width: 160px; max-width: 420px; display: flex; align-items: center; padding-top: 18px; }
+.an-sliderwrap > .an-slider { flex: 1 1 auto; min-width: 0; }
+.an-bubble {
+    position: absolute;
+    top: 0;
+    /* the thumb is 14px wide, so its centre travels from 7px to (100% - 7px) */
+    left: calc(7px + (100% - 14px) * var(--f, 0));
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--mp-text);
+    white-space: nowrap;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
 }
-.an-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 14px; height: 14px;
-    border-radius: 50%;
-    background: var(--mp-accent, #3fa45b);
-    cursor: pointer;
+/* The paint (fill gradient, thumb, ticks) is the SHARED input[type=range] rule in options.css --
+   one control look across the extension. This page adds only layout, plus the tick geometry: a
+   taller element so the notch lines stand proud of the 5px track stripe. The selector out-ranks
+   the shared type+attribute rule, which is what lets the height apply here and nowhere else. */
+.an-slider { flex: 1 1 auto; max-width: 420px; outline: none; }
+.an-budget-row input[type=range].an-slider {
+    height: 13px;
+    --track-h: 5px;
+    --tick-h: 11px;
 }
 /* Fixed width, so the slider keeps its position whatever the readout says -- it used to jump left
    and right as the text changed length, which is what made dragging it feel broken. */

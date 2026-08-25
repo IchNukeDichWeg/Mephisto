@@ -229,13 +229,18 @@ class WasmEngine {
     // the position in front of you and the lines deepen while you look at them, until you move on.
     // `onUpdate(lines, depth, nodes)` fires as results improve; `stop()` ends it. Maia has nothing to
     // deepen (one forward pass), so it answers once and reports done.
-    startInfinite(fen, turn, onUpdate) {
+    // `opts.depth` caps the search: `go depth N` instead of `go infinite`, so the engine stops
+    // itself and the result carries `done: true`. Everything else -- streaming, stop(), the drain
+    // discipline -- is the one search path unchanged.
+    startInfinite(fen, turn, onUpdate, opts = {}) {
         const slots = new Map();
-        let nodes = 0, depth = 0, stopped = false, timer = null;
-        const emit = () => { if (!stopped) onUpdate(this.toResult(slots, turn, depth, nodes)); };
+        let nodes = 0, depth = 0, stopped = false, timer = null, finished = false;
+        const emit = () => {
+            if (!stopped) onUpdate(Object.assign(this.toResult(slots, turn, depth, nodes), {done: finished}));
+        };
         const collect = (msg) => {
             if (msg.kind !== 'line') return;
-            if (/^bestmove\b/.test(msg.line)) { emit(); return; }
+            if (/^bestmove\b/.test(msg.line)) { finished = true; if (timer) { clearTimeout(timer); timer = null; } emit(); return; }
             const info = Core.parseInfo(msg.line);
             if (!info || info.bound) return;
             nodes = Math.max(nodes, info.nodes || 0);
@@ -248,7 +253,8 @@ class WasmEngine {
         };
         this.listeners.push(collect);
         this.send(`position fen ${fen}`);
-        this.send(this.isMaia() ? 'go' : 'go infinite');
+        const capDepth = this.isMaia() ? 0 : Math.max(0, Math.floor(+opts.depth || 0));
+        this.send(this.isMaia() ? 'go' : (capDepth ? `go depth ${capDepth}` : 'go infinite'));
         return {
             // STOP MEANS "STOPPED", NOT "ASKED TO STOP". A search that has been told to stop keeps
             // emitting info lines until its `bestmove` arrives, and those lines describe the OLD
@@ -263,7 +269,9 @@ class WasmEngine {
                     const i = this.listeners.indexOf(collect);
                     if (i >= 0) this.listeners.splice(i, 1);
                 };
-                if (this.isMaia()) { drop(); return Promise.resolve(); }
+                // A depth-capped search that already sent its bestmove has nothing to stop --
+                // waiting for a second bestmove here would stall the next position for 8s.
+                if (this.isMaia() || finished) { drop(); return Promise.resolve(); }
                 const done = this.once(m => m.kind === 'line' && /^bestmove\b/.test(m.line), 8000)
                     .catch(() => null)      // an engine that never answers must not wedge the page
                     .then(() => drop());

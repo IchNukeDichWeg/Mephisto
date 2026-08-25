@@ -9,7 +9,7 @@
                 <h3 data-i18n="an.setup" class="set-h">Setup</h3>
 
                 <div class="an-grid">
-                    <label class="an-f an-f-engine"><span data-i18n-tip="an.tip.engine" class="tooltipped" data-position="top" data-tooltip="Which engine analyses the position. It runs until you move on -- there is no depth to set."><span data-i18n="an.engine">Engine</span></span>
+                    <label class="an-f an-f-engine"><span data-i18n-tip="an.tip.engine" class="tooltipped" data-position="top" data-tooltip="Which engine analyses the position, for as long as the budget below allows."><span data-i18n="an.engine">Engine</span></span>
                         <select id="an_engine_select" class="browser-default"></select></label>
                     <label class="an-f an-f-engine"><span data-i18n-tip="an.tip.variant" class="tooltipped" data-position="top" data-tooltip="Which rules this board plays by. Loading a PGN with a Variant tag sets it for you. Fairy-only variants switch the engine to Fairy-Stockfish; the human model and the tablebase are standard chess only."><span data-i18n="an.variant">Variant</span></span>
                         <select id="an_variant_select" class="browser-default"></select></label>
@@ -38,9 +38,14 @@
                 </div>
 
                 <div class="an-grid an-grid-budget">
-                    <label class="an-f an-f-budget"><span data-i18n-tip="an.tip.time" class="tooltipped" data-position="top" data-tooltip="How long the engine thinks about each position. The last notch is no limit at all: it keeps thinking until you move on."><span data-i18n="an.time">Search time</span></span>
+                    <label class="an-f an-f-budget"><span data-i18n-tip="an.tip.time" class="tooltipped" data-position="top" data-tooltip="How hard the engine works on each position. Time: it thinks that many seconds, and the last notch is no limit at all -- it keeps thinking until you move on. Depth: it searches exactly that many plies deep and stops, the same answer on any machine."><span data-i18n="rv.budget">Budget</span></span>
                         <div class="an-budget-row">
-                            <input id="an_time_range" class="an-slider" type="range" min="1" max="61" step="1">
+                            <select id="an_limit_kind_select" class="browser-default an-kind">
+                                <option value="time" data-i18n="rv.time_per_move">Time per move</option>
+                                <option value="depth" data-i18n="rv.depth">Depth</option>
+                            </select>
+                            <span id="an_time_wrap" class="an-sliderwrap"><input id="an_time_range" class="an-slider" type="range" min="1" max="61" step="1"><span id="an_time_bubble" class="an-bubble"></span></span>
+                            <span id="an_depth_wrap" class="an-sliderwrap hidden"><input id="an_depth_range" class="an-slider" type="range" min="1" max="40" step="1"><span id="an_depth_bubble" class="an-bubble"></span></span>
                             <span id="an_time_unit" class="an-unit"></span>
                         </div></label>
                 </div>
