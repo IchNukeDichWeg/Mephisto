@@ -2983,6 +2983,7 @@ function request_tablebase(fen) {
             const side = (turn === 'w') ? i18n('color.white', 'White') : i18n('color.black', 'Black');
             update_best_move(i18n('panel.msg.to_play_best', '{side} to play, best move is {move}',
                 {side, move: notate(fen, pick)}));
+            render_move_reason(pick);
             draw_moves();
             return;
         }
@@ -5174,6 +5175,49 @@ function biggest_hanging(fen, victimColor) {
     }
 }
 
+// THE TABLEBASE'S OWN REASON. move_reason below explains tactics -- what a move wins, forks or
+// saves -- and in a SOLVED position that is at best a side effect: the move is played because it
+// is the one that keeps or converts the result. Every claim here is read straight off the probe's
+// own move list (categories are from the side to move AFTER each move, so 'loss' is a move that
+// loses for THEM), so it is fact, not judgement. Silent unless the probe covers this exact
+// position and actually scored this move.
+function tablebase_reason(fen, uci) {
+    if (!tablebase_data || tablebase_data.fen !== fen) return '';
+    const moves = tablebase_data.moves || [];
+    const me = moves.find(m => m.uci === uci);
+    if (!me) return '';
+    const root = tablebase_data.category;
+    const wins = (m) => m.category === 'loss' || m.category === 'blessed-loss';
+    const holds = (m) => m.category === 'draw';
+    // dtm/dtz on a child are negative while THEY are losing, so the largest value is the fastest
+    // finish; with no mate distances the same comparison on dtz is the fastest conversion.
+    const fastest = (pool) => {
+        const useDtm = pool.every(m => typeof m.dtm === 'number');
+        const val = (m) => useDtm ? m.dtm : m.dtz;
+        const top = Math.max(...pool.map(val));
+        return {best: val(me) === top, useDtm};
+    };
+    if (root === 'win' || root === 'cursed-win') {
+        if (!wins(me)) return '';
+        const pool = moves.filter(wins);
+        if (pool.length === 1) return 'the only move that wins';
+        const {best, useDtm} = fastest(pool);
+        if (!best) return 'keeps the win';
+        return useDtm ? 'the fastest mate' : 'converts fastest';
+    }
+    if (root === 'draw') {
+        if (!holds(me)) return '';
+        const pool = moves.filter(holds);
+        return pool.length === 1 ? 'the only move that holds the draw' : 'holds the draw';
+    }
+    if (root === 'loss' || root === 'blessed-loss') {
+        // everything loses: the reason is that this one loses SLOWEST
+        const {best} = fastest(moves.filter(m => m.category === 'win' || m.category === 'cursed-win'));
+        return best ? '' : 'holds out longest';
+    }
+    return '';
+}
+
 function move_reason(fen, uci) {
     if (!config.move_reason) return '';
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci ?? '')) return '';
@@ -5188,6 +5232,9 @@ function move_reason(fen, uci) {
 
         const reasons = [];
         if (before.isCheckmate()) return 'checkmate';
+        // a solved position answers "why this move" better than any tactic can
+        const tb_why = tablebase_reason(fen, uci);
+        if (tb_why) reasons.push(tb_why);
         if (uci[4]) reasons.push(`promotes to ${({q: 'a queen', r: 'a rook', b: 'a bishop', n: 'a knight'})[uci[4]]}`);
 
         // A capture is only worth naming when it WINS something: taking a defended equal is a trade.
@@ -5254,7 +5301,10 @@ function render_move_reason(uci) {
     // Memoized: this runs on every info frame (on_engine_best_move fires per depth line), and
     // biggest_hanging inside move_reason builds a probe board per candidate capture -- identical
     // work for an identical answer, dozens of times a second, on the click-servicing thread.
-    const key = `${last_eval.fen}|${uci || ''}|${config.move_reason}`;
+    const key = `${last_eval.fen}|${uci || ''}|${config.move_reason}`
+        // the probe usually lands AFTER the first render: without it in the key the Why line
+        // would keep the tactics-only text it computed a beat earlier
+        + `|${tablebase_data?.fen === last_eval.fen ? `${tablebase_data.moves?.[0]?.uci}:${tablebase_data.dtm ?? ''}` : ''}`;
     if (key !== move_reason_key) {
         move_reason_key = key;
         move_reason_memo = move_reason(last_eval.fen, uci);
