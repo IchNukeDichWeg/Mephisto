@@ -1,6 +1,7 @@
 // The engine drivers, shared by Game Review and the Analysis page. Two transports behind one
 // interface: `analyse(fen, turn)` resolves to `{lines, depth, nodes}` with every score already
-// converted to WHITE-POSITIVE centipawns. Which transport is in use never leaves this file.
+// converted to WHITE-POSITIVE centipawns, and `startInfinite(fen, turn, onUpdate, opts)` streams
+// the same shape as the search deepens. Which transport is in use never leaves this file.
 //
 // It lives here rather than inside the review page because the analysis page needs exactly the same
 // thing, and a second copy would drift: the offscreen client-id rule below (one id per engine, or
@@ -334,6 +335,10 @@ class WasmEngine {
 // How long a depth-mode native search is allowed to take if the host turns out not to understand
 // `depth`. It has to be a real budget rather than a token one: an old host will spend all of it.
 const NATIVE_DEPTH_CAP_MS = 8000;
+// The native stand-in for `go infinite`. A host's `analyse` always carries a budget, so unbounded
+// analysis is one very long request that streams its info frames; this is a ceiling, not a target
+// -- stop() ends it long before, and an hour is the same figure the panel's ponder budget uses.
+const NATIVE_INFINITE_MS = 3600000;
 
 class NativeEngine {
     constructor(name, opts, clientId) {   // clientId is the WASM host's business; a port is its own
@@ -354,7 +359,7 @@ class NativeEngine {
             if (!frame || frame.id == null) return;
             const p = this.pending.get(frame.id);
             if (!p) return;
-            if (frame.info) return;               // a streamed depth update, not the answer
+            if (frame.info) { p.onInfo?.(frame.info); return; }   // a streamed depth update, not the answer
             this.pending.delete(frame.id);
             if (frame.error) p.reject(new Error(frame.error));
             else p.resolve(frame);
@@ -371,23 +376,43 @@ class NativeEngine {
         }});
     }
 
-    request(cmd, data) {
+    // `extra.onInfo` receives every streamed `{info}` frame for THIS request (already matched by
+    // id, so another request's tail can never leak in); `extra.timeoutMs` overrides the backstop
+    // for a request whose budget the default arithmetic knows nothing about.
+    request(cmd, data, extra = {}) {
         return new Promise((resolve, reject) => {
             if (!this.port) return reject(new Error('the native host is not connected'));
             const id = ++this.seq;
-            this.pending.set(id, {resolve, reject});
+            this.pending.set(id, {resolve, reject, onInfo: extra.onInfo});
             // The host has no cancel: if it never answers, this promise would hold the whole run.
             setTimeout(() => {
                 if (!this.pending.has(id)) return;
                 this.pending.delete(id);
                 reject(new Error('the native host did not answer this position'));
-            }, Math.max(30000, (this.opts.limitKind === 'depth'
+            }, extra.timeoutMs || Math.max(30000, (this.opts.limitKind === 'depth'
                 ? NATIVE_DEPTH_CAP_MS : (this.opts.limitValue || 300)) * 20));
             try { this.port.postMessage({id, cmd, ...data}); } catch (e) { this.pending.delete(id); reject(e); }
         });
     }
 
-    async analyse(fen) {
+    // The host's line shape (its format_line) -> the page's. The host already reports
+    // white-relative scores (python-chess `.white()`), so unlike the WASM path there is no turn to
+    // fold into cp -- but its wdl is white-relative too, and the pages read wdl as side-to-move
+    // permille (the WASM convention), so THAT one is folded. One mapper because the streamed info
+    // frames and the terminal `lines` array carry the same fields.
+    toLine(l, turn) {
+        return {
+            cp: (l.mate != null && l.mate !== undefined)
+                ? (l.mate > 0 ? Core.MATE_CP - Math.abs(l.mate) : -(Core.MATE_CP - Math.abs(l.mate)))
+                : (l.score || 0),
+            wdl: Array.isArray(l.wdl) ? (turn === 'w' ? l.wdl : [l.wdl[2], l.wdl[1], l.wdl[0]]) : null,
+            mate: l.mate ?? null,
+            pv: l.pv,
+            depth: l.depth || 0,
+        };
+    }
+
+    async analyse(fen, turn) {
         // BOTH budgets go over the wire. A host that understands `depth` uses it; one that predates
         // the field ignores it and uses `time` exactly as before, so an old install keeps working
         // rather than silently doing something else. In depth mode `time` is the safety cap.
@@ -397,23 +422,83 @@ class NativeEngine {
             time: depthMode ? NATIVE_DEPTH_CAP_MS : this.opts.limitValue,
             depth: depthMode ? this.opts.limitValue : undefined,
         });
-        const lines = (frame.lines || []).filter(l => l.pv && l.pv.length).map(l => ({
-            // the host already reports white-relative scores (python-chess `.white()`), so unlike
-            // the WASM path there is no turn to fold in here
-            cp: (l.mate != null && l.mate !== undefined)
-                ? (l.mate > 0 ? Core.MATE_CP - Math.abs(l.mate) : -(Core.MATE_CP - Math.abs(l.mate)))
-                : (l.score || 0),
-            mate: l.mate ?? null,
-            pv: l.pv,
-            depth: l.depth || 0,
-        }));
+        const lines = (frame.lines || []).filter(l => l.pv && l.pv.length).map(l => this.toLine(l, turn));
         return {lines, depth: lines.length ? lines[0].depth : 0, nodes: 0};
     }
 
-    // The native host answers a whole analyse in one reply, so there is no partial result to keep:
-    // stopping means dropping the port, and start() reconnects for the next position.
+    // INFINITE ANALYSIS over the one-shot wire, same contract as the WASM version above. The host
+    // cannot run `go infinite` -- an `analyse` always carries a budget -- but it STREAMS an info
+    // frame per depth, so one very long request behaves exactly like it: the lines deepen on screen
+    // until stop(). `opts.depth` becomes the host's own depth budget (the host stops itself and the
+    // result carries `done: true`); otherwise the budget is NATIVE_INFINITE_MS, a ceiling.
+    startInfinite(fen, turn, onUpdate, opts = {}) {
+        const slots = new Map();
+        let depth = 0, nodes = 0, stopped = false, timer = null, settled = false;
+        const emit = (done) => {
+            if (stopped) return;
+            const lines = [...slots.entries()].sort((a, b) => a[0] - b[0]).map(([, l]) => l);
+            onUpdate({lines, depth, nodes, done});
+        };
+        const capDepth = Math.max(0, Math.floor(+opts.depth || 0));
+        const req = this.request('analyse', {
+            fen,
+            time: NATIVE_INFINITE_MS,
+            depth: capDepth || undefined,
+        }, {
+            timeoutMs: NATIVE_INFINITE_MS + 30000,
+            onInfo: (info) => {
+                if (stopped || !info.pv || !info.pv.length || info.bound) return;
+                depth = Math.max(depth, info.depth || 0);
+                nodes = Math.max(nodes, info.nodes || 0);
+                const prev = slots.get(info.multipv || 1);
+                if (!prev || (info.depth || 0) >= prev.depth) slots.set(info.multipv || 1, this.toLine(info, turn));
+                // coalesced for the same reason as the WASM path -- a native engine emits faster still
+                if (!timer) timer = setTimeout(() => { timer = null; emit(false); }, 180);
+            },
+        });
+        req.then((frame) => {
+            settled = true;
+            if (timer) { clearTimeout(timer); timer = null; }
+            // the terminal frame is the complete answer; it replaces whatever the stream built up
+            slots.clear();
+            const finals = (frame.lines || []).filter(l => l.pv && l.pv.length);
+            finals.forEach((l, i) => slots.set(l.multipv || i + 1, this.toLine(l, turn)));
+            depth = Math.max(depth, finals[0]?.depth || 0);
+            nodes = Math.max(nodes, finals[0]?.nodes || 0);
+            emit(true);
+        }).catch(() => { settled = true; /* stopped, superseded or timed out -- nothing to show */ });
+        return {
+            // STOPPING A HOST: `{cmd:'stop'}` is not understood by any installed host (it answers an
+            // id-less error frame every listener drops). What DOES interrupt one is a NEWER analyse:
+            // the host's request counter bumps and the running search is abandoned (python-chess
+            // sends the UCI stop on its way out of the analysis context). So the kill switch is a
+            // 1ms analyse of the same position -- which also works on every host already installed.
+            // The wait afterwards is ORDERING, not politeness: the abandoned request's terminal
+            // frame proves the kill's counter bump happened, so a search the caller starts next
+            // cannot be the one the kill supersedes. Bounded like the WASM stop, and skipped
+            // entirely when the host already finished on its own (a depth-capped search).
+            stop: () => {
+                if (stopped) return Promise.resolve();
+                stopped = true;
+                if (timer) { clearTimeout(timer); timer = null; }
+                if (settled) return Promise.resolve();
+                this.request('analyse', {fen, time: 1}, {timeoutMs: 30000}).catch(() => {});
+                return Promise.race([
+                    req.then(() => {}, () => {}),
+                    new Promise(r => setTimeout(r, 8000)),
+                ]);
+            },
+        };
+    }
+
+    // Interrupt a running one-shot analyse (Game Review's Stop): same kill switch as
+    // startInfinite's stop() and for the same reason -- `{cmd:'stop'}` was always a silent no-op,
+    // so Stop used to leave the host searching out its whole budget. The superseded request still
+    // resolves, with whatever lines it had, which is what the review path already expects.
     stopSearch() {
-        try { this.port?.postMessage({cmd: 'stop'}); } catch (e) { /* already gone */ }
+        this.request('analyse', {
+            fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', time: 1,
+        }, {timeoutMs: 30000}).catch(() => { /* port already gone -- nothing left to stop */ });
     }
 
     dispose() {
