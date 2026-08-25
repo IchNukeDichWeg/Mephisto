@@ -22,6 +22,11 @@ mark('puzzle-db');
 importScripts('/lib/polyglot-random.js');
 importScripts('/src/options/util/polyglot.js');
 importScripts('/src/scripts/book-store.js');
+// In-browser Syzygy probing: chess.js is the decoder's board, tb-store holds the user's folder
+// handle, syzygy.js is the ported prober (see its header).
+importScripts('/lib/chess.js');
+importScripts('/src/scripts/syzygy.js');
+importScripts('/src/scripts/tb-store.js');
 mark('book-store');
 // The language list + the locale loader, shared with the options page and the panel so there is one
 // definition of which codes exist -- which is also what makes the fetch below safe, since `lang`
@@ -249,6 +254,13 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg.tbInfo) {
     tbInfoForSettings().then(sendResponse).catch(e => sendResponse({error: String(e)}));
     return true; // async sendResponse
+  }
+  // The options page changed the tablebase folder (chose/re-allowed/forgot): drop the caches.
+  if (msg.tbChanged) {
+    tbBrowserReset();
+    tablebaseCache.clear();
+    sendResponse({ok: true});
+    return false;
   }
   // The panel's book probe: one binary search over the stored .bin, no network. `moves: null`
   // means NO BOOK IS LOADED (the panel then never asks again this game); an empty array means
@@ -780,9 +792,9 @@ function lichess_note_response(res, label) {
 // --- Syzygy tablebase (lichess, or the user's own files) --------------------------------------
 // Perfect play once the position is down to <=7 men. The DEFAULT is the network lookup: the real
 // tablebases are hundreds of gigabytes and nobody is downloading those to use a browser extension.
-// But a user who HAS them on disk can point Settings -> Local Tablebase Folder at them, and the
-// answer then comes from this machine (see "Local Syzygy probing" below) with the network as the
-// fallback. Either way it happens HERE in the service worker, like the explorer, so the chess page
+// But a user who HAS them on disk can choose the folder in Settings, and the answer then comes
+// from this machine -- decoded IN THE BROWSER (see "In-browser Syzygy probing" below), or by the
+// native host for whoever configured a path -- with the network as the fallback. Either way it happens HERE in the service worker, like the explorer, so the chess page
 // itself never issues the request.
 //
 // A hit is not an opinion, it is the answer -- so unlike the opening book there is no "is the engine
@@ -797,6 +809,57 @@ const TABLEBASE_HOST = 'https://tablebase.lichess.ovh';
 const TABLEBASE_PATHS = {chess: 'standard', atomic: 'atomic', antichess: 'antichess'};
 const tablebaseCache = new Map(); // `${variant}|${fen}` -> response
 const TABLEBASE_CACHE_MAX = 300;
+
+// --- In-browser Syzygy probing -------------------------------------------------------------------
+// The user picked their tablebase folder in Settings (a File System Access handle in tb-store.js:
+// no copy, the gigabytes stay on disk) and the DECODER RUNS HERE -- syzygy.js, the JS port of
+// python-chess's prober, verified position-for-position against it. No native host, no Python,
+// no network. Table files load LAZILY: a probe that hits a missing table names it, that one file
+// is read from the folder, and the probe retries -- so only the materials a game actually reaches
+// are ever in memory. Ceiling: a long tablebase ending can accumulate tens of MB of tables for
+// this worker's lifetime; they die with it. (Upgrade path if that ever matters: block-sliced
+// Blob reads instead of whole-file buffers.)
+let tbJs = null;             // {tb, names, maxMen, loaded} -- per worker life
+const TB_JS_LOAD_CAP = 64;   // missing-table retries per probe; each loads exactly one file
+
+function tbBrowserReset() { tbJs = null; }
+
+async function tbBrowserEnsure() {
+  if (tbJs) return tbJs;
+  if ((await MephistoTbStore.permission()) !== 'granted') return null;
+  const inv = await MephistoTbStore.inventory();
+  if (!inv || !inv.tables) return null;
+  const maxMen = Math.max(0, ...Object.keys(inv.men).map(Number));
+  tbJs = {tb: new self.MephistoSyzygy.Tablebase(self.Chess), names: inv.names, maxMen, loaded: new Set()};
+  return tbJs;
+}
+
+async function tablebaseBrowserLocal(fen) {
+  try {
+    const [placement, , castling] = fen.split(' ');
+    if (castling !== '-') return null;   // Syzygy has no notion of castling rights
+    const men = (placement.match(/[a-zA-Z]/g) || []).length;
+    if (men > 7) return null;
+    const ctx = await tbBrowserEnsure();
+    if (!ctx || men > ctx.maxMen) return null;
+    for (let round = 0; round < TB_JS_LOAD_CAP; round++) {
+      try {
+        return ctx.tb.probeResponse(fen);
+      } catch (e) {
+        const m = /did not find (wdl|dtz) table (\w+)/.exec(String(e && e.message));
+        if (!m) throw e;
+        const file = self.MephistoSyzygy.normalizeTablename(m[2]) + (m[1] === 'wdl' ? '.rtbw' : '.rtbz');
+        if (!ctx.names.has(file) || ctx.loaded.has(file)) return null;  // the folder lacks it -> online
+        ctx.tb.addBuffer(file, await MephistoTbStore.readTable(file));
+        ctx.loaded.add(file);
+      }
+    }
+    return null;
+  } catch (e) {
+    console.warn('Mephisto: in-browser tablebase probe fell back online -', e && e.message);
+    return null;
+  }
+}
 
 // --- Local Syzygy probing ------------------------------------------------------------------------
 // If the user points Mephisto at a Syzygy folder on disk (Settings -> Local Tablebase Folder), the
@@ -861,8 +924,17 @@ async function tablebaseLocal(fen) {
 // are the product here -- "no host installed" and "host copy predates tbprobe" are the two states
 // a user can actually fix, and neither is visible from the probe path (it just falls back online).
 async function tbInfoForSettings() {
+  // the in-browser route first: a chosen folder handle answers without any host installed
+  const perm = await MephistoTbStore.permission();
+  if (perm === 'granted') {
+    const inv = await MephistoTbStore.inventory();
+    if (inv && inv.tables) return {tables: inv.tables, men: inv.men, route: 'browser'};
+    if (inv) return {error: 'the chosen folder holds no Syzygy files (.rtbw)'};
+  } else if (perm === 'prompt') {
+    return {error: 'folder access needs re-allowing - use the Re-allow button'};
+  }
   const folder = await tbLocalFolder();
-  if (!folder) return {error: 'no folder set'};
+  if (!folder) return perm === 'missing' ? {error: 'no folder chosen'} : {error: 'no folder set'};
   tbHostApp = undefined;                 // a just-installed host should be found NOW, not next SW life
   delete tbMenByFolder[folder];
   const app = await tbHost();
@@ -1284,10 +1356,12 @@ async function tablebaseLookup({fen, variant}) {
   if (!path) return {error: `no tablebase for variant ${variant}`};
   const key = `${path}|${fen}`;
   if (tablebaseCache.has(key)) return tablebaseCache.get(key);
-  // LOCAL FIRST: a configured folder on this machine answers without any network. Only for
-  // standard chess, and only when it actually answers -- anything else falls through to lichess.
+  // LOCAL FIRST: the chosen folder answers on this machine, off the network -- the in-browser
+  // decoder first (works with nothing installed), the native-host route as second chance for
+  // whoever configured a path. Standard chess only; anything local cannot answer falls through
+  // to lichess unchanged.
   if ((variant || 'chess') === 'chess') {
-    const local = await tablebaseLocal(fen);
+    const local = (await tablebaseBrowserLocal(fen)) || (await tablebaseLocal(fen));
     if (local) {
       console.log('[Tablebase] local', fen, `${local.category} (${local.moves?.length ?? 0} moves)`);
       if (tablebaseCache.size >= TABLEBASE_CACHE_MAX) tablebaseCache.delete(tablebaseCache.keys().next().value);

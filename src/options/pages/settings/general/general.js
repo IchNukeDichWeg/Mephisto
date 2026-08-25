@@ -194,7 +194,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('opp_alert', 'Opponent Mistake Alert:', 'checkbox', false);
         this.registerFormElement('verbose_log', 'Verbose Logging:', 'checkbox', false);
         this.initOwnBook();
-        this.initTablebaseCheck();
+        this.initTablebaseFolder();
         this.initSteppers();
         this.initHumanizeMix();
         this.initHumanizeThresholds();
@@ -345,26 +345,63 @@ class GeneralSettings extends SettingsPage {
         sync();
     }
 
-    // Local Tablebase Folder's "Check": ask the worker what the folder holds. The two states a user
-    // can fix -- no native host installed, or a host copy that predates tbprobe -- only surface
-    // here; the probe path itself just falls back online without a word.
-    initTablebaseCheck() {
+    // Local Tablebases: the folder PICKER stores a File System Access handle (tb-store.js) -- the
+    // in-browser decoder then answers with nothing installed and nothing copied. The row must
+    // always SAY its state: chosen + inventory, needs a one-click Re-allow (Chrome may drop read
+    // permission between browser sessions), or nothing chosen. Check asks the worker, which also
+    // reports the native-host path route when no picked folder answers.
+    initTablebaseFolder() {
         const $ = (id) => document.getElementById(id);
         const say = (t, bad) => {
             const el = $('tb_path_status');
             if (el) { el.textContent = t || ''; el.style.color = bad ? 'var(--mp-bad, #c0392b)' : ''; }
         };
+        const notifyWorker = () => { try { chrome.runtime.sendMessage({tbChanged: true}); } catch (e) { /* SW asleep */ } };
+        const sync = async () => {
+            const perm = await self.MephistoTbStore.permission();
+            $('tb_forget')?.classList.toggle('hidden', perm === 'missing');
+            $('tb_allow')?.classList.toggle('hidden', perm !== 'prompt');
+            if (perm === 'missing') {
+                say('No folder chosen - the Endgame Tablebase uses the online lookup.');
+            } else if (perm === 'prompt') {
+                say('Folder access needs re-allowing for this browser session.', true);
+            } else {
+                const inv = await self.MephistoTbStore.inventory().catch(() => null);
+                if (!inv || !inv.tables) { say('Chosen folder holds no Syzygy files (.rtbw).', true); return; }
+                const men = Object.keys(inv.men).sort().map(n => `${n}-man: ${inv.men[n]}`).join(', ');
+                say(`${inv.tables} tables (${men}). Endgame Tablebase answers from this folder first, in-browser.`);
+            }
+        };
+        $('tb_choose')?.addEventListener('click', async () => {
+            let handle = null;
+            try { handle = await window.showDirectoryPicker({mode: 'read'}); } catch (e) { /* cancelled */ }
+            if (!handle) return;
+            await self.MephistoTbStore.saveHandle(handle);
+            notifyWorker();
+            await sync();
+        });
+        $('tb_allow')?.addEventListener('click', async () => {
+            const handle = await self.MephistoTbStore.getHandle();
+            try { await handle?.requestPermission({mode: 'read'}); } catch (e) { /* denied */ }
+            notifyWorker();
+            await sync();
+        });
+        $('tb_forget')?.addEventListener('click', async () => {
+            await self.MephistoTbStore.remove().catch(() => {});
+            notifyWorker();
+            await sync();
+        });
         $('tb_check')?.addEventListener('click', () => {
-            const path = $('tb_path_input')?.value?.trim();
-            if (!path) { say('Set a folder path first.', true); return; }
             say('Checking…');
             chrome.runtime.sendMessage({tbInfo: true}, (res) => {
                 if (!res || res.error) { say(`Not usable: ${res?.error || 'no answer'}`, true); return; }
                 if (!res.tables) { say('Folder found, but it holds no Syzygy files (.rtbw).', true); return; }
                 const men = Object.keys(res.men).sort().map(n => `${n}-man: ${res.men[n]}`).join(', ');
-                say(`${res.tables} tables (${men}). Endgame Tablebase answers from this folder first.`);
+                const how = res.route === 'browser' ? 'in-browser' : 'via the native host';
+                say(`${res.tables} tables (${men}). Endgame Tablebase answers from this folder first, ${how}.`);
             });
         });
+        sync();
     }
 
     initSteppers() {
