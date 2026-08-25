@@ -5200,15 +5200,15 @@ function tablebase_reason(fen, uci) {
     if (root === 'win' || root === 'cursed-win') {
         if (!wins(me)) return '';
         const pool = moves.filter(wins);
-        if (pool.length === 1) return 'the only move that wins';
+        if (pool.length === 1) return 'only move that wins';
         const {best, useDtm} = fastest(pool);
         if (!best) return 'keeps the win';
-        return useDtm ? 'the fastest mate' : 'converts fastest';
+        return useDtm ? 'fastest mate' : 'converts fastest';
     }
     if (root === 'draw') {
         if (!holds(me)) return '';
         const pool = moves.filter(holds);
-        return pool.length === 1 ? 'the only move that holds the draw' : 'holds the draw';
+        return pool.length === 1 ? 'only move that draws' : 'holds the draw';
     }
     if (root === 'loss' || root === 'blessed-loss') {
         // everything loses: the reason is that this one loses SLOWEST
