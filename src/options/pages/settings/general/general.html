@@ -815,6 +815,26 @@
                         </label>
                     </div>
                 </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.tb_path" class="tooltipped" data-position="right"
+                              data-tooltip="Point this at a folder of Syzygy files (.rtbw/.rtbz) on this machine and
+                                            the Endgame Tablebase answers from YOUR files instead of the network --
+                                            nothing about the position leaves this computer. Needs any one native
+                                            engine host installed (native-host/install-native.sh). A position your set
+                                            does not cover, or one with castling rights, falls back to the online
+                                            lookup automatically. Check verifies the folder and lists what it holds.">
+                            Local Tablebase Folder <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="tb_path_input" type="text" autocomplete="off" spellcheck="false"
+                               placeholder="/path/to/syzygy" class="set-path">
+                        <button id="tb_check" class="set-btn" type="button">Check</button>
+                    </div>
+                </div>
+                <div id="tb_path_status" class="set-status"></div>
             </section>
 
             <!-- ============================ PUZZLES ============================ -->
