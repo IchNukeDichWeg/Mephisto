@@ -81,6 +81,46 @@
             <section id="rv-analysis" class="set-sec scrollspy">
                 <h3 data-i18n="rv.analysis" class="set-h">Analysis</h3>
 
+                <!-- THE GAME TYPE, above everything: it decides the rules every control below plays
+                     by. Chess is exactly the old behaviour; the others swap only what must change
+                     (engine, replay rules) and hide what cannot apply, so no control sits there
+                     doing nothing. Pasting a PGN with a [Variant] tag sets this for you. -->
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span class="tooltipped" data-position="right"
+                              data-tooltip="Which rules this game plays by. Set automatically from a pasted PGN's
+                                            Variant tag or a Chess960 start position. Chess is the full review;
+                                            Chess960 gets the full own-engine review (no opening names -- random
+                                            starts have none); the Fairy variants are reviewed by Fairy-Stockfish
+                                            with Mephisto's own win-percentage classification, because chess.com's
+                                            classifier speaks standard chess only.">
+                            Game type <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl rv-btns">
+                        <select id="rv_variant" class="rv-select browser-default">
+                            <option value="chess">Chess</option>
+                            <option value="chess960">Chess960</option>
+                            <option value="variant">Chess variants</option>
+                            <option value="4pc">4-player chess</option>
+                        </select>
+                        <select id="rv_variant_which" class="rv-select browser-default hidden">
+                            <option value="crazyhouse">Crazyhouse</option>
+                            <option value="3check">Three-check</option>
+                            <option value="kingofthehill">King of the Hill</option>
+                            <option value="antichess">Antichess</option>
+                            <option value="atomic">Atomic</option>
+                            <option value="horde">Horde</option>
+                            <option value="racingkings">Racing Kings</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- 4-player has no PGN replay: there is no rules engine for a 14x14 four-seat game
+                     in this page, so promising a review here would be a claim nothing can back. -->
+                <div id="rv_4pc_note" class="rv-status hidden">4-player chess cannot be replayed from a PGN here yet.
+                    Live 4-player analysis runs in the floating panel on chess.com/variants/4-player, driven by the
+                    Tetrarch engine - open a game there and press the panel hotkey.</div>
+
                 <!-- Three ways to review, one at a time. They used to sit stacked as three rows of
                      buttons with three status lines under them, which read as one dense block of
                      unrelated controls; the selector shows only the one in use. -->
@@ -91,7 +131,8 @@
                                             offline. chess.com's classifier reproduces their post-game card on this
                                             machine, also offline, after a one-time engine download. chess.com Game
                                             Review is the real thing from their site and is the only one that sends
-                                            the game off this machine.">
+                                            the game off this machine. Both chess.com paths speak standard chess
+                                            only, so any other game type reviews with Mephisto's own engine.">
                             Review with <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
@@ -119,7 +160,7 @@
                     </div>
                 </div>
 
-                <div class="set-row" data-for="own">
+                <div class="set-row" data-for="own" data-chess-only>
                     <div class="set-lbl">
                         <span data-i18n="rv.human_model" data-i18n-tip="rv.tip.human_model" class="tooltipped" data-position="right"
                               data-tooltip="An optional second pass with Maia, a network trained to predict what a
@@ -229,7 +270,7 @@
 
 
                 <div id="rv_limits_warn" class="limit-warn"></div>
-                <div class="set-row set-toggle" data-for="own">
+                <div class="set-row set-toggle" data-for="own" data-chess-only>
                     <div class="set-lbl">
                         <span data-i18n="rv.human_report" data-i18n-tip="rv.tip.human_report" class="tooltipped" data-position="right"
                               data-tooltip="A second reading of the same game by the human model instead of the engine:
@@ -247,7 +288,7 @@
                     </div>
                 </div>
 
-                <div class="set-row" data-for="own">
+                <div class="set-row" data-for="own" data-chess-only>
                     <div class="set-lbl">
                         <span data-i18n="rv.strength" data-i18n-tip="rv.tip.strength" class="tooltipped" data-position="right"
                               data-tooltip="Which rating best explains the moves that were actually played. The human
