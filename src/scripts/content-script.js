@@ -3817,20 +3817,53 @@ function readInitialFenFromPage() {
 // as the lichess paths do -- a wrong start corrupts every scrape that follows -- and memoize on
 // the query string, because this runs on every scrape.
 let cc_practice_memo; // page-load scoped: the page CONSUMES its own query params (see below)
+let cc_practice_asked = false; // the page-object fallback is requested ONCE, answered async
 function ccPracticeCustomStart() {
     if (!/\/practice\/custom/.test(location.pathname)) return null;
-    if (cc_practice_memo !== undefined) return cc_practice_memo;
-    cc_practice_memo = null;
-    try {
-        let search = location.search;
-        // the practice page strips its query with history.replaceState right after load, so by
-        // scrape time location.search is EMPTY -- but the original URL survives in the
-        // navigation timing entry (found 2026-08-14: the first version read location.search and
-        // silently got nothing)
-        if (!/[?&]fen=/.test(search)) search = new URL(performance.getEntriesByType('navigation')[0].name).search;
-        const fen = (new URLSearchParams(search).get('fen') || '').trim();
-        if (FEN_RE.test(fen)) { new Chess('chess', fen); cc_practice_memo = fenToPuzString(fen); }
-    } catch (e) { /* no fen anywhere -> fall back to the normal scrape */ }
+    if (cc_practice_memo === undefined) {
+        cc_practice_memo = null;
+        try {
+            let search = location.search;
+            // the practice page strips its query with history.replaceState right after load, so by
+            // scrape time location.search is EMPTY -- but the original URL survives in the
+            // navigation timing entry (found 2026-08-14: the first version read location.search and
+            // silently got nothing)
+            if (!/[?&]fen=/.test(search)) search = new URL(performance.getEntriesByType('navigation')[0].name).search;
+            const fen = (new URLSearchParams(search).get('fen') || '').trim();
+            if (FEN_RE.test(fen)) { new Chess('chess', fen); cc_practice_memo = fenToPuzString(fen); }
+        } catch (e) { /* no fen anywhere -> the page-object fallback below */ }
+    }
+    // NOTE this block sits BELOW the memo guard's scope on purpose: while the answer is still
+    // null it must run on EVERY scrape, or a board-not-ready first answer could never retry
+    // (the first cut early-returned on the null memo and the re-arm was dead code -- caught by
+    // the ladder's branch test, not by the rig, whose board was always ready).
+    // No fen in any URL: the drill was set up IN the page (the editor flow), reached by SPA
+    // navigation, or the tab was reloaded after the page stripped its query -- all three leave
+    // no fen anywhere a content script can see (found 2026-08-25: a drill built in the editor
+    // showed "not detected" because the move list cannot replay from the standard start). The
+    // page's own board object still knows: game.getHeaders().FEN carries the start at ANY point
+    // mid-game, but it lives in the MAIN world, so the worker reads it with a one-shot injected
+    // script. Async on purpose: this scrape returns "not detected" and the next poll gets the
+    // memoized answer a beat later.
+    if (cc_practice_memo === null && !cc_practice_asked) {
+        cc_practice_asked = true;   // one request in flight; re-armed below unless it ANSWERED
+        try {
+            chrome.runtime.sendMessage({ccPracticeFen: true}, (res) => {
+                const fen = (res && res.fen || '').trim();
+                try {
+                    if (FEN_RE.test(fen)) {
+                        new Chess('chess', fen);
+                        cc_practice_memo = fenToPuzString(fen);
+                        console.log('Mephisto: recovered the practice drill\'s start from the page board');
+                        return;
+                    }
+                } catch (e) { /* the page offered garbage; stay undetected rather than wrong */ }
+                cc_practice_asked = false;   // board not ready yet -- the next scrape retries
+            });
+        } catch (e) {
+            cc_practice_asked = false;       // worker asleep -- the next scrape retries
+        }
+    }
     return cc_practice_memo;
 }
 
