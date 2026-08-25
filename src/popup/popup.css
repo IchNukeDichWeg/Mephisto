@@ -771,7 +771,11 @@ html, body {
     -webkit-appearance: none;
     appearance: none;
     height: 6px;
-    margin: 10px 0 8px;  /* keeps the row the same height as one with a 28px field */
+    /* 10px top centres the track under its label; the BOTTOM margin collapses through the row's
+       edge into the 6px row gap, so anything above 6 stretched the gap after every slider row to
+       8px while the rest of the column sat at 6 (measured, v3.1.293 sweep). Equal to the row gap
+       it collapses into, the rhythm is even. */
+    margin: 10px 0 6px;
     padding: 0;
     border: none;
     border-radius: 2px;
