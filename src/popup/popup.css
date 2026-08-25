@@ -243,9 +243,12 @@ html, body {
     height: 344px;
 }
 
-#response-annotations {
-    /* Decoration only -- it sits ON TOP of the board (z-index 50/51, exactly the board's box),
-       so without this it swallows every click and the board cannot be played. */
+#response-annotations,
+#net-annotations {
+    /* Decoration only -- they sit ON TOP of the board (z-index 50/51, exactly the board's box),
+       so without this they swallow every click and the board cannot be played. The net gets its
+       own layer because its verdict can be REVISED after Maia answers: it must be erasable
+       without taking the threat's arrows with it. */
     pointer-events: none;
     position: absolute;
     z-index: 50;
@@ -1112,6 +1115,7 @@ body.mephisto-compact #nps,
    compact but these are separate layers, so they'd float over the collapsed panel -- hide them too */
 body.mephisto-compact #move-annotations,
 body.mephisto-compact #response-annotations,
+body.mephisto-compact #net-annotations,
 /* Quick Settings STAYS in compact, trimmed to what gets flipped mid-game. That used to be the
    .qs-compact rows; it is now exactly the pinned block -- the same idea expressed by the structure
    rather than by a class sprinkled across the markup. */
@@ -1389,7 +1393,8 @@ body.mephisto-dark #game-detection.unsupported { color: #ff7a70; }
 body.mephisto-bar-host #eval-bar,
 body.mephisto-bar-host #book-annotations,
 body.mephisto-bar-host #move-annotations,
-body.mephisto-bar-host #response-annotations { top: 0; }
+body.mephisto-bar-host #response-annotations,
+body.mephisto-bar-host #net-annotations { top: 0; }
 
 
 /* --------------------------------------------------------------------------------------------

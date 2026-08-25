@@ -432,7 +432,7 @@
                 </div>
 
                 <div class="set-row" id="safety_net_mode_row">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.safety_net_mode" class="tooltipped" data-position="right" data-tooltip="Quiet: silent until only a few moves still hold, which is the moment you can throw the game away. Live: always shows the moves that keep the result while it is your turn."><span data-i18n="set.safety_net_mode">Net Mode</span></span></div>
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.safety_net_mode" class="tooltipped" data-position="right" data-tooltip="Quiet: silent while the move a HUMAN of the Human Reply Rating would likely play here still holds -- it speaks only when your likely move drops the game (and, until Maia has answered, when only a few moves are left). It never nags about a position that is already lost, and a forced move is no warning. Live: always shows the moves that keep the result while it is your turn. The set is ordered by how likely a human is to play each move."><span data-i18n="set.safety_net_mode">Net Mode</span></span></div>
                     <div class="set-ctl">
                         <select name="safety_net_mode" id="safety_net_mode_select">
                             <option value="quiet" data-i18n="set.net_quiet">Quiet - only when it matters</option>
@@ -449,7 +449,7 @@
                 </div>
 
                 <div class="set-row" id="safety_net_max_row">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.safety_net_max" class="tooltipped" data-position="right" data-tooltip="In quiet mode, how few moves must be left before it speaks. Three means: say nothing unless three or fewer moves still hold."><span data-i18n="set.safety_net_max">Warn When At Most</span></span></div>
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.safety_net_max" class="tooltipped" data-position="right" data-tooltip="Quiet mode's fallback while Maia has not answered yet: how few moves must be left before it speaks. Three means: say nothing unless three or fewer moves still hold. Once Maia's read of the position is in, the trigger is your likely move leaving the set, not this count."><span data-i18n="set.safety_net_max">Warn When At Most</span></span></div>
                     <div class="set-ctl">
                         <input id="safety_net_max_input" type="number" min="1" max="5" step="1" class="set-num">
                     </div>

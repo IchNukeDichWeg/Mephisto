@@ -1792,7 +1792,10 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         last_eval.bestmove = best;
         last_eval.threat = threat;
         last_eval.humanReply = null;    // belongs to the previous best move until re-asked
+        // the net's own Maia read is per POSITION, not per best move -- keep it while the fen holds
+        if (last_eval.humanSelf && last_eval.humanSelf.fen !== last_eval.fen) last_eval.humanSelf = null;
         request_threat_human(last_eval.fen, best);
+        request_safety_net_human(last_eval.fen);
         if (config.simon_says_mode) {
             const startSquare = best.substring(0, 2);
             if (board.position()[startSquare] == null) {
@@ -1813,8 +1816,8 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 clear_annotations();
                 draw_threat();
                 draw_human_reply();
-                draw_safety_net();
             }
+            draw_safety_net();   // its own toggle -- the net is not a threat feature
         }
         // Manual Mode plays on YOUR keypress and nothing else. It normally never reaches here because
         // its search is `go infinite` and so emits no bestmove -- but Maia/Maia-3 are a single forward
@@ -1905,8 +1908,8 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         if (config.threat_analysis) {
             draw_threat();
             draw_human_reply();
-            draw_safety_net();
         }
+        draw_safety_net();   // its own toggle -- the net is not a threat feature
     }
 
     note_engine_healthy(); // a search that finished is the only evidence the engine is well
@@ -2372,6 +2375,10 @@ function on_engine_response(message) {
             // showed a single arrow no matter how many lines the panel listed. Help Mode mirrors the
             // same set onto the site board, so it was one arrow there too.
             if (!config.simon_says_mode) draw_moves();
+            // The safety net has the same blind spot from the other side: its verdict was computed
+            // in the pv-1 branch, when this depth's OTHER lines did not exist yet. Re-judge as they
+            // land -- this is where the set first becomes computable at all.
+            if (config.safety_net) { draw_safety_net(); update_best_move_suffix(); }
         }
     }
 
@@ -6044,60 +6051,69 @@ function win_percent(cp) {
 //
 // It can only ever see the lines the engine was asked for: with Multiple Lines at 1 there is no
 // set to report, and it says so rather than implying the one line is the only safe move.
+// The last COMPLETE verdict, per position. The line array is rebuilt at the top of every depth
+// iteration (pv 1 lands alone, pv 2..N a beat later), so any read taken at that instant sees one
+// line and would flicker to "forced"/silence once per depth -- which is exactly how the whole
+// feature managed to render nothing while four lines sat on screen. A position that is GENUINELY
+// forced never produces a fuller verdict, so reusing the cache cannot hide a real forced move.
+let net_last_full = null;   // {fen, set}
+
 function safety_net_set() {
     if (!config.safety_net) return null;
     const lines = (last_eval.lines || []).filter(l => l && l.move && typeof l.score === 'number');
     if (!lines.length) return null;
-    if (lines.length < 2) return {needMoreLines: true, moves: [], total: 0};
+    if (lines.length < 2) {
+        if (Number(config.multiple_lines) > 1) {
+            // mid-iteration: the rest of this depth's lines land in a moment -- hold the last full
+            // verdict for THIS position rather than flickering. No fuller verdict ever arriving is
+            // what a truly forced move looks like, and that stays silent.
+            if (net_last_full && net_last_full.fen === last_eval.fen) return net_last_full.set;
+            return {forced: true, moves: [lines[0].move], total: 1};
+        }
+        return {needMoreLines: true, moves: [], total: 0};
+    }
     // scores are white-relative; the side to move is the one choosing, so flip for black
     const sign = (turn === 'w') ? 1 : -1;
     const wp = (l) => win_percent(sign * l.score);
     const best = Math.max(...lines.map(wp));
     const drop = Math.max(1, Math.min(50, Number(config.safety_net_drop) || 10));
     const moves = lines.filter(l => best - wp(l) <= drop).map(l => l.move);
-    return {moves, total: lines.length, drop, needMoreLines: false};
+    const set = {moves, all: lines.map(l => l.move), total: lines.length, drop, bestWp: best, needMoreLines: false};
+    net_last_full = {fen: last_eval.fen, set};   // the verdict the mid-iteration reads hold on to
+    return set;
 }
 
-// Quiet mode speaks only when the set is small -- that IS the warning. Live mode always shows it.
+// Below this best-win%, quiet mode stops nagging: the game is not being thrown away, it is
+// already gone, and "only one move holds" over a lost position is noise. Live mode still shows
+// the set -- asking to always see it is asking to always see it.
+const SAFETY_NET_FLOOR_WP = 20;
+
+// When quiet mode speaks. The question is not "is the set small" but "are YOU about to leave it":
+// while Maia says your likely move already holds, there is nothing to say, however sharp the
+// position -- and when it says you are about to step off, the set is the warning. Maia's answer
+// arrives a beat after the engine's (one forward pass, cached per position); until it lands, the
+// set-size rule stands in, so the net never goes silent for want of a second engine.
 function safety_net_showing() {
     const set = safety_net_set();
     if (!set || set.needMoreLines) return set;
+    if (set.forced) return null;                     // a recapture is not a decision
+    // order the set the way a HUMAN meets it: Maia's probability, engine order for the rest
+    const human = (last_eval.humanSelf && last_eval.humanSelf.fen === last_eval.fen)
+        ? last_eval.humanSelf.list : null;
+    if (human) {
+        const rank = new Map(human.map((h, i) => [h.uci, i]));
+        set.moves = set.moves.slice().sort((a, b) =>
+            (rank.has(a) ? rank.get(a) : 99) - (rank.has(b) ? rank.get(b) : 99));
+        set.likely = human[0]?.uci || null;
+    }
     if (config.safety_net_mode === 'live') return set;
-    const critical = Math.max(1, Math.min(5, Number(config.safety_net_max) || 3));
-    // a set that is everything we looked at is not a warning: the engine simply saw no danger
-    return (set.moves.length <= critical && set.moves.length < set.total) ? set : null;
-}
-
-// --- PLAYING WITH A NET -----------------------------------------------------------------------
-// Not "here is the best move". The question this answers is the one you actually have when the
-// moves are yours: am I about to throw this away, and what still holds if I am? So it reports a
-// SET -- every candidate whose win% is within a drop of the best one -- and in its quiet mode it
-// says nothing at all until that set is small enough to be a warning.
-//
-// The ruler is the win% the panel already judges moves by (win_percent + the published bands), so a
-// move this calls safe and a move the Game Review later calls a mistake cannot disagree.
-//
-// It can only ever see the lines the engine was asked for: with Multiple Lines at 1 there is no
-// set to report, and it says so rather than implying the one line is the only safe move.
-function safety_net_set() {
-    if (!config.safety_net) return null;
-    const lines = (last_eval.lines || []).filter(l => l && l.move && typeof l.score === 'number');
-    if (!lines.length) return null;
-    if (lines.length < 2) return {needMoreLines: true, moves: [], total: 0};
-    // scores are white-relative; the side to move is the one choosing, so flip for black
-    const sign = (turn === 'w') ? 1 : -1;
-    const wp = (l) => win_percent(sign * l.score);
-    const best = Math.max(...lines.map(wp));
-    const drop = Math.max(1, Math.min(50, Number(config.safety_net_drop) || 10));
-    const moves = lines.filter(l => best - wp(l) <= drop).map(l => l.move);
-    return {moves, total: lines.length, drop, needMoreLines: false};
-}
-
-// Quiet mode speaks only when the set is small -- that IS the warning. Live mode always shows it.
-function safety_net_showing() {
-    const set = safety_net_set();
-    if (!set || set.needMoreLines) return set;
-    if (config.safety_net_mode === 'live') return set;
+    if (set.bestWp != null && set.bestWp < SAFETY_NET_FLOOR_WP) return null;   // unsavable
+    if (set.likely) {
+        if (set.moves.includes(set.likely)) return null;   // your likely move already holds
+        // fire only on a move the engine actually SCORED outside the set -- a likely move the
+        // list never reached is unknown, not condemned, and falls through to the size rule
+        if (set.all.includes(set.likely)) { set.likelyThrows = true; return set; }
+    }
     const critical = Math.max(1, Math.min(5, Number(config.safety_net_max) || 3));
     // a set that is everything we looked at is not a warning: the engine simply saw no danger
     return (set.moves.length <= critical && set.moves.length < set.total) ? set : null;
@@ -7428,6 +7444,7 @@ function ensure_threat_human() {
         // the net is up -- retune it in place; the cached replies belong to the old rating
         threat_human_elo_loaded = elo;
         threat_human_cache.clear();
+        safety_human_cache.clear();
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci',
                                     line: `setoption name SelfElo value ${elo}`});
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci',
@@ -7453,6 +7470,11 @@ function ensure_threat_human() {
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'init',
                                     engine: 'maia3', maiaLevel: elo});
         await ready;
+        // FIVE lines, not one: the safety net reads Maia's ordering off this same client. The
+        // threat reply still parses only multipv 1, and the probabilities are a softmax over ALL
+        // legal moves, so widening the list changes no number either consumer reads.
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci',
+                                    line: 'setoption name MultiPV value 5'});
     })();
     return threat_human_ready;
 }
@@ -7465,6 +7487,7 @@ function dispose_threat_human() {
     threat_human_ready = null;
     threat_human_elo_loaded = null;
     threat_human_cache.clear();
+    safety_human_cache.clear();
 }
 
 // one forward pass for the position after `fen` -- resolves {uci, prob} or null
@@ -7517,15 +7540,64 @@ function draw_human_reply() {
     }
 }
 
+// ---- the net's own Maia read: what YOU are likely to play HERE --------------------------------
+// One forward pass on the CURRENT position, on the threat reply's engine (same client, same net,
+// same rating dial) but its own cache: this one keeps Maia's whole top list, because the net wants
+// the ORDER, not just the first line. Quiet mode reads the top entry -- silence while your likely
+// move already holds -- and the drawn set is sorted by these probabilities, so what it offers are
+// human-playable moves that still hold the edge, not engine order.
+const safety_human_cache = new Map();   // fen -> [{uci, prob}] in Maia's own order
+async function safety_human_choices(fen) {
+    if (safety_human_cache.has(fen)) return safety_human_cache.get(fen);
+    await ensure_threat_human();
+    const answer = await new Promise((resolve) => {
+        const timer = setTimeout(() => { cleanup(); resolve(null); }, 15000);
+        const list = [];
+        const onMsg = (m) => {
+            if (!m || !m.fromOffscreen || m.clientId !== threat_human_id || m.kind !== 'line') return;
+            const info = /info .*multipv (\d+) .*maiaprob (\d+) pv ([a-h][1-8][a-h][1-8][qrbn]?)/.exec(m.line || '');
+            if (info) list[Number(info[1]) - 1] = {uci: info[3], prob: Number(info[2]) / 10000};
+            if (/^bestmove\b/.test(m.line || '')) { cleanup(); resolve(list.filter(Boolean)); }
+        };
+        const cleanup = () => { clearTimeout(timer); chrome.runtime.onMessage.removeListener(onMsg); };
+        chrome.runtime.onMessage.addListener(onMsg);
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: `position fen ${fen}`});
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: 'go nodes 1'});
+    });
+    if (answer && answer.length) safety_human_cache.set(fen, answer);
+    return answer || [];
+}
+
+// asked whenever the net is watching our turn; redraws when the answer lands, because the verdict
+// can change either way (a fired warning goes quiet, a quiet position fires)
+function request_safety_net_human(fen) {
+    if (!config.safety_net) return;
+    if (config.variant && config.variant !== 'chess') return;    // the nets know one game
+    if (!our_turn_now()) return;
+    if (last_eval.humanSelf?.fen === fen) return;
+    safety_human_choices(fen).then((list) => {
+        if (!list.length) return;
+        if (last_eval.fen !== fen) return;    // the moment has passed
+        last_eval.humanSelf = {fen, list};
+        draw_safety_net();
+        update_best_move_suffix();
+    }).catch(() => {});
+}
+
 // Drawn on OUR turn only: the whole point is the move being yours. Its own colour and the response
 // layer, so it never poses as the engine's best-move arrow -- these are not recommendations, they
 // are the moves that keep the result.
 function draw_safety_net() {
+    // Its own layer, cleared on every draw: Maia's verdict lands AFTER the engine's, and can turn
+    // a fired warning quiet (or the reverse) -- appending onto a shared layer could neither erase
+    // stale arrows nor be erased without taking the threat's with it.
+    const host = PANEL_ROOT.getElementById('net-annotations');
+    if (!host) return;
+    while (host.childElementCount) host.lastElementChild.remove();
     if (!our_turn_now()) return;
     const set = safety_net_showing();
-    if (!set || set.needMoreLines || !set.moves.length) return;
+    if (!set || set.needMoreLines || set.forced || !set.moves.length) return;
     const colour = user_color('arrow_color_safety_net', '#4c9f70');
-    const host = PANEL_ROOT.getElementById('response-annotations');
     for (const uci of set.moves) draw_move(uci, colour, host, 0.14);
 }
 
@@ -7534,44 +7606,18 @@ function safety_net_label() {
     const set = safety_net_showing();
     if (!set) return '';
     if (set.needMoreLines) return i18n('panel.msg.net_needs_lines', 'Safety net needs more than one line');
-    if (!set.moves.length) return '';
+    if (set.forced || !set.moves.length) return '';
+    // say WHY it fired when the reason is your own likely move -- a warning that names the danger
+    // is actionable; a bare list is homework
+    const prefix = set.likelyThrows
+        ? i18n('panel.msg.net_likely_throws', 'Your likely {move} drops it - ',
+               {move: notate(last_eval.fen, set.likely)})
+        : '';
     if (set.moves.length === 1) {
-        return i18n('panel.msg.net_only_one', 'Only one move holds: {move}',
+        return prefix + i18n('panel.msg.net_only_one', 'Only one move holds: {move}',
                     {move: notate(last_eval.fen, set.moves[0])});
     }
-    return i18n('panel.msg.net_holds', '{n} moves hold: {moves}',
-                {n: set.moves.length, moves: set.moves.map(u => notate(last_eval.fen, u)).join(', ')});
-}
-
-// "Ours" without requiring Autoplay: the net is for when YOU are moving, which is precisely when
-// the panel is not playing for you.
-function our_turn_now() {
-    try { return String(turn === 'w' ? 'white' : 'black') === our_side(); } catch (e) { return false; }
-}
-
-// Drawn on OUR turn only: the whole point is the move being yours. Its own colour and the response
-// layer, so it never poses as the engine's best-move arrow -- these are not recommendations, they
-// are the moves that keep the result.
-function draw_safety_net() {
-    if (!our_turn_now()) return;
-    const set = safety_net_showing();
-    if (!set || set.needMoreLines || !set.moves.length) return;
-    const colour = user_color('arrow_color_safety_net', '#4c9f70');
-    const host = PANEL_ROOT.getElementById('response-annotations');
-    for (const uci of set.moves) draw_move(uci, colour, host, 0.14);
-}
-
-function safety_net_label() {
-    if (!config.safety_net || !our_turn_now()) return '';
-    const set = safety_net_showing();
-    if (!set) return '';
-    if (set.needMoreLines) return i18n('panel.msg.net_needs_lines', 'Safety net needs more than one line');
-    if (!set.moves.length) return '';
-    if (set.moves.length === 1) {
-        return i18n('panel.msg.net_only_one', 'Only one move holds: {move}',
-                    {move: notate(last_eval.fen, set.moves[0])});
-    }
-    return i18n('panel.msg.net_holds', '{n} moves hold: {moves}',
+    return prefix + i18n('panel.msg.net_holds', '{n} moves hold: {moves}',
                 {n: set.moves.length, moves: set.moves.map(u => notate(last_eval.fen, u)).join(', ')});
 }
 
@@ -7753,6 +7799,10 @@ function clear_annotations() {
     let response_annotation = PANEL_ROOT.getElementById('response-annotations');
     while (response_annotation.childElementCount) {
         response_annotation.lastElementChild.remove();
+    }
+    const net_annotation = PANEL_ROOT.getElementById('net-annotations');
+    while (net_annotation && net_annotation.childElementCount) {
+        net_annotation.lastElementChild.remove();
     }
 }
 
