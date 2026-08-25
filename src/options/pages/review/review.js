@@ -42,14 +42,130 @@ function cfg(key) {
 
 function setCfg(key, value) { MephistoConfig.set(key, JSON.stringify(value)); }
 
+// ---- the game type ----------------------------------------------------------------------------
+// One dropdown at the top decides the rules everything below plays by. `rv_variant` is the coarse
+// pick (chess | chess960 | variant | 4pc); `rvChessVariant()` resolves it to the id this chess.js
+// and the engines speak. The chess.com paths (classifier, Game Review) are standard chess only, so
+// any other game type forces the own-engine review.
+const RV_FAIRY_ONLY = ['crazyhouse', '3check', 'kingofthehill', 'antichess', 'atomic', 'horde', 'racingkings'];
+const RV_FAIRY_ENGINE = 'fairy-stockfish-14-nnue';
+// lichess/PGN variant names -> this chess.js's ids (the analysis page's map, same spellings)
+const RV_PGN_VARIANTS = {
+    'standard': 'chess', 'chess960': 'fischerandom', 'fischerandom': 'fischerandom',
+    'fischerrandom': 'fischerandom', 'crazyhouse': 'crazyhouse', 'three-check': '3check',
+    'threecheck': '3check', 'three check': '3check', 'king of the hill': 'kingofthehill',
+    'kingofthehill': 'kingofthehill', 'antichess': 'antichess', 'giveaway': 'antichess',
+    'atomic': 'atomic', 'horde': 'horde', 'racing kings': 'racingkings', 'racingkings': 'racingkings',
+};
+
+function rvChessVariant() {
+    const v = String(cfg('rv_variant') || 'chess');
+    if (v === 'chess960') return 'fischerandom';
+    if (v === 'variant') {
+        const w = String(cfg('rv_variant_which') || 'crazyhouse');
+        return RV_FAIRY_ONLY.includes(w) ? w : 'crazyhouse';
+    }
+    return 'chess';   // 'chess' and '4pc' (which never reaches a replay) both land here
+}
+
+// A rendered report keeps ITS OWN rules: flipping the dropdown after a run must not re-read the
+// finished report's moves under different rules.
+function reportVariant() { return report?.opts?.variant || 'chess'; }
+
+// init() owns the real sync (it closes over the DOM wiring); parsePgnBox needs to call it when a
+// pasted PGN decides the game type, so it is parked here for both to reach.
+let syncGameTypeUi = () => {};
+
+// A start position that IS a Chess960 start: full home ranks both sides, full pawn ranks, castling
+// rights present, and a back-rank arrangement that is not standard chess. Deliberately tight -- a
+// from-position standard game must never trip it, and a tagged 960 PGN never needs it.
+function looks960(fen) {
+    const parts = String(fen || '').split(/\s+/);
+    if ((parts[2] || '-') === '-') return false;
+    const ranks = (parts[0] || '').split('/');
+    if (ranks.length !== 8 || ranks[1] !== 'pppppppp' || ranks[6] !== 'PPPPPPPP') return false;
+    const black = ranks[0], white = (ranks[7] || '').toLowerCase();
+    const sorted = (s) => s.split('').sort().join('');
+    if (black.length !== 8 || white.length !== 8) return false;
+    if (sorted(black) !== 'bbknnqrr' || sorted(white) !== 'bbknnqrr') return false;
+    return black !== 'rnbqkbnr';
+}
+
+// What a pasted game says about its own rules. Returns a sentence for the parse note when it
+// changed (or could not honour) the Game type, or '' when there is nothing to say.
+function detectVariantFrom(game) {
+    if (!game) return '';
+    const current = String(cfg('rv_variant') || 'chess');
+    const rawTag = game.tags?.Variant ? String(game.tags.Variant).trim() : '';
+    const mapped = rawTag ? RV_PGN_VARIANTS[rawTag.toLowerCase()] : null;
+    if (rawTag && !mapped) {
+        return ` The PGN says Variant "${rawTag}", which this page cannot review.`;
+    }
+    let want = null, which = null;
+    if (mapped === 'chess') want = 'chess';
+    else if (mapped === 'fischerandom') want = 'chess960';
+    else if (mapped) { want = 'variant'; which = mapped; }
+    else if (!rawTag && game.startFen && looks960(game.startFen)) want = 'chess960';
+    if (!want) {
+        // nothing decisive in the PGN: remind when a non-chess type is in force, so a run under
+        // unusual rules is never a surprise
+        return current !== 'chess' && current !== '4pc'
+            ? ` Reviewing under the ${current === 'chess960' ? 'Chess960' : String(cfg('rv_variant_which'))} rules set above.`
+            : '';
+    }
+    if (current === want && (!which || String(cfg('rv_variant_which')) === which)) return '';
+    setCfg('rv_variant', want);
+    if (which) setCfg('rv_variant_which', which);
+    syncGameTypeUi();
+    const label = want === 'chess' ? 'Chess' : want === 'chess960' ? 'Chess960' : which;
+    return ` Game type set to ${label} from the PGN.`;
+}
+
 // ---- the run ----------------------------------------------------------------------------------
 
 // Replay the game once to get every position, and reject the PGN here rather than half-way through
-// a five-minute analysis. An illegal SAN is almost always a variant game pasted into a page that
-// only reviews standard chess, so it is worth saying which move failed.
-function buildPositions(game) {
-    const chess = new Chess('chess', game.startFen || undefined);
-    const positions = [{fen: chess.fen(), turn: chess.turn(), over: null}];
+// a five-minute analysis -- saying which move failed, and under WHICH rules it was read.
+// `uci` is chess.js's `lan`: for standard moves it is from+to+promotion exactly as before, for a
+// Chess960 castle it is king-takes-rook (what a UCI_Chess960 engine speaks), and for a crazyhouse
+// drop it is the drop SAN ('N@f3', Fairy's own spelling) -- so the played move always compares
+// equal to the engine's pv when they are the same move.
+// Crazyhouse pockets and three-check counts are tracked here (mirroring the analysis page's
+// nodeExtras) because this chess.js replays drops but keeps neither; `efen` is the position as the
+// ENGINE must see it -- holdings in brackets, checks as a +W+B field -- while `fen` stays the plain
+// board every cache, display and chess.js reconstruction reads.
+function buildPositions(game, variant = 'chess') {
+    let startFen = game.startFen || undefined;
+    let hold = {w: '', b: ''};
+    const checks = {w: 3, b: 3};
+    let promoted = [];
+    if (startFen && variant === 'crazyhouse') {
+        const held = /\[([a-zA-Z]*)\]/.exec(startFen);
+        if (held) {
+            hold = {w: (held[1].match(/[A-Z]/g) || []).join('').toLowerCase(),
+                    b: (held[1].match(/[a-z]/g) || []).join('')};
+            startFen = startFen.replace(/\[[a-zA-Z]*\]/, '');
+        }
+    }
+    if (startFen && variant === '3check') {
+        const c = /\s\+(\d)\+(\d)/.exec(startFen);
+        if (c) { checks.w = +c[1]; checks.b = +c[2]; startFen = startFen.replace(/\s\+\d\+\d/, ''); }
+    }
+    const chess = new Chess(variant, startFen);
+    const fairy = RV_FAIRY_ONLY.includes(variant);
+    const efenOf = () => {
+        if (variant === 'crazyhouse') {
+            const parts = chess.fen().split(' ');
+            parts[0] += `[${hold.w.toUpperCase()}${hold.b}]`;
+            return parts.join(' ');
+        }
+        if (variant === '3check') {
+            const parts = chess.fen().split(' ');
+            parts.splice(4, 0, `+${checks.w}+${checks.b}`);
+            return parts.join(' ');
+        }
+        return undefined;
+    };
+    const positions = [{fen: chess.fen(), turn: chess.turn(), over: null, efen: efenOf()}];
     const moves = [];
     for (let i = 0; i < game.moves.length; i++) {
         const san = game.moves[i].san;
@@ -61,12 +177,38 @@ function buildPositions(game) {
         }
         if (!mv) {
             const num = Math.floor(i / 2) + 1;
+            const rules = variant === 'chess' ? 'standard chess' : variant;
             throw new Error(`Move ${num}${i % 2 ? '...' : '.'} ${san} is not legal in this position `
-                + `(ply ${i + 1}). Game Review reads standard chess only.`);
+                + `(ply ${i + 1}) under ${rules}. Check the Game type at the top of Analysis.`);
+        }
+        if (variant === 'crazyhouse') {
+            // captures feed the capturer's pocket (a captured promoted piece reverts to a pawn),
+            // drops spend one -- the same accounting the analysis page verified live
+            if (mv.san.includes('@')) {
+                const type = mv.san[1] === '@' ? mv.san[0].toLowerCase() : 'p';
+                if (mv.color === 'w') hold.w = hold.w.replace(type, '');
+                else hold.b = hold.b.replace(type, '');
+            } else {
+                if (mv.captured) {
+                    const capSq = String(mv.flags || '').includes('e')
+                        ? mv.to[0] + (mv.color === 'w' ? '5' : '4') : mv.to;
+                    const wasPromoted = promoted.includes(capSq);
+                    const type = wasPromoted ? 'p' : mv.captured;
+                    if (mv.color === 'w') hold.w += type; else hold.b += type;
+                    if (wasPromoted) promoted = promoted.filter(s => s !== capSq);
+                }
+                const at = promoted.indexOf(mv.from);
+                if (at >= 0) { promoted.splice(at, 1); promoted.push(mv.to); }
+                if (mv.promotion) promoted.push(mv.to);
+            }
+        }
+        if (variant === '3check' && /[+#]$/.test(mv.san)) {
+            if (mv.color === 'w') checks.w = Math.max(0, checks.w - 1);
+            else checks.b = Math.max(0, checks.b - 1);
         }
         moves.push({
             san: mv.san,
-            uci: mv.from + mv.to + (mv.promotion || ''),
+            uci: mv.lan || (mv.from + mv.to + (mv.promotion || '')),
             color: mv.color,
             ply: i,
             clk: game.moves[i].clk,
@@ -81,9 +223,14 @@ function buildPositions(game) {
         // A finished position gets NO info lines from any engine -- there is nothing to search -- so
         // the score has to come from the rules. Without this the last move of every decisive game
         // was left unclassified, which is the one move a review is most often opened to look at.
+        // The Fairy variants END by rules this chess.js does not know (a third check, the hill, a
+        // king exploded), so no terminal claim is made for them -- the engine is asked instead, and
+        // a truly finished final position may stay unclassified rather than be scored by rules that
+        // are not this game's.
         positions.push({
             fen: chess.fen(), turn: chess.turn(),
-            over: chess.isCheckmate() ? 'mate' : (chess.isGameOver() ? 'draw' : null),
+            over: fairy ? null : (chess.isCheckmate() ? 'mate' : (chess.isGameOver() ? 'draw' : null)),
+            efen: efenOf(),
         });
     }
     return {positions, moves};
@@ -111,7 +258,7 @@ function incrementFromTimeControl(tc) {
 // hands the same pair to every game, which is most of what makes a batch cheaper than N single runs.
 async function runReview(game, rig, onProgress) {
     const opts = rig.opts;
-    const {positions, moves} = buildPositions(game);
+    const {positions, moves} = buildPositions(game, opts.variant || 'chess');
     fillThinkTime(moves, incrementFromTimeControl(game.tags.TimeControl));
 
     let total = positions.length + (rig.human ? moves.length : 0);
@@ -132,7 +279,8 @@ async function runReview(game, rig, onProgress) {
             // nobody notices; with the unbounded notch the run would otherwise sit on "starting the
             // engine" for the entire search, with nothing to say it was alive.
             onProgress(done / total, `position ${i + 1} of ${positions.length}`);
-            const r = await rig.engine.analyse(p.fen, p.turn);
+            // efen: the engine's dialect of the position (crazyhouse pockets, 3check counts)
+            const r = await rig.engine.analyse(p.efen || p.fen, p.turn);
             p.lines = r.lines;
             p.depth = r.depth;
             tick(`position ${i + 1} of ${positions.length}`);
@@ -209,6 +357,8 @@ async function strengthPass(positions, moves, prog, rig) {
     // their verdict, and this reads the SETTING rather than the rig, so without this guard it would
     // start a Maia of its own and then look for a human engine that was never created.
     if (rig?.noStrength) return null;
+    // Maia knows one game: no strength estimate for any other rules
+    if ((rig?.opts?.variant || 'chess') !== 'chess') return null;
     const kind = cfg('rv_human');
     if (!cfg('rv_strength') || !kind) return null;
     const usable = moves.map((m, i) => ({m, i})).filter(({m}) => strengthUsable(m));
@@ -380,19 +530,37 @@ function strengthForSide(rec, side, bands, phases) {
 // stays the user's: it changes how fast the same search runs, not what it finds. No human pass
 // either -- not part of their verdict, and it would double the wait for nothing.
 async function startRig(override) {
+    // the classifier override is chess-only by construction; everything else follows the dropdown
+    const variant = override ? 'chess' : rvChessVariant();
     const opts = {
-        variant: 'chess',
+        variant,
         limitKind: override?.depth ? 'depth' : cfg('rv_limit_kind'),
         limitValue: override?.depth || +cfg('rv_limit_value'),
         multipv: override?.multipv || Math.max(1, +cfg('rv_multipv')),
         threads: override?.threads || Math.max(1, +cfg('rv_threads')),
         hash: Math.max(16, +cfg('rv_hash')),
     };
-    const engine = makeEngine(override?.engineId || cfg('rv_engine'), opts, 'review');
+    // WHICH ENGINE CAN PLAY THESE RULES. The Fairy variants run on Fairy-Stockfish (the one bundled
+    // engine that declares them); Chess960 runs on any WASM Stockfish via UCI_Chess960, but the
+    // native hosts have no 960 plumbing, so a native pick falls back to the WASM default. Said in
+    // the run status rather than done silently.
+    let engineId = override?.engineId || cfg('rv_engine');
+    if (!override && RV_FAIRY_ONLY.includes(variant) && engineId !== RV_FAIRY_ENGINE) {
+        note(`Engine switched to Fairy-Stockfish for this run: only it plays ${variant}.`);
+        engineId = RV_FAIRY_ENGINE;
+    }
+    if (!override && variant === 'fischerandom'
+        && (ENGINES.find(e => e.id === engineId)?.kind === 'native')) {
+        note('Chess960 runs on the WASM Stockfish for this run: the native hosts have no 960 support.');
+        engineId = 'stockfish-18-nnue';
+    }
+    opts.engineId = engineId;   // the engine that actually ran, for the report header
+    const engine = makeEngine(engineId, opts, 'review');
     activeEngine = engine;
     await engine.start();
     let human = null;
-    const humanKind = override ? '' : cfg('rv_human');
+    // the Maia nets know one game: any other rules run without a human pass
+    const humanKind = (override || variant !== 'chess') ? '' : cfg('rv_human');
     if (humanKind) {
         const level = humanKind === 'maia3' ? String(cfg('rv_maia3_elo')) : String(cfg('rv_maia_band'));
         // Five of Maia's own choices: its RANK of the played move says far more than a yes/no.
@@ -517,7 +685,7 @@ function assemble(game, positions, moves, book, opts) {
             b: Core.indicators(moves, 'b', opts.multipv, phases, game.tags),
         },
         counts: {w: countClasses(moves, 'w'), b: countClasses(moves, 'b')},
-        engineId: cfg('rv_engine'),
+        engineId: opts.engineId || cfg('rv_engine'),
         humanKind: cfg('rv_human'),
         at: new Date().toISOString(),
     };
@@ -1473,14 +1641,29 @@ function renderDetail(pos, played) {
     }).join('');
 }
 
-// UCI -> SAN for display. A pv that goes illegal (it can, at the tail of a truncated line) stops
-// there rather than throwing the whole panel away.
+// UCI -> SAN for display, under the RENDERED REPORT's rules. A pv that goes illegal (it can, at
+// the tail of a truncated line) stops there rather than throwing the whole panel away.
+// Two variant spellings need translating: a drop ('N@f3') is its own SAN, and a Chess960 castle
+// arrives king-takes-rook -- when the target square holds the mover's own rook, that is O-O or
+// O-O-O by which side of the king the rook stands.
 function pvToSan(fen, pv) {
     const out = [];
+    const variant = reportVariant();
     try {
-        const chess = new Chess('chess', fen);
+        const chess = new Chess(variant, fen);
         for (const uci of (pv || []).slice(0, 12)) {
-            const mv = chess.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]});
+            let mv = null;
+            try {
+                if (uci.includes('@')) mv = chess.move(uci);
+                else mv = chess.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]});
+            } catch (e) { mv = null; }
+            if (!mv && variant === 'fischerandom' && uci.length >= 4) {
+                const target = chess.get?.(uci.slice(2, 4));
+                if (target && target.type === 'r' && target.color === chess.turn()) {
+                    const side = uci.charCodeAt(2) > uci.charCodeAt(0) ? 'O-O' : 'O-O-O';
+                    try { mv = chess.move(side); } catch (e) { mv = null; }
+                }
+            }
             if (!mv) break;
             out.push(mv.san);
         }
@@ -1711,7 +1894,8 @@ function parsePgnBox() {
     if (!text.trim()) note('');
     else if (!games.length) note('No games found in that text. A PGN needs at least one move.', true);
     else note(`${games.length} game${games.length > 1 ? 's' : ''} read`
-        + (games.length === 1 ? ` - ${games[0].moves.length} moves` : '') + '.');
+        + (games.length === 1 ? ` - ${games[0].moves.length} moves` : '') + '.'
+        + detectVariantFrom(selectedGame()));
 }
 
 function selectedGame() {
@@ -1723,6 +1907,8 @@ function selectedGame() {
 async function onRun() {
     if (running) return;
     if (!games.length) return note('Paste a PGN first.', true);
+    if (String(cfg('rv_variant')) === '4pc')
+        return note('4-player chess cannot be replayed from a PGN here - see the note under Game type.', true);
     const batch = cfg('rv_batch') && games.length > 1;
     const list = batch ? games : [selectedGame()];
     running = true;
@@ -2454,16 +2640,53 @@ class ReviewPage {
         // Which of the three reviews is on screen. Registered here like every other setting -- a
         // control that renders but is never wired reads as working and silently forgets itself.
         const rvModeSync = () => {
-            const m = cfg('rv_mode') || 'own';
+            const variant = String(cfg('rv_variant') || 'chess');
+            // the chess.com paths speak standard chess only: any other game type forces 'own'
+            let m = cfg('rv_mode') || 'own';
+            if (variant !== 'chess' && m !== 'own') { m = 'own'; setCfg('rv_mode', 'own'); }
             const sel = $('rv_mode');
-            if (sel && sel.value !== m) sel.value = m;
-            document.querySelectorAll('.rv-mode').forEach(el => el.classList.toggle('hidden', el.dataset.mode !== m));
+            if (sel) {
+                if (sel.value !== m) sel.value = m;
+                for (const opt of sel.options) opt.disabled = variant !== 'chess' && opt.value !== 'own';
+            }
+            const vsel = $('rv_variant');
+            if (vsel && vsel.value !== variant) vsel.value = variant;
+            const wsel = $('rv_variant_which');
+            if (wsel) {
+                wsel.classList.toggle('hidden', variant !== 'variant');
+                const w = String(cfg('rv_variant_which') || 'crazyhouse');
+                if (wsel.value !== w) wsel.value = w;
+            }
+            // a fairy variant is Fairy-Stockfish's game: flip the visible engine too, the way the
+            // Analysis page does, so the select never shows an engine the run would not use
+            if (RV_FAIRY_ONLY.includes(rvChessVariant()) && cfg('rv_engine') !== RV_FAIRY_ENGINE) {
+                setCfg('rv_engine', RV_FAIRY_ENGINE);
+                if ($('rv_engine')) $('rv_engine').value = RV_FAIRY_ENGINE;
+            }
+            const fourPc = variant === '4pc';
+            $('rv_4pc_note')?.classList.toggle('hidden', !fourPc);
+            if ($('rv_run')) $('rv_run').disabled = fourPc;
+            document.querySelectorAll('.rv-mode').forEach(el =>
+                el.classList.toggle('hidden', fourPc || el.dataset.mode !== m));
             // ...and the settings themselves: a control that cannot affect the selected review is
-            // worse than absent, because changing it looks like it did something.
+            // worse than absent, because changing it looks like it did something. Rows marked
+            // data-chess-only (the Maia passes) stand down for every other game type; in 4pc, which
+            // has no replay at all, every row does.
             document.querySelectorAll('[data-for]').forEach(el =>
-                el.classList.toggle('hidden', !el.dataset.for.split(' ').includes(m)));
+                el.classList.toggle('hidden', fourPc || !el.dataset.for.split(' ').includes(m)
+                    || (el.hasAttribute('data-chess-only') && variant !== 'chess')));
         };
         $('rv_mode')?.addEventListener('change', () => { setCfg('rv_mode', $('rv_mode').value); rvModeSync(); });
+        $('rv_variant')?.addEventListener('change', () => {
+            setCfg('rv_variant', $('rv_variant').value);
+            note('');
+            rvModeSync();
+        });
+        $('rv_variant_which')?.addEventListener('change', () => {
+            setCfg('rv_variant_which', $('rv_variant_which').value);
+            rvModeSync();
+        });
+        syncGameTypeUi = rvModeSync;   // parsePgnBox re-syncs through this when a PGN decides the type
         rvModeSync();
 
         // The tier list is BUILT from EE_TIERS, so a label can never claim a budget the code does

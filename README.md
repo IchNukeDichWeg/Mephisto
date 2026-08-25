@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-3.1.290-3fb950)
+![Version](https://img.shields.io/badge/version-3.1.291-3fb950)
 ![Engines](https://img.shields.io/badge/engines-9-58a6ff)
 ![Sites](https://img.shields.io/badge/sites-5-8b949e)
 ![Languages](https://img.shields.io/badge/languages-14-f0883e)
@@ -276,6 +276,15 @@ the review itself: the text stays in the tab and the search runs in the extensio
 review works fully offline once the games are in the box. (If you would rather have chess.com's own
 review instead, see the next section.)
 
+- **Game type at the top** - one dropdown decides the rules: **Chess** (everything below, exactly as
+  it always worked), **Chess960** (full own-engine review; castling encodes king-takes-rook for the
+  engine and the opening table naturally finds nothing in a random start), or a **Chess variant** -
+  Crazyhouse, Three-check, King of the Hill, Antichess, Atomic, Horde, Racing Kings - reviewed by
+  Fairy-Stockfish with Mephisto's own win-percentage classification, pockets and check counts fed to
+  the engine in its own FEN dialect. A pasted PGN's `[Variant]` tag (or a tagless Chess960 start
+  position) sets it for you. The chess.com paths below speak standard chess only and say so; the Maia
+  passes stand down outside standard chess. **4-player chess** is listed and honest: a 4-player game
+  cannot be replayed from a PGN here yet, and the page says exactly that instead of pretending.
 - **Any engine, at your budget** - the bundled WASM Stockfishes, or a native host at full power. A
   **depth** is reproducible (the same depth is the same answer on any machine) and is the default at 16;
   a **time per move** is a plain box in seconds (default 0.5s, steps of 0.5, type any value). Each mode

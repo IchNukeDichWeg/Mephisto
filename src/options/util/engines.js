@@ -62,6 +62,8 @@ const CFG_DEFAULTS = {
     rv_batch: false,
     rv_mode: 'own',          // which of the three reviews the page shows: own | local | online
     rv_ee_tier: 'card',      // chess.com classifier search budget: card | fast | standard | deep | max
+    rv_variant: 'chess',     // the game type: chess | chess960 | variant | 4pc
+    rv_variant_which: 'crazyhouse',   // which Fairy variant, when rv_variant is 'variant'
 };
 
 // A game whose clocks and blunders make the whole report show something. Deliberately a famous
