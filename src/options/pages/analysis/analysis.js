@@ -230,7 +230,6 @@ class AnalysisPage extends SettingsPage {
         };
         window.addEventListener('hashchange', onRoute);
         syncBandRow();
-        installTicks();
         syncTimeUi();
         loadStart();
         watchBoardSize();
@@ -299,57 +298,26 @@ function bandChoices() {
         : MAIA_BANDS.slice();
 }
 
-// The readout beside the slider says what the notch MEANS; the bubble riding the thumb says the
-// number itself. One readout, two sliders -- only the active kind's slider is visible, so the row
-// cannot show a number the search is not using.
-
-// One hard 1px line per labelled step, as a gradient layer the slider's CSS composes over the fill.
-// Built once per slider: the notch positions are properties of the scale, not of the value.
-function tickGradient(values, min, max) {
-    const C = 'rgba(140, 140, 140, 0.85)';
-    const parts = ['transparent 0'];
-    for (const v of values) {
-        const p = (((v - min) / (max - min)) * 100).toFixed(3);
-        parts.push(`transparent calc(${p}% - 0.5px)`, `${C} calc(${p}% - 0.5px)`,
-                   `${C} calc(${p}% + 0.5px)`, `transparent calc(${p}% + 0.5px)`);
-    }
-    parts.push('transparent 100%');
-    return `linear-gradient(to right, ${parts.join(', ')})`;
-}
-function installTicks() {
-    $('an_time_range')?.style.setProperty('--ticks',
-        tickGradient([10, 20, 30, 40, 50, 60], 1, AN_INFINITE));
-    $('an_depth_range')?.style.setProperty('--ticks',
-        tickGradient([5, 10, 15, 20, 25, 30, 35], 1, AN_DEPTH_MAX));
-}
-
+// The readout is JUST THE NUMBER, at the row's right edge -- the same shape as every other slider
+// row in the extension (user call 2026-08-25; the sentence readout and a value bubble both went).
+// The infinite notch reads as the one number that says it honestly. One readout, two sliders --
+// only the active kind's slider is visible, so the row cannot show a number the search is not using.
 function syncTimeUi() {
     const kind = String(cfg('an_limit_kind') || 'time');
     const t = $('an_time_range'), d = $('an_depth_range'), out = $('an_time_unit');
-    $('an_time_wrap')?.classList.toggle('hidden', kind === 'depth');
-    $('an_depth_wrap')?.classList.toggle('hidden', kind !== 'depth');
-    // the bubble: value text above the thumb, sharing the thumb's travel (7px..width-7px)
-    const bubble = (id, frac, text) => {
-        const el = $(id);
-        if (!el) return;
-        el.textContent = text;
-        el.style.setProperty('--f', String(frac));
-    };
+    t?.classList.toggle('hidden', kind === 'depth');
+    d?.classList.toggle('hidden', kind !== 'depth');
     if (kind === 'depth') {
         if (!d) return;
         const plies = Math.max(1, Math.min(AN_DEPTH_MAX, +d.value || CFG.an_depth));
-        if (out) out.textContent = `depth ${plies}, then stop`;
-        const frac = (plies - 1) / (AN_DEPTH_MAX - 1);
-        d.style.setProperty('--fill', `${frac * 100}%`);
-        bubble('an_depth_bubble', frac, String(plies));
+        if (out) out.textContent = String(plies);
+        d.style.setProperty('--fill', `${((plies - 1) / (AN_DEPTH_MAX - 1)) * 100}%`);
         return;
     }
     if (!t) return;
     const secs = Math.max(1, Math.min(AN_INFINITE, +t.value || AN_INFINITE));
-    if (out) out.textContent = secs >= AN_INFINITE ? 'no limit - until you move on' : `${secs}s per position`;
-    const frac = (secs - 1) / (AN_INFINITE - 1);
-    t.style.setProperty('--fill', `${frac * 100}%`);
-    bubble('an_time_bubble', frac, secs >= AN_INFINITE ? '∞' : `${secs}s`);
+    if (out) out.textContent = secs >= AN_INFINITE ? '∞' : `${secs}s`;
+    t.style.setProperty('--fill', `${((secs - 1) / (AN_INFINITE - 1)) * 100}%`);
 }
 
 function syncBandRow() {
@@ -710,7 +678,8 @@ async function pasteFromClipboard() {
 function engineOpts() {
     return {
         variant: anVariant(),
-        limitKind: 'depth',      // only the NATIVE path uses this; WASM runs `go infinite`
+        // both transports stream through startInfinite now; these are only the analyse() fallback
+        limitKind: 'depth',
         limitValue: 22,
         multipv: Math.max(1, +cfg('an_lines')),
         threads: Math.max(1, +cfg('an_threads')),

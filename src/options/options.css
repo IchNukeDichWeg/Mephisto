@@ -582,15 +582,9 @@ input[type=range] {
     border: none !important;
     height: 5px;
     border-radius: 3px;
-    /* Two layers: optional notch ticks over the fill. A slider that sets no --ticks paints exactly
-       as before (none + full-height fill); one that does (the Analysis budget) also sets --tick-h /
-       --track-h so the tick lines stand proud of the track stripe. */
-    background-image: var(--ticks, none), linear-gradient(to right,
+    background: linear-gradient(to right,
         var(--mp-on) 0%, var(--mp-on) var(--fill, 0%),
         var(--mp-track) var(--fill, 0%), var(--mp-track) 100%) !important;
-    background-size: 100% var(--tick-h, 100%), 100% var(--track-h, 100%) !important;
-    background-position: center, center !important;
-    background-repeat: no-repeat, no-repeat !important;
 }
 input[type=range]::-webkit-slider-runnable-track {
     background: transparent !important;

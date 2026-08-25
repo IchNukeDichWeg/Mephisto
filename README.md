@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-3.1.291-3fb950)
+![Version](https://img.shields.io/badge/version-3.1.292-3fb950)
 ![Engines](https://img.shields.io/badge/engines-9-58a6ff)
 ![Sites](https://img.shields.io/badge/sites-5-8b949e)
 ![Languages](https://img.shields.io/badge/languages-14-f0883e)
@@ -994,7 +994,7 @@ No schedule - added whenever I feel like it. Checked means shipped.
 ### Planned
 
 <details>
-<summary>26 items, sorted by upside and effort</summary>
+<summary>25 items, sorted by upside and effort</summary>
 
 **Quick wins.** Small changes with an obvious payoff. Empty once more as of v3.1.272 - all fourteen
 that were here shipped in one release.
@@ -1026,10 +1026,6 @@ that were here shipped in one release.
   language: what the position wants, what it is worried about, why the move it likes actually wins something.
   The pieces exist (eval, lines, the explanation work below); the hard part is saying it like a person and
   knowing when to shut up.
-
-- [ ] **Playing with a net** - for when the moves are yours. Live feedback you opt into, and underneath it a
-  quieter mode that says nothing at all unless you are about to throw the game away: not the best move, just
-  the set of moves that keep the result. The win% bands the panel already judges moves by are the right ruler.
 
 - [ ] **Drill mode** - the parts are all here: the puzzle database, the Opening Explorer's statistics, and Maia
   at a rating band. Put them together and a repertoire can be drilled against an opponent who plays like a human
@@ -1206,14 +1202,18 @@ veto for real blunders, and the clock rules above.
     stores a clock time per move, and eighty moves at an exact interval is a pattern no human
     produces.
 
-- [x] **Playing with a net** (v3.1.284)
+- [x] **Playing with a net** (v3.1.284, quiet mode rebuilt v3.1.292)
   - For when the moves are yours. Instead of naming the best move, it reports the SET of moves that
-    keep the result -- and in its quiet mode it says nothing at all until that set gets small
-    enough to be a warning, which is the moment you can actually throw a game away.
+    keep the result. Since v3.1.292 its quiet mode listens to Maia: it stays silent while the move
+    a human of your Human Reply Rating would likely play here still holds -- however sharp the
+    position -- and speaks the moment your likely move would drop the game, naming it ("Your likely
+    Qxa8 drops it - only Qc3 holds"). Until Maia's read lands, the old few-moves-left rule stands
+    in. It never nags about a position that is already lost, a forced move is no warning, and the
+    set it shows is ordered by how likely a human is to actually play each move.
   - Opt-in and off by default, with the knobs that decide what it means: quiet or live, how much
-    win% a move may cost and still count as holding (the same ruler Game Review judges by), and how
-    few moves must be left before quiet mode speaks. Its arrows sit on their own layer in their own
-    colour, so they never pose as the engine's recommendation.
+    win% a move may cost and still count as holding (the same ruler Game Review judges by), and the
+    fallback count for before Maia answers. Its arrows sit on their own layer in their own colour,
+    so they never pose as the engine's recommendation.
 
 - [x] **The screen reader turns a board that is upside down** (v3.1.284)
   - An image carries no side to move, so a board shown from Black's side used to come out rotated
