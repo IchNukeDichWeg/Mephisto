@@ -25,7 +25,7 @@ const RANDOM_TURN = 780;       // 1, added when WHITE is to move
 const KIND = {p: 0, n: 2, b: 4, r: 6, q: 8, k: 10};
 
 // `board` is chess.js-like: .get('e4') -> {type, color}, plus the fen fields we read directly.
-export function polyglotKey(fen) {
+function polyglotKey(fen) {
     const [placement, turn, castling, ep] = String(fen).trim().split(/\s+/);
     let key = 0n;
     let rank = 7, file = 0;
@@ -78,7 +78,7 @@ export function polyglotKey(fen) {
 // A book move is packed into 16 bits: to-file, to-rank, from-file, from-rank, promotion.
 // Castling is stored as the KING TAKING ITS OWN ROOK (e1h1), which is not a legal move anywhere
 // else, so it is translated to the king's two-square move.
-export function decodeMove(raw) {
+function decodeMove(raw) {
     const toFile = raw & 0x7, toRank = (raw >> 3) & 0x7;
     const fromFile = (raw >> 6) & 0x7, fromRank = (raw >> 9) & 0x7;
     const promo = (raw >> 12) & 0x7;
@@ -93,7 +93,7 @@ export function decodeMove(raw) {
 // cannot seek a file it was handed as bytes anyway, and the alternative is a binary search per
 // position over an ArrayBuffer -- which is what a bigger book would want, and is why the entries
 // stay sorted here.
-export function readBook(buffer) {
+function readBook(buffer) {
     const view = new DataView(buffer);
     const entries = new Map();   // key (string, base 16) -> [{uci, weight}]
     const count = Math.floor(buffer.byteLength / 16);
@@ -109,7 +109,37 @@ export function readBook(buffer) {
     return entries;
 }
 
-export function lookup(entries, fen) {
+function lookup(entries, fen) {
     if (!entries) return [];
     return entries.get(polyglotKey(fen).toString(16)) || [];
 }
+
+// A LOOKUP WITHOUT A PARSE: the entries are sorted by key, so a book of any size answers one
+// position in O(log n) straight off the raw bytes. This is the form the service worker uses for
+// the panel's book -- a 200MB book stored as-is in IndexedDB, never expanded into a Map.
+function bufferLookup(buffer, fen) {
+    const view = new DataView(buffer);
+    const count = Math.floor(buffer.byteLength / 16);
+    if (!count) return [];
+    const want = polyglotKey(fen);
+    let lo = 0, hi = count - 1, first = -1;
+    while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const k = view.getBigUint64(mid * 16);
+        if (k < want) lo = mid + 1;
+        else { if (k === want) first = mid; hi = mid - 1; }
+    }
+    if (first < 0) return [];
+    const out = [];
+    for (let i = first; i < count; i++) {
+        const o = i * 16;
+        if (view.getBigUint64(o) !== want) break;
+        out.push({uci: decodeMove(view.getUint16(o + 8)), weight: view.getUint16(o + 10)});
+    }
+    return out;
+}
+
+// A classic script on purpose: the service worker can only importScripts, and the options pages
+// read the same global -- ONE implementation of the format, verified once against its published
+// test keys, consumed everywhere.
+self.MephistoPolyglot = {polyglotKey, decodeMove, readBook, lookup, bufferLookup};

@@ -4,3 +4,7 @@
 
    This file is kept because require() fetches `<page>.css` for every page and a 404 would show up
    in the console on each visit. General-page-only rules belong here. */
+
+/* a one-line status under a settings row (the book import says what it holds), same voice as the
+   review page's status lines */
+.set-status { margin: 2px 0 8px; color: var(--mp-dim); font-size: 12.5px; min-height: 18px; }

@@ -9,7 +9,8 @@
 // and the board from panel-board.js.
 import {define} from "../../framework/require.js";
 import {SettingsPage} from "../../util/SettingsPage.js";
-import {readBook as readPolyglot, lookup as lookupPolyglot} from "../../util/polyglot.js";
+// polyglot.js is a classic script now (the service worker importScripts it for the panel book)
+const {readBook: readPolyglot, lookup: lookupPolyglot} = self.MephistoPolyglot;
 import {wirePgnDrop} from "../../util/dragdrop.js";
 import {refreshLimitWarnings} from "../../util/limits.js";
 

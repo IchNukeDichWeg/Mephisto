@@ -971,6 +971,8 @@ function init_quick_settings() {
                 explorer_out_of_book = false; explorer_empty_streak = 0;
                 render_explorer();
                 if (last_eval.fen) request_explorer(last_eval.fen);
+                own_book = null;   // re-ask under the new setting; absence re-latches by itself
+                if (last_eval.fen) request_own_book(last_eval.fen);
             }
             if (key === 'tablebase') {
                 tablebase_data = null; // a stale answer must not survive a toggle
@@ -3404,13 +3406,88 @@ function request_explorer(fen) {
     });
 }
 
+// ---- the user's OWN book (a Polyglot .bin imported on the settings page) ----------------------
+// It lives in the EXTENSION's IndexedDB and the service worker answers per position with one
+// binary search -- the puzzle database's architecture, because the panel's own indexedDB is the
+// SITE's. `moves: null` from the worker means no book is loaded at all, which is latched so a
+// bookless install costs one message per session, not one per move. An EMPTY answer is NOT
+// latched, unlike the explorer: the probe is local and deterministic (no rate limit to protect),
+// and a game can transpose back into a repertoire book after leaving it.
+let own_book = null;          // {fen, moves: [{uci, weight}]} for the last position answered
+let own_book_absent = false;  // the worker said no book is loaded (per panel lifetime)
+
+// Fire-and-forget, exactly like request_explorer: the move path never waits for it.
+function request_own_book(fen) {
+    if (!config.book_play || own_book_absent) return;
+    if (config.variant && config.variant !== 'chess') return;   // Polyglot keys standard chess
+    if (config.puzzle_mode) return;
+    if (own_book?.fen === fen) return;
+    chrome.runtime.sendMessage({bookLookup: {fen}}, (res) => {
+        if (chrome.runtime.lastError || !res || res.error) return;   // worker asleep/failed: retry next move
+        if (res.moves === null) { own_book_absent = true; return; }
+        own_book = {fen, moves: res.moves || []};
+    });
+}
+
+// Fire-and-forget. Never awaited by the move path (see the note above).
+function request_explorer(fen) {
+    if (!explorer_enabled() || explorer_out_of_book) return;
+    // Same rule as the tablebase probe: silent in a hidden tab, unless Background Play says the game
+    // is still going. Otherwise a backgrounded game silently loses its book moves.
+    if (document.hidden && !config.background_play) return;
+    if (explorer_data?.fen === fen) return; // already have this position
+    chrome.runtime.sendMessage({explorerLookup: {fen, db: config.explorer_db || 'masters'}}, (res) => {
+        // A failed lookup must SAY so. Drawing nothing is indistinguishable from "the feature is
+        // broken" -- which is exactly how a blocked endpoint presented.
+        if (chrome.runtime.lastError || !res || res.error) {
+            explorer_error = res?.error || chrome.runtime.lastError?.message || 'no response';
+            explorer_data = null;
+            console.warn('Mephisto: explorer lookup failed -', explorer_error);
+            render_explorer();
+            return;
+        }
+        explorer_error = null;
+        if (!res.moves?.length) {
+            // Don't latch on a SINGLE empty answer. "Out of book" at move 1 is impossible, so one
+            // empty response means something is wrong with the lookup, not that the game left book
+            // -- and latching there would kill the feature for the rest of the game with no retry.
+            // Three in a row is a real exit from book; anything less retries on the next move.
+            explorer_empty_streak++;
+            console.warn(`Mephisto: explorer returned no moves for ${fen} (${explorer_empty_streak}/3)`);
+            if (explorer_empty_streak >= 3) explorer_out_of_book = true;
+            explorer_data = null;
+            render_explorer();
+            return;
+        }
+        explorer_empty_streak = 0;
+        explorer_data = {fen, moves: res.moves, opening: res.opening || null};
+        render_explorer();
+    });
+}
+
 // Weighted-random pick, with BOTH filters the design calls for:
 //   1. minimum games   -- the move has to be statistically real, not a 3-game curiosity
 //   2. the engine veto -- it must also be within BOOK_MAX_LOSS cp of the engine's own best, judged
 //      from the MultiPV lines the engine is already producing (no extra search)
 // Returns a UCI move, or null to let the engine's move stand.
 function book_pick(fen) {
-    if (!config.book_play || !explorer_data || explorer_data.fen !== fen) return null;
+    if (!config.book_play) return null;
+    // THE USER'S OWN BOOK OUTRANKS THE ONLINE STATISTICS: its lines are prep, played as given --
+    // no minimum-games filter and no engine veto, because second-guessing a deliberately loaded
+    // repertoire is exactly what loading one is meant to end. Weighted random over the book's own
+    // weights; an all-zero-weight book (they exist) plays uniform rather than nothing. The rail's
+    // own legality check still stands after this returns.
+    if (own_book && own_book.fen === fen && own_book.moves.length) {
+        const pool = own_book.moves.filter(m => m.weight > 0);
+        const total = pool.reduce((s, m) => s + m.weight, 0);
+        if (pool.length && total > 0) {
+            let roll = Math.random() * total;
+            for (const m of pool) { if ((roll -= m.weight) <= 0) return m.uci; }
+            return pool[pool.length - 1].uci;
+        }
+        return own_book.moves[Math.floor(Math.random() * own_book.moves.length)].uci;
+    }
+    if (!explorer_data || explorer_data.fen !== fen) return null;
     const evals = engine_line_scores();          // uci -> cp, from the current MultiPV lines
     const best = Math.max(...Object.values(evals), -Infinity);
     const pool = [];
@@ -4469,6 +4546,7 @@ function on_new_pos(fen, startFen, moves) {
     }
     // fire the book lookup NOW so the answer has the whole search to arrive; never awaited
     request_explorer(fen);
+    request_own_book(fen);
     request_tablebase(fen);
     request_puzzle_solution(fen);
     bgTrace('on_new_pos', {turn, autoplay: config.autoplay, puzzle: config.puzzle_mode,
