@@ -941,6 +941,36 @@ async function tablebaseLocal(fen) {
   return r; // {category, dtz, moves: [...best-first], source: 'local'} -- the online response's shape
 }
 
+// Borrow lichess's Gaviota dtm into a LOCAL answer (root + per move, matched by uci), then
+// re-rank with the full lila key -- dtm outranks dtz there, so play maximizes the mate count
+// exactly like lichess's own moves[0]. Only for <=5 men (no dtm exists beyond that anywhere),
+// only when lichess is reachable and not cooling down, and every failure leaves the local
+// answer untouched.
+async function tbMergeOnlineDtm(local, fen, path) {
+  try {
+    const men = (fen.split(' ')[0].match(/[a-zA-Z]/g) || []).length;
+    if (men > 5 || lichess_blocked()) return;
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 4000);
+    let online;
+    try {
+      const r = await fetch(`${TABLEBASE_HOST}/${path}?fen=${encodeURIComponent(fen)}`, {signal: ctl.signal});
+      lichess_note_response(r, 'tablebase');
+      online = r.ok ? await r.json() : null;
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!online || typeof online.dtm !== 'number' || !Array.isArray(online.moves)) return;
+    local.dtm = online.dtm;
+    const byUci = new Map(online.moves.map(m => [m.uci, m.dtm]));
+    for (const m of local.moves) {
+      const d = byUci.get(m.uci);
+      if (typeof d === 'number') m.dtm = d;
+    }
+    self.MephistoSyzygy.sortMovesLikeLichess(local.moves);
+  } catch (e) { /* offline / aborted: the local answer stands alone */ }
+}
+
 // Settings' "Check" button: what does the folder hold, and can the host see it at all? The errors
 // are the product here -- "no host installed" and "host copy predates tbprobe" are the two states
 // a user can actually fix, and neither is visible from the probe path (it just falls back online).
@@ -1384,7 +1414,12 @@ async function tablebaseLookup({fen, variant}) {
   if ((variant || 'chess') === 'chess') {
     const local = (await tablebaseBrowserLocal(fen)) || (await tablebaseLocal(fen));
     if (local) {
-      console.log('[Tablebase] local', fen, `${local.category} (${local.moves?.length ?? 0} moves)`);
+      // Syzygy files hold NO mate distances -- lichess adds dtm from separate Gaviota tables
+      // (<=5 men only). Borrow it when the network allows: the label then counts MATE and the
+      // pick becomes mate-optimal, exactly the lichess ordering. Offline or blocked, the local
+      // answer stands alone with its dtz -- borrowing is an upgrade, never a dependency.
+      await tbMergeOnlineDtm(local, fen, path);
+      console.log('[Tablebase] local', fen, `${local.category} (${local.moves?.length ?? 0} moves${local.dtm != null ? ', dtm merged' : ''})`);
       if (tablebaseCache.size >= TABLEBASE_CACHE_MAX) tablebaseCache.delete(tablebaseCache.keys().next().value);
       tablebaseCache.set(key, local);
       return local;

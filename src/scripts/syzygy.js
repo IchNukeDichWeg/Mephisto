@@ -1174,8 +1174,12 @@ class Tablebase {
 
     // The lichess-API-shaped answer the panel consumes: root verdict plus every legal move ranked
     // best-first, each move's category/dtz from the perspective of the side to move AFTER it (a
-    // move to 'loss' loses for THEM) -- same convention as the native-host route, verified against
-    // the API itself.
+    // move to 'loss' loses for THEM). The ORDER replicates lila-tablebase's MoveInfo::sort_key:
+    // category, then a mating move, then (for the winning side) ZEROING moves -- a clean capture
+    // or pawn push resets the 50-move clock and makes irreversible progress -- then dtz. Sorting
+    // by dtz alone repeated checks forever: after a capture the child dtz restarts counting the
+    // NEXT phase, so the capture sorted behind the check that merely kept it available, and
+    // autoplay shuffled a won game into a repetition draw (found live, 2026-08-25).
     probeResponse(fen) {
         const CATEGORY = {'2': 'win', '1': 'cursed-win', '0': 'draw', '-1': 'blessed-loss', '-2': 'loss'};
         const board = new ShimBoard(this.Chess, fen);
@@ -1187,23 +1191,50 @@ class Tablebase {
         const moves = [];
         for (const mv of board.allMoves()) {
             board.push(mv);
-            let childWdl, childDtz;
+            let childWdl, childDtz, mate, stale;
             try {
                 childWdl = this.probeWdl(board);
                 childDtz = this.probeDtz(board);
+                mate = board.isCheckmate();
+                stale = board.allMoves().length === 0 && !mate;
             } finally {
                 board.pop();
             }
-            moves.push({uci: mv.lan, san: mv.san, category: CATEGORY[String(childWdl)] || 'unknown', dtz: childDtz});
+            moves.push({
+                uci: mv.lan, san: mv.san,
+                category: CATEGORY[String(childWdl)] || 'unknown', dtz: childDtz,
+                checkmate: mate, stalemate: stale,
+                zeroing: mv.flags.includes('c') || mv.flags.includes('e') || mv.piece === 'p',
+            });
         }
-        const rank = {loss: 0, 'blessed-loss': 1, draw: 2, 'cursed-win': 3, win: 4, unknown: 5};
-        moves.sort((a, b) => (rank[a.category] - rank[b.category]) || (b.dtz - a.dtz));
-
+        sortMovesLikeLichess(moves);
         return {category: CATEGORY[String(wdl)] || 'unknown', dtz, moves, source: 'local'};
     }
 }
 
-const api = {Tablebase, ShimBoard, MissingTableError, isTablename, normalizeTablename, tableDependencies, calcKey, TBW_MAGIC, TBZ_MAGIC};
+// lila-tablebase's MoveInfo::sort_key, translated. Each move's fields are from the perspective
+// of the side to move AFTER it: a negative-for-them category ('loss'/'blessed-loss') is a move
+// WE want. Terms, in order: category; a mating move; a stalemating move (the best a drawn
+// position offers); dtm when EVERY move carries one (merged from the online answer -- Syzygy
+// files hold no mate distances); zeroing preferred while winning and avoided while losing;
+// then dtz, fastest win first / longest defense first.
+function sortMovesLikeLichess(moves) {
+    const rank = {loss: 0, 'blessed-loss': 1, draw: 2, 'cursed-win': 3, win: 4, unknown: 5};
+    // lila: zeroing ^ !category.is_positive() -- positive means THEY win (win/cursed-win), so
+    // zeroing is preferred for loss/blessed-loss/draw children and avoided when we are losing
+    const preferZeroing = (m) => m.category !== 'win' && m.category !== 'cursed-win';
+    const allDtm = moves.length > 0 && moves.every(m => typeof m.dtm === 'number');
+    moves.sort((a, b) =>
+        (rank[a.category] - rank[b.category])
+        || ((b.checkmate ? 1 : 0) - (a.checkmate ? 1 : 0))
+        || ((b.stalemate ? 1 : 0) - (a.stalemate ? 1 : 0))
+        || (allDtm ? (b.dtm - a.dtm) : 0)
+        || (((b.zeroing === preferZeroing(b)) ? 1 : 0) - ((a.zeroing === preferZeroing(a)) ? 1 : 0))
+        || (b.dtz - a.dtz));
+    return moves;
+}
+
+const api = {Tablebase, ShimBoard, MissingTableError, isTablename, normalizeTablename, tableDependencies, calcKey, sortMovesLikeLichess, TBW_MAGIC, TBZ_MAGIC};
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 else self.MephistoSyzygy = api;
 

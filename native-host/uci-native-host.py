@@ -297,20 +297,31 @@ def do_tbprobe(data):
         moves = []
         for mv in board.legal_moves:
             san = board.san(mv)
+            zeroing = board.is_zeroing(mv)
             board.push(mv)
             # each move's verdict is from the perspective of the side to move AFTER it, exactly
             # like the lichess API (the panel picks moves[0] on that convention: a move to 'loss'
             # loses FOR THEM, i.e. what we want) -- so NO negation here
             child_dtz = tb.probe_dtz(board)
             child_wdl = tb.probe_wdl(board)
+            mate = board.is_checkmate()
+            stale = board.is_stalemate()
             board.pop()
             moves.append({'uci': mv.uci(), 'san': san,
-                          'category': _TB_CATEGORY.get(child_wdl, 'unknown'), 'dtz': child_dtz})
-        # lichess's ordering, best for the mover first: their losses (our wins) by fastest dtz,
-        # then draws, then their wins (our losses) holding out longest. Child dtz is negative when
-        # they are losing, so (rank, -dtz) orders both ends correctly.
+                          'category': _TB_CATEGORY.get(child_wdl, 'unknown'), 'dtz': child_dtz,
+                          'checkmate': mate, 'stalemate': stale, 'zeroing': zeroing})
+        # lila-tablebase's MoveInfo::sort_key: category, a mating move, a stalemating move, then
+        # ZEROING preferred unless they are winning, then dtz (fastest win / longest defense).
+        # Plain (rank, -dtz) shuffled a won game into a repetition draw: after a capture the child
+        # dtz restarts the NEXT phase, so the capture sorted behind the check that merely kept it
+        # available (found live, 2026-08-25).
         rank = {'loss': 0, 'blessed-loss': 1, 'draw': 2, 'cursed-win': 3, 'win': 4, 'unknown': 5}
-        moves.sort(key=lambda m: (rank[m['category']], -m['dtz']))
+        moves.sort(key=lambda m: (
+            rank[m['category']],
+            not m['checkmate'],
+            not m['stalemate'],
+            m['zeroing'] != (m['category'] not in ('win', 'cursed-win')),
+            -m['dtz']))
         return {'category': _TB_CATEGORY.get(wdl, 'unknown'), 'dtz': dtz, 'moves': moves, 'source': 'local'}
     except (_s.MissingTableError, KeyError) as e:
         return {'error': f'missing table: {e}'}
