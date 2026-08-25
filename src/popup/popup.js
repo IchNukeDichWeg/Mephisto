@@ -1493,6 +1493,19 @@ async function initialize_engine(reuseWarm = false) {
         }).catch(on_remote_error);
         remote_multipv_set = effective_multipv(); // baseline just configured; don't re-push it
     } else {
+        // STOP BEFORE THE PREAMBLE. Boot no longer awaits this init (v3.1.250), so a scraped
+        // position can issue `position` + `go infinite` while the engine is still loading -- the
+        // offscreen host queues everything and flushes IN ORDER, which puts that `go` AHEAD of the
+        // lines below. Stockfish serves `ucinewgame` (and the Hash/Threads setoptions) by waiting
+        // for the running search to finish, and an infinite search never does: the engine's command
+        // thread wedged FOREVER, every later uci line (stop included) queued behind it, the search
+        // streamed the old position for the rest of the session, and apply_setup_fen could never
+        // re-drive it. Measured live on lichess/analysis: zero readyok all session, two ignored
+        // stops, depth still climbing on the abandoned position 18s after the setup fen was set.
+        // A stop here lands ahead of the preamble in the same ordered queue, so the preamble meets
+        // a quiet engine. The flushed bestmove is charged by abandon_search and eaten as usual.
+        const search_was_live = search_active;
+        abandon_search();
         // WASM engines can't allocate the big hash the slider now allows (4 GB) -- their heap is
         // capped, so clamp to 512 MB here. Native engines (remote branch above) get the full value.
         send_engine_uci(`setoption name Hash value ${Math.min(config.memory, 512)}`);
@@ -1524,6 +1537,13 @@ async function initialize_engine(reuseWarm = false) {
         }
         send_engine_uci('ucinewgame');
         send_engine_uci('isready');
+        // The search stopped above was for a position the panel is still holding -- nothing else
+        // re-issues it (the scrape path dedupes on last_eval.fen), so re-drive it here, behind the
+        // preamble in the same ordered queue. Skipped when nothing was searching (fresh boot before
+        // the first scrape, Maia band switch -- that path abandons first and re-detects itself).
+        if (search_was_live && last_eval.fen) {
+            on_new_pos(last_eval.fen, last_pos.startFen || last_eval.fen, last_pos.moves || '');
+        }
     }
     engine_ready = true;
     last_init_engine = config.engine;
