@@ -1216,6 +1216,16 @@ body.mephisto-compact #alt-lines {
     cursor: pointer;
 }
 #calibrate-notice[hidden] { display: none; }
+/* Both notices are pinned into the very slot the set-up row lays out in (bottom: 58px of the left
+   column -- their "nothing is laid out below it" comment predates the row), so an open row got the
+   notice painted straight over its message. While the row is OPEN the user is actively working
+   there: their input wins, the notice yields, and it comes back on its own when the row closes.
+   Keyed on the row's inline display because several paths toggle it (setupfen button, stash
+   restore, walk-line, panel-board play), and written sibling-relative because a bare `body`
+   selector does not survive the shadow-DOM rehoming in background-script.js (only `body.mephisto-*`
+   and `html, body` are rewritten onto #mephisto-panel-body). */
+#update-notice:has(~ #setup-fen-row:not([style*="display: none"])),
+#calibrate-notice:has(~ #setup-fen-row:not([style*="display: none"])) { display: none; }
 body.mephisto-dark #calibrate-notice { color: #4dd0e1; }
 body.mephisto-dark #update-notice { color: #4dd0e1; }
 body.mephisto-dark #idle-reason { color: #e8c76a; background: rgba(232, 199, 106, 0.12); }
