@@ -1787,7 +1787,17 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         // not our position any more: draw nothing, play nothing, and get back in step
         engine_out_of_sync(best);
         return;
-    } else if (config.simon_says_mode) {
+    }
+    // The tablebase pick will BE the played move -- it outranks the engine at play time -- so the
+    // readout must announce IT. The panel used to say the engine's pick while autoplay made the
+    // tablebase's, which read as "it plays a different move" (reported live, 2026-08-25). One
+    // substitution HERE keeps the readout, last_eval.bestmove, premove certification and the
+    // safety net all talking about the move that actually gets made.
+    {
+        const tb_show = tablebase_pick(last_eval.fen);
+        if (tb_show && move_possible_here(last_eval.fen, tb_show)) best = tb_show;
+    }
+    if (config.simon_says_mode) {
         if (toplay.toLowerCase() === our_side()) {
             const startSquare = best.substring(0, 2);
             const startPiece = board.position()[startSquare];
@@ -1901,7 +1911,10 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 if (!tb_ok && played !== best) console.log(`Book: playing ${played} over ${best} (weighted random)`);
                 if ((config.humanize || clock_aware()) && !config.puzzle_mode) {
                     const pick = humanize_pick(best);
-                    if (played !== best) pick.move = played; // book wins the move, humanize keeps the clock
+                    // tb_ok must be explicit here: now that the readout substitutes the tablebase
+                    // move into `best`, played === best on a tablebase hit -- and without this,
+                    // humanize's roll could override a SOLVED position's move
+                    if (tb_ok || played !== best) pick.move = played; // book/tablebase win the move, humanize keeps the clock
                     if (pick.move !== best) console.log(`Humanize: playing ${pick.move} over ${best}`);
                     // the search already burned most of the intended think (on_new_pos sized it to
                     // the pace), so only wait out the RESIDUAL -- never idle time the engine could
@@ -2959,6 +2972,20 @@ function request_tablebase(fen) {
         if (chrome.runtime.lastError || !res || res.error || !res.moves?.length) return;
         tablebase_data = {fen, ...res};
         console.log(`Tablebase: ${res.category} (dtz ${res.dtz}, dtm ${res.dtm}) -> ${res.moves[0].uci}`);
+        // The probe usually answers before the engine, and on_engine_best_move then announces the
+        // tablebase move. When the ENGINE answered first, the readout already names the engine's
+        // pick -- rewrite it with the move this answer now dictates, and redraw so its arrow
+        // leads. (The move already played, if any, stays played: this repairs the announcement.)
+        const pick = tablebase_pick(fen);
+        if (pick && last_eval.fen === fen && last_eval.bestmove && last_eval.bestmove !== pick
+            && move_possible_here(fen, pick)) {
+            last_eval.bestmove = pick;
+            const side = (turn === 'w') ? i18n('color.white', 'White') : i18n('color.black', 'Black');
+            update_best_move(i18n('panel.msg.to_play_best', '{side} to play, best move is {move}',
+                {side, move: notate(fen, pick)}));
+            draw_moves();
+            return;
+        }
         update_best_move_suffix();
     });
 }
@@ -2974,21 +3001,24 @@ function tablebase_pick(fen) {
     return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(best ?? '') ? best : null;
 }
 
-// Appended to the move readout so a tablebase move is never silently substituted for the engine's.
+// The verdict line under the readout. The readout itself names the tablebase move whenever the
+// pick will drive the play (see on_engine_best_move); this label carries the verdict, the count
+// and the source.
 function tablebase_label() {
     if (!tablebase_data || tablebase_data.fen !== last_eval.fen) return '';
     const c = tablebase_data.category;
-    // dtm is a real MATE distance (lichess sends it for <=5 men); dtz is plies to a CAPTURE OR
-    // PAWN MOVE, which is a different thing -- "lost in 2" for dtz 2 read as mate-in-2 while it
-    // meant "the knight falls in 2". Local answers and 6-7-man online answers only have dtz, so
-    // they say DTZ instead of pretending to count mate.
+    // dtm is a real MATE distance in PLIES (lichess's Gaviota data, <=5 men; merged into local
+    // answers when the network allows); dtz only counts plies to a capture or pawn move. With a
+    // mate distance the label counts MATE IN MOVES -- what a chess player reads -- and without
+    // one it says DTZ instead of pretending.
     const hasDtm = tablebase_data.dtm != null;
     const n = Math.abs((hasDtm ? tablebase_data.dtm : tablebase_data.dtz) ?? 0);
+    const m = Math.ceil(n / 2);   // plies -> moves for the mate count
     // name the source: "(local)" means the user's own files answered and nothing left this machine
     const s = tablebase_data.source === 'local' ? ' ' + i18n('panel.tb.local', '(local)') : '';
-    if (c === 'win') return (hasDtm ? i18n('panel.tb.win', 'Tablebase: win in {n}', {n})
+    if (c === 'win') return (hasDtm ? i18n('panel.tb.mate', 'Tablebase: mate in {m}', {m})
                                     : i18n('panel.tb.win_dtz', 'Tablebase: winning, DTZ {n}', {n})) + s;
-    if (c === 'loss') return (hasDtm ? i18n('panel.tb.loss', 'Tablebase: lost in {n}', {n})
+    if (c === 'loss') return (hasDtm ? i18n('panel.tb.mated', 'Tablebase: mated in {m}', {m})
                                      : i18n('panel.tb.loss_dtz', 'Tablebase: losing, DTZ {n}', {n})) + s;
     if (c === 'draw') return i18n('panel.tb.draw', 'Tablebase: draw') + s;
     if (c === 'cursed-win') return i18n('panel.tb.cursed', 'Tablebase: winning, DTZ {n} (50-move drawn)', {n}) + s;
@@ -7459,8 +7489,20 @@ function draw_moves() {
         draw_move(step.uci, color, PANEL_ROOT.getElementById('move-annotations'), 0.12, 0, '');
         if (page_arrows) hint_arrows.push({move: step.uci, width: 0.12, color, rank: 0, label: ''});
     }
+    // The tablebase pick leads the board too: it is the move autoplay makes, so its arrow is the
+    // widest one, labeled with the mate count (or TB), and an engine line that agrees with it is
+    // not drawn twice underneath.
+    const tb_arrow = tablebase_pick(last_eval.fen);
+    if (tb_arrow) {
+        const tb_label = tablebase_data?.dtm != null
+            ? '#' + Math.ceil(Math.abs(tablebase_data.dtm) / 2) : 'TB';
+        draw_move(tb_arrow, line_color(0), PANEL_ROOT.getElementById('move-annotations'), 0.25, 0, tb_label);
+        if (page_arrows) hint_arrows.push({move: tb_arrow, width: 0.25, color: line_color(0), rank: 0, label: tb_label});
+    }
+
     for (let i = 0; i < last_eval.activeLines; i++) {
         if (!last_eval.lines[i]) continue;
+        if (tb_arrow && last_eval.lines[i].move === tb_arrow) continue;
 
         const arrow_color = line_color(i); // per-rank colour (was blue for #1, grey for all the rest)
         const stroke_width = strokeFunc(last_eval.lines[i]);
