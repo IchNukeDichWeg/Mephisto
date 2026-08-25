@@ -2462,6 +2462,18 @@ function is_legal_position(fen) {
     } catch (e) {
         return false; // chess.js could not parse the FEN
     }
+    // Piece-count sanity, standard chess only, gated like apply_castling_rights (Horde
+    // alone starts with 36 white pawns; other Fairy variants break these bounds too).
+    // chess.js parses an over-populated board, but the WASM dev Stockfish rejects it
+    // ("More than 32 pieces on the board") and after that rejection its input side is
+    // wedged for the life of the offscreen document -- so it must never see one.
+    if (!config.variant || config.variant === 'chess') {
+        const placement = fen.split(' ')[0];
+        const count = (re) => (placement.match(re) || []).length;
+        if (count(/[PNBRQK]/g) > 16 || count(/[pnbrqk]/g) > 16) return false;
+        if (count(/P/g) > 8 || count(/p/g) > 8) return false;
+        if (count(/K/g) !== 1 || count(/k/g) !== 1) return false;
+    }
     // Strict legality only for standard chess / chess960. Other variants have their own
     // rules (antichess & horde legitimately have no king, racingkings differs) and run on
     // fairy-stockfish, which tolerates unusual positions.
