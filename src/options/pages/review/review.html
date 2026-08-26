@@ -247,6 +247,26 @@
                 </div>
 
                 <div class="set-row" data-for="own">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="rv.tip.workers" class="tooltipped" data-position="right"
+                              data-tooltip="How many engines search at once. A game's positions are independent, so
+                                            two engines finish the pass in about half the time -- the same trick
+                                            chess.com's review uses. The Threads below are SPLIT between them, so
+                                            more engines means less depth each: two is the sweet spot on most
+                                            machines, one is the old behaviour.">
+                            <span data-i18n="rv.workers">Engines at once</span> <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                            <input id="rv_workers" type="number" min="1" max="4" step="1">
+                            <button type="button" class="set-step-btn" data-step="1">+</button>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="set-row" data-for="own">
                     <div class="set-lbl"><span data-i18n="panel.threads">Threads</span></div>
                     <div class="set-ctl">
                         <span class="set-step">
