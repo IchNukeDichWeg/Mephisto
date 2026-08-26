@@ -3560,7 +3560,14 @@ function getPieces() {
         return []; // no DOM pieces; determineStartPosition's lichess-only cache never applies here
     }
     if (site === 'chesscom') {
-        return document.querySelectorAll('.piece');
+        // SCOPED TO THE BOARD (audit finding #11): the lichess and blitztactics selectors below have
+        // always been container-scoped, and this one was a bare document-wide '.piece' -- a page
+        // rendering a second mini-board with the same component (a next-puzzle preview) would have
+        // merged both boards' pieces into one impossible position. Falls back to document-wide only
+        // when no board container is found, which is the old behaviour.
+        const board = getBoard();
+        return (board?.querySelectorAll?.('.piece')?.length ? board.querySelectorAll('.piece')
+                                                            : document.querySelectorAll('.piece'));
     } else {
         let pieceSelector;
         if (site === 'lichess') {
