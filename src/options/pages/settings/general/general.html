@@ -831,11 +831,14 @@
                         <span data-i18n="set.endgame_tablebase">Endgame Tablebase</span>
                         <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.with_7_or_fewer_pieces"
                               data-tooltip="With 7 or fewer pieces left the position is SOLVED, and Mephisto asks
-                                            lichess's Syzygy tablebase for the perfect move instead of trusting the
-                                            search. It outranks the engine and the opening book. OFF by default: it
-                                            sends the position to a third party, and the tables themselves are
-                                            hundreds of gigabytes, so they can't be bundled. The lookup never delays
-                                            a move -- if the answer is late, the engine's move is played."><i class="material-icons info-tooltip">info</i></span>
+                                            a Syzygy tablebase for the perfect move instead of trusting the search.
+                                            It outranks the engine and the opening book. With a local tablebase
+                                            configured below, the answer comes off YOUR files and nothing leaves the
+                                            machine; otherwise it asks lichess's online tablebase. OFF by default:
+                                            the online lookup sends the position to a third party, and the tables
+                                            themselves are hundreds of gigabytes, so they can't be bundled. The
+                                            lookup never delays a move -- if the answer is late, the engine's move
+                                            is played."><i class="material-icons info-tooltip">info</i></span>
                     </div>
                     <div class="set-ctl">
                         <input id="tablebase_checkbox" type="checkbox" class="set-cb">
