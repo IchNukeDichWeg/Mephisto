@@ -1155,9 +1155,12 @@ function drawHintArrows(arrows, region) {
 // judges the opponent's last move an inaccuracy/mistake/blunder. Lives in the same CLOSED shadow
 // root as everything else, so it adds no page-detectable DOM (the point of "undetectable").
 const OPP_ALERT_ID = 'mephisto-opp-alert';
+// Miss came with the classifier: a win let go reads very differently from a slip, which is exactly
+// why chess.com shows it separately -- and a label with no style here would silently never fire.
 const OPP_ALERT_STYLE = {
     inaccuracy: {text: 'Inaccuracy', bg: '#1e6fb8'},
     mistake:    {text: 'Mistake',    bg: '#c8901a'},
+    miss:       {text: 'Miss',       bg: '#b5482f'},
     blunder:    {text: 'Blunder',    bg: '#c0392b'},
 };
 let oppAlertTimer = null;
