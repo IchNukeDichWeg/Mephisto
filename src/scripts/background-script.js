@@ -1377,7 +1377,10 @@ async function botExploit(tab, req) {
       const f = before.split(' ');
       // Every line in the library is an opening, so anything past the first move is a different
       // position and the moves would simply be refused one at a time.
-      if (f[1] !== 'w' || Number(f[5]) > 1) return {ok: false, why: 'not-move-1', side, fen: before};
+      // FAIL CLOSED on a short FEN (audit finding #13): with fewer than 6 fields Number(undefined)
+      // is NaN, and NaN > 1 is false -- the load-bearing "start of game" gate silently PASSED on a
+      // malformed position. This invariant is what keeps the delivered line aimed at the bot.
+      if (f.length < 6 || f[1] !== 'w' || !(Number(f[5]) <= 1)) return {ok: false, why: 'not-move-1', side, fen: before};
       if (!side) return {ok: false, why: 'no-side'};
       // Never played on a hunch: the wrong colour's line hands the mate to the bot instead. A line
       // that ends in a DRAW has no winner and is fine from either side.
