@@ -1763,6 +1763,77 @@ function engine_out_of_sync(best) {
     request_fen();
 }
 
+// WHEN A VARIANT IS ALREADY OVER. chess.js answers isCheckmate() for STANDARD rules only -- it is
+// check plus no legal moves -- so every variant that ends another way went unnoticed and the panel
+// kept analysing a finished game (reported live on an atomic position that was already won). Each
+// rule below is that variant's own published win condition, read off the board:
+//   atomic       a king that has been blown up is simply absent
+//   antichess    losing everything, or having nothing to move, WINS
+//   racingkings  a king that reached the eighth rank
+//   kingofthehill a king that reached one of the four centre squares
+//   horde        the horde loses when its last pawn goes
+//   3check       the check counter in the FEN's own extra field reaches three
+// Returns {winner: 'w'|'b'|null, reason} or null when the game is not over by a variant rule.
+function variant_result(fen, variant) {
+    try {
+        if (!fen || !variant || variant === 'chess' || variant === 'fischerandom') return null;
+        const board = new Chess(variant, fen);
+        // chess.js does NOT throw on junk -- it quietly loads something else, and that something
+        // can be missing a king, which would announce a won game from a typo. Trust the position
+        // only if the placement we handed it is the placement it now holds.
+        if (board.fen().split(' ')[0] !== fen.split(' ')[0]) return null;
+        const rows = board.board();
+        const kingSq = (color) => {
+            for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
+                const p = rows[r][f];
+                if (p && p.type === 'k' && p.color === color) return {file: f, rank: 7 - r};
+            }
+            return null;
+        };
+        const wk = kingSq('w'), bk = kingSq('b');
+        if (variant === 'atomic') {
+            if (!bk) return {winner: 'w', reason: 'black king destroyed'};
+            if (!wk) return {winner: 'b', reason: 'white king destroyed'};
+        }
+        if (variant === 'racingkings') {
+            // both kings reaching the last rank is a draw, and chess.js already forbids a move that
+            // lets black follow white in -- so a single king on rank 8 is the whole condition
+            if (wk && wk.rank === 7) return {winner: 'w', reason: 'king reached the eighth rank'};
+            if (bk && bk.rank === 7) return {winner: 'b', reason: 'king reached the eighth rank'};
+        }
+        if (variant === 'kingofthehill') {
+            const hill = (k) => k && k.rank >= 3 && k.rank <= 4 && k.file >= 3 && k.file <= 4;
+            if (hill(wk)) return {winner: 'w', reason: 'king reached the centre'};
+            if (hill(bk)) return {winner: 'b', reason: 'king reached the centre'};
+        }
+        if (variant === 'horde') {
+            const hordePawns = rows.flat().some(p => p && p.color === 'w' && p.type === 'p');
+            if (!hordePawns) return {winner: 'b', reason: 'the horde is gone'};
+        }
+        if (variant === 'antichess') {
+            // giving everything away is the win condition, and so is having no move at all
+            const left = (color) => rows.flat().some(p => p && p.color === color);
+            if (!left('w')) return {winner: 'w', reason: 'all pieces given away'};
+            if (!left('b')) return {winner: 'b', reason: 'all pieces given away'};
+            if (board.moves().length === 0) {
+                const stm = fen.split(' ')[1];
+                return {winner: stm, reason: 'no moves left'};
+            }
+        }
+        if (variant === '3check') {
+            // the counter rides in the FEN's own extra field, e.g. "+2+1" (white's, then black's)
+            const m = /\s\+(\d)\+(\d)\s*$/.exec(fen);
+            if (m) {
+                if (+m[1] >= 3) return {winner: 'w', reason: 'three checks delivered'};
+                if (+m[2] >= 3) return {winner: 'b', reason: 'three checks delivered'};
+            }
+        }
+        return null;
+    } catch (e) {
+        return null;   // a position chess.js cannot read is not a verdict
+    }
+}
+
 function on_engine_best_move(best, threat, isTerminal=false) {
     if (is_remote()) {
         last_eval.activeLines = last_eval.lines.length;
@@ -1776,6 +1847,18 @@ function on_engine_best_move(best, threat, isTerminal=false) {
     const white = i18n('color.white', 'White'), black = i18n('color.black', 'Black');
     const toplay = (turn === 'w') ? white : black;
     const next = (turn === 'w') ? black : white;
+    // A variant that has already been won ends the analysis, whatever the engine still has to say:
+    // its search has no notion of an exploded king or a third check, so it happily reports a move
+    // in a finished game (reported live on a won atomic position).
+    const vres = variant_result(last_eval.fen, config.variant);
+    if (vres) {
+        const side = vres.winner === 'w' ? white : black;
+        update_evaluation(i18n('panel.msg.variant_over', 'Game over'));
+        update_best_move(i18n('panel.msg.wins', '{side} Wins', {side}) + ` - ${vres.reason}`);
+        clear_next_move_eta();
+        toggle_calculating(false);
+        return;
+    }
     if (!best || best === '(none)') { // game over (or crashed search) - there is no move to draw or play
         const pvLine = last_eval.lines[0] || {};
         if ('mate' in pvLine) {
