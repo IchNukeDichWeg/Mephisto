@@ -1282,7 +1282,17 @@ async function ccrEnsureTab() {
   return {tab, spawned: true};
 }
 
-async function chesscomAnalyze({game}) {
+// ONE REVIEW AT A TIME (audit finding #12): two concurrent requests could each spawn a helper tab,
+// or B could adopt A's spawned tab as "existing" -- and A's finally then closed it under B's
+// still-open game-review socket. The requests are seconds long and rare; a queue costs nothing.
+let ccrChain = Promise.resolve();
+function chesscomAnalyze(args) {
+  const run = ccrChain.then(() => chesscomAnalyzeOne(args), () => chesscomAnalyzeOne(args));
+  ccrChain = run.catch(() => {});
+  return run;
+}
+
+async function chesscomAnalyzeOne({game}) {
   if (!game || !Array.isArray(game.moves) || !game.moves.length) return {error: 'no game to send'};
   let bytes;
   try { bytes = new Uint8Array(ccrEncodeGameReview(game)); }
