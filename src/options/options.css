@@ -725,3 +725,12 @@ html.dark .limit-warn { color: #d8a628; }
     }
     .set-lbl { flex: 1 1 100%; }
 }
+
+/* a row of small on/off chips: eleven switches would be a wall, and these are read as a set */
+.set-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 420px; }
+.set-chip { border: 1px solid var(--mp-line); background: var(--mp-raised); color: var(--mp-mute);
+            border-radius: 999px; padding: 3px 10px; font: 12px/1.4 -apple-system, Roboto, system-ui, sans-serif;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.set-chip i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; opacity: .35; }
+.set-chip.on { color: var(--mp-text); border-color: var(--mp-on); }
+.set-chip.on i { opacity: 1; }

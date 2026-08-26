@@ -171,6 +171,38 @@
                     </div>
                 </div>
 
+                <div class="set-row set-toggle">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.live_classify" class="tooltipped" data-position="right"
+                              data-tooltip="Grade the move just played and mark it on the panel board, the way a Game
+                                            Review does -- Brilliant, Great, Best, Inaccuracy, Mistake, Blunder -- but
+                                            live, while the game is still going. Uses the same classifier the review
+                                            uses, so a verdict here is the verdict you get afterwards. Off by default:
+                                            it is an opinion drawn on the board every move."><span data-i18n="set.live_classify">Move Classification</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="live_classify_checkbox" type="checkbox" class="set-cb">
+                        <label for="live_classify_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- WHICH verdicts get drawn. Shown only while the feature above is on, because a
+                     row of eleven switches for something switched off is noise. -->
+                <div class="set-row" id="live_classify_which_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.live_classify_which" class="tooltipped" data-position="right"
+                              data-tooltip="Which verdicts get a badge on the board. Turn everything off except
+                                            Brilliant and Blunder to see only the moves worth a second look. This
+                                            changes what is DRAWN, nothing else: the strip still counts every class,
+                                            and the opponent alert has its own switch.">
+                            <span data-i18n="set.live_classify_which">Show which</span> <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl set-chips" id="live_classify_which"></div>
+                </div>
+
                 <div class="set-row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.arrow_opacity" class="tooltipped" data-position="right"

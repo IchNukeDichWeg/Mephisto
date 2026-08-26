@@ -255,6 +255,20 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     tbInfoForSettings().then(sendResponse).catch(e => sendResponse({error: String(e)}));
     return true; // async sendResponse
   }
+  // THE CLASSIFIER, ON DEMAND. It is 7.6KB that only three opt-in features need (Live Stats, Move
+  // Classification, the opponent alert), so it is not in the per-page bundle -- the panel asks for
+  // it the moment one of them is on, and it lands in the SAME isolated world the content scripts
+  // share. Injecting twice is harmless (the file re-assigns its one global).
+  if (msg.needClassifier) {
+    // NOT named `tabId`: that identifier belongs to the cdpClick sender-trust expression, which the
+    // ladder extracts by name -- a second one here silently shadowed it in the test.
+    const injectTab = sender.tab?.id;
+    if (!injectTab) { sendResponse({ok: false}); return false; }
+    chrome.scripting.executeScript({target: {tabId: injectTab}, files: ['src/scripts/classify-core.js']})
+      .then(() => sendResponse({ok: true}))
+      .catch(e => sendResponse({ok: false, error: String(e)}));
+    return true; // async sendResponse
+  }
   // The options page changed the tablebase folder (chose/re-allowed/forgot): drop the caches.
   if (msg.tbChanged) {
     tbBrowserReset();

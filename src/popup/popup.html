@@ -20,6 +20,8 @@
     <!-- classic (not a module) so the same file also loads as a content script; `defer` keeps the
          post-parse timing the module had, so document.body exists when it boots the panel -->
     <script src="/src/scripts/bot-games.js"></script>
+    <!-- the move classifier, shared with the Game Review (self.MephistoClassify) -->
+    <script src="/src/scripts/classify-core.js"></script>
     <script defer src="popup.js"></script>
 </head>
 
@@ -182,7 +184,7 @@
     <div class="qs-row qs-toggle">
         <input id="qs_livestats" type="checkbox" class="qs-cb">
         <label for="qs_livestats" data-i18n="panel.live_stats" data-i18n-tip="panel.tip.live_stats" class="qs-label tooltipped" data-position="left"
-              data-tooltip="Accuracy as it happens, on a strip under the eval history: a running accuracy for both sides and the tally of best moves, inaccuracies, mistakes and blunders. Judged by the same win% bands Game Review uses, so the strip and the review afterwards agree.">Live Stats</label>
+              data-tooltip="Live game grades on a strip under the eval history: a running accuracy for both sides, and each notable move named with the classifier's own verdict -- Brilliant, Miss, Blunder and the rest, worst first, in the verdict's colour. The same classifier Game Review uses, so the strip and the review afterwards agree.">Live Stats</label>
     </div>
     <div class="qs-row qs-toggle">
         <input id="qs_puzzle" type="checkbox" class="qs-cb">

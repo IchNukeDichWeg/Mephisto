@@ -70,6 +70,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('premove_plies', 'Premove Plies:', 'input', 2);
         this.registerFormElement('board_animation', 'Board Animation:', 'checkbox', true);
         this.registerFormElement('live_stats', 'Live Stats:', 'checkbox', false);
+        this.registerFormElement('live_classify', 'Move Classification:', 'checkbox', false);
         const search_mode_select = this.registerFormElement('search_mode', 'Search Budget:', 'select', 'time');
         this.registerFormElement('compute_time', 'Search Time (ms):', 'input', 300);
         this.registerFormElement('compute_depth', 'Search Depth:', 'input', 16);
@@ -193,6 +194,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('manual_mode', 'Manual Mode:', 'checkbox', false);
         this.registerFormElement('opp_alert', 'Opponent Mistake Alert:', 'checkbox', false);
         this.registerFormElement('verbose_log', 'Verbose Logging:', 'checkbox', false);
+        this.initClassifyChips();
         this.initOwnBook();
         this.initTablebaseFolder();
         this.initSteppers();
@@ -350,6 +352,48 @@ class GeneralSettings extends SettingsPage {
     // always SAY its state: chosen + inventory, needs a one-click Re-allow (Chrome may drop read
     // permission between browser sessions), or nothing chosen. Check asks the worker, which also
     // reports the native-host path route when no picked folder answers.
+    // WHICH verdicts get drawn on the board. One stored string of class names (a single settings
+    // key travels with export/import, which eleven keys would not), and the row only exists while
+    // Move Classification is on -- switches for a feature that is off are noise. Everything on is
+    // the default, so nothing changes for anyone who does not open this row.
+    initClassifyChips() {
+        const $ = (id) => document.getElementById(id);
+        const host = $('live_classify_which');
+        const row = $('live_classify_which_row');
+        const toggle = $('live_classify_checkbox');
+        if (!host || !row) return;
+        const ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'book', 'forced',
+                       'inaccuracy', 'mistake', 'miss', 'blunder'];
+        const COLOR = {brilliant: '#26c2a3', great: '#5c8bb0', best: '#96bc4b', excellent: '#96bc4b',
+                       good: '#96af8b', book: '#a88865', forced: '#8b8987', inaccuracy: '#f7c631',
+                       mistake: '#e58f2a', miss: '#ff7769', blunder: '#fa412d'};
+        const read = () => {
+            try {
+                const raw = JSON.parse(MephistoConfig.get('live_classify_which'));
+                return Array.isArray(raw) ? raw : ORDER.slice();
+            } catch (e) { return ORDER.slice(); }
+        };
+        let shown = read();
+        const paint = () => {
+            host.innerHTML = ORDER.map(k =>
+                `<button type="button" class="set-chip${shown.includes(k) ? ' on' : ''}" data-k="${k}">`
+                + `<i style="background:${COLOR[k]}"></i>${k}</button>`).join('');
+        };
+        host.addEventListener('click', (e) => {
+            const btn = e.target.closest('.set-chip');
+            if (!btn) return;
+            const k = btn.dataset.k;
+            shown = shown.includes(k) ? shown.filter(x => x !== k) : [...shown, k];
+            MephistoConfig.set('live_classify_which', JSON.stringify(shown));
+            paint();
+        });
+        const syncRow = () => { row.style.display = toggle?.checked ? '' : 'none'; };
+        toggle?.addEventListener('change', syncRow);
+        paint();
+        syncRow();
+        setTimeout(syncRow, 300);   // after the stored value has been pulled into the form
+    }
+
     initTablebaseFolder() {
         const $ = (id) => document.getElementById(id);
         const say = (t, bad) => {
@@ -439,7 +483,7 @@ class GeneralSettings extends SettingsPage {
             bot_trick: 'Bot Tricks - play the chosen game at a bot',
         };
         const ORDER = ['manual_play', 'manual_mode', 'autoplay', 'premove', 'explorer', 'book_play',
-            'help_mode', 'humanize', 'clock_mode', 'clock_pace', 'mirror_mode', 'eval_bar', 'eval_history', 'live_stats', 'tablebase', 'puzzle_mode',
+            'help_mode', 'humanize', 'clock_mode', 'clock_pace', 'mirror_mode', 'eval_bar', 'eval_history', 'live_stats', 'live_classify', 'tablebase', 'puzzle_mode',
             'copy_fen', 'copy_pgn', 'copy_diagnostics', 'redetect', 'compact', 'minimize', 'bot_trick', 'panic'];
         // same normalization as the content-script listener, so what we store matches what it compares
         const keyString = (e) => {
