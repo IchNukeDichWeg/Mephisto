@@ -94,40 +94,63 @@ function toTeamCp(cp, turn) {
 // same rules the two-player review and the panel's live strip use, so a blunder is a blunder on
 // every screen. No human model and no strength estimate: Maia knows one game and it is not this
 // one, and a rating fitted from four seats would be a number with nothing behind it.
+//
+// TWO GRADING METHODS, because the two modes have different score algebra:
+//   Teams  -- zero-sum between the pairs, so the eval after a move CAN be flipped into the mover's
+//             team's terms, and the before/after win swing grades the move (verified live).
+//   FFA    -- NOT zero-sum (Tetrarch v8 searches it paranoid: every node in the ROOT seat's own
+//             terms), so consecutive evals belong to different seats and no negation relates them.
+//             A move is graded WITHIN one search instead: the engine's best line and the played
+//             move's own line come from the same position at the same perspective, so their win%
+//             gap is honest -- and a move outside the engine's lines is a null verdict, not a guess.
 async function runReview(pgn4Text, {movetime = 1000, onProgress, isCancelled} = {}) {
     const C = self.MephistoClassify;
     if (!C) throw new Error('the classifier is not loaded');
-    const {frames, terminations, tags, variant} = await replay(pgn4Text);
+    const {frames, terminations, tags, variant, mode} = await replay(pgn4Text);
     if (frames.length < 2) throw new Error('that PGN4 has no moves to review');
+    const isFfa = /ffa/i.test(String(variant)) || String(mode) === '0';
+    // Mode selects the net (the engine's bundle ships one per mode since v8); MultiPV gives the
+    // FFA grader the lines it compares within. Sent once, before the first search.
+    await send('configure', {options: {Mode: isFfa ? 'ffa' : 'teams', MultiPV: 5}}).catch(() => {});
 
     const evals = new Array(frames.length).fill(null);
     for (let i = 0; i < frames.length; i++) {
         if (isCancelled && isCancelled()) throw new Error('stopped');
         if (onProgress) onProgress(i / frames.length, `position ${i + 1} of ${frames.length}`);
         const res = await analyse(frames[i].fen4, movetime);
-        const line = (res.lines || [])[0] || {};
-        const cp = typeof line.score === 'number' ? line.score
-            : typeof line.cp === 'number' ? line.cp : null;
+        const lines = (res.lines || []).map(l => ({
+            move: l.move || (l.pv || [])[0] || null,
+            cp: typeof l.score === 'number' ? l.score : (typeof l.cp === 'number' ? l.cp : null),
+        }));
+        const cp = lines[0]?.cp ?? null;
         evals[i] = {
-            teamCp: toTeamCp(cp, frames[i].turn),
-            best: res.bestmove || line.move || (line.pv || [])[0] || null,
-            lines: res.lines || [],
+            // Teams: one fixed team's terms all game. FFA: the mover's own terms, unflipped.
+            teamCp: isFfa ? cp : toTeamCp(cp, frames[i].turn),
+            best: res.bestmove || lines[0]?.move || null,
+            lines,
         };
     }
 
-    // Grade every move that has a measured position on both sides of it. The mover's own team is
-    // the perspective -- charging Blue for a swing measured in Red's favour is the sign bug that
-    // makes every other move look like a blunder.
     const moves = [];
     for (let i = 0; i + 1 < frames.length; i++) {
         const f = frames[i], next = frames[i + 1];
         if (!next.move) continue;                       // a terminator, not a move
-        const before = evals[i]?.teamCp, after = evals[i + 1]?.teamCp;
         const seat = f.turn;
-        const sign = TEAM_OF[seat] === 0 ? 1 : -1;      // into the MOVER's team's favour
-        const winBefore = (before == null) ? null : C.winPercent(before * sign);
-        const winAfter = (after == null) ? null : C.winPercent(after * sign);
-        const rank = evals[i]?.lines?.findIndex(l => (l.move || (l.pv || [])[0]) === next.move);
+        const rank = evals[i]?.lines?.findIndex(l => l.move === next.move);
+        let winBefore = null, winAfter = null;
+        if (isFfa) {
+            // within one search: the best line vs the line the played move sits on
+            const s1 = evals[i]?.lines?.[0]?.cp;
+            const sp = rank >= 0 ? evals[i].lines[rank].cp : null;
+            winBefore = (typeof s1 === 'number') ? C.winPercent(s1) : null;
+            winAfter = (typeof sp === 'number') ? C.winPercent(sp) : null;
+        } else {
+            // across two searches, both flipped into the mover's team's favour
+            const before = evals[i]?.teamCp, after = evals[i + 1]?.teamCp;
+            const sign = TEAM_OF[seat] === 0 ? 1 : -1;
+            winBefore = (before == null) ? null : C.winPercent(before * sign);
+            winAfter = (after == null) ? null : C.winPercent(after * sign);
+        }
         const klass = (winBefore == null || winAfter == null) ? null
             : C.classify({
                 winBefore, winAfter,
@@ -138,31 +161,44 @@ async function runReview(pgn4Text, {movetime = 1000, onProgress, isCancelled} = 
                 sacrifice: false,    // the sacrifice probe is 8x8 chess.js; it cannot read this board
             });
         moves.push({
-            ply: i, seat, seatName: SEAT_NAME[seat] || seat, team: TEAM_OF[seat],
+            ply: i, seat, seatName: SEAT_NAME[seat] || seat,
+            group: isFfa ? SEATS.indexOf(seat) : TEAM_OF[seat],
             move: next.move, token: next.token, klass,
             winBefore, winAfter, best: evals[i]?.best || null,
-            teamCpAfter: after,
+            teamCpAfter: evals[i + 1]?.teamCp ?? null,
         });
     }
 
-    // Per-team accuracy, on the same curve the two-player report uses.
-    const acc = [0, 1].map(t => {
-        const mine = moves.filter(m => m.team === t && m.winBefore != null);
+    // Accuracy per GROUP -- the two teams, or the four seats -- on the two-player report's curve.
+    // In FFA the engine prices ONE line today (PROTOCOL.md: ranking every root move for one fixed
+    // root needs a C entry), so a win-gap only exists for moves that MATCHED the engine -- and an
+    // average over only-matched moves reads 100% for everyone. Honest instead: FFA reports how
+    // often each seat played the engine's move, and the accuracy slot stays empty until the engine
+    // can price more than one line, at which point this same code starts filling it.
+    const groupNames = isFfa ? SEATS.map(x => SEAT_NAME[x]) : TEAM_NAME.slice();
+    const sawChoice = moves.some(m => m.winAfter != null && m.winBefore !== m.winAfter);
+    const accuracy = groupNames.map((_, g) => {
+        if (isFfa && !sawChoice) return null;
+        const mine = moves.filter(m => m.group === g && m.winBefore != null && m.winAfter != null);
         if (!mine.length) return null;
         const each = mine.map(m => C.moveAccuracy
             ? C.moveAccuracy(m.winBefore, m.winAfter)
             : Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * Math.max(0, m.winBefore - m.winAfter)) - 3.1669)));
         return Math.round(each.reduce((a, b) => a + b, 0) / each.length * 10) / 10;
     });
-    const counts = [0, 1].map(t => {
+    const matched = groupNames.map((_, g) => {
+        const mine = moves.filter(m => m.group === g);
+        return {hit: mine.filter(m => m.move === m.best).length, of: mine.length};
+    });
+    const counts = groupNames.map((_, g) => {
         const out = {};
-        for (const m of moves) if (m.team === t && m.klass) out[m.klass] = (out[m.klass] || 0) + 1;
+        for (const m of moves) if (m.group === g && m.klass) out[m.klass] = (out[m.klass] || 0) + 1;
         return out;
     });
 
     if (onProgress) onProgress(1, 'done');
-    return {frames, terminations, tags, variant, evals, moves, accuracy: acc, counts,
-            teamNames: TEAM_NAME, seatName: SEAT_NAME};
+    return {frames, terminations, tags, variant, mode, isFfa, evals, moves, accuracy, counts,
+            matched, groupNames, teamNames: TEAM_NAME, seatName: SEAT_NAME};
 }
 
 root.Mephisto4PC = {replay, analyse, runReview, disconnect, toTeamCp,

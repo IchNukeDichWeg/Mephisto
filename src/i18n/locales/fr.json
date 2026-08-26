@@ -444,7 +444,6 @@
   "set.storage": "Stockage : {used} utilisés{idb} - sur {quota} disponibles pour ce profil de navigateur.",
   "panel.tetrarch_setup": "Tetrarch n'est pas encore installé - voir la section « Four-player chess » du README pour l'installation sous macOS, Linux et Windows",
   "panel.incomplete_install": "Moteurs manquants - vous avez le téléchargement de mise à jour seule. Prenez le zip complet.",
-  "panel.fourpc_ffa": "Chacun pour soi - Tetrarch ne calcule qu'en mode Équipes",
   "panel.msg.puzzle_rating": "Classement {r}",
   "panel.msg.fourpc_to_play": "Au trait : {seat}, le meilleur coup est {move}",
   "panel.msg.mate_in": "Échec et mat en {n}",

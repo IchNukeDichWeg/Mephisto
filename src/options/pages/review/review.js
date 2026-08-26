@@ -110,11 +110,11 @@ function detectVariantFrom(game) {
         // The PARSE decides the lane. Reading it back from the config at click time depended on a
         // cache write landing first, which it did not reliably do -- and a PGN4 then went down the
         // two-player path and sat there with the button greyed out.
-        is4pcGame = (fourpc === 'teams');
+        // Teams AND free-for-all both review since Tetrarch v8, which searches FFA paranoid with
+        // its own net; the lane reads the mode off the game and grades accordingly.
+        is4pcGame = true;
         if (current !== '4pc') setCfg('rv_variant', '4pc');
-        return fourpc === 'ffa'
-            ? ' This is a free-for-all game: Tetrarch searches Teams mode only, so it cannot be reviewed.'
-            : ' Four-player game - switched Game type to 4-player chess.';
+        return ' Four-player game - switched Game type to 4-player chess.';
     }
     is4pcGame = false;
     // Leaving 4-player is as automatic as entering it. The other game types are legitimate rules
@@ -688,14 +688,22 @@ function render4pc() {
         + (who ? ` · ${who}` : '')
         + (r.terminations?.length ? ` · ${r.terminations.map(t => `${t.seat} ${t.reason}`).join(', ')}` : '');
 
-    // the teams, with the accuracy each played to and what the classifier counted
-    $('rv4_teams').innerHTML = [0, 1].map(t => {
+    // the groups -- two teams, or in free-for-all the four seats -- with the accuracy each
+    // played to and what the classifier counted
+    $('rv4_teams').innerHTML = (r.groupNames || r.teamNames).map((name, t) => {
         const counts = r.counts[t] || {};
         const named = (C.CLASS_NOTABLE || []).filter(k => counts[k])
             .map(k => `<span style="color:${(C.CLASS_COLOR || {})[k]}">${counts[k]} ${k}</span>`).join(' · ');
-        return `<div class="rv4-team"><h4>${esc(r.teamNames[t])}</h4>`
-             + `<div class="rv4-acc">${r.accuracy[t] == null ? ' - ' : r.accuracy[t] + '%'}</div>`
-             + `<div class="rv4-sub">accuracy · ${named || 'clean'}</div></div>`;
+        // FFA has no per-move accuracy while the engine prices one line -- the honest number
+        // there is how often the seat played the engine's move
+        const m = r.matched?.[t];
+        const headline = r.accuracy[t] != null ? r.accuracy[t] + '%'
+            : (m && r.isFfa ? `${m.hit}/${m.of}` : ' - ');
+        const subword = r.accuracy[t] != null ? 'accuracy'
+            : (m && r.isFfa ? "engine's move" : 'accuracy');
+        return `<div class="rv4-team"><h4>${esc(name)}</h4>`
+             + `<div class="rv4-acc">${headline}</div>`
+             + `<div class="rv4-sub">${subword} · ${named || 'clean'}</div></div>`;
     }).join('');
 
     $('rv4_moves').innerHTML = r.moves.map(m => {
@@ -725,8 +733,11 @@ function show4pcPly(ply) {
     const ev = r.evals[fourpcPly] || {};
     const cp = ev.teamCp == null ? null : (ev.teamCp / 100).toFixed(2);
     $('rv4_ply').textContent = `ply ${fourpcPly} of ${r.frames.length - 1}`;
+    // FFA scores are the mover's own outlook (paranoid search, not zero-sum); Teams scores are
+    // normalised to one fixed team, so the label says which reading applies
     $('rv4_evalline').textContent = `${r.seatName[f.turn] || f.turn} to move`
-        + (cp == null ? '' : ` · ${cp} for ${r.teamNames[0]}`)
+        + (cp == null ? '' : (r.isFfa ? ` · ${cp} for ${r.seatName[f.turn] || f.turn}`
+                                      : ` · ${cp} for ${r.teamNames[0]}`))
         + (ev.best ? ` · best ${ev.best}` : '');
     $('rv4_moves').querySelectorAll('.rv4-mv').forEach(el =>
         el.classList.toggle('rv4-sel', +el.dataset.ply === fourpcPly));

@@ -6887,12 +6887,17 @@ function on_new_pos_4pc(payload) {
     const turn = fen4[0];
     const ours = (turn === ourSeat);
     const seatName = FOURPC_SEAT_NAME[turn] || turn;
-    // SCORE PERSPECTIVE, hoisted: Tetrarch reports from the side-to-move's TEAM (PROTOCOL.md) and the
-    // seat rotates every ply, so the raw number flips sign each move and the same evaluation reads as
-    // +3.06 then -3.06. Normalised to YOUR team it means one thing all game. Standard pairing is
-    // R+Y against B+G (RULES.md 2). Needed BEFORE the search so the streamed info can use it too.
+    // SCORE PERSPECTIVE, hoisted: in Teams, Tetrarch reports from the side-to-move's TEAM
+    // (PROTOCOL.md) and the seat rotates every ply, so the raw number flips sign each move and the
+    // same evaluation reads as +3.06 then -3.06. Normalised to YOUR team it means one thing all
+    // game. Standard pairing is R+Y against B+G (RULES.md 2). Needed BEFORE the search so the
+    // streamed info can use it too.
+    // FFA IS NOT ZERO-SUM: the paranoid search (Tetrarch v8) scores every node in the ROOT seat's
+    // own terms -- me against the other three -- and there is no negation that turns one seat's
+    // outlook into another's. The score is shown as the mover's own, unflipped; the readout already
+    // names whose turn it is.
     const team = (seat) => (seat === 'R' || seat === 'Y') ? 0 : 1;
-    const flip = (ourSeat !== '?' && team(turn) !== team(ourSeat)) ? -1 : 1;
+    const flip = (mode !== 'ffa' && ourSeat !== '?' && team(turn) !== team(ourSeat)) ? -1 : 1;
     set_detection_status(i18n('panel.fourpc_detected', '4-player chess - {seat} to move',
         {seat: FOURPC_SEAT_NAME[turn] || turn}));
     if (!is_fourpc_engine()) {
@@ -6904,14 +6909,8 @@ function on_new_pos_4pc(payload) {
     // Mode is the one option that changes the RULES (promotion is the 8th rank in FFA, the 11th in
     // Teams), so it is pushed before the first search. Setup is deliberately NOT sent: every position
     // arrives as a full FEN4, which makes all five starting setups the same code path.
-    // FFA IS NOT SEARCHABLE. Tetrarch implements Teams only (PROTOCOL.md), so on a free-for-all board
-    // the honest answer is to say so rather than hand back a move scored against the wrong rules.
-    if (mode === 'ffa') {
-        fourpc_busy = false;
-        update_best_move(i18n('panel.fourpc_ffa',
-            'Free-for-all - Tetrarch searches Teams mode only'));
-        return;
-    }
+    // FFA SEARCHES TOO since Tetrarch v8: a paranoid formulation (root seat maximised, the other
+    // three minimised) with its own net, selected by the engine's bundle the moment Mode is set.
     // MultiPV alongside it. Tetrarch declares MultiPV (spin 1-64) and emits one `info ... multipv N`
     // per line; the host already keys them by rank and returns them in order, so the whole feature
     // was one option away. Mode and Setup reset the board when they change and MultiPV does not, and

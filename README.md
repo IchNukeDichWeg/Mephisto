@@ -283,12 +283,13 @@ review instead, see the next section.)
   Fairy-Stockfish with Mephisto's own win-percentage classification, pockets and check counts fed to
   the engine in its own FEN dialect. A pasted PGN's `[Variant]` tag (or a tagless Chess960 start
   position) sets it for you. The chess.com paths below speak standard chess only and say so; the Maia
-  passes stand down outside standard chess. **4-player chess** (Teams) reviews too: paste a chess.com
-  PGN4 and it is replayed by the Tetrarch engine's own rules over its native host - every position
-  searched, each move graded with the same shared classifier, team accuracies, a 14x14 board with ply
-  navigation. No human model and no strength estimate there (Maia knows one game and it is not this
-  one), free-for-all is refused with the honest reason (Tetrarch searches Teams only), and it needs
-  the Tetrarch native host installed.
+  passes stand down outside standard chess. **4-player chess** reviews too - Teams and free-for-all
+  both: paste a chess.com PGN4 and it is replayed by the Tetrarch engine's own rules over its native
+  host - every position searched, each move graded with the same shared classifier, per-team (or in
+  FFA per-seat) accuracies, a 14x14 board with ply navigation. FFA is graded within each search,
+  because its paranoid scores are the root seat's own and no negation relates one seat's outlook to
+  another's. No human model and no strength estimate there (Maia knows one game and it is not this
+  one), and it needs the Tetrarch native host installed.
 - **Any engine, at your budget** - the bundled WASM Stockfishes, or a native host at full power. A
   **depth** is reproducible (the same depth is the same answer on any machine) and is the default at 16;
   a **time per move** is a plain box in seconds (default 0.5s, steps of 0.5, type any value). Each mode
@@ -778,8 +779,9 @@ The panel swaps its own board for a 14×14 one with the corners cut, rotated so 
 seat you drew, and draws the suggested move as an arrow. The evaluation is normalised to **your team** (Red+Yellow
 against Blue+Green), so it means one thing all game instead of flipping sign every seat. Autoplay works.
 
-> **Teams mode only, for now.** Tetrarch does not search free-for-all, so FFA games are detected and shown but
-> not analysed.
+> **Free-for-all plays too** (since Tetrarch v8): the engine searches FFA paranoid - every node in the
+> root seat's own terms - with its own net, so the score shown is the mover's outlook rather than a
+> team line. Before v8, FFA games were detected and shown but not analysed.
 
 Promotions are played in full: the picker Chess.com opens over the board is found by its shape - a small
 panel of four pieces in two rows - rather than by a class name, so a generated class changing cannot make
@@ -1069,11 +1071,12 @@ that were here shipped in one release.
   unresponsive, and then it recovers on its own. Long-standing, instrumented, never explained. The worker's
   cold-start timings are recorded now, which is where to start looking.
 
-- [ ] **Four-player chess, the rest of it** - Teams mode works, promotions are played, eliminations are
-  handled, and Game Review replays a pasted chess.com PGN4 (Teams) through the Tetrarch engine - every
-  position searched, moves graded with the shared classifier, team accuracies. What is left: free-for-all
-  needs engine support, and no real game has yet been seen past an elimination, so that path is pinned by
-  synthetic positions rather than by having happened. Chaturaji, 4P Giveaway and Self Partnering are untouched.
+- [ ] **Four-player chess, the rest of it** - Teams and free-for-all both play and review (FFA since
+  Tetrarch v8: paranoid search, per-seat accuracies in the review), promotions are played, eliminations
+  are handled, and Game Review replays a pasted chess.com PGN4 through the Tetrarch engine - every
+  position searched, moves graded with the shared classifier. What is left: no real game has yet been
+  seen past an elimination, so that path is pinned by synthetic positions rather than by having
+  happened. Chaturaji, 4P Giveaway and Self Partnering are untouched.
 
 - [ ] **Four-player chess on Windows, confirmed** - built and symbol-checked, never run on a real Windows machine.
   See [Contributing](#contributing) for the four stages worth reporting.
@@ -1827,7 +1830,7 @@ veto for real blunders, and the clock rules above.
   nothing is installed without pressing the button.
 - [x] **[Four-player chess](#four-player-chess)** (v3.1.199) - chess.com's 4-player variant, driven by
   [Tetrarch](https://github.com/IchNukeDichWeg/Tetrarch); 14×14 panel board, team-relative eval, autoplay.
-  Teams mode only.
+  Teams only at first; free-for-all since Tetrarch v8.
 - [x] **Panel and settings rework** (v3.1.199) - two tabs instead of a wall of rows, the game and engine status
   moved into the title bar, `−`/`+` steppers for threads, lines and move time, uniform control heights, one
   typeface per column, and a settings page grouped into sections.

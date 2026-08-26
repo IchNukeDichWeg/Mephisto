@@ -444,7 +444,6 @@
   "set.storage": "存储: 已用 {used}{idb} - 此浏览器配置文件可用 {quota}。",
   "panel.tetrarch_setup": "尚未安装 Tetrarch - 请参阅 README 的「Four-player chess」一节了解 macOS、Linux 和 Windows 的安装方法",
   "panel.incomplete_install": "缺少引擎 - 你下载的是仅更新包。请获取完整 zip。",
-  "panel.fourpc_ffa": "自由混战 - Tetrarch 仅在团队模式下计算",
   "panel.msg.puzzle_rating": "等级分 {r}",
   "panel.msg.fourpc_to_play": "{seat} 行棋,最佳着法是 {move}",
   "panel.msg.mate_in": "{n} 步将杀",
