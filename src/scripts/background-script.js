@@ -1726,7 +1726,20 @@ async function cdpMove(target, fromX, fromY, x, y, travelMs, held = false) {
   // count as before, so a real path is unchanged.
   const steps = pathSteps(travelMs); // ~60fps, bounded either way
   const px = dist ? -(y - fromY) / dist : 0, py = dist ? (x - fromX) / dist : 0; // perpendicular unit
-  const bow = (Math.random() - 0.5) * Math.min(dist * 0.15, 24); // sideways arc, scales with distance
+  // The two control points: a quarter and three quarters along the chord, each pushed sideways by
+  // its own amount so the arc is asymmetric. Same envelope as the old bow (15% of the distance,
+  // capped at 24px) -- this changes the SHAPE of the deviation, not how far the cursor strays.
+  // Mostly a lopsided arc; occasionally the second point flips and the path S-curves, which hands
+  // also do. Randomised per move, so no two paths share a signature.
+  const env = Math.min(dist * 0.15, 24);
+  const side = Math.random() < 0.5 ? 1 : -1;
+  const o1 = side * env * (0.2 + Math.random() * 0.8);
+  const o2 = side * env * (0.2 + Math.random() * 0.8) * (Math.random() < 0.15 ? -1 : 1);
+  const c1x = fromX + (x - fromX) * 0.25 + px * o1, c1y = fromY + (y - fromY) * 0.25 + py * o1;
+  const c2x = fromX + (x - fromX) * 0.75 + px * o2, c2y = fromY + (y - fromY) * 0.75 + py * o2;
+  // Per-move velocity shape: peak speed lands somewhere in the first 30-42% and the steepness
+  // varies, so the profile is a family rather than one repeated curve.
+  const k = 7 + Math.random() * 4, t0 = 0.30 + Math.random() * 0.12;
   // PACE TO A DEADLINE, never by adding a fixed sleep after each step.
   //
   // Each dispatch is an awaited round-trip, and this worker also relays every frame a NATIVE engine
