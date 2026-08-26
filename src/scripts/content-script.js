@@ -4100,7 +4100,7 @@ let lastAimed = null;
 // clicks actually happen rather than only when the move arrived.
 let pendingForPush = null;
 
-function simulateMove(move, deselect, think = null) {
+function simulateMove(move, deselect, think = null, sessionGen = undefined) {
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
         console.warn(`Mephisto: refusing to play invalid move '${move}'`); // e.g. '(none)' or a crazyhouse drop
         return Promise.resolve();
@@ -4157,6 +4157,18 @@ function simulateMove(move, deselect, think = null) {
         await warmClicker();
         // The think delay is over and the infobar (if any) has settled: this is the last moment
         // before a coordinate is used, so it is the right one to measure at.
+        // SUPERSEDED SESSIONS STOP HERE. When a real move supersedes an in-flight blind premove,
+        // beginMoving bumps moveGen for the new session -- but nothing used to stop the OLD
+        // session's remaining clicks, which then interleaved with the new session's on the live
+        // board (audit finding #1, 2026-08-26). Worse, the old session's board check below reads
+        // the module-level pendingForPush that the NEW message just overwrote (#2), so a stale
+        // click could pass a check that should have aborted it. One generation compare closes both:
+        // a session that is no longer the current one clicks nothing, ever.
+        if (sessionGen !== undefined && sessionGen !== moveGen) {
+            bgLog('superseded mid-think: clicks abandoned', {move, sessionGen, moveGen});
+            lastAimed = `${move}->NOT CLICKED (superseded by a newer move session)`;
+            return;
+        }
         refreshBoardGeometry();
         // AND THE POSITION IS CHECKED AGAIN, HERE, for the same reason the rectangle is measured
         // here. The check on arrival happens BEFORE the think delay -- 400ms by default, seconds
@@ -4204,6 +4216,7 @@ function simulateMove(move, deselect, think = null) {
         if (/^[a-h][1-8]$/.test(deselect ?? '')) {
             await simulateClickSquare(getBoundsFromCoords(deselect), 0.8, 80);
             await promiseTimeout(40 + Math.random() * 90);
+            if (sessionGen !== undefined && sessionGen !== moveGen) return;  // superseded during the lead click
         }
         // Two clicks: piece then target. Both are awaited, and each is a real cursor path -- so the
         // wall-clock IS approachMs + travelMs, spent as motion (M2). The caller splits the total
@@ -4248,6 +4261,11 @@ function simulateMove(move, deselect, think = null) {
         await simulateClickSquare(getBoundsFromCoords(move.substring(0, 2)), 0.8, pathA);
         const dueSecond = approachMs - (Date.now() - started);
         if (dueSecond > 0) await promiseTimeout(dueSecond);
+        // the pause between the clicks is the widest window for a supersede -- check again
+        if (sessionGen !== undefined && sessionGen !== moveGen) {
+            lastAimed = `${move}->HALF-CLICKED then superseded (from-click only)`;
+            return;
+        }
         await simulateClickSquare(getBoundsFromCoords(move.substring(2)), 0.8, pathB);
         const dueEnd = (approachMs + travelMs) - (Date.now() - started);
         if (dueEnd > 0) await promiseTimeout(dueEnd);
@@ -4276,7 +4294,8 @@ function simulateMove(move, deselect, think = null) {
 // checking the move list actually grew; if not, retry. The move-count check is safe from
 // double-moving: if a move was played (count went up) we treat it as success even if the
 // opponent has already replied, so we never re-fire a move into a changed position.
-async function simulateMoveVerified(move, deselect, verify, think = null, retries = 2, before = null) {
+async function simulateMoveVerified(move, deselect, verify, think = null, retries = 2, before = null,
+                                    sessionGen = undefined) {
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
         return simulateMove(move, deselect); // invalid -> simulateMove logs + no-ops
     }
@@ -4290,14 +4309,14 @@ async function simulateMoveVerified(move, deselect, verify, think = null, retrie
     // and clobber the queued premove -- so only verify real moves played on our own turn. The popup
     // decides this from the position's side-to-move and passes it in (see request_automove). It is a
     // single attempt, so it never gets the deselect lead either.
-    if (!verify) return simulateMove(move, ds, think);
+    if (!verify) return simulateMove(move, ds, think, sessionGen);
     // Capture the move count ONCE, before the FIRST attempt. Re-reading it on each retry breaks the
     // check: chess.com's move list can update later than a fixed wait (board animation), so a move
     // that DID land shows up only after we'd have re-read `before` as the already-grown count -- the
     // retry then replays into a changed board and still reports "failed". Compare against the
     // original count throughout, and POLL for it to grow instead of a single snapshot.
     if (before === null) before = getMoveRecords()?.length ?? 0;
-    await simulateMove(move, ds, think);
+    await simulateMove(move, ds, think, sessionGen);
     // Real elapsed time, not a count of intended steps -- see promiseTimeout. Under a background
     // tab's 1s timer clamp the step-counting version polled for 30 real seconds, not 1.5.
     for (const deadline = Date.now() + 1500; Date.now() < deadline; ) { // poll up to 1.5s
@@ -4307,7 +4326,7 @@ async function simulateMoveVerified(move, deselect, verify, think = null, retrie
     if (retries > 0) {
         console.warn(`Mephisto: move '${move}' did not register, retrying (${retries} left)`);
         // think=0: the "thinking" already happened on the first attempt; a retry is just re-clicking
-        return simulateMoveVerified(move, deselect, verify, 0, retries - 1, before);
+        return simulateMoveVerified(move, deselect, verify, 0, retries - 1, before, sessionGen);
     }
     console.warn(`Mephisto: move '${move}' failed to register after retries`);
     // Giving up used to be a DEAD END. The board is unchanged, so the next scrape produces the same
@@ -4324,9 +4343,15 @@ async function simulateMoveVerified(move, deselect, verify, think = null, retrie
 // the opponent (a queued premove won't appear in the move list until they move). chess.com renders a
 // premoved piece at its destination, so the second click lands on the right square. The popup only
 // sends this when the whole 2-ply line is forced, so neither click can misfire.
-async function simulatePremoveSequence(moves) {
+async function simulatePremoveSequence(moves, sessionGen = undefined) {
     for (const move of moves) {
-        await simulateMove(move, false);
+        // a real move superseding this blind session bumps moveGen; the remaining premove clicks
+        // belong to a position the opponent has already decided against -- stop, do not fire them
+        if (sessionGen !== undefined && sessionGen !== moveGen) {
+            bgLog('premove sequence superseded: remaining clicks abandoned', {left: moves.length});
+            return;
+        }
+        await simulateMove(move, false, null, sessionGen);
     }
 }
 
