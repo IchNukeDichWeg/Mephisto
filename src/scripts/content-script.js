@@ -2880,8 +2880,10 @@ function scrapeClocks() {
     }
     const mine = parseClockText(mineTxt), theirs = parseClockText(theirsTxt);
     if (mine == null && theirs == null) return null;
-    // increment from time-control text like "3+2" / "½+0 • Rated • Bullet"; null when unknown
-    const inc = tcText.match(/[\d½¼]+\s*\+\s*(\d+)/);
+    // increment from the time-control text; null when unknown. lichess writes "3+2" / "½+0 • Rated";
+    // chess.com writes "3 | 2" -- PIPE, not plus -- so the plus-only regex never matched there and
+    // Clock Mode budgeted every incremental chess.com game as sudden death (audit finding, 2026-08-26).
+    const inc = tcText.match(/[\d½¼]+\s*[+|]\s*(\d+)/);
     return {mine, theirs, increment: inc ? parseInt(inc[1]) : null};
 }
 
