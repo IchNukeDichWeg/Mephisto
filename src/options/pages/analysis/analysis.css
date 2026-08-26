@@ -275,7 +275,10 @@
    the pointer mid-drag. The PAINT (fill gradient, thumb) is the shared input[type=range] rule in
    options.css; this page adds only layout. */
 .an-f-budget { flex: 1 1 100%; }
-.an-budget-row { display: flex; align-items: center; gap: 12px; flex: 0 1 auto; min-width: 0; }
+/* pushed to the right edge of the row: the readout was sitting a slider's width short of it, with
+   empty space to its right that belonged to nothing */
+.an-budget-row { display: flex; align-items: center; gap: 12px; flex: 0 1 auto; min-width: 0;
+                 margin-left: auto; }
 .an-budget-row > .an-kind { flex: 0 0 150px; width: 150px; }
 .an-slider { flex: 0 0 360px; width: 360px; outline: none; }
 /* Fixed width, so the slider keeps its position whatever the readout says -- it used to jump left
