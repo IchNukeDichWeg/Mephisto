@@ -325,7 +325,9 @@ function eeRun(assets, commands, {timeoutMs = 180000} = {}) {
 // eeCommands, the renderer) cannot tell which engine searched.
 // `movetime` (ms) OR `depth`. A time budget cannot filter on a known final depth the way `go depth`
 // can, so the collector keeps the DEEPEST line seen per multipv slot, which is correct for both.
-function sfSearch(assets, positions, {depth = 10, movetime = 0, multipv = 2, hash = 0, uciMoves = null, onProgress, timeoutMs = 60000} = {}) {
+// ONE sandboxed engine, driving the positions handed to it. `take()` yields the next index to
+// search or -1 when the run is finished, so several of these can share one queue -- see sfSearch.
+function sfSearchOne(assets, positions, take, done, {depth = 10, movetime = 0, multipv = 2, hash = 0, uciMoves = null, timeoutMs = 60000} = {}) {
     return new Promise((resolve, reject) => {
         const frame = document.createElement('iframe');
         frame.src = chrome.runtime.getURL('src/options/ee-sandbox.html');
@@ -371,7 +373,9 @@ function sfSearch(assets, positions, {depth = 10, movetime = 0, multipv = 2, has
                 // not either -- it would stop being a reproduction of their run.
                 if (hash) send(`setoption name Hash value ${hash}`);
                 send('isready'); await until(/^readyok/);
-                for (let i = 0; i < positions.length; i++) {
+                for (;;) {
+                    const i = take();
+                    if (i < 0) break;
                     const p = positions[i];
                     const best = {};
                     // Deepest line per slot. The search reports every depth on the way up, and a
@@ -412,7 +416,7 @@ function sfSearch(assets, positions, {depth = 10, movetime = 0, multipv = 2, has
                         .map(k => ({cp: Core.toWhiteCp(best[k].cp, best[k].mate, p.turn),
                                     mate: best[k].mate, pv: best[k].pv}));
                     p.depth = best[1]?.depth ?? depth;
-                    if (onProgress) { try { onProgress((i + 1) / positions.length, i + 1, positions.length); } catch (e) { /* */ } }
+                    done();
                 }
                 finish(null, positions);
             } catch (e) { finish(e instanceof Error ? e : new Error(String(e))); }
@@ -424,6 +428,28 @@ function sfSearch(assets, positions, {depth = 10, movetime = 0, multipv = 2, has
         };
         document.body.appendChild(frame);
     });
+}
+
+// N sandboxed engines over ONE queue. The positions of a game are independent, so this is the same
+// trick the main review uses -- and it is why the chess.com classifier run went from "quite some
+// time" to about 1/N of it. Their protocol is per-engine, so nothing about the verdicts changes:
+// each engine sets their options, searches the positions it draws, and writes into the same array.
+//
+// uciMoves (their "position ... moves" form, used by the deepest tier so repetition is visible)
+// makes a position depend on the game so far, not on the engine that searched it -- so it is safe
+// to split, but each engine must be handed the WHOLE move list, which it already is.
+function sfSearch(assets, positions, opts = {}) {
+    const workers = Math.max(1, Math.min(4, opts.workers || 1));
+    const {onProgress} = opts;
+    let next = 0, finished = 0;
+    const take = () => (next < positions.length ? next++ : -1);
+    const done = () => {
+        finished++;
+        if (onProgress) { try { onProgress(finished / positions.length, finished, positions.length); } catch (e) { /* */ } }
+    };
+    if (workers === 1) return sfSearchOne(assets, positions, take, done, opts);
+    return Promise.all(Array.from({length: workers}, () => sfSearchOne(assets, positions, take, done, opts)))
+        .then(() => positions);
 }
 
 // THE PROTOCOL, exactly as chess.com drives it -- captured from a real game and replayed back into

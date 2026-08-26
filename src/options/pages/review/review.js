@@ -271,20 +271,32 @@ async function runReview(game, rig, onProgress) {
     // model is started alongside the analysis engine rather than after it. Measured on a 25-position
     // game at 400ms per position, Maia 1500, one thread: 25.4s serial -> 12.8s overlapped, and the
     // reports are identical.
+    // N engines, one queue. Each worker takes the next unsearched position, so a slow position
+    // holds up nothing but its own worker, and the pass finishes in about 1/N of the time.
+    // The count reported is COMPLETED positions, not an index: with workers running out of order
+    // "position 7 of 103" would jump around and read like a bug.
+    const pool = (rig.engines && rig.engines.length) ? rig.engines : [rig.engine];
+    let nextPos = 0;
     const enginePass = (async () => {
-        for (let i = 0; i < positions.length; i++) {
-            if (cancel) throw new Error('stopped');
-            const p = positions[i];
-            // Say which position is being worked on BEFORE searching it. At a second per position
-            // nobody notices; with the unbounded notch the run would otherwise sit on "starting the
-            // engine" for the entire search, with nothing to say it was alive.
-            onProgress(done / total, `position ${i + 1} of ${positions.length}`);
-            // efen: the engine's dialect of the position (crazyhouse pockets, 3check counts)
-            const r = await rig.engine.analyse(p.efen || p.fen, p.turn);
-            p.lines = r.lines;
-            p.depth = r.depth;
-            tick(`position ${i + 1} of ${positions.length}`);
-        }
+        let searched = 0;
+        const worker = async (e) => {
+            for (;;) {
+                const i = nextPos++;
+                if (i >= positions.length) return;
+                if (cancel) throw new Error('stopped');
+                const p = positions[i];
+                // Say something BEFORE the first search returns: with the unbounded notch the run
+                // would otherwise sit on "starting the engine" for the whole of it.
+                onProgress(done / total, `position ${searched + 1} of ${positions.length}`);
+                // efen: the engine's dialect of the position (crazyhouse pockets, 3check counts)
+                const r = await e.analyse(p.efen || p.fen, p.turn);
+                p.lines = r.lines;
+                p.depth = r.depth;
+                searched++;
+                tick(`position ${searched} of ${positions.length}`);
+            }
+        };
+        await Promise.all(pool.map(worker));
     })();
 
     const humanPass = (async () => {
@@ -555,9 +567,24 @@ async function startRig(override) {
         engineId = 'stockfish-18-nnue';
     }
     opts.engineId = engineId;   // the engine that actually ran, for the report header
-    const engine = makeEngine(engineId, opts, 'review');
+    // A POOL, not one engine: the positions of a game are independent, so the pass runs them N at
+    // a time (chess.com's review does the same). The configured threads are SPLIT across the pool
+    // -- two engines on all cores each would just fight over them and search shallower for it.
+    const wantWorkers = Math.max(1, Math.min(4, override?.workers || +cfg('rv_workers') || 1));
+    const per = Math.max(1, Math.floor(opts.threads / wantWorkers));
+    const engines = [];
+    for (let w = 0; w < wantWorkers; w++) {
+        const e = makeEngine(engineId, {...opts, threads: per}, w ? `review-${w}` : 'review');
+        // one failing to start is not fatal while another runs: the pass just goes that much slower
+        try { await e.start(); engines.push(e); } catch (err) {
+            if (!engines.length) throw err;
+            note(`Engine ${w + 1} of ${wantWorkers} did not start (${err.message}) - running with ${engines.length}.`, true);
+            break;
+        }
+    }
+    const engine = engines[0];
+    opts.workers = engines.length;
     activeEngine = engine;
-    await engine.start();
     let human = null;
     // the Maia nets know one game: any other rules run without a human pass
     const humanKind = (override || variant !== 'chess') ? '' : cfg('rv_human');
@@ -574,10 +601,111 @@ async function startRig(override) {
             human = null;
         }
     }
-    return {opts, engine, human, noStrength: !!override};
+    return {opts, engine, engines, human, noStrength: !!override};
+}
+
+// The 4-player review, end to end: the PGN4 goes to the host (which replays it with the engine's
+// own rules), every position is searched, and the moves are graded with the SHARED classifier so a
+// blunder here is a blunder in the two-player report and in the panel's live strip.
+let fourpcReport = null, fourpcPly = 0;
+
+async function run4pcReview() {
+    const M = self.Mephisto4PC;
+    if (!M) return note('The 4-player module did not load.', true);
+    const text = ($('rv_pgn')?.value || '').trim();
+    if (!text) return note('Paste a chess.com PGN4 first.', true);
+    running = true; cancel = false;
+    $('rv_run').disabled = true;
+    if ($('rv_stop')) $('rv_stop').disabled = false;
+    $('rv_progress_wrap')?.classList.remove('hidden');
+    note('');
+    // Show the section the moment the run starts, not when it finishes: a four-player review
+    // searches every position over a native host, and a page that looks inert for a minute is
+    // indistinguishable from one that ignored the button.
+    $('rv-4pc')?.classList.remove('hidden');
+    if ($('rv4_head')) $('rv4_head').textContent = 'Replaying the game with the Tetrarch engine\u2026';
+    try {
+        // The budget the page already offers. Tetrarch takes a movetime; a depth limit means
+        // something different in its search, so the time row is what is honoured here.
+        const movetime = cfg('rv_limit_kind') === 'depth' ? 1000 : Math.max(50, +cfg('rv_limit_value') || 1000);
+        fourpcReport = await M.runReview(text, {
+            movetime,
+            isCancelled: () => cancel,
+            onProgress: (frac, what) => progress(frac, what),
+        });
+        fourpcPly = fourpcReport.frames.length - 1;
+        render4pc();
+        $('rv-4pc')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+    } catch (e) {
+        note(cancel ? 'Stopped.' : String(e.message || e), !cancel);
+    } finally {
+        running = false; cancel = false;
+        $('rv_run').disabled = false;
+        if ($('rv_stop')) $('rv_stop').disabled = true;
+        $('rv_progress_wrap')?.classList.add('hidden');
+        M.disconnect();   // the host is single-threaded and idle now; do not hold its port open
+    }
+}
+
+let board4pc = null;
+
+function render4pc() {
+    const r = fourpcReport;
+    if (!r) return;
+    $('rv-4pc')?.classList.remove('hidden');
+    const C = self.MephistoClassify || {};
+    const tags = r.tags || {};
+    const who = ['Red', 'Blue', 'Yellow', 'Green'].map(s => tags[s]).filter(Boolean).join(' · ');
+    $('rv4_head').textContent = `${r.variant || 'Teams'} · ${r.frames.length - 1} plies`
+        + (who ? ` · ${who}` : '')
+        + (r.terminations?.length ? ` · ${r.terminations.map(t => `${t.seat} ${t.reason}`).join(', ')}` : '');
+
+    // the teams, with the accuracy each played to and what the classifier counted
+    $('rv4_teams').innerHTML = [0, 1].map(t => {
+        const counts = r.counts[t] || {};
+        const named = (C.CLASS_NOTABLE || []).filter(k => counts[k])
+            .map(k => `<span style="color:${(C.CLASS_COLOR || {})[k]}">${counts[k]} ${k}</span>`).join(' · ');
+        return `<div class="rv4-team"><h4>${esc(r.teamNames[t])}</h4>`
+             + `<div class="rv4-acc">${r.accuracy[t] == null ? ' - ' : r.accuracy[t] + '%'}</div>`
+             + `<div class="rv4-sub">accuracy · ${named || 'clean'}</div></div>`;
+    }).join('');
+
+    $('rv4_moves').innerHTML = r.moves.map(m => {
+        const col = (C.CLASS_COLOR || {})[m.klass];
+        const badge = m.klass ? `<span class="rv4-klass" style="background:${col}">${m.klass}</span>` : '';
+        const cp = m.teamCpAfter == null ? '' : (m.teamCpAfter / 100).toFixed(2);
+        return `<div class="rv4-mv" data-ply="${m.ply + 1}">`
+             + `<span class="rv4-seat">${esc(m.seatName)}</span>`
+             + `<span class="rv4-tok">${esc(m.token || m.move || '')}</span>${badge}`
+             + `<span class="rv4-cp">${cp}</span></div>`;
+    }).join('');
+    $('rv4_moves').querySelectorAll('.rv4-mv').forEach(el =>
+        el.addEventListener('click', () => show4pcPly(+el.dataset.ply)));
+
+    show4pcPly(fourpcPly);
+}
+
+function show4pcPly(ply) {
+    const r = fourpcReport;
+    if (!r) return;
+    fourpcPly = Math.max(0, Math.min(r.frames.length - 1, ply));
+    const f = r.frames[fourpcPly];
+    // The panel's own 14x14 renderer -- the one the live lane draws with, so a review board and a
+    // live board are the same board. Seated at Red: a review has no "our seat" to rotate to.
+    if (!board4pc && self.MephistoBoard4PC) board4pc = new self.MephistoBoard4PC('rv4_board', {seat: 'r'});
+    board4pc?.position(f.fen4);
+    const ev = r.evals[fourpcPly] || {};
+    const cp = ev.teamCp == null ? null : (ev.teamCp / 100).toFixed(2);
+    $('rv4_ply').textContent = `ply ${fourpcPly} of ${r.frames.length - 1}`;
+    $('rv4_evalline').textContent = `${r.seatName[f.turn] || f.turn} to move`
+        + (cp == null ? '' : ` · ${cp} for ${r.teamNames[0]}`)
+        + (ev.best ? ` · best ${ev.best}` : '');
+    $('rv4_moves').querySelectorAll('.rv4-mv').forEach(el =>
+        el.classList.toggle('rv4-sel', +el.dataset.ply === fourpcPly));
 }
 
 function disposeRig(rig) {
+    for (const e of (rig?.engines || [])) { try { e.dispose(); } catch (err) { /* */ } }
     try { rig?.engine?.dispose(); } catch (e) { /* */ }
     try { rig?.human?.dispose(); } catch (e) { /* */ }
     activeEngine = null;
@@ -836,7 +964,8 @@ function renderHeader() {
         const budget = report.opts.limitKind === 'depth'
             ? `depth ${report.opts.limitValue}` : `${report.opts.limitValue}ms/move`;
         const name = report.opts.engineName || (eng ? eng.label : report.engineId);
-        bits.push(`${esc(name)}, ${budget}, ${report.opts.multipv} line(s)`);
+        const pool = report.opts.workers > 1 ? `, ${report.opts.workers} engines` : '';
+        bits.push(`${esc(name)}, ${budget}, ${report.opts.multipv} line(s)${pool}`);
     }
     $('rv_header').innerHTML =
         `<div class="rv-vs">${esc(playerLine('w'))} &ndash; ${esc(playerLine('b'))}`
@@ -2451,7 +2580,8 @@ class ReviewPage {
                 if (sf) {
                     eeSay(`Searching with chess.com\u2019s own Stockfish (${budget}, ${EE_MULTIPV} lines)\u2026`);
                     const {positions, moves} = buildPositions(game);
-                    await sfSearch(sf, positions, {depth: tier.depth || EE_DEPTH, movetime: tier.movetime,
+                    await sfSearch(sf, positions, {workers: Math.max(1, Math.min(4, +cfg('rv_workers') || 1)),
+                                                   depth: tier.depth || EE_DEPTH, movetime: tier.movetime,
                         multipv: EE_MULTIPV,
                         uciMoves: moves.map(m => m.uci),
                         onProgress: (frac, i, n) => progress(frac * 0.9, `position ${i} of ${n}`)});
@@ -2627,6 +2757,7 @@ class ReviewPage {
             syncLimitUi();
         });
         bindNumber('rv_multipv', 'rv_multipv');
+        bindNumber('rv_workers', 'rv_workers');
         bindNumber('rv_threads', 'rv_threads');
         bindNumber('rv_hash', 'rv_hash');
         const rvWarn = () => refreshLimitWarnings($('rv_limits_warn'), $('rv_threads')?.value, $('rv_hash')?.value);

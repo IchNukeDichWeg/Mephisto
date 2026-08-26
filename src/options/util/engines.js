@@ -54,6 +54,11 @@ const CFG_DEFAULTS = {
     // Not a literal: 4 is most of a two-core laptop and a quarter of a workstation. The panel
     // and the settings page already share this, so a review uses the same rule.
     get rv_threads() { return MephistoConfig.defaultThreads(); },
+    // HOW MANY ENGINES SEARCH AT ONCE. The positions of a game are independent, so N engines cut
+    // the pass to about 1/N of the wall clock -- what chess.com's review does. Two by default: the
+    // second engine is nearly free on any machine that can run one, and the threads below are
+    // SPLIT between them, so this trades a little depth-per-position for a lot less waiting.
+    rv_workers: 2,
     rv_hash: 256,
     rv_human: '',
     rv_maia_band: '1500',
