@@ -239,6 +239,34 @@ def do_analyse(data, mid):
                 'threat': '(none)',
                 'lines': ordered or [{'move': best, 'pv': [best] if best else []}]}
 
+# A GAME, REPLAYED BY THE ENGINE'S OWN RULES. The extension has no 4-player rules of its own --
+# chess.js cannot represent a 14x14 board with four seats, and reimplementing castling, promotion
+# and elimination in JS to draw a review would be a second rulebook to keep in step with this one.
+# Tetrarch's package already parses chess.com's PGN4 and steps it, handing back a FEN4 per ply
+# "for a viewer to render without knowing any rules" (pgn4.replay's own words), so the analysis
+# page asks for that instead of guessing.
+def do_pgn4(data):
+    # The engine runs as a SUBPROCESS for searching, so its package was never on this
+    # interpreter's path -- importing it here needs the repo added first.
+    try:
+        if _repo not in sys.path:
+            sys.path.insert(0, _repo)
+        from tetrarch import pgn4
+    except Exception as e:
+        return {'error': f'Tetrarch package unavailable ({_repo}): {e}'}
+    text = data.get('pgn4') or ''
+    if not text.strip():
+        return {'error': 'no PGN4 given'}
+    try:
+        game = pgn4.parse(text)
+        frames, terminations = pgn4.replay(game)
+    except Exception as e:
+        # a malformed game is the user's paste, not a crash: name the ply if the parser knew it
+        ply = getattr(e, 'ply', None)
+        return {'error': str(e), 'ply': ply}
+    return {'tags': game.tags, 'mode': str(game.mode), 'setup': game.setup,
+            'variant': game.variant, 'frames': frames, 'terminations': terminations}
+
 def handle(msg):
     mid = msg.get('id')
     cmd = msg.get('cmd')
@@ -248,6 +276,8 @@ def handle(msg):
             res = do_analyse(msg, mid)
             _dbg(f"DONE id={mid} bestmove={res.get('bestmove')}")
             send_message({'id': mid, **res, 'done': True})
+        elif cmd == 'pgn4':
+            send_message({'id': mid, **do_pgn4(msg), 'done': True})
         elif cmd == 'configure':
             send_message({'id': mid, **do_configure(msg)})
         elif cmd == 'ping':

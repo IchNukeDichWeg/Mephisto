@@ -93,7 +93,8 @@
                                             Chess960 gets the full own-engine review (no opening names -- random
                                             starts have none); the Fairy variants are reviewed by Fairy-Stockfish
                                             with Mephisto's own win-percentage classification, because chess.com's
-                                            classifier speaks standard chess only.">
+                                            classifier speaks standard chess only. 4-player chess (Teams) is
+                                            replayed and searched by the Tetrarch engine over its native host.">
                             Game type <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
@@ -115,11 +116,13 @@
                         </select>
                     </div>
                 </div>
-                <!-- 4-player has no PGN replay: there is no rules engine for a 14x14 four-seat game
-                     in this page, so promising a review here would be a claim nothing can back. -->
-                <div id="rv_4pc_note" class="rv-status hidden">4-player chess cannot be replayed from a PGN here yet.
-                    Live 4-player analysis runs in the floating panel on chess.com/variants/4-player, driven by the
-                    Tetrarch engine - open a game there and press the panel hotkey.</div>
+                <!-- 4-player: paste a PGN4 and it is replayed by the ENGINE's own rules (the host asks
+                     Tetrarch's package, which parses chess.com's PGN4), then every position is searched.
+                     No human model and no strength estimate here: Maia knows one game and it is not this one. -->
+                <div id="rv_4pc_note" class="rv-status hidden">4-player chess: paste a chess.com PGN4 above and press
+                    Review. Positions are replayed and searched by the Tetrarch engine over its native host, so the
+                    host must be installed (native-host/install.sh --tetrarch). Teams mode only - Tetrarch does not
+                    search free-for-all. No human model or strength estimate for 4-player.</div>
 
                 <!-- Three ways to review, one at a time. They used to sit stacked as three rows of
                      buttons with three status lines under them, which read as one dense block of
@@ -579,6 +582,29 @@
                     <div id="rv_strength_evidence" class="rv-str-evidence"></div>
                 </div>
                 <div id="rv_strength_compare" class="rv-str-compare"></div>
+            </section>
+
+            <!-- ========================= 4-PLAYER REPORT ========================= -->
+            <section id="rv-4pc" class="set-sec hidden">
+                <h3 class="set-h">4-player review</h3>
+                <div id="rv4_head" class="rv-status"></div>
+                <div class="rv4-row">
+                    <div class="rv4-boardwrap">
+                        <div id="rv4_board" class="rv4-board"></div>
+                        <div id="rv4_nav" class="rv4-nav">
+                            <button type="button" id="rv4_first" class="set-btn">&laquo;</button>
+                            <button type="button" id="rv4_prev" class="set-btn">&lsaquo;</button>
+                            <span id="rv4_ply" class="rv4-ply"></span>
+                            <button type="button" id="rv4_next" class="set-btn">&rsaquo;</button>
+                            <button type="button" id="rv4_last" class="set-btn">&raquo;</button>
+                        </div>
+                        <div id="rv4_evalline" class="rv4-evalline"></div>
+                    </div>
+                    <div class="rv4-side">
+                        <div id="rv4_teams" class="rv4-teams"></div>
+                        <div id="rv4_moves" class="rv4-moves"></div>
+                    </div>
+                </div>
             </section>
 
             <section id="rv-indicators" class="set-sec scrollspy hidden">
