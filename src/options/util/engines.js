@@ -128,6 +128,7 @@ class WasmEngine {
         // a perfect game in the numbers.
         this.clientId = clientId || 'review';
         this.listeners = [];
+        this.waiters = new Set();   // the reject halves of pending once() promises -- see dispose()
         this.onMessage = (msg) => {
             if (!msg || !msg.fromOffscreen || msg.clientId !== this.clientId) return;
             for (const fn of this.listeners.slice()) fn(msg);
@@ -185,9 +186,16 @@ class WasmEngine {
             const fn = (msg) => { if (pred(msg)) { off(); resolve(msg); } };
             const off = () => {
                 if (timer) clearTimeout(timer);
+                this.waiters.delete(bail);
                 const i = this.listeners.indexOf(fn);
                 if (i >= 0) this.listeners.splice(i, 1);
             };
+            // dispose() calls this: a cleared listener list would otherwise leave the promise
+            // PENDING FOREVER -- and anything serialised behind it (the Maia-3 sweep queue, most
+            // painfully) hangs with it. Found live: turning the Maia 3 dial wedged the human
+            // column for good, with the offscreen host perfectly healthy underneath.
+            const bail = () => { off(); reject(new Error('engine disposed')); };
+            this.waiters.add(bail);
             this.listeners.push(fn);
         });
     }
@@ -328,6 +336,11 @@ class WasmEngine {
         try {
             chrome.runtime.sendMessage({toOffscreen: true, clientId: this.clientId, cmd: 'dispose'});
         } catch (e) { /* the worker or the offscreen doc is already gone */ }
+        // Reject, do not abandon: every promise still waiting on this engine settles NOW, so a
+        // chain awaiting one of them keeps moving instead of hanging on an answer that can never
+        // arrive. The callers already handle a failed engine; none of them handled a silent one.
+        for (const bail of [...this.waiters]) { try { bail(); } catch (e) { /* */ } }
+        this.waiters.clear();
         this.listeners = [];
     }
 }
