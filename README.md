@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-3.1.292-3fb950)
+![Version](https://img.shields.io/badge/version-3.1.297-3fb950)
 ![Engines](https://img.shields.io/badge/engines-9-58a6ff)
 ![Sites](https://img.shields.io/badge/sites-5-8b949e)
 ![Languages](https://img.shields.io/badge/languages-14-f0883e)
@@ -283,13 +283,21 @@ review instead, see the next section.)
   Fairy-Stockfish with Mephisto's own win-percentage classification, pockets and check counts fed to
   the engine in its own FEN dialect. A pasted PGN's `[Variant]` tag (or a tagless Chess960 start
   position) sets it for you. The chess.com paths below speak standard chess only and say so; the Maia
-  passes stand down outside standard chess. **4-player chess** is listed and honest: a 4-player game
-  cannot be replayed from a PGN here yet, and the page says exactly that instead of pretending.
+  passes stand down outside standard chess. **4-player chess** (Teams) reviews too: paste a chess.com
+  PGN4 and it is replayed by the Tetrarch engine's own rules over its native host - every position
+  searched, each move graded with the same shared classifier, team accuracies, a 14x14 board with ply
+  navigation. No human model and no strength estimate there (Maia knows one game and it is not this
+  one), free-for-all is refused with the honest reason (Tetrarch searches Teams only), and it needs
+  the Tetrarch native host installed.
 - **Any engine, at your budget** - the bundled WASM Stockfishes, or a native host at full power. A
   **depth** is reproducible (the same depth is the same answer on any machine) and is the default at 16;
   a **time per move** is a plain box in seconds (default 0.5s, steps of 0.5, type any value). Each mode
   remembers its own number, so switching between them does not reinterpret one in the other's units.
-  Native hosts take either. 1–10 candidate lines, your own thread and hash counts.
+  Native hosts take either. 1–10 candidate lines, your own thread and hash counts. **Engines at once**
+  (default 2) runs the pass as a worker pool - a game's positions are independent, so two engines
+  finish in about half the time, the same trick chess.com's own review uses (measured here: 64.7s to
+  25.7s on the same game). The threads are split between them; one engine is the old behaviour. The
+  offline chess.com classifier below uses the same setting.
 - **What you actually gave up** - every position is searched once, so the score before a move and the
   score after it come from the same search at the same budget, and the played move's rank in the engine's
   own list is exact.
@@ -529,8 +537,20 @@ ever did was the two engine downloads.
   capped at two threads (not one: premove certification needs depth 14).
 - **Play Book Moves** - plays the opening from the Explorer, weighted-random among popular replies. Needs 20+ games
   and within 40cp of the engine's best, so variety never costs you a worse move.
-- **Endgame tablebase** - at 7 pieces or fewer the position is *solved*, so it asks Lichess's Syzygy tables for the
-  perfect move and outranks both engine and book. Off by default: it sends the position to a third party.
+- **Your own opening book** (v3.1.293) - load a Polyglot `.bin` in Settings and Play Book Moves plays from *it*
+  instead of the online database: the book's own weights drive the pick, no minimum-games filter and no engine
+  veto - a deliberately loaded repertoire is played as given. Validated at load, answered per position with one
+  binary search, and the engine takes over cleanly out of book.
+- **Endgame tablebase** - at 7 pieces or fewer the position is *solved*, so it asks a Syzygy tablebase for the
+  perfect move and outranks both engine and book. Point it at **your own Syzygy files** (v3.1.293) and it answers
+  off disk - decoded in the browser, offline, nothing about the position leaves the machine - with the online
+  lichess lookup as the fallback. Wins *convert* (v3.1.296): moves are ordered by lila-tablebase's own sort, so a
+  won endgame walks to checkmate instead of shuffling into a repetition, and at ≤5 men the readout counts the
+  mate - "Tablebase: mate in 7 (local)". Off by default: the online lookup sends the position to a third party.
+- **Variant endings are seen** - a variant that is already over says so instead of analysing on: an
+  exploded king in Atomic, a third check, a king on the hill or the eighth rank, the horde's last pawn,
+  everything given away in Antichess. chess.js only knows standard checkmate, so each rule is read off
+  the board by the variant's own win condition.
 - **Manual Mode** - thinks indefinitely and plays nothing until you press the play key.
 - **Background Play** (off by default) - moves fire only while the tab is focused and visible; a move that comes due
   while you're away is deferred and re-issued when you return.
@@ -903,8 +923,9 @@ is a subset writing to the same storage. Everything applies to the next move wit
 | **Number Arrows** | Number each arrow with where its line ranks: 1 for the engine's best, 2 upwards. On by default; with more than a couple of lines the colours alone stop distinguishing them. |
 | **Arrow Opacity** | How strongly arrows are drawn, 1–100, on the panel board and the page board alike. Floored so the bottom of the slider cannot render an invisible arrow. |
 | **Board Animation** | Animate the panel's board and its overlays. Off draws every change instantly. |
-| **Live Stats** | A strip under the board: running accuracy for both sides and the tally of best moves, inaccuracies, mistakes and blunders. Derived from the same eval history the graph draws and judged by the same win% bands Game Review uses, so the strip and the review agree. Works with the graph switched off. |
-| **Opponent Mistake Alert** | A toast when the opponent plays an inaccuracy, mistake or blunder, by the same Lichess win% method the move mix uses. Only fires when both positions were searched deep enough to trust. |
+| **Live Stats** | A strip under the board: running accuracy for both sides, and each notable move named with the classifier's own verdict - Brilliant, Miss, Blunder and the rest, worst first, in the verdict's colour. The same classifier Game Review uses, so the strip and the review afterwards agree. Works with the graph switched off. |
+| **Move Classification** | Grades the move just played and marks it on the panel board the way a Game Review does - live, while the game is going. Off by default. When on, per-class switches choose which verdicts get a badge (only Brilliant and Blunder, say); the strip and the alert are unaffected by that filter. |
+| **Opponent Mistake Alert** | A toast when the opponent slips. With Move Classification graded, it names the verdict - Blunder, Miss, Mistake or Inaccuracy, including a Miss (a win let go) the plain win-drop rule cannot see; otherwise the win% drop bands decide. Only fires when both positions were searched deep enough to trust. |
 </details>
 
 <details>
@@ -915,7 +936,7 @@ is a subset writing to the same storage. Everything applies to the next move wit
 | **Autoplay** | Plays the engine's move on the site's board by clicking. Everything else that plays a move needs this on. |
 | **Premove** | Certifies a reply to the opponent's predicted move; an exact hit is instant. A reply that could never be legal after some other move is queued as a real site premove. |
 | **Pondering** | Full threads during the opponent's turn across their top five replies. Costs CPU continuously - it pairs best with Premove. |
-| **Endgame Tablebase** | Perfect play at ≤7 pieces, outranking engine and book. Off by default: it leaves your machine. Never delays a move. |
+| **Endgame Tablebase** | Perfect play at ≤7 pieces, outranking engine and book. Answers from your local Syzygy files when configured (nothing leaves the machine), lichess's online tablebase otherwise. Off by default. Never delays a move. |
 | **Lichess API token** | Lichess put the opening explorer behind OAuth - without a token it answers 401 and both Opening Explorer and Play Book Moves stop working. Make a personal token at [lichess.org/account/oauth/token/create](https://lichess.org/account/oauth/token/create) with **no scopes** ticked; the explorer only needs to know a request has an owner. Stored on your machine like any other setting, sent nowhere but lichess, and deliberately left out of Copy Diagnostics and of an exported settings file. |
 | **Opening Explorer** / **Opening Database** | Human opening data and which games it comes from. *Masters* is the cleanest play; the Lichess sets look more like a normal opponent. Read-out only. |
 | **Play Book Moves** | Plays from the book instead of the engine's pick - an engine that always opens the same way is itself a tell. 20-game floor, 40cp check. If the lookup is late the engine's move is played. |
@@ -994,7 +1015,7 @@ No schedule - added whenever I feel like it. Checked means shipped.
 ### Planned
 
 <details>
-<summary>25 items, sorted by upside and effort</summary>
+<summary>24 items, sorted by upside and effort</summary>
 
 **Quick wins.** Small changes with an obvious payoff. Empty once more as of v3.1.272 - all fourteen
 that were here shipped in one release.
@@ -1048,10 +1069,11 @@ that were here shipped in one release.
   unresponsive, and then it recovers on its own. Long-standing, instrumented, never explained. The worker's
   cold-start timings are recorded now, which is where to start looking.
 
-- [ ] **Four-player chess, the rest of it** - Teams mode works, promotions are played and eliminations are
-  handled. What is left: free-for-all needs engine support, and no real game has yet been seen past an
-  elimination, so that path is pinned by synthetic positions rather than by having happened. Chaturaji,
-  4P Giveaway and Self Partnering are untouched.
+- [ ] **Four-player chess, the rest of it** - Teams mode works, promotions are played, eliminations are
+  handled, and Game Review replays a pasted chess.com PGN4 (Teams) through the Tetrarch engine - every
+  position searched, moves graded with the shared classifier, team accuracies. What is left: free-for-all
+  needs engine support, and no real game has yet been seen past an elimination, so that path is pinned by
+  synthetic positions rather than by having happened. Chaturaji, 4P Giveaway and Self Partnering are untouched.
 
 - [ ] **Four-player chess on Windows, confirmed** - built and symbol-checked, never run on a real Windows machine.
   See [Contributing](#contributing) for the four stages worth reporting.
@@ -1060,11 +1082,6 @@ that were here shipped in one release.
   Fairy-Stockfish declares 84 variants and duck is not one of them, so `UCI_Variant duck` is ignored and it plays
   standard chess. Since v3.1.269 the panel at least says so instead of answering confidently. What it needs is a
   Fairy build that has the variant - a rebuild, not a wiring job.
-
-- [ ] **Play from your own Polyglot book** - half done. Since v3.1.256 the **Analysis** page reads real `.bin`
-  files (the format's own Zobrist table, verified against its published test keys) and shows their moves. What is
-  left is the other half: the *panel* playing from a book you loaded, rather than from the Opening Explorer's
-  statistics - which means the book has to live somewhere the panel can reach, not just the options page.
 
 - [ ] **Better board reading from the screen** - two of its parts landed in v3.1.269: two boards on screen are
   told apart (the panel hides itself for the one frame a detection capture needs), and a misread square is one
@@ -1136,7 +1153,11 @@ veto for real blunders, and the clock rules above.
 ### Shipped
 
 <details>
-<summary>88 features, newest first</summary>
+<summary>89 features, newest first</summary>
+
+- [x] **Play from your own Polyglot book** (v3.1.293) - both halves. The Analysis page has read real `.bin` files
+  since v3.1.256; the panel now plays from a loaded book too - stored in the extension's own IndexedDB where the
+  panel can reach it, weighted-random by the book's own weights, engine taking over out of book.
 
 - [x] **Chess.com's own move classifier, running here** (v3.1.286)
   - A third way to review a game, beside our own and the real chess.com Game Review. This is the
