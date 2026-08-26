@@ -2312,6 +2312,17 @@ const FOURPC_FILES = 'abcdefghijklmn'.split('');
 const FOURPC_BACK = {R: ['rank', 1], B: ['file', 'a'], Y: ['rank', 14], G: ['file', 'n']};
 let fourPCPrev = null;   // previous board, for the en-passant diff
 let fourPCTurn = null;   // last KNOWN side to move; sticky across scrapes that saw no move
+// KEYED BY PATH, like fourPCModeCache below already is (audit finding #4, 2026-08-26): chess.com is
+// a client-routed SPA, so browsing from a lobby preview or a finished game into a live one keeps
+// this module alive -- and the first scrape of the new game then diffed its board against the
+// unrelated leftover, which can name a bogus mover. A path change resets both.
+let fourPCPrevPath = null;
+function fourPCResetIfNavigated() {
+    if (fourPCPrevPath === location.pathname) return;
+    fourPCPrevPath = location.pathname;
+    fourPCPrev = null;
+    fourPCTurn = null;
+}
 
 // Commissioning diagnostic for the four-player lane. bgLog is silent while the tab is focused unless
 // Premove is on, and a 4PC bring-up failure is exactly the thing you are staring at when it happens --
@@ -2467,7 +2478,15 @@ function fourPCDiff(board, prev) {
     const from = vacated.find(sq => prev[sq] && prev[sq].seat === moved.seat && prev[sq].type === moved.type)
               || vacated.find(sq => prev[sq] && prev[sq].seat === moved.seat)
               || vacated[0];
-    return {from, to, moved, arrived: arrived.length, vacated: vacated.length};
+    // ONE CLEAN PLY, or the mover's seat is a guess (audit finding #5): after missed scrapes -- a
+    // backgrounded tab's timers run ~1/minute -- the diff spans several plies and `arrived[0]` is
+    // DOM order, not the most recent mover. Every real single ply arrives at most two squares
+    // (castling: king + rook), all of ONE seat; anything messier must fall back to the move table,
+    // which is the stated authority. Without this, a multi-ply diff could pin the turn to the wrong
+    // seat -- the exact bug the authority comment says was already fixed, back via another path.
+    const cleanPly = arrived.length <= 2 && vacated.length <= 2
+        && arrived.every(sq => board[sq].seat === moved.seat);
+    return {from, to, moved, cleanPly, arrived: arrived.length, vacated: vacated.length};
 }
 
 function fourPCEnPassant(board, prev) {
@@ -2567,6 +2586,7 @@ function scrapePosition4PC() {
     // still holding a king. Falls back to the modulo only on the first scrape, where there is no
     // previous position to diff and nothing better is available.
     const alive = (seat) => Object.values(board).some(p => p.seat === seat && p.type === 'K');
+    fourPCResetIfNavigated();   // a different page's leftover board must never seed this diff
     const d = fourPCDiff(board, fourPCPrev);
     // THE MOVE LIST IS THE AUTHORITY, ON EVERY SCRAPE. It used to seed the turn on the first scrape
     // only, after which the value was advanced by the board diff and otherwise kept as-is -- so a
@@ -2586,7 +2606,7 @@ function scrapePosition4PC() {
     const cells = [...document.querySelectorAll('.moves-table-cell.moves-move')];
     let lastFilled = -1;
     for (let i = 0; i < cells.length; i++) if (cells[i].textContent.trim()) lastFilled = i;
-    const turn = fourPCTurnFrom(lastFilled, d && d.moved && d.moved.seat, alive);
+    const turn = fourPCTurnFrom(lastFilled, d && d.moved && d.cleanPly ? d.moved.seat : null, alive);
     if (turn !== fourPCTurn) {
         bgLogAlways('4PC turn', {turn, lastFilled, cells: cells.length,
             diff: d && d.moved && d.moved.seat, dead: FOURPC_SEATS.filter(x => !alive(x)).join('') || 'none'});
