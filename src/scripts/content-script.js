@@ -3866,7 +3866,27 @@ function readInitialFenFromPage() {
 // chess.com /practice/custom ships the game's starting FEN as a URL parameter. Validate as hard
 // as the lichess paths do -- a wrong start corrupts every scrape that follows -- and memoize on
 // the query string, because this runs on every scrape.
-let cc_practice_memo; // page-load scoped: the page CONSUMES its own query params (see below)
+let cc_practice_memo; // scoped to one DRILL, not one page load -- see the navigate hook below
+let cc_practice_navigated = false;  // an SPA hop happened: the navigation-timing URL is stale now
+let cc_practice_navFen = null;      // the fen the SPA hop's URL carried, if any
+// chess.com never reloads the document between drills (SPA), so a memo scoped to the page load
+// outlives the drill that produced it: /practice/custom?fen=B after ?fen=A kept answering A's
+// start, and drill B's moves were replayed from drill A's position (audit finding #7, 2026-08-26).
+// The Navigation API sees the SPA hop from the isolated world; the page's own replaceState strip
+// (which removes the query right after load) arrives as a 'replace' and must NOT reset the memo
+// that query just produced.
+try {
+    self.navigation?.addEventListener('navigate', (e) => {
+        if (e.navigationType === 'replace') return;
+        try {
+            const u = new URL(e.destination.url);
+            cc_practice_navigated = true;
+            cc_practice_navFen = (u.searchParams.get('fen') || '').trim() || null;
+            cc_practice_memo = undefined;   // re-resolve for the new drill
+            cc_practice_asked = false;
+        } catch (err) { /* an opaque destination; the page-object fallback still answers */ }
+    });
+} catch (e) { /* Navigation API unavailable: behaviour is what it was before the fix */ }
 let cc_practice_asked = false; // the page-object fallback is requested ONCE, answered async
 function ccPracticeCustomStart() {
     if (!/\/practice\/custom/.test(location.pathname)) return null;
@@ -3877,8 +3897,12 @@ function ccPracticeCustomStart() {
             // the practice page strips its query with history.replaceState right after load, so by
             // scrape time location.search is EMPTY -- but the original URL survives in the
             // navigation timing entry (found 2026-08-14: the first version read location.search and
-            // silently got nothing)
-            if (!/[?&]fen=/.test(search)) search = new URL(performance.getEntriesByType('navigation')[0].name).search;
+            // silently got nothing). After an SPA hop that entry describes the WRONG drill, so it
+            // is only consulted for the original document; a hop's own fen was captured above.
+            if (!/[?&]fen=/.test(search) && cc_practice_navFen) search = `?fen=${encodeURIComponent(cc_practice_navFen)}`;
+            if (!/[?&]fen=/.test(search) && !cc_practice_navigated) {
+                search = new URL(performance.getEntriesByType('navigation')[0].name).search;
+            }
             const fen = (new URLSearchParams(search).get('fen') || '').trim();
             if (FEN_RE.test(fen)) { new Chess('chess', fen); cc_practice_memo = fenToPuzString(fen); }
         } catch (e) { /* no fen anywhere -> the page-object fallback below */ }
