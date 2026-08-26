@@ -781,6 +781,25 @@ async function reloadHuman() {
     syncBandRow();
     humanCache.clear();
     bandCache.clear();
+    // MAIA 3 IS ONE NET WITH A DIAL: a band change retunes the LIVE engine (SelfElo/OppoElo, the
+    // same pair the sweep sends) instead of disposing it and reloading 92MB -- which is what the
+    // panel has done since v3.1.280, and what this page did not. The rebuild was also the hang:
+    // dial -> dispose -> everything queued behind the old engine waited forever.
+    if (human && cfg('an_human') === 'maia3' && String(humanKey || '').startsWith('maia3|')) {
+        const band = String(cfg('an_band') || CFG.an_band);
+        human.send(`setoption name SelfElo value ${band}`);
+        human.send(`setoption name OppoElo value ${band}`);
+        humanKey = `maia3|${band}`;
+        const pos = positions[cursor];
+        if (!pos) return;
+        renderHumanLines(pos, null);
+        try {
+            await humanFor(pos);
+            render();
+            renderBands(pos);
+        } catch (e) { status(`Human model unavailable (${e.message || e})`, 'err'); }
+        return;
+    }
     if (human) { try { human.dispose?.(); } catch (e) { /* */ } human = null; humanKey = null; }
     const pos = positions[cursor];
     if (!pos) return;
