@@ -55,21 +55,44 @@ PYBIN_ANY="$(command -v python3 2>/dev/null || true)"
 case "$(uname -s)" in
   Darwin) RUNTIME_DIR="$HOME/Library/Application Support/Mephisto"
     BASE="$HOME/Library/Application Support"
+    # EVERY Chromium-family browser, not a handful. A native-messaging manifest is registered PER
+    # BROWSER, so switching browsers silently takes every native engine (and the local tablebase
+    # probe) with it -- the extension keeps its id, the hosts just are not registered where the new
+    # browser looks, and it presents as "the engine stopped working". Non-existent dirs are skipped
+    # below, so listing a browser nobody has costs nothing. Arc is the odd one out: its profile
+    # root is `Arc/User Data`, not `Arc`.
     DIRS=(
       "$BASE/Google/Chrome/NativeMessagingHosts"
+      "$BASE/Google/Chrome Beta/NativeMessagingHosts"
+      "$BASE/Google/Chrome Dev/NativeMessagingHosts"
       "$BASE/Google/Chrome Canary/NativeMessagingHosts"
       "$BASE/Chromium/NativeMessagingHosts"
       "$BASE/BraveSoftware/Brave-Browser/NativeMessagingHosts"
+      "$BASE/BraveSoftware/Brave-Browser-Beta/NativeMessagingHosts"
+      "$BASE/BraveSoftware/Brave-Browser-Nightly/NativeMessagingHosts"
       "$BASE/Microsoft Edge/NativeMessagingHosts"
+      "$BASE/Microsoft Edge Beta/NativeMessagingHosts"
+      "$BASE/Microsoft Edge Dev/NativeMessagingHosts"
+      "$BASE/Microsoft Edge Canary/NativeMessagingHosts"
       "$BASE/Vivaldi/NativeMessagingHosts"
+      "$BASE/Vivaldi Snapshot/NativeMessagingHosts"
+      "$BASE/Arc/User Data/NativeMessagingHosts"
+      "$BASE/com.operasoftware.Opera/NativeMessagingHosts"
+      "$BASE/com.operasoftware.OperaGX/NativeMessagingHosts"
+      "$BASE/Thorium/NativeMessagingHosts"
     ) ;;
   Linux) RUNTIME_DIR="$HOME/.local/share/mephisto"
     DIRS=(
       "$HOME/.config/google-chrome/NativeMessagingHosts"
+      "$HOME/.config/google-chrome-beta/NativeMessagingHosts"
+      "$HOME/.config/google-chrome-unstable/NativeMessagingHosts"
       "$HOME/.config/chromium/NativeMessagingHosts"
       "$HOME/.config/BraveSoftware/Brave-Browser/NativeMessagingHosts"
       "$HOME/.config/microsoft-edge/NativeMessagingHosts"
+      "$HOME/.config/microsoft-edge-beta/NativeMessagingHosts"
+      "$HOME/.config/microsoft-edge-dev/NativeMessagingHosts"
       "$HOME/.config/vivaldi/NativeMessagingHosts"
+      "$HOME/.config/opera/NativeMessagingHosts"
     ) ;;
   *) echo "!! this installer supports macOS/Linux. On Windows, see the README (registry setup)."; exit 1 ;;
 esac
