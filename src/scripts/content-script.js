@@ -3391,24 +3391,33 @@ function getMoveContainer() {
 }
 
 function getLastMoveHighlights() {
+    // DEFENSIVE ON PURPOSE (audit finding #10): this used to throw a TypeError whenever the
+    // highlight DOM was half there -- no highlights yet, a missing hover square during the
+    // 3-highlight disambiguation, no board at all. One caller wrapped it in a catch that then
+    // swallowed the torn-read guards along with the error; another (the puzzle-PV confirm loop)
+    // called it bare. An unreadable highlight pair is an ANSWER -- "no last move readable" --
+    // not an exception, so every half-mounted state returns [] and each caller's own no-highlight
+    // path handles it.
     let fromSquare, toSquare;
     if (site === 'chesscom') {
         const board = getBoard();
+        if (!board) return [];
         let highlights = Array.from(document.querySelectorAll('.highlight'));
         if (highlights.length === 3) {
             // If there are 3 highlights, we need to figure out which of them is a user action.
             // Either a piece is being dragged or a piece was clicked and let go.
             const dragPiece = board.querySelector('.piece.dragging');
+            const hoverSquare = board.querySelector('.hover-square');
             if (dragPiece) {
-                const dragSquareId = dragPiece.className.match('square-[0-9][0-9]')[0];
-                highlights = highlights.filter(ht => !ht.classList.contains(dragSquareId));
-            } else {
-                const hoverSquare = board.querySelector('.hover-square');
-                const hoverSquareId = hoverSquare.className.match('square-[0-9][0-9]')[0];
-                highlights = highlights.filter(ht => !ht.classList.contains(hoverSquareId));
+                const dragSquareId = dragPiece.className.match('square-[0-9][0-9]')?.[0];
+                if (dragSquareId) highlights = highlights.filter(ht => !ht.classList.contains(dragSquareId));
+            } else if (hoverSquare) {
+                const hoverSquareId = hoverSquare.className.match('square-[0-9][0-9]')?.[0];
+                if (hoverSquareId) highlights = highlights.filter(ht => !ht.classList.contains(hoverSquareId));
             }
         }
         [fromSquare, toSquare] = [highlights[0], highlights[1]];
+        if (!fromSquare || !toSquare) return [];
         const toPiece = document.querySelector(`.piece.${toSquare.classList[1]}`);
         if (!toPiece) {
             [fromSquare, toSquare] = [toSquare, fromSquare];
