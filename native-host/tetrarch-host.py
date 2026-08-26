@@ -213,8 +213,17 @@ def do_analyse(data, mid):
         _send(pos)
 
         lines, best = {}, None
+        engine_error = []
         def on_line(l):
             if not l.startswith('info'):
+                return
+            # The engine reports its own failures as `info string error ...` and then goes silent --
+            # no bestmove ever follows. Dropping that line meant the caller waited out the WHOLE
+            # bestmove timeout (60s+) to learn nothing (2026-08-26: an FFA `go` with MultiPV died
+            # this way in Tetrarch v8; fixed engine-side, but the next engine error should cost
+            # seconds, not a minute, and carry its own words).
+            if l.startswith('info string error'):
+                engine_error.append(l[len('info string '):])
                 return
             info = parse_info(l)
             if not info:
@@ -229,7 +238,10 @@ def do_analyse(data, mid):
         # ONLY way a search ends is its own bestmove. Give it the move budget plus a
         # generous margin rather than a fixed timeout: a slow machine must not have
         # its answer declared missing while the engine is still working on it.
-        bm = _read_until(lambda l: l.startswith('bestmove'), timeout=ms / 1000.0 + 60, on_line=on_line)
+        bm = _read_until(lambda l: l.startswith('bestmove') or engine_error,
+                         timeout=ms / 1000.0 + 60, on_line=on_line)
+        if engine_error:
+            raise RuntimeError(f'Tetrarch: {engine_error[0]}')
         if bm is None:
             raise RuntimeError('Tetrarch stopped responding')
         parts = bm.split()
