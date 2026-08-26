@@ -1831,12 +1831,43 @@ async function puzzleNetWanted() {
   } catch (e) { return false; }
 }
 
+const PUZZLE_PAGE_URL = (url) => /^https?:\/\/(www\.)?(chess\.com|lichess\.org)\//.test(url)
+    && /\/(puzzles|training|storm|racer|lessons\/practice)\b/.test(url);
+
+// AN MV3 WORKER RESTART EMPTIES THESE SETS, BUT THE DEBUGGER ATTACHMENT SURVIVES -- it belongs to
+// the extension, not to this worker instance. After a restart the onEvent guard below dropped every
+// body from a tab that was still genuinely attached and streaming, and nothing ever re-armed it:
+// capture went silently dark for the rest of the session (audit finding #8, 2026-08-26). Module
+// top-level runs on every worker start, so the reconciliation happens exactly when the state was
+// lost. Over-inclusion is harmless: onEvent only fires for OUR attachments.
+try {
+  chrome.debugger.getTargets((targets) => {
+    if (chrome.runtime.lastError) return;
+    for (const t of targets || []) {
+      if (!t.attached || !t.tabId) continue;
+      attached.add(t.tabId);
+      if (PUZZLE_PAGE_URL(t.url || '')) puzzleNetTabs.add(t.tabId);
+    }
+  });
+} catch (e) { /* no debugger permission granted yet */ }
+
+function puzzleNetDetach(tabId) {
+  puzzleNetTabs.delete(tabId);
+  attached.delete(tabId);
+  lastPos.delete(tabId);
+  try { chrome.debugger.detach({tabId}, () => void chrome.runtime.lastError); } catch (e) { /* gone */ }
+}
+
 // A puzzle page finished loading: if the user asked for it, stay attached and watch the network.
 chrome.tabs?.onUpdated?.addListener(async (tabId, info, tab) => {
-  if (info.status !== 'complete') return;
   const url = tab?.url || '';
-  if (!/^https?:\/\/(www\.)?(chess\.com|lichess\.org)\//.test(url)) return;
-  if (!/\/(puzzles|training|storm|racer|lessons\/practice)\b/.test(url)) return;
+  if ((info.url !== undefined || info.status === 'complete')
+      && puzzleNetTabs.has(tabId) && !PUZZLE_PAGE_URL(url)) {
+    puzzleNetDetach(tabId);
+    return;
+  }
+  if (info.status !== 'complete') return;
+  if (!PUZZLE_PAGE_URL(url)) return;
   if (!(await puzzleNetWanted())) return;
   try { await puzzleNetEnable(tabId); } catch (e) { /* the user can decline the attachment */ }
 });
