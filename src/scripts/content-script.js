@@ -1509,8 +1509,14 @@ function variantsBoard(geo) {
     for (const p of document.querySelectorAll('.piece')) {
         const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(p.getAttribute('style') || '');
         if (!m) continue;
-        const col = Math.round(parseFloat(m[1]) / geo.size);
-        const row = Math.round(parseFloat(m[2]) / geo.size);
+        const cx = parseFloat(m[1]) / geo.size, cy = parseFloat(m[2]) / geo.size;
+        const col = Math.round(cx);
+        const row = Math.round(cy);
+        // A settled piece sits on an integer coordinate; a fraction means mid-slide -- rounding it
+        // snaps the piece to whichever square the animation is nearest, which for a short move can
+        // be a square it never stopped on (audit finding #6, mirroring the 8x8 reader's guard).
+        // null = not scrapeable this tick; the next poll gets the settled board.
+        if (Math.abs(cx - col) > 0.1 || Math.abs(cy - row) > 0.1) return null;
         if (col < 0 || col > 7 || row < 0 || row > 7) continue; // the bank, beside the board
         const file = geo.fileAt[geo.fileAxis === 'x' ? col : row];
         const rank = geo.rankAt[geo.rankAxis === 'x' ? col : row];
@@ -1570,6 +1576,7 @@ function scrapePositionVariantsFen() {
     const geo = variantsGeometry();
     if (!geo) return undefined;
     const board = variantsBoard(geo);
+    if (!board) return undefined;   // mid-animation: not a position, retry next poll
     // An empty board is the setup phase before anything is placed, not a position. Analysing it
     // would park the engine on a bare board and report mate.
     const kings = Object.values(board).filter(p => p === 'K' || p === 'k').length;
@@ -2413,7 +2420,11 @@ function fourPCBoard(geo) {
         if (p.hasAttribute('data-invisible')) continue;
         const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(p.getAttribute('style') || '');
         if (!m) continue;
-        const col = Math.round(parseFloat(m[1]) / geo.size), row = Math.round(parseFloat(m[2]) / geo.size);
+        const cx = parseFloat(m[1]) / geo.size, cy = parseFloat(m[2]) / geo.size;
+        const col = Math.round(cx), row = Math.round(cy);
+        // same settledness rule as variantsBoard above (audit finding #6): a fractional coordinate
+        // is a piece mid-slide, and rounding it corrupts the scraped position for this tick
+        if (Math.abs(cx - col) > 0.1 || Math.abs(cy - row) > 0.1) return null;
         const file = geo.fileAt[geo.fileAxis === 'x' ? col : row];
         const rank = geo.rankAt[geo.rankAxis === 'x' ? col : row];
         const type = p.getAttribute('data-piece'), seat = FOURPC_SEATS[+p.getAttribute('data-color')];
@@ -2576,6 +2587,7 @@ function scrapePosition4PC() {
     const geo = fourPCGeometry();
     if (!geo) return;                             // fourPCGeometry already said why
     const board = fourPCBoard(geo);
+    if (!board) return fourPCFail('board mid-animation, retrying next poll');
     if (Object.keys(board).length < 4) {
         return fourPCFail(`only ${Object.keys(board).length} pieces mapped to squares`);
     }
