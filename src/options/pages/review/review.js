@@ -967,10 +967,14 @@ function renderHeader() {
         const pool = report.opts.workers > 1 ? `, ${report.opts.workers} engines` : '';
         bits.push(`${esc(name)}, ${budget}, ${report.opts.multipv} line(s)${pool}`);
     }
+    // the classifier's one-sentence verdict on the GAME reads as part of the header, right under
+    // the names it is about (it used to trail the run's status line, where it scrolled away)
+    const summary = report.ee?.summary || report.ccrSummary || '';
     $('rv_header').innerHTML =
         `<div class="rv-vs">${esc(playerLine('w'))} &ndash; ${esc(playerLine('b'))}`
         + ` &nbsp;${esc(report.game.result)}</div>`
-        + `<div class="rv-meta">${bits.join(' · ')}</div>`;
+        + `<div class="rv-meta">${bits.join(' · ')}</div>`
+        + (summary ? `<div class="rv-gamenote">\u201c${esc(summary)}\u201d</div>` : '');
 }
 
 function renderCards() {
@@ -1030,7 +1034,12 @@ function renderTurning() {
 // HOW THE CLOCK WAS SPENT, per player, when the PGN carried clocks at all. The shape is the point:
 // steady, spiky, or the same two seconds every move say very different things about a game, and the
 // median already on the summary card cannot show any of them. Same bars the strength curve uses.
-const TIME_BUCKETS = [[1, '≤1s'], [5, '1–5s'], [15, '5–15s'], [60, '15–60s'], [Infinity, '>60s']];
+// TEN buckets, not five. Five was coarse enough that most blitz games piled into the first two and
+// the card read as two bars and three empty ones (reported: the width was doing nothing). The
+// boundaries are roughly logarithmic, because that is how think time actually distributes: a lot of
+// moves under a second, a long tail past a minute.
+const TIME_BUCKETS = [[1, '≤1s'], [2, '1–2s'], [3, '2–3s'], [5, '3–5s'], [8, '5–8s'],
+                      [15, '8–15s'], [30, '15–30s'], [60, '30–60s'], [120, '1–2m'], [Infinity, '>2m']];
 function renderTimeCards() {
     const wrap = $('rv_time_wrap'), host = $('rv_time_cards');
     if (!wrap || !host) return;
@@ -1045,7 +1054,10 @@ function renderTimeCards() {
         const top = Math.max(...counts) || 1;
         const bars = counts.map((n, i) => `<span class="rv-str-bar" title="${TIME_BUCKETS[i][1]}: ${n} move${n === 1 ? '' : 's'}">`
             + `<i style="height:${Math.max(3, Math.round(n / top * 100))}%"></i></span>`).join('');
-        const labels = TIME_BUCKETS.map(([, lab]) => `<span>${lab}</span>`).join('');
+        // ten labels do not fit under a card: label alternate buckets and let the hover title
+        // (already on every bar) carry the rest
+        const labels = TIME_BUCKETS.map(([, lab], i) =>
+            `<span>${i % 2 === 0 ? lab : ''}</span>`).join('');
         const longest = Math.max(...secs);
         return `<div class="rv-card">
             <h4>${esc(playerName(color))} - clock</h4>
@@ -1345,6 +1357,48 @@ function renderStrengthCompare(a, b) {
         : `<p class="rv-sub">These two ratings played this game the same way.</p>`;
 }
 
+// The same four buckets as a bar per player, in the width the cards were leaving empty. The
+// buckets are ORDERED (its first choice -> outside its list entirely), so the colour job is
+// SEQUENTIAL: one hue, light to dark, never a categorical rainbow. The ramp was checked with the
+// palette validator on this page's dark surface -- adjacent steps separate at ΔE 15.5 normal /
+// 14.1 protan and every step clears 3:1 against the surface. (Its categorical lightness-band and
+// chroma checks fail by design here: a sequential ramp is meant to span lightness and to end near
+// neutral.) Every segment is also direct-labelled and legended, so identity is never colour alone.
+const HUMAN_RAMP = ['#f2fae6', '#a9d977', '#5fae4a', '#2f7d41'];
+const HUMAN_LABEL = ['Its first choice', 'Its next two', 'Further down', 'Outside its list'];
+
+function renderHumanChart() {
+    const el = $('rv_human_chart');
+    if (!el) return;
+    const rows = ['w', 'b'].map(color => {
+        const mine = report.moves.filter(m => m.color === color && m.maiaRank != null);
+        if (!mine.length) return '';
+        const buckets = [0, 0, 0, 0];
+        for (const m of mine) {
+            const r = m.maiaRank;
+            buckets[r === 1 ? 0 : r <= 3 ? 1 : r <= 5 ? 2 : 3]++;
+        }
+        // The HEADLINE is the share the model played itself -- that is the number people compare.
+        // It goes in text, at full size; the bar underneath is thin and quiet, and carries the
+        // shape. Numbers inside the segments made every bar shout and the sliver ones illegible.
+        const matched = Math.round(buckets[0] / mine.length * 100);
+        const segs = buckets.map((n, i) => n
+            ? `<div class="rv-hseg" style="flex: 0 0 ${n / mine.length * 100}%; background: ${HUMAN_RAMP[i]}"`
+              + ` title="${esc(HUMAN_LABEL[i])}: ${n} of ${mine.length} (${Math.round(n / mine.length * 100)}%)"></div>`
+            : '').join('');
+        return `<div class="rv-hrow">
+            <div class="rv-hhead"><b>${esc(playerName(color))}</b>
+                <span class="rv-hnum">${matched}%</span>
+                <span class="rv-hsub">played the model's own move &middot; ${mine.length} moves</span></div>
+            <div class="rv-hbar">${segs}</div>
+        </div>`;
+    }).join('');
+    if (!rows) { el.innerHTML = ''; return; }
+    const legend = HUMAN_LABEL.map((t, i) =>
+        `<span><i style="background:${HUMAN_RAMP[i]}"></i>${esc(t)}</span>`).join('');
+    el.innerHTML = rows + `<div class="rv-hlegend">${legend}</div>`;
+}
+
 function renderHumanReport() {
     const sec = $('rv-human');
     if (!sec) return;
@@ -1374,6 +1428,7 @@ function renderHumanReport() {
         return `<div class="rv-card"><h4>${esc(playerName(color))}</h4>${rows}${oddList}</div>`;
     };
     $('rv_human_cards').innerHTML = col('w') + col('b');
+    renderHumanChart();
     $('rv_human_note').textContent =
         `Judged against Maia at ${band}. This says nothing about whether a move was GOOD -- it is`
         + ` how expected the move was from a human at that rating.`;
@@ -2618,7 +2673,7 @@ class ReviewPage {
                 progress(1, 'done');
                 const how = sf ? 'their engine and their classifier'
                     : 'their classifier, our engine (Stockfish 18 Small)';
-                eeSay(`Classified by ${how}, v${EE_VERSION}.` + (built.ee.summary ? ` \u201c${built.ee.summary}\u201d` : ''));
+                eeSay(`Classified by ${how}, v${EE_VERSION}.`);   // the game's sentence renders in the header
                 $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});
             } catch (e) {
                 eeSay(cancel ? 'Stopped.' : String(e.message || e), !cancel);

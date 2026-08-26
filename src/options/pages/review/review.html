@@ -562,7 +562,11 @@
             <section id="rv-human" class="set-sec scrollspy hidden">
                 <h3 data-i18n="rv.human_likeness" class="set-h">Human likeness</h3>
                 <div id="rv_human_note" class="rv-status"></div>
-                <div id="rv_human_cards" class="rv-cards"></div>
+                <!-- cards left, the distribution chart in the width they were leaving empty -->
+                <div class="rv-human-row">
+                    <div id="rv_human_cards" class="rv-cards"></div>
+                    <div id="rv_human_chart" class="rv-hchart"></div>
+                </div>
             </section>
 
             <!-- =========================== INDICATORS ============================= -->
@@ -570,8 +574,10 @@
             <section id="rv-strength" class="set-sec scrollspy hidden">
                 <h3 data-i18n="rv.strength_h" class="set-h">Strength estimate</h3>
                 <div id="rv_strength_note" class="rv-status"></div>
-                <div id="rv_strength_cards" class="rv-cards"></div>
-                <div id="rv_strength_evidence" class="rv-str-evidence"></div>
+                <div class="rv-strength-row">
+                    <div id="rv_strength_cards" class="rv-cards"></div>
+                    <div id="rv_strength_evidence" class="rv-str-evidence"></div>
+                </div>
                 <div id="rv_strength_compare" class="rv-str-compare"></div>
             </section>
 
