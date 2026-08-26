@@ -1000,8 +1000,21 @@ While the **floating panel** is in use, its footprint is minimised:
 - **No branded page globals** - MAIN-world probes for canvas boards set no `window.*` flag and talk over
   per-session random event channels, so there's no fixed name to fingerprint.
 - **Human-shaped clicks** - a bare *from → to*, no lead click on an empty square, randomised timings, landing on a
-  center-weighted distribution within each square, preceded by an eased jittered cursor path inside the Move Time
-  budget.
+  center-weighted distribution within each square, preceded by a jittered cursor path inside the Move Time budget.
+  The path's *shape* is measured rather than assumed: a rig oracle records the `mousemove` stream a click actually
+  emits - the only thing a site can see - and reports where peak speed lands, how much distance is covered by
+  mid-time, and the event rate. It caught the previous path signing itself: a smoothstep ease and a `sin` bow are
+  both **symmetric**, so every move peaked at exactly its midpoint and covered half the distance in half the time
+  (measured: peak at t=0.50-0.52, 49-52% covered at half-time, across a 15x range of distances). An aimed hand is
+  not symmetric - it is ballistic early and spends the rest homing in - so the ease is now a **shifted logistic**
+  (peak speed at t=0.29-0.35, 75-85% of the distance by mid-time) and the arc a **cubic Bezier** with two
+  independent control points, which bows off-centre and occasionally S-curves. Steepness, peak time and both
+  offsets are randomised per move, so no two paths share a signature, and the event rate is unchanged at ~119/s.
+  Still flat, and named as such: the *duration* does not yet depend on distance or target size (Fitts's law), and
+  there is no overshoot-and-correct.
+- **Nothing loads on a page that does not need it** - the move classifier is 7.6 KB that only three opt-in
+  features use, so it is not in `content_scripts`: the worker injects it into the tab the moment one of them is
+  switched on, and a page with all three off never receives it at all.
 - **No config in the site's storage** - settings live in `chrome.storage.local`. Two values do sit in page storage
   because they're read while the panel is built (panel geometry, a start-position cache); neither is named after the
   extension nor holds a setting.
