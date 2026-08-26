@@ -293,9 +293,10 @@ function handleExtensionMessage(response, sender, sendResponse) {
             } else if (response.pv) {
                 simulatePvMoves(response.pv).finally(() => endMoving(gen));
             } else if (response.premoves) {
-                simulatePremoveSequence(response.premoves).finally(() => endMoving(gen));
+                simulatePremoveSequence(response.premoves, gen).finally(() => endMoving(gen));
             } else if (response.move) {
-                simulateMoveVerified(response.move, response.deselect, response.verify, response.think ?? null)
+                simulateMoveVerified(response.move, response.deselect, response.verify, response.think ?? null,
+                                     2, null, gen)
                     .finally(() => endMoving(gen));
             } else {
                 // No move in a message that claimed to carry one. Nothing to click, so release the
