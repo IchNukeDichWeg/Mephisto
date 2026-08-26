@@ -1287,10 +1287,23 @@ function drawLiveStats(stats, bounds) {
     box.style.top = `${bounds.top + window.scrollY + bounds.height + below}px`;
     box.style.width = `${Math.max(1, Math.round(bounds.width))}px`;
     box.style.boxSizing = 'border-box';
+    // NAMED, not glyphed. The strip used to read "1✓ 2✦ 1??", which is unreadable unless you
+    // already know the scheme; it now names what actually happened, worst first, in the class's own
+    // colour, and says "clean" when nothing did. The names and colours come from the shared
+    // classifier, so the strip, the board badge and the report cannot disagree.
+    const C = self.MephistoClassify || {};
+    const NOTABLE = C.CLASS_NOTABLE || ['blunder', 'mistake', 'inaccuracy'];
     const side = (name, s) => {
         const acc = (s.accuracy == null) ? ' - ' : `${s.accuracy}%`;
+        const c = s.counts || {};
+        const named = NOTABLE.filter(k => c[k]).slice(0, 3).map(k =>
+            `<span style="color:${(C.CLASS_COLOR || {})[k] || '#d8d8d8'}">${c[k]} ${(C.CLASS_LABEL || {})[k] || k}${c[k] > 1 ? 's' : ''}</span>`);
+        const fallback = (s.mistake || s.blunder || s.inaccuracy)
+            ? `${s.blunder} blunder${s.blunder === 1 ? '' : 's'}` : 'clean';
+        const detail = named.length ? named.join(' \u00b7 ')
+            : (Object.keys(c).length ? 'clean' : fallback);
         return `<span><b style="color:#fff">${name}</b> ${acc}` +
-               `<span style="opacity:.75"> · ${s.best}✓ ${s.inaccuracy}?! ${s.mistake}? ${s.blunder}??</span></span>`;
+               `<span style="opacity:.85"> \u00b7 ${detail}</span></span>`;
     };
     box.innerHTML = side('White', stats.white) + side('Black', stats.black);
 }

@@ -402,6 +402,14 @@ async function initPanel(root, tabId) {
         board_animation: (JSON.parse(MephistoConfig.get('board_animation')) !== false),
         // Accuracy as it happens, on its own strip under the eval history.
         live_stats: JSON.parse(MephistoConfig.get('live_stats')) || false,
+        live_classify: JSON.parse(MephistoConfig.get('live_classify')) || false,
+        // which verdicts get a badge; everything, unless the settings row says otherwise
+        live_classify_which: (() => {
+            try {
+                const v = JSON.parse(MephistoConfig.get('live_classify_which'));
+                return Array.isArray(v) ? v : null;
+            } catch (e) { return null; }
+        })(),
         compute_depth: JSON.parse(MephistoConfig.get('compute_depth')) || 16,
         fen_refresh: (fenRefresh != null) ? fenRefresh : 1000, // FALLBACK poll; positions arrive event-driven
         multiple_lines: JSON.parse(MephistoConfig.get('multiple_lines')) || 1,
@@ -479,6 +487,11 @@ async function initPanel(root, tabId) {
         // play while tabbed away). Opt in to keep autoplay running in the background.
         background_play: JSON.parse(MephistoConfig.get('background_play')) || false,
     };
+    // Fetch the classifier if a feature wants it. HERE, not at PANEL_BOOTED: the config hand-off
+    // lands after boot, so a panel that booted before it always read the features as off -- and a
+    // board with no moves yet never calls for a verdict either, so nothing would ever ask (both
+    // seen in the rig: absent when off, and still absent when on).
+    ensure_classifier();
     Object.assign(config, {
         // appearance settings
         pieces: JSON.parse(MephistoConfig.get('pieces')) || 'wikipedia.svg',
@@ -6207,9 +6220,14 @@ function health_rows(state) {
 }
 
 function live_stats(history) {
-    const empty = () => ({moves: 0, accuracy: null, best: 0, inaccuracy: 0, mistake: 0, blunder: 0});
+    // counts carries the FULL published scheme (brilliant .. blunder), so the strip says the same
+    // words the Game Review will afterwards; the four coarse keys stay for anything still reading
+    // them, and are now derived from the classifier rather than from a second set of bands.
+    const empty = () => ({moves: 0, accuracy: null, best: 0, inaccuracy: 0, mistake: 0, blunder: 0,
+                          counts: {}});
     const out = {white: empty(), black: empty(), plies: 0};
     if (!Array.isArray(history) || history.length < 2) return out;
+    const classes = classify_history();
     const acc = {white: [], black: []};
     for (let i = 0; i + 1 < history.length; i++) {
         const before = history[i], after = history[i + 1];
@@ -6223,6 +6241,10 @@ function live_stats(history) {
         acc[side].push(accuracy_from_drop(drop));
         const label = win_drop_label(drop);
         if (label) s[label]++; else s.best++;
+        // the classifier's own verdict, when it could form one (it needs the engine's lines for
+        // that ply); a ply it could not judge simply is not counted rather than counted wrongly
+        const klass = classes[i];
+        if (klass) s.counts[klass] = (s.counts[klass] || 0) + 1;
         out.plies = i + 1;
     }
     for (const side of ['white', 'black']) {
@@ -7110,9 +7132,141 @@ function record_eval_history(frac) {
     const moves = premove_tracker.moves || '';
     const ply = moves ? moves.trim().split(/\s+/).filter(Boolean).length : 0;
     if (ply > 512) return;                        // absurd move list -- don't grow without bound
-    while (eval_history.length < ply) eval_history.push(eval_history[eval_history.length - 1] ?? 0.5);
+    // Gaps are filled with a COPY of the last value so the graph stays a curve -- but a copy is not
+    // a measurement, and grading a move against one invents a swing that never happened (seen live:
+    // the move that WON a queen was charged as a blunder, because the ply before it was a filler).
+    // eval_seen marks which plies were actually evaluated; only those get graded.
+    while (eval_history.length < ply) {
+        eval_seen[eval_history.length] = false;
+        eval_history.push(eval_history[eval_history.length - 1] ?? 0.5);
+    }
     eval_history[ply] = frac;
+    eval_seen[ply] = true;
     if (eval_history.length > ply + 1) eval_history.length = ply + 1; // a takeback truncates
+    if (eval_seen.length > ply + 1) eval_seen.length = ply + 1;
+    // ...and what the ENGINE saw here, which is what makes the move that leaves this position
+    // classifiable: its rank among the lines, and how much better it was than the second choice.
+    if (last_eval.fen && Array.isArray(last_eval.lines)) {
+        const lines = last_eval.lines
+            .filter(l => l && l.move && typeof l.score === 'number')
+            .map(l => ({move: l.move, score: l.score}));
+        // KEEP THE FULLEST SNAPSHOT, never the newest. The engine rebuilds its line array at the top
+        // of every depth iteration with pv 1 alone, so a snapshot taken at that instant shows ONE
+        // line -- and one line is exactly how a forced position looks. Taken naively, every move of
+        // a normal game graded as Forced (seen live, the whole strip read "4="). The count for a
+        // position only ever grows, so keeping the maximum is both correct and self-healing.
+        const prev = ply_facts[ply];
+        const fuller = !prev || prev.fen !== last_eval.fen || lines.length >= prev.lines.length;
+        const depth = Number(last_eval.lines?.[0]?.depth) || 0;
+        if (lines.length && fuller) ply_facts[ply] = {fen: last_eval.fen, turn, lines, depth};
+    }
+    if (ply_facts.length > ply + 1) ply_facts.length = ply + 1;
+}
+
+// EVERY MOVE OF THIS GAME, GRADED, by the same rules the Game Review uses -- one classifier, in
+// src/scripts/classify-core.js, so a move the strip calls a Mistake cannot come back an Excellent
+// in the report afterwards. What the panel already had: the win% of every position (eval_history)
+// and the engine's lines for each (ply_facts). What it needed: the board itself, replayed once,
+// for the two facts a score cannot carry -- whether the move was forced, and whether it gave up
+// material to be Brilliant.
+//
+// Book is deliberately always false here: the review knows it from the bundled opening table,
+// which the panel does not load (it is a page-weight cost on every chess page for a label). A
+// book move therefore reads as what it also is -- Best, or Excellent.
+let eval_seen = [];      // per ply: was this position actually evaluated, or is it filler?
+let ply_facts = [];      // per ply: the position and the engine's lines AS PLAYED FROM
+let last_logged_class = [];   // so the trace prints a verdict once, not once per frame
+// A verdict is only as good as the two searches behind it. 10 plies is the floor the opponent
+// alert already trusts; 4 plies of slack lets a normal live game grade while refusing the pairs
+// that differ enough for the engine to have changed its mind.
+const CLASSIFY_MIN_DEPTH = 10, CLASSIFY_DEPTH_SLACK = 4;
+let move_classes = [];   // per ply: the class of the move played there
+let move_class_key = '';
+
+// The classifier is not shipped on every page (7.6KB for three opt-in features). Ask the worker to
+// inject it the first time something needs it; until it lands, grading simply produces nothing,
+// which is exactly how these features behave before the first evaluation anyway.
+let classifier_asked = false;
+function classifier_wanted() {
+    return !!(config.live_stats || config.live_classify || config.opp_alert);
+}
+function ensure_classifier() {
+    if (self.MephistoClassify || classifier_asked || !classifier_wanted()) return;
+    classifier_asked = true;
+    try {
+        chrome.runtime.sendMessage({needClassifier: true}, (res) => {
+            if (!res || !res.ok) classifier_asked = false;   // worker asleep or refused: retry later
+        });
+    } catch (e) { classifier_asked = false; }
+}
+
+function classify_history() {
+    const C = self.MephistoClassify;
+    if (!C) { ensure_classifier(); return []; }
+    const startFen = premove_tracker.startFen || '';
+    const moves = (premove_tracker.moves || '').trim().split(/\s+/).filter(Boolean);
+    const key = `${startFen}|${moves.join(' ')}|${eval_history.length}|${ply_facts.length}`
+        + `|${eval_seen.filter(Boolean).length}`;
+    if (key === move_class_key) return move_classes;
+    move_class_key = key;
+    move_classes = [];
+    try {
+        const board = new Chess(config.variant || 'chess', startFen || undefined);
+        for (let i = 0; i < moves.length; i++) {
+            const uci = moves[i];
+            const fen = board.fen();
+            const white = (i % 2) === 0;
+            // win% is stored white-relative; every input below is from the MOVER's side, exactly
+            // as the review computes it -- get this backwards and every black move is a blunder
+            const wpAt = (ply) => {
+                const f = eval_history[ply];
+                if (typeof f !== 'number' || eval_seen[ply] === false) return null;   // filler: unknown
+                return (white ? f : 1 - f) * 100;
+            };
+            const winBefore = wpAt(i), winAfter = wpAt(i + 1);
+            // TWO EVALS ARE ONLY COMPARABLE AT COMPARABLE DEPTH. Live, each position is searched
+            // for as long as it happens to get; a shallow "before" against a deep "after" charges
+            // the mover for the ENGINE changing its mind (seen in the trace: the engine's own top
+            // move came back a blunder, 70.5 -> 29.5). The review never hits this because it
+            // searches every position to the same budget. Ungraded beats wrongly graded.
+            const dBefore = ply_facts[i]?.depth || 0, dAfter = ply_facts[i + 1]?.depth || 0;
+            const comparable = dBefore >= CLASSIFY_MIN_DEPTH && dAfter >= CLASSIFY_MIN_DEPTH
+                && Math.abs(dBefore - dAfter) <= CLASSIFY_DEPTH_SLACK;
+            const facts = ply_facts[i];
+            let rank = null, secondWin = null;
+            if (facts && facts.fen === fen) {
+                const sign = white ? 1 : -1;
+                const at = facts.lines.findIndex(l => l.move === uci);
+                rank = at >= 0 ? at + 1 : null;
+                secondWin = facts.lines.length > 1 ? C.winPercent(facts.lines[1].score * sign) : null;
+            }
+            // FORCED IS A FACT ABOUT THE BOARD, not about how many lines the engine happened to
+            // have sent. The review infers it from the line count because it never replays the
+            // game; the panel is replaying anyway, so it can just count the legal moves -- and
+            // must, because the panel's line array routinely holds one line mid-iteration, which
+            // graded an entire normal game as Forced (seen live: the strip read "4=").
+            const onlyMove = board.moves().length === 1;
+            // the sacrifice replay is the expensive part: only ask where the answer could matter
+            const sacrifice = (winBefore != null && winAfter != null && !onlyMove
+                               && winAfter >= 50 && winBefore < 90 && Math.max(0, winBefore - winAfter) < 2)
+                ? C.sacrificesMaterial(Chess, config.variant || 'chess', fen, uci) : false;
+            move_classes[i] = (winBefore == null || winAfter == null || !comparable) ? null
+                : C.classify({winBefore, winAfter, rank, onlyMove, isBook: false, secondWin, sacrifice});
+            // One line per verdict, with the numbers behind it -- the same courtesy the tablebase and
+            // the book get. A verdict nobody can check is a verdict nobody can report a fault in.
+            if (move_classes[i] && move_classes[i] !== last_logged_class[i]) {
+                last_logged_class[i] = move_classes[i];
+                console.log(`Classify: ${Math.floor(i / 2) + 1}${white ? '.' : '...'} ${uci} = `
+                    + `${move_classes[i]} (win% ${winBefore.toFixed(1)} -> ${winAfter.toFixed(1)}`
+                    + `${rank ? `, rank ${rank}` : ''}${onlyMove ? ', forced' : ''}${sacrifice ? ', sacrifice' : ''})`);
+            }
+            const mv = board.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]});
+            if (!mv) break;   // the move list and the start position disagree: grade no further
+        }
+    } catch (e) {
+        // a variant chess.js cannot replay just means no classes this game, never a broken panel
+    }
+    return move_classes;
 }
 
 function request_draw_eval_bar(data) {
@@ -7330,6 +7484,7 @@ function watch_config_changes() {
                 if (key === 'help_mode' && !value) request_clear_hint();
                 if (key === 'eval_bar' && !value) request_clear_eval_bar();
                 if (key === 'eval_history') request_clear_eval_bar(); // redrawn by the next eval
+                if (key === 'live_stats' || key === 'live_classify' || key === 'opp_alert') ensure_classifier();
                 if (key === 'tablebase') tablebase_data = null;       // a stale answer must not survive
                 // a reply computed at the old rating must not sit under a label showing the new one:
                 // drop it and ask again (ensure_threat_human retunes the net in place via setoption)
@@ -7406,6 +7561,40 @@ function push_config() {
 }
 
 let last_draw_trace = null; // see the note in draw_moves: this trace is per-CHANGE, not per-call
+
+// THE LAST MOVE, GRADED, ON THE SQUARE IT LANDED ON -- what chess.com shows in a review, except
+// live, while the game is still being played. Opt-in (Move Classification): it is an opinion drawn
+// on the board, and a board covered in verdicts is not what everyone wants while playing. Drawn on
+// the PANEL's own board, not the site's: the site board has no badge layer, and the panel board is
+// the one the panel already owns.
+function draw_last_move_class() {
+    const overlay = PANEL_ROOT.getElementById('move-annotations');
+    if (!overlay || !config.live_classify) return;
+    const moves = (premove_tracker.moves || '').trim().split(/\s+/).filter(Boolean);
+    if (!moves.length) return;
+    const uci = moves[moves.length - 1];
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci)) return;   // drops and 4pc moves have no square
+    const klass = classify_history()[moves.length - 1];
+    const C = self.MephistoClassify;
+    if (!klass || !C) return;
+    // the per-class filter: null means "everything", which is what an untouched install has
+    if (config.live_classify_which && !config.live_classify_which.includes(klass)) return;
+    const sq = uci.slice(2, 4);
+    const fx = sq.charCodeAt(0) - 97 + 1, ry = parseInt(sq[1], 10);
+    const flipped = board.orientation() !== 'white';
+    const cx = 0.5 + ((flipped ? 9 - fx : fx) - 1);
+    const cy = 8 - (0.5 + ((flipped ? 9 - ry : ry) - 1));
+    // top-right of the square, like the review's board badge, so the piece stays visible
+    overlay.innerHTML += `
+        <svg style='position: absolute; z-index: 1; left: 0; top: 0; pointer-events: none;'
+             width='344px' height='344px' viewBox='0, 0, 8, 8'>
+            <circle cx='${cx + 0.34}' cy='${cy - 0.34}' r='0.26' fill='${C.CLASS_COLOR[klass] || '#8b8987'}'
+                    stroke='#1b1b1b' stroke-width='0.04' />
+            <text x='${cx + 0.34}' y='${cy - 0.34}' text-anchor='middle' dominant-baseline='central'
+                  font-size='0.3' font-family='system-ui, sans-serif' font-weight='700'
+                  fill='#111'>${C.CLASS_GLYPH[klass] || ''}</text>
+        </svg>`;
+}
 
 function draw_moves() {
     // A known puzzle solution replaces the engine's arrow entirely -- and it is the only arrow there
@@ -7567,6 +7756,8 @@ function draw_moves() {
                               rank, label});
         }
     }
+    draw_last_move_class();   // on top of the arrows: it grades a move already made
+
     if (page_arrows) {
         if (config.threat_analysis && last_eval.threat && last_eval.threat !== '(none)') {
             hint_arrows.push({move: last_eval.threat, width: 0.2, color: user_color('arrow_color_threat', '#bf0000')});
