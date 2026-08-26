@@ -444,7 +444,6 @@
   "set.storage": "ストレージ: {used} 使用中{idb} - このブラウザプロファイルで利用可能な {quota} のうち。",
   "panel.tetrarch_setup": "Tetrarch はまだインストールされていません - macOS・Linux・Windows でのセットアップは README の「Four-player chess」を参照してください",
   "panel.incomplete_install": "エンジンがありません - 更新専用版をダウンロードしています。完全版の zip を入手してください。",
-  "panel.fourpc_ffa": "フリーフォーオール - Tetrarch はチーム戦モードのみ探索します",
   "panel.msg.puzzle_rating": "レーティング {r}",
   "panel.msg.fourpc_to_play": "{seat} の手番、最善手は {move}",
   "panel.msg.mate_in": "{n} 手で詰み",

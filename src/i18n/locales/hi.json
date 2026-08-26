@@ -444,7 +444,6 @@
   "set.storage": "स्टोरेज: {used} उपयोग में{idb} - इस ब्राउज़र प्रोफ़ाइल के लिए उपलब्ध {quota} में से।",
   "panel.tetrarch_setup": "Tetrarch अभी इंस्टॉल नहीं है - macOS, Linux और Windows पर सेटअप के लिए README का «Four-player chess» खंड देखें",
   "panel.incomplete_install": "इंजन गायब हैं - आपके पास केवल-अपडेट डाउनलोड है। पूरा zip लें।",
-  "panel.fourpc_ffa": "सबके विरुद्ध सब - Tetrarch केवल टीम मोड में गणना करता है",
   "panel.msg.puzzle_rating": "रेटिंग {r}",
   "panel.msg.fourpc_to_play": "{seat} की चाल, सर्वोत्तम चाल है {move}",
   "panel.msg.mate_in": "{n} चालों में शह-मात",

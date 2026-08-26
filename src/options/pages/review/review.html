@@ -93,8 +93,9 @@
                                             Chess960 gets the full own-engine review (no opening names -- random
                                             starts have none); the Fairy variants are reviewed by Fairy-Stockfish
                                             with Mephisto's own win-percentage classification, because chess.com's
-                                            classifier speaks standard chess only. 4-player chess (Teams) is
-                                            replayed and searched by the Tetrarch engine over its native host.">
+                                            classifier speaks standard chess only. 4-player chess (Teams and
+                                            free-for-all) is replayed and searched by the Tetrarch engine over its
+                                            native host.">
                             Game type <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
@@ -121,8 +122,10 @@
                      No human model and no strength estimate here: Maia knows one game and it is not this one. -->
                 <div id="rv_4pc_note" class="rv-status hidden">4-player chess: paste a chess.com PGN4 above and press
                     Review. Positions are replayed and searched by the Tetrarch engine over its native host, so the
-                    host must be installed (native-host/install-native.sh --tetrarch). Teams mode only - Tetrarch does not
-                    search free-for-all. No human model or strength estimate for 4-player.</div>
+                    host must be installed (native-host/install-native.sh --tetrarch). Teams and free-for-all both review;
+                    FFA scores are the mover's own (not comparable across seats), and its cards count how often
+                    each seat played the engine's move -- the engine prices one line in FFA today. No human model
+                    or strength estimate for 4-player.</div>
 
                 <!-- Three ways to review, one at a time. They used to sit stacked as three rows of
                      buttons with three status lines under them, which read as one dense block of

@@ -444,7 +444,6 @@
   "set.storage": "Depolama: {used} kullanımda{idb} - bu tarayıcı profiline açık {quota} içinden.",
   "panel.tetrarch_setup": "Tetrarch henüz kurulu değil - macOS, Linux ve Windows kurulumu için README'deki «Four-player chess» bölümüne bakın",
   "panel.incomplete_install": "Motorlar eksik - yalnızca güncelleme indirmesine sahipsiniz. Tam zip'i indirin.",
-  "panel.fourpc_ffa": "Herkes tek - Tetrarch yalnızca Takımlar modunda hesaplar",
   "panel.msg.puzzle_rating": "Puan {r}",
   "panel.msg.fourpc_to_play": "Sıra {seat} tarafında, en iyi hamle {move}",
   "panel.msg.mate_in": "{n} hamlede mat",

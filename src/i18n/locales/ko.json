@@ -444,7 +444,6 @@
   "set.storage": "저장 공간: {used} 사용 중{idb} - 이 브라우저 프로필에 허용된 {quota} 중.",
   "panel.tetrarch_setup": "Tetrarch가 아직 설치되지 않았습니다 - macOS·Linux·Windows 설치는 README의 «Four-player chess» 절을 참고하세요",
   "panel.incomplete_install": "엔진이 없습니다 - 업데이트 전용 다운로드를 받으셨습니다. 전체 zip을 받으세요.",
-  "panel.fourpc_ffa": "개인전 - Tetrarch는 팀전 모드에서만 탐색합니다",
   "panel.msg.puzzle_rating": "레이팅 {r}",
   "panel.msg.fourpc_to_play": "{seat} 차례, 최선 수는 {move}",
   "panel.msg.mate_in": "{n}수 체크메이트",
