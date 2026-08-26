@@ -6352,11 +6352,20 @@ function win_drop_label(drop) {
 // were searched to a trustworthy depth -- a shallow eval swings wildly and would invent blunders.
 const OPP_ALERT_MIN_DEPTH = 14;
 let last_pos_eval = null; // {fen, cpWhite, depth, sideToMove} of the position currently on the board
+// which verdicts are worth interrupting for: the opponent giving something away, not the ordinary
+// run of good moves (a classifier that also names 'best' would fire on almost every move)
+const ALERT_CLASSES = ['blunder', 'miss', 'mistake', 'inaccuracy'];
 let opp_alert_armed = null; // {beforeCpWhite, oppColor} set when the opponent just moved; cleared on fire
 
 // Called when a NEW position arrives (on_new_pos), BEFORE last_eval is reset. If the position we were
 // just analysing was the opponent's turn and reached depth, its eval is the "before their move" value.
 function opp_alert_on_new_pos(newFen) {
+    if (!config.opp_alert || !last_pos_eval) { opp_alert_armed = null; return; }
+    // A RE-PUSH of the unchanged position must not disarm. chess.com re-reports the same position
+    // routinely, and the disarm used to run before this check -- so the pending alert was cleared
+    // in the gap between the opponent's move and the first deep-enough eval, every time, and the
+    // toast never fired there at all. Found live in the audit sweep with a hung queen on the board.
+    if (last_pos_eval.fen === newFen) return;
     opp_alert_armed = null;
     if (!config.opp_alert || !last_pos_eval || last_pos_eval.fen === newFen) return;
     if (last_pos_eval.depth < OPP_ALERT_MIN_DEPTH) return; // shallow "before" -> don't trust it
@@ -6383,9 +6392,16 @@ function opp_alert_maybe_fire() {
     if (last_pos_eval.fen !== last_eval.fen || last_pos_eval.depth < OPP_ALERT_MIN_DEPTH) return;
     const sign = (opp_alert_armed.oppColor === 'w') ? 1 : -1; // opponent-relative eval
     const drop = win_percent(sign * opp_alert_armed.beforeCpWhite) - win_percent(sign * last_pos_eval.cpWhite);
-    const label = win_drop_label(drop);
     const uci = last_eval.lastMove || ''; // the opponent's move that produced this position
     const san = uci_to_san(opp_alert_armed.beforeFen, uci);
+    // THE SAME VERDICT THE STRIP AND THE REPORT GIVE. The alert used to derive its own label from
+    // the drop, which meant a move could be announced as a Mistake and counted as a Miss two
+    // inches away. When the classifier has graded this ply, that verdict wins -- it also knows
+    // Miss (a win let go), which a drop alone cannot tell from an ordinary mistake. Where it has
+    // nothing to say (no history recorded), the old drop label still fires.
+    const classes = classify_history();
+    const graded = classes.length ? classes[classes.length - 1] : null;
+    const label = (graded && ALERT_CLASSES.includes(graded)) ? graded : win_drop_label(drop);
     opp_alert_armed = null; // fire at most once per opponent move
     if (label) send_to_active_tab({oppAlert: true, label, drop: Math.round(drop), san, uci});
 }

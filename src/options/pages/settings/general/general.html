@@ -534,10 +534,7 @@
                     <div class="set-lbl">
                         <span data-i18n="set.opponent_mistake_alert">Opponent Mistake Alert</span>
                         <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.flash_a_small_toast_over"
-                              data-tooltip="Flash a small toast over the board when your OPPONENT plays an inaccuracy,
-                                            mistake or blunder -- judged by the same Lichess win% method the move mix
-                                            uses (30/20/10% win-chance drop). Only fires when both positions were
-                                            searched deep enough to trust, so it won't invent blunders from shallow evals."><i class="material-icons info-tooltip">info</i></span>
+                              data-tooltip="Flash a small toast over the board when your OPPONENT slips. When Move Classification has graded the move, the toast names the verdict -- Blunder, Miss, Mistake or Inaccuracy, including a Miss (a win let go) the plain win-drop rule cannot see; otherwise it falls back to the win% drop bands (30/20/10%). Only fires when both positions were searched deep enough to trust, so it won't invent blunders from shallow evals."><i class="material-icons info-tooltip">info</i></span>
                     </div>
                     <div class="set-ctl">
                         <input id="opp_alert_checkbox" type="checkbox" class="set-cb">
