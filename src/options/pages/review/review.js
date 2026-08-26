@@ -58,6 +58,13 @@ const RV_PGN_VARIANTS = {
     'atomic': 'atomic', 'horde': 'horde', 'racing kings': 'racingkings', 'racingkings': 'racingkings',
 };
 
+// chess.com's 4-player games carry their MODE in the Variant tag ("Teams", "FFA"), not the words
+// "4-player" -- so a real PGN4 was refused with "which this page cannot review" while the 4-player
+// review sat right there. Free-for-all is recognised too, and refused for the honest reason:
+// Tetrarch searches Teams only (PROTOCOL.md).
+const RV_PGN4_VARIANTS = {'teams': 'teams', 'ffa': 'ffa', 'free-for-all': 'ffa', 'solo': 'ffa'};
+let is4pcGame = false;   // set by the parse when the pasted game is four-player Teams
+
 function rvChessVariant() {
     const v = String(cfg('rv_variant') || 'chess');
     if (v === 'chess960') return 'fischerandom';
@@ -98,6 +105,27 @@ function detectVariantFrom(game) {
     const current = String(cfg('rv_variant') || 'chess');
     const rawTag = game.tags?.Variant ? String(game.tags.Variant).trim() : '';
     const mapped = rawTag ? RV_PGN_VARIANTS[rawTag.toLowerCase()] : null;
+    const fourpc = rawTag ? RV_PGN4_VARIANTS[rawTag.toLowerCase()] : null;
+    if (fourpc) {
+        // The PARSE decides the lane. Reading it back from the config at click time depended on a
+        // cache write landing first, which it did not reliably do -- and a PGN4 then went down the
+        // two-player path and sat there with the button greyed out.
+        is4pcGame = (fourpc === 'teams');
+        if (current !== '4pc') setCfg('rv_variant', '4pc');
+        return fourpc === 'ffa'
+            ? ' This is a free-for-all game: Tetrarch searches Teams mode only, so it cannot be reviewed.'
+            : ' Four-player game - switched Game type to 4-player chess.';
+    }
+    is4pcGame = false;
+    // Leaving 4-player is as automatic as entering it. The other game types are legitimate rules
+    // choices for a tagless PGN, so they only get the reminder below -- but a game the two-player
+    // parser read is not a PGN4, and running it down the 4-player lane fails with "no moves to
+    // review". Found by the audit sweep: the previous 4PC run left the type set, and every later
+    // standard paste died in the wrong lane.
+    if (current === '4pc') {
+        setCfg('rv_variant', 'chess');
+        return ' Standard PGN - switched Game type back from 4-player chess.';
+    }
     if (rawTag && !mapped) {
         return ` The PGN says Variant "${rawTag}", which this page cannot review.`;
     }
@@ -2091,8 +2119,13 @@ function selectedGame() {
 async function onRun() {
     if (running) return;
     if (!games.length) return note('Paste a PGN first.', true);
-    if (String(cfg('rv_variant')) === '4pc')
-        return note('4-player chess cannot be replayed from a PGN here - see the note under Game type.', true);
+    // FOUR-PLAYER TAKES ITS OWN LANE. Not a widening of this function: the two-player path builds
+    // chess.js positions, an 8x8 board and a human pass, none of which exist for a 14x14 four-seat
+    // game. review-4pc.js drives Tetrarch's host instead and renders its own report.
+    // The GAME decides, not just the stored type: setCfg writes through the config cache, and a
+    // click landing in the same tick as the parse note still read the pre-switch value -- so a
+    // PGN4 went down the two-player path and silently sat there.
+    if (is4pcGame || String(cfg('rv_variant')) === '4pc') return run4pcReview();
     const batch = cfg('rv_batch') && games.length > 1;
     const list = batch ? games : [selectedGame()];
     running = true;
@@ -2612,6 +2645,12 @@ class ReviewPage {
             await sfSync();
         });
 
+        // 4-player board navigation
+        $('rv4_first')?.addEventListener('click', () => show4pcPly(0));
+        $('rv4_prev')?.addEventListener('click', () => show4pcPly(fourpcPly - 1));
+        $('rv4_next')?.addEventListener('click', () => show4pcPly(fourpcPly + 1));
+        $('rv4_last')?.addEventListener('click', () => show4pcPly((fourpcReport?.frames.length || 1) - 1));
+
         $('rv_ee_run')?.addEventListener('click', async () => {
             if (running) return;
             if (!games.length) return eeSay('Paste a PGN first.', true);
@@ -2851,7 +2890,10 @@ class ReviewPage {
             }
             const fourPc = variant === '4pc';
             $('rv_4pc_note')?.classList.toggle('hidden', !fourPc);
-            if ($('rv_run')) $('rv_run').disabled = fourPc;
+            if (!fourPc) $('rv-4pc')?.classList.add('hidden');
+            // Run stays ENABLED for 4pc -- it has a review now (run4pcReview). This line used to
+            // grey the button out from the "cannot be replayed" era, which made the whole lane
+            // unreachable: a disabled button swallows the click before onRun ever runs.
             document.querySelectorAll('.rv-mode').forEach(el =>
                 el.classList.toggle('hidden', fourPc || el.dataset.mode !== m));
             // ...and the settings themselves: a control that cannot affect the selected review is

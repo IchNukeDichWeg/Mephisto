@@ -24,7 +24,10 @@
          and sets `self.MephistoBoard`); review-core.js is the review's arithmetic, kept apart from
          its page so the same file can be run under node by the test ladder. -->
     <script src="/src/scripts/panel-board.js"></script>
+    <script src="/src/scripts/classify-core.js"></script>
     <script src="/src/options/pages/review/review-core.js"></script>
+    <!-- four-player chess: its own lane, sharing only the classifier (self.Mephisto4PC) -->
+    <script src="/src/options/pages/review/review-4pc.js"></script>
     <!-- the Polyglot key table: data the .bin book format cannot be read without -->
     <script src="/lib/polyglot-random.js"></script>
     <!-- the Polyglot reader (self.MephistoPolyglot) and the panel-book store (self.MephistoBooks):
