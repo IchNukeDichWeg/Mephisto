@@ -1683,6 +1683,31 @@ function pathSteps(travelMs) {
 // Deriving it from pathSteps meant the calibration decided detection-relevant behaviour.
 const CDP_SNAP_MS = 10;
 
+// HOW A HAND ACCELERATES, which is not how a tween does. The path used smoothstep --
+// t*t*(3-2t) -- whose acceleration and deceleration are exact mirror images: peak speed lands at
+// the midpoint and half the distance is covered in half the time. Measured on the emitted stream
+// before this change: tPeak 0.50-0.52, d@half 0.49-0.52 across every distance. Aimed human
+// movement is not symmetric -- it is ballistic early, peaking around a third of the way in, then
+// spends the rest of the move homing in. A shifted logistic is that shape in one line.
+//
+// Normalised so p(0) === 0 and p(1) === 1 exactly: the raw logistic never reaches either, and an
+// un-normalised curve would start the cursor slightly off its own origin and stop slightly short
+// of the target -- which is a worse tell than the symmetry it replaces.
+function easeAim(t, k, t0) {
+    const L = (v) => 1 / (1 + Math.exp(-k * (v - t0)));
+    const a = L(0), b = L(1);
+    return (L(t) - a) / (b - a);
+}
+
+// One point on a cubic Bezier. The old arc was `sin(t*PI) * bow`: symmetric by construction, so
+// every path bowed furthest at exactly the halfway point and both halves were mirror images. Two
+// independent control points make the arc lopsided -- and lets the curvature sit near the target,
+// where a real correction happens, instead of always mid-flight.
+function bezPoint(u, p0, c1, c2, p3) {
+    const v = 1 - u;
+    return v * v * v * p0 + 3 * v * v * u * c1 + 3 * v * u * u * c2 + u * u * u * p3;
+}
+
 async function cdpMove(target, fromX, fromY, x, y, travelMs, held = false) {
   // `held` = the left button is already down and this is the middle of a DRAG. Chrome only treats a
   // move as part of a drag when the event says the button is down (button + the buttons bitmask);
@@ -1714,10 +1739,14 @@ async function cdpMove(target, fromX, fromY, x, y, travelMs, held = false) {
   const startedAt = Date.now();
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
-    const ease = t * t * (3 - 2 * t);         // smoothstep: slow-fast-slow
-    const arc = Math.sin(t * Math.PI) * bow;  // 0 at both ends, peak mid-path
-    const mx = fromX + (x - fromX) * ease + px * arc + (Math.random() - 0.5) * 1.5;
-    const my = fromY + (y - fromY) * ease + py * arc + (Math.random() - 0.5) * 1.5;
+    // `u` is the Bezier PARAMETER, not arc length, so the speed along the curve is the ease's
+    // speed modulated a little by the curve's own parameterisation. With control points this close
+    // to the chord that is a few percent, and it varies per move rather than repeating -- so it is
+    // more variety, not less. ponytail: arc-length reparameterisation if a profile ever needs to
+    // be exact rather than plausible.
+    const u = easeAim(t, k, t0);
+    const mx = bezPoint(u, fromX, c1x, c2x, x) + (Math.random() - 0.5) * 1.5;
+    const my = bezPoint(u, fromY, c1y, c2y, y) + (Math.random() - 0.5) * 1.5;
     await cdpDispatch(target, held ? {type: 'mouseMoved', x: mx, y: my, button: 'left', buttons: 1}
                                    : {type: 'mouseMoved', x: mx, y: my, button: 'none'}, true);
     const behind = (startedAt + travelMs * t) - Date.now();
