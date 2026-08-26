@@ -244,6 +244,13 @@ async function loadEngine(clientId, engineName, variant, maiaLevel) {
         send(clientId, { kind: 'ready' });
         return;
     }
+    // A name with no file is a bug upstream, not something to fetch: without this the import ran
+    // against `/lib/engine/undefined` and the page showed a module-fetch TypeError instead of the
+    // one fact that matters -- which engine was asked for.
+    if (!engineMap[engineName]) {
+        send(clientId, {kind: 'error', error: `no such engine: ${engineName}`});
+        return;
+    }
     const enginePath = `/lib/engine/${engineMap[engineName]}`;
     const base = enginePath.substring(0, enginePath.lastIndexOf('/'));
     const module = await import(enginePath);

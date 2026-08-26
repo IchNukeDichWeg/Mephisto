@@ -21,6 +21,8 @@ const LIMIT_INFINITE = 1e9;
 // rating play", which is a different question from "how good was this move", and a review built on
 // it would report a blunder as excellent whenever it was a HUMAN-LOOKING blunder. It is the Human
 // model pass instead, which is its own row directly under this one.
+// what an unusable selection falls back to: bundled, small, and plays standard chess
+const ENGINE_FALLBACK = 'stockfish-18-small-nnue';
 const ENGINES = [
     {id: 'stockfish-dev-nnue', label: 'Stockfish dev (WASM)', kind: 'wasm'},
     {id: 'stockfish-18-nnue', label: 'Stockfish 18 (WASM)', kind: 'wasm'},
@@ -508,9 +510,23 @@ class NativeEngine {
     }
 }
 
+// The Maia nets are engines here too (the pages ask for them by name for the human pass), so an id
+// is "known" if this list or that one has it.
+const KNOWN_HUMAN = ['maia', 'maia3'];
+
 function makeEngine(id, opts, clientId) {
     const spec = ENGINES.find(e => e.id === id);
-    return (spec && spec.kind === 'native')
+    // AN UNKNOWN ID USED TO BECOME A WASM ENGINE and the offscreen loader then fetched
+    // `/lib/engine/undefined` -- which is what a stale stored selection (an engine dropped in a
+    // later version, or a panel-only engine like a cloud/remote entry) looked like on screen:
+    // "Failed to fetch dynamically imported module ... /lib/engine/undefined". Fall back to a
+    // shipped engine and SAY so, rather than failing on a path built from a typo.
+    if (!spec && !KNOWN_HUMAN.includes(id)) {
+        console.warn(`Mephisto: unknown engine "${id}" - falling back to ${ENGINE_FALLBACK}`);
+        id = ENGINE_FALLBACK;
+    }
+    const kind = ENGINES.find(e => e.id === id)?.kind;
+    return (kind === 'native')
         ? new NativeEngine(id, opts, clientId) : new WasmEngine(id, opts, clientId);
 }
 
