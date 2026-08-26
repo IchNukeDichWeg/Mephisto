@@ -84,6 +84,15 @@ html.dark .rv-status.rv-bad { color: #d15050; }
 }
 .rv-header .rv-vs { font-weight: 600; font-size: 16px; }
 .rv-header .rv-meta { color: var(--mp-mute); font-size: 12.5px; }
+/* the classifier's sentence about the GAME: under the names, quiet enough to stay subordinate to
+   them, but full-size and wrapping -- it is prose, not a stat */
+.rv-header .rv-gamenote {
+    color: var(--mp-dim);
+    font-size: 13px;
+    line-height: 18px;
+    margin-top: 4px;
+    max-width: 70ch;
+}
 
 .rv-cards {
     display: grid;
@@ -564,3 +573,66 @@ html.dark .rv-ev-strong  { color: #d15050; }
 /* The three ratings whose own first choice matched most often, under the likelihood curve. */
 .rv-str-top3 { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--mp-hair); }
 .rv-str-top3-h { display: block; font-size: 11px; color: var(--mp-dim); margin-bottom: 3px; }
+
+/* Human likeness: the cards were using a third of the width and leaving the rest empty, so the
+   same four numbers also render per player -- headline share in text, and one THIN bar carrying
+   the shape. The first cut stamped percentages inside 26px blocks: every bar shouted, and the
+   small segments could not be read at all. */
+.rv-human-row { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.rv-human-row #rv_human_cards { flex: 0 0 auto; margin-bottom: 0; }
+.rv-hchart { flex: 1 1 340px; min-width: 300px; padding: 14px 16px; }
+.rv-hrow { margin-bottom: 16px; }
+.rv-hhead { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; color: var(--mp-text); font-size: 13px; }
+.rv-hnum { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rv-hsub { color: var(--mp-mute); font-size: 11.5px; }
+/* thin marks, 2px surface gaps, rounded ends only at the extremes */
+.rv-hbar { display: flex; gap: 2px; height: 10px; }
+.rv-hseg { border-radius: 1px; }
+.rv-hseg:first-child { border-radius: 4px 1px 1px 4px; }
+.rv-hseg:last-child { border-radius: 1px 4px 4px 1px; }
+.rv-hlegend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--mp-mute); font-size: 11.5px; margin-top: 2px; }
+.rv-hlegend span { display: inline-flex; align-items: center; gap: 5px; }
+.rv-hlegend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+/* Strength estimate: the cards state the number, the evidence lists argue for it -- so they read
+   as one thing and belong side by side. Stacked, the lists sat below the fold while two thirds of
+   the row stood empty. Wraps back to stacked when there is no room for both. */
+/* Cards left, the evidence for their numbers RIGHT NEXT TO THEM. As a flex row the cards took
+   their max-content width -- two ~500px cards -- and pushed the evidence onto its own line below,
+   which is how a reader ended up scrolling between a rating and the moves it was built from. A
+   grid pins the card column instead: it gets what it needs up to 560px, the evidence takes the
+   rest, and the whole thing folds to one column only when there is genuinely no room. */
+.rv-strength-row {
+    display: grid;
+    grid-template-columns: minmax(320px, 560px) minmax(320px, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+.rv-strength-row #rv_strength_cards { margin-bottom: 0; }
+.rv-strength-row .rv-str-evidence { min-width: 0; }
+@media (max-width: 1000px) { .rv-strength-row { grid-template-columns: 1fr; } }
+
+/* --- four-player review ------------------------------------------------------------------------
+   Its own block, like its lane: a 14x14 board next to the move list, and team rows instead of the
+   two player cards. Nothing here is shared with the 8x8 report's grid. */
+.rv4-row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.rv4-boardwrap { flex: 0 0 auto; }
+.rv4-board { width: 448px; height: 448px; }
+.rv4-nav { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.rv4-ply { color: var(--mp-mute); font-size: 12.5px; min-width: 120px; text-align: center; }
+.rv4-evalline { color: var(--mp-text); font-size: 13px; margin-top: 6px; min-height: 20px; }
+.rv4-side { flex: 1 1 340px; min-width: 300px; }
+.rv4-teams { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.rv4-team { flex: 1 1 160px; border: 1px solid var(--mp-line); border-radius: 8px; padding: 10px 12px; }
+.rv4-team h4 { margin: 0 0 4px; font-size: 13px; color: var(--mp-text); }
+.rv4-team .rv4-acc { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--mp-text); }
+.rv4-team .rv4-sub { color: var(--mp-mute); font-size: 11.5px; }
+.rv4-moves { max-height: 420px; overflow-y: auto; border: 1px solid var(--mp-line); border-radius: 8px; }
+.rv4-mv { display: flex; align-items: center; gap: 8px; padding: 4px 10px; font-size: 12.5px;
+          color: var(--mp-text); cursor: pointer; border-bottom: 1px solid var(--mp-hair); }
+.rv4-mv:last-child { border-bottom: none; }
+.rv4-mv:hover, .rv4-mv.rv4-sel { background: var(--mp-hair); }
+.rv4-seat { width: 54px; color: var(--mp-mute); }
+.rv4-tok { flex: 1 1 auto; font-variant-numeric: tabular-nums; }
+.rv4-klass { font-size: 11px; padding: 1px 7px; border-radius: 999px; color: #12210a; font-weight: 600; }
+.rv4-cp { color: var(--mp-mute); font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; }
