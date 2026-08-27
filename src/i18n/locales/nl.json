@@ -538,5 +538,10 @@
   "set.no_limit": "Geen limiet",
   "set.limit_depth_at": "Diepte {n}",
   "set.class_on_board": "Classificatie op het bord",
-  "set.tip.class_on_board": "Hetzelfde oordeel, getekend op het bord van de SITE in plaats van dat van het paneel -- een badge op het veld waar de zet landde, op de maat van dat bord. Een eigen schakelaar, los van die hierboven: de badge verschijnt op het echte bord, of het kleine bord in het paneel er nu ook een draagt of niet. Het filter 'Welke tonen' geldt voor beide."
+  "set.tip.class_on_board": "Hetzelfde oordeel, getekend op het bord van de SITE in plaats van dat van het paneel -- een badge op het veld waar de zet landde, op de maat van dat bord. Een eigen schakelaar, los van die hierboven: de badge verschijnt op het echte bord, of het kleine bord in het paneel er nu ook een draagt of niet. Het filter 'Welke tonen' geldt voor beide.",
+  "set.playstyle": "Speelstijl",
+  "set.tip.playstyle": "Een karakter, geen speelsterkte. Onder de zetten die de engine al vond kiest Aanvallend de forcerende zet (schaak, slag, promotie) en Rustig de kalme - maar alleen zolang het hooguit 35 centipionnen kost, dus de stijl speelt nooit slechter. Gebalanceerd is de keuze van de engine.",
+  "set.style_balanced": "Gebalanceerd (keuze van de engine)",
+  "set.style_attacking": "Aanvallend",
+  "set.style_quiet": "Rustig"
 }

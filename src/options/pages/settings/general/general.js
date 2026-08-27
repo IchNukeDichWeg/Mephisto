@@ -223,6 +223,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('explorer', 'Opening Explorer:', 'checkbox', false);
         this.registerFormElement('book_play', 'Play Book Moves:', 'checkbox', false);
         this.registerFormElement('explorer_db', 'Opening Database:', 'select', 'masters');
+        this.registerFormElement('playstyle', 'Playstyle:', 'select', 'balanced');
         // A credential, so it is a `password` field, it never reaches the diagnostics report, and
         // onExportConfigValues drops it -- a settings file is something people paste into issues.
         this.registerFormElement('lichess_token', 'Lichess API token:', 'input', '');

@@ -538,5 +538,10 @@
   "set.no_limit": "Sin límite",
   "set.limit_depth_at": "Profundidad {n}",
   "set.class_on_board": "Clasificación en el tablero",
-  "set.tip.class_on_board": "La misma valoración, dibujada en el tablero del SITIO en lugar del panel: una insignia en la casilla donde terminó la jugada, al tamaño de ese tablero. Es un interruptor propio e independiente del anterior: la insignia aparece en el tablero real tanto si el tablero pequeño del panel lleva una como si no. El filtro «Mostrar cuáles» se aplica a ambos."
+  "set.tip.class_on_board": "La misma valoración, dibujada en el tablero del SITIO en lugar del panel: una insignia en la casilla donde terminó la jugada, al tamaño de ese tablero. Es un interruptor propio e independiente del anterior: la insignia aparece en el tablero real tanto si el tablero pequeño del panel lleva una como si no. El filtro «Mostrar cuáles» se aplica a ambos.",
+  "set.playstyle": "Estilo de juego",
+  "set.tip.playstyle": "Un caracter, no una fuerza. Entre las lineas que el motor ya encontro, Atacante prefiere la jugada forzada (jaque, captura, promocion) y Tranquilo la calmada, pero solo mientras cueste como maximo 35 centipeones, asi que el estilo nunca juega peor. Equilibrado es la eleccion del motor.",
+  "set.style_balanced": "Equilibrado (eleccion del motor)",
+  "set.style_attacking": "Atacante",
+  "set.style_quiet": "Tranquilo"
 }
