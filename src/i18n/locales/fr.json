@@ -543,5 +543,16 @@
   "set.tip.playstyle": "Un caractere, pas une force. Parmi les lignes deja trouvees par le moteur, Attaque prefere le coup forcant (echec, prise, promotion) et Calme le coup tranquille, mais seulement tant que cela coute au plus 35 centipions : le style ne joue jamais moins bien. Equilibre est le choix du moteur.",
   "set.style_balanced": "Equilibre (choix du moteur)",
   "set.style_attacking": "Attaque",
-  "set.style_quiet": "Calme"
+  "set.style_quiet": "Calme",
+  "panel.tip.autoplay": "Joue le coup sur l'echiquier pour vous. Desactive, le panneau ne fait qu'analyser - tout le reste ici concerne un coup qui va etre joue.",
+  "panel.tip.engine": "Quel moteur analyse. (local) exige l'hote natif et va le plus vite ; WASM tourne dans le navigateur ; (online) envoie la position sur une autre machine.",
+  "panel.tip.move_time_var": "Combien de temps le coup attend avant d'etre joue, et de combien cette attente varie au hasard. La recherche se fait dans ce temps, pas apres.",
+  "panel.tip.puzzle_mode": "Joue toute la solution d'un probleme au lieu d'un coup, et s'active seule sur les pages de problemes. Reglee a la main, elle n'est jamais ecrasee.",
+  "panel.tip.bot_game": "Donne a un bot chess.com une partie terminee a rejouer, coup par coup. Seulement depuis la position de depart d'une nouvelle partie.",
+  "panel.tip.variant": "Selon quelles regles la position est jugee. Seuls les moteurs Fairy jouent les variantes exotiques ; les Stockfish classiques jouent les echecs standard et le Chess960.",
+  "panel.tip.fourpc_mode": "De quelle partie a quatre il s'agit. La detection automatique la lit sur la page ; seul Equipes est reellement analyse.",
+  "panel.tip.threads": "Combien de threads le moteur peut utiliser. Plus est plus fort jusqu'au nombre de coeurs reels ; au-dela c'est plus lent, pas plus rapide.",
+  "panel.tip.multi_lines": "Combien de lignes candidates le moteur rapporte. Plus de lignes, moins de profondeur pour chacune.",
+  "panel.tip.memory": "La table de hachage du moteur. Plus grande aide les longues recherches ; plus grande que ce que la machine peut ceder nuit a tout.",
+  "panel.tip.turn_switch": "A qui de jouer - touchez pour inverser si c'est faux (problemes / positions personnalisees)."
 }

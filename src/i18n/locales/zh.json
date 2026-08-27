@@ -543,5 +543,16 @@
   "set.tip.playstyle": "是性格，不是棋力。在引擎已经找到的着法中，进攻型偏好强制着法（将军、吃子、升变），安静型偏好平稳着法，但最多只花费 35 centipawn，因此棋风绝不会下出更差的着法。均衡即引擎自己的选择。",
   "set.style_balanced": "均衡（引擎的选择）",
   "set.style_attacking": "进攻型",
-  "set.style_quiet": "安静型"
+  "set.style_quiet": "安静型",
+  "panel.tip.autoplay": "替你把着法下在棋盘上。关闭时面板只做分析，这里其余的设置都关乎一个将要走出的着法。",
+  "panel.tip.engine": "由哪个引擎分析。(local) 需要本机宿主，速度最快；WASM 在浏览器内运行；(online) 会把局面送到别人的机器上。",
+  "panel.tip.move_time_var": "着法在走出前等待多久，以及这个等待随机浮动的幅度。搜索发生在这段时间之内，而不是之后。",
+  "panel.tip.puzzle_mode": "走出整道题的解法而不是一步，并在习题页面自动开启。手动设置过就不会被覆盖。",
+  "panel.tip.bot_game": "把一盘下完的棋交给 chess.com 机器人，一步步走完。仅限新机器人对局的初始局面。",
+  "panel.tip.variant": "按哪套规则判断局面。只有 Fairy 引擎能下异形规则；普通 Stockfish 下标准国际象棋和 Chess960。",
+  "panel.tip.fourpc_mode": "这是哪种四人对局。自动检测从页面读取；真正会被分析的只有团队模式。",
+  "panel.tip.threads": "引擎可用的 CPU 线程数。在真实核心数以内越多越强，超过之后只会更慢。",
+  "panel.tip.multi_lines": "引擎报告的候选着法条数。条数越多，每条搜索得越浅。",
+  "panel.tip.memory": "引擎的置换表。越大越有利于长时间搜索；大到机器吃不消则会拖累一切。",
+  "panel.tip.turn_switch": "轮到谁走。若判断有误，点按可切换（习题 / 自定义局面）。"
 }

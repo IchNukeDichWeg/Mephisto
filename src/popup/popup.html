@@ -76,8 +76,9 @@
 
 <div id="quick-settings">
 <div class="qs-title-row">
-        <div id="qs_turn_switch" class="turn-switch" role="button" tabindex="0"
-             title="Whose turn to move - tap to flip if it's wrong (puzzles / custom positions)">
+        <div id="qs_turn_switch" class="turn-switch tooltipped" role="button" tabindex="0" data-position="left"
+             data-i18n-tip="panel.tip.turn_switch"
+             data-tooltip="Whose turn to move - tap to flip if it's wrong (puzzles / custom positions)">
             <span class="turn-thumb">&#9812;</span>
             <!-- the glyph alone never said what it meant: a pill with a king in it reads as an
                  unlabelled toggle. The text states the side, and the caption states what tapping
@@ -91,10 +92,12 @@
     <div class="qs-pinned">
     <div class="qs-row qs-toggle">
         <input id="qs_autoplay" type="checkbox" class="qs-cb">
-        <label for="qs_autoplay" data-i18n="panel.autoplay" class="qs-label">Autoplay</label>
+        <label for="qs_autoplay" data-i18n="panel.autoplay" data-i18n-tip="panel.tip.autoplay" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Plays the move on the board for you. With it off the panel only analyses - everything else here is about a move that is going to be played.">Autoplay</label>
     </div>
 <div class="qs-row">
-        <span data-i18n="panel.engine" class="qs-label">Engine</span>
+        <span data-i18n="panel.engine" data-i18n-tip="panel.tip.engine" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Which engine analyses. (local) needs the native host installed and is the fastest; WASM runs inside the browser; (online) sends the position to someone else's machine.">Engine</span>
         <select id="qs_engine" class="browser-default">
             <option value="sf-native">Stockfish (local)</option>
             <option value="stockfish-dev-nnue">SF Dev WASM</option>
@@ -154,7 +157,8 @@
               data-tooltip="Shrink the SIMULATED delay (the think pause and the cursor travel below) when the clock gets short. Clock Mode paces the engine's search; this paces the human-looking part, which is what actually costs you time in a scramble. With clock to spare your settings are used exactly as they are: it only ever makes a move shorter, never slower, and never below the point where the click stops looking like a hand moved it.">Pace to Clock</label>
     </div>
     <div class="qs-row qs-nums">
-        <span data-i18n="panel.move_time_var_ms" class="qs-label">Move Time ± Var (ms)</span>
+        <span data-i18n="panel.move_time_var_ms" data-i18n-tip="panel.tip.move_time_var" class="qs-label tooltipped" data-position="left"
+              data-tooltip="How long the move waits before it is played, and how much that wait varies at random. The search happens inside this time, not after it.">Move Time ± Var (ms)</span>
         <div class="qs-stepper">
             <button class="qs-step" type="button" tabindex="-1" data-for="qs_move" data-d="-1" aria-label="less">&minus;</button>
             <input id="qs_move" class="browser-default" type="number" min="0" step="25">
@@ -188,20 +192,22 @@
     </div>
     <div class="qs-row qs-toggle">
         <input id="qs_puzzle" type="checkbox" class="qs-cb">
-        <label for="qs_puzzle" data-i18n="panel.puzzle_mode" class="qs-label">Puzzle Mode</label>
+        <label for="qs_puzzle" data-i18n="panel.puzzle_mode" data-i18n-tip="panel.tip.puzzle_mode" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Plays a puzzle's whole solution instead of one move, and turns itself on when you open a puzzle page. Setting it by hand is never overridden.">Puzzle Mode</label>
     </div>
       <!-- Bot game. Hidden unless Bot Tricks is on AND this is chess.com's Play Computer page,
      where the browser is the referee. Both buttons are refused anywhere else by the background,
      which checks the tab's real url -- the panel hiding the row is convenience, not the gate. -->
     <div class="qs-row" id="qs_bot_row" hidden>
-        <span data-i18n="panel.bot_game" class="qs-label">Bot game</span>
+        <span data-i18n="panel.bot_game" data-i18n-tip="panel.tip.bot_game" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Hands a chess.com bot a finished game to walk into, move by move. Only from the starting position of a fresh bot game.">Bot game</span>
         <select id="qs_bot_game" class="browser-default"
-                title="Which game to hand the bot. Every line here leaves the bot no turn - it ends in checkmate, or in a draw that gets claimed - because a game that merely stopped would leave the bot to move and it would then answer for real. Auto picks one that wins for the colour you were dealt."></select>
+                class="tooltipped" data-position="left" data-tooltip="Which game to hand the bot. Every line here leaves the bot no turn - it ends in checkmate, or in a draw that gets claimed - because a game that merely stopped would leave the bot to move and it would then answer for real. Auto picks one that wins for the colour you were dealt."></select>
         <div class="qs-bot-actions">
             <button id="qs_bot_play" type="button"
-                    title="Play the chosen game against the bot, one move every half second or so. Only from the starting position of a fresh bot game.">Play</button>
+                class="tooltipped" data-position="left" data-tooltip="Play the chosen game against the bot, one move every half second or so. Only from the starting position of a fresh bot game.">Play</button>
             <button id="qs_bot_draw" type="button"
-                    title="Accept a draw the bot never offered. Ends the game immediately, from any position.">Draw</button>
+                class="tooltipped" data-position="left" data-tooltip="Accept a draw the bot never offered. Ends the game immediately, from any position.">Draw</button>
         </div>
     </div>
       </div>
@@ -218,7 +224,8 @@
         <input id="qs_maia3_elo" class="browser-default" type="range" min="600" max="2600" step="50">
     </div>
 <div class="qs-row" id="qs_variant_row">
-        <span data-i18n="panel.variant" class="qs-label">Variant</span>
+        <span data-i18n="panel.variant" data-i18n-tip="panel.tip.variant" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Which rules the position is judged by. Only the Fairy engines play the exotic ones; the mainline Stockfishes play standard chess and Chess960.">Variant</span>
         <div class="qs-pair">
             <select id="qs_variant" class="browser-default">
                 <option data-i18n="panel.standard" value="chess">Standard</option>
@@ -235,7 +242,8 @@
                 <option data-i18n="panel.seirawan_s_chess" value="seirawan">Seirawan (S-Chess)</option>
                 <option data-i18n="panel.chaturanga" value="chaturanga">Chaturanga</option>
             </select>
-            <button id="qs_variant_detect" title="Detect the variant from the current game">&#8635;</button>
+            <button id="qs_variant_detect"
+                class="tooltipped" data-position="left" data-tooltip="Detect the variant from the current game">&#8635;</button>
         </div>
     </div>
 <!-- Four-player mode override. Its own row rather than extra <option>s on the Variant select: the
@@ -243,7 +251,8 @@
      Variant select is bound to `variant`, which the whole 8x8 lane reads. Shown only for Tetrarch,
      where the Variant row is hidden anyway, so the panel never grows a line. -->
 <div class="qs-row" id="qs_fourpc_mode_row">
-        <span data-i18n="panel.fourpc_mode" class="qs-label">Mode</span>
+        <span data-i18n="panel.fourpc_mode" data-i18n-tip="panel.tip.fourpc_mode" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Which four-player game this is. Auto-detect reads it off the page; only Teams is actually analysed.">Mode</span>
         <div class="qs-pair">
             <select id="qs_fourpc_mode" class="browser-default">
                 <option data-i18n="panel.fourpc_mode_auto" value="auto">Auto-detect</option>
@@ -274,7 +283,8 @@
          Threads' max comes from the machine's own core count (init_quick_settings), so the stepper
          can only reach values this machine can actually use. -->
     <div class="qs-row qs-nums">
-        <span data-i18n="panel.threads" class="qs-label">Threads</span>
+        <span data-i18n="panel.threads" data-i18n-tip="panel.tip.threads" class="qs-label tooltipped" data-position="left"
+              data-tooltip="How many CPU threads the engine may use. More is stronger up to the cores you actually have; past that it is slower, not faster.">Threads</span>
         <div class="qs-stepper">
             <button class="qs-step" type="button" tabindex="-1" data-for="qs_threads" data-d="-1" aria-label="less">&minus;</button>
             <input id="qs_threads" class="browser-default" type="number" min="1" max="24" step="1">
@@ -282,7 +292,8 @@
         </div>
     </div>
     <div class="qs-row qs-nums">
-        <span data-i18n="panel.multi_lines" class="qs-label">Multi Lines</span>
+        <span data-i18n="panel.multi_lines" data-i18n-tip="panel.tip.multi_lines" class="qs-label tooltipped" data-position="left"
+              data-tooltip="How many candidate lines the engine reports. More lines means each one is searched less deeply.">Multi Lines</span>
         <div class="qs-stepper">
             <button class="qs-step" type="button" tabindex="-1" data-for="qs_lines" data-d="-1" aria-label="less">&minus;</button>
             <input id="qs_lines" class="browser-default" type="number" min="1" max="20" step="1">
@@ -290,14 +301,15 @@
         </div>
     </div>
     <div class="qs-row">
-        <span class="qs-label"><span data-i18n="panel.memory">Memory</span> (<span id="qs_memory_val">512</span> MB)</span>
+        <span class="qs-label tooltipped" data-i18n-tip="panel.tip.memory" data-position="left"
+              data-tooltip="The engine's hash table. Bigger helps long searches; bigger than the machine can spare hurts everything."><span data-i18n="panel.memory">Memory</span> (<span id="qs_memory_val">512</span> MB)</span>
         <input id="qs_memory" class="browser-default" type="range" min="32" max="4096" step="32">
     </div>
 <div class="qs-row qs-nums">
         <!-- The budget is a CHOICE, so the label is the control: time or depth, with its own number.
              Both numbers persist, so switching back does not lose the one you were using. -->
         <select id="qs_search_mode" class="browser-default qs-label qs-inline-select"
-                data-i18n-tip="panel.tip.search_budget" title="How the search is budgeted. Time is what the clock allows; a Depth is reproducible -- the same depth is the same answer on any machine, where a millisecond budget is a different search on every one. Each keeps its own number.">
+                class="tooltipped" data-position="left" data-i18n-tip="panel.tip.search_budget" data-tooltip="How the search is budgeted. Time is what the clock allows; a Depth is reproducible -- the same depth is the same answer on any machine, where a millisecond budget is a different search on every one. Each keeps its own number.">
             <option value="time" data-i18n="set.search_time_ms">Search Time (ms)</option>
             <option value="depth" data-i18n="set.search_depth">Search Depth</option>
         </select>
@@ -329,7 +341,7 @@
 <div class="qs-row">
         <span data-i18n="set.copy_diagnostics" class="qs-label">Copy Diagnostics</span>
         <button id="qs_copydiag" type="button"
-                title="Names the missing part in the panel -- site, board, position, settings, engine, native host -- AND copies the full report: version, engine, what was detected, why the last move was or was not played, and the recent trace. Press it any time; safe to paste into a bug report.">Copy</button>
+                class="tooltipped" data-position="left" data-i18n-tip="panel.tip.copy_diagnostics" data-tooltip="Names the missing part in the panel -- site, board, position, settings, engine, native host -- AND copies the full report: version, engine, what was detected, why the last move was or was not played, and the recent trace. Press it any time; safe to paste into a bug report.">Copy</button>
     </div>
     </div>
     </div>

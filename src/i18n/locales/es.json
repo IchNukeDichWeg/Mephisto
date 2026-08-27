@@ -543,5 +543,16 @@
   "set.tip.playstyle": "Un caracter, no una fuerza. Entre las lineas que el motor ya encontro, Atacante prefiere la jugada forzada (jaque, captura, promocion) y Tranquilo la calmada, pero solo mientras cueste como maximo 35 centipeones, asi que el estilo nunca juega peor. Equilibrado es la eleccion del motor.",
   "set.style_balanced": "Equilibrado (eleccion del motor)",
   "set.style_attacking": "Atacante",
-  "set.style_quiet": "Tranquilo"
+  "set.style_quiet": "Tranquilo",
+  "panel.tip.autoplay": "Juega la jugada en el tablero por ti. Apagado, el panel solo analiza; todo lo demas aqui trata de una jugada que se va a jugar.",
+  "panel.tip.engine": "Que motor analiza. (local) necesita el host nativo y es el mas rapido; WASM corre en el navegador; (online) envia la posicion a otra maquina.",
+  "panel.tip.move_time_var": "Cuanto espera la jugada antes de jugarse, y cuanto varia esa espera al azar. La busqueda ocurre dentro de ese tiempo, no despues.",
+  "panel.tip.puzzle_mode": "Juega la solucion completa de un problema en vez de una jugada, y se enciende sola en las paginas de problemas. Puesto a mano, nunca se anula.",
+  "panel.tip.bot_game": "Da a un bot de chess.com una partida terminada para recorrerla jugada a jugada. Solo desde la posicion inicial de una partida nueva.",
+  "panel.tip.variant": "Con que reglas se juzga la posicion. Solo los motores Fairy juegan las exoticas; los Stockfish normales juegan ajedrez estandar y Chess960.",
+  "panel.tip.fourpc_mode": "Que partida de cuatro jugadores es. La deteccion automatica la lee de la pagina; solo se analiza Equipos.",
+  "panel.tip.threads": "Cuantos hilos de CPU puede usar el motor. Mas es mas fuerte hasta los nucleos reales; pasado eso es mas lento, no mas rapido.",
+  "panel.tip.multi_lines": "Cuantas lineas candidatas reporta el motor. Mas lineas significa que cada una se busca menos profundo.",
+  "panel.tip.memory": "La tabla hash del motor. Mas grande ayuda en busquedas largas; mas grande de lo que la maquina puede ceder perjudica todo.",
+  "panel.tip.turn_switch": "De quien es el turno - toca para cambiarlo si esta mal (problemas / posiciones propias)."
 }

@@ -543,5 +543,16 @@
   "set.tip.playstyle": "Een karakter, geen speelsterkte. Onder de zetten die de engine al vond kiest Aanvallend de forcerende zet (schaak, slag, promotie) en Rustig de kalme - maar alleen zolang het hooguit 35 centipionnen kost, dus de stijl speelt nooit slechter. Gebalanceerd is de keuze van de engine.",
   "set.style_balanced": "Gebalanceerd (keuze van de engine)",
   "set.style_attacking": "Aanvallend",
-  "set.style_quiet": "Rustig"
+  "set.style_quiet": "Rustig",
+  "panel.tip.autoplay": "Speelt de zet voor je op het bord. Uit analyseert het paneel alleen - al het andere hier gaat over een zet die gespeeld gaat worden.",
+  "panel.tip.engine": "Welke engine analyseert. (local) heeft de native host nodig en is het snelst; WASM draait in de browser; (online) stuurt de stelling naar een andere machine.",
+  "panel.tip.move_time_var": "Hoe lang de zet wacht voordat hij gespeeld wordt, en hoeveel die wachttijd willekeurig varieert. De zoektocht gebeurt binnen die tijd, niet erna.",
+  "panel.tip.puzzle_mode": "Speelt de hele oplossing van een puzzel in plaats van een zet, en gaat vanzelf aan op puzzelpagina's. Handmatig gezet wordt nooit overschreven.",
+  "panel.tip.bot_game": "Geeft een chess.com-bot een afgemaakte partij om zet voor zet in te lopen. Alleen vanuit de beginstelling van een verse botpartij.",
+  "panel.tip.variant": "Volgens welke regels de stelling beoordeeld wordt. Alleen de Fairy-engines spelen de exotische; de gewone Stockfishes spelen standaardschaak en Chess960.",
+  "panel.tip.fourpc_mode": "Welke vierspelerspartij dit is. Autodetectie leest het van de pagina; alleen Teams wordt echt geanalyseerd.",
+  "panel.tip.threads": "Hoeveel CPU-threads de engine mag gebruiken. Meer is sterker tot het aantal echte cores; daarboven is het trager, niet sneller.",
+  "panel.tip.multi_lines": "Hoeveel kandidaatlijnen de engine rapporteert. Meer lijnen betekent dat elke lijn minder diep wordt doorgerekend.",
+  "panel.tip.memory": "De hashtabel van de engine. Groter helpt lange zoektochten; groter dan de machine kan missen schaadt alles.",
+  "panel.tip.turn_switch": "Wie aan zet is - tik om te wisselen als het fout staat (puzzels / eigen stellingen)."
 }

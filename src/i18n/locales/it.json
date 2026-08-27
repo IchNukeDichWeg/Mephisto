@@ -543,5 +543,16 @@
   "set.tip.playstyle": "Un carattere, non una forza. Tra le linee che il motore ha gia trovato, Attacco preferisce la mossa forzante (scacco, cattura, promozione) e Tranquillo quella calma, ma solo finche costa al massimo 35 centipedoni, quindi lo stile non gioca mai peggio. Equilibrato e la scelta del motore.",
   "set.style_balanced": "Equilibrato (scelta del motore)",
   "set.style_attacking": "Attacco",
-  "set.style_quiet": "Tranquillo"
+  "set.style_quiet": "Tranquillo",
+  "panel.tip.autoplay": "Gioca la mossa sulla scacchiera al posto tuo. Spento, il pannello analizza soltanto: tutto il resto qui riguarda una mossa che verra giocata.",
+  "panel.tip.engine": "Quale motore analizza. (local) richiede l'host nativo ed e il piu veloce; WASM gira nel browser; (online) manda la posizione sulla macchina di qualcun altro.",
+  "panel.tip.move_time_var": "Quanto la mossa attende prima di essere giocata, e quanto quell'attesa varia a caso. La ricerca avviene dentro quel tempo, non dopo.",
+  "panel.tip.puzzle_mode": "Gioca l'intera soluzione di un problema invece di una mossa, e si accende da sola sulle pagine dei problemi. Impostata a mano non viene mai sovrascritta.",
+  "panel.tip.bot_game": "Da a un bot di chess.com una partita finita da ripercorrere, mossa per mossa. Solo dalla posizione iniziale di una partita nuova.",
+  "panel.tip.variant": "Con quali regole viene giudicata la posizione. Solo i motori Fairy giocano le varianti esotiche; gli Stockfish classici giocano scacchi standard e Chess960.",
+  "panel.tip.fourpc_mode": "Quale partita a quattro e. Il rilevamento automatico lo legge dalla pagina; viene analizzata solo la modalita a squadre.",
+  "panel.tip.threads": "Quanti thread della CPU puo usare il motore. Di piu e piu forte fino ai core reali; oltre e piu lento, non piu veloce.",
+  "panel.tip.multi_lines": "Quante linee candidate riporta il motore. Piu linee significa che ognuna viene cercata meno a fondo.",
+  "panel.tip.memory": "La tabella hash del motore. Piu grande aiuta le ricerche lunghe; piu grande di quanto la macchina possa cedere danneggia tutto.",
+  "panel.tip.turn_switch": "A chi tocca muovere - tocca per invertire se e sbagliato (problemi / posizioni personalizzate)."
 }

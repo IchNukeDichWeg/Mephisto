@@ -543,5 +543,16 @@
   "set.tip.playstyle": "Charakter, nie sila gry. Sposrod linii, ktore silnik juz znalazl, Atakujacy woli ruch forsujacy (szach, bicie, promocja), a Spokojny ten cichy - ale tylko dopoki kosztuje to najwyzej 35 centypionow, wiec styl nigdy nie gra gorzej. Zrownowazony to wybor silnika.",
   "set.style_balanced": "Zrownowazony (wybor silnika)",
   "set.style_attacking": "Atakujacy",
-  "set.style_quiet": "Spokojny"
+  "set.style_quiet": "Spokojny",
+  "panel.tip.autoplay": "Gra ruch na szachownicy za ciebie. Wylaczone, panel tylko analizuje - cala reszta tutaj dotyczy ruchu, ktory zostanie zagrany.",
+  "panel.tip.engine": "Ktory silnik analizuje. (local) wymaga hosta natywnego i jest najszybszy; WASM dziala w przegladarce; (online) wysyla pozycje na cudza maszyne.",
+  "panel.tip.move_time_var": "Jak dlugo ruch czeka przed zagraniem i jak bardzo ten czas losowo sie waha. Szukanie dzieje sie w tym czasie, nie po nim.",
+  "panel.tip.puzzle_mode": "Gra cale rozwiazanie zadania zamiast jednego ruchu i wlacza sie sam na stronach z zadaniami. Ustawiony recznie nigdy nie jest nadpisywany.",
+  "panel.tip.bot_game": "Daje botowi chess.com skonczona partie do przejscia ruch po ruchu. Tylko z pozycji poczatkowej swiezej partii z botem.",
+  "panel.tip.variant": "Wedlug jakich regul oceniana jest pozycja. Tylko silniki Fairy graja egzotyczne warianty; zwykle Stockfishe graja szachy standardowe i Chess960.",
+  "panel.tip.fourpc_mode": "Ktora to partia czteroosobowa. Autowykrywanie odczytuje to ze strony; analizowany jest tylko tryb druzynowy.",
+  "panel.tip.threads": "Ile watkow CPU moze uzyc silnik. Wiecej znaczy silniej do liczby prawdziwych rdzeni; powyzej jest wolniej, nie szybciej.",
+  "panel.tip.multi_lines": "Ile linii kandydujacych raportuje silnik. Wiecej linii oznacza, ze kazda jest liczona plycej.",
+  "panel.tip.memory": "Tablica hash silnika. Wieksza pomaga dlugim obliczeniom; wieksza niz maszyna moze oddac szkodzi wszystkiemu.",
+  "panel.tip.turn_switch": "Kto jest na posunieciu - dotknij, by zmienic, jesli jest zle (zadania / wlasne pozycje)."
 }

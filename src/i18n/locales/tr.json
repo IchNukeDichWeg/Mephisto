@@ -543,5 +543,16 @@
   "set.tip.playstyle": "Guc degil, karakter. Motorun zaten buldugu varyantlar arasinda Saldirgan zorlayici hamleyi (sah, alma, terfi), Sakin ise sakin olani secer - ama en fazla 35 santipiyon maliyetle, yani tarz asla daha kotu oynamaz. Dengeli, motorun kendi secimidir.",
   "set.style_balanced": "Dengeli (motorun secimi)",
   "set.style_attacking": "Saldirgan",
-  "set.style_quiet": "Sakin"
+  "set.style_quiet": "Sakin",
+  "panel.tip.autoplay": "Hamleyi tahtada senin yerine oynar. Kapaliyken panel sadece analiz eder; buradaki her sey oynanacak bir hamleyle ilgilidir.",
+  "panel.tip.engine": "Hangi motorun analiz ettigi. (local) yerel host ister ve en hizlisidir; WASM tarayicida calisir; (online) pozisyonu baskasinin makinesine gonderir.",
+  "panel.tip.move_time_var": "Hamlenin oynanmadan once ne kadar bekledigi ve bu beklemenin rastgele ne kadar degistigi. Arama bu surenin icinde olur, sonrasinda degil.",
+  "panel.tip.puzzle_mode": "Bir problemin tek hamlesini degil tum cozumunu oynar ve problem sayfalarinda kendiliginden acilir. Elle ayarlanirsa asla ezilmez.",
+  "panel.tip.bot_game": "chess.com botuna bitmis bir partiyi hamle hamle yurumesi icin verir. Yalnizca yeni bir bot partisinin baslangic pozisyonundan.",
+  "panel.tip.variant": "Pozisyonun hangi kurallara gore degerlendirildigi. Egzotik varyantlari yalnizca Fairy motorlari oynar; normal Stockfish standart satranc ve Chess960 oynar.",
+  "panel.tip.fourpc_mode": "Bunun hangi dort kisilik oyun oldugu. Otomatik algilama bunu sayfadan okur; yalnizca Takimlar gercekten analiz edilir.",
+  "panel.tip.threads": "Motorun kullanabilecegi CPU is parcacigi sayisi. Gercek cekirdek sayisina kadar daha guclu; otesinde daha hizli degil daha yavastir.",
+  "panel.tip.multi_lines": "Motorun bildirdigi aday varyant sayisi. Daha cok varyant, her birinin daha az derin arandigi anlamina gelir.",
+  "panel.tip.memory": "Motorun hash tablosu. Buyugu uzun aramalara yardim eder; makinenin ayirabileceginden buyugu her seye zarar verir.",
+  "panel.tip.turn_switch": "Sira kimde - yanlissa degistirmek icin dokunun (problemler / ozel pozisyonlar)."
 }

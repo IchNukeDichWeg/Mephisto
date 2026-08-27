@@ -1123,6 +1123,7 @@ that were here shipped in one release.
 - [ ] **A speed and polish pass on the panel** - the crowding and the FEN box were answered in v3.1.269 (the box
   grows to its content; the input uses the palette). What is left is the pass itself: every control compared
   against the one beside it, the way the settings page was swept, rather than by eye.
+  **The tooltip sweep landed in v3.1.302**: eleven quick-settings rows had no tooltip at all while their neighbours had one, and six controls used the browser's own `title=` - a different delay, a different look, and never translated. Every row now explains itself through the panel's own tooltip, and the ladder walks every row so the next control added cannot quietly be the odd one out. The ten new tooltips are in all fourteen languages; the six converted ones keep the English they always had.
 
 - [ ] **Shrink the footprint further** - what's left is hardening the one rendezvous the MAIN-world probes need and
   tightening how scraped positions are sanitised. Being straight about the ceiling: the client side is nearly
