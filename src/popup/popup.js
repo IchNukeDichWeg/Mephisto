@@ -1870,6 +1870,9 @@ function on_engine_best_move(best, threat, isTerminal=false) {
     if (is_remote()) {
         last_eval.activeLines = last_eval.lines.length;
     }
+    // The search is over, so whatever was held back for being shallow is the final word on this
+    // position -- draw it rather than leaving the bar showing the move before.
+    if (isTerminal) flush_held_eval();
 
     console.log('EVALUATION:', JSON.parse(JSON.stringify(last_eval)));
     const piece_name_map = {
@@ -2117,9 +2120,33 @@ function draw_eval_bar_unevaluated() {
     }
 }
 
-function update_eval_bar(line) {
+// A NEW POSITION IS NOT AN EVALUATION YET. The first iterations of a search are worth nothing --
+// depth 1 is a static eval with one ply on top -- and painting them made the bar snap to 0.0 and
+// back on every move, worst exactly when the machine is busy and those first iterations arrive
+// slowly. So the bar (and the history strip the graders read) holds the LAST settled reading until
+// the new search has reached this depth. Not a smoothing: nothing is averaged or invented, the
+// previous measurement simply stands until there is a real one to replace it.
+const EVAL_MIN_DEPTH = 8;
+let eval_bar_fen = '';        // the position the bar is currently showing
+let held_eval_line = null;    // the newest reading withheld for being too shallow
+
+// Whatever was withheld, drawn anyway: a search that ENDED below the floor (a short movetime, a
+// one-pass Maia, a cloud engine that reports no depth at all) is all the evaluation this position
+// is ever going to get, and holding it forever would leave the bar a move behind.
+function flush_held_eval() {
+    const line = held_eval_line;
+    held_eval_line = null;
+    if (line) update_eval_bar(line, true);
+}
+
+function update_eval_bar(line, force = false) {
     const bar = PANEL_ROOT.getElementById('eval-bar-white');
     if (!bar || !line) return;
+    const depth = Number.isFinite(line.depth) ? line.depth : 0;
+    if (!force && depth < EVAL_MIN_DEPTH && eval_bar_fen && eval_bar_fen !== last_eval.fen) {
+        held_eval_line = line;   // the position moved on and this reading is too shallow to show
+        return;
+    }
     // Reclaim the colours if the 4PC lane painted this bar red/blue. Those are inline styles on the
     // same two elements, so without this a normal game inherits Team Red vs Team Blue until the panel
     // happens to be rebuilt.
@@ -2160,6 +2187,8 @@ function update_eval_bar(line) {
                                phases: config.eval_history
                                    ? game_phases(premove_tracker.startFen, premove_tracker.moves) : null});
     }
+    eval_bar_fen = last_eval.fen;   // what the bar now shows, so the next position knows to hold
+    held_eval_line = null;
 }
 
 // Below this much search, the engine's nodes/elapsed is dividing by a 0-1ms integer and the answer
@@ -4702,6 +4731,7 @@ function show_puzzle_answer(uci) {
 }
 
 function on_new_pos(fen, startFen, moves) {
+    held_eval_line = null;   // a reading held for the PREVIOUS position is not this one's
     // Taken here and held in a LOCAL for the whole call: whichever push brought us in, that is the
     // one this position belongs to, and nothing that happens below can attach it to a different one.
     // Null on the paths that have no push behind them at all (a pasted FEN, the panel's own board,
