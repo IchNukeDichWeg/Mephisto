@@ -543,5 +543,16 @@
   "set.tip.playstyle": "Um caracter, nao uma forca. Entre as linhas que o motor ja encontrou, Atacante prefere o lance forcado (xeque, captura, promocao) e Tranquilo o calmo, mas so enquanto custar no maximo 35 centipeoes, por isso o estilo nunca joga pior. Equilibrado e a escolha do motor.",
   "set.style_balanced": "Equilibrado (escolha do motor)",
   "set.style_attacking": "Atacante",
-  "set.style_quiet": "Tranquilo"
+  "set.style_quiet": "Tranquilo",
+  "panel.tip.autoplay": "Joga o lance no tabuleiro por si. Desligado, o painel so analisa - tudo o resto aqui diz respeito a um lance que vai ser jogado.",
+  "panel.tip.engine": "Que motor analisa. (local) precisa do host nativo e e o mais rapido; WASM corre no navegador; (online) envia a posicao para outra maquina.",
+  "panel.tip.move_time_var": "Quanto tempo o lance espera antes de ser jogado, e quanto essa espera varia ao acaso. A pesquisa acontece dentro desse tempo, nao depois.",
+  "panel.tip.puzzle_mode": "Joga a solucao inteira de um problema em vez de um lance, e liga-se sozinho nas paginas de problemas. Definido a mao, nunca e substituido.",
+  "panel.tip.bot_game": "Da a um bot do chess.com uma partida acabada para percorrer, lance a lance. So a partir da posicao inicial de uma partida nova.",
+  "panel.tip.variant": "Por que regras a posicao e julgada. So os motores Fairy jogam as exoticas; os Stockfish normais jogam xadrez padrao e Chess960.",
+  "panel.tip.fourpc_mode": "Que partida de quatro jogadores e esta. A deteccao automatica le-a da pagina; so Equipas e realmente analisado.",
+  "panel.tip.threads": "Quantos threads de CPU o motor pode usar. Mais e mais forte ate aos nucleos reais; acima disso e mais lento, nao mais rapido.",
+  "panel.tip.multi_lines": "Quantas linhas candidatas o motor reporta. Mais linhas significa que cada uma e pesquisada menos fundo.",
+  "panel.tip.memory": "A tabela hash do motor. Maior ajuda pesquisas longas; maior do que a maquina pode dispensar prejudica tudo.",
+  "panel.tip.turn_switch": "De quem e a vez - toque para inverter se estiver errado (problemas / posicoes proprias)."
 }
