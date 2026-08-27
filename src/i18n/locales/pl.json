@@ -525,5 +525,14 @@
   "panel.bot.no_library": "Nie wczytano partii – przeładuj rozszerzenie",
   "set.streamer_alert": "Powiadomienie: przeciwnik streamuje",
   "set.tip.streamer_alert": "Napisz w panelu, gdy przeciwnik streamuje tę partię na żywo. Oba serwisy publikują to same -- lichess mówi, czy gracz streamuje, chess.com publikuje, kto jest na żywo -- więc nic tu nie ogląda streama. To tylko POWIADOMIENIE: nie zmienia żadnego ustawienia i nie gra inaczej. Domyślnie wyłączone, bo raz na partię pyta serwis o nazwę przeciwnika, z rozszerzenia, a nie z karty gry.",
-  "panel.msg.opp_streaming": "{user} streamuje tę partię na żywo"
+  "panel.msg.opp_streaming": "{user} streamuje tę partię na żywo",
+  "set.analysis_limit": "Limit analizy",
+  "set.tip.analysis_limit": "Co ogranicza przeszukiwanie, gdy nie ma ruchu do wykonania: wyłączone Autoplay, tryb pomocy, tryb ręczny albo ponder na ruchu przeciwnika. To przeszukiwanie zawsze trwało do zmiany pozycji; nadal tak jest, bo skrajnie z prawej strony w każdym trybie jest Bez limitu. Głębokość i węzły są odtwarzalne (to samo przeszukiwanie na każdej maszynie), czas nie. Na silniku natywnym budżet jest ograniczony do 60 sekund niezależnie od jednostki, więc limit węzłów nieosiągalny w minutę kończy się właśnie tam.",
+  "set.analysis_limit_value": "Wartość limitu",
+  "set.tip.analysis_limit_value": "Ile jednostki powyżej może wydać jedno przeszukiwanie analityczne: 1-60 półruchów, 1-60 sekund albo 1M-1B węzłów w skali logarytmicznej. Skrajnie z prawej jest Bez limitu -- przeszukiwanie pogłębia się, aż pozycja się zmieni, tak jak zawsze.",
+  "set.limit_time": "Czas",
+  "set.limit_depth": "Głębokość",
+  "set.limit_nodes": "Węzły",
+  "set.no_limit": "Bez limitu",
+  "set.limit_depth_at": "Głębokość {n}"
 }

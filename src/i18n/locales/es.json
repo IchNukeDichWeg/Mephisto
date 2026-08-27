@@ -525,5 +525,14 @@
   "panel.bot.no_library": "No hay partidas cargadas: recarga la extensión",
   "set.streamer_alert": "Aviso: el rival transmite",
   "set.tip.streamer_alert": "Avisar en el panel cuando el rival esté transmitiendo la partida en directo. Ambos sitios lo publican ellos mismos -- lichess dice si alguien está transmitiendo y chess.com publica quién está en directo -- así que aquí no se mira ninguna transmisión. Es solo un AVISO: no cambia ningún ajuste ni juega distinto. Desactivado por defecto porque pregunta al sitio por el nombre de tu rival, una vez por partida, desde la extensión y no desde la pestaña del juego.",
-  "panel.msg.opp_streaming": "{user} está transmitiendo esta partida ahora"
+  "panel.msg.opp_streaming": "{user} está transmitiendo esta partida ahora",
+  "set.analysis_limit": "Límite de análisis",
+  "set.tip.analysis_limit": "Qué limita la búsqueda cuando no hay ninguna jugada que hacer: Autoplay desactivado, Modo Ayuda, Modo Manual o un ponder en el turno del rival. Esa búsqueda siempre ha corrido hasta que cambiaba la posición; sigue siendo así, porque el extremo derecho es Sin límite en todos los modos. Profundidad y Nodos son reproducibles (la misma búsqueda en cualquier máquina), el Tiempo no. En un motor nativo el presupuesto se limita a 60 segundos sea cual sea la unidad, así que un límite de nodos inalcanzable en un minuto termina ahí.",
+  "set.analysis_limit_value": "Valor del límite",
+  "set.tip.analysis_limit_value": "Cuánto de la unidad de arriba puede gastar una búsqueda de análisis: 1-60 plies, 1-60 segundos o 1M-1B nodos en escala logarítmica. El extremo derecho es Sin límite: la búsqueda profundiza hasta que cambia la posición, que es lo que siempre ha hecho.",
+  "set.limit_time": "Tiempo",
+  "set.limit_depth": "Profundidad",
+  "set.limit_nodes": "Nodos",
+  "set.no_limit": "Sin límite",
+  "set.limit_depth_at": "Profundidad {n}"
 }

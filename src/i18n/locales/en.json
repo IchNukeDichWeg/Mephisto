@@ -525,5 +525,14 @@
   "panel.bot.no_library": "No games loaded - reload the extension",
   "set.streamer_alert": "Opponent Streaming Notice",
   "set.tip.streamer_alert": "Say so in the panel when the opponent is live-streaming the game right now. Both sites publish this themselves -- lichess says whether a player is streaming, chess.com publishes who is live -- so nothing here watches a stream. It is a NOTICE and nothing else: it changes no setting and plays no differently. Off by default because it asks the site about your opponent by name, once per game, from the extension rather than from the game tab.",
-  "panel.msg.opp_streaming": "{user} is streaming this game right now"
+  "panel.msg.opp_streaming": "{user} is streaming this game right now",
+  "set.analysis_limit": "Analysis Limit",
+  "set.tip.analysis_limit": "What bounds the search when there is no move to play -- Autoplay off, Help Mode, Manual Mode, or a ponder on the opponent's turn. That search has always run until the position changed; it still does, because the slider's far right is No Limit in every mode. Depth and Nodes are reproducible (the same search on any machine), Time is not. On a native engine the budget is capped at 60 seconds whatever the unit, so a nodes limit that cannot be reached in a minute ends there.",
+  "set.analysis_limit_value": "Limit Amount",
+  "set.tip.analysis_limit_value": "How much of the unit above one analysis search may spend: 1-60 plies, 1-60 seconds, or 1M-1B nodes on a logarithmic scale. The far right is No Limit -- the search deepens until the position changes, which is what it has always done.",
+  "set.limit_time": "Time",
+  "set.limit_depth": "Depth",
+  "set.limit_nodes": "Nodes",
+  "set.no_limit": "No Limit",
+  "set.limit_depth_at": "Depth {n}"
 }

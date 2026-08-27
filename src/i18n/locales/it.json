@@ -525,5 +525,14 @@
   "panel.bot.no_library": "Nessuna partita caricata – ricarica l’estensione",
   "set.streamer_alert": "Avviso: avversario in diretta",
   "set.tip.streamer_alert": "Segnalare nel pannello quando l'avversario sta trasmettendo la partita in diretta. Entrambi i siti lo pubblicano da soli -- lichess dice se un giocatore sta trasmettendo, chess.com pubblica chi è in diretta -- quindi qui non si guarda nessuna trasmissione. È solo un AVVISO: non cambia alcuna impostazione e non gioca diversamente. Disattivato di default perché chiede al sito il nome del tuo avversario, una volta per partita, dall'estensione e non dalla scheda di gioco.",
-  "panel.msg.opp_streaming": "{user} sta trasmettendo questa partita in diretta"
+  "panel.msg.opp_streaming": "{user} sta trasmettendo questa partita in diretta",
+  "set.analysis_limit": "Limite di analisi",
+  "set.tip.analysis_limit": "Cosa limita la ricerca quando non c'è alcuna mossa da giocare: Autoplay disattivato, Modalità Aiuto, Modalità Manuale o un ponder durante il turno dell'avversario. Quella ricerca ha sempre proseguito fino al cambio di posizione; continua a farlo, perché l'estremo destro è Nessun limite in ogni modalità. Profondità e Nodi sono riproducibili (la stessa ricerca su qualsiasi macchina), il Tempo no. Su un motore nativo il budget è limitato a 60 secondi qualunque sia l'unità, quindi un limite di nodi irraggiungibile in un minuto finisce lì.",
+  "set.analysis_limit_value": "Valore del limite",
+  "set.tip.analysis_limit_value": "Quanto dell'unità qui sopra può spendere una ricerca di analisi: 1-60 semimosse, 1-60 secondi o 1M-1B nodi su scala logaritmica. All'estrema destra c'è Nessun limite: la ricerca approfondisce finché la posizione non cambia, come ha sempre fatto.",
+  "set.limit_time": "Tempo",
+  "set.limit_depth": "Profondità",
+  "set.limit_nodes": "Nodi",
+  "set.no_limit": "Nessun limite",
+  "set.limit_depth_at": "Profondità {n}"
 }

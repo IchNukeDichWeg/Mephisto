@@ -525,5 +525,14 @@
   "panel.bot.no_library": "Nenhuma partida carregada – recarregue a extensão",
   "set.streamer_alert": "Aviso: adversário a transmitir",
   "set.tip.streamer_alert": "Avisar no painel quando o adversário estiver a transmitir a partida em direto. Ambos os sites publicam isto por si próprios -- o lichess diz se alguém está a transmitir e o chess.com publica quem está em direto -- por isso aqui não se vê nenhuma transmissão. É apenas um AVISO: não muda nenhuma definição nem joga de forma diferente. Desligado por omissão porque pergunta ao site pelo nome do teu adversário, uma vez por partida, a partir da extensão e não do separador do jogo.",
-  "panel.msg.opp_streaming": "{user} está a transmitir esta partida agora"
+  "panel.msg.opp_streaming": "{user} está a transmitir esta partida agora",
+  "set.analysis_limit": "Limite de análise",
+  "set.tip.analysis_limit": "O que limita a pesquisa quando não há jogada a fazer: Autoplay desligado, Modo Ajuda, Modo Manual ou um ponder no turno do adversário. Essa pesquisa sempre correu até a posição mudar; continua assim, porque o extremo direito é Sem limite em todos os modos. Profundidade e Nós são reprodutíveis (a mesma pesquisa em qualquer máquina), o Tempo não. Num motor nativo o orçamento está limitado a 60 segundos seja qual for a unidade, por isso um limite de nós inalcançável num minuto acaba aí.",
+  "set.analysis_limit_value": "Valor do limite",
+  "set.tip.analysis_limit_value": "Quanto da unidade acima uma pesquisa de análise pode gastar: 1-60 lances simples, 1-60 segundos, ou 1M-1B nós em escala logarítmica. No extremo direito está Sem limite -- a pesquisa aprofunda até a posição mudar, como sempre fez.",
+  "set.limit_time": "Tempo",
+  "set.limit_depth": "Profundidade",
+  "set.limit_nodes": "Nós",
+  "set.no_limit": "Sem limite",
+  "set.limit_depth_at": "Profundidade {n}"
 }
