@@ -179,6 +179,8 @@
   "panel.eta.now": "Gra teraz ({source}){suffix}",
   "panel.eta.in": "Zagra za {secs} s ({source}){suffix}",
   "panel.calibrated": "Ta maszyna osiąga {nps}M nps - ",
+  "panel.engine_advice_native": "{name} jest zainstalowany i dziala poza przegladarka, tutaj szybciej. Dotknij, aby zmienic.",
+  "panel.engine_advice_small": "{cores} rdzeni tutaj: {from} mierzy {a}k nps, {to} mierzy {b}k. Dotknij, aby zmienic.",
   "panel.update_available": "Dostępna aktualizacja - v{latest} (masz v{current})",
   "nav.getting_started": "Pierwsze kroki",
   "nav.general": "Ogólne",

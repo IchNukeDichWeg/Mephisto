@@ -179,6 +179,8 @@
   "panel.eta.now": "今すぐ着手（{source}）{suffix}",
   "panel.eta.in": "{secs} 秒後に着手（{source}）{suffix}",
   "panel.calibrated": "このマシンの実測は {nps}M nps - ",
+  "panel.engine_advice_native": "{name} はインストール済みで、ブラウザ外で動くためこの環境では高速です。タップで切り替え。",
+  "panel.engine_advice_small": "コア数 {cores}: {from} は {a}k nps、{to} は {b}k。タップで切り替え。",
   "panel.update_available": "更新があります - v{latest}（お使いのバージョン v{current}）",
   "nav.getting_started": "はじめに",
   "nav.general": "一般",

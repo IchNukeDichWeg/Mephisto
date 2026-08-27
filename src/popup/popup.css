@@ -1191,7 +1191,8 @@ body.mephisto-compact #alt-lines {
 #update-notice:hover { text-decoration: underline; }
 
 /* Same treatment as the update notice: hidden unless there is something worth saying. */
-#calibrate-notice {
+#calibrate-notice,
+#engine-notice {
     /* Absolutely positioned ON PURPOSE. These used to sit in the flow between #game-detection and
        #board, so showing one pushed the board down -- and the panel board's arrow overlay is
        positioned against the board, so it silently went out of alignment. A notice must never move
@@ -1219,7 +1220,7 @@ body.mephisto-compact #alt-lines {
     text-decoration: none;
     cursor: pointer;
 }
-#calibrate-notice[hidden] { display: none; }
+#calibrate-notice[hidden], #engine-notice[hidden] { display: none; }
 /* Both notices are pinned into the very slot the set-up row lays out in (bottom: 58px of the left
    column -- their "nothing is laid out below it" comment predates the row), so an open row got the
    notice painted straight over its message. While the row is OPEN the user is actively working
@@ -1229,8 +1230,9 @@ body.mephisto-compact #alt-lines {
    selector does not survive the shadow-DOM rehoming in background-script.js (only `body.mephisto-*`
    and `html, body` are rewritten onto #mephisto-panel-body). */
 #update-notice:has(~ #setup-fen-row:not([style*="display: none"])),
-#calibrate-notice:has(~ #setup-fen-row:not([style*="display: none"])) { display: none; }
-body.mephisto-dark #calibrate-notice { color: #4dd0e1; }
+#calibrate-notice:has(~ #setup-fen-row:not([style*="display: none"])),
+#engine-notice:has(~ #setup-fen-row:not([style*="display: none"])) { display: none; }
+body.mephisto-dark #calibrate-notice, body.mephisto-dark #engine-notice { color: #4dd0e1; }
 body.mephisto-dark #update-notice { color: #4dd0e1; }
 body.mephisto-dark #idle-reason { color: #e8c76a; background: rgba(232, 199, 106, 0.12); }
 body.mephisto-dark #quick-settings #qs_copydiag { background: #2a2b31; color: #e6e6e6; border-color: #43444d; }

@@ -181,6 +181,8 @@
   "panel.eta.now": "Playing now ({source}){suffix}",
   "panel.eta.in": "Playing in {secs}s ({source}){suffix}",
   "panel.calibrated": "This machine measures {nps}M nps - ",
+  "panel.engine_advice_native": "{name} is installed and runs outside the browser, which is faster here. Tap to switch.",
+  "panel.engine_advice_small": "{cores} cores here: {from} measures {a}k nps, {to} measures {b}k. Tap to switch.",
   "panel.update_available": "Update available - v{latest} (you have v{current})",
   "nav.getting_started": "Getting Started",
   "nav.general": "General",

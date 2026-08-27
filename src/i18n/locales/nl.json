@@ -179,6 +179,8 @@
   "panel.eta.now": "Speelt nu ({source}){suffix}",
   "panel.eta.in": "Speelt over {secs} s ({source}){suffix}",
   "panel.calibrated": "Deze machine haalt {nps}M nps - ",
+  "panel.engine_advice_native": "{name} is geinstalleerd en draait buiten de browser, hier sneller. Tik om te wisselen.",
+  "panel.engine_advice_small": "{cores} cores hier: {from} meet {a}k nps, {to} meet {b}k. Tik om te wisselen.",
   "panel.update_available": "Update beschikbaar - v{latest} (je hebt v{current})",
   "nav.getting_started": "Aan de slag",
   "nav.general": "Algemeen",

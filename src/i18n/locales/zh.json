@@ -179,6 +179,8 @@
   "panel.eta.now": "立即走子（{source}）{suffix}",
   "panel.eta.in": "{secs} 秒后走子（{source}）{suffix}",
   "panel.calibrated": "本机实测 {nps}M nps - ",
+  "panel.engine_advice_native": "{name} 已安装并在浏览器外运行，在本机更快。点按切换。",
+  "panel.engine_advice_small": "本机 {cores} 核：{from} 实测 {a}k nps，{to} 实测 {b}k。点按切换。",
   "panel.update_available": "有可用更新 - v{latest}（当前 v{current}）",
   "nav.getting_started": "快速上手",
   "nav.general": "常规",

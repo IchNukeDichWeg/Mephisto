@@ -179,6 +179,8 @@
   "panel.eta.now": "Jugando ahora ({source}){suffix}",
   "panel.eta.in": "Jugará en {secs} s ({source}){suffix}",
   "panel.calibrated": "Esta máquina alcanza {nps}M nps - ",
+  "panel.engine_advice_native": "{name} esta instalado y se ejecuta fuera del navegador, mas rapido aqui. Toca para cambiar.",
+  "panel.engine_advice_small": "{cores} nucleos aqui: {from} mide {a}k nps, {to} mide {b}k. Toca para cambiar.",
   "panel.update_available": "Actualización disponible - v{latest} (tienes la v{current})",
   "nav.getting_started": "Primeros pasos",
   "nav.general": "General",

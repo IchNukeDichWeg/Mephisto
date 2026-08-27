@@ -179,6 +179,8 @@
   "panel.eta.now": "Şimdi oynuyor ({source}){suffix}",
   "panel.eta.in": "{secs} sn sonra oynayacak ({source}){suffix}",
   "panel.calibrated": "Bu makine {nps}M nps ölçüyor - ",
+  "panel.engine_advice_native": "{name} kurulu ve tarayici disinda calisiyor, burada daha hizli. Degistirmek icin dokunun.",
+  "panel.engine_advice_small": "{cores} cekirdek burada: {from} {a}k nps olcuyor, {to} {b}k olcuyor. Degistirmek icin dokunun.",
   "panel.update_available": "Güncelleme var - v{latest} (sende v{current})",
   "nav.getting_started": "Başlangıç",
   "nav.general": "Genel",

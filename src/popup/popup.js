@@ -1373,6 +1373,7 @@ const offscreen_engine = {
 chrome.runtime.onMessage.addListener((msg) => {
     if (!PANEL_BOOTED || !msg || !msg.fromOffscreen) return;
     if (msg.clientId === maia2_client()) { if (msg.kind === 'line') maia2_on_line(msg.line); return; }
+    if (msg.clientId === bench_client()) { bench_sink?.(msg); return; }   // engine-recommendation bench
     if (msg.clientId !== ENGINE_CLIENT) return;
     if (msg.kind === 'line') on_engine_response(msg.line);
     else if (msg.kind === 'error') on_engine_error(msg.error);
@@ -2184,7 +2185,7 @@ function on_engine_evaluation(info) {
         // Calibration samples ride the same filter -- it already rejects the impossible readings the
         // opening milliseconds of a search produce. Depth-gated on top: an early iteration's nps is
         // real but unrepresentative, and the point is to measure this machine at speed.
-        if (Number.isFinite(l0.depth) && l0.depth >= 12) record_nps_sample(l0.nps);
+        if (Number.isFinite(l0.depth) && l0.depth >= 12) { record_nps_sample(l0.nps); record_advice_nps(l0.nps); }
     }
     if ('mate' in info.lines[0]) {
         update_evaluation(`Checkmate in ${info.lines[0].mate}`);
@@ -8619,6 +8620,151 @@ function maybe_suggest_calibration() {
             console.log(`Mephisto: search time calibrated to ${want}ms from ${(median / 1e6).toFixed(2)}M nps`);
         };
     } catch (e) { /* a suggestion is a nicety -- never let it break the panel */ }
+}
+
+// --- WHICH ENGINE THIS MACHINE SHOULD RUN --------------------------------------------------------
+// The dropdown offers every engine and no guidance, so a two-core laptop defaults into the 112MB net
+// and crawls. The core count is known and the speed is MEASURED rather than guessed: the live search
+// already reports nps for the engine in use, and the candidate is benched on its own offscreen
+// client at a fixed depth before a word is said. Nothing switches by itself -- it is offered once,
+// per install, and applied on a click.
+//
+// ponytail: the candidate list is two deep -- an installed native Stockfish, else the small net. A
+// bench of EVERY engine would load every bundled net (half a gigabyte) to answer a question these
+// two candidates already answer, and it would do it on the machine least able to afford it.
+const ENGINE_ADVICE_CORES = 4;        // above this the heavy net is fine; say nothing
+const ENGINE_ADVICE_MARGIN = 1.5;     // measured speed-up worth interrupting someone for
+const ENGINE_ADVICE_DEPTH = 12;       // the depth floor the live nps samples are taken at, so the
+                                      // two numbers compared are the same kind of measurement
+const ENGINE_ADVICE_SAMPLES = 4;      // live readings before the current engine's speed is settled
+const ENGINE_ADVICE_TIMEOUT = 30000;  // a bench that never finishes must not leave a client behind
+const BIG_NET_WASM = ['stockfish-dev-nnue', 'stockfish-18-nnue'];
+const SMALL_NET_WASM = 'stockfish-18-small-nnue';
+let advice_nps = [];                  // live nps readings for the engine in use (null once spent)
+
+// The whole decision, with nothing to look up: every input is passed in, so it can be run.
+// `nativeSf` is the id of a native Stockfish whose host answered the probe, or null.
+function engine_advice({engine, cores, nativeSf, currentNps, candidateNps}) {
+    if (!BIG_NET_WASM.includes(engine)) return null;   // only the heavy defaults are worth advising off
+    // A native host is the same engine without the browser tax, and it is already installed -- no
+    // measurement needed to prefer it, and no bench worth spending on a machine this size.
+    if (nativeSf) return {engine: nativeSf, why: 'native'};
+    if (!(cores > 0) || cores > ENGINE_ADVICE_CORES) return null;
+    if (!(currentNps > 0) || !(candidateNps > 0)) return null;
+    // MEASURED, not assumed: the small net is not automatically faster, and on a machine that keeps
+    // up with the big one there is nothing to say.
+    if (candidateNps < currentNps * ENGINE_ADVICE_MARGIN) return null;
+    return {engine: SMALL_NET_WASM, why: 'small', currentNps, candidateNps};
+}
+
+// The first native Stockfish still visible in the dropdown. hide_unavailable_natives() has already
+// hidden the ones whose host did not answer, so "visible" IS "installed" -- and reading the list
+// rather than a table of engine ids keeps this working on a build with a different lineup.
+function installed_native_sf() {
+    const sel = PANEL_ROOT.getElementById('qs_engine');
+    if (!sel) return null;
+    const opt = [...sel.options].find(o => !o.hidden && /^sf/.test(o.value)
+                                           && NATIVE_ENGINES.includes(o.value));
+    return opt ? opt.value : null;
+}
+
+// One fixed-depth search on an ISOLATED offscreen client: its own engine instance, its own client
+// id, and nothing of it reaches the panel's parser. Resolves the nps of the deepest iteration that
+// reached the target depth, or null if anything at all goes wrong.
+let bench_sink = null;
+const bench_client = () => ENGINE_CLIENT + ':bn';
+function bench_engine(engine, depth) {
+    return new Promise((resolve) => {
+        let done = false, nps = 0, timer = null;
+        const finish = (v) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            bench_sink = null;
+            try { chrome.runtime.sendMessage({toOffscreen: true, clientId: bench_client(), cmd: 'dispose'}); }
+            catch (e) { /* the offscreen document is already gone */ }
+            resolve(v);
+        };
+        bench_sink = (msg) => {
+            if (msg.kind === 'error') return finish(null);
+            if (msg.kind === 'ready') {
+                send_bench_uci('position startpos');
+                send_bench_uci(`go depth ${depth}`);
+                return;
+            }
+            if (msg.kind !== 'line') return;
+            const line = msg.line || '';
+            const d = /\bdepth (\d+)/.exec(line), n = /\bnps (\d+)/.exec(line);
+            if (d && n && Number(d[1]) >= depth) nps = Number(n[1]);
+            if (/^bestmove\b/.test(line)) finish(nps || null);
+        };
+        timer = setTimeout(() => finish(null), ENGINE_ADVICE_TIMEOUT);
+        try {
+            chrome.runtime.sendMessage({toOffscreen: true, clientId: bench_client(), cmd: 'init',
+                                        engine, variant: 'chess'});
+        } catch (e) { finish(null); }
+    });
+}
+function send_bench_uci(line) {
+    try { chrome.runtime.sendMessage({toOffscreen: true, clientId: bench_client(), cmd: 'uci', line}); }
+    catch (e) { /* offscreen gone; the timeout closes the bench */ }
+}
+
+function record_advice_nps(nps) {
+    if (advice_nps === null || !Number.isFinite(nps) || nps <= 0) return;
+    advice_nps.push(nps);
+    if (advice_nps.length >= ENGINE_ADVICE_SAMPLES) maybe_advise_engine();
+}
+
+async function maybe_advise_engine() {
+    const samples = advice_nps;
+    advice_nps = null;                                 // one look per panel, whatever happens next
+    try {
+        if (MephistoConfig.get('engine_advised') === 'true') return;  // raw flag, like `calibrated`
+        const cores = navigator.hardwareConcurrency || 0;
+        const nativeSf = installed_native_sf();
+        // The cheap answer first: an installed native needs no bench at all.
+        let advice = engine_advice({engine: config.engine, cores, nativeSf, currentNps: 0, candidateNps: 0});
+        if (!advice) {
+            if (!BIG_NET_WASM.includes(config.engine) || !(cores > 0) || cores > ENGINE_ADVICE_CORES) return;
+            // The bench competes for the very cores this is about, so it waits for an idle panel
+            // rather than stealing from a search in progress.
+            if (is_calculating) { advice_nps = samples; return; }   // put the samples back; try again later
+            const sorted = [...samples].sort((a, b) => a - b);
+            const currentNps = sorted[Math.floor(sorted.length / 2)];
+            const candidateNps = await bench_engine(SMALL_NET_WASM, ENGINE_ADVICE_DEPTH);
+            advice = engine_advice({engine: config.engine, cores, nativeSf, currentNps, candidateNps});
+            if (advice) console.log(`Mephisto: ${config.engine} ${(currentNps / 1000).toFixed(0)}k nps here, `
+                + `${SMALL_NET_WASM} ${(candidateNps / 1000).toFixed(0)}k at depth ${ENGINE_ADVICE_DEPTH}`);
+        }
+        MephistoConfig.set('engine_advised', 'true');   // spent: measured once, said or not
+        if (!advice) return;
+        show_engine_advice(advice);
+    } catch (e) { /* advice is a nicety -- never let it break the panel */ }
+}
+
+function show_engine_advice(advice) {
+    const el = PANEL_ROOT.getElementById('engine-notice');
+    const sel = PANEL_ROOT.getElementById('qs_engine');
+    if (!el || !sel) return;
+    const nameOf = (id) => [...sel.options].find(o => o.value === id)?.textContent?.trim() || id;
+    el.textContent = advice.why === 'native'
+        ? i18n('panel.engine_advice_native',
+            '{name} is installed and runs outside the browser, which is faster here. Tap to switch.',
+            {name: nameOf(advice.engine)})
+        : i18n('panel.engine_advice_small',
+            '{cores} cores here: {from} measures {a}k nps, {to} measures {b}k. Tap to switch.',
+            {cores: navigator.hardwareConcurrency || 0, from: nameOf(config.engine), to: nameOf(advice.engine),
+             a: Math.round(advice.currentNps / 1000), b: Math.round(advice.candidateNps / 1000)});
+    el.hidden = false;
+    el.onclick = (e) => {
+        e.preventDefault();
+        el.hidden = true;
+        // The dropdown's own change handler owns everything a switch entails (the variant coupling,
+        // the budget rule, stopping the old engine, the reload). Driving it is the whole apply.
+        sel.value = advice.engine;
+        sel.dispatchEvent(new Event('change'));
+    };
 }
 
 function check_for_update() {

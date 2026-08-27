@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-3.1.301-3fb950)
+![Version](https://img.shields.io/badge/version-3.1.302-3fb950)
 ![Engines](https://img.shields.io/badge/engines-9-58a6ff)
 ![Sites](https://img.shields.io/badge/sites-5-8b949e)
 ![Languages](https://img.shields.io/badge/languages-14-f0883e)
@@ -1042,7 +1042,7 @@ No schedule - added whenever I feel like it. Checked means shipped.
 ### Planned
 
 <details>
-<summary>23 items, sorted by upside and effort</summary>
+<summary>22 items, sorted by upside and effort</summary>
 
 **Quick wins.** Small changes with an obvious payoff. Empty once more as of v3.1.272 - all fourteen
 that were here shipped in one release.
@@ -1060,10 +1060,6 @@ that were here shipped in one release.
 - [ ] **A command palette** - every action behind one key and a search box, the way editors do it. The
   hotkey system already names its actions; a palette is a searchable list over those names, and it beats
   memorising a keymap that has long outgrown what fits in one head.
-
-- [ ] **Recommend an engine for this machine** - the dropdown offers every engine and no guidance. The core
-  count is known, and one short fixed-depth benchmark per engine would measure what this machine can
-  actually run - then say so once, instead of letting a two-core laptop default into the 112MB net.
 
 - [ ] **Grind Mode, the rest of it** - it starts the next game on Lichess and Chess.com and that is all it does.
   What it cannot do yet: stop after N games or after a losing streak, respect a daily limit, or pick a different
@@ -1177,7 +1173,14 @@ veto for real blunders, and the clock rules above.
 ### Shipped
 
 <details>
-<summary>90 features, newest first</summary>
+<summary>91 features, newest first</summary>
+
+- [x] **An engine recommended for this machine** (v3.1.302) - the dropdown offered every engine and no guidance,
+  so a two-core laptop could sit on the 112MB net and crawl. Cores are known and the speed is **measured**: the
+  live search already reports nps for the engine in use, and the candidate is benched on its own offscreen engine
+  at a fixed depth before a word is said. An installed native Stockfish wins outright; otherwise the small net has
+  to measure **1.5x faster** on this machine to be worth mentioning. Said once, applied on a click, never
+  automatic.
 
 - [x] **Streaming opponents** (v3.1.301) - the panel says so when your opponent is streaming the game right now. Both sites
   publish it themselves, so nothing here watches a stream: lichess reports whether a player is streaming,

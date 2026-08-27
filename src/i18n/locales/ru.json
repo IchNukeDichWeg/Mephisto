@@ -179,6 +179,8 @@
   "panel.eta.now": "Ходит сейчас ({source}){suffix}",
   "panel.eta.in": "Сходит через {secs} с ({source}){suffix}",
   "panel.calibrated": "Эта машина выдаёт {nps} млн узлов/с - ",
+  "panel.engine_advice_native": "{name} установлен и работает вне браузера, здесь быстрее. Нажмите, чтобы переключиться.",
+  "panel.engine_advice_small": "{cores} ядер здесь: {from} даёт {a}k nps, {to} даёт {b}k. Нажмите, чтобы переключиться.",
   "panel.update_available": "Доступно обновление - v{latest} (у вас v{current})",
   "nav.getting_started": "Начало работы",
   "nav.general": "Основные",
