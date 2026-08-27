@@ -485,6 +485,14 @@ async function initPanel(root, tabId) {
         explorer: JSON.parse(MephistoConfig.get('explorer')) || false,
         book_play: JSON.parse(MephistoConfig.get('book_play')) || false,
         explorer_db: JSON.parse(MephistoConfig.get('explorer_db') || '"masters"'),
+        // A character to play with, not a strength: see playstyle_pick. Off ('balanced') by default,
+        // because a preference nobody asked for is a surprise.
+        playstyle: (() => {
+            try {
+                const v = JSON.parse(MephistoConfig.get('playstyle') || '"balanced"');
+                return PLAYSTYLE_STYLES.includes(v) ? v : 'balanced';
+            } catch (e) { return 'balanced'; }
+        })(),
         puzzle_mode: JSON.parse(MephistoConfig.get('puzzle_mode')) || false,
         // The panel builds its OWN config from named keys, so a setting the content script has is
         // still undefined here unless it is listed. Missing these two meant try_puzzle_capture read
@@ -2025,8 +2033,18 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 // by maybe_play_puzzle_move before any search starts, so if we have reached a
                 // bestmove at all, the database did not have this position.
                 const tb_ok = tb && premove_reply_playable(last_eval.fen, tb);
+                // Playstyle sits UNDER the book and the tablebase and OVER the bare engine pick:
+                // both of those are facts about the position, while a style is a preference between
+                // moves the engine already called equal. Move only -- the timing below is untouched.
+                const styled = playstyle_pick(best);
+                if (styled !== best && !premove_reply_playable(last_eval.fen, styled)) {
+                    console.warn('Mephisto: ignoring a playstyle move that is not ours/legal here:', styled);
+                }
+                const style_ok = styled !== best && premove_reply_playable(last_eval.fen, styled);
                 const played = tb_ok ? tb
-                    : (book && premove_reply_playable(last_eval.fen, book)) ? book : best;
+                    : (book && premove_reply_playable(last_eval.fen, book)) ? book
+                    : style_ok ? styled : best;
+                if (style_ok && !tb_ok && !book) console.log(`Playstyle (${config.playstyle}): playing ${styled} over ${best}`);
                 if (tb_ok && tb !== best) console.log(`Tablebase: playing ${tb} over ${best} (solved position)`);
                 if (!tb_ok && played !== best) console.log(`Book: playing ${played} over ${best} (weighted random)`);
                 if ((config.humanize || clock_aware()) && !config.puzzle_mode) {
@@ -6038,6 +6056,55 @@ function humanize_presearch_ms(fen) {
 }
 
 // {move, think}: which move to actually play, and how long to sit on it first
+// ---- PLAYSTYLE: a character, not a strength -----------------------------------------------------
+// The lineup covered "strong" and "human-like" and nothing in between, and every engine here plays
+// the same way: the top line, every time. This picks between the lines the search ALREADY produced,
+// by how forcing each move is -- checks, captures and promotions on one end, quiet moves on the
+// other -- and only ever inside a small tolerance, so the character never costs a real move.
+//
+// It is deliberately not an evaluation: the engine has already said what these moves are worth, and
+// second-guessing that is how a style becomes a weakness. All this decides is WHICH of two moves
+// the engine considers equal gets played.
+const PLAYSTYLE_MARGIN = 35;   // centipawns a style may spend; a hair under the noise between two
+                               // near-equal lines at panel depths, so nothing measurable is given up
+const PLAYSTYLE_STYLES = ['balanced', 'attacking', 'quiet'];
+
+// How forcing a move is, from the move and the position it lands in: check 2, capture 1,
+// promotion 1. Attacking wants that number high, quiet wants it low, and balanced never asks.
+function forcing_score(fen, uci) {
+    try {
+        const c = new Chess(config.variant || 'chess', fen);
+        const mv = c.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]});
+        if (!mv) return null;                       // not legal here: no opinion
+        return (c.isCheck() ? 2 : 0) + (mv.captured ? 1 : 0) + (mv.promotion ? 1 : 0);
+    } catch (e) { return null; }                    // a variant chess.js cannot replay: no opinion
+}
+
+// The style's pick among the search's own lines, or `best` when the style has nothing to say.
+function playstyle_pick(best) {
+    const style = config.playstyle;
+    if (!style || style === 'balanced') return best;
+    const fen = last_eval.fen;
+    const lines = (last_eval.lines || []).filter(l => l && l.move);
+    if (lines.length < 2) return best;
+    const bestLine = lines.find(l => l.move === best) || lines[0];
+    const bestCp = line_cp_ours(bestLine);
+    if (!Number.isFinite(bestCp) || Math.abs(bestCp) >= 90000) return best;  // never toy with a mate
+    const want = (style === 'attacking') ? 1 : -1;
+    let pick = best, pickScore = forcing_score(fen, best);
+    if (pickScore === null) return best;
+    for (const l of lines) {
+        if (l.move === best) continue;
+        const cp = line_cp_ours(l);
+        if (!Number.isFinite(cp) || bestCp - cp > PLAYSTYLE_MARGIN) continue;  // outside the tolerance
+        if (Math.abs(cp) >= 90000) continue;
+        const s = forcing_score(fen, l.move);
+        if (s === null) continue;
+        if ((s - pickScore) * want > 0) { pick = l.move; pickScore = s; }
+    }
+    return pick;
+}
+
 function humanize_pick(best) {
     const fen = last_eval.fen;
     const lines = (last_eval.lines || []).filter(l => l && l.move && l.pv);
@@ -7602,7 +7669,7 @@ const LIVE_CONFIG_KEYS = [
     'safety_net', 'safety_net_mode', 'safety_net_drop', 'safety_net_max',
     'bot_tricks', 'bot_trick_game', 'bot_trick_delay', 'bot_trick_pgn',
     'computer_evaluation', 'multiple_lines', 'compute_time', 'compute_depth', 'search_mode',
-    'live_classify', 'class_on_board', 'live_classify_which',
+    'live_classify', 'class_on_board', 'live_classify_which', 'playstyle',
     'analysis_limit', 'analysis_limit_mode',
     'arrow_opacity', 'arrow_rank', 'arrow_labels', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
     'premove_confidence', 'premove_plies', 'move_time', 'move_variance', 'move_reason',

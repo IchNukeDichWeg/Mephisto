@@ -538,5 +538,10 @@
   "set.no_limit": "Nessun limite",
   "set.limit_depth_at": "Profondità {n}",
   "set.class_on_board": "Classificazione sulla scacchiera",
-  "set.tip.class_on_board": "Lo stesso giudizio, disegnato sulla scacchiera del SITO invece che su quella del pannello: un distintivo sulla casa di arrivo della mossa, dimensionato su quella scacchiera. Interruttore a sé e indipendente da quello sopra: il distintivo compare sulla scacchiera vera, che la piccola scacchiera del pannello ne porti uno o no. Il filtro \"Mostra quali\" vale per entrambi."
+  "set.tip.class_on_board": "Lo stesso giudizio, disegnato sulla scacchiera del SITO invece che su quella del pannello: un distintivo sulla casa di arrivo della mossa, dimensionato su quella scacchiera. Interruttore a sé e indipendente da quello sopra: il distintivo compare sulla scacchiera vera, che la piccola scacchiera del pannello ne porti uno o no. Il filtro \"Mostra quali\" vale per entrambi.",
+  "set.playstyle": "Stile di gioco",
+  "set.tip.playstyle": "Un carattere, non una forza. Tra le linee che il motore ha gia trovato, Attacco preferisce la mossa forzante (scacco, cattura, promozione) e Tranquillo quella calma, ma solo finche costa al massimo 35 centipedoni, quindi lo stile non gioca mai peggio. Equilibrato e la scelta del motore.",
+  "set.style_balanced": "Equilibrato (scelta del motore)",
+  "set.style_attacking": "Attacco",
+  "set.style_quiet": "Tranquillo"
 }

@@ -538,5 +538,10 @@
   "set.no_limit": "Bez limitu",
   "set.limit_depth_at": "Głębokość {n}",
   "set.class_on_board": "Ocena na szachownicy",
-  "set.tip.class_on_board": "Ta sama ocena, ale na szachownicy SERWISU zamiast na panelu -- odznaka na polu, na którym ruch się zakończył, w skali tej szachownicy. Osobny przełącznik, niezależny od powyższego: odznaka pojawia się na prawdziwej szachownicy niezależnie od tego, czy mała szachownica w panelu też ją nosi. Filtr „Które pokazywać” dotyczy obu."
+  "set.tip.class_on_board": "Ta sama ocena, ale na szachownicy SERWISU zamiast na panelu -- odznaka na polu, na którym ruch się zakończył, w skali tej szachownicy. Osobny przełącznik, niezależny od powyższego: odznaka pojawia się na prawdziwej szachownicy niezależnie od tego, czy mała szachownica w panelu też ją nosi. Filtr „Które pokazywać” dotyczy obu.",
+  "set.playstyle": "Styl gry",
+  "set.tip.playstyle": "Charakter, nie sila gry. Sposrod linii, ktore silnik juz znalazl, Atakujacy woli ruch forsujacy (szach, bicie, promocja), a Spokojny ten cichy - ale tylko dopoki kosztuje to najwyzej 35 centypionow, wiec styl nigdy nie gra gorzej. Zrownowazony to wybor silnika.",
+  "set.style_balanced": "Zrownowazony (wybor silnika)",
+  "set.style_attacking": "Atakujacy",
+  "set.style_quiet": "Spokojny"
 }

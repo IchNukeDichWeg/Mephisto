@@ -538,5 +538,10 @@
   "set.no_limit": "Sınırsız",
   "set.limit_depth_at": "Derinlik {n}",
   "set.class_on_board": "Tahtada sınıflandırma",
-  "set.tip.class_on_board": "Aynı değerlendirme, panelin tahtası yerine SİTENİN tahtasına çizilir -- hamlenin indiği kareye, o tahtanın ölçüsünde bir rozet. Kendi anahtarı vardır ve yukarıdakinden bağımsızdır: rozet, panelin küçük tahtasında da olsun olmasın gerçek tahtada görünür. \"Hangileri gösterilsin\" filtresi ikisi için de geçerlidir."
+  "set.tip.class_on_board": "Aynı değerlendirme, panelin tahtası yerine SİTENİN tahtasına çizilir -- hamlenin indiği kareye, o tahtanın ölçüsünde bir rozet. Kendi anahtarı vardır ve yukarıdakinden bağımsızdır: rozet, panelin küçük tahtasında da olsun olmasın gerçek tahtada görünür. \"Hangileri gösterilsin\" filtresi ikisi için de geçerlidir.",
+  "set.playstyle": "Oyun tarzi",
+  "set.tip.playstyle": "Guc degil, karakter. Motorun zaten buldugu varyantlar arasinda Saldirgan zorlayici hamleyi (sah, alma, terfi), Sakin ise sakin olani secer - ama en fazla 35 santipiyon maliyetle, yani tarz asla daha kotu oynamaz. Dengeli, motorun kendi secimidir.",
+  "set.style_balanced": "Dengeli (motorun secimi)",
+  "set.style_attacking": "Saldirgan",
+  "set.style_quiet": "Sakin"
 }

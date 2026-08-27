@@ -826,6 +826,25 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
+                        <span data-i18n="set.playstyle" data-i18n-tip="set.tip.playstyle" class="tooltipped" data-position="right"
+                              data-tooltip="A character, not a strength. Among the lines the engine already found, Attacking prefers the
+                                            forcing move (check, capture, promotion) and Quiet prefers the calm one -- but only while it
+                                            costs at most 35 centipawns, so the style never plays a worse move. Balanced is the engine's
+                                            own pick, and is the default.">
+                            Playstyle <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <select name="playstyle" id="playstyle_select">
+                            <option data-i18n="set.style_balanced" value="balanced">Balanced (engine's pick)</option>
+                            <option data-i18n="set.style_attacking" value="attacking">Attacking</option>
+                            <option data-i18n="set.style_quiet" value="quiet">Quiet</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
                         <span data-i18n="set.lichess_token" data-i18n-tip="set.tip.lichess_token" class="tooltipped" data-position="right"
                               data-tooltip="Lichess now requires a token on the opening explorer -- without one it
                                             answers 401 and both Opening Explorer and Play Book Moves stop working.
