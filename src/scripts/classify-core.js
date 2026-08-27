@@ -120,7 +120,10 @@ const CLASS_ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'book', 
 const CLASS_LABEL = {brilliant: 'brilliant', great: 'great', best: 'best', excellent: 'excellent',
                      good: 'good', book: 'book', forced: 'forced', inaccuracy: 'inaccuracy',
                      mistake: 'mistake', miss: 'miss', blunder: 'blunder'};
-const CLASS_GLYPH = {brilliant: '!!', great: '!', best: '\u2713', excellent: '\u2726', good: '\u00b7',
+// THE GLYPHS ARE A VOCABULARY, not decoration: chess.com's own, because that is where anyone
+// reading them learned what they mean. A check is GOOD there; the star is Best. Ours had the check
+// on Best, so the engine's own top move wore the badge for the class two rows below it.
+const CLASS_GLYPH = {brilliant: '!!', great: '!', best: '\u2605', excellent: '\u2726', good: '\u2713',
                      book: '\u25a4', forced: '=', inaccuracy: '?!', mistake: '?', miss: '\u2717',
                      blunder: '??'};
 const CLASS_COLOR = {brilliant: '#26c2a3', great: '#5c8bb0', best: '#96bc4b', excellent: '#96bc4b',
