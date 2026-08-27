@@ -73,6 +73,45 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('live_classify', 'Move Classification:', 'checkbox', false);
         this.registerFormElement('streamer_alert', 'Opponent Streaming Notice:', 'checkbox', false);
         const search_mode_select = this.registerFormElement('search_mode', 'Search Budget:', 'select', 'time');
+        // THE OPEN-ENDED SEARCH'S BUDGET. One slider, three units: the position is read as plies,
+        // seconds or nodes depending on the mode, and position 61 is No Limit in all three -- which
+        // is the default, and is exactly what this search has always done (`go infinite`).
+        //
+        // KEEP IN STEP WITH popup.js's copy of analysis_limit_value: the panel turns the same
+        // position into the engine's actual limit. The options page is an ES module and the panel is
+        // a content script, so neither can import the other; the ladder runs BOTH and asserts they
+        // agree on all 61 positions in all three modes.
+        const analysis_limit_mode_select = this.registerFormElement('analysis_limit_mode', 'Analysis Limit:', 'select', 'time');
+        const analysis_limit_range = this.registerFormElement('analysis_limit', 'Limit Amount:', 'range', 61);
+        const ANALYSIS_LIMIT_MAX = 61;
+        const analysis_limit_value = (mode, pos) => {
+            const p = Math.max(1, Math.min(ANALYSIS_LIMIT_MAX, Math.round(Number(pos) || ANALYSIS_LIMIT_MAX)));
+            if (p >= ANALYSIS_LIMIT_MAX) return null;                   // infinite
+            if (mode === 'depth') return p;
+            if (mode === 'nodes') return Math.round(1e6 * Math.pow(1000, (p - 1) / 59));
+            return p * 1000;
+        };
+        // Nodes read as 1.0M / 47M / 1.0B rather than nine digits: the digits past the leading two
+        // are noise on a log slider, and a number that changes width makes the row twitch.
+        const analysis_limit_label = (mode, pos) => {
+            const v = analysis_limit_value(mode, pos);
+            if (v == null) return MephistoI18n.t('set.no_limit', 'No Limit');
+            if (mode === 'depth') return MephistoI18n.t('set.limit_depth_at', 'depth {n}', {n: v});
+            if (mode === 'time') return `${v / 1000}s`;
+            return v >= 1e9 ? `${(v / 1e9).toFixed(1)}B nodes`
+                 : v >= 1e6 ? `${(v / 1e6).toFixed(v < 1e7 ? 1 : 0)}M nodes` : `${v} nodes`;
+        };
+        const sync_analysis_limit = () => {
+            const out = document.getElementById('analysis_limit_range')?.closest('.set-row')?.querySelector('.set-val');
+            if (out) out.innerText = analysis_limit_label(analysis_limit_mode_select.getValue(),
+                                                         analysis_limit_range.getValue());
+        };
+        analysis_limit_mode_select.registerChangeListener(sync_analysis_limit);
+        analysis_limit_range.registerChangeListener(sync_analysis_limit);
+        // `input`, not just the wrapper's change: the readout has to follow the thumb while it is
+        // being dragged, or the number only catches up once the mouse is released.
+        document.getElementById('analysis_limit_range')?.addEventListener('input', sync_analysis_limit);
+        sync_analysis_limit();
         this.registerFormElement('compute_time', 'Search Time (ms):', 'input', 300);
         this.registerFormElement('compute_depth', 'Search Depth:', 'input', 16);
         // Only the row the budget names is shown; the other keeps its value, it is just not in the

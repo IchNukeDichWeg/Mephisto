@@ -525,5 +525,14 @@
   "panel.bot.no_library": "Aucune partie chargée – rechargez l’extension",
   "set.streamer_alert": "Avis : adversaire en direct",
   "set.tip.streamer_alert": "Le signaler dans le panneau quand l'adversaire diffuse la partie en direct. Les deux sites le publient eux-mêmes -- lichess indique si un joueur diffuse, chess.com publie qui est en direct -- rien ici ne regarde une diffusion. C'est un AVIS et rien d'autre : aucun réglage ne change et le jeu reste identique. Désactivé par défaut car il interroge le site sur le nom de votre adversaire, une fois par partie, depuis l'extension et non depuis l'onglet du jeu.",
-  "panel.msg.opp_streaming": "{user} diffuse cette partie en direct"
+  "panel.msg.opp_streaming": "{user} diffuse cette partie en direct",
+  "set.analysis_limit": "Limite d'analyse",
+  "set.tip.analysis_limit": "Ce qui borne la recherche quand aucun coup n'est à jouer : Autoplay désactivé, mode Aide, mode Manuel, ou un ponder pendant le tour de l'adversaire. Cette recherche a toujours tourné jusqu'au changement de position ; c'est toujours le cas, car l'extrémité droite est Sans limite dans tous les modes. Profondeur et Nœuds sont reproductibles (la même recherche sur n'importe quelle machine), le Temps ne l'est pas. Sur un moteur natif le budget est plafonné à 60 secondes quelle que soit l'unité : une limite en nœuds inatteignable en une minute s'arrête là.",
+  "set.analysis_limit_value": "Valeur de la limite",
+  "set.tip.analysis_limit_value": "Combien de l'unité ci-dessus une recherche d'analyse peut dépenser : 1-60 demi-coups, 1-60 secondes, ou 1M-1B nœuds sur une échelle logarithmique. Tout à droite : Sans limite -- la recherche approfondit jusqu'au changement de position, ce qu'elle a toujours fait.",
+  "set.limit_time": "Temps",
+  "set.limit_depth": "Profondeur",
+  "set.limit_nodes": "Nœuds",
+  "set.no_limit": "Sans limite",
+  "set.limit_depth_at": "Profondeur {n}"
 }

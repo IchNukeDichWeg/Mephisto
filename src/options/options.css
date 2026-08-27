@@ -438,6 +438,10 @@ input.set-secret:focus, input.set-path:focus { outline: none; border-color: var(
     font-variant-numeric: tabular-nums;
     font-weight: 400 !important;
 }
+/* A readout whose text changes WIDTH as it changes value -- "12s" one notch, "1.0B nodes" the next.
+   Reserving the widest string's room keeps the slider's right edge still while it is dragged; the
+   row is the same shape at every value, exactly like the plain numeric readouts beside it. */
+.set-val-wide { min-width: 92px; }
 .set-unit { font-size: 12px; color: var(--mp-mute); }
 
 /* materialize replaces <select> with .select-wrapper + a text input -- style that, not the select */

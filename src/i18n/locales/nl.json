@@ -525,5 +525,14 @@
   "panel.bot.no_library": "Geen partijen geladen – herlaad de extensie",
   "set.streamer_alert": "Melding: tegenstander streamt",
   "set.tip.streamer_alert": "Meld het in het paneel wanneer de tegenstander de partij live streamt. Beide sites publiceren dit zelf -- lichess zegt of iemand streamt, chess.com publiceert wie live is -- er wordt hier dus geen stream bekeken. Het is alleen een MELDING: het verandert geen instelling en speelt niet anders. Standaard uit, omdat het de site eenmaal per partij naar de naam van je tegenstander vraagt, vanuit de extensie en niet vanuit het speltabblad.",
-  "panel.msg.opp_streaming": "{user} streamt deze partij op dit moment"
+  "panel.msg.opp_streaming": "{user} streamt deze partij op dit moment",
+  "set.analysis_limit": "Analyselimiet",
+  "set.tip.analysis_limit": "Wat de zoektocht begrenst wanneer er geen zet te spelen is: Autoplay uit, Hulpmodus, Handmatige modus of een ponder tijdens de beurt van de tegenstander. Die zoektocht liep altijd door tot de stelling veranderde; dat blijft zo, want uiterst rechts staat in elke modus Geen limiet. Diepte en Knopen zijn reproduceerbaar (dezelfde zoektocht op elke machine), Tijd niet. Op een native engine is het budget hoe dan ook op 60 seconden begrensd, dus een knopenlimiet die in een minuut niet haalbaar is, eindigt daar.",
+  "set.analysis_limit_value": "Limietwaarde",
+  "set.tip.analysis_limit_value": "Hoeveel van de eenheid hierboven één analysezoektocht mag besteden: 1-60 halve zetten, 1-60 seconden, of 1M-1B knopen op een logaritmische schaal. Uiterst rechts is Geen limiet -- de zoektocht gaat dieper tot de stelling verandert, zoals altijd.",
+  "set.limit_time": "Tijd",
+  "set.limit_depth": "Diepte",
+  "set.limit_nodes": "Knopen",
+  "set.no_limit": "Geen limiet",
+  "set.limit_depth_at": "Diepte {n}"
 }

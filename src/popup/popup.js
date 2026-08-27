@@ -328,6 +328,9 @@ async function initPanel(root, tabId) {
     const thinkVariance = JSON.parse(MephistoConfig.get('think_variance'));
     const moveTime = JSON.parse(MephistoConfig.get('move_time'));
     const moveVariance = JSON.parse(MephistoConfig.get('move_variance'));
+    // the unit the Analysis Limit is read in; anything else in storage means the default
+    const analysisLimitMode = (() => { try { return JSON.parse(MephistoConfig.get('analysis_limit_mode')); }
+                                       catch (e) { return null; } })();
     const autoplay = JSON.parse(MephistoConfig.get('autoplay'));
     const computerEval = JSON.parse(MephistoConfig.get('computer_evaluation'));
     // engines dropped in this version - migrate stale selections to the current default
@@ -463,6 +466,10 @@ async function initPanel(root, tabId) {
         // turn -- burn the wait on a deeper reply. OFF (default) still analyses the opponent's turn for
         // premove/threat/help, but capped to 1 thread so idle time isn't a full-core burn.
         ponder: JSON.parse(MephistoConfig.get('ponder')) || false,
+        // The open-ended search's budget (Autoplay off / Help / Manual / ponder). The default is the
+        // far right of the slider, which is infinite -- exactly what this search has always been.
+        analysis_limit_mode: ANALYSIS_LIMIT_MODES.includes(analysisLimitMode) ? analysisLimitMode : 'time',
+        analysis_limit: JSON.parse(MephistoConfig.get('analysis_limit')) || 61,
         tablebase: JSON.parse(MephistoConfig.get('tablebase')) || false,
         move_reason: JSON.parse(MephistoConfig.get('move_reason')) || false,
         eval_history: JSON.parse(MephistoConfig.get('eval_history')) || false,
@@ -2256,6 +2263,39 @@ function line_color(i) { const idx = Math.min(i, LINE_COLORS.length - 1); return
 // between `go depth` and `go movetime`.
 function searching_by_depth() {
     return config.search_mode === 'depth' && config.compute_depth > 0;
+}
+
+// HOW LONG AN OPEN-ENDED SEARCH RUNS. With Autoplay off (or Help/Manual Mode, or a ponder) there is
+// no move to play, so the search has always been `go infinite` -- it deepens until the position
+// changes. That is the right default and it stays the default: position 61, the far right of the
+// slider, IS infinite in every mode.
+//
+// One slider, three meanings, because a budget is one idea: the mode says which unit the position is
+// read in. Nodes are logarithmic (1M to 1B is three decades; a linear slider would spend 59 of its
+// 60 stops above 100M), the other two are the unit itself.
+//
+// KEEP IN STEP WITH general.js's copy, which draws the readout from the same numbers -- the options
+// page is an ES module and the panel is a content script, so there is no file both can import. The
+// ladder runs BOTH and asserts they agree on all 61 positions in all three modes.
+const ANALYSIS_LIMIT_MAX = 61;                 // the position that means "no limit"
+const ANALYSIS_LIMIT_MODES = ['time', 'depth', 'nodes'];
+function analysis_limit_value(mode, pos) {
+    const p = Math.max(1, Math.min(ANALYSIS_LIMIT_MAX, Math.round(Number(pos) || ANALYSIS_LIMIT_MAX)));
+    if (p >= ANALYSIS_LIMIT_MAX) return null;  // infinite
+    if (mode === 'depth') return p;                       // plies, 1-60
+    if (mode === 'nodes') {                               // 1e6 .. 1e9, log-spaced over 1-60
+        return Math.round(1e6 * Math.pow(1000, (p - 1) / 59));
+    }
+    return p * 1000;                                      // time: 1-60 seconds, in ms
+}
+
+// The `go` arguments for an analysis search, or null when it is unlimited (`go infinite`).
+function analysis_go_args() {
+    const v = analysis_limit_value(config.analysis_limit_mode, config.analysis_limit);
+    if (v == null) return null;
+    if (config.analysis_limit_mode === 'depth') return `depth ${v}`;
+    if (config.analysis_limit_mode === 'nodes') return `nodes ${v}`;
+    return `movetime ${v}`;
 }
 
 // What the shared stepper means in each mode. The step matters as much as the range: 25 is a
@@ -4838,7 +4878,14 @@ function on_new_pos(fen, startFen, moves) {
         // is real and worth naming: analysis stops deepening at the move budget instead of running
         // indefinitely. That is the trade for MultiPV working at all -- and at Multi Lines 1, which
         // is the default, nothing changes.
+        // The Analysis Limit, where the user set one: it replaces the hour-long rail rather than
+        // riding on top of it, and a nodes/depth limit still travels with a TIME so the host has a
+        // ceiling (an unreachable depth on a slow box would otherwise run to NATIVE_MAX_RT anyway).
+        const limit = open_ended ? analysis_limit_value(config.analysis_limit_mode, config.analysis_limit) : null;
+        const limit_depth = (limit != null && config.analysis_limit_mode === 'depth') ? limit : null;
+        const limit_nodes = (limit != null && config.analysis_limit_mode === 'nodes') ? limit : null;
         let rt = (open_ended && !(uses_native() && want_multipv > 1)) ? 3600000 : movetime;
+        if (limit != null) rt = (config.analysis_limit_mode === 'time') ? limit : Math.max(rt, 60000);
         // A NATIVE SEARCH CANNOT BE CALLED BACK, so it must never be open-ended.
         //
         // `abandon_search()` sends UCI `stop`, and send_engine_uci is a NO-OP for a native host --
@@ -4849,7 +4896,10 @@ function on_new_pos(fen, startFen, moves) {
         // of Autoplay could leave the host chewing on a dead position for the rest of the session,
         // which is why it stayed slow into the next GAME: the host process outlives the page.
         // Bounded, the orphan dies on its own and the watchdog always arms.
-        if (uses_native()) rt = Math.min(rt, NATIVE_MAX_RT);
+        // The cap exists because an abandoned native search used to be unstoppable. A limit the user
+        // typed in is not the case it protects against, so an explicit one is honoured up to a
+        // minute -- which is also where the watchdog below still arms.
+        if (uses_native()) rt = Math.min(rt, limit != null ? 60000 : NATIVE_MAX_RT);
         const posKey = moves ? `${startFen}|${moves}` : fen;
         const send_analysis = () => {
             if (uses_native() && native_inflight === posKey) {
@@ -4862,7 +4912,7 @@ function on_new_pos(fen, startFen, moves) {
             const settle = () => { if (native_inflight === posKey) native_inflight = null; };
             if (uses_native()) {
                 native_inflight = posKey;
-                if (rt < 60000) {
+                if (rt <= 60000) {
                     setTimeout(() => {
                         if (native_inflight !== posKey) return;   // it settled; nothing to do
                         console.warn('Mephisto: the engine never answered this search -- releasing ' +
@@ -4871,11 +4921,12 @@ function on_new_pos(fen, startFen, moves) {
                     }, rt + 6000);
                 }
             }
+            const want_depth = limit_depth || (searching_by_depth() ? config.compute_depth : null);
             if (moves) {
-                request_remote_analysis(startFen, rt, moves, searching_by_depth() ? config.compute_depth : null)
+                request_remote_analysis(startFen, rt, moves, want_depth, limit_nodes)
                     .then(fresh(on_engine_response)).catch(fresh(on_remote_error)).finally(settle);
             } else {
-                request_remote_analysis(fen, rt, null, searching_by_depth() ? config.compute_depth : null)
+                request_remote_analysis(fen, rt, null, want_depth, limit_nodes)
                     .then(fresh(on_engine_response)).catch(fresh(on_remote_error)).finally(settle);
             }
         };
@@ -4962,7 +5013,9 @@ function on_new_pos(fen, startFen, moves) {
         // the opponent's turn is also open-ended: ponder the whole think, abandon_search cuts it off
         // the instant they move (its bestmove is discarded, being for the opponent's side).
         if (config.help_mode || !config.autoplay || config.manual_mode || (config.ponder && !our_turn)) {
-            send_engine_uci('go infinite'); // pure analysis / manual / ponder: keep deepening until the position changes
+            // pure analysis / manual / ponder: no move is owed, so the search runs to the Analysis
+            // Limit -- and that limit is infinite unless the slider was moved off its right end.
+            send_engine_uci(`go ${analysis_go_args() || 'infinite'}`);
         } else if (searching_by_depth()) {
             // `go depth` only -- NOT `go depth N movetime M`. A movetime alongside a depth is a
             // race, and whichever fires first decides, which would make the reproducible instrument
@@ -7519,6 +7572,7 @@ const LIVE_CONFIG_KEYS = [
     'safety_net', 'safety_net_mode', 'safety_net_drop', 'safety_net_max',
     'bot_tricks', 'bot_trick_game', 'bot_trick_delay', 'bot_trick_pgn',
     'computer_evaluation', 'multiple_lines', 'compute_time', 'compute_depth', 'search_mode',
+    'analysis_limit', 'analysis_limit_mode',
     'arrow_opacity', 'arrow_rank', 'arrow_labels', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
     'premove_confidence', 'premove_plies', 'move_time', 'move_variance', 'move_reason',
     ...ARROW_COLOR_KEYS, // repaint on the next frame, no reload
@@ -7620,7 +7674,8 @@ function watch_config_changes() {
                 }
                 if (key === 'language') load_language(value).then(apply_language);
                 // these change the go mode / search budget -- restart under the new setting
-                if (['help_mode', 'autoplay', 'clock_mode', 'mirror_mode', 'manual_mode'].includes(key)) {
+                if (['help_mode', 'autoplay', 'clock_mode', 'mirror_mode', 'manual_mode',
+                     'analysis_limit', 'analysis_limit_mode'].includes(key)) {
                     abandon_search();
                     last_eval.fen = '';
                     resync_after_config_change = true;
@@ -8868,7 +8923,11 @@ async function request_remote_analysis(fen, time, moves = null, depth = null) {
         // Limit, where the time is the ceiling that stops an unreachable depth running forever on a
         // slow machine -- and a native search cannot be called back, so an unbounded one is not
         // merely slow, it is unstoppable (see NATIVE_MAX_RT).
-        return native_send('analyse', {fen, time, moves, depth}, info => on_native_info(info, posFen));
+        // `nodes` is the Analysis Limit's third unit. A host that predates it ignores the key and
+        // searches to the time it was given, which is the same search one notch less precise --
+        // never a wrong one.
+        return native_send('analyse', {fen, time, moves, depth, nodes},
+            info => on_native_info(info, posFen), ourTurn);
     }
     if (uses_cloud()) {
         // MOVES MODE. On a real game this is called with the game's START position and the moves

@@ -209,8 +209,14 @@ def do_analyse(data, mid):
         # reviews of the same game comparable across machines, which a wall-clock budget can never
         # be. `time` is still sent alongside it and is used as the cap, so a caller that predates
         # this and a host that predates it both keep working unchanged.
+        # NODES is the third unit the panel's Analysis Limit can ask for, and it is the only one of
+        # the three that means the same thing on every machine -- the same search, not the same
+        # wall clock. Like depth it travels with the time, which stays the ceiling.
         depth = data.get('depth')
-        if isinstance(depth, int) and depth > 0:
+        nodes = data.get('nodes')
+        if isinstance(nodes, int) and nodes > 0:
+            limit = chess.engine.Limit(nodes=nodes, time=data['time'] / 1000)
+        elif isinstance(depth, int) and depth > 0:
             limit = chess.engine.Limit(depth=depth, time=data['time'] / 1000)
         else:
             limit = chess.engine.Limit(time=data['time'] / 1000)
