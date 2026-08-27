@@ -2126,7 +2126,12 @@ function draw_eval_bar_unevaluated() {
 // slowly. So the bar (and the history strip the graders read) holds the LAST settled reading until
 // the new search has reached this depth. Not a smoothing: nothing is averaged or invented, the
 // previous measurement simply stands until there is a real one to replace it.
-const EVAL_MIN_DEPTH = 8;
+// 6, not 8: any engine that searches at all reaches it, even on a 10ms budget, so the hold costs
+// nothing to a real search while still skipping the static-eval iterations that caused the jump.
+const EVAL_MIN_DEPTH = 6;
+// ...and the nets that do not search are exempt outright. Maia is ONE forward pass: depth 1 is not
+// an early iteration of a deeper answer, it IS the answer, so holding it would hold it forever.
+const NO_DEPTH_ENGINES = ['maia', 'maia3'];
 let eval_bar_fen = '';        // the position the bar is currently showing
 let held_eval_line = null;    // the newest reading withheld for being too shallow
 
@@ -2143,7 +2148,8 @@ function update_eval_bar(line, force = false) {
     const bar = PANEL_ROOT.getElementById('eval-bar-white');
     if (!bar || !line) return;
     const depth = Number.isFinite(line.depth) ? line.depth : 0;
-    if (!force && depth < EVAL_MIN_DEPTH && eval_bar_fen && eval_bar_fen !== last_eval.fen) {
+    if (!force && depth < EVAL_MIN_DEPTH && !NO_DEPTH_ENGINES.includes(config.engine)
+        && eval_bar_fen && eval_bar_fen !== last_eval.fen) {
         held_eval_line = line;   // the position moved on and this reading is too shallow to show
         return;
     }
