@@ -171,6 +171,7 @@ let search_active = false; // a 'go' was issued whose bestmove hasn't arrived ye
 let last_pos = {startFen: null, moves: ''}; // the position's own start + UCI move list, for Copy PGN
 let premove_tracker = {fen: '', lines: {}}; // per-multipv reply stability while the opponent thinks
 let search_threads_set = null; // last Threads value pushed to the engine; opponent-turn search is capped unless Pondering
+let search_multipv_set = null; // last MultiPV pushed to the WASM engine, so an unchanged width is not re-sent
 let remote_multipv_set = null; // last MultiPV pushed to a NATIVE host (it stores options; the analyse request has none)
 let premove_lines = 2; // top-N lines premove tracks/certifies; widened to the ponder width while pondering (see ponder_line_count)
 let prog = 0;
@@ -1528,6 +1529,7 @@ async function initialize_engine(reuseWarm = false) {
         search_threads_set = config.threads; // baseline; on_new_pos re-pushes only when the per-turn target differs
         remote_multipv_set = null;           // WASM path: no host to have configured
         send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
+        search_multipv_set = effective_multipv();   // baseline for the same reason as Threads
         // Win/Draw/Loss readout under the score. Modern Stockfish (dev/18) reports `wdl W D L` per
         // info line once this is on; SF11/Fairy don't declare it and silently ignore this line.
         send_engine_uci('setoption name UCI_ShowWDL value true');
@@ -1638,6 +1640,7 @@ function flush_engine_options() {
         const value = (name === 'Hash') ? Math.min(opts[name], 512) : opts[name];
         send_engine_uci(`setoption name ${name} value ${value}`);
         if (name === 'Threads') search_threads_set = value; // keep the per-turn tracker honest
+        if (name === 'MultiPV') search_multipv_set = value;
     }
     return opts;
 }
@@ -4929,7 +4932,18 @@ function on_new_pos(fen, startFen, moves) {
         // Pondering overrides the width: the opponent's turn is searched over their top few candidate
         // replies (ponder_line_count), not our configured line count -- premove_lines mirrors it so an
         // instant reply can be certified for any of them.
-        send_engine_uci(`setoption name MultiPV value ${want_multipv}`);
+        // ONLY WHEN IT CHANGED, exactly like Threads above and like the native lane's
+        // remote_multipv_set. This runs in the gap between `stop` and `go`, and with Autoplay off or
+        // Help Mode on the search being stopped is `go infinite` -- so every command sent here waits
+        // behind an engine that is still tearing that search down. The width almost never changes
+        // between two moves, so this was a command's worth of that wait on every single move, bought
+        // for nothing. (The reason it is re-asserted at all is real and unchanged: humanize_rates()
+        // is read fresh per pick, so a Mistakes/Blunders slider must widen the list NOW -- that
+        // still happens, because changing it changes the value.)
+        if (want_multipv !== search_multipv_set) {
+            send_engine_uci(`setoption name MultiPV value ${want_multipv}`);
+            search_multipv_set = want_multipv;
+        }
         if (moves) {
             send_engine_uci(`position fen ${startFen} moves ${moves}`);
         } else {
