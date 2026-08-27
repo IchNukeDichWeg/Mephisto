@@ -522,5 +522,8 @@
   "panel.bot.wrong_colour_black": "That game is a win for white, and you are playing black.",
   "set.bot_trick_game": "Bot Game",
   "set.tip.bot_trick_game": "Which game to hand the bot. Every line here ends the game - a checkmate, or a draw the client claims itself - because a game that ended in resignation would stop with the bot still to move and it would then answer for real. Auto picks one that wins for whichever colour you were dealt. The panel's own dropdown sets the same thing.",
-  "panel.bot.no_library": "No games loaded - reload the extension"
+  "panel.bot.no_library": "No games loaded - reload the extension",
+  "set.streamer_alert": "Opponent Streaming Notice",
+  "set.tip.streamer_alert": "Say so in the panel when the opponent is live-streaming the game right now. Both sites publish this themselves -- lichess says whether a player is streaming, chess.com publishes who is live -- so nothing here watches a stream. It is a NOTICE and nothing else: it changes no setting and plays no differently. Off by default because it asks the site about your opponent by name, once per game, from the extension rather than from the game tab.",
+  "panel.msg.opp_streaming": "{user} is streaming this game right now"
 }

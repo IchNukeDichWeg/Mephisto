@@ -522,5 +522,8 @@
   "panel.bot.refused": "A página recusou ({why}) – o chess.com pode ter fechado isto.",
   "set.bot_trick_game": "Partida do bot",
   "set.tip.bot_trick_game": "Que partida entregar ao bot. Todas as linhas aqui terminam a partida – xeque-mate, ou um empate que o próprio cliente reclama – porque uma partida acabada por desistência pararia com o bot ainda a jogar, e ele responderia a sério. Automático escolhe uma que ganhe com a cor que lhe calhou. A lista do painel define o mesmo.",
-  "panel.bot.no_library": "Nenhuma partida carregada – recarregue a extensão"
+  "panel.bot.no_library": "Nenhuma partida carregada – recarregue a extensão",
+  "set.streamer_alert": "Aviso: adversário a transmitir",
+  "set.tip.streamer_alert": "Avisar no painel quando o adversário estiver a transmitir a partida em direto. Ambos os sites publicam isto por si próprios -- o lichess diz se alguém está a transmitir e o chess.com publica quem está em direto -- por isso aqui não se vê nenhuma transmissão. É apenas um AVISO: não muda nenhuma definição nem joga de forma diferente. Desligado por omissão porque pergunta ao site pelo nome do teu adversário, uma vez por partida, a partir da extensão e não do separador do jogo.",
+  "panel.msg.opp_streaming": "{user} está a transmitir esta partida agora"
 }

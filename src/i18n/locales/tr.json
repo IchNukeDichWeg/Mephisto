@@ -522,5 +522,8 @@
   "panel.bot.refused": "Sayfa bunu reddetti ({why}) – chess.com bunu kapatmış olabilir.",
   "set.bot_trick_game": "Bot oyunu",
   "set.tip.bot_trick_game": "Bota hangi oyunun verileceği. Buradaki her dizi oyunu bitirir – mat ya da istemcinin kendi ilan ettiği bir beraberlik – çünkü terkle biten bir oyun bot hâlâ hamle sırasındayken dururdu ve bot o zaman gerçekten karşılık verirdi. Otomatik, size düşen renkle kazanan bir tanesini seçer. Panelin kendi listesi de aynı şeyi ayarlar.",
-  "panel.bot.no_library": "Oyun yüklenmedi – uzantıyı yeniden yükleyin"
+  "panel.bot.no_library": "Oyun yüklenmedi – uzantıyı yeniden yükleyin",
+  "set.streamer_alert": "Bildirim: rakip yayında",
+  "set.tip.streamer_alert": "Rakip oyunu canlı yayınlarken bunu panelde söyle. İki site de bunu kendisi yayımlar -- lichess bir oyuncunun yayın yapıp yapmadığını söyler, chess.com kimin canlı olduğunu yayımlar -- yani burada hiçbir yayın izlenmez. Yalnızca bir BİLDİRİMDİR: hiçbir ayarı değiştirmez ve farklı oynamaz. Varsayılan olarak kapalı, çünkü oyun başına bir kez siteye rakibinin adını sorar; oyun sekmesinden değil, eklentiden.",
+  "panel.msg.opp_streaming": "{user} şu anda bu oyunu yayınlıyor"
 }

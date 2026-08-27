@@ -522,5 +522,8 @@
   "panel.bot.refused": "La page l'a refusé ({why}) – chess.com a peut-être fermé cette faille.",
   "set.bot_trick_game": "Partie du bot",
   "set.tip.bot_trick_game": "Quelle partie donner au bot. Chaque ligne ici termine la partie – un mat, ou une nulle que le client réclame lui-même – car une partie terminée par abandon s'arrêterait alors que le bot a encore le trait, et il répondrait pour de vrai. Auto en choisit une qui gagne avec la couleur qui vous a été donnée. La liste du panneau règle la même chose.",
-  "panel.bot.no_library": "Aucune partie chargée – rechargez l’extension"
+  "panel.bot.no_library": "Aucune partie chargée – rechargez l’extension",
+  "set.streamer_alert": "Avis : adversaire en direct",
+  "set.tip.streamer_alert": "Le signaler dans le panneau quand l'adversaire diffuse la partie en direct. Les deux sites le publient eux-mêmes -- lichess indique si un joueur diffuse, chess.com publie qui est en direct -- rien ici ne regarde une diffusion. C'est un AVIS et rien d'autre : aucun réglage ne change et le jeu reste identique. Désactivé par défaut car il interroge le site sur le nom de votre adversaire, une fois par partie, depuis l'extension et non depuis l'onglet du jeu.",
+  "panel.msg.opp_streaming": "{user} diffuse cette partie en direct"
 }

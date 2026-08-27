@@ -71,6 +71,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('board_animation', 'Board Animation:', 'checkbox', true);
         this.registerFormElement('live_stats', 'Live Stats:', 'checkbox', false);
         this.registerFormElement('live_classify', 'Move Classification:', 'checkbox', false);
+        this.registerFormElement('streamer_alert', 'Opponent Streaming Notice:', 'checkbox', false);
         const search_mode_select = this.registerFormElement('search_mode', 'Search Budget:', 'select', 'time');
         this.registerFormElement('compute_time', 'Search Time (ms):', 'input', 300);
         this.registerFormElement('compute_depth', 'Search Depth:', 'input', 16);
@@ -483,7 +484,7 @@ class GeneralSettings extends SettingsPage {
             bot_trick: 'Bot Tricks - play the chosen game at a bot',
         };
         const ORDER = ['manual_play', 'manual_mode', 'autoplay', 'premove', 'explorer', 'book_play',
-            'help_mode', 'humanize', 'clock_mode', 'clock_pace', 'mirror_mode', 'eval_bar', 'eval_history', 'live_stats', 'live_classify', 'tablebase', 'puzzle_mode',
+            'help_mode', 'humanize', 'clock_mode', 'clock_pace', 'mirror_mode', 'eval_bar', 'eval_history', 'live_stats', 'live_classify', 'streamer_alert', 'tablebase', 'puzzle_mode',
             'copy_fen', 'copy_pgn', 'copy_diagnostics', 'redetect', 'compact', 'minimize', 'bot_trick', 'panic'];
         // same normalization as the content-script listener, so what we store matches what it compares
         const keyString = (e) => {

@@ -590,6 +590,44 @@ const HIDE_OPP_SELECTORS = [
     '.player .user-link .name', '.game__meta__players .player a',
 ].join(', ');
 
+// IS THE OPPONENT STREAMING? Read their name off the TOP player box -- the board is always
+// oriented with us at the bottom, so the top box is the opponent whichever colour we are. Only the
+// name: the lookup that follows is a worker-side call to the site's own public directory (see
+// streamerLookup), and it never leaves this tab's network log.
+const OPP_NAME_SELECTORS = [
+    // chess.com: the top player box, across the layouts it ships
+    '.player-top .user-username-component', '.player-component.player-top .user-username-component',
+    '#board-layout-top .user-username-component', '.board-layout-top .cc-user-username-component',
+    '#board-layout-player-top .user-username-component',
+    // lichess: the top player row beside the board
+    '.ruser-top .user-link name', '.ruser-top .user-link', '.ruser-top .name',
+];
+function opponentUsername() {
+    for (const sel of OPP_NAME_SELECTORS) {
+        const el = document.querySelector(sel);
+        const raw = (el?.textContent || '').trim();
+        // strip a rating suffix and any title prefix -- "GM Hikaru (3210)" -> "Hikaru"
+        const name = raw.replace(/\s*\(\d+\)\s*$/, '').replace(/^(GM|IM|FM|WGM|WIM|WFM|CM|NM|WCM|WNM)\s+/i, '').trim();
+        if (/^[\w.-]{2,30}$/.test(name)) return name;
+    }
+    return null;
+}
+let streamerAsked = null;   // one lookup per opponent, not per scrape
+function maybeCheckStreamer() {
+    if (!config.streamer_alert) return;
+    const name = opponentUsername();
+    if (!name || name === streamerAsked) return;
+    streamerAsked = name;
+    try {
+        chrome.runtime.sendMessage({streamerLookup: {site, username: name}}, (res) => {
+            void chrome.runtime.lastError;
+            if (!res || res.error || !res.live) return;
+            bgLog('opponent is streaming', {username: name, channel: res.channel});
+            sendToPanel({streamerNotice: true, username: name, channel: res.channel || null});
+        });
+    } catch (e) { /* worker asleep; the next game asks again */ }
+}
+
 let hideOppMatched = null;   // last match count, for the diagnostics; null = never applied
 
 function applyHideOpponent(on) {

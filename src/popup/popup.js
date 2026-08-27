@@ -404,6 +404,7 @@ async function initPanel(root, tabId) {
         // Accuracy as it happens, on its own strip under the eval history.
         live_stats: JSON.parse(MephistoConfig.get('live_stats')) || false,
         live_classify: JSON.parse(MephistoConfig.get('live_classify')) || false,
+        streamer_alert: JSON.parse(MephistoConfig.get('streamer_alert')) || false,
         // which verdicts get a badge; everything, unless the settings row says otherwise
         live_classify_which: (() => {
             try {
@@ -574,6 +575,14 @@ async function initPanel(root, tabId) {
         // only traced: a move that silently does not happen is the least actionable bug report
         // there is, and it was the shape of three separate ones.
         if (response.moveDropped) { set_idle_reason(response.moveDropped); return; }
+        // The opponent is live-streaming this game. Said once, in the idle line, and nothing else:
+        // what the extension should DO about it is an open question, and inventing an answer would
+        // be worse than telling you and letting you decide.
+        if (response.streamerNotice) {
+            set_idle_reason(i18n('panel.msg.opp_streaming', '{user} is streaming this game right now',
+                {user: response.username || '?'}));
+            return;
+        }
         if (response.fenresponse) { // reply received -> the poll interval may fire the next request
             fen_request_inflight = false;
             sync_puzzle_mode_to_page(response.puzzlePage);
