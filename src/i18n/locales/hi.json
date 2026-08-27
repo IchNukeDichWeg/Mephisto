@@ -179,6 +179,8 @@
   "panel.eta.now": "अभी चल रहा है ({source}){suffix}",
   "panel.eta.in": "{secs} से. में चलेगा ({source}){suffix}",
   "panel.calibrated": "यह मशीन {nps}M nps देती है - ",
+  "panel.engine_advice_native": "{name} स्थापित है और ब्राउज़र के बाहर चलता है, यहाँ तेज़ है. बदलने के लिए टैप करें.",
+  "panel.engine_advice_small": "{cores} कोर यहाँ: {from} {a}k nps, {to} {b}k. बदलने के लिए टैप करें.",
   "panel.update_available": "अपडेट उपलब्ध - v{latest} (आपके पास v{current})",
   "nav.getting_started": "शुरुआत करें",
   "nav.general": "सामान्य",

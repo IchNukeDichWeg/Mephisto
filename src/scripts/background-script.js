@@ -2018,6 +2018,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   // ...and so does the human-reply Maia client (threat analysis asking "what would a human do")
   chrome.runtime.sendMessage({toOffscreen: true, clientId: String(tabId) + ':hr', cmd: 'dispose'},
     () => void chrome.runtime.lastError);
+  chrome.runtime.sendMessage({toOffscreen: true, clientId: String(tabId) + ':bn', cmd: 'dispose'},
+    () => void chrome.runtime.lastError);
 });
 
 // --- Offscreen engine host (N1). An offscreen document is an invisible EXTENSION-ORIGIN page, so it

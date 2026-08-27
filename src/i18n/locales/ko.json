@@ -179,6 +179,8 @@
   "panel.eta.now": "지금 둡니다({source}){suffix}",
   "panel.eta.in": "{secs}초 후에 둡니다({source}){suffix}",
   "panel.calibrated": "이 컴퓨터의 측정값은 {nps}M nps - ",
+  "panel.engine_advice_native": "{name} 이(가) 설치되어 있고 브라우저 밖에서 실행되어 여기서는 더 빠릅니다. 눌러서 전환.",
+  "panel.engine_advice_small": "코어 {cores}개: {from} 은 {a}k nps, {to} 은 {b}k. 눌러서 전환.",
   "panel.update_available": "업데이트 있음 - v{latest}(현재 v{current})",
   "nav.getting_started": "시작하기",
   "nav.general": "일반",
