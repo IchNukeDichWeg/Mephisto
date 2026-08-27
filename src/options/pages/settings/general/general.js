@@ -524,7 +524,10 @@ class GeneralSettings extends SettingsPage {
             bot_trick: 'Bot Tricks - play the chosen game at a bot',
         };
         const ORDER = ['manual_play', 'manual_mode', 'autoplay', 'premove', 'explorer', 'book_play',
-            'help_mode', 'humanize', 'clock_mode', 'clock_pace', 'mirror_mode', 'eval_bar', 'eval_history', 'live_stats', 'live_classify', 'streamer_alert', 'tablebase', 'puzzle_mode',
+            // Only actions the panel can actually perform: an action listed here with no entry in
+            // LABELS and no quick-settings checkbox behind it rendered a row labelled "undefined"
+            // whose binding did nothing (live_classify and streamer_alert did exactly that).
+            'help_mode', 'humanize', 'clock_mode', 'clock_pace', 'mirror_mode', 'eval_bar', 'eval_history', 'live_stats', 'tablebase', 'puzzle_mode',
             'copy_fen', 'copy_pgn', 'copy_diagnostics', 'redetect', 'compact', 'minimize', 'bot_trick', 'panic'];
         // same normalization as the content-script listener, so what we store matches what it compares
         const keyString = (e) => {
