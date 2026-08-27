@@ -534,5 +534,7 @@
   "set.limit_depth": "Głębokość",
   "set.limit_nodes": "Węzły",
   "set.no_limit": "Bez limitu",
-  "set.limit_depth_at": "Głębokość {n}"
+  "set.limit_depth_at": "Głębokość {n}",
+  "set.class_on_board": "Ocena na szachownicy",
+  "set.tip.class_on_board": "Ta sama ocena, ale na szachownicy SERWISU zamiast na panelu -- odznaka na polu, na którym ruch się zakończył, w skali tej szachownicy. Osobny przełącznik, niezależny od powyższego: odznaka pojawia się na prawdziwej szachownicy niezależnie od tego, czy mała szachownica w panelu też ją nosi. Filtr „Które pokazywać” dotyczy obu."
 }

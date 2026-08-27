@@ -534,5 +534,7 @@
   "set.limit_depth": "深度",
   "set.limit_nodes": "节点",
   "set.no_limit": "不限制",
-  "set.limit_depth_at": "深度 {n}"
+  "set.limit_depth_at": "深度 {n}",
+  "set.class_on_board": "在棋盘上显示分类",
+  "set.tip.class_on_board": "同样的评定，画在网站的棋盘上而不是面板的棋盘上——在该手棋落点的格子上放一个徽标，大小与那块棋盘相称。这是独立的开关，与上面的设置无关：无论面板上的小棋盘是否也带徽标，真实棋盘上都会显示。“显示哪些”的筛选对两者都生效。"
 }

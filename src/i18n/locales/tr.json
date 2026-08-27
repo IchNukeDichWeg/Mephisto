@@ -534,5 +534,7 @@
   "set.limit_depth": "Derinlik",
   "set.limit_nodes": "Düğüm",
   "set.no_limit": "Sınırsız",
-  "set.limit_depth_at": "Derinlik {n}"
+  "set.limit_depth_at": "Derinlik {n}",
+  "set.class_on_board": "Tahtada sınıflandırma",
+  "set.tip.class_on_board": "Aynı değerlendirme, panelin tahtası yerine SİTENİN tahtasına çizilir -- hamlenin indiği kareye, o tahtanın ölçüsünde bir rozet. Kendi anahtarı vardır ve yukarıdakinden bağımsızdır: rozet, panelin küçük tahtasında da olsun olmasın gerçek tahtada görünür. \"Hangileri gösterilsin\" filtresi ikisi için de geçerlidir."
 }

@@ -534,5 +534,7 @@
   "set.limit_depth": "Profundidade",
   "set.limit_nodes": "Nós",
   "set.no_limit": "Sem limite",
-  "set.limit_depth_at": "Profundidade {n}"
+  "set.limit_depth_at": "Profundidade {n}",
+  "set.class_on_board": "Classificação no tabuleiro",
+  "set.tip.class_on_board": "O mesmo veredicto, desenhado no tabuleiro do SITE em vez do painel -- um emblema na casa onde a jogada terminou, ao tamanho desse tabuleiro. É um interruptor próprio e independente do de cima: o emblema aparece no tabuleiro real quer o pequeno tabuleiro do painel também tenha um, quer não. O filtro \"Mostrar quais\" aplica-se aos dois."
 }
