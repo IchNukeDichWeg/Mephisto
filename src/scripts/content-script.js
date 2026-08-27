@@ -4346,13 +4346,42 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         if (dueEnd > 0) await promiseTimeout(dueEnd);
     }
 
-    // move_time (+ variance) is the TOTAL wall-clock budget for the click sequence -- whatever the
-    // user sets is what a move takes. On a normal move: piece (25%) + target (75%). On a promotion:
+    // FITTS'S LAW: a move's duration depends on how far the hand travels and how big the target is.
+    // MT = a + b*log2(D/W + 1) (Shannon form). Only the SHAPE matters here -- a and b are
+    // per-person constants nobody has measured for this user -- so the law is used as a RATIO
+    // against a reference move rather than as an absolute time.
+    //
+    // WHAT THIS CHANGES ABOUT THE MOVE TIME SETTING, said plainly: it was a guaranteed total (v3.1.90
+    // -- "whatever number you set is what a move takes"). It is now the time for a REFERENCE move of
+    // three squares, and short moves come in under it while long ones go over. Measured before this:
+    // a 57px move and an 894px move took the same time to within 8%, which is not a hand -- it is
+    // the one regularity no amount of prettier curve fixes.
+    //
+    // Clamped either side: without a floor a one-square shuffle would click almost instantly, and
+    // without a ceiling a corner-to-corner move on a huge board would crawl. The clamp is what keeps
+    // the setting recognisable as the number the user typed.
+    const FITTS_REF_ID = 2;          // log2(3 + 1): a three-square move, the reference
+    const FITTS_MIN = 0.6, FITTS_MAX = 1.6;
+    function fittsId(distPx, widthPx) {
+        return Math.log2(Math.max(distPx, 0) / Math.max(widthPx, 1) + 1);
+    }
+    function fittsScale(fromSq, toSq) {
+        try {
+            const a = getBoundsFromCoords(fromSq), b2 = getBoundsFromCoords(toSq);
+            const d = Math.hypot((b2.x - a.x), (b2.y - a.y));
+            const w = Math.max(1, boardBounds.width / 8);
+            const id = fittsId(d, w);
+            return Math.max(FITTS_MIN, Math.min(FITTS_MAX, id / FITTS_REF_ID));
+        } catch (e) { return 1; }   // no geometry -> the setting behaves exactly as it always did
+    }
+
+    // move_time (+ variance) is the budget for the click sequence, scaled by the move's own
+    // difficulty (see FITTS above). On a normal move: piece (25%) + target (75%). On a promotion:
     // piece (20%) + target (55%) + promo picker (25%). Think time stays a separate slider (that's
     // the pause BEFORE the move; this budget is the physical act of playing it).
     async function performSimulatedMoveSequence() {
         await promiseTimeout(getThinkTime());
-        const total = getMoveTime();
+        const total = getMoveTime() * fittsScale(move.substring(0, 2), move.substring(2, 4));
         if (move[4]) {
             await performSimulatedMoveClicks(total * 0.20, total * 0.55, total);
             await simulatePromotionClicks(move[4], total * 0.25);
