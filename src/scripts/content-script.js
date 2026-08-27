@@ -1318,7 +1318,7 @@ function clearEvalBar() {
 // frac = white's share of the bar (0..1); text = score magnitude ("1.1" / "M3"); winningWhite
 // decides which end the number sits at and its colour. Repositioned every update (like the hint
 // arrows) so it tracks the board; pointer-events:none so it never eats a click.
-function drawEvalBar({frac, text, winningWhite, history, phases, stats}) {
+function drawEvalBar({frac, text, winningWhite, history, phases, stats, bar: wantBar = true}) {
     const board = getBoard();
     if (!board || typeof frac !== 'number') { clearEvalBar(); return; }
     const bounds = board.getBoundingClientRect();
@@ -1326,6 +1326,15 @@ function drawEvalBar({frac, text, winningWhite, history, phases, stats}) {
     const flipped = getOrientation() === 'black';
     const BAR_W = 28, GAP = 8;
 
+    // The graph and the stats strip are drawn from this same message and are wanted on their own:
+    // with the bar switched off the bar goes away and they still get their bounds. (Default true, so
+    // an older caller that sends no `bar` field behaves exactly as before.)
+    if (!wantBar) {
+        overlayEl(EVALBAR_OVERLAY_ID)?.remove();
+        drawEvalHistory(history, bounds, flipped, phases);
+        drawLiveStats(stats, bounds);
+        return;
+    }
     let bar = overlayEl(EVALBAR_OVERLAY_ID);
     let white, num;
     if (!bar) {
