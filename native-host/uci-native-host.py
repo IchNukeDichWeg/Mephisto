@@ -378,6 +378,11 @@ def main():
         engine.quit()
     except Exception:
         pass
+    # Chrome has closed the port. A worker thread may still be mid-write on stdout, holding the
+    # BufferedWriter's lock; letting the interpreter finalize normally makes it flush std files,
+    # fail to take that lock and abort -- Py_FatalError -> SIGABRT, i.e. a real "Python quit
+    # unexpectedly" crash report. Nothing here needs persisting, so leave without finalizing.
+    os._exit(0)
 
 if __name__ == '__main__':
     main()
