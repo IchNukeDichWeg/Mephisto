@@ -1041,7 +1041,7 @@ No schedule - added whenever I feel like it. Checked means shipped.
 ### Planned
 
 <details>
-<summary>24 items, sorted by upside and effort</summary>
+<summary>23 items, sorted by upside and effort</summary>
 
 **Quick wins.** Small changes with an obvious payoff. Empty once more as of v3.1.272 - all fourteen
 that were here shipped in one release.
@@ -1138,12 +1138,6 @@ that were here shipped in one release.
   doubles the footprint rather than halving it, and what actually catches people is the shape of the moves
   across many games, which does not change based on where they came from.
 
-- [x] **Streaming opponents** - the panel says so when your opponent is streaming the game right now. Both sites
-  publish it themselves, so nothing here watches a stream: lichess reports whether a player is streaming,
-  chess.com publishes who is live. Shipped as a **notice and nothing else** - it changes no setting and plays no
-  differently - because what the extension *should* do about it is still the open question, and inventing an
-  answer would be worse than telling you and letting you decide.
-
 - [ ] **An LLM at the board** *(barely serious)* - hand a model the FEN, the move history and the legal moves
   and let it choose. Language models play badly and propose illegal moves, so as a source of moves this is a
   curiosity. One step across it is genuinely interesting: the same model as the voice behind Talking Mode and
@@ -1182,7 +1176,13 @@ veto for real blunders, and the clock rules above.
 ### Shipped
 
 <details>
-<summary>89 features, newest first</summary>
+<summary>90 features, newest first</summary>
+
+- [x] **Streaming opponents** (v3.1.301) - the panel says so when your opponent is streaming the game right now. Both sites
+  publish it themselves, so nothing here watches a stream: lichess reports whether a player is streaming,
+  chess.com publishes who is live. Shipped as a **notice and nothing else** - it changes no setting and plays no
+  differently - because what the extension *should* do about it is still the open question, and inventing an
+  answer would be worse than telling you and letting you decide.
 
 - [x] **Play from your own Polyglot book** (v3.1.293) - both halves. The Analysis page has read real `.bin` files
   since v3.1.256; the panel now plays from a loaded book too - stored in the extension's own IndexedDB where the
