@@ -318,16 +318,18 @@ function handleExtensionMessage(response, sender, sendResponse) {
         lastPushKey = lastDisplayKey = null; // config may change how we scrape (variant) -> never dedupe across configs
         schedulePush();
     } else if (response.drawHint) {
-        drawHintArrows(response.arrows, response.region);
+        scheduleOverlayDraw('hint', response);
     } else if (response.clearHint) {
+        dropPendingOverlay('hint');
         clearHintArrow();
     } else if (response.drawMoveClass) {
         drawMoveClass(response);
     } else if (response.clearMoveClass) {
         clearMoveClass();
     } else if (response.drawEvalBar) {
-        drawEvalBar(response);
+        scheduleOverlayDraw('evalbar', response);
     } else if (response.clearEvalBar) {
+        dropPendingOverlay('evalbar');
         clearEvalBar();
     } else if (response.oppAlert) {
         showOppAlert(response.label, response.drop, response.san, response.uci);
@@ -374,6 +376,10 @@ self.MephistoContent = {
         // apart, and it is here rather than in the trace because bgLog is suppressed while the tab
         // is focused, which is precisely when someone is watching it happen.
         lastAimed ? `lastAimed=${lastAimed}` : null,
+        // What the page thread was actually asked to do, and what it did: the gap between them is
+        // the coalescing, and a report from a machine that felt slow says which side to look at.
+        `overlay=${overlayDraws}/${overlayMsgs} drawn/asked`,
+        `scrape=${scrapeCount} avg ${scrapeCount ? (scrapeMs / scrapeCount).toFixed(1) : 0}ms`,
     ].filter(Boolean).join('  '),
     detectVariant: () => ({variant: detectVariant(), href: location.href}),
     // popup.js's apply_compact calls this: the panel is a fixed-size scaled box, so hiding its
@@ -666,6 +672,8 @@ function removeOverlay() {
     try { self.MephistoPanel?.suspend?.(); } catch (e) { /* not yet booted */ }
     overlayEl(PANEL_OVERLAY_ID)?.remove();
     overlayEl(RESTORE_BADGE_ID)?.remove();
+    dropPendingOverlay('evalbar');   // a queued frame must not repaint what we just took off
+    dropPendingOverlay('hint');
     clearEvalBar();   // closing removes the iframe; the board overlays it drew must go too
     clearHintArrow();
     clearMoveClass();   // the badge is page furniture too
@@ -1308,6 +1316,40 @@ function showOppAlert(label, drop, san, uci) {
 
 const EVALBAR_OVERLAY_ID = 'mephisto-evalbar-overlay';
 const EVALHIST_OVERLAY_ID = 'mephisto-evalhist-overlay';
+
+// ---- THE OVERLAYS REDRAW ON THE PAGE'S OWN THREAD ------------------------------------------------
+// Every engine `info` line repositioned the eval bar, the graph, the stats strip and the hint
+// arrows, and each of those draws calls getBoundingClientRect on the board -- a forced layout, on
+// the very thread the site is using to draw itself. MEASURED with the shipped search settings
+// (Stockfish, 1 thread, MultiPV 3, 2s): 51 info lines, so ~25 full overlay redraws a second, none
+// of which a person can see as separate frames.
+//
+// So the draws are coalesced to one per animation frame: the newest payload wins, which is all
+// these overlays ever are -- each message is an absolute redraw, never an increment. A hidden tab
+// gets no frames at all (and nobody is watching it), so it falls back to a slow timer rather than
+// stalling until the tab is looked at again.
+//
+// CLEARS ARE NOT COALESCED. "Take it off the board" has to be immediate, and it drops whatever draw
+// was queued behind it -- otherwise a stale bar or arrow could land one frame after being cleared.
+const pendingOverlay = {};   // kind -> newest payload waiting for the frame
+let overlayFrame = null;
+let overlayMsgs = 0, overlayDraws = 0;   // the ratio IS the measurement; both go in the diagnostics
+function scheduleOverlayDraw(kind, payload) {
+    overlayMsgs++;
+    pendingOverlay[kind] = payload;
+    if (overlayFrame !== null) return;
+    const run = () => { overlayFrame = null; flushOverlayDraws(); };
+    overlayFrame = (document.visibilityState === 'hidden') ? setTimeout(run, 250)
+                                                           : requestAnimationFrame(run);
+}
+function flushOverlayDraws() {
+    const hint = pendingOverlay.hint, bar = pendingOverlay.evalbar;
+    delete pendingOverlay.hint;
+    delete pendingOverlay.evalbar;
+    if (hint) { overlayDraws++; drawHintArrows(hint.arrows, hint.region); }
+    if (bar) { overlayDraws++; drawEvalBar(bar); }
+}
+function dropPendingOverlay(kind) { delete pendingOverlay[kind]; }
 
 function clearEvalBar() {
     overlayEl(LIVESTATS_OVERLAY_ID)?.remove();
@@ -3301,10 +3343,19 @@ function dropMove(userText, ...trace) {
     try { sendToPanel({moveDropped: userText}); } catch (e) { /* panel not booted */ }
 }
 
+// Timed, because the page thread is where the "playing while the machine is busy" cost was never
+// measured: handing the engine fewer threads under load was tried and made it WORSE, so the engine
+// is not the contended resource. A scrape runs here, on the site's own thread, once per settled
+// mutation burst; `scrape=` in the diagnostics says how many and how long they took, so the next
+// change to this path is aimed by a number rather than by a theory.
+let scrapeCount = 0, scrapeMs = 0;
 function pushPosition() {
     if (!config) return;           // no config yet -> can't scrape
     if (scrapeStorming()) return;  // see the watchdog above
+    const t0 = performance.now();
     const res = tryScrapePosition();
+    scrapeCount++;
+    scrapeMs += performance.now() - t0;
     if (res === 'no') {            // transient (animating, no board): never push, never dedupe
         bgLog('scrape returned nothing', {why: lastScrapeFail, retry: noScrapeRetries,
             giveUp: noScrapeRetries >= NO_SCRAPE_MAX_RETRIES, build: MEPHISTO_BUILD});
