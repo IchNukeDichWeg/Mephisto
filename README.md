@@ -914,6 +914,7 @@ is a subset writing to the same storage. Everything applies to the next move wit
 | **"Hand & Brain" Mode** | Mephisto plays the *Brain* - names only the piece type. It deliberately withholds the move, so Autoplay does nothing while it's on. |
 | **Explain Moves** | Names the tactic behind the choice; silent when nothing is certain. |
 | **Hide Opponent Name** | Blurs their username and avatar so a screenshot doesn't expose a real person. Local and cosmetic - but it's the one option that adds a style element to the page, which is why it's off by default. It matches the sites' own class names, so a site rename can leave it blurring nothing; it reports what it matched in Copy Diagnostics rather than failing silently. |
+| **Opponent Streaming Notice** | Says in the panel when your opponent is streaming the game right now. Both sites publish this themselves - lichess reports whether a player is streaming, chess.com publishes who is live - so nothing here watches a stream. A notice and nothing else: no setting changes and no move plays differently. Off by default because it asks the site about your opponent by name, once per game, from the worker rather than from the game tab. |
 | **Move Notation** | SAN (`Nf3`) or UCI (`g1f3`), everywhere a move is written: the readout, the alternative lines, the arrow labels. |
 | **Label Arrows** | Print each arrow's own evaluation on the board. Off by default - useful information, and also more ink on the board. |
 | **Forced Lines Ahead** | Draw your premove-able continuation, 0–5 plies: while every opponent reply is their only legal move, your next moves are drawn in magenta and their forced replies in teal - hues no engine line uses, so certainty never reads as suggestion. The chain ends where the opponent has a real choice. 0 is off. |
@@ -1017,6 +1018,11 @@ While the **floating panel** is in use, its footprint is minimised:
   corner move where a fixed Move Time is x1.00 - and **30%** of long moves **overshoot and correct**, bought out
   of the same waypoint budget rather than added to it, since that speed-accuracy tradeoff is what *makes* Fitts's
   law rather than a separate rule beside it.
+- **Lookups about your opponent leave from the worker, never the tab** - the Opponent Streaming Notice asks the
+  site's own public directory whether your opponent is live (lichess `/api/user/<name>`, chess.com
+  `/pub/streamers`). Asked from the game tab that request would sit in the tab's network log next to your opponent's
+  name; from the service worker it is not attributable to the page at all. Off by default, one lookup per opponent,
+  cached for the session.
 - **Nothing loads on a page that does not need it** - the move classifier is 7.6 KB that only three opt-in
   features use, so it is not in `content_scripts`: the worker injects it into the tab the moment one of them is
   switched on, and a page with all three off never receives it at all.
@@ -1132,9 +1138,11 @@ that were here shipped in one release.
   doubles the footprint rather than halving it, and what actually catches people is the shape of the moves
   across many games, which does not change based on where they came from.
 
-- [ ] **Streaming opponents** - kept because it might turn into something, but under-specified as it stands:
-  notice when an opponent is streaming. It needs a decision about what the extension would *do* with that
-  before there is anything to build.
+- [x] **Streaming opponents** - the panel says so when your opponent is streaming the game right now. Both sites
+  publish it themselves, so nothing here watches a stream: lichess reports whether a player is streaming,
+  chess.com publishes who is live. Shipped as a **notice and nothing else** - it changes no setting and plays no
+  differently - because what the extension *should* do about it is still the open question, and inventing an
+  answer would be worse than telling you and letting you decide.
 
 - [ ] **An LLM at the board** *(barely serious)* - hand a model the FEN, the move history and the legal moves
   and let it choose. Language models play badly and propose illegal moves, so as a source of moves this is a
