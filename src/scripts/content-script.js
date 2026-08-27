@@ -321,6 +321,10 @@ function handleExtensionMessage(response, sender, sendResponse) {
         drawHintArrows(response.arrows, response.region);
     } else if (response.clearHint) {
         clearHintArrow();
+    } else if (response.drawMoveClass) {
+        drawMoveClass(response);
+    } else if (response.clearMoveClass) {
+        clearMoveClass();
     } else if (response.drawEvalBar) {
         drawEvalBar(response);
     } else if (response.clearEvalBar) {
@@ -664,6 +668,7 @@ function removeOverlay() {
     overlayEl(RESTORE_BADGE_ID)?.remove();
     clearEvalBar();   // closing removes the iframe; the board overlays it drew must go too
     clearHintArrow();
+    clearMoveClass();   // the badge is page furniture too
 }
 
 // Page unload = tab is going away (navigation, close, reload). Stop any running search cleanly so a
@@ -1058,32 +1063,17 @@ function arrowAlpha() {
     return Math.max(0.05, Math.min(1, pct / 100)).toFixed(3);
 }
 
-// `region`, when given, is the board the SCREEN READER is following: {x, y, w, h} in CAPTURED
-// IMAGE pixels (what the recogniser reports), plus whether that board is seen from black's side.
-// The capture is the visible tab at devicePixelRatio, so image pixels / dpr are page pixels --
-// which is what lets the answer be drawn onto the board it was read from, screenshot or video,
-// instead of only in the panel.
-function drawHintArrows(arrows, region) {
-    // FOUR-PLAYER. The 8x8 filter below rejects a move like `m8l8` outright, which is why Help Mode
-    // drew nothing at all on a 4PC board -- the arrows were requested, then discarded here. The
-    // geometry differs on every axis (14 files, 14 ranks, four rotations), so it gets its own
-    // measurements; everything after this point is shared.
-    const fourpc = is4PC();
-    const SQ4 = '[a-n](?:1[0-4]|[1-9])';
-    const moveRe = fourpc ? new RegExp(`^${SQ4}${SQ4}[qrbnQRBN]?$`) : /^[a-h][1-8][a-h][1-8][qrbn]?$/;
-    arrows = (arrows || []).filter(a => a && moveRe.test(a.move ?? ''));
-    // help mode redraws on every engine update; skip the DOM churn while the arrows are unchanged
-    const key = JSON.stringify([arrows, region || null]);
-    if (key === lastHintKey && overlayEl(HINT_OVERLAY_ID)) return;
-    clearHintArrow();
-    if (!arrows.length) return;
-
+// WHERE THE BOARD IS, AND WHERE EACH SQUARE SITS ON IT. Four different answers -- a 14x14 four-
+// player board with its four rotations, ChessBase's canvas (no element to measure at all), a board
+// the SCREEN READER found in a captured image, and the ordinary DOM board -- and every overlay drawn
+// onto the page needs the same one. Returns null when there is no board to draw on.
+function boardGeometry(fourpc, region) {
     let bounds, square, squareCenter;
     if (fourpc) {
         const geo = fourPCGeometry();
         // Help Mode on a 4PC board has been reported as drawing nothing twice. Everything upstream
         // of here checks out by reading, so log what actually arrives rather than guess a third time.
-        bgLogAlways('4PC hint', {arrows: arrows.length, move: arrows[0]?.move, geo: !!geo,
+        bgLogAlways('4PC board geometry', {geo: !!geo,
                            rect: geo && [Math.round(geo.rect.left), Math.round(geo.rect.top),
                                          Math.round(geo.rect.width)]});
         if (!geo) return;
@@ -1136,6 +1126,36 @@ function drawHintArrows(arrows, region) {
         };
     }
 
+    return {bounds, square, squareCenter};
+}
+
+// `region`, when given, is the board the SCREEN READER is following: {x, y, w, h} in CAPTURED
+// IMAGE pixels (what the recogniser reports), plus whether that board is seen from black's side.
+// The capture is the visible tab at devicePixelRatio, so image pixels / dpr are page pixels --
+// which is what lets the answer be drawn onto the board it was read from, screenshot or video,
+// instead of only in the panel.
+function drawHintArrows(arrows, region) {
+    // FOUR-PLAYER. The 8x8 filter below rejects a move like `m8l8` outright, which is why Help Mode
+    // drew nothing at all on a 4PC board -- the arrows were requested, then discarded here. The
+    // geometry differs on every axis (14 files, 14 ranks, four rotations), so it gets its own
+    // measurements; everything after this point is shared.
+    const fourpc = is4PC();
+    const SQ4 = '[a-n](?:1[0-4]|[1-9])';
+    const moveRe = fourpc ? new RegExp(`^${SQ4}${SQ4}[qrbnQRBN]?$`) : /^[a-h][1-8][a-h][1-8][qrbn]?$/;
+    arrows = (arrows || []).filter(a => a && moveRe.test(a.move ?? ''));
+    // help mode redraws on every engine update; skip the DOM churn while the arrows are unchanged
+    const key = JSON.stringify([arrows, region || null]);
+    if (key === lastHintKey && overlayEl(HINT_OVERLAY_ID)) return;
+    clearHintArrow();
+    if (!arrows.length) return;
+
+    const geo8 = boardGeometry(fourpc, region);
+    // 4PC ONLY, as before: "Help Mode draws nothing on a four-player board" has been reported twice
+    // and the arrows themselves are what that report needs. An 8x8 board is not logged at all.
+    if (fourpc) bgLogAlways('4PC hint', {arrows: arrows.length, move: arrows[0]?.move, board: !!geo8});
+    if (!geo8) return;
+    const {bounds, square, squareCenter} = geo8;
+
     const markerId = color => `mephisto-hint-head-${color.replace(/[^\w]/g, '')}`;
     let defs = '';
     for (const color of new Set(arrows.map(a => a.color || '#15781b'))) {
@@ -1187,6 +1207,54 @@ function drawHintArrows(arrows, region) {
     svg.innerHTML = `<defs>${defs}</defs>${lines}`;
     getOverlayRoot().appendChild(svg);
     lastHintKey = key;
+}
+
+// THE SAME VERDICT, ON THE BOARD YOU ARE PLAYING ON. Move Classification badges the move on the
+// PANEL's little board, which is the right default -- the panel owns that board, and an opinion
+// drawn over a live game is not what everyone wants. Its own toggle puts the identical badge on the
+// site's board instead, on the square the move landed on, sized to that board's squares.
+//
+// Its own overlay, deliberately NOT the hint layer: help-mode arrows are replaced wholesale on
+// every engine frame, so a badge sharing that layer would flicker with the search and vanish the
+// moment Help Mode was switched off.
+const MOVECLASS_OVERLAY_ID = 'mephisto-moveclass-overlay';
+let lastMoveClassKey = null;
+
+function clearMoveClass() {
+    lastMoveClassKey = null;
+    overlayEl(MOVECLASS_OVERLAY_ID)?.remove();
+}
+
+function drawMoveClass(msg) {
+    const sq = String(msg?.square || '');
+    const fourpc = is4PC();
+    const ok = fourpc ? /^[a-n](?:1[0-4]|[1-9])$/.test(sq) : /^[a-h][1-8]$/.test(sq);
+    if (!ok || !msg.glyph) return clearMoveClass();
+    const key = `${sq}|${msg.glyph}|${msg.color}`;
+    if (key === lastMoveClassKey && overlayEl(MOVECLASS_OVERLAY_ID)) return;
+    clearMoveClass();
+    const geo = boardGeometry(fourpc, null);
+    if (!geo) return;
+    const {bounds, square, squareCenter} = geo;
+    const [cx, cy] = squareCenter(sq);
+    const r = square * 0.22;
+    // top-right of the square, like the review's own board badge, so the piece stays visible
+    const x = cx + square * 0.32, y = cy - square * 0.32;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = MOVECLASS_OVERLAY_ID;
+    svg.setAttribute('width', bounds.width);
+    svg.setAttribute('height', bounds.height);
+    svg.style.cssText = `position: absolute; left: ${bounds.left + window.scrollX}px; ` +
+        `top: ${bounds.top + window.scrollY}px; z-index: 2147483646; pointer-events: none;`;
+    const glyph = String(msg.glyph).replace(/[<>&]/g, '');
+    const color = /^#[0-9a-f]{3,8}$/i.test(String(msg.color || '')) ? msg.color : '#8b8987';
+    svg.innerHTML =
+        `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" stroke="#1b1b1b" stroke-width="${r * 0.15}"/>` +
+        `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central"` +
+        ` font-size="${r * 1.15}" font-weight="700" fill="#111"` +
+        ` font-family="system-ui, sans-serif">${glyph}</text>`;
+    getOverlayRoot().appendChild(svg);
+    lastMoveClassKey = key;
 }
 
 // ------------------------------------------------------------------------------------------

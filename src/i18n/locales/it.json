@@ -534,5 +534,7 @@
   "set.limit_depth": "Profondità",
   "set.limit_nodes": "Nodi",
   "set.no_limit": "Nessun limite",
-  "set.limit_depth_at": "Profondità {n}"
+  "set.limit_depth_at": "Profondità {n}",
+  "set.class_on_board": "Classificazione sulla scacchiera",
+  "set.tip.class_on_board": "Lo stesso giudizio, disegnato sulla scacchiera del SITO invece che su quella del pannello: un distintivo sulla casa di arrivo della mossa, dimensionato su quella scacchiera. Interruttore a sé e indipendente da quello sopra: il distintivo compare sulla scacchiera vera, che la piccola scacchiera del pannello ne porti uno o no. Il filtro \"Mostra quali\" vale per entrambi."
 }

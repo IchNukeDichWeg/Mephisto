@@ -534,5 +534,7 @@
   "set.limit_depth": "Depth",
   "set.limit_nodes": "Nodes",
   "set.no_limit": "No Limit",
-  "set.limit_depth_at": "Depth {n}"
+  "set.limit_depth_at": "Depth {n}",
+  "set.class_on_board": "Classification On The Board",
+  "set.tip.class_on_board": "The same verdict, drawn on the SITE's board instead of the panel's -- a badge on the square the move landed on, sized to that board. Its own switch, and independent of the one above: the badge appears on the real board whether or not the panel's little board is also carrying one. The 'Show which' filter applies to both."
 }

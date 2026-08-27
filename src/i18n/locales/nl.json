@@ -534,5 +534,7 @@
   "set.limit_depth": "Diepte",
   "set.limit_nodes": "Knopen",
   "set.no_limit": "Geen limiet",
-  "set.limit_depth_at": "Diepte {n}"
+  "set.limit_depth_at": "Diepte {n}",
+  "set.class_on_board": "Classificatie op het bord",
+  "set.tip.class_on_board": "Hetzelfde oordeel, getekend op het bord van de SITE in plaats van dat van het paneel -- een badge op het veld waar de zet landde, op de maat van dat bord. Een eigen schakelaar, los van die hierboven: de badge verschijnt op het echte bord, of het kleine bord in het paneel er nu ook een draagt of niet. Het filter 'Welke tonen' geldt voor beide."
 }

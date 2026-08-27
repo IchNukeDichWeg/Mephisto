@@ -534,5 +534,7 @@
   "set.limit_depth": "Profundidad",
   "set.limit_nodes": "Nodos",
   "set.no_limit": "Sin límite",
-  "set.limit_depth_at": "Profundidad {n}"
+  "set.limit_depth_at": "Profundidad {n}",
+  "set.class_on_board": "Clasificación en el tablero",
+  "set.tip.class_on_board": "La misma valoración, dibujada en el tablero del SITIO en lugar del panel: una insignia en la casilla donde terminó la jugada, al tamaño de ese tablero. Es un interruptor propio e independiente del anterior: la insignia aparece en el tablero real tanto si el tablero pequeño del panel lleva una como si no. El filtro «Mostrar cuáles» se aplica a ambos."
 }

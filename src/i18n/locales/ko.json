@@ -534,5 +534,7 @@
   "set.limit_depth": "깊이",
   "set.limit_nodes": "노드",
   "set.no_limit": "제한 없음",
-  "set.limit_depth_at": "깊이 {n}"
+  "set.limit_depth_at": "깊이 {n}",
+  "set.class_on_board": "보드에 분류 표시",
+  "set.tip.class_on_board": "같은 판정을 패널이 아니라 사이트의 보드에 그립니다. 수가 놓인 칸에 그 보드 크기에 맞춘 배지를 붙입니다. 위 설정과는 별개인 독립 스위치라, 패널의 작은 보드에 배지가 있든 없든 실제 보드에 표시됩니다. '어떤 것을 표시할지' 필터는 둘 다에 적용됩니다."
 }

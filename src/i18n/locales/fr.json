@@ -534,5 +534,7 @@
   "set.limit_depth": "Profondeur",
   "set.limit_nodes": "Nœuds",
   "set.no_limit": "Sans limite",
-  "set.limit_depth_at": "Profondeur {n}"
+  "set.limit_depth_at": "Profondeur {n}",
+  "set.class_on_board": "Classification sur l'échiquier",
+  "set.tip.class_on_board": "Le même verdict, dessiné sur l'échiquier du SITE plutôt que sur celui du panneau : une pastille sur la case d'arrivée du coup, à la taille de cet échiquier. Interrupteur distinct et indépendant du précédent : la pastille apparaît sur le vrai échiquier, que le petit échiquier du panneau en porte une ou non. Le filtre « Afficher lesquels » s'applique aux deux."
 }
