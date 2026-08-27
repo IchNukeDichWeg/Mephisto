@@ -1740,6 +1740,26 @@ async function cdpMove(target, fromX, fromY, x, y, travelMs, held = false) {
   // Per-move velocity shape: peak speed lands somewhere in the first 30-42% and the steepness
   // varies, so the profile is a family rather than one repeated curve.
   const k = 7 + Math.random() * 4, t0 = 0.30 + Math.random() * 0.12;
+  // OVERSHOOT AND CORRECT. Every path so far landed dead centre on the first attempt, which no hand
+  // does: a rapid aimed movement undershoots or sails past and makes a small corrective sub-movement
+  // maybe a third of the time. It is also what MAKES Fitts's law -- the law is a consequence of that
+  // speed-accuracy tradeoff, not a rule sitting beside it -- so the two belong together.
+  //
+  // Bought out of the SAME budget, never added to it: the last slice of the waypoints becomes the
+  // correction rather than extra steps on the end. Every waypoint here is an awaited round-trip
+  // through a worker that is not scheduled as user-interactive, so a path that grows is a path that
+  // misses its deadline (measured: a 125ms move once took 3s that way).
+  //
+  // Short hops are left alone -- there is nothing to overshoot on a 20px move, and the correction
+  // would be indistinguishable from the jitter.
+  const overshooting = dist > 45 && Math.random() < 0.3 && steps >= 6;
+  const osMag = overshooting ? Math.min(dist * 0.05, 11) * (0.5 + Math.random()) : 0;
+  const ux = dist ? (x - fromX) / dist : 0, uy = dist ? (y - fromY) / dist : 0;
+  // where the cursor actually sails to before coming back; a touch off-axis, like a real miss
+  const overX = x + ux * osMag + px * osMag * (Math.random() - 0.5);
+  const overY = y + uy * osMag + py * osMag * (Math.random() - 0.5);
+  const corrFrom = overshooting ? Math.max(2, Math.round(steps * 0.18)) : 0;  // last N steps correct
+  const mainSteps = steps - corrFrom;
   // PACE TO A DEADLINE, never by adding a fixed sleep after each step.
   //
   // Each dispatch is an awaited round-trip, and this worker also relays every frame a NATIVE engine
@@ -1757,9 +1777,23 @@ async function cdpMove(target, fromX, fromY, x, y, travelMs, held = false) {
     // to the chord that is a few percent, and it varies per move rather than repeating -- so it is
     // more variety, not less. ponytail: arc-length reparameterisation if a profile ever needs to
     // be exact rather than plausible.
-    const u = easeAim(t, k, t0);
-    const mx = bezPoint(u, fromX, c1x, c2x, x) + (Math.random() - 0.5) * 1.5;
-    const my = bezPoint(u, fromY, c1y, c2y, y) + (Math.random() - 0.5) * 1.5;
+    let mx, my;
+    if (overshooting && i > mainSteps) {
+        // the corrective sub-movement: from where the cursor sailed to, back onto the target. Slower
+        // and shorter than the flight it follows, which is what a correction is.
+        const c = (i - mainSteps) / corrFrom;
+        const e = c * c * (3 - 2 * c);          // gentle in and out; no second ballistic phase
+        mx = overX + (x - overX) * e;
+        my = overY + (y - overY) * e;
+    } else {
+        // the main flight, aimed PAST the target when a correction is coming
+        const u = easeAim(overshooting ? (t * steps) / mainSteps : t, k, t0);
+        const endX = overshooting ? overX : x, endY = overshooting ? overY : y;
+        mx = bezPoint(u, fromX, c1x, c2x, endX);
+        my = bezPoint(u, fromY, c1y, c2y, endY);
+    }
+    mx += (Math.random() - 0.5) * 1.5;
+    my += (Math.random() - 0.5) * 1.5;
     await cdpDispatch(target, held ? {type: 'mouseMoved', x: mx, y: my, button: 'left', buttons: 1}
                                    : {type: 'mouseMoved', x: mx, y: my, button: 'none'}, true);
     const behind = (startedAt + travelMs * t) - Date.now();
