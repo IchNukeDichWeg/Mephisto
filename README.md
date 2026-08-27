@@ -1005,21 +1005,20 @@ While the **floating panel** is in use, its footprint is minimised:
 - **Human-shaped clicks** - a bare *from → to*, no lead click on an empty square, randomised timings, landing on a
   center-weighted distribution within each square, preceded by a jittered cursor path inside the Move Time budget.
   The path's *shape* is measured rather than assumed: `test/cursor-oracle.mjs` lifts the real path code out of
-  source and records the `mousemove` stream a click actually emits - the only thing a site can see - reporting
-  where peak speed lands, how much distance is covered by mid-time, how far and how *unevenly* the path bows, and
-  the event rate. It caught the previous path signing itself: a smoothstep ease and a `sin` bow are both
-  **symmetric**, so every move peaked at exactly its midpoint and covered half the distance in half the time
-  (measured: peak at t=0.50-0.52, 49-52% covered at half-time, across a 15x range of distances). An aimed hand is
-  not symmetric - it is ballistic early and spends the rest homing in - so the ease is a **shifted logistic**
-  (measured: peak at t=0.29-0.32, 83-88% of the distance by mid-time) and the arc a **cubic Bezier** with two
-  independent control points, which bows 5-10px off the chord and peaks anywhere along it (0.46-0.50 +- 0.12-0.17,
-  where the old bow peaked at exactly 0.50 every single time) and occasionally S-curves. Steepness, peak time and
-  both offsets are randomised per move, so no two paths share a signature, and the event rate is unchanged at
-  ~119/s in the browser. Two things that were named as missing here are now in: the *duration* is priced by
-  **Fitts's law** - `log2(distance/square + 1)`, a **x2.67** spread between a one-square shuffle and a corner-to-
-  corner move where a fixed Move Time is x1.00 - and **30%** of long moves **overshoot and correct**, bought out
-  of the same waypoint budget rather than added to it, since that speed-accuracy tradeoff is what *makes* Fitts's
-  law rather than a separate rule beside it.
+  source and records the `mousemove` stream a click actually emits - the only thing a site can see - so a change to
+  the path is checked against that stream instead of argued for. The numbers it prints stay in its output rather
+  than in this file: a published table of where the peak lands and how far the arc bows is a signature to match
+  against, which is the one thing this bullet exists to avoid. It caught the previous path signing itself: a
+  smoothstep ease and a `sin` bow are both **symmetric**, so every move peaked at exactly its midpoint and covered
+  half its distance in half its time. An aimed hand is not symmetric - it is ballistic early and spends the rest
+  homing in - so the ease is a **shifted logistic** and the arc a **cubic Bezier** with two independent control
+  points, which bows off the chord, peaks anywhere along it rather than always at the middle, and occasionally
+  S-curves. Steepness, peak time and both offsets are randomised per move, so no two paths share a signature, and
+  the event rate is unchanged. Two things that were named as missing here are now in: the *duration* is priced by
+  **Fitts's law** - `log2(distance/square + 1)`, so a one-square shuffle and a corner-to-corner move no longer cost
+  the same, where a fixed Move Time charges both alike - and a share of long moves **overshoot and correct**,
+  bought out of the same waypoint budget rather than added to it, since that speed-accuracy tradeoff is what
+  *makes* Fitts's law rather than a separate rule beside it.
 - **Lookups about your opponent leave from the worker, never the tab** - the Opponent Streaming Notice asks the
   site's own public directory whether your opponent is live (lichess `/api/user/<name>`, chess.com
   `/pub/streamers`). Asked from the game tab that request would sit in the tab's network log next to your opponent's
