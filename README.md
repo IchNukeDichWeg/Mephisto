@@ -1086,8 +1086,15 @@ that were here shipped in one release.
   arriving inside 12 seconds. The obvious fix was tried and REJECTED by its own measurement: handing the engine
   fewer threads under load made it worse, not better (interleaved A/B under sustained saturation, 14 samples each,
   999ms median on the full budget vs 1712ms on one thread). So the cost is not engine thread contention, and the
-  next candidate is the page thread itself - the scrape, parse and draw path - which is where the measurement
-  should go before any more code does.
+  next candidate is the page thread itself - the scrape, parse and draw path.
+  **The page thread is now instrumented and one of its two costs is gone** (v3.1.302): the overlays were redrawn
+  once per engine `info` line, and each redraw measures the board (`getBoundingClientRect` - a forced layout) on
+  the site's own thread. At the shipped search settings that is **51 info lines in two seconds** (Stockfish 18,
+  1 thread, MultiPV 3), so about 25 full redraws a second, none of them separable by eye. Draws are now coalesced
+  to **one per animation frame**, newest payload wins, with clears still immediate. The scrape is timed too, and
+  both numbers ride in Copy Diagnostics (`overlay=drawn/asked`, `scrape=count avg ms`). What is still owed is the
+  confirming run: the same saturated-machine A/B that produced the 323/1239 pair, re-measured on a build that has
+  this - a number from an idle machine would say nothing about the case this item is about.
 - [ ] **The pause after a browser restart** - for several seconds after Chrome starts, the extension is
   unresponsive, and then it recovers on its own. Long-standing, instrumented, never explained. The worker's
   cold-start timings are recorded now, which is where to start looking.
