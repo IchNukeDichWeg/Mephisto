@@ -136,6 +136,14 @@ engine_options = {}
 engine_lock = threading.Lock()
 request_lock = threading.Lock()
 request_counter = 0
+# The analysis a search is streaming from, so a NEWER request can cut it short. Superseding used to
+# be noticed only on the old search's next `info` frame -- and at depth those are hundreds of ms
+# apart, all of it spent with the panel's progress bar on screen and no move under it. MEASURED with
+# one analyse superseded mid-search (1 thread, SF18, 8s budget): first frame of the new position
+# after 443 / 220 / 645ms. Stopping the old search instead makes the wait the engine's own stop
+# latency. Best effort: an engine that ignores `stop` still ends on its own time limit, and the
+# request_counter check below is what actually decides whose result is used.
+current_analysis = None
 
 def _set_if_declared(key, value):
     try:
@@ -172,11 +180,20 @@ def _apply_variant_net(variant):
         _dbg(f"EvalFile -> {hits[0]}")
 
 def do_analyse(data, mid):
-    global request_counter
+    global request_counter, current_analysis
     get_engine()  # open on first real use (not on a ping probe)
     with request_lock:
         request_counter += 1
         request_id = request_counter
+        stale = current_analysis
+    # BEFORE the engine lock, which the outstanding search is holding: `stop` is the only thing that
+    # can make it let go promptly. SimpleAnalysisResult.stop() hands the call to the engine's own
+    # loop thread (call_soon_threadsafe) and is idempotent on a finished search.
+    if stale is not None:
+        try:
+            stale.stop()
+        except Exception:
+            pass
     with engine_lock:
         variant = engine_options.get('UCI_Variant')
         if variant in (None, 'chess', 'fischerandom'):
@@ -215,6 +232,8 @@ def do_analyse(data, mid):
         terminal = not any(board.legal_moves)  # game-over is a property of the POSITION
         in_check = board.is_check()            # terminal + in_check = checkmate, not stalemate
         with engine.analysis(board, limit, multipv=multipv) as analysis:
+            with request_lock:
+                current_analysis = analysis
             bestmove = None
             if request_counter == request_id:
                 for info in analysis:
@@ -233,6 +252,9 @@ def do_analyse(data, mid):
                             pass
                 if request_counter == request_id:
                     bestmove = analysis.wait().move
+        with request_lock:
+            if current_analysis is analysis:   # only OUR own search; a newer one owns the slot now
+                current_analysis = None
         return format_lines(analysis.multipv, terminal, bestmove, in_check)
 
 def do_configure(data):
