@@ -522,5 +522,8 @@
   "panel.bot.refused": "Die Seite hat es abgelehnt ({why}) – chess.com hat das möglicherweise geschlossen.",
   "set.bot_trick_game": "Bot-Partie",
   "set.tip.bot_trick_game": "Welche Partie dem Bot übergeben wird. Jede Linie hier beendet die Partie – mit Matt oder mit einem Remis, das der Client selbst reklamiert –, denn eine durch Aufgabe beendete Partie hörte auf, während der Bot noch am Zug ist, und er würde dann wirklich antworten. Automatisch wählt eine, die für deine zugeteilte Farbe gewinnt. Die Auswahlliste im Panel stellt dasselbe ein.",
-  "panel.bot.no_library": "Keine Partien geladen – Erweiterung neu laden"
+  "panel.bot.no_library": "Keine Partien geladen – Erweiterung neu laden",
+  "set.streamer_alert": "Hinweis: Gegner streamt",
+  "set.tip.streamer_alert": "Im Panel anzeigen, wenn der Gegner die Partie gerade live streamt. Beide Seiten veröffentlichen das selbst -- lichess sagt, ob jemand streamt, chess.com veröffentlicht, wer live ist -- hier wird also kein Stream angesehen. Es ist nur ein HINWEIS: Es ändert keine Einstellung und spielt nicht anders. Standardmäßig aus, weil es die Seite einmal pro Partie nach dem Namen deines Gegners fragt, aus der Erweiterung heraus statt aus dem Partie-Tab.",
+  "panel.msg.opp_streaming": "{user} streamt diese Partie gerade"
 }

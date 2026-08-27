@@ -522,5 +522,8 @@
   "panel.bot.refused": "Strona to odrzuciła ({why}) – chess.com mógł to zamknąć.",
   "set.bot_trick_game": "Partia bota",
   "set.tip.bot_trick_game": "Którą partię podać botowi. Każda linia tutaj kończy partię – matem albo remisem, który klient sam reklamuje – bo partia zakończona poddaniem urwałaby się, gdy bot wciąż jest na posunięciu, a wtedy odpowiedziałby naprawdę. Automatycznie wybiera taką, która wygrywa kolorem, jaki ci przypadł. Lista w panelu ustawia to samo.",
-  "panel.bot.no_library": "Nie wczytano partii – przeładuj rozszerzenie"
+  "panel.bot.no_library": "Nie wczytano partii – przeładuj rozszerzenie",
+  "set.streamer_alert": "Powiadomienie: przeciwnik streamuje",
+  "set.tip.streamer_alert": "Napisz w panelu, gdy przeciwnik streamuje tę partię na żywo. Oba serwisy publikują to same -- lichess mówi, czy gracz streamuje, chess.com publikuje, kto jest na żywo -- więc nic tu nie ogląda streama. To tylko POWIADOMIENIE: nie zmienia żadnego ustawienia i nie gra inaczej. Domyślnie wyłączone, bo raz na partię pyta serwis o nazwę przeciwnika, z rozszerzenia, a nie z karty gry.",
+  "panel.msg.opp_streaming": "{user} streamuje tę partię na żywo"
 }

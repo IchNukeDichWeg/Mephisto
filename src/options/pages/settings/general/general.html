@@ -190,6 +190,26 @@
 
                 <!-- WHICH verdicts get drawn. Shown only while the feature above is on, because a
                      row of eleven switches for something switched off is noise. -->
+                <div class="set-row set-toggle">
+                    <div class="set-lbl">
+                        <span data-i18n="set.streamer_alert">Opponent Streaming Notice</span>
+                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.streamer_alert"
+                              data-tooltip="Say so in the panel when the opponent is live-streaming the game right
+                                            now. Both sites publish this themselves -- lichess says whether a player
+                                            is streaming, chess.com publishes who is live -- so nothing here watches
+                                            a stream. It is a NOTICE and nothing else: it changes no setting and
+                                            plays no differently. Off by default because it asks the site about your
+                                            opponent by name, once per game, from the extension rather than from the
+                                            game tab."><i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="streamer_alert_checkbox" type="checkbox" class="set-cb">
+                        <label for="streamer_alert_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
                 <div class="set-row" id="live_classify_which_row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.live_classify_which" class="tooltipped" data-position="right"

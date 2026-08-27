@@ -522,5 +522,8 @@
   "panel.bot.refused": "De pagina weigerde het ({why}) – chess.com heeft dit mogelijk gedicht.",
   "set.bot_trick_game": "Bot-partij",
   "set.tip.bot_trick_game": "Welke partij aan de bot wordt gegeven. Elke regel hier beëindigt de partij – mat, of remise die de client zelf claimt – want een partij die met opgave eindigde zou stoppen terwijl de bot nog aan zet is, en die zou dan echt antwoorden. Automatisch kiest er een die wint met de kleur die je kreeg. De lijst in het paneel stelt hetzelfde in.",
-  "panel.bot.no_library": "Geen partijen geladen – herlaad de extensie"
+  "panel.bot.no_library": "Geen partijen geladen – herlaad de extensie",
+  "set.streamer_alert": "Melding: tegenstander streamt",
+  "set.tip.streamer_alert": "Meld het in het paneel wanneer de tegenstander de partij live streamt. Beide sites publiceren dit zelf -- lichess zegt of iemand streamt, chess.com publiceert wie live is -- er wordt hier dus geen stream bekeken. Het is alleen een MELDING: het verandert geen instelling en speelt niet anders. Standaard uit, omdat het de site eenmaal per partij naar de naam van je tegenstander vraagt, vanuit de extensie en niet vanuit het speltabblad.",
+  "panel.msg.opp_streaming": "{user} streamt deze partij op dit moment"
 }

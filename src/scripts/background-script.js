@@ -188,6 +188,10 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     explorerLookup(msg.explorerLookup).then(sendResponse).catch(e => sendResponse({error: String(e)}));
     return true; // async sendResponse
   }
+  if (msg.streamerLookup) {
+    streamerLookup(msg.streamerLookup).then(sendResponse).catch(e => sendResponse({error: String(e)}));
+    return true; // async sendResponse
+  }
   // Is this a COMPLETE install? The update-only archive deliberately omits lib/engine and lib/ort,
   // so extracting it into a folder that never held a full install leaves an extension with no
   // engines -- and every failure after that is a confusing symptom (an engine that never loads, a
@@ -2233,3 +2237,55 @@ chrome.runtime.onConnect.addListener(port => {
     }
   });
 });
+
+// ===== IS THE OPPONENT STREAMING? ================================================================
+// Both sites publish this themselves, so nothing here scrapes a stream or touches a third party
+// beyond the site already being played on:
+//   lichess   /api/user/<u>        -> `streaming` is LIVE RIGHT NOW, `streamer` is "has a channel"
+//   chess.com /pub/streamers       -> the list of who is live right now; membership is the answer
+// The two are not the same question, and the answer says which one it managed to answer rather than
+// flattening them into a claim the data does not support.
+//
+// THE REQUEST GOES FROM THE WORKER, never the page: asking from the game tab would put a lookup of
+// your opponent's name in that tab's network log, which is worse than not having the feature.
+// Cached per name for the session -- a game is one lookup, and a rematch is none.
+const streamerCache = new Map();          // "site|user" -> {live, channel, kind, at}
+const STREAMER_TTL_MS = 10 * 60 * 1000;   // a stream that starts mid-game is not worth re-asking for
+
+async function streamerLookup({site, username}) {
+  const user = String(username || '').trim();
+  if (!user || !/^[\w.-]{2,30}$/.test(user)) return {error: 'no usable username'};
+  const key = `${site}|${user.toLowerCase()}`;
+  const hit = streamerCache.get(key);
+  if (hit && Date.now() - hit.at < STREAMER_TTL_MS) return {...hit, cached: true};
+  const out = {live: false, channel: null, kind: null, at: Date.now()};
+  try {
+    if (site === 'lichess') {
+      const r = await fetch(`https://lichess.org/api/user/${encodeURIComponent(user)}`,
+                            {signal: AbortSignal.timeout(4000)});
+      if (r.ok) {
+        const d = await r.json();
+        // `streaming` is the live flag; `streamer` only says a channel exists
+        out.live = !!d.streaming;
+        out.kind = d.streaming ? 'live' : (d.streamer ? 'has-channel' : null);
+        out.channel = d.streamer?.twitch?.channel || d.streamer?.youTube?.channel || null;
+      }
+    } else if (site === 'chesscom') {
+      const r = await fetch('https://api.chess.com/pub/streamers', {signal: AbortSignal.timeout(4000)});
+      if (r.ok) {
+        const d = await r.json();
+        const me = (d.streamers || []).find(x => String(x.username || '').toLowerCase() === user.toLowerCase());
+        // their list carries is_live; being ON the list at all only means "is a streamer"
+        out.live = !!(me && me.is_live);
+        out.kind = me ? (me.is_live ? 'live' : 'has-channel') : null;
+        out.channel = me?.twitch_url || me?.url || null;
+      }
+    } else {
+      return {error: `no streamer directory for ${site}`};
+    }
+  } catch (e) {
+    return {error: String(e.message || e)};   // offline, rate-limited, or the shape changed
+  }
+  streamerCache.set(key, out);
+  return out;
+}

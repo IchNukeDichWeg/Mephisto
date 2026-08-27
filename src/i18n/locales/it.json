@@ -522,5 +522,8 @@
   "panel.bot.refused": "La pagina l'ha rifiutato ({why}): chess.com potrebbe averlo chiuso.",
   "set.bot_trick_game": "Partita del bot",
   "set.tip.bot_trick_game": "Quale partita consegnare al bot. Ogni linea qui chiude la partita – un matto, o una patta che il client rivendica da sé – perché una partita finita per abbandono si fermerebbe col bot ancora al tratto, e lui risponderebbe davvero. Automatico ne sceglie una che vince col colore che ti è toccato. L'elenco del pannello imposta la stessa cosa.",
-  "panel.bot.no_library": "Nessuna partita caricata – ricarica l’estensione"
+  "panel.bot.no_library": "Nessuna partita caricata – ricarica l’estensione",
+  "set.streamer_alert": "Avviso: avversario in diretta",
+  "set.tip.streamer_alert": "Segnalare nel pannello quando l'avversario sta trasmettendo la partita in diretta. Entrambi i siti lo pubblicano da soli -- lichess dice se un giocatore sta trasmettendo, chess.com pubblica chi è in diretta -- quindi qui non si guarda nessuna trasmissione. È solo un AVVISO: non cambia alcuna impostazione e non gioca diversamente. Disattivato di default perché chiede al sito il nome del tuo avversario, una volta per partita, dall'estensione e non dalla scheda di gioco.",
+  "panel.msg.opp_streaming": "{user} sta trasmettendo questa partita in diretta"
 }
