@@ -2086,8 +2086,12 @@ function draw_eval_bar_unevaluated() {
         bar.style.bottom = flipped ? 'auto' : '0';
         bar.style.height = '50%';
     }
-    if (config.eval_bar) {
-        request_draw_eval_bar({frac: 0.5, text: '0.0', winningWhite: true,
+    // THE BAR IS NOT THE ONLY THING THIS MESSAGE DRAWS. The graph and the Live Stats strip ride on
+    // it, so gating the send on the bar's own toggle meant Live Stats (and the graph) drew nothing
+    // at all with the bar off -- with their own switch on. Each rider is already null-gated on its
+    // own setting; `bar` says whether the bar itself is wanted.
+    if (config.eval_bar || config.eval_history || config.live_stats) {
+        request_draw_eval_bar({frac: 0.5, text: '0.0', winningWhite: true, bar: !!config.eval_bar,
                                history: config.eval_history ? eval_history : null,
                                stats: config.live_stats ? live_stats(eval_history) : null,
                                phases: null});
@@ -2129,9 +2133,9 @@ function update_eval_bar(line) {
     record_eval_history(frac);
 
     // mirror the bar onto the site board (chess.com-style: score inside, on the winning side's end)
-    if (config.eval_bar) {
+    if (config.eval_bar || config.eval_history || config.live_stats) {
         const text = ('mate' in line) ? `M${Math.abs(line.mate)}` : (Math.abs(line.score) / 100).toFixed(1);
-        request_draw_eval_bar({frac, text, winningWhite: frac >= 0.5,
+        request_draw_eval_bar({frac, text, winningWhite: frac >= 0.5, bar: !!config.eval_bar,
                                history: config.eval_history ? eval_history : null,
                                stats: config.live_stats ? live_stats(eval_history) : null,
                                phases: config.eval_history
@@ -7684,8 +7688,9 @@ function watch_config_changes() {
                 if (key === 'pv_walk_limit') config.pv_walk_limit = Math.max(1, Math.min(50, parseInt(value) || 5));
                 if (key === 'help_mode' && !value) request_clear_hint();
                 if (key === 'class_on_board' && !value) send_to_active_tab({clearMoveClass: true});
-                if (key === 'eval_bar' && !value) request_clear_eval_bar();
-                if (key === 'eval_history') request_clear_eval_bar(); // redrawn by the next eval
+                // one overlay message carries the bar, the graph and the stats strip: clear all
+                // three and let the next evaluation redraw whichever are still switched on
+                if (key === 'eval_bar' || key === 'eval_history' || key === 'live_stats') request_clear_eval_bar();
                 if (key === 'live_stats' || key === 'live_classify' || key === 'class_on_board'
                     || key === 'opp_alert') ensure_classifier();
                 if (key === 'tablebase') tablebase_data = null;       // a stale answer must not survive
