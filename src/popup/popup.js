@@ -407,6 +407,10 @@ async function initPanel(root, tabId) {
         // Accuracy as it happens, on its own strip under the eval history.
         live_stats: JSON.parse(MephistoConfig.get('live_stats')) || false,
         live_classify: JSON.parse(MephistoConfig.get('live_classify')) || false,
+        // The same verdict, on the SITE's board instead of the panel's. Independent of the toggle
+        // above on purpose: someone watching the real board wants the badge there whether or not the
+        // panel's little board is also carrying one.
+        class_on_board: JSON.parse(MephistoConfig.get('class_on_board')) || false,
         streamer_alert: JSON.parse(MephistoConfig.get('streamer_alert')) || false,
         // which verdicts get a badge; everything, unless the settings row says otherwise
         live_classify_which: (() => {
@@ -4709,6 +4713,10 @@ function on_new_pos(fen, startFen, moves) {
         board.position(fen);
         clear_annotations();
         clear_book_annotations(); // stale book arrows go now; the new position's lookup redraws them
+        // The board badge grades the move that LANDED here, so it belongs to the position that just
+        // left. Cleared with the rest; draw_last_move_class puts the new one up once this position
+        // has been graded.
+        if (config.class_on_board) send_to_active_tab({clearMoveClass: true});
     } catch (e) { /* board not built yet (first push before init finished) -- the next push paints it */ }
     opp_alert_on_new_pos(fen); // arm the opponent-mistake check from the just-finished position's eval
     last_pos = {startFen: startFen || null, moves: moves || ''}; // Copy PGN reads this
@@ -7298,7 +7306,11 @@ function record_eval_history(frac) {
     // Recorded for EITHER reader. Live Stats derives its accuracy from this same array, so gating
     // the recording on the graph's own toggle left the strip with nothing to read and looking broken.
     // One number per ply either way -- there is nothing to save by not recording it.
-    if ((!config.eval_history && !config.live_stats) || typeof frac !== 'number') return;
+    // EVERY READER, not two of them. Move Classification and the Opponent Mistake Alert grade from
+    // this same array, so with the graph and the strip both off nothing was ever recorded and
+    // nothing was ever graded -- the badge simply never appeared, on any move, with its own toggle
+    // on. (The comment below already records this mistake being made once, for the strip.)
+    if ((!config.eval_history && !classifier_wanted()) || typeof frac !== 'number') return;
     // premove_tracker is the one place the CURRENT position's startFen + move list are kept
     // (on_new_pos sets it unconditionally, whether or not Premove is on). last_eval carries neither.
     const startFen = premove_tracker.startFen || '';
@@ -7332,7 +7344,15 @@ function record_eval_history(frac) {
         const prev = ply_facts[ply];
         const fuller = !prev || prev.fen !== last_eval.fen || lines.length >= prev.lines.length;
         const depth = Number(last_eval.lines?.[0]?.depth) || 0;
-        if (lines.length && fuller) ply_facts[ply] = {fen: last_eval.fen, turn, lines, depth};
+        // THE FIRST FRAME PAST THE FLOOR, kept for good. Grading compares two positions, and live
+        // each one is searched for however long it happens to get -- one gets 12 plies, the next 26
+        // because you sat on it. Comparing those two charges the mover for the ENGINE changing its
+        // mind, so the pair used to be refused instead (see CLASSIFY_DEPTH_SLACK), which is why a
+        // move went ungraded on a board with every switch on. Both positions now have a reading
+        // taken at the same shallow depth, so the pair is comparable whatever happened afterwards.
+        const ref = (!fresh && prev.ref) ? prev.ref
+                  : (depth >= CLASSIFY_MIN_DEPTH ? {frac, depth} : null);
+        if (lines.length && fuller) ply_facts[ply] = {fen: last_eval.fen, turn, lines, depth, ref};
     }
     if (ply_facts.length > ply + 1) ply_facts.length = ply + 1;
 }
@@ -7362,7 +7382,7 @@ let move_class_key = '';
 // which is exactly how these features behave before the first evaluation anyway.
 let classifier_asked = false;
 function classifier_wanted() {
-    return !!(config.live_stats || config.live_classify || config.opp_alert);
+    return !!(config.live_stats || config.live_classify || config.class_on_board || config.opp_alert);
 }
 function ensure_classifier() {
     if (self.MephistoClassify || classifier_asked || !classifier_wanted()) return;
@@ -7380,7 +7400,7 @@ function classify_history() {
     const startFen = premove_tracker.startFen || '';
     const moves = (premove_tracker.moves || '').trim().split(/\s+/).filter(Boolean);
     const key = `${startFen}|${moves.join(' ')}|${eval_history.length}|${ply_facts.length}`
-        + `|${eval_seen.filter(Boolean).length}`;
+        + `|${eval_seen.filter(Boolean).length}|${ply_facts.filter(f => f && f.ref).length}`;
     if (key === move_class_key) return move_classes;
     move_class_key = key;
     move_classes = [];
@@ -7393,8 +7413,8 @@ function classify_history() {
             // win% is stored white-relative; every input below is from the MOVER's side, exactly
             // as the review computes it -- get this backwards and every black move is a blunder
             const wpAt = (ply) => {
-                const f = eval_history[ply];
-                if (typeof f !== 'number' || eval_seen[ply] === false) return null;   // filler: unknown
+                const f = ply_facts[ply]?.ref ? ply_facts[ply].ref.frac : eval_history[ply];
+                if (typeof f !== 'number' || (!ply_facts[ply]?.ref && eval_seen[ply] === false)) return null;
                 return (white ? f : 1 - f) * 100;
             };
             const winBefore = wpAt(i), winAfter = wpAt(i + 1);
@@ -7403,7 +7423,12 @@ function classify_history() {
             // the mover for the ENGINE changing its mind (seen in the trace: the engine's own top
             // move came back a blunder, 70.5 -> 29.5). The review never hits this because it
             // searches every position to the same budget. Ungraded beats wrongly graded.
-            const dBefore = ply_facts[i]?.depth || 0, dAfter = ply_facts[i + 1]?.depth || 0;
+            // Reference depths where both plies have one -- they are first-crossings of the same
+            // floor, so they sit within a ply or two of each other by construction, and the pair is
+            // comparable however deep either search ran on afterwards. Falls back to the final
+            // depths (and the old slack) for a position recorded before the reference existed.
+            const dBefore = ply_facts[i]?.ref?.depth || ply_facts[i]?.depth || 0;
+            const dAfter = ply_facts[i + 1]?.ref?.depth || ply_facts[i + 1]?.depth || 0;
             const comparable = dBefore >= CLASSIFY_MIN_DEPTH && dAfter >= CLASSIFY_MIN_DEPTH
                 && Math.abs(dBefore - dAfter) <= CLASSIFY_DEPTH_SLACK;
             const facts = ply_facts[i];
@@ -7572,6 +7597,7 @@ const LIVE_CONFIG_KEYS = [
     'safety_net', 'safety_net_mode', 'safety_net_drop', 'safety_net_max',
     'bot_tricks', 'bot_trick_game', 'bot_trick_delay', 'bot_trick_pgn',
     'computer_evaluation', 'multiple_lines', 'compute_time', 'compute_depth', 'search_mode',
+    'live_classify', 'class_on_board', 'live_classify_which',
     'analysis_limit', 'analysis_limit_mode',
     'arrow_opacity', 'arrow_rank', 'arrow_labels', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
     'premove_confidence', 'premove_plies', 'move_time', 'move_variance', 'move_reason',
@@ -7657,9 +7683,11 @@ function watch_config_changes() {
                 if (key === 'forced_lines') config.forced_lines = Math.max(0, Math.min(5, parseInt(value) || 0));
                 if (key === 'pv_walk_limit') config.pv_walk_limit = Math.max(1, Math.min(50, parseInt(value) || 5));
                 if (key === 'help_mode' && !value) request_clear_hint();
+                if (key === 'class_on_board' && !value) send_to_active_tab({clearMoveClass: true});
                 if (key === 'eval_bar' && !value) request_clear_eval_bar();
                 if (key === 'eval_history') request_clear_eval_bar(); // redrawn by the next eval
-                if (key === 'live_stats' || key === 'live_classify' || key === 'opp_alert') ensure_classifier();
+                if (key === 'live_stats' || key === 'live_classify' || key === 'class_on_board'
+                    || key === 'opp_alert') ensure_classifier();
                 if (key === 'tablebase') tablebase_data = null;       // a stale answer must not survive
                 // a reply computed at the old rating must not sit under a label showing the new one:
                 // drop it and ask again (ensure_threat_human retunes the net in place via setoption)
@@ -7744,8 +7772,7 @@ let last_draw_trace = null; // see the note in draw_moves: this trace is per-CHA
 // the PANEL's own board, not the site's: the site board has no badge layer, and the panel board is
 // the one the panel already owns.
 function draw_last_move_class() {
-    const overlay = PANEL_ROOT.getElementById('move-annotations');
-    if (!overlay || !config.live_classify) return;
+    if (!config.live_classify && !config.class_on_board) return;
     const moves = (premove_tracker.moves || '').trim().split(/\s+/).filter(Boolean);
     if (!moves.length) return;
     const uci = moves[moves.length - 1];
@@ -7756,6 +7783,15 @@ function draw_last_move_class() {
     // the per-class filter: null means "everything", which is what an untouched install has
     if (config.live_classify_which && !config.live_classify_which.includes(klass)) return;
     const sq = uci.slice(2, 4);
+    // ...on the SITE's board, when that toggle is on. The content script sizes it to that board's
+    // squares; the same class, the same colour and the same glyph as the panel's own badge, because
+    // the same classifier decided both.
+    if (config.class_on_board) {
+        send_to_active_tab({drawMoveClass: true, square: sq, glyph: C.CLASS_GLYPH[klass] || '',
+                            color: C.CLASS_COLOR[klass] || '#8b8987', klass});
+    }
+    const overlay = PANEL_ROOT.getElementById('move-annotations');
+    if (!overlay || !config.live_classify) return;
     const fx = sq.charCodeAt(0) - 97 + 1, ry = parseInt(sq[1], 10);
     const flipped = board.orientation() !== 'white';
     const cx = 0.5 + ((flipped ? 9 - fx : fx) - 1);
