@@ -305,6 +305,13 @@ class GeneralSettings extends SettingsPage {
             const NO_ELO = [...ONE_PASS, 'tetrarch-native'];
             document.getElementById('elo_section')
                 ?.classList.toggle('hidden', NO_ELO.includes(engine_select.getValue()));
+            // Playstyle needs more than one scored line from an engine whose moves chess.js can
+            // replay: a cloud/remote engine answers with one, four-player chess has its own path.
+            // Keep in step with playstyle_applies() in popup.js.
+            const NO_STYLE = ['cloud-chessapi', 'cloud-stockfish-online', 'cloud-chesscom',
+                              'remote', 'tetrarch-native'];
+            document.getElementById('playstyle_select')?.closest('.set-row')
+                ?.classList.toggle('filter-hidden', NO_STYLE.includes(engine_select.getValue()));
             // The four-player mode override replaces Variant for Tetrarch: a different question
             // (which RULES this board plays by) for the one engine it applies to.
             document.getElementById('fourpc_mode_section')
