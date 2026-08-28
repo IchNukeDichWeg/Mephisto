@@ -68,7 +68,10 @@ function wdlToCp(wdl) {                    // [loss, draw, win] logits (side to 
 // ---- adapter -----------------------------------------------------------------------------------
 export async function createMaia3Engine(listen, initialElo) {
     const Chess = self.Chess;
-    const bytes = new Uint8Array(await fetch('/lib/engine/maia3/maia3-23m.onnx').then(r => r.arrayBuffer()));
+    // 88MB, and NOT in the update archive -- so on an install that has only ever taken updates this
+    // is where the weights are downloaded once and kept (see model-fetch.js).
+    const note = (msg) => { try { listen(`info string ${msg}`); } catch (e) { /* no listener yet */ } };
+    const bytes = new Uint8Array(await fetchModel('/lib/engine/maia3', 'maia3-23m.onnx', note));
     const session = await ort.InferenceSession.create(bytes);
     console.log(`[Maia-3] 23M model loaded (${bytes.length} bytes), onnxruntime ready`);
 
