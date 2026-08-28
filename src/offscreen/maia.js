@@ -1,3 +1,4 @@
+import { fetchModel } from '/src/offscreen/model-fetch.js';
 // Maia engine for the offscreen host: a UCI-speaking adapter that runs ONE onnxruntime-web forward
 // pass of an lc0 Maia net (no lc0, no search). Same {uci, listen, onError, terminate} interface as
 // the Stockfish engines, so popup.js drives it identically. Encoding/decoding verified against lc0
@@ -12,9 +13,10 @@ import '/src/offscreen/ort-env.js';
 
 // ---- lc0 canonical 1858 policy index (harvested from lc0; ships as JSON) -----------------------
 let moveToIdx = null;
-async function loadTable() {
+async function loadTable(note) {
     if (moveToIdx) return;
-    const arr = await fetch('/lib/engine/maia/lc0_policy_index.json').then(r => r.json());
+    const arr = JSON.parse(new TextDecoder().decode(
+        await fetchModel('/lib/engine/maia', 'lc0_policy_index.json', note)));
     moveToIdx = new Map(arr.map((m, i) => [m, i]).filter(([m]) => m));
 }
 
@@ -97,11 +99,14 @@ function valueToCp(wdl) {
 
 // ---- the UCI adapter ---------------------------------------------------------------------------
 export async function createMaiaEngine(level, listen) {
-    await loadTable();
+    // A download is progress, not silence: the panel already shows `info string` lines, and the
+    // first run of an update-only install is where the weights actually arrive.
+    const note = (msg) => { try { listen(`info string ${msg}`); } catch (e) { /* no listener yet */ } };
+    await loadTable(note);
     const Chess = self.Chess;
     // fetch the net bytes ourselves (like fetchNnue) and hand ort the buffer -- more robust than
     // letting ort fetch a URL from inside the offscreen doc, and matches the rest of the host.
-    const bytes = new Uint8Array(await fetch(`/lib/engine/maia/maia-${level}.onnx`).then(r => r.arrayBuffer()));
+    const bytes = new Uint8Array(await fetchModel('/lib/engine/maia', `maia-${level}.onnx`, note));
     const session = await ort.InferenceSession.create(bytes);
     console.log(`[Maia] net maia-${level} loaded (${bytes.length} bytes), onnxruntime ready`);
 

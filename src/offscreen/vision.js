@@ -1,3 +1,4 @@
+import { fetchModel } from '/src/offscreen/model-fetch.js';
 // Screenshot -> FEN. Runs the two board-recognition models (see lib/engine/vision/README.md) in the
 // OFFSCREEN document, because that is where onnxruntime-web already lives for Maia and where an
 // extension-origin fetch of the .onnx bytes is allowed.
@@ -20,15 +21,18 @@ const BOARD_SIZE = 256; // 8 tiles x 32px -- the position model asserts this exa
 
 let bboxSession = null, posSession = null;
 
-async function session(path) {
-    const r = await fetch(chrome.runtime.getURL(path));
-    return ort.InferenceSession.create(new Uint8Array(await r.arrayBuffer()));
+// The two vision models are 12MB and 59MB and live under lib/engine, so an update-only install has
+// neither -- screen reading looked broken rather than un-downloaded. Same fetch as the Maia nets:
+// bundled first, downloaded once and cached otherwise.
+async function session(file) {
+    return ort.InferenceSession.create(
+        new Uint8Array(await fetchModel('/lib/engine/vision', file, (m) => console.log(`[vision] ${m}`))));
 }
 
 async function ready() {
     await readyEnv();   // the thread budget must be in place BEFORE the first session is created
-    if (!bboxSession) bboxSession = await session('/lib/engine/vision/bbox.onnx');
-    if (!posSession) posSession = await session('/lib/engine/vision/position.onnx');
+    if (!bboxSession) bboxSession = await session('bbox.onnx');
+    if (!posSession) posSession = await session('position.onnx');
 }
 
 // plain RGB 0..1 in NCHW -- upstream does NOT apply ImageNet mean/std, and adding it silently
