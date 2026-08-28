@@ -1,4 +1,10 @@
 import { fetchModel } from '/src/offscreen/model-fetch.js';
+// onnxruntime is a MODULE here, not a page global: every other adapter imports it and so must this
+// one. Without these two lines `ort` is simply undefined and the engine never loads -- and the node
+// verification could not catch it, because that harness hands the module an `ort` of its own.
+import * as ort from '/lib/ort/ort.wasm.bundle.min.mjs';
+// the ort env (threads, wasm paths) is configured ONCE, shared by every session
+import '/src/offscreen/ort-env.js';
 // Maia-2: ONE model that takes BOTH ratings -- yours and your opponent's -- and answers the same
 // position differently depending on who is playing it against whom. That is the gap between Maia-1
 // (pick a band) and Maia-3 (one slider): here the opponent is part of the question.
