@@ -212,13 +212,13 @@ async function initEngine(clientId, engineName, variant, maiaLevel, elos) {
     disposeClient(clientId); // also bumps the generation, so ours is the newest from here on
     loading.add(clientId);   // ...and this document is NOT idle while we load (see maybeGoIdle)
     try {
-        return await loadEngine(clientId, engineName, variant, maiaLevel);
+        return await loadEngine(clientId, engineName, variant, maiaLevel, elos);
     } finally {
         loading.delete(clientId);
     }
 }
 
-async function loadEngine(clientId, engineName, variant, maiaLevel) {
+async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
     const gen = epoch[clientId];
     // True once a newer init (or a dispose) has superseded this load. Checked after every await, and
     // again immediately before publishing, since that is the moment that would do the damage.
