@@ -555,6 +555,7 @@
   "panel.tip.multi_lines": "Ile linii kandydujacych raportuje silnik. Wiecej linii oznacza, ze kazda jest liczona plycej.",
   "panel.tip.memory": "Tablica hash silnika. Wieksza pomaga dlugim obliczeniom; wieksza niz maszyna moze oddac szkodzi wszystkiemu.",
   "panel.tip.turn_switch": "Kto jest na posunieciu - dotknij, by zmienic, jesli jest zle (zadania / wlasne pozycje).",
-  "panel.maia2_elos": "Maia-2 ty / przeciwnik",
-  "panel.tip.maia2_elos": "Maia-2 gra POJEDYNEK, nie poziom: jeden model bierze twoj ranking i ranking przeciwnika, wiec ta sama pozycja jest rozegrana inaczej przez 1200 przeciw 2000 niz przez 2000 przeciw 1200. Progi co 100 od ponizej 1100 do 2000+. Oba dzialaja natychmiast."
+  "panel.tip.maia2_elos": "Maia-2 gra POJEDYNEK, nie poziom: jeden model bierze twoj ranking i ranking przeciwnika, wiec ta sama pozycja jest rozegrana inaczej przez 1200 przeciw 2000 niz przez 2000 przeciw 1200. Progi co 100 od ponizej 1100 do 2000+. Oba dzialaja natychmiast.",
+  "panel.maia2_self": "Maia-2 twoj ranking",
+  "panel.maia2_oppo": "Maia-2 ranking przeciwnika"
 }

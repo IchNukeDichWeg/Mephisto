@@ -555,6 +555,7 @@
   "panel.tip.memory": "The engine's hash table. Bigger helps long searches; bigger than the machine can spare hurts everything.",
   "panel.tip.copy_diagnostics": "Copy diagnostics: version, engine, what was detected, why the last move was or was not played, and the recent trace. Paste it into a bug report - it contains no addresses and nothing that identifies you.",
   "panel.tip.turn_switch": "Whose turn to move - tap to flip if it's wrong (puzzles / custom positions).",
-  "panel.maia2_elos": "Maia-2 you / opp",
-  "panel.tip.maia2_elos": "Maia-2 plays a MATCHUP, not a level: one model that takes your rating and your opponent's, so the same position is answered differently by a 1200 facing a 2000 than by a 2000 facing a 1200. Buckets of 100 from under 1100 to 2000+. Both apply instantly (no reload)."
+  "panel.tip.maia2_elos": "Maia-2 plays a MATCHUP, not a level: one model that takes your rating and your opponent's, so the same position is answered differently by a 1200 facing a 2000 than by a 2000 facing a 1200. Steps of 50, and both apply instantly (no reload).",
+  "panel.maia2_self": "Maia-2 your Elo",
+  "panel.maia2_oppo": "Maia-2 opponent Elo"
 }
