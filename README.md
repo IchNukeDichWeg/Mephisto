@@ -198,7 +198,11 @@ instead of analysing the wrong position.
 
 - **Multiple lines** - top candidates (MultiPV) up to what the engine supports, each drawn with its evaluation, its rank and its own score. With a **human model** selected the column shows how likely each move is instead of the same position eval five times.
 - **Eval bar** - vertical bar beside the board, from your perspective, plus an **eval history graph** shaped like
-  Lichess's, marking where the opening, middlegame and endgame begin (ported from scalachess's `Divider`).
+  Lichess's, marking where the opening, middlegame and endgame begin (ported from scalachess's `Divider`). After a
+  move it **holds the last settled reading until the new search reaches depth 6** rather than flashing whatever the
+  first iteration said: depth 1 is a static eval with one ply on top, and painting it made the bar jump to 0.0 and
+  back on every move. Nothing is averaged - the previous measurement stands until there is a real one. A search that
+  *ends* below that depth is drawn anyway, and the one-pass nets (Maia) skip the wait entirely.
 - **Threat analysis** - the opponent's strongest reply, so you see what they're threatening.
 - **Move confidence** - how much better the best move is than the second: `clearly best (+3.7)`, `+0.35 over #2`,
   `several equal`, `only move`. Read off the MultiPV lines already on screen, so it costs no extra search.
@@ -927,7 +931,7 @@ is a subset writing to the same storage. Everything applies to the next move wit
 | **Number Arrows** | Number each arrow with where its line ranks: 1 for the engine's best, 2 upwards. On by default; with more than a couple of lines the colours alone stop distinguishing them. |
 | **Arrow Opacity** | How strongly arrows are drawn, 1–100, on the panel board and the page board alike. Floored so the bottom of the slider cannot render an invisible arrow. |
 | **Board Animation** | Animate the panel's board and its overlays. Off draws every change instantly. |
-| **Live Stats** | A strip under the board: running accuracy for both sides, and each notable move named with the classifier's own verdict - Brilliant, Miss, Blunder and the rest, worst first, in the verdict's colour. The same classifier Game Review uses, so the strip and the review afterwards agree. Works with the graph switched off. |
+| **Live Stats** | A strip under the board: running accuracy for both sides, and each notable move named with the classifier's own verdict - Brilliant, Miss, Blunder and the rest, worst first, in the verdict's colour. The same classifier Game Review uses, so the strip and the review afterwards agree. Works with the graph or the bar switched off. |
 | **Move Classification** | Grades the move just played and marks it on the panel board the way a Game Review does - live, while the game is going. Both positions are read at the same shallow depth (the first frame past the floor, kept), so a move is not left ungraded just because you sat on one position and searched it three times as deep as the next. Off by default. When on, per-class switches choose which verdicts get a badge (only Brilliant and Blunder, say); the strip and the alert are unaffected by that filter. |
 | **Classification On The Board** | The same verdict on the **site's** board rather than the panel's: a badge on the square the move landed on, sized to that board. Its own switch and independent of the one above, so the real board can carry the badge whether or not the panel's little board does; the per-class filter applies to both. |
 | **Opponent Mistake Alert** | A toast when the opponent slips. With Move Classification graded, it names the verdict - Blunder, Miss, Mistake or Inaccuracy, including a Miss (a win let go) the plain win-drop rule cannot see; otherwise the win% drop bands decide. Only fires when both positions were searched deep enough to trust. |
