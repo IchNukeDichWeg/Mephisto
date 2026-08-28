@@ -299,7 +299,10 @@ class GeneralSettings extends SettingsPage {
             // popup.js, which this must match); this page did not, so it kept offering a strength
             // cap that nothing ever applied -- maia picks its strength by which net is loaded, and
             // tetrarch speaks its own four-player protocol and has no such option at all.
-            const NO_ELO = ['maia', 'maia3', 'tetrarch-native'];
+            // The one-pass nets have no UCI_Elo either -- their strength IS the net. Keep in step
+            // with ONE_PASS_ENGINES in popup.js; the ladder pins that this stays a subset of its list.
+            const ONE_PASS = ['maia', 'maia3', 'elite-leela'];
+            const NO_ELO = [...ONE_PASS, 'tetrarch-native'];
             document.getElementById('elo_section')
                 ?.classList.toggle('hidden', NO_ELO.includes(engine_select.getValue()));
             // The four-player mode override replaces Variant for Tetrarch: a different question

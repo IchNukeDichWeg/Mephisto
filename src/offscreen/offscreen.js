@@ -233,10 +233,17 @@ async function loadEngine(clientId, engineName, variant, maiaLevel) {
     };
     // Maia: not a Stockfish WASM build -- a UCI adapter running one onnxruntime forward pass of the
     // selected lc0 Maia net (no search). Same interface, so the panel drives it like any engine.
-    if (engineName === 'maia' || engineName === 'maia3') {
+    if (engineName === 'maia' || engineName === 'maia3' || engineName === 'elite-leela') {
         const engine = engineName === 'maia3'
             ? await (await import('/src/offscreen/maia3.js')).createMaia3Engine((line) => send(clientId, { kind: 'line', line }), maiaLevel)
-            : await (await import('/src/offscreen/maia.js')).createMaiaEngine(maiaLevel || '1500', (line) => send(clientId, { kind: 'line', line }));
+            : engineName === 'elite-leela'
+                // Elite Leela: an lc0 net trained on the Lichess Elite database (2200+ human games),
+                // run the same way Maia is -- one forward pass, policy for the move, its WDL head for
+                // the score. Verified move-for-move against lc0 itself at nodes=1.
+                ? await (await import('/src/offscreen/maia.js')).createMaiaEngine(null,
+                    (line) => send(clientId, { kind: 'line', line }),
+                    { dir: '/lib/engine/elite', file: 'elite-leela.onnx' })
+                : await (await import('/src/offscreen/maia.js')).createMaiaEngine(maiaLevel || '1500', (line) => send(clientId, { kind: 'line', line }));
         if (superseded()) return abandon(engine);
         clients[clientId] = engine;
         const queued = pending[clientId] || []; delete pending[clientId];

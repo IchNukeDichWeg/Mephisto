@@ -951,6 +951,7 @@ is a subset writing to the same storage. Everything applies to the next move wit
 | **Play Book Moves** | Plays from the book instead of the engine's pick - an engine that always opens the same way is itself a tell. 20-game floor, 40cp check. If the lookup is late the engine's move is played. |
 | **Background Play** | Off, moves fire only while the tab is focused. On keeps everything running hidden - Chrome throttles silent background tabs, so the tab is marked as playing audio and shows a speaker icon. |
 | **Help Mode** | Arrows on the site's board, plays nothing. Overrides Autoplay. |
+| **Elite Leela** | A Leela net trained on the **Lichess Elite Database** - human games at 2200+ - so it plays like a strong human rather than a search engine. One forward pass, like Maia: the policy head picks the move, the WDL head gives the score. Verified move-for-move against lc0 itself. |
 | **Playstyle** | A character, not a strength: among lines the engine already called equal, *Attacking* takes the forcing move (check, capture, promotion) and *Quiet* takes the calm one, inside a 35cp tolerance so the style never plays a worse move. *Balanced* (the default) is the engine's own pick. Book and tablebase moves still outrank it. |
 | **Humanize** / **Clock Mode** / **Mirror Time** | Which move is played, and how long it takes. See [Humanize](#humanize). |
 | **Pace to Clock** | Shrinks the simulated think pause and cursor travel when the clock gets short. Off by default; never lengthens a move. |
@@ -1136,6 +1137,7 @@ that were here shipped in one release.
 - [ ] **More engines** - the lineup covers *strong* and *human-like* and not much between. Variety of character, not
   more strength. **lc0 (Leela)** in WASM would be for comparing styles, not for strength.
   **A playstyle knob landed instead, in v3.1.302**: Attacking / Quiet / Balanced, chosen from the lines the engine already found and capped at 35cp, so it is character without a strength cost. That is variety from the engines already here; a genuinely different NET (a Leela build, or another human-trained model beside Maia) is still a download, a licence check and a browser to verify it in.
+  **Elite Leela landed in v3.1.303**, and it cost no new inference code: the Maia runner was always an *lc0* runner (112-plane input, 1858-move policy), so an lc0 net trained on the Lichess Elite database drops straight in - a strong-human character where Maia covers 1100-1900. What is still open is a net that is not an lc0 net.
 
 - [ ] **Short videos and more screenshots** - a premove firing, Humanize pacing a move, the screen reader following a
   board. Some of this only makes sense in motion.
