@@ -540,7 +540,7 @@
   "set.class_on_board": "Tahtada sınıflandırma",
   "set.tip.class_on_board": "Aynı değerlendirme, panelin tahtası yerine SİTENİN tahtasına çizilir -- hamlenin indiği kareye, o tahtanın ölçüsünde bir rozet. Kendi anahtarı vardır ve yukarıdakinden bağımsızdır: rozet, panelin küçük tahtasında da olsun olmasın gerçek tahtada görünür. \"Hangileri gösterilsin\" filtresi ikisi için de geçerlidir.",
   "set.playstyle": "Oyun tarzi",
-  "set.tip.playstyle": "Guc degil, karakter. Motorun zaten buldugu varyantlar arasinda: Saldirgan zorlayici hamleyi (sah, alma, terfi), Sakin sakin olani, Acgozlu en cok materyal alani, Alan yer kazanani secer. Asla kaliteden odun vermeden: en fazla 35 santipiyon, insan agi uzerinde ise en iyi hamlenin olasiliginin ucte ikisi. En az 2 varyant gerekir - tek varyantla secilecek bir sey yoktur. Dengeli, motorun kendi secimidir.",
+  "set.tip.playstyle": "Guc degil, karakter. Motorun zaten buldugu varyantlar arasinda: Saldirgan zorlayici hamleyi (sah, alma, terfi), Sakin sakin olani, Acgozlu en cok materyal alani, Alan yer kazanani, Fedakarlik rakibin alabilecegi materyali sunani, Guvenli hicbir seyi bos birakmayani, Beraberlik esitlige en yakin varyanti secer. Asla kaliteden odun vermeden: en fazla 35 santipiyon, insan aginda en iyi hamlenin olasiliginin ucte ikisi - yani buradaki fedakarligi motor zaten saglam buluyor. En az 2 varyant gerekir. Dengeli, motorun kendi secimidir.",
   "set.style_balanced": "Dengeli (motorun secimi)",
   "set.style_attacking": "Saldirgan",
   "set.style_quiet": "Sakin",
@@ -559,5 +559,8 @@
   "panel.maia2_self": "Maia-2 senin puanin",
   "panel.maia2_oppo": "Maia-2 rakip puani",
   "set.style_greedy": "Acgozlu",
-  "set.style_space": "Alan"
+  "set.style_space": "Alan",
+  "set.style_sacrifice": "Fedakarlik",
+  "set.style_safe": "Guvenli",
+  "set.style_drawish": "Beraberlik"
 }

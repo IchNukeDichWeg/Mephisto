@@ -356,13 +356,16 @@
     </div>
     <div class="qs-row" id="qs_playstyle_row">
         <span data-i18n="set.playstyle" data-i18n-tip="set.tip.playstyle" class="qs-label tooltipped" data-position="left"
-              data-tooltip="A character, not a strength. Among the lines the engine already found: Attacking prefers the forcing move (check, capture, promotion), Quiet the calm one, Greedy the one that takes the most material, Space the one that gains ground. Never at a cost: at most 35 centipawns, or on a human net two thirds of the top move's probability. NEEDS MULTI LINES 2 OR MORE - with one line there is nothing to choose between. Balanced is the engine's own pick.">Playstyle</span>
+              data-tooltip="A character, not a strength. Among the lines the engine already found: Attacking prefers the forcing move (check, capture, promotion), Quiet the calm one, Greedy the one that takes the most material, Space the one that gains ground, Sacrifice the one that offers material the opponent may take, Safe the one that leaves nothing hanging, and Drawish the line closest to equality. Never at a cost: at most 35 centipawns, or on a human net two thirds of the top move's probability - so a sacrifice here is one the engine already rates as sound. NEEDS MULTI LINES 2 OR MORE - with one line there is nothing to choose between. Balanced is the engine's own pick.">Playstyle</span>
         <select id="qs_playstyle" class="browser-default">
             <option data-i18n="set.style_balanced" value="balanced">Balanced</option>
             <option data-i18n="set.style_attacking" value="attacking">Attacking</option>
             <option data-i18n="set.style_quiet" value="quiet">Quiet</option>
             <option data-i18n="set.style_greedy" value="greedy">Greedy</option>
             <option data-i18n="set.style_space" value="space">Space</option>
+            <option data-i18n="set.style_sacrifice" value="sacrifice">Sacrifice</option>
+            <option data-i18n="set.style_safe" value="safe">Safe</option>
+            <option data-i18n="set.style_drawish" value="drawish">Drawish</option>
         </select>
     </div>
       <!-- Copy Diagnostics. HERE and not in the button row: that row is absolutely positioned by id on

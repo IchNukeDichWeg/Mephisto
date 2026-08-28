@@ -6164,7 +6164,8 @@ const PLAYSTYLE_MARGIN = 35;   // centipawns a style may spend; a hair under the
 // measurement: enough to choose between moves a person might really play, not enough to reach the
 // tail of the distribution.
 const PLAYSTYLE_PROB_RATIO = 0.66;
-const PLAYSTYLE_STYLES = ['balanced', 'attacking', 'quiet', 'greedy', 'space'];
+const PLAYSTYLE_STYLES = ['balanced', 'attacking', 'quiet', 'greedy', 'space',
+                          'sacrifice', 'safe', 'drawish'];
 const PLAYSTYLE_PIECE_VAL = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
 
 // EVERY STYLE IS ONE NUMBER, read off the move and the position it lands in, and the picker simply
@@ -6176,13 +6177,30 @@ const PLAYSTYLE_PIECE_VAL = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
 //   quiet      the same number, negated -- the calm move among equals
 //   greedy     the material it takes, so a hanging rook beats a hanging pawn (checks are not the point)
 //   space      how far it goes toward the opponent, pawns counted double -- the move that gains ground
-function style_score(fen, uci, style) {
+//   sacrifice  the material it OFFERS: what the piece is worth if the opponent may take it, less what
+//              it just took. Sound by construction -- the engine already called this line equal, so a
+//              sacrifice it likes is one that works, not a blunder wearing a bow.
+//   safe       the same number negated: nothing left where it can be taken
+//   drawish    the line closest to 0.00 among the ones inside the tolerance. (Its opposite is not a
+//              style: taking the sharpest line IS Balanced.)
+function style_score(fen, uci, style, cp) {
     try {
         const c = new Chess(config.variant || 'chess', fen);
         const white = c.turn() === 'w';
         const mv = c.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]});
         if (!mv) return null;                       // not legal here: no opinion
         const forcing = (c.isCheck() ? 2 : 0) + (mv.captured ? 1 : 0) + (mv.promotion ? 1 : 0);
+        if (style === 'sacrifice' || style === 'safe') {
+            // what we are offering: the piece's value if the opponent can take it where it now
+            // stands, less whatever it just captured. A defended piece is still offered -- the
+            // opponent gets to decide -- which is what makes this a style and not an evaluation.
+            const them = white ? 'b' : 'w';
+            const exposed = c.isAttacked(mv.to, them)
+                ? (PLAYSTYLE_PIECE_VAL[mv.piece] || 0) - (PLAYSTYLE_PIECE_VAL[mv.captured] || 0) : 0;
+            return style === 'sacrifice' ? exposed : -exposed;
+        }
+        // The engine's own number for this line, so "closest to equality" is its opinion, not ours.
+        if (style === 'drawish') return Number.isFinite(cp) ? -Math.abs(cp) : 0;
         if (style === 'attacking') return forcing;
         if (style === 'quiet') return -forcing;
         if (style === 'greedy') {
@@ -6230,7 +6248,7 @@ function playstyle_pick(best) {
     const bestCp = line_cp_ours(bestLine);
     if (!Number.isFinite(bestCp) || Math.abs(bestCp) >= 90000) return best;  // never toy with a mate
     // Each style's number already points the right way, so the pick is always the highest.
-    let pick = best, pickScore = style_score(fen, best, style);
+    let pick = best, pickScore = style_score(fen, best, style, bestCp);
     if (pickScore === null) return best;
     const bestProb = bestLine.maiaprob;
     const human = Number.isFinite(bestProb);   // a policy net: rank by probability, not by score
@@ -6243,7 +6261,7 @@ function playstyle_pick(best) {
             if (!Number.isFinite(cp) || bestCp - cp > PLAYSTYLE_MARGIN) continue;  // outside the tolerance
             if (Math.abs(cp) >= 90000) continue;
         }
-        const s = style_score(fen, l.move, style);
+        const s = style_score(fen, l.move, style, line_cp_ours(l));
         if (s === null) continue;
         if (s > pickScore) { pick = l.move; pickScore = s; }
     }
