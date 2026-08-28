@@ -6155,6 +6155,14 @@ function humanize_presearch_ms(fen) {
 // the engine considers equal gets played.
 const PLAYSTYLE_MARGIN = 35;   // centipawns a style may spend; a hair under the noise between two
                                // near-equal lines at panel depths, so nothing measurable is given up
+// A HUMAN NET PRICES ITS MOVES IN PROBABILITY, NOT CENTIPAWNS. Maia and Elite Leela report the same
+// position eval on every line -- the score is the position's, the ranking is the policy's -- so a
+// centipawn tolerance admits EVERY candidate there and the style would quietly override the net's
+// own human ranking, which is the one thing those engines are for. On those lines the tolerance is
+// the move's share of the top move's probability instead. Two thirds is a judgment, not a
+// measurement: enough to choose between moves a person might really play, not enough to reach the
+// tail of the distribution.
+const PLAYSTYLE_PROB_RATIO = 0.66;
 const PLAYSTYLE_STYLES = ['balanced', 'attacking', 'quiet'];
 
 // How forcing a move is, from the move and the position it lands in: check 2, capture 1,
@@ -6181,11 +6189,17 @@ function playstyle_pick(best) {
     const want = (style === 'attacking') ? 1 : -1;
     let pick = best, pickScore = forcing_score(fen, best);
     if (pickScore === null) return best;
+    const bestProb = bestLine.maiaprob;
+    const human = Number.isFinite(bestProb);   // a policy net: rank by probability, not by score
     for (const l of lines) {
         if (l.move === best) continue;
-        const cp = line_cp_ours(l);
-        if (!Number.isFinite(cp) || bestCp - cp > PLAYSTYLE_MARGIN) continue;  // outside the tolerance
-        if (Math.abs(cp) >= 90000) continue;
+        if (human) {
+            if (!Number.isFinite(l.maiaprob) || l.maiaprob < bestProb * PLAYSTYLE_PROB_RATIO) continue;
+        } else {
+            const cp = line_cp_ours(l);
+            if (!Number.isFinite(cp) || bestCp - cp > PLAYSTYLE_MARGIN) continue;  // outside the tolerance
+            if (Math.abs(cp) >= 90000) continue;
+        }
         const s = forcing_score(fen, l.move);
         if (s === null) continue;
         if ((s - pickScore) * want > 0) { pick = l.move; pickScore = s; }
