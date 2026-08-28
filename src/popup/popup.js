@@ -1274,6 +1274,19 @@ function init_quick_settings() {
             });
         }
     }
+    // PLAYSTYLE BELONGS WHERE THE MOVES ARE. It decides which move gets played, so it sits in the
+    // panel beside the other things that do -- not only on the settings page. No reload and no
+    // re-search: the pick happens when the engine reports its lines, which is after every move.
+    const styleSel = PANEL_ROOT.getElementById('qs_playstyle');
+    if (styleSel) {
+        styleSel.value = config.playstyle || 'balanced';
+        styleSel.addEventListener('change', () => {
+            const v = PLAYSTYLE_STYLES.includes(styleSel.value) ? styleSel.value : 'balanced';
+            config.playstyle = v;
+            save('playstyle', v);
+            push_config();
+        });
+    }
     const eloRow = PANEL_ROOT.getElementById('qs_elo_row');
     if (eloRow) eloRow.style.display = (isMaia || isMaia3 || NO_ELO_ENGINES.includes(config.engine)) ? 'none' : '';
     const variantRow = PANEL_ROOT.getElementById('qs_variant_row');
