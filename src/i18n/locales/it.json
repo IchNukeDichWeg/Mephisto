@@ -540,7 +540,7 @@
   "set.class_on_board": "Classificazione sulla scacchiera",
   "set.tip.class_on_board": "Lo stesso giudizio, disegnato sulla scacchiera del SITO invece che su quella del pannello: un distintivo sulla casa di arrivo della mossa, dimensionato su quella scacchiera. Interruttore a sé e indipendente da quello sopra: il distintivo compare sulla scacchiera vera, che la piccola scacchiera del pannello ne porti uno o no. Il filtro \"Mostra quali\" vale per entrambi.",
   "set.playstyle": "Stile di gioco",
-  "set.tip.playstyle": "Un carattere, non una forza. Tra le linee che il motore ha gia trovato, Attacco preferisce la mossa forzante (scacco, cattura, promozione) e Tranquillo quella calma, ma solo finche costa al massimo 35 centipedoni, quindi lo stile non gioca mai peggio. Equilibrato e la scelta del motore.",
+  "set.tip.playstyle": "Un carattere, non una forza. Tra le linee che il motore ha gia trovato: Attacco preferisce la mossa forzante (scacco, cattura, promozione), Tranquillo quella calma, Avido quella che prende piu materiale, Spazio quella che guadagna terreno. Mai a scapito della qualita: al massimo 35 centipedoni, o su una rete umana due terzi della probabilita della mossa migliore. Servono 2 linee o piu: con una sola non c'e nulla da scegliere. Equilibrato e la scelta del motore.",
   "set.style_balanced": "Equilibrato (scelta del motore)",
   "set.style_attacking": "Attacco",
   "set.style_quiet": "Tranquillo",
@@ -557,5 +557,7 @@
   "panel.tip.turn_switch": "A chi tocca muovere - tocca per invertire se e sbagliato (problemi / posizioni personalizzate).",
   "panel.tip.maia2_elos": "Maia-2 gioca un ACCOPPIAMENTO, non un livello: un modello che prende il tuo Elo e quello dell'avversario, quindi la stessa posizione riceve una risposta diversa da un 1200 contro 2000 e da un 2000 contro 1200. Fasce da 100 da sotto 1100 a 2000+. Entrambi si applicano subito.",
   "panel.maia2_self": "Maia-2 il tuo Elo",
-  "panel.maia2_oppo": "Maia-2 Elo avversario"
+  "panel.maia2_oppo": "Maia-2 Elo avversario",
+  "set.style_greedy": "Avido",
+  "set.style_space": "Spazio"
 }

@@ -540,7 +540,7 @@
   "set.class_on_board": "Classificatie op het bord",
   "set.tip.class_on_board": "Hetzelfde oordeel, getekend op het bord van de SITE in plaats van dat van het paneel -- een badge op het veld waar de zet landde, op de maat van dat bord. Een eigen schakelaar, los van die hierboven: de badge verschijnt op het echte bord, of het kleine bord in het paneel er nu ook een draagt of niet. Het filter 'Welke tonen' geldt voor beide.",
   "set.playstyle": "Speelstijl",
-  "set.tip.playstyle": "Een karakter, geen speelsterkte. Onder de zetten die de engine al vond kiest Aanvallend de forcerende zet (schaak, slag, promotie) en Rustig de kalme - maar alleen zolang het hooguit 35 centipionnen kost, dus de stijl speelt nooit slechter. Gebalanceerd is de keuze van de engine.",
+  "set.tip.playstyle": "Een karakter, geen speelsterkte. Onder de zetten die de engine al vond: Aanvallend kiest de forcerende zet (schaak, slag, promotie), Rustig de kalme, Gulzig die het meeste materiaal pakt, Ruimte die terrein wint. Nooit ten koste van kwaliteit: hooguit 35 centipionnen, of bij een menselijk net twee derde van de kans van de beste zet. Vereist 2 lijnen of meer - bij een lijn valt er niets te kiezen. Gebalanceerd is de keuze van de engine.",
   "set.style_balanced": "Gebalanceerd (keuze van de engine)",
   "set.style_attacking": "Aanvallend",
   "set.style_quiet": "Rustig",
@@ -557,5 +557,7 @@
   "panel.tip.turn_switch": "Wie aan zet is - tik om te wisselen als het fout staat (puzzels / eigen stellingen).",
   "panel.tip.maia2_elos": "Maia-2 speelt een KOPPELING, geen niveau: een model dat jouw rating en die van je tegenstander neemt, dus dezelfde stelling wordt anders beantwoord door een 1200 tegen 2000 dan door een 2000 tegen 1200. Stappen van 100 vanaf onder 1100 tot 2000+. Beide werken meteen.",
   "panel.maia2_self": "Maia-2 jouw Elo",
-  "panel.maia2_oppo": "Maia-2 Elo tegenstander"
+  "panel.maia2_oppo": "Maia-2 Elo tegenstander",
+  "set.style_greedy": "Gulzig",
+  "set.style_space": "Ruimte"
 }

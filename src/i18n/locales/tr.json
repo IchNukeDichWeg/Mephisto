@@ -540,7 +540,7 @@
   "set.class_on_board": "Tahtada sınıflandırma",
   "set.tip.class_on_board": "Aynı değerlendirme, panelin tahtası yerine SİTENİN tahtasına çizilir -- hamlenin indiği kareye, o tahtanın ölçüsünde bir rozet. Kendi anahtarı vardır ve yukarıdakinden bağımsızdır: rozet, panelin küçük tahtasında da olsun olmasın gerçek tahtada görünür. \"Hangileri gösterilsin\" filtresi ikisi için de geçerlidir.",
   "set.playstyle": "Oyun tarzi",
-  "set.tip.playstyle": "Guc degil, karakter. Motorun zaten buldugu varyantlar arasinda Saldirgan zorlayici hamleyi (sah, alma, terfi), Sakin ise sakin olani secer - ama en fazla 35 santipiyon maliyetle, yani tarz asla daha kotu oynamaz. Dengeli, motorun kendi secimidir.",
+  "set.tip.playstyle": "Guc degil, karakter. Motorun zaten buldugu varyantlar arasinda: Saldirgan zorlayici hamleyi (sah, alma, terfi), Sakin sakin olani, Acgozlu en cok materyal alani, Alan yer kazanani secer. Asla kaliteden odun vermeden: en fazla 35 santipiyon, insan agi uzerinde ise en iyi hamlenin olasiliginin ucte ikisi. En az 2 varyant gerekir - tek varyantla secilecek bir sey yoktur. Dengeli, motorun kendi secimidir.",
   "set.style_balanced": "Dengeli (motorun secimi)",
   "set.style_attacking": "Saldirgan",
   "set.style_quiet": "Sakin",
@@ -557,5 +557,7 @@
   "panel.tip.turn_switch": "Sira kimde - yanlissa degistirmek icin dokunun (problemler / ozel pozisyonlar).",
   "panel.tip.maia2_elos": "Maia-2 bir ESLESME oynar, seviye degil: modelin girdisi senin ve rakibinin puani, yani ayni pozisyon 2000'e karsi 1200 tarafindan baska, 1200'e karsi 2000 tarafindan baska cevaplanir. 1100 altindan 2000+ ustune 100'luk basamaklar. Ikisi de aninda gecerli olur.",
   "panel.maia2_self": "Maia-2 senin puanin",
-  "panel.maia2_oppo": "Maia-2 rakip puani"
+  "panel.maia2_oppo": "Maia-2 rakip puani",
+  "set.style_greedy": "Acgozlu",
+  "set.style_space": "Alan"
 }
