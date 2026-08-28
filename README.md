@@ -62,7 +62,7 @@ New here:
 - **Game Review** - a full **offline game review** (accuracy, move quality, an eval graph and fair-play
   indicators) that never leaves your machine, **and chess.com's own Game Review** rendered on the same
   board, run from your own account (unlimited with chess.com premium, the free-tier allowance without).
-- **Engines** - modern **Stockfish dev / 18**, the human-like **Maia** and **Maia-3** nets, and an **Elo cap**.
+- **Engines** - modern **Stockfish dev / 18**, the human-trained **Maia-1 / Maia-2 / Maia-3** and **Elite Leela** nets, and an **Elo cap**.
 - **Playing like a person** - **Humanize**, **Clock Mode** and **Mirror Time**.
 - **Automation** - **Safe Premove**, **Pondering**, **Help Mode**, **Manual Mode** and rebindable **hotkeys**.
 - **Beyond the engine** - the **Opening Explorer**, an **endgame tablebase** and the **puzzle database**.
@@ -88,7 +88,7 @@ Distributed as an unpacked extension, not through the stores.
 
 Every [release](https://github.com/IchNukeDichWeg/Mephisto/releases) carries two archives:
 
-| | | |
+| Archive | Size | Use it when |
 |---|---|---|
 | `mephisto-<version>.zip` | **~585 MB** | **First install, always.** Everything, engines included. |
 | `mephisto-<version>-update.zip` | **~6 MB** | **Already have it.** Code only - extract *over* your existing folder. |
@@ -136,7 +136,7 @@ stays what it always was, a link to the releases page, because there would be no
 
 What it will not do:
 
-| | |
+| It will not | Why |
 |---|---|
 | Install anything by itself | It checks and it tells you. Files are only written when you press **Install Update**. |
 | Touch the bundled engines | The update archive doesn't contain them, so `lib/engine` and `lib/ort` are left alone. |
@@ -161,8 +161,10 @@ Everything runs locally via WebAssembly - no server, no account, nothing leaves 
 | **Stockfish 18 / 18 Small NNUE** | Full dual-net build (large net ships split and is stitched at load), or the lighter net. |
 | **Stockfish 11 HCE** | Classical eval, no NNUE - light and fast. |
 | **Fairy-Stockfish 14 NNUE** | Required for [variants](#variants); each variant has its own bundled net. |
+| **Maia-1** | The original Maia nets, one per rating band (**1100–1900**, plus a **2200**). Pick the band, get that player. |
+| **Maia-2** | One model that takes **both** ratings - yours and your opponent's - because a 1200 facing a 2000 does not play what a 1200 facing a 1200 plays. Two steppers in the panel, both live. |
 | **Maia-3** | Human-*like*, not throttled: a transformer conditioned on a rating you set live, **600–2600**. |
-| **Maia** | The original Maia-1 nets, one per band (**1100–1900**, plus a **2200**). |
+| **Elite Leela** | A Leela net trained on the **Lichess Elite Database** - human games at 2200+ - so it plays like a strong human rather than like a search. One forward pass, policy for the move, its own WDL head for the score. |
 | **Tetrarch (4-player)** | Four-player chess only - see [four-player chess](#four-player-chess). Needs a one-time install. |
 | **Remote / native** | A real engine binary outside the browser - see [full-power engines](#full-power-native-engines-optional). |
 | **Stockfish 18 (online) / Stockfish 17.1 (online)** | A real server-side Stockfish over HTTPS - nothing to install, for a machine that cannot run a strong engine locally. **The position leaves your machine on every move.** One line, no threads or hash to set, so a local engine is both faster and private; this is a fallback, not an upgrade. The version in each name is the engine that provider runs, from its own front page: chess-api.com serves Stockfish 18 NNUE, stockfish.online serves Stockfish 17.1. chess-api.com takes your Search Time as well as a depth ceiling (measured: 50ms reaches depth 14, 2s reaches 16); stockfish.online takes only a depth, so selecting it switches the search budget to Depth and switches it back when you leave. A stall or a rate limit is retried once, and a position already asked about inside the last 15 seconds is answered from memory rather than asked again - which is what was drawing the rate limits. chess-api.com refuses any position carrying an en-passant square, so that field is dropped for it; the one cost is that an en passant capture is invisible to that provider, and stockfish.online is the one to use if that matters. |
