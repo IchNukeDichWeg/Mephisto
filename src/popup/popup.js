@@ -1280,6 +1280,7 @@ function init_quick_settings() {
     const styleSel = PANEL_ROOT.getElementById('qs_playstyle');
     if (styleSel) {
         styleSel.value = config.playstyle || 'balanced';
+        update_playstyle_row();
         styleSel.addEventListener('change', () => {
             const v = PLAYSTYLE_STYLES.includes(styleSel.value) ? styleSel.value : 'balanced';
             config.playstyle = v;
@@ -6176,10 +6177,31 @@ function forcing_score(fen, uci) {
     } catch (e) { return null; }                    // a variant chess.js cannot replay: no opinion
 }
 
+// WHERE A STYLE CAN ACTUALLY CHOOSE. Offering a control that cannot do anything is worse than not
+// offering it: the engine has to report more than one scored line, and the moves have to be ones
+// chess.js can replay. A cloud or remote engine answers with a single line; four-player chess runs
+// its own path entirely; a Fairy variant is a position the scorer will not replay, so it would have
+// no opinion. In all three the row is hidden and the picker stands down, so the control and the
+// behaviour cannot disagree.
+function playstyle_applies() {
+    if (CLOUD_ENGINES.includes(config.engine) || config.engine === 'remote') return false;
+    if (FOURPC_ENGINES.includes(config.engine)) return false;
+    if (config.variant !== 'chess' && config.variant !== 'fischerandom') return false;
+    return (parseInt(config.multiple_lines) || 1) >= 2;
+}
+
+// The row follows the same answer, live: Multi Lines is right there in the panel and changes without
+// a reload, so the control appears and disappears with the thing that makes it possible.
+function update_playstyle_row() {
+    const row = PANEL_ROOT.getElementById('qs_playstyle_row');
+    if (row) row.style.display = playstyle_applies() ? '' : 'none';
+}
+
 // The style's pick among the search's own lines, or `best` when the style has nothing to say.
 function playstyle_pick(best) {
     const style = config.playstyle;
     if (!style || style === 'balanced') return best;
+    if (!playstyle_applies()) return best;   // the row is hidden here too -- see playstyle_applies
     const fen = last_eval.fen;
     const lines = (last_eval.lines || []).filter(l => l && l.move);
     if (lines.length < 2) return best;
@@ -7862,6 +7884,7 @@ function watch_config_changes() {
                 // one overlay message carries the bar, the graph and the stats strip: clear all
                 // three and let the next evaluation redraw whichever are still switched on
                 if (key === 'eval_bar' || key === 'eval_history' || key === 'live_stats') request_clear_eval_bar();
+                if (key === 'multiple_lines' || key === 'variant') update_playstyle_row();
                 if (key === 'live_stats' || key === 'live_classify' || key === 'class_on_board'
                     || key === 'opp_alert') ensure_classifier();
                 if (key === 'tablebase') tablebase_data = null;       // a stale answer must not survive
