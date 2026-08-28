@@ -555,6 +555,7 @@
   "panel.tip.multi_lines": "Combien de lignes candidates le moteur rapporte. Plus de lignes, moins de profondeur pour chacune.",
   "panel.tip.memory": "La table de hachage du moteur. Plus grande aide les longues recherches ; plus grande que ce que la machine peut ceder nuit a tout.",
   "panel.tip.turn_switch": "A qui de jouer - touchez pour inverser si c'est faux (problemes / positions personnalisees).",
-  "panel.maia2_elos": "Maia-2 vous / adv.",
-  "panel.tip.maia2_elos": "Maia-2 joue un APPARIEMENT, pas un niveau : un modele qui prend votre Elo et celui de l'adversaire, donc la meme position recoit une autre reponse d'un 1200 face a 2000 que d'un 2000 face a 1200. Paliers de 100 de moins de 1100 a 2000+. Les deux s'appliquent aussitot."
+  "panel.tip.maia2_elos": "Maia-2 joue un APPARIEMENT, pas un niveau : un modele qui prend votre Elo et celui de l'adversaire, donc la meme position recoit une autre reponse d'un 1200 face a 2000 que d'un 2000 face a 1200. Paliers de 100 de moins de 1100 a 2000+. Les deux s'appliquent aussitot.",
+  "panel.maia2_self": "Maia-2 votre Elo",
+  "panel.maia2_oppo": "Maia-2 Elo adverse"
 }

@@ -1249,8 +1249,14 @@ function init_quick_settings() {
     // MAIA-2 IS A MATCHUP, not a level: two ratings, both live. Same shape as the Maia-3 slider
     // above -- write the config, tell the engine, drop the stale answer and re-ask.
     const maia2Row = PANEL_ROOT.getElementById('qs_maia2_row');
+    const maia2Oppo = PANEL_ROOT.getElementById('qs_maia2_oppo_row');
     if (maia2Row) {
-        maia2Row.style.display = (config.engine === 'maia2') ? '' : 'none';
+        // Two rows, each a -/+ stepper in 50s like every other number here -- a rating is a number
+        // you nudge, not a band you pick from a list. The MODEL buckets by 100; that is its own
+        // resolution and not something to make the reader type in.
+        const shown = (config.engine === 'maia2') ? '' : 'none';
+        maia2Row.style.display = shown;
+        if (maia2Oppo) maia2Oppo.style.display = shown;
         for (const [id, key, opt] of [['qs_maia2_self', 'maia2_self_elo', 'SelfElo'],
                                       ['qs_maia2_oppo', 'maia2_oppo_elo', 'OppoElo']]) {
             const box = PANEL_ROOT.getElementById(id);

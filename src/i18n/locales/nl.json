@@ -555,6 +555,7 @@
   "panel.tip.multi_lines": "Hoeveel kandidaatlijnen de engine rapporteert. Meer lijnen betekent dat elke lijn minder diep wordt doorgerekend.",
   "panel.tip.memory": "De hashtabel van de engine. Groter helpt lange zoektochten; groter dan de machine kan missen schaadt alles.",
   "panel.tip.turn_switch": "Wie aan zet is - tik om te wisselen als het fout staat (puzzels / eigen stellingen).",
-  "panel.maia2_elos": "Maia-2 jij / tegenst.",
-  "panel.tip.maia2_elos": "Maia-2 speelt een KOPPELING, geen niveau: een model dat jouw rating en die van je tegenstander neemt, dus dezelfde stelling wordt anders beantwoord door een 1200 tegen 2000 dan door een 2000 tegen 1200. Stappen van 100 vanaf onder 1100 tot 2000+. Beide werken meteen."
+  "panel.tip.maia2_elos": "Maia-2 speelt een KOPPELING, geen niveau: een model dat jouw rating en die van je tegenstander neemt, dus dezelfde stelling wordt anders beantwoord door een 1200 tegen 2000 dan door een 2000 tegen 1200. Stappen van 100 vanaf onder 1100 tot 2000+. Beide werken meteen.",
+  "panel.maia2_self": "Maia-2 jouw Elo",
+  "panel.maia2_oppo": "Maia-2 Elo tegenstander"
 }

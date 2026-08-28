@@ -555,6 +555,7 @@
   "panel.tip.multi_lines": "Wie viele Kandidatenzuege die Engine meldet. Mehr Linien heisst, jede wird weniger tief gerechnet.",
   "panel.tip.memory": "Die Hashtabelle der Engine. Groesser hilft langen Suchen; groesser als der Rechner entbehren kann schadet allem.",
   "panel.tip.turn_switch": "Wer am Zug ist - antippen, um zu wechseln, wenn es falsch ist (Puzzles / eigene Stellungen).",
-  "panel.maia2_elos": "Maia-2 du / Gegner",
-  "panel.tip.maia2_elos": "Maia-2 spielt eine PAARUNG, keine Stufe: ein Modell, das deine Wertung und die des Gegners nimmt - dieselbe Stellung wird von einem 1200er gegen 2000 anders beantwortet als von einem 2000er gegen 1200. Stufen von 100 ab unter 1100 bis 2000+. Beide wirken sofort (kein Neuladen)."
+  "panel.tip.maia2_elos": "Maia-2 spielt eine PAARUNG, keine Stufe: ein Modell, das deine Wertung und die des Gegners nimmt - dieselbe Stellung wird von einem 1200er gegen 2000 anders beantwortet als von einem 2000er gegen 1200. Stufen von 100 ab unter 1100 bis 2000+. Beide wirken sofort (kein Neuladen).",
+  "panel.maia2_self": "Maia-2 deine Wertung",
+  "panel.maia2_oppo": "Maia-2 Gegner-Wertung"
 }

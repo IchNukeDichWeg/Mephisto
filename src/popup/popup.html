@@ -226,11 +226,21 @@
         <input id="qs_maia3_elo" class="browser-default" type="range" min="600" max="2600" step="50">
     </div>
 <div class="qs-row qs-nums" id="qs_maia2_row">
-        <span data-i18n-tip="panel.tip.maia2_elos" class="qs-label tooltipped" data-position="left"
-              data-tooltip="Maia-2 plays a MATCHUP, not a level: one model that takes your rating and your opponent's, so the same position is answered differently by a 1200 facing a 2000 than by a 2000 facing a 1200. Buckets of 100 from under 1100 to 2000+. Both apply instantly (no reload)."><span data-i18n="panel.maia2_elos">Maia-2 you / opp</span></span>
+        <span data-i18n="panel.maia2_self" data-i18n-tip="panel.tip.maia2_elos" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Maia-2 plays a MATCHUP, not a level: one model that takes your rating and your opponent's, so the same position is answered differently by a 1200 facing a 2000 than by a 2000 facing a 1200. Steps of 50, and both apply instantly (no reload).">Maia-2 your Elo</span>
         <div class="qs-stepper">
+            <button class="qs-step" type="button" tabindex="-1" data-for="qs_maia2_self" data-d="-1" aria-label="less">&minus;</button>
             <input id="qs_maia2_self" class="browser-default" type="number" min="600" max="2800" step="50">
+            <button class="qs-step" type="button" tabindex="-1" data-for="qs_maia2_self" data-d="1" aria-label="more">+</button>
+        </div>
+    </div>
+<div class="qs-row qs-nums" id="qs_maia2_oppo_row">
+        <span data-i18n="panel.maia2_oppo" data-i18n-tip="panel.tip.maia2_elos" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Maia-2 plays a MATCHUP, not a level: one model that takes your rating and your opponent's, so the same position is answered differently by a 1200 facing a 2000 than by a 2000 facing a 1200. Steps of 50, and both apply instantly (no reload).">Maia-2 opponent Elo</span>
+        <div class="qs-stepper">
+            <button class="qs-step" type="button" tabindex="-1" data-for="qs_maia2_oppo" data-d="-1" aria-label="less">&minus;</button>
             <input id="qs_maia2_oppo" class="browser-default" type="number" min="600" max="2800" step="50">
+            <button class="qs-step" type="button" tabindex="-1" data-for="qs_maia2_oppo" data-d="1" aria-label="more">+</button>
         </div>
     </div>
 <div class="qs-row" id="qs_variant_row">
