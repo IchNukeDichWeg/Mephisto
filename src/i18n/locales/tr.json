@@ -554,5 +554,7 @@
   "panel.tip.threads": "Motorun kullanabilecegi CPU is parcacigi sayisi. Gercek cekirdek sayisina kadar daha guclu; otesinde daha hizli degil daha yavastir.",
   "panel.tip.multi_lines": "Motorun bildirdigi aday varyant sayisi. Daha cok varyant, her birinin daha az derin arandigi anlamina gelir.",
   "panel.tip.memory": "Motorun hash tablosu. Buyugu uzun aramalara yardim eder; makinenin ayirabileceginden buyugu her seye zarar verir.",
-  "panel.tip.turn_switch": "Sira kimde - yanlissa degistirmek icin dokunun (problemler / ozel pozisyonlar)."
+  "panel.tip.turn_switch": "Sira kimde - yanlissa degistirmek icin dokunun (problemler / ozel pozisyonlar).",
+  "panel.maia2_elos": "Maia-2 sen / rakip",
+  "panel.tip.maia2_elos": "Maia-2 bir ESLESME oynar, seviye degil: modelin girdisi senin ve rakibinin puani, yani ayni pozisyon 2000'e karsi 1200 tarafindan baska, 1200'e karsi 2000 tarafindan baska cevaplanir. 1100 altindan 2000+ ustune 100'luk basamaklar. Ikisi de aninda gecerli olur."
 }

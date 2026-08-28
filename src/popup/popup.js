@@ -189,7 +189,7 @@ let prev_ply_count = 0;    // plies in the last-seen position; a drop back to th
 // NETS THAT ANSWER IN ONE FORWARD PASS. No search, so no depth to wait for, no Threads option to
 // set, nothing to ponder with, and no second-guessing their single answer. Listed once because the
 // same pair of comparisons was written out in five places, and the sixth net would have missed one.
-const ONE_PASS_ENGINES = ['maia', 'maia3', 'elite-leela'];
+const ONE_PASS_ENGINES = ['maia', 'maia2', 'maia3', 'elite-leela'];
 const is_one_pass = (eng) => ONE_PASS_ENGINES.includes(eng === undefined ? config.engine : eng);
 const NO_CHESS960_ENGINES = [...ONE_PASS_ENGINES];
 // maia strength = net choice; tetrarch speaks its own four-player protocol and has no UCI_Elo, so
@@ -354,6 +354,10 @@ async function initPanel(root, tabId) {
         elo: JSON.parse(MephistoConfig.get('elo')) || 0, // strength cap; 0 = full strength (no UCI_LimitStrength)
         maia_level: JSON.parse(MephistoConfig.get('maia_level')) || '1500', // which Maia net (rating band) when engine=maia
         maia3_elo: JSON.parse(MephistoConfig.get('maia3_elo')) || 1500, // Maia-3 target Elo (600-2600, live input, not a reload)
+        // Maia-2 asks who is playing WHOM: the same position is answered differently by a 1200
+        // against a 2000 than by a 2000 against a 1200. Both live, neither a reload.
+        maia2_self_elo: JSON.parse(MephistoConfig.get('maia2_self_elo')) || 1500,
+        maia2_oppo_elo: JSON.parse(MephistoConfig.get('maia2_oppo_elo')) || 1500,
         compute_time: (computeTime != null) ? computeTime : 300,
         // TIME OR DEPTH, and BOTH are kept. A depth is reproducible -- the same depth is the same
         // answer on any machine, where a millisecond budget is a different search on every box --
@@ -1242,6 +1246,28 @@ function init_quick_settings() {
             });
         }
     }
+    // MAIA-2 IS A MATCHUP, not a level: two ratings, both live. Same shape as the Maia-3 slider
+    // above -- write the config, tell the engine, drop the stale answer and re-ask.
+    const maia2Row = PANEL_ROOT.getElementById('qs_maia2_row');
+    if (maia2Row) {
+        maia2Row.style.display = (config.engine === 'maia2') ? '' : 'none';
+        for (const [id, key, opt] of [['qs_maia2_self', 'maia2_self_elo', 'SelfElo'],
+                                      ['qs_maia2_oppo', 'maia2_oppo_elo', 'OppoElo']]) {
+            const box = PANEL_ROOT.getElementById(id);
+            if (!box) continue;
+            box.value = String(config[key]);
+            box.addEventListener('change', () => {
+                const v = Math.max(600, Math.min(2800, parseInt(box.value) || 1500));
+                box.value = String(v);
+                config[key] = v;
+                save(key, v);
+                send_engine_uci(`setoption name ${opt} value ${v}`);
+                abandon_search();
+                last_eval.fen = '';   // the old answer was for another matchup
+                push_config();
+            });
+        }
+    }
     const eloRow = PANEL_ROOT.getElementById('qs_elo_row');
     if (eloRow) eloRow.style.display = (isMaia || isMaia3 || NO_ELO_ENGINES.includes(config.engine)) ? 'none' : '';
     const variantRow = PANEL_ROOT.getElementById('qs_variant_row');
@@ -1378,7 +1404,7 @@ function init_quick_settings() {
 // engine output/errors come back over chrome.runtime and route to the existing handlers below.
 let ENGINE_CLIENT = (MY_TAB_ID != null) ? String(MY_TAB_ID) : 'toolbar'; // one engine per panel
 const WASM_ENGINES = ['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue',
-                      'fairy-stockfish-14-nnue', 'stockfish-11-hce', 'maia', 'maia3', 'elite-leela'];
+                      'fairy-stockfish-14-nnue', 'stockfish-11-hce', 'maia', 'maia2', 'maia3', 'elite-leela'];
 const offscreen_engine = {
     uci: (line) => { try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'uci', line}); } catch (e) { /* SW/offscreen gone */ } },
 };
@@ -1487,7 +1513,9 @@ async function ensure_offscreen_engine(engineName) {
     // while it loads and flushes it in order, so nothing is lost -- and the panel no longer stalls
     // behind a slow engine load (Fairy's per-variant NNUE), which is why its board used to appear late.
     chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'init',
-                                engine: engineName, variant: config.variant, maiaLevel: engineName === 'maia3' ? config.maia3_elo : config.maia_level});
+                                engine: engineName, variant: config.variant,
+                                maiaLevel: engineName === 'maia3' ? config.maia3_elo : config.maia_level,
+                                elos: [config.maia2_self_elo, config.maia2_oppo_elo]});
 }
 
 async function initialize_engine(reuseWarm = false) {
@@ -7711,6 +7739,7 @@ const LIVE_CONFIG_KEYS = [
     'bot_tricks', 'bot_trick_game', 'bot_trick_delay', 'bot_trick_pgn',
     'computer_evaluation', 'multiple_lines', 'compute_time', 'compute_depth', 'search_mode',
     'live_classify', 'class_on_board', 'live_classify_which', 'playstyle',
+    'maia2_self_elo', 'maia2_oppo_elo',
     'analysis_limit', 'analysis_limit_mode',
     'arrow_opacity', 'arrow_rank', 'arrow_labels', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
     'premove_confidence', 'premove_plies', 'move_time', 'move_variance', 'move_reason',

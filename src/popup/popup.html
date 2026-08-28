@@ -107,6 +107,7 @@
             <option value="fairy-native">Fairy (local)</option>
             <option value="fairy-stockfish-14-nnue">Fairy WASM</option>
             <option value="maia">Maia (human-like)</option>
+            <option value="maia2">Maia-2 (you vs opponent)</option>
             <option value="maia3">Maia-3 (600-2600)</option>
             <option value="elite-leela">Elite Leela (human 2200+)</option>
             <option value="tetrarch-native">Tetrarch (4-player, Teams)</option>
@@ -223,6 +224,14 @@
         <span data-i18n-tip="panel.tip.maia_3_target_rating_one" class="qs-label tooltipped" data-position="left"
               data-tooltip="Maia-3 target rating. One transformer model conditioned on the Elo you set, so it plays like a human of that strength - anywhere from 600 to 2600, in fine steps. Changing it applies instantly (no reload)."><span data-i18n="panel.maia3_elo">Maia-3 Elo</span> (<span id="qs_maia3_val">1500</span>)</span>
         <input id="qs_maia3_elo" class="browser-default" type="range" min="600" max="2600" step="50">
+    </div>
+<div class="qs-row qs-nums" id="qs_maia2_row">
+        <span data-i18n-tip="panel.tip.maia2_elos" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Maia-2 plays a MATCHUP, not a level: one model that takes your rating and your opponent's, so the same position is answered differently by a 1200 facing a 2000 than by a 2000 facing a 1200. Buckets of 100 from under 1100 to 2000+. Both apply instantly (no reload)."><span data-i18n="panel.maia2_elos">Maia-2 you / opp</span></span>
+        <div class="qs-stepper">
+            <input id="qs_maia2_self" class="browser-default" type="number" min="600" max="2800" step="50">
+            <input id="qs_maia2_oppo" class="browser-default" type="number" min="600" max="2800" step="50">
+        </div>
     </div>
 <div class="qs-row" id="qs_variant_row">
         <span data-i18n="panel.variant" data-i18n-tip="panel.tip.variant" class="qs-label tooltipped" data-position="left"

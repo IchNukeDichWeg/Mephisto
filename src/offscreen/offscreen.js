@@ -208,7 +208,7 @@ function maybeGoIdle() {
 // Create (or replace) the engine for one panel and load its NNUE net(s). Mirrors the WASM half of
 // popup.js initialize_engine EXACTLY (incl. Fairy's UCI_Variant-before-NNUE quirk); everything after
 // (Hash/Threads/MultiPV/Elo/ucinewgame/isready) stays in the popup and arrives as 'uci' commands.
-async function initEngine(clientId, engineName, variant, maiaLevel) {
+async function initEngine(clientId, engineName, variant, maiaLevel, elos) {
     disposeClient(clientId); // also bumps the generation, so ours is the newest from here on
     loading.add(clientId);   // ...and this document is NOT idle while we load (see maybeGoIdle)
     try {
@@ -233,8 +233,12 @@ async function loadEngine(clientId, engineName, variant, maiaLevel) {
     };
     // Maia: not a Stockfish WASM build -- a UCI adapter running one onnxruntime forward pass of the
     // selected lc0 Maia net (no search). Same interface, so the panel drives it like any engine.
-    if (engineName === 'maia' || engineName === 'maia3' || engineName === 'elite-leela') {
-        const engine = engineName === 'maia3'
+    if (engineName === 'maia' || engineName === 'maia2' || engineName === 'maia3' || engineName === 'elite-leela') {
+        const engine = engineName === 'maia2'
+            // Maia-2 takes BOTH ratings, so it is built with the pair rather than one level.
+            ? await (await import('/src/offscreen/maia2.js')).createMaia2Engine(
+                (line) => send(clientId, { kind: 'line', line }), elos?.[0], elos?.[1])
+            : engineName === 'maia3'
             ? await (await import('/src/offscreen/maia3.js')).createMaia3Engine((line) => send(clientId, { kind: 'line', line }), maiaLevel)
             : engineName === 'elite-leela'
                 // Elite Leela: an lc0 net trained on the Lichess Elite database (2200+ human games),
@@ -349,7 +353,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     clearTimeout(idleTimer);           // ...and a panel that is talking is not an idle document
     if (cmd === 'ping') return;        // nothing else to do: the line above WAS the point
     if (cmd === 'init') {
-        initEngine(clientId, msg.engine, msg.variant, msg.maiaLevel).catch(e => send(clientId, {kind: 'error', error: String(e)}));
+        initEngine(clientId, msg.engine, msg.variant, msg.maiaLevel, msg.elos).catch(e => send(clientId, {kind: 'error', error: String(e)}));
     } else if (cmd === 'uci') {
         const engine = clients[clientId];
         if (/^go\b/.test(msg.line || '')) searching[clientId] = true;
