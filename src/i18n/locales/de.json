@@ -540,7 +540,7 @@
   "set.class_on_board": "Bewertung auf dem Brett",
   "set.tip.class_on_board": "Dieselbe Bewertung, aber auf dem Brett der SEITE statt im Panel -- ein Abzeichen auf dem Zielfeld des Zuges, passend zur Größe dieses Bretts. Ein eigener Schalter, unabhängig vom obigen: Das Abzeichen erscheint auf dem echten Brett, ob das kleine Brett im Panel eines trägt oder nicht. Der Filter \"Welche anzeigen\" gilt für beide.",
   "set.playstyle": "Spielstil",
-  "set.tip.playstyle": "Ein Charakter, keine Spielstaerke. Unter den Zuegen, die die Engine ohnehin gefunden hat: Angriff bevorzugt den forcierenden Zug (Schach, Schlagzug, Umwandlung), Ruhig den ruhigen, Gierig den mit der meisten Beute, Raum den, der Boden gewinnt. Nie auf Kosten der Qualitaet: hoechstens 35 Centipawns, bei einem menschlichen Netz zwei Drittel der Wahrscheinlichkeit des besten Zuges. Braucht Mehrfachlinien 2 oder mehr - bei einer Linie gibt es nichts zu waehlen. Ausgewogen ist die Wahl der Engine.",
+  "set.tip.playstyle": "Ein Charakter, keine Spielstaerke. Unter den Zuegen, die die Engine ohnehin gefunden hat: Angriff bevorzugt den forcierenden Zug (Schach, Schlagzug, Umwandlung), Ruhig den ruhigen, Gierig den mit der meisten Beute, Raum den, der Boden gewinnt, Opfer den, der Material zum Schlagen anbietet, Sicher den, der nichts haengen laesst, und Remisartig die Linie, die dem Ausgleich am naechsten kommt. Nie auf Kosten der Qualitaet: hoechstens 35 Centipawns, bei einem menschlichen Netz zwei Drittel der Wahrscheinlichkeit des besten Zuges - ein Opfer hier ist also eines, das die Engine bereits fuer korrekt haelt. Braucht Mehrfachlinien 2 oder mehr. Ausgewogen ist die Wahl der Engine.",
   "set.style_balanced": "Ausgewogen (Wahl der Engine)",
   "set.style_attacking": "Angriff",
   "set.style_quiet": "Ruhig",
@@ -559,5 +559,8 @@
   "panel.maia2_self": "Maia-2 deine Wertung",
   "panel.maia2_oppo": "Maia-2 Gegner-Wertung",
   "set.style_greedy": "Gierig",
-  "set.style_space": "Raum"
+  "set.style_space": "Raum",
+  "set.style_sacrifice": "Opfer",
+  "set.style_safe": "Sicher",
+  "set.style_drawish": "Remisartig"
 }
