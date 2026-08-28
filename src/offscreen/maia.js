@@ -98,7 +98,9 @@ function valueToCp(wdl) {
 }
 
 // ---- the UCI adapter ---------------------------------------------------------------------------
-export async function createMaiaEngine(level, listen) {
+// `net` names the weights: Maia passes a rating band, anything else an lc0 net of its own. The
+// runner never cared which -- 112 planes in, 1858 policy logits and a WDL head out.
+export async function createMaiaEngine(level, listen, net = null) {
     // A download is progress, not silence: the panel already shows `info string` lines, and the
     // first run of an update-only install is where the weights actually arrive.
     const note = (msg) => { try { listen(`info string ${msg}`); } catch (e) { /* no listener yet */ } };
@@ -106,9 +108,11 @@ export async function createMaiaEngine(level, listen) {
     const Chess = self.Chess;
     // fetch the net bytes ourselves (like fetchNnue) and hand ort the buffer -- more robust than
     // letting ort fetch a URL from inside the offscreen doc, and matches the rest of the host.
-    const bytes = new Uint8Array(await fetchModel('/lib/engine/maia', `maia-${level}.onnx`, note));
+    const dir = net ? net.dir : '/lib/engine/maia';
+    const file = net ? net.file : `maia-${level}.onnx`;
+    const bytes = new Uint8Array(await fetchModel(dir, file, note));
     const session = await ort.InferenceSession.create(bytes);
-    console.log(`[Maia] net maia-${level} loaded (${bytes.length} bytes), onnxruntime ready`);
+    console.log(`[lc0 net] ${file} loaded (${bytes.length} bytes), onnxruntime ready`);
 
     let history = [], legalUcis = [], black = false, multipv = 1;
 

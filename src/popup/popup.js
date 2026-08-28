@@ -186,13 +186,18 @@ let prev_ply_count = 0;    // plies in the last-seen position; a drop back to th
 // Maia's strength IS the net (a rating-conditioned one for maia3), so UCI_Elo means nothing to it
 // and the Elo row is hidden rather than shown doing nothing. Its nets are standard-chess only, so
 // Chess960 is off the table too.
-const NO_CHESS960_ENGINES = ['maia', 'maia3'];
+// NETS THAT ANSWER IN ONE FORWARD PASS. No search, so no depth to wait for, no Threads option to
+// set, nothing to ponder with, and no second-guessing their single answer. Listed once because the
+// same pair of comparisons was written out in five places, and the sixth net would have missed one.
+const ONE_PASS_ENGINES = ['maia', 'maia3', 'elite-leela'];
+const is_one_pass = (eng) => ONE_PASS_ENGINES.includes(eng === undefined ? config.engine : eng);
+const NO_CHESS960_ENGINES = [...ONE_PASS_ENGINES];
 // maia strength = net choice; tetrarch speaks its own four-player protocol and has no UCI_Elo, so
 // the slider was purely decorative there -- it advertised a strength cap that nothing applied.
 // Must match UPDATE_REPO in background-script.js; the ladder asserts they agree. Was written out
 // three times, which is two chances for a fork to be pointed at the wrong releases page.
 const UPDATE_REPO_SLUG = 'IchNukeDichWeg/Mephisto';
-const NO_ELO_ENGINES = ['maia', 'maia3', 'tetrarch-native'];
+const NO_ELO_ENGINES = [...ONE_PASS_ENGINES, 'tetrarch-native'];
 
 // engines that speak native messaging (Chrome auto-launches the host, no server -- see
 // native-host/install-native.sh). The port name == the engine value (see NATIVE_HOSTS).
@@ -1373,7 +1378,7 @@ function init_quick_settings() {
 // engine output/errors come back over chrome.runtime and route to the existing handlers below.
 let ENGINE_CLIENT = (MY_TAB_ID != null) ? String(MY_TAB_ID) : 'toolbar'; // one engine per panel
 const WASM_ENGINES = ['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue',
-                      'fairy-stockfish-14-nnue', 'stockfish-11-hce', 'maia', 'maia3'];
+                      'fairy-stockfish-14-nnue', 'stockfish-11-hce', 'maia', 'maia3', 'elite-leela'];
 const offscreen_engine = {
     uci: (line) => { try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'uci', line}); } catch (e) { /* SW/offscreen gone */ } },
 };
@@ -1419,7 +1424,7 @@ function maia2_dispose() {
 // Fire the second inference for a reply-less Maia line, at most once per position. Called from
 // the parser right after the tracker records line 0 during the opponent's turn.
 function maia2_kick(line) {
-    if (config.engine !== 'maia' && config.engine !== 'maia3') return;
+    if (is_one_pass()) return;
     if (!config.premove || !config.autoplay || premove_tracker.premoved) return;
     if (config.help_mode || config.puzzle_mode || config.simon_says_mode) return;
     if (config.variant && config.variant !== 'chess') return;
@@ -1947,7 +1952,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         // Maia is a single forward pass -- it can't deepen, so it never really ponders; every other
         // engine (WASM, native SF/Fairy, remote) does.
         const pondering = config.ponder && toplay.toLowerCase() !== our_side()
-            && config.engine !== 'maia' && config.engine !== 'maia3';
+            && !is_one_pass();
         update_best_move(`${pondering ? i18n('panel.msg.pondering', 'Pondering - ') : ''}` + i18n('panel.msg.to_play_best', '{side} to play, best move is {move}', {side: toplay, move: notate(last_eval.fen, best)}));
     }
 
@@ -2131,7 +2136,7 @@ function draw_eval_bar_unevaluated() {
 const EVAL_MIN_DEPTH = 6;
 // ...and the nets that do not search are exempt outright. Maia is ONE forward pass: depth 1 is not
 // an early iteration of a deeper answer, it IS the answer, so holding it would hold it forever.
-const NO_DEPTH_ENGINES = ['maia', 'maia3'];
+const NO_DEPTH_ENGINES = ONE_PASS_ENGINES;   // named for what the hold cares about
 let eval_bar_fen = '';        // the position the bar is currently showing
 let held_eval_line = null;    // the newest reading withheld for being too shallow
 
@@ -5032,7 +5037,7 @@ function on_new_pos(fen, startFen, moves) {
         // work, so it is capped unless Pondering is on (then keep full strength -- see the go
         // below, which also lets a ponder run infinite for the whole opponent think). Maia is a single
         // forward pass with no Threads option, so leave it alone. Only re-push when the target changes.
-        if (config.engine !== 'maia' && config.engine !== 'maia3') {
+        if (!is_one_pass()) {
             // The cap applies ONLY to the real in-game wait on the opponent. Analysis / Help / Manual
             // have no opponent to save cores for, so they keep the full count -- as does our own move.
             //
