@@ -540,7 +540,7 @@
   "set.class_on_board": "Bewertung auf dem Brett",
   "set.tip.class_on_board": "Dieselbe Bewertung, aber auf dem Brett der SEITE statt im Panel -- ein Abzeichen auf dem Zielfeld des Zuges, passend zur Größe dieses Bretts. Ein eigener Schalter, unabhängig vom obigen: Das Abzeichen erscheint auf dem echten Brett, ob das kleine Brett im Panel eines trägt oder nicht. Der Filter \"Welche anzeigen\" gilt für beide.",
   "set.playstyle": "Spielstil",
-  "set.tip.playstyle": "Ein Charakter, keine Spielstaerke. Unter den Zuegen, die die Engine ohnehin gefunden hat, bevorzugt Angriff den forcierenden Zug (Schach, Schlagzug, Umwandlung) und Ruhig den ruhigen - aber nur solange es hoechstens 35 Centipawns kostet, der Stil spielt also nie einen schlechteren Zug. Ausgewogen ist die Wahl der Engine.",
+  "set.tip.playstyle": "Ein Charakter, keine Spielstaerke. Unter den Zuegen, die die Engine ohnehin gefunden hat: Angriff bevorzugt den forcierenden Zug (Schach, Schlagzug, Umwandlung), Ruhig den ruhigen, Gierig den mit der meisten Beute, Raum den, der Boden gewinnt. Nie auf Kosten der Qualitaet: hoechstens 35 Centipawns, bei einem menschlichen Netz zwei Drittel der Wahrscheinlichkeit des besten Zuges. Braucht Mehrfachlinien 2 oder mehr - bei einer Linie gibt es nichts zu waehlen. Ausgewogen ist die Wahl der Engine.",
   "set.style_balanced": "Ausgewogen (Wahl der Engine)",
   "set.style_attacking": "Angriff",
   "set.style_quiet": "Ruhig",
@@ -557,5 +557,7 @@
   "panel.tip.turn_switch": "Wer am Zug ist - antippen, um zu wechseln, wenn es falsch ist (Puzzles / eigene Stellungen).",
   "panel.tip.maia2_elos": "Maia-2 spielt eine PAARUNG, keine Stufe: ein Modell, das deine Wertung und die des Gegners nimmt - dieselbe Stellung wird von einem 1200er gegen 2000 anders beantwortet als von einem 2000er gegen 1200. Stufen von 100 ab unter 1100 bis 2000+. Beide wirken sofort (kein Neuladen).",
   "panel.maia2_self": "Maia-2 deine Wertung",
-  "panel.maia2_oppo": "Maia-2 Gegner-Wertung"
+  "panel.maia2_oppo": "Maia-2 Gegner-Wertung",
+  "set.style_greedy": "Gierig",
+  "set.style_space": "Raum"
 }

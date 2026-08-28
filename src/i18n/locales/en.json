@@ -539,7 +539,7 @@
   "set.class_on_board": "Classification On The Board",
   "set.tip.class_on_board": "The same verdict, drawn on the SITE's board instead of the panel's -- a badge on the square the move landed on, sized to that board. Its own switch, and independent of the one above: the badge appears on the real board whether or not the panel's little board is also carrying one. The 'Show which' filter applies to both.",
   "set.playstyle": "Playstyle",
-  "set.tip.playstyle": "A character, not a strength. Among the lines the engine already found, Attacking prefers the forcing move (check, capture, promotion) and Quiet prefers the calm one - but only while it costs at most 35 centipawns, so the style never plays a worse move. Balanced is the engine's own pick.",
+  "set.tip.playstyle": "A character, not a strength. Among the lines the engine already found: Attacking prefers the forcing move (check, capture, promotion), Quiet the calm one, Greedy the one that takes the most material, Space the one that gains ground. Never at a cost: at most 35 centipawns, or on a human net two thirds of the top move's probability. Needs Multi Lines 2 or more - with one line there is nothing to choose between. Balanced is the engine's own pick.",
   "set.style_balanced": "Balanced (engine's pick)",
   "set.style_attacking": "Attacking",
   "set.style_quiet": "Quiet",
@@ -557,5 +557,7 @@
   "panel.tip.turn_switch": "Whose turn to move - tap to flip if it's wrong (puzzles / custom positions).",
   "panel.tip.maia2_elos": "Maia-2 plays a MATCHUP, not a level: one model that takes your rating and your opponent's, so the same position is answered differently by a 1200 facing a 2000 than by a 2000 facing a 1200. Steps of 50, and both apply instantly (no reload).",
   "panel.maia2_self": "Maia-2 your Elo",
-  "panel.maia2_oppo": "Maia-2 opponent Elo"
+  "panel.maia2_oppo": "Maia-2 opponent Elo",
+  "set.style_greedy": "Greedy",
+  "set.style_space": "Space"
 }

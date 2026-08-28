@@ -6164,16 +6164,37 @@ const PLAYSTYLE_MARGIN = 35;   // centipawns a style may spend; a hair under the
 // measurement: enough to choose between moves a person might really play, not enough to reach the
 // tail of the distribution.
 const PLAYSTYLE_PROB_RATIO = 0.66;
-const PLAYSTYLE_STYLES = ['balanced', 'attacking', 'quiet'];
+const PLAYSTYLE_STYLES = ['balanced', 'attacking', 'quiet', 'greedy', 'space'];
+const PLAYSTYLE_PIECE_VAL = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
 
-// How forcing a move is, from the move and the position it lands in: check 2, capture 1,
-// promotion 1. Attacking wants that number high, quiet wants it low, and balanced never asks.
-function forcing_score(fen, uci) {
+// EVERY STYLE IS ONE NUMBER, read off the move and the position it lands in, and the picker simply
+// takes the highest inside the tolerance. Nothing here is an evaluation -- the engine has already
+// said what these moves are worth, and all a style decides is which of the ones it called equal
+// gets played. Returns null when chess.js will not replay the move, which is no opinion at all.
+//
+//   attacking  forcing: a check is worth more than a capture, a capture more than a quiet move
+//   quiet      the same number, negated -- the calm move among equals
+//   greedy     the material it takes, so a hanging rook beats a hanging pawn (checks are not the point)
+//   space      how far it goes toward the opponent, pawns counted double -- the move that gains ground
+function style_score(fen, uci, style) {
     try {
         const c = new Chess(config.variant || 'chess', fen);
+        const white = c.turn() === 'w';
         const mv = c.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]});
         if (!mv) return null;                       // not legal here: no opinion
-        return (c.isCheck() ? 2 : 0) + (mv.captured ? 1 : 0) + (mv.promotion ? 1 : 0);
+        const forcing = (c.isCheck() ? 2 : 0) + (mv.captured ? 1 : 0) + (mv.promotion ? 1 : 0);
+        if (style === 'attacking') return forcing;
+        if (style === 'quiet') return -forcing;
+        if (style === 'greedy') {
+            return (PLAYSTYLE_PIECE_VAL[mv.captured] || 0)
+                + (mv.promotion ? PLAYSTYLE_PIECE_VAL[mv.promotion] || 0 : 0);
+        }
+        if (style === 'space') {
+            const rank = (sq) => Number(sq[1]);
+            const forward = white ? rank(mv.to) - rank(mv.from) : rank(mv.from) - rank(mv.to);
+            return forward * (mv.piece === 'p' ? 2 : 1);
+        }
+        return 0;
     } catch (e) { return null; }                    // a variant chess.js cannot replay: no opinion
 }
 
@@ -6208,8 +6229,8 @@ function playstyle_pick(best) {
     const bestLine = lines.find(l => l.move === best) || lines[0];
     const bestCp = line_cp_ours(bestLine);
     if (!Number.isFinite(bestCp) || Math.abs(bestCp) >= 90000) return best;  // never toy with a mate
-    const want = (style === 'attacking') ? 1 : -1;
-    let pick = best, pickScore = forcing_score(fen, best);
+    // Each style's number already points the right way, so the pick is always the highest.
+    let pick = best, pickScore = style_score(fen, best, style);
     if (pickScore === null) return best;
     const bestProb = bestLine.maiaprob;
     const human = Number.isFinite(bestProb);   // a policy net: rank by probability, not by score
@@ -6222,9 +6243,9 @@ function playstyle_pick(best) {
             if (!Number.isFinite(cp) || bestCp - cp > PLAYSTYLE_MARGIN) continue;  // outside the tolerance
             if (Math.abs(cp) >= 90000) continue;
         }
-        const s = forcing_score(fen, l.move);
+        const s = style_score(fen, l.move, style);
         if (s === null) continue;
-        if ((s - pickScore) * want > 0) { pick = l.move; pickScore = s; }
+        if (s > pickScore) { pick = l.move; pickScore = s; }
     }
     return pick;
 }

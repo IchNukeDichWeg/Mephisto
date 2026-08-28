@@ -540,7 +540,7 @@
   "set.class_on_board": "Clasificación en el tablero",
   "set.tip.class_on_board": "La misma valoración, dibujada en el tablero del SITIO en lugar del panel: una insignia en la casilla donde terminó la jugada, al tamaño de ese tablero. Es un interruptor propio e independiente del anterior: la insignia aparece en el tablero real tanto si el tablero pequeño del panel lleva una como si no. El filtro «Mostrar cuáles» se aplica a ambos.",
   "set.playstyle": "Estilo de juego",
-  "set.tip.playstyle": "Un caracter, no una fuerza. Entre las lineas que el motor ya encontro, Atacante prefiere la jugada forzada (jaque, captura, promocion) y Tranquilo la calmada, pero solo mientras cueste como maximo 35 centipeones, asi que el estilo nunca juega peor. Equilibrado es la eleccion del motor.",
+  "set.tip.playstyle": "Un caracter, no una fuerza. Entre las lineas que el motor ya encontro: Atacante prefiere la jugada forzada (jaque, captura, promocion), Tranquilo la calmada, Codicioso la que gana mas material, Espacio la que gana terreno. Nunca a costa de la calidad: como maximo 35 centipeones, o en una red humana dos tercios de la probabilidad de la mejor jugada. Necesita 2 lineas o mas: con una no hay nada que elegir. Equilibrado es la eleccion del motor.",
   "set.style_balanced": "Equilibrado (eleccion del motor)",
   "set.style_attacking": "Atacante",
   "set.style_quiet": "Tranquilo",
@@ -557,5 +557,7 @@
   "panel.tip.turn_switch": "De quien es el turno - toca para cambiarlo si esta mal (problemas / posiciones propias).",
   "panel.tip.maia2_elos": "Maia-2 juega un EMPAREJAMIENTO, no un nivel: un modelo que toma tu Elo y el del rival, asi que la misma posicion se responde distinto siendo 1200 frente a 2000 que 2000 frente a 1200. Tramos de 100 desde menos de 1100 hasta 2000+. Ambos se aplican al instante.",
   "panel.maia2_self": "Maia-2 tu Elo",
-  "panel.maia2_oppo": "Maia-2 Elo del rival"
+  "panel.maia2_oppo": "Maia-2 Elo del rival",
+  "set.style_greedy": "Codicioso",
+  "set.style_space": "Espacio"
 }

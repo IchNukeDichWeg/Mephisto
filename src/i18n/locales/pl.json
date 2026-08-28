@@ -540,7 +540,7 @@
   "set.class_on_board": "Ocena na szachownicy",
   "set.tip.class_on_board": "Ta sama ocena, ale na szachownicy SERWISU zamiast na panelu -- odznaka na polu, na którym ruch się zakończył, w skali tej szachownicy. Osobny przełącznik, niezależny od powyższego: odznaka pojawia się na prawdziwej szachownicy niezależnie od tego, czy mała szachownica w panelu też ją nosi. Filtr „Które pokazywać” dotyczy obu.",
   "set.playstyle": "Styl gry",
-  "set.tip.playstyle": "Charakter, nie sila gry. Sposrod linii, ktore silnik juz znalazl, Atakujacy woli ruch forsujacy (szach, bicie, promocja), a Spokojny ten cichy - ale tylko dopoki kosztuje to najwyzej 35 centypionow, wiec styl nigdy nie gra gorzej. Zrownowazony to wybor silnika.",
+  "set.tip.playstyle": "Charakter, nie sila gry. Sposrod linii, ktore silnik juz znalazl: Atakujacy wybiera ruch forsujacy (szach, bicie, promocja), Spokojny cichy, Zachlanny ten, ktory bierze najwiecej materialu, Przestrzen ten, ktory zdobywa teren. Nigdy kosztem jakosci: najwyzej 35 centypionow, a przy sieci ludzkiej dwie trzecie prawdopodobienstwa najlepszego ruchu. Wymaga 2 linii lub wiecej - przy jednej nie ma czego wybierac. Zrownowazony to wybor silnika.",
   "set.style_balanced": "Zrownowazony (wybor silnika)",
   "set.style_attacking": "Atakujacy",
   "set.style_quiet": "Spokojny",
@@ -557,5 +557,7 @@
   "panel.tip.turn_switch": "Kto jest na posunieciu - dotknij, by zmienic, jesli jest zle (zadania / wlasne pozycje).",
   "panel.tip.maia2_elos": "Maia-2 gra POJEDYNEK, nie poziom: jeden model bierze twoj ranking i ranking przeciwnika, wiec ta sama pozycja jest rozegrana inaczej przez 1200 przeciw 2000 niz przez 2000 przeciw 1200. Progi co 100 od ponizej 1100 do 2000+. Oba dzialaja natychmiast.",
   "panel.maia2_self": "Maia-2 twoj ranking",
-  "panel.maia2_oppo": "Maia-2 ranking przeciwnika"
+  "panel.maia2_oppo": "Maia-2 ranking przeciwnika",
+  "set.style_greedy": "Zachlanny",
+  "set.style_space": "Przestrzen"
 }
