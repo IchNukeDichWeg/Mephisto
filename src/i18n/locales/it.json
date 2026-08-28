@@ -554,5 +554,7 @@
   "panel.tip.threads": "Quanti thread della CPU puo usare il motore. Di piu e piu forte fino ai core reali; oltre e piu lento, non piu veloce.",
   "panel.tip.multi_lines": "Quante linee candidate riporta il motore. Piu linee significa che ognuna viene cercata meno a fondo.",
   "panel.tip.memory": "La tabella hash del motore. Piu grande aiuta le ricerche lunghe; piu grande di quanto la macchina possa cedere danneggia tutto.",
-  "panel.tip.turn_switch": "A chi tocca muovere - tocca per invertire se e sbagliato (problemi / posizioni personalizzate)."
+  "panel.tip.turn_switch": "A chi tocca muovere - tocca per invertire se e sbagliato (problemi / posizioni personalizzate).",
+  "panel.maia2_elos": "Maia-2 tu / avv.",
+  "panel.tip.maia2_elos": "Maia-2 gioca un ACCOPPIAMENTO, non un livello: un modello che prende il tuo Elo e quello dell'avversario, quindi la stessa posizione riceve una risposta diversa da un 1200 contro 2000 e da un 2000 contro 1200. Fasce da 100 da sotto 1100 a 2000+. Entrambi si applicano subito."
 }
