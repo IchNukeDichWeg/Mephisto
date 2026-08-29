@@ -540,7 +540,7 @@
   "set.class_on_board": "Classificatie op het bord",
   "set.tip.class_on_board": "Hetzelfde oordeel, getekend op het bord van de SITE in plaats van dat van het paneel -- een badge op het veld waar de zet landde, op de maat van dat bord. Een eigen schakelaar, los van die hierboven: de badge verschijnt op het echte bord, of het kleine bord in het paneel er nu ook een draagt of niet. Het filter 'Welke tonen' geldt voor beide.",
   "set.playstyle": "Speelstijl",
-  "set.tip.playstyle": "Een karakter, geen speelsterkte. Onder de zetten die de engine al vond: Aanvallend kiest de forcerende zet (schaak, slag, promotie), Rustig de kalme, Gulzig die het meeste materiaal pakt, Ruimte die terrein wint, Offer die materiaal aanbiedt dat de tegenstander mag nemen, Veilig die niets laat hangen, en Remiseachtig de lijn die het dichtst bij gelijkspel ligt. Nooit ten koste van kwaliteit: hooguit 35 centipionnen, of bij een menselijk net twee derde van de kans van de beste zet - een offer hier vindt de engine dus al correct. Vereist 2 lijnen of meer. Gebalanceerd is de keuze van de engine. (+ Centraal / Vleugel)",
+  "set.tip.playstyle": "Een karakter, geen speelsterkte. Onder de zetten die de engine al vond: Aanvallend kiest de forcerende zet (schaak, slag, promotie), Rustig de kalme, Gulzig die het meeste materiaal pakt, Ruimte die terrein wint, Offer die materiaal aanbiedt dat de tegenstander mag nemen, Veilig die niets laat hangen, en Remiseachtig de lijn die het dichtst bij gelijkspel ligt. Nooit ten koste van kwaliteit: hooguit 35 centipionnen, of bij een menselijk net twee derde van de kans van de beste zet - een offer hier vindt de engine dus al correct. Vereist 2 lijnen of meer. Gebalanceerd is de keuze van de engine. (+ Respectloos / Ultra aanvallend)",
   "set.style_balanced": "Gebalanceerd (keuze van de engine)",
   "set.style_attacking": "Aanvallend",
   "set.style_quiet": "Rustig",
@@ -563,6 +563,6 @@
   "set.style_sacrifice": "Offer",
   "set.style_safe": "Veilig",
   "set.style_drawish": "Remiseachtig",
-  "set.style_central": "Centraal",
-  "set.style_flank": "Vleugel"
+  "set.style_ultra": "Ultra aanvallend",
+  "set.style_disrespect": "Respectloos"
 }
