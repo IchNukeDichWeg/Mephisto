@@ -10,6 +10,10 @@ import * as ort from '/lib/ort/ort.wasm.bundle.min.mjs';
 // creator so the thread count cannot depend on which module happened to load first.
 import '/src/offscreen/ort-env.js';
 
+// weights come through the shared fetcher (bundled -> .partN -> cache -> models-v1 release), so an
+// update-only install that never shipped the 23M net can still download it.
+import { fetchModel } from '/src/offscreen/model-fetch.js';
+
 // ---- encoding (replicates maia3/dataset.py + utils.py) -----------------------------------------
 const PIECE = { p: 0, n: 1, b: 2, r: 3, q: 4, k: 5 };
 const HISTORY = 8, PIECE_CH = 12, TOKEN_DIM = HISTORY * PIECE_CH + 1; // 97
