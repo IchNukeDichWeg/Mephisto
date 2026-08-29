@@ -540,7 +540,7 @@
   "set.class_on_board": "Classification sur l'échiquier",
   "set.tip.class_on_board": "Le même verdict, dessiné sur l'échiquier du SITE plutôt que sur celui du panneau : une pastille sur la case d'arrivée du coup, à la taille de cet échiquier. Interrupteur distinct et indépendant du précédent : la pastille apparaît sur le vrai échiquier, que le petit échiquier du panneau en porte une ou non. Le filtre « Afficher lesquels » s'applique aux deux.",
   "set.playstyle": "Style de jeu",
-  "set.tip.playstyle": "Un caractere, pas une force. Parmi les lignes deja trouvees par le moteur : Attaque prefere le coup forcant (echec, prise, promotion), Calme le coup tranquille, Gourmand celui qui prend le plus de materiel, Espace celui qui gagne du terrain, Sacrifice celui qui offre du materiel que l'adversaire peut prendre, Sur celui qui ne laisse rien en prise, et Nulle la ligne la plus proche de l'egalite. Jamais au prix de la qualite : au plus 35 centipions, ou sur un reseau humain deux tiers de la probabilite du meilleur coup - un sacrifice ici est donc deja juge correct par le moteur. Exige 2 lignes ou plus. Equilibre est le choix du moteur.",
+  "set.tip.playstyle": "Un caractere, pas une force. Parmi les lignes deja trouvees par le moteur : Attaque prefere le coup forcant (echec, prise, promotion), Calme le coup tranquille, Gourmand celui qui prend le plus de materiel, Espace celui qui gagne du terrain, Sacrifice celui qui offre du materiel que l'adversaire peut prendre, Sur celui qui ne laisse rien en prise, et Nulle la ligne la plus proche de l'egalite. Jamais au prix de la qualite : au plus 35 centipions, ou sur un reseau humain deux tiers de la probabilite du meilleur coup - un sacrifice ici est donc deja juge correct par le moteur. Exige 2 lignes ou plus. Equilibre est le choix du moteur. (+ Central / Aile)",
   "set.style_balanced": "Equilibre (choix du moteur)",
   "set.style_attacking": "Attaque",
   "set.style_quiet": "Calme",
@@ -562,5 +562,7 @@
   "set.style_space": "Espace",
   "set.style_sacrifice": "Sacrifice",
   "set.style_safe": "Sur",
-  "set.style_drawish": "Nulle"
+  "set.style_drawish": "Nulle",
+  "set.style_central": "Central",
+  "set.style_flank": "Aile"
 }

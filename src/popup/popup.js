@@ -6165,7 +6165,7 @@ const PLAYSTYLE_MARGIN = 35;   // centipawns a style may spend; a hair under the
 // tail of the distribution.
 const PLAYSTYLE_PROB_RATIO = 0.66;
 const PLAYSTYLE_STYLES = ['balanced', 'attacking', 'quiet', 'greedy', 'space',
-                          'sacrifice', 'safe', 'drawish'];
+                          'sacrifice', 'safe', 'drawish', 'central', 'flank'];
 const PLAYSTYLE_PIECE_VAL = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
 
 // EVERY STYLE IS ONE NUMBER, read off the move and the position it lands in, and the picker simply
@@ -6183,6 +6183,12 @@ const PLAYSTYLE_PIECE_VAL = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
 //   safe       the same number negated: nothing left where it can be taken
 //   drawish    the line closest to 0.00 among the ones inside the tolerance. (Its opposite is not a
 //              style: taking the sharpest line IS Balanced.)
+//   central    the move that lands nearest the middle of the board -- centralise, the oldest advice
+//              there is. Distance is measured to the centre POINT, so d4 and e5 tie, as they should.
+//   flank      the other wing of the same idea: how far off the centre FILE the move lands, so play
+//              on the a- or h-side counts wherever it happens on that file. This is "on the edge"
+//              with a definition that can be computed; the sharpness reading of that phrase needs a
+//              search per candidate and is not a scoring line.
 function style_score(fen, uci, style, cp) {
     try {
         const c = new Chess(config.variant || 'chess', fen);
@@ -6206,6 +6212,11 @@ function style_score(fen, uci, style, cp) {
         if (style === 'greedy') {
             return (PLAYSTYLE_PIECE_VAL[mv.captured] || 0)
                 + (mv.promotion ? PLAYSTYLE_PIECE_VAL[mv.promotion] || 0 : 0);
+        }
+        if (style === 'central' || style === 'flank') {
+            const file = mv.to.charCodeAt(0) - 97, rank = Number(mv.to[1]) - 1;
+            const dFile = Math.abs(file - 3.5), dRank = Math.abs(rank - 3.5);
+            return style === 'central' ? -(dFile + dRank) : dFile;
         }
         if (style === 'space') {
             const rank = (sq) => Number(sq[1]);

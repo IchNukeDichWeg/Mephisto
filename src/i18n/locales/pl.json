@@ -540,7 +540,7 @@
   "set.class_on_board": "Ocena na szachownicy",
   "set.tip.class_on_board": "Ta sama ocena, ale na szachownicy SERWISU zamiast na panelu -- odznaka na polu, na którym ruch się zakończył, w skali tej szachownicy. Osobny przełącznik, niezależny od powyższego: odznaka pojawia się na prawdziwej szachownicy niezależnie od tego, czy mała szachownica w panelu też ją nosi. Filtr „Które pokazywać” dotyczy obu.",
   "set.playstyle": "Styl gry",
-  "set.tip.playstyle": "Charakter, nie sila gry. Sposrod linii, ktore silnik juz znalazl: Atakujacy wybiera ruch forsujacy (szach, bicie, promocja), Spokojny cichy, Zachlanny ten z najwieksza zdobycza, Przestrzen ten, ktory zdobywa teren, Ofiara ten, ktory oddaje material do wziecia, Bezpieczny ten, ktory nic nie zostawia pod biciem, a Remisowy linie najblizsza rownowadze. Nigdy kosztem jakosci: najwyzej 35 centypionow, a przy sieci ludzkiej dwie trzecie prawdopodobienstwa najlepszego ruchu - wiec ofiara jest tu taka, ktora silnik juz uznaje za poprawna. Wymaga 2 linii lub wiecej. Zrownowazony to wybor silnika.",
+  "set.tip.playstyle": "Charakter, nie sila gry. Sposrod linii, ktore silnik juz znalazl: Atakujacy wybiera ruch forsujacy (szach, bicie, promocja), Spokojny cichy, Zachlanny ten z najwieksza zdobycza, Przestrzen ten, ktory zdobywa teren, Ofiara ten, ktory oddaje material do wziecia, Bezpieczny ten, ktory nic nie zostawia pod biciem, a Remisowy linie najblizsza rownowadze. Nigdy kosztem jakosci: najwyzej 35 centypionow, a przy sieci ludzkiej dwie trzecie prawdopodobienstwa najlepszego ruchu - wiec ofiara jest tu taka, ktora silnik juz uznaje za poprawna. Wymaga 2 linii lub wiecej. Zrownowazony to wybor silnika. (+ Centralny / Skrzydlo)",
   "set.style_balanced": "Zrownowazony (wybor silnika)",
   "set.style_attacking": "Atakujacy",
   "set.style_quiet": "Spokojny",
@@ -562,5 +562,7 @@
   "set.style_space": "Przestrzen",
   "set.style_sacrifice": "Ofiara",
   "set.style_safe": "Bezpieczny",
-  "set.style_drawish": "Remisowy"
+  "set.style_drawish": "Remisowy",
+  "set.style_central": "Centralny",
+  "set.style_flank": "Skrzydlo"
 }
