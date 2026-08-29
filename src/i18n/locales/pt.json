@@ -540,7 +540,7 @@
   "set.class_on_board": "Classificação no tabuleiro",
   "set.tip.class_on_board": "O mesmo veredicto, desenhado no tabuleiro do SITE em vez do painel -- um emblema na casa onde a jogada terminou, ao tamanho desse tabuleiro. É um interruptor próprio e independente do de cima: o emblema aparece no tabuleiro real quer o pequeno tabuleiro do painel também tenha um, quer não. O filtro \"Mostrar quais\" aplica-se aos dois.",
   "set.playstyle": "Estilo de jogo",
-  "set.tip.playstyle": "Um caracter, nao uma forca. Entre as linhas que o motor ja encontrou: Atacante prefere o lance forcado (xeque, captura, promocao), Tranquilo o calmo, Ganancioso o que ganha mais material, Espaco o que ganha terreno, Sacrificio o que oferece material que o adversario pode tomar, Seguro o que nao deixa nada pendurado, e Empate a linha mais proxima da igualdade. Nunca a custa da qualidade: no maximo 35 centipeoes, ou numa rede humana dois tercos da probabilidade do melhor lance - um sacrificio aqui ja e considerado correcto pelo motor. Precisa de 2 linhas ou mais. Equilibrado e a escolha do motor. (+ Central / Flanco)",
+  "set.tip.playstyle": "Um caracter, nao uma forca. Entre as linhas que o motor ja encontrou: Atacante prefere o lance forcado (xeque, captura, promocao), Tranquilo o calmo, Ganancioso o que ganha mais material, Espaco o que ganha terreno, Sacrificio o que oferece material que o adversario pode tomar, Seguro o que nao deixa nada pendurado, e Empate a linha mais proxima da igualdade. Nunca a custa da qualidade: no maximo 35 centipeoes, ou numa rede humana dois tercos da probabilidade do melhor lance - um sacrificio aqui ja e considerado correcto pelo motor. Precisa de 2 linhas ou mais. Equilibrado e a escolha do motor. (+ Desrespeito / Ultra atacante)",
   "set.style_balanced": "Equilibrado (escolha do motor)",
   "set.style_attacking": "Atacante",
   "set.style_quiet": "Tranquilo",
@@ -563,6 +563,6 @@
   "set.style_sacrifice": "Sacrificio",
   "set.style_safe": "Seguro",
   "set.style_drawish": "Empate",
-  "set.style_central": "Central",
-  "set.style_flank": "Flanco"
+  "set.style_ultra": "Ultra atacante",
+  "set.style_disrespect": "Desrespeito"
 }

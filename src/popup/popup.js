@@ -6165,7 +6165,7 @@ const PLAYSTYLE_MARGIN = 35;   // centipawns a style may spend; a hair under the
 // tail of the distribution.
 const PLAYSTYLE_PROB_RATIO = 0.66;
 const PLAYSTYLE_STYLES = ['balanced', 'attacking', 'quiet', 'greedy', 'space',
-                          'sacrifice', 'safe', 'drawish', 'central', 'flank'];
+                          'sacrifice', 'safe', 'drawish', 'disrespect', 'ultra'];
 const PLAYSTYLE_PIECE_VAL = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
 
 // EVERY STYLE IS ONE NUMBER, read off the move and the position it lands in, and the picker simply
@@ -6183,12 +6183,17 @@ const PLAYSTYLE_PIECE_VAL = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
 //   safe       the same number negated: nothing left where it can be taken
 //   drawish    the line closest to 0.00 among the ones inside the tolerance. (Its opposite is not a
 //              style: taking the sharpest line IS Balanced.)
-//   central    the move that lands nearest the middle of the board -- centralise, the oldest advice
-//              there is. Distance is measured to the centre POINT, so d4 and e5 tie, as they should.
-//   flank      the other wing of the same idea: how far off the centre FILE the move lands, so play
-//              on the a- or h-side counts wherever it happens on that file. This is "on the edge"
-//              with a definition that can be computed; the sharpness reading of that phrase needs a
-//              search per candidate and is not a scoring line.
+//   disrespect the rude one, and the only style that reads the CLOCK of the game as well as the move:
+//              a second queen when one is already on the board, a sacrifice made while the engine
+//              says you are already winning, an opening move on the rim (a knight to the edge, a
+//              rook's pawn, a king walk), and the king strolling toward theirs once it is safe.
+//              It is rude, not bad: the tolerance still holds, so every one of these is a move the
+//              engine called equal to the best. Nothing here throws the game away, which is the
+//              point -- a troll who resigns is not funny.
+//   ultra      Attacking taken to its end: a check counts double what it does there, a capture
+//              double, and on top of that the move earns for landing NEXT TO THE ENEMY KING and for
+//              any material it offers on the way in. Same tolerance as everything else, so it is a
+//              player who throws pieces at the king only when the engine says that still holds.
 function style_score(fen, uci, style, cp) {
     try {
         const c = new Chess(config.variant || 'chess', fen);
@@ -6213,10 +6218,58 @@ function style_score(fen, uci, style, cp) {
             return (PLAYSTYLE_PIECE_VAL[mv.captured] || 0)
                 + (mv.promotion ? PLAYSTYLE_PIECE_VAL[mv.promotion] || 0 : 0);
         }
-        if (style === 'central' || style === 'flank') {
-            const file = mv.to.charCodeAt(0) - 97, rank = Number(mv.to[1]) - 1;
-            const dFile = Math.abs(file - 3.5), dRank = Math.abs(rank - 3.5);
-            return style === 'central' ? -(dFile + dRank) : dFile;
+        if (style === 'disrespect') {
+            const them = white ? 'b' : 'w';
+            const us = white ? 'w' : 'b';
+            let score = 0;
+            // A SECOND QUEEN when one is already there. (The promotion itself is not the joke --
+            // having two of them is.)
+            if (mv.promotion === 'q') {
+                let queens = 0;
+                for (const row of c.board()) {
+                    for (const sq of row) if (sq && sq.type === 'q' && sq.color === us) queens++;
+                }
+                if (queens > 1) score += 5;
+            }
+            const winning = Number.isFinite(cp) && cp >= 300;
+            // giving material away while ALREADY winning: the engine still has to call it equal
+            if (winning && c.isAttacked(mv.to, them)) {
+                score += Math.max(0, (PLAYSTYLE_PIECE_VAL[mv.piece] || 0) - (PLAYSTYLE_PIECE_VAL[mv.captured] || 0));
+            }
+            const fullmove = Number(fen.split(' ')[5]) || 99;
+            const file = mv.to[0], rim = (file === 'a' || file === 'h');
+            // an opening played on the rim: a knight to the edge, a rook's pawn, or a king walk
+            if (fullmove <= 10 && ((mv.piece === 'n' && rim) || (mv.piece === 'p' && rim) || mv.piece === 'k')) {
+                score += 2;
+            }
+            // ...and once it is safely won, the king goes for a stroll toward theirs
+            if (winning && mv.piece === 'k') {
+                let king = null;
+                for (const row of c.board()) {
+                    for (const sq of row) if (sq && sq.type === 'k' && sq.color === them) king = sq.square;
+                }
+                if (king) {
+                    const dist = Math.max(Math.abs(king.charCodeAt(0) - mv.to.charCodeAt(0)),
+                                          Math.abs(Number(king[1]) - Number(mv.to[1])));
+                    score += Math.max(0, 4 - dist);
+                }
+            }
+            return score;
+        }
+        if (style === 'ultra') {
+            const them = white ? 'b' : 'w';
+            let king = null;
+            for (const row of c.board()) {
+                for (const sq of row) if (sq && sq.type === 'k' && sq.color === them) king = sq.square;
+            }
+            const dist = king
+                ? Math.max(Math.abs(king.charCodeAt(0) - mv.to.charCodeAt(0)),
+                           Math.abs(Number(king[1]) - Number(mv.to[1]))) : 8;
+            const offered = c.isAttacked(mv.to, them)
+                ? (PLAYSTYLE_PIECE_VAL[mv.piece] || 0) - (PLAYSTYLE_PIECE_VAL[mv.captured] || 0) : 0;
+            return (c.isCheck() ? 4 : 0) + (mv.captured ? 2 : 0) + (mv.promotion ? 1 : 0)
+                + Math.max(0, 3 - dist)          // landing in the king's neighbourhood
+                + Math.max(0, offered);          // ...and paying for the privilege
         }
         if (style === 'space') {
             const rank = (sq) => Number(sq[1]);
