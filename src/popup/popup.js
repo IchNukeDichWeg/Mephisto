@@ -6164,6 +6164,12 @@ const PLAYSTYLE_MARGIN = 35;   // centipawns a style may spend; a hair under the
 // measurement: enough to choose between moves a person might really play, not enough to reach the
 // tail of the distribution.
 const PLAYSTYLE_PROB_RATIO = 0.66;
+// WHAT "ALREADY WINNING" MEANS to the Disrespect style: the position has to be worth +6 BEFORE the
+// move, and the move it picks has to still be worth +2 AFTER it. The second number is belt and
+// braces -- the 35cp tolerance already keeps every candidate within a third of a pawn of the best,
+// so a +6 position cannot produce a +2 candidate -- but it is the rule the style is supposed to obey
+// and it costs nothing to say so, rather than leaving it as something the tolerance happens to imply.
+const PLAYSTYLE_WINNING_CP = 600, PLAYSTYLE_WINNING_AFTER_CP = 200;
 const PLAYSTYLE_STYLES = ['balanced', 'attacking', 'quiet', 'greedy', 'space',
                           'sacrifice', 'safe', 'drawish', 'disrespect', 'ultra'];
 const PLAYSTYLE_PIECE_VAL = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
@@ -6188,13 +6194,14 @@ const PLAYSTYLE_PIECE_VAL = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
 //              says you are already winning, an opening move on the rim (a knight to the edge, a
 //              rook's pawn, a king walk), and the king strolling toward theirs once it is safe.
 //              It is rude, not bad: the tolerance still holds, so every one of these is a move the
-//              engine called equal to the best. Nothing here throws the game away, which is the
-//              point -- a troll who resigns is not funny.
+//              engine called equal to the best, and "winning" means +6 before the move and +2
+//              after it. Nothing here throws the game away, which is the point -- a troll who
+//              resigns is not funny.
 //   ultra      Attacking taken to its end: a check counts double what it does there, a capture
 //              double, and on top of that the move earns for landing NEXT TO THE ENEMY KING and for
 //              any material it offers on the way in. Same tolerance as everything else, so it is a
 //              player who throws pieces at the king only when the engine says that still holds.
-function style_score(fen, uci, style, cp) {
+function style_score(fen, uci, style, cp, bestCp) {
     try {
         const c = new Chess(config.variant || 'chess', fen);
         const white = c.turn() === 'w';
@@ -6231,7 +6238,8 @@ function style_score(fen, uci, style, cp) {
                 }
                 if (queens > 1) score += 5;
             }
-            const winning = Number.isFinite(cp) && cp >= 300;
+            const winning = Number.isFinite(bestCp) && bestCp >= PLAYSTYLE_WINNING_CP
+                && Number.isFinite(cp) && cp >= PLAYSTYLE_WINNING_AFTER_CP;
             // giving material away while ALREADY winning: the engine still has to call it equal
             if (winning && c.isAttacked(mv.to, them)) {
                 score += Math.max(0, (PLAYSTYLE_PIECE_VAL[mv.piece] || 0) - (PLAYSTYLE_PIECE_VAL[mv.captured] || 0));
@@ -6312,7 +6320,7 @@ function playstyle_pick(best) {
     const bestCp = line_cp_ours(bestLine);
     if (!Number.isFinite(bestCp) || Math.abs(bestCp) >= 90000) return best;  // never toy with a mate
     // Each style's number already points the right way, so the pick is always the highest.
-    let pick = best, pickScore = style_score(fen, best, style, bestCp);
+    let pick = best, pickScore = style_score(fen, best, style, bestCp, bestCp);
     if (pickScore === null) return best;
     const bestProb = bestLine.maiaprob;
     const human = Number.isFinite(bestProb);   // a policy net: rank by probability, not by score
@@ -6325,7 +6333,7 @@ function playstyle_pick(best) {
             if (!Number.isFinite(cp) || bestCp - cp > PLAYSTYLE_MARGIN) continue;  // outside the tolerance
             if (Math.abs(cp) >= 90000) continue;
         }
-        const s = style_score(fen, l.move, style, line_cp_ours(l));
+        const s = style_score(fen, l.move, style, line_cp_ours(l), bestCp);
         if (s === null) continue;
         if (s > pickScore) { pick = l.move; pickScore = s; }
     }
