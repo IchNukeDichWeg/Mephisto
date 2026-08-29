@@ -540,7 +540,7 @@
   "set.class_on_board": "Classificazione sulla scacchiera",
   "set.tip.class_on_board": "Lo stesso giudizio, disegnato sulla scacchiera del SITO invece che su quella del pannello: un distintivo sulla casa di arrivo della mossa, dimensionato su quella scacchiera. Interruttore a sé e indipendente da quello sopra: il distintivo compare sulla scacchiera vera, che la piccola scacchiera del pannello ne porti uno o no. Il filtro \"Mostra quali\" vale per entrambi.",
   "set.playstyle": "Stile di gioco",
-  "set.tip.playstyle": "Un carattere, non una forza. Tra le linee che il motore ha gia trovato: Attacco preferisce la mossa forzante (scacco, cattura, promozione), Tranquillo quella calma, Avido quella che prende piu materiale, Spazio quella che guadagna terreno, Sacrificio quella che offre materiale che l'avversario puo prendere, Sicuro quella che non lascia nulla in presa, e Patta la linea piu vicina alla parita. Mai a scapito della qualita: al massimo 35 centipedoni, o su una rete umana due terzi della probabilita della mossa migliore - un sacrificio qui e gia giudicato corretto dal motore. Servono 2 linee o piu. Equilibrato e la scelta del motore.",
+  "set.tip.playstyle": "Un carattere, non una forza. Tra le linee che il motore ha gia trovato: Attacco preferisce la mossa forzante (scacco, cattura, promozione), Tranquillo quella calma, Avido quella che prende piu materiale, Spazio quella che guadagna terreno, Sacrificio quella che offre materiale che l'avversario puo prendere, Sicuro quella che non lascia nulla in presa, e Patta la linea piu vicina alla parita. Mai a scapito della qualita: al massimo 35 centipedoni, o su una rete umana due terzi della probabilita della mossa migliore - un sacrificio qui e gia giudicato corretto dal motore. Servono 2 linee o piu. Equilibrato e la scelta del motore. (+ Centrale / Ala)",
   "set.style_balanced": "Equilibrato (scelta del motore)",
   "set.style_attacking": "Attacco",
   "set.style_quiet": "Tranquillo",
@@ -562,5 +562,7 @@
   "set.style_space": "Spazio",
   "set.style_sacrifice": "Sacrificio",
   "set.style_safe": "Sicuro",
-  "set.style_drawish": "Patta"
+  "set.style_drawish": "Patta",
+  "set.style_central": "Centrale",
+  "set.style_flank": "Ala"
 }

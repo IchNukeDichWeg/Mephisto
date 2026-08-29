@@ -540,7 +540,7 @@
   "set.class_on_board": "Clasificación en el tablero",
   "set.tip.class_on_board": "La misma valoración, dibujada en el tablero del SITIO en lugar del panel: una insignia en la casilla donde terminó la jugada, al tamaño de ese tablero. Es un interruptor propio e independiente del anterior: la insignia aparece en el tablero real tanto si el tablero pequeño del panel lleva una como si no. El filtro «Mostrar cuáles» se aplica a ambos.",
   "set.playstyle": "Estilo de juego",
-  "set.tip.playstyle": "Un caracter, no una fuerza. Entre las lineas que el motor ya encontro: Atacante prefiere la jugada forzada (jaque, captura, promocion), Tranquilo la calmada, Codicioso la que gana mas material, Espacio la que gana terreno, Sacrificio la que ofrece material que el rival puede tomar, Seguro la que no deja nada colgado, y Tablas la linea mas cercana a la igualdad. Nunca a costa de la calidad: como maximo 35 centipeones, o en una red humana dos tercios de la probabilidad de la mejor jugada, asi que un sacrificio aqui ya lo considera correcto el motor. Necesita 2 lineas o mas. Equilibrado es la eleccion del motor.",
+  "set.tip.playstyle": "Un caracter, no una fuerza. Entre las lineas que el motor ya encontro: Atacante prefiere la jugada forzada (jaque, captura, promocion), Tranquilo la calmada, Codicioso la que gana mas material, Espacio la que gana terreno, Sacrificio la que ofrece material que el rival puede tomar, Seguro la que no deja nada colgado, y Tablas la linea mas cercana a la igualdad. Nunca a costa de la calidad: como maximo 35 centipeones, o en una red humana dos tercios de la probabilidad de la mejor jugada, asi que un sacrificio aqui ya lo considera correcto el motor. Necesita 2 lineas o mas. Equilibrado es la eleccion del motor. (+ Central / Flanco)",
   "set.style_balanced": "Equilibrado (eleccion del motor)",
   "set.style_attacking": "Atacante",
   "set.style_quiet": "Tranquilo",
@@ -562,5 +562,7 @@
   "set.style_space": "Espacio",
   "set.style_sacrifice": "Sacrificio",
   "set.style_safe": "Seguro",
-  "set.style_drawish": "Tablas"
+  "set.style_drawish": "Tablas",
+  "set.style_central": "Central",
+  "set.style_flank": "Flanco"
 }
