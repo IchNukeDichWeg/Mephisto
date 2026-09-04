@@ -7,7 +7,7 @@
                 <input id="settings_filter" class="browser-default" type="search" data-i18n-ph="set.filter_ph"
                        placeholder="Search these settings…" spellcheck="false" autocomplete="off">
             </div>
-            <div id="engine" class="scrollspy">
+            <section id="engine" class="set-sec scrollspy">
                 <h3 data-i18n="panel.engine" class="header">Engine</h3>
                 <div class="section">
                     <label>
@@ -45,8 +45,8 @@
                         </select>
                     </label>
                 </div>
-                <div class="section" id="elo_section">
-                    <label>
+                <div class="set-row section" id="elo_section">
+                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.cap_the_engine_s_playing" class="tooltipped" data-position="right"
                               data-tooltip="Cap the engine's playing strength to a target Elo (sent as
                                             UCI_LimitStrength + UCI_Elo). The valid range follows the engine
@@ -1526,9 +1526,6 @@
                      styled to match, and Materialize's file field needs its JS) -->
                 <input id="import_file" type="file" accept="application/json,.json" style="display: none">
             </div>
-        </div>
-    </div>
-            </section>
 
             <!-- ============================ PUZZLES ============================ -->
             <section id="puzzles" class="set-sec scrollspy">
