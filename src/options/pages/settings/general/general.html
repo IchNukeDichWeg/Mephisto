@@ -306,6 +306,144 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.refute" class="tooltipped" data-position="right"
+                              data-tooltip="After a move of YOURS that grades an inaccuracy or worse, draw the line that punishes it - the opponent&#39;s whole best continuation, ply by ply, in its own dark red. The badge tells you a move was bad; this shows what it loses. It reads the same graded history Move Classification uses, so switching it on switches that recording on too."><span data-i18n="set.refute">Refute My Mistakes</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="refute_checkbox" type="checkbox" class="set-cb">
+                        <label for="refute_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row" id="refute_plies_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.refute_plies" class="tooltipped" data-position="right"
+                              data-tooltip="How many plies of the punishing line to draw, 1 to 6."><span data-i18n="set.refute_plies">Refutation Length</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                            <input id="refute_plies_input" type="number" min="1" max="6" step="1">
+                            <button type="button" class="set-step-btn" data-step="1">+</button>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.second_opinion" class="tooltipped" data-position="right"
+                              data-tooltip="Ask a human-trained net what a player of the Human Reply Rating would play HERE, beside the engine&#39;s own answer, and say so when the two come apart - when the engine&#39;s move is one this rating almost never finds. Two questions, not one: what is best, and what a person actually plays. Costs one forward pass on a net the threat reply already loads, so with Human Reply on it is free. Standard chess only."><span data-i18n="set.second_opinion">Second Opinion</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="second_opinion_checkbox" type="checkbox" class="set-cb">
+                        <label for="second_opinion_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.opp_prep" class="tooltipped" data-position="right"
+                              data-tooltip="What THIS opponent has played in the position in front of you, from their own recent public games on the site you are on. People repeat their repertoire, and a line they have played eleven times is one they will play again. LONGER GAMES ONLY - it needs a clock reading of five minutes or more, because it costs a fetch and is only worth having while you still have time to use it. The request is made by the extension&#39;s worker, so your game tab never carries a lookup about the person you are playing."><span data-i18n="set.opp_prep">Opponent Prep</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="opp_prep_checkbox" type="checkbox" class="set-cb">
+                        <label for="opp_prep_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.game_log" class="tooltipped" data-position="right"
+                              data-tooltip="Write the panel&#39;s own evaluation of every ply into Copy PGN, in the comment format both sites already read: {[%eval 0.31] [%depth 22]}. It is what the panel measured DURING the game at whatever depth it reached, not a re-analysis - Game Review is for that. Only plies that were really evaluated get a comment."><span data-i18n="set.game_log">Evals In Copied PGN</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="game_log_checkbox" type="checkbox" class="set-cb">
+                        <label for="game_log_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.mirror_ratio" class="tooltipped" data-position="right"
+                              data-tooltip="What share of the opponent's own think Mirror Time spends, 50-150%. It
+                                            was fixed at 90, which pulls a little ahead on the clock every move but
+                                            still lets a slow opponent set your pace. Above 100 deliberately spends
+                                            MORE than they do, which is worth it in a long game where the extra
+                                            think buys more than the seconds cost. Whatever you set, being BEHIND on
+                                            the clock still cuts the target by 30%, so a high ratio cannot dig the
+                                            hole deeper. Only used while Mirror Time is on."><span data-i18n="set.mirror_ratio">Mirror Ratio (%)</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-5">&minus;</button>
+                            <input id="mirror_ratio_input" type="number" min="50" max="150" step="5">
+                            <button type="button" class="set-step-btn" data-step="5">+</button>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.time_trouble" class="tooltipped" data-position="right"
+                              data-tooltip="One switch for a scramble: below the threshold the search is capped at a
+                                            quarter of a second and the simulated human delay collapses to the floor
+                                            a click still needs. What loses games at ten seconds is the cursor
+                                            travel and the think pause, not the depth. Works whether or not Clock
+                                            Mode or Mirror Time is on, and it overrides both - they are budgeting a
+                                            clock this says is nearly gone."><span data-i18n="set.time_trouble">Time Trouble Mode</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="time_trouble_checkbox" type="checkbox" class="set-cb">
+                        <label for="time_trouble_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row" id="time_trouble_at_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.time_trouble_at" class="tooltipped" data-position="right"
+                              data-tooltip="The clock reading, in seconds, below which Time Trouble Mode takes
+                                            over. 5 to 120."><span data-i18n="set.time_trouble_at">Time Trouble Below (s)</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-5">&minus;</button>
+                            <input id="time_trouble_at_input" type="number" min="5" max="120" step="5">
+                            <button type="button" class="set-step-btn" data-step="5">+</button>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.pv_keys" class="tooltipped" data-position="right"
+                              data-tooltip="Walk the engine's line with the LEFT and RIGHT arrow keys on the panel's
+                                            own board. Right plays the engine's best move for the position you are
+                                            looking at and searches on from there, so holding it walks the whole
+                                            variation; left steps back. OFF by default, and while it is off the arrow
+                                            keys are left entirely alone - both chess sites use them for their own
+                                            move navigation, and a key the panel does not act on is never
+                                            swallowed. Rebindable like every other hotkey."><span data-i18n="set.pv_keys">Walk With Arrow Keys</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="pv_keys_checkbox" type="checkbox" class="set-cb">
+                        <label for="pv_keys_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.pv_walk" class="tooltipped" data-position="right"
                               data-tooltip="Draw the engine's whole line ahead on the board: every ply as a thin grey numbered arrow, so you see where the line is going, not just its first move. Grey because it is the engine's current suggestion, not a certainty -- forced continuations keep their own colours on top."><span data-i18n="set.pv_walk">PV Arrows</span></span>
                     </div>
@@ -930,6 +1068,28 @@
                         </label>
                     </div>
                 </div>
+                <div class="set-row section" id="tb_show_section">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.tb_show" class="tooltipped" data-position="right"
+                              data-tooltip="At 7 pieces or fewer the engine and the tablebase both answer, and they
+                                            answer different kinds of question - one searches, the other knows. This
+                                            is who gets the screen. BOTH draws the tablebase move as its own amber
+                                            arrow beside the engine's numbered lines and prints both readings on the
+                                            evaluation line. TABLEBASE ONLY leaves the solved move alone on the
+                                            board. ENGINE ONLY keeps the arrows and the score the engine's. Display
+                                            only: the tablebase move is proved and the engine's is not, so it is
+                                            still the move that gets played, and the readout still names it.">
+                            <span data-i18n="set.tb_show">Tablebase Display</span> <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <select name="tb_show" id="tablebase_show_select">
+                            <option data-i18n="set.tb_show_both" value="both">Both</option>
+                            <option data-i18n="set.tb_show_tb" value="tablebase">Tablebase only</option>
+                            <option data-i18n="set.tb_show_engine" value="engine">Engine only</option>
+                        </select>
+                    </div>
+                </div>
 
                 <div class="set-row">
                     <div class="set-lbl">
@@ -941,7 +1101,14 @@
                                             is remembered; the browser may ask once per session to re-allow reading
                                             it. A position your set does not cover, or one with castling rights,
                                             falls back to the online lookup automatically. Check lists what the
-                                            folder holds.">
+                                            folder holds. Download tables fetches them straight into
+                                            that folder from lichess's own server: choose how many
+                                            men (3-4-5 is 0.9 GB, the six-man set is 149 GB) and
+                                            which tables -- WDL says whether a position is won, drawn
+                                            or lost; DTZ is what converts a win under the 50-move
+                                            rule and is most of the size. Either alone works, and a
+                                            file already there with the right size is skipped, so a
+                                            stopped download resumes.">
                             Local Tablebases <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
@@ -950,6 +1117,17 @@
                         <button id="tb_allow" class="set-btn hidden" type="button">Re-allow</button>
                         <button id="tb_forget" class="set-btn hidden" type="button">Forget</button>
                         <button id="tb_check" class="set-btn" type="button">Check</button>
+                        <select id="tb_download_men" class="set-mini-select" title="How many pieces">
+                            <option data-i18n="set.tb_men_345" value="345">3-4-5 men</option>
+                            <option data-i18n="set.tb_men_6" value="6">6 men</option>
+                            <option data-i18n="set.tb_men_both" value="both">3-4-5 and 6</option>
+                        </select>
+                        <select id="tb_download_kind" class="set-mini-select" title="Which tables">
+                            <option data-i18n="set.tb_kind_both" value="both">WDL + DTZ</option>
+                            <option data-i18n="set.tb_kind_wdl" value="wdl">WDL only</option>
+                            <option data-i18n="set.tb_kind_dtz" value="dtz">DTZ only</option>
+                        </select>
+                        <button id="tb_download" class="set-btn" type="button" data-i18n="set.tb_download">Download tables</button>
                     </div>
                 </div>
                 <div id="tb_path_status" class="set-status"></div>

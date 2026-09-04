@@ -201,6 +201,18 @@ const NO_ELO_ENGINES = [...ONE_PASS_ENGINES, 'tetrarch-native'];
 
 // engines that speak native messaging (Chrome auto-launches the host, no server -- see
 // native-host/install-native.sh). The port name == the engine value (see NATIVE_HOSTS).
+// The engine the panel asked for, and the net that actually answered. Two different facts: a dev
+// build running last month's net is not the engine you think you are running, and nothing else in
+// the panel would tell you. Blank until the engine says so -- inventing a name here would be worse
+// than the row being honest about knowing nothing yet.
+let engine_net_seen = '';
+function update_engine_id() {
+    const el = PANEL_ROOT?.getElementById?.('qs_engine_id');
+    if (!el) return;
+    el.textContent = engine_net_seen ? `${config.engine} - ${engine_net_seen}` : config.engine;
+    el.title = el.textContent;
+}
+
 const NATIVE_ENGINES = ['sf-native', 'fairy-native', 'tetrarch-native'];
 // Cloud evaluation: a real Stockfish, on someone else's machine, reached over HTTPS. THE POSITION
 // LEAVES THIS MACHINE -- that is the cost, and it is why these are named "cloud" everywhere they
@@ -352,6 +364,13 @@ async function initPanel(root, tabId) {
         // is a wrong search with no way for you to say otherwise. This is that way.
         fourpc_mode: JSON.parse(MephistoConfig.get('fourpc_mode')) || 'auto',
         elo: JSON.parse(MephistoConfig.get('elo')) || 0, // strength cap; 0 = full strength (no UCI_LimitStrength)
+        tablebase_show: JSON.parse(MephistoConfig.get('tablebase_show')) || 'both', // both | tablebase | engine (display only)
+        pv_keys: JSON.parse(MephistoConfig.get('pv_keys')) || false, // arrow keys walk the engine's line
+        refute: JSON.parse(MephistoConfig.get('refute')) || false,   // draw the punishing line after a bad move
+        refute_plies: JSON.parse(MephistoConfig.get('refute_plies')) || 4,
+        game_log: JSON.parse(MephistoConfig.get('game_log')) || false, // write evals into the copied PGN
+        second_opinion: JSON.parse(MephistoConfig.get('second_opinion')) || false, // a human net beside the engine
+        opp_prep: JSON.parse(MephistoConfig.get('opp_prep')) || false, // their own recent games, long games only
         maia_level: JSON.parse(MephistoConfig.get('maia_level')) || '1500', // which Maia net (rating band) when engine=maia
         maia3_elo: JSON.parse(MephistoConfig.get('maia3_elo')) || 1500, // Maia-3 target Elo (600-2600, live input, not a reload)
         // Maia-2 asks who is playing WHOM: the same position is answered differently by a 1200
@@ -390,10 +409,11 @@ async function initPanel(root, tabId) {
         pv_walk_limit: Math.max(1, Math.min(50, JSON.parse(MephistoConfig.get('pv_walk_limit')) || 5)),
         // user arrow colours (Appearance page): raw '#rrggbb' strings, validated at USE
         // (user_color) so a bad stored value falls back to its default instead of breaking boot
-        ...Object.fromEntries(['arrow_color_line1', 'arrow_color_line2', 'arrow_color_line3',
-            'arrow_color_line4', 'arrow_color_line5', 'arrow_color_forced_ours',
-            'arrow_color_forced_theirs', 'arrow_color_pv_walk', 'arrow_color_threat',
-            'arrow_color_book'].map(k => {
+        // ARROW_COLOR_KEYS, not a second copy of the list: this one had drifted and was missing
+        // three families (the human reply, the safety net, and now the tablebase and refutation
+        // arrows), so their pickers wrote a value the panel never read and the colour silently
+        // stayed the default. Caught in the browser, not by reading.
+        ...Object.fromEntries(ARROW_COLOR_KEYS.map(k => {
             let v = ''; try { v = JSON.parse(MephistoConfig.get(k)) || ''; } catch (e) { /* junk -> default */ }
             return [k, v];
         })),
@@ -617,6 +637,12 @@ async function initPanel(root, tabId) {
             sync_fourpc_engine_to_page(response.fourPCPage);
             clearTimeout(fen_request_timer);
             if (response.clocks) last_clocks = {...response.clocks, at: Date.now()}; // for Clock Mode budgeting
+            // The longest clock reading this game is the closest thing to a base time the panel
+            // can see, and it is what Opponent Prep gates on: a 3+0 blitz never reaches five
+            // minutes, a 15+10 does on move one. Robust to joining a game late, which a scraped
+            // "time control" string would not be.
+            if (last_clocks?.mine != null) game_max_clock_s = Math.max(game_max_clock_s, last_clocks.mine);
+            if (response.opponent) maybe_opponent_prep(response.opponent);
         }
         if (response.fenresponse && response.dom && response.dom !== 'no') {
             // A manually set position OWNS the panel: the page keeps scraping and would otherwise
@@ -796,6 +822,21 @@ async function initPanel(root, tabId) {
         chrome.runtime.sendMessage({openUrl: url});
     });
     PANEL_ROOT.getElementById('copyfen')?.addEventListener('click', () => copy_to_button('copyfen', last_eval.fen));
+    PANEL_ROOT.getElementById('qs_copyanalysis')?.addEventListener('click',
+        () => copy_to_button('qs_copyanalysis', analysis_text()));
+    // FORCE A FRESH SEARCH of the position already on screen. Not a re-detect: the board is not
+    // asked about and nothing is scraped, because the case this is for is an answer that went stale
+    // under a setting change while the position itself is still right.
+    PANEL_ROOT.getElementById('qs_reanalyse')?.addEventListener('click', () => {
+        const at = setup_fen || last_eval.fen;
+        if (!at) return;
+        abandon_search();
+        const startFen = setup_fen ? at : (last_pos.startFen || at);
+        const moves = setup_fen ? '' : (last_pos.moves || '');
+        last_eval.fen = '';
+        tablebase_data = null;     // ask again rather than re-showing an answer we are re-deriving
+        on_new_pos(at, startFen, moves);
+    });
     PANEL_ROOT.getElementById('copypgn')?.addEventListener('click', () => copy_to_button('copypgn', current_pgn()));
     PANEL_ROOT.getElementById('config').addEventListener('click', () => {
         chrome.runtime.sendMessage({openOptions: true}); // the background opens it (see above)
@@ -1277,6 +1318,41 @@ function init_quick_settings() {
     // PLAYSTYLE BELONGS WHERE THE MOVES ARE. It decides which move gets played, so it sits in the
     // panel beside the other things that do -- not only on the settings page. No reload and no
     // re-search: the pick happens when the engine reports its lines, which is after every move.
+    // PANEL OPACITY AND DOCKING. Per SITE, not per settings profile -- where this panel sits on
+    // lichess has nothing to do with where it sits on chess.com -- so the values live with the
+    // geometry in the content script's own per-site record and are read from it here.
+    const opRow = PANEL_ROOT.getElementById('qs_opacity_row');
+    const dockRow = PANEL_ROOT.getElementById('qs_dock_row');
+    if (opRow && dockRow) {
+        // Only the in-page panel HAS a wrapper to fade or dock; the toolbar popup is drawn by the
+        // browser and neither applies, so the rows are not offered there.
+        const style = IS_CONTENT_SCRIPT ? read_panel_style() : null;
+        opRow.style.display = dockRow.style.display = style ? '' : 'none';
+        const op = PANEL_ROOT.getElementById('qs_opacity');
+        const dk = PANEL_ROOT.getElementById('qs_dock');
+        if (style && op && dk) {
+            op.value = String(style.opacity ?? 100);
+            dk.value = style.dock || 'free';
+            op.addEventListener('change', () => send_panel_style({opacity: parseInt(op.value) || 100}));
+            dk.addEventListener('change', () => send_panel_style({dock: dk.value}));
+        }
+    }
+    // Who owns the board when both the engine and the tablebase have an answer. Display only, so
+    // nothing is re-searched: redraw what is already known and repaint the two readings.
+    const tbSel = PANEL_ROOT.getElementById('qs_tb_show');
+    if (tbSel) {
+        tbSel.value = tb_show();
+        const tbRow = PANEL_ROOT.getElementById('qs_tb_show_row');
+        if (tbRow) tbRow.style.display = config.tablebase ? '' : 'none';
+        tbSel.addEventListener('change', () => {
+            const v = TB_SHOW_MODES.includes(tbSel.value) ? tbSel.value : 'both';
+            config.tablebase_show = v;
+            save('tablebase_show', v);
+            draw_moves();
+            update_best_move(null);   // re-render the readout and its extras under the new mode
+            push_config();
+        });
+    }
     const styleSel = PANEL_ROOT.getElementById('qs_playstyle');
     if (styleSel) {
         styleSel.value = config.playstyle || 'balanced';
@@ -1645,6 +1721,7 @@ async function initialize_engine(reuseWarm = false) {
         }
     }
     engine_ready = true;
+    if (last_init_engine !== config.engine) { engine_net_seen = ''; update_engine_id(); }
     last_init_engine = config.engine;
     last_init_variant = config.variant;
     last_init_maia = config.maia_level;
@@ -2011,6 +2088,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         // the net's own Maia read is per POSITION, not per best move -- keep it while the fen holds
         if (last_eval.humanSelf && last_eval.humanSelf.fen !== last_eval.fen) last_eval.humanSelf = null;
         request_threat_human(last_eval.fen, best);
+        request_second_opinion(last_eval.fen, best);
         request_safety_net_human(last_eval.fen);
         if (config.simon_says_mode) {
             const startSquare = best.substring(0, 2);
@@ -2357,7 +2435,7 @@ const PV_WALK_COLOR = '#8f8f8f';
 const ARROW_COLOR_KEYS = ['arrow_color_line1', 'arrow_color_line2', 'arrow_color_line3',
     'arrow_color_line4', 'arrow_color_line5', 'arrow_color_forced_ours',
     'arrow_color_forced_theirs', 'arrow_color_pv_walk', 'arrow_color_threat', 'arrow_color_book',
-    'arrow_color_human_reply', 'arrow_color_safety_net'];
+    'arrow_color_human_reply', 'arrow_color_safety_net', 'arrow_color_tb', 'arrow_color_refute'];
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 function user_color(key, dflt) { const v = config && config[key]; return HEX_COLOR_RE.test(v || '') ? v : dflt; }
 function shade_hex(hex, f) {
@@ -2598,6 +2676,13 @@ function on_engine_response(message) {
     }
 
     last_info_at = Date.now();   // the panel is HEARING the engine (see search_state for why)
+    // WHAT IS ACTUALLY LOADED. Every real engine announces its net on load ('info string NNUE
+    // evaluation using nn-<hash>.nnue'), and the offscreen host announces the ones it had to fetch.
+    // The panel knows which engine it ASKED for; this is the only evidence of what answered.
+    if (message.startsWith('info string')) {
+        const net = /\b((?:nn-[0-9a-f]+|[\w.-]+)\.(?:nnue|onnx))\b/.exec(message);
+        if (net) { engine_net_seen = net[1]; update_engine_id(); }
+    }
     revive_attempts = 0;         // ...so whatever we did to revive it worked
     if (message.includes('lowerbound') || message.includes('upperbound') || message.includes('currmove')) {
         return; // ignore these messages
@@ -3265,6 +3350,29 @@ function tablebase_pick(fen) {
     return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(best ?? '') ? best : null;
 }
 
+// WHICH OF THE TWO ANSWERS GETS THE SCREEN. At 7 pieces or fewer both the engine and the tablebase
+// answer the same position, and they answer differently in kind: one is a search, the other is
+// solved. Drawn together with no distinction they were unreadable -- the tablebase move wore line
+// 1's blue and the engine's own first line was dropped underneath it, so the board showed "the top
+// engine line" that was not the engine's at all (reported 2026-08-30).
+//
+// This decides the DISPLAY only. The tablebase still outranks the engine for the move that is
+// actually played in every mode, because at <=7 pieces its move is proved and the engine's is not --
+// which is also why the readout keeps naming the played move even under 'engine'.
+const TB_SHOW_MODES = ['both', 'tablebase', 'engine'];
+// Amber, chosen to clash with nothing already on the board: not in LINE_COLORS, not in BOOK_COLORS,
+// not the red threat and not the grey PV walk. A tablebase arrow must never be mistakable for a
+// line the engine ranked, because it does not mean the same thing.
+const TB_COLOR = '#f59e0b';
+function tb_show() {
+    return TB_SHOW_MODES.includes(config.tablebase_show) ? config.tablebase_show : 'both';
+}
+// "Is there a tablebase answer to show, and are we showing it"
+function tb_show_tb() { return tb_show() !== 'engine'; }
+// The engine keeps the screen unless the tablebase both owns it AND actually answered -- otherwise
+// 'Tablebase only' would leave an empty panel on every position with more than seven men.
+function tb_show_engine(fen) { return tb_show() !== 'tablebase' || !tablebase_pick(fen ?? last_eval.fen); }
+
 // The verdict line under the readout. The readout itself names the tablebase move whenever the
 // pick will drive the play (see on_engine_best_move); this label carries the verdict, the count
 // and the source.
@@ -3898,6 +4006,35 @@ function panel_line_goto(idx) {
     } catch (e) { /* board not ready */ }
     render_panel_line();
     on_new_pos(fen, fen, '');
+}
+
+// WALKING THE LINE WITH THE ARROW KEYS. Back is just the walker one step left. Forward is the
+// interesting half: at the tip of the line there is nothing recorded yet, so it plays the engine's
+// own best move FOR THE POSITION YOU ARE SITTING ON -- which is what makes this walking the PV
+// rather than replaying a fixed list. Each step re-searches from where you land (panel_line_goto
+// does that already), so the next press follows the engine's line from there.
+function pv_walk_back() {
+    if (panel_line_idx < 0) return false;   // already at the base: let the site have the key
+    panel_line_goto(panel_line_idx - 1);
+    return true;
+}
+
+function pv_walk_forward() {
+    if (panel_line_idx < panel_line.length - 1) { panel_line_goto(panel_line_idx + 1); return true; }
+    const at = (panel_line_idx === -1) ? (panel_line_base || last_eval.fen)
+                                       : panel_line[panel_line_idx].fen;
+    // Only extend with a line that belongs to the position we are actually on. Pressing forward
+    // faster than the engine answers must do NOTHING rather than push another position's move.
+    if (!at || last_eval.fen !== at) return false;
+    const uci = pv_moves(last_eval.lines?.[0]?.pv)[0] || last_eval.lines?.[0]?.move;
+    if (!uci) return false;
+    try {
+        const chess = new Chess(config.variant, at);
+        if (!chess.move(uci)) return false;
+        panel_line_push(chess.history().slice(-1)[0], uci, chess.fen());
+        panel_line_goto(panel_line.length - 1);
+        return true;
+    } catch (e) { return false; }
 }
 
 function render_panel_line() {
@@ -4851,6 +4988,11 @@ function on_new_pos(fen, startFen, moves) {
     if (ply_count < prev_ply_count && ply_count <= 4) {
         opp_spend = null; opp_clock_mark = null; last_our_eval = null;
         explorer_out_of_book = false; explorer_data = null; explorer_empty_streak = 0; // new game = back in book
+        // A NEW GAME IS A NEW OPPONENT AND A NEW CLOCK. Without this the prep book stayed keyed to
+        // the last person and the "longest clock seen" carried a 15+10 game's base time into the
+        // bullet game after it -- so a bullet game would have asked, which is exactly what the
+        // gate exists to prevent.
+        game_max_clock_s = 0; opp_prep_for = ''; opp_prep_book = null; opp_prep_games = 0;
     }
     // fire the book lookup NOW so the answer has the whole search to arrive; never awaited
     request_explorer(fen);
@@ -4903,6 +5045,10 @@ function on_new_pos(fen, startFen, moves) {
     try {
         if (new Chess(config.variant, fen).moves().length === 1) movetime = Math.min(movetime, config.compute_time);
     } catch (e) { /* variant fen chess.js can't parse -- skip the forced-move shortcut */ }
+
+    // ...and in time trouble every move is that move. Applied last so it wins over the pacing modes,
+    // which are budgeting a clock this says is nearly gone.
+    if (in_time_trouble()) movetime = Math.min(movetime, TIME_TROUBLE_SEARCH_MS);
     search_start = Date.now();
     // start the countdown NOW (the search fills the pace), on our turn, when a mode changes the
     // base time -- so the full time counts down while the engine thinks. Category is added once the
@@ -5419,9 +5565,18 @@ function parse_position_from_response(txt) {
     }
 }
 
+// BOTH READINGS, ON ONE LINE, each named: `Score: 2.31 at depth 24 / Tablebase: winning, DTZ 27`.
+// The engine's number and the tablebase's verdict do not measure the same thing -- one is an
+// estimate and the other is the result -- so they are printed side by side rather than one
+// silently replacing the other. Which halves appear is the Tablebase Display setting; with the
+// tablebase owning the line but having no answer for this position, the engine's number stands
+// rather than leaving the row blank.
 function update_evaluation(eval_string) {
     if (eval_string != null && config.computer_evaluation) {
-        PANEL_ROOT.getElementById('evaluation').innerHTML = eval_string;
+        const tb = tb_show_tb() ? tablebase_label() : '';
+        const engine = tb_show_engine() ? eval_string : '';
+        PANEL_ROOT.getElementById('evaluation').innerHTML =
+            [engine, tb].filter(Boolean).join(' / ') || eval_string;
     }
 }
 
@@ -5646,8 +5801,11 @@ function readout_extras() {
     // Both labels return BARE text and the separator is added here. They used to carry their own
     // leading ' - ' / '·', so which punctuation started the line depended on which label happened to
     // be present -- and stripping it back off needed a regex that missed the em dash.
-    const extra = [puzzle_label(), tablebase_label(), move_confidence_label(), human_reply_label(),
-                   safety_net_label()].filter(Boolean).join(' · ');
+    // tablebase_label() USED to ride here as well. It now belongs to the evaluation line, beside the
+    // engine's own number, where the two readings can be compared -- printing it in both places
+    // said the same thing twice and left the eval row still claiming the engine's estimate alone.
+    const extra = [puzzle_label(), move_confidence_label(), human_reply_label(),
+                   second_opinion_label(), opp_prep_label(), safety_net_label()].filter(Boolean).join(' · ');
     return extra ? `<span class="line1-extra">${extra}</span>` : '';
 }
 
@@ -5720,6 +5878,69 @@ async function copy_to_button(id, text) {
 // The game so far, as PGN. chess.js has no pgn() of its own, so build it from history()'s SAN --
 // the same replay the analysis already does. Returns null when there's nothing to copy, or when the
 // variant is one chess.js can't replay (see CHESSJS_VARIANTS), rather than emitting a wrong game.
+// THE PANEL'S ANSWER, AS TEXT. Everything the panel is showing about this position in a form that
+// survives a paste: the position, the score with the depth it was reached at, and every candidate
+// line with its own score. Deliberately plain text and not markdown -- it goes into issues, notes
+// and messages, and half of those render neither.
+function analysis_text() {
+    const fen = last_eval.fen;
+    if (!fen) return null;
+    const out = [`FEN: ${fen}`, `Engine: ${config.engine}`];
+    const l0 = last_eval.lines?.[0];
+    if (l0) {
+        const score = ('mate' in l0 && l0.mate != null) ? `mate in ${l0.mate}` : `${(l0.score / 100).toFixed(2)}`;
+        out.push(`Score: ${score} at depth ${l0.depth ?? '?'}`);
+    }
+    const tb = tablebase_label();
+    if (tb) out.push(tb);
+    for (let i = 0; i < (last_eval.activeLines || 0); i++) {
+        const l = last_eval.lines?.[i];
+        if (!l || !l.move) continue;
+        const score = ('mate' in l && l.mate != null) ? `#${l.mate}` : (l.score / 100).toFixed(2);
+        // The PV as played from this position, in the notation the panel is set to -- a line of raw
+        // uci is not something anyone reads back.
+        out.push(`${i + 1}. ${notate(fen, l.move)} (${score})${l.pv ? '  ' + pv_text(fen, l.pv) : ''}`);
+    }
+    return out.join('\n');
+}
+
+// A pv as SAN (or uci, following Move Notation), replayed once from the position it belongs to.
+function pv_text(fen, pv) {
+    const ucis = pv_moves(pv);
+    if (!ucis.length) return '';
+    if (config.move_notation !== 'san') return ucis.join(' ');
+    try {
+        const chess = new Chess(config.variant, fen);
+        const san = [];
+        for (const uci of ucis) {
+            const m = chess.move(uci);
+            if (!m) break;
+            san.push(chess.history().slice(-1)[0]);
+        }
+        return san.join(' ');
+    } catch (e) { return ucis.join(' '); }
+}
+
+// One ply's `{[%eval ...] [%depth ...]}`, or '' when that ply was never actually evaluated.
+// eval_seen is the authority on which is which -- see record_eval_history, where gaps are filled
+// with a COPY of the previous value so the graph stays a curve.
+function game_log_comment(ply) {
+    if (!eval_seen[ply]) return '';
+    const f = ply_facts[ply];
+    const line = f?.lines?.[0];
+    if (!line) return '';
+    // ALREADY WHITE-RELATIVE, and flipping it here made every eval the wrong way round: the info
+    // parsers normalise the engine's side-to-move score once, on the way in (see the comment on the
+    // eval bar: "the TEXT eval stays white-relative on purpose"). PGN's %eval wants exactly that,
+    // so it is written as it stands. Caught in the browser: 1.e4 came out as -0.30.
+    const white = (typeof line.mate === 'number' && !Number.isNaN(line.mate))
+        ? `#${line.mate}`
+        : (typeof line.score === 'number' ? (line.score / 100).toFixed(2) : null);
+    if (white == null) return '';
+    const depth = f.depth ? ` [%depth ${f.depth}]` : '';
+    return `{[%eval ${white}]${depth}}`;
+}
+
 function current_pgn() {
     const {startFen, moves} = last_pos;
     if (!moves) return null;
@@ -5746,6 +5967,15 @@ function current_pgn() {
         if (!black) body += `${num}. `;
         else if (i === 0) body += `${num}... `; // black to move at the start needs the ellipsis once
         body += san[i] + ' ';
+        // THE PANEL'S OWN READING OF EVERY PLY, in the comment format lichess and chess.com both
+        // already write and read: `{[%eval 0.31] [%depth 22]}`. It is the panel's live evaluation
+        // of the position AFTER the move, at whatever depth it actually reached in the game -- not
+        // a re-analysis, which is what Game Review is for. Only plies that were really measured get
+        // a comment; a filler value copied forward to keep the graph a curve is not a measurement.
+        if (config.game_log) {
+            const c = game_log_comment(i + 1);
+            if (c) body += c + ' ';
+        }
         if (black) num++;
         black = !black;
     }
@@ -6050,6 +6280,38 @@ function clock_aware() {
     return config.clock_mode || config.mirror_mode;
 }
 
+// MIRROR TIME IS A RATIO NOW, not a hardcoded 90%. Mirroring at 90% still loses the clock race
+// whenever the opponent's own spend is the thing running you low -- you are always paying nine
+// tenths of a number you did not choose. The setting lets that go either way: below 100 pulls ahead
+// on the clock a little every move (what it always did), above 100 deliberately spends more than
+// they do, for a longer game where the extra think is worth more than the seconds.
+// The catch-up rule below it is NOT optional and applies at every ratio: when you are actually
+// behind on the clock the target is cut by 30% regardless, so a ratio over 100 can never dig the
+// hole deeper.
+const MIRROR_RATIO_DEFAULT = 90;
+function mirror_ratio() {
+    const n = parseInt(config.mirror_ratio);
+    return Number.isFinite(n) ? Math.max(50, Math.min(150, n)) / 100 : MIRROR_RATIO_DEFAULT / 100;
+}
+
+// TIME TROUBLE: one switch that changes how the whole move is spent, rather than four sliders you
+// would have to move by hand as the clock runs down. Below the threshold the search is capped and
+// the simulated human delay collapses to its floor -- in a scramble the thing that loses games is
+// the 400ms of cursor travel, not the depth. Independent of Clock Mode and Mirror Time on purpose:
+// it answers "am I about to flag", which is true whether or not you asked for clock-aware pacing.
+const TIME_TROUBLE_SEARCH_MS = 250;   // a depth-8-ish move on any machine, and it is not the search
+                                      // that is costing you here
+const TIME_TROUBLE_MOVE_MS = 200;     // the floor a click still needs to look like a hand made it
+function time_trouble_at() {
+    const n = parseInt(config.time_trouble_at);
+    return Number.isFinite(n) ? Math.max(5, Math.min(120, n)) : 30;
+}
+function in_time_trouble() {
+    if (!config.time_trouble || !last_clocks || last_clocks.mine == null) return false;
+    const T = last_clocks.mine - (Date.now() - last_clocks.at) / 1000;
+    return T <= time_trouble_at();
+}
+
 // per-move time budget in ms from the scraped clock, or null when no clock-aware mode is on
 // (or the clock is unreadable). ~T/30 + 60% of the increment, never more than T/8.
 function clock_budget_ms() {
@@ -6081,7 +6343,14 @@ const CLOCK_PACE_SHARE = 0.35;    // of the per-move budget, spent on looking hu
 const CLOCK_PACE_FLOOR_MS = 150;  // a move still has to travel and land
 
 function clock_pace_timing(t) {
+    // Time trouble collapses the human-looking part to its floor before anything else gets a say:
+    // the think pause and the cursor travel are what a scramble actually costs, and Pace to Clock
+    // (below) only helps if you switched it on and only in proportion.
+    if (in_time_trouble()) {
+        return {think_time: 0, think_variance: 0, move_time: TIME_TROUBLE_MOVE_MS, move_variance: 0};
+    }
     if (!config.clock_pace) return t;
+
     const budget = clock_move_budget_ms();
     if (budget == null) return t;                  // no readable clock -> your settings, untouched
     // Mean rather than max: variance is symmetric, so the average move costs half of it.
@@ -6114,7 +6383,7 @@ function paced_move_target_ms() {
     const T = last_clocks.mine - (Date.now() - last_clocks.at) / 1000; // seconds remaining
     let ms;
     if (config.mirror_mode && opp_spend != null) {
-        ms = opp_spend * 900;                                     // mirror: 90% of their spend
+        ms = opp_spend * 1000 * mirror_ratio();                   // mirror: their spend, x the ratio
         if (last_clocks.theirs != null && T < last_clocks.theirs) ms *= 0.7; // catch up when behind
     } else {
         ms = clock_budget_ms();
@@ -6427,7 +6696,7 @@ function humanize_pick(best) {
     if (budget != null) {
         const T = last_clocks.mine - (Date.now() - last_clocks.at) / 1000;
         if (config.mirror_mode && kind !== 'instant' && opp_spend != null) {
-            think = opp_spend * 900; // 90% of their spend, in ms
+            think = opp_spend * 1000 * mirror_ratio(); // their spend x the ratio, in ms
             if (last_clocks.theirs != null && T < last_clocks.theirs) think *= 0.7;
             think = Math.min(think, T * 1000 / 8); // never sink an eighth of the clock into one move
             source = 'Mirror Time';
@@ -6993,6 +7262,13 @@ function do_hotkey(action) {
         return true;
     }
     if (action === 'redetect') { PANEL_ROOT.getElementById('recheck')?.click(); return true; }
+    // WALK THE ENGINE'S LINE with the arrow keys. Returns FALSE while the toggle is off -- the
+    // dispatcher only swallows a key the panel acted on, so the site keeps its own arrow-key move
+    // navigation (lichess and chess.com both use them) until this is switched on deliberately.
+    if (action === 'pv_back' || action === 'pv_forward') {
+        if (!config.pv_keys) return false;
+        return action === 'pv_back' ? pv_walk_back() : pv_walk_forward();
+    }
     // Bot Tricks. Returns FALSE anywhere the row is not showing, so the key stays the site's own on
     // every other page rather than being swallowed by a feature that is switched off -- the same
     // contract Manual Mode's Space has.
@@ -7689,7 +7965,12 @@ let move_class_key = '';
 // which is exactly how these features behave before the first evaluation anyway.
 let classifier_asked = false;
 function classifier_wanted() {
-    return !!(config.live_stats || config.live_classify || config.class_on_board || config.opp_alert);
+    // `refute` grades your last move to decide whether to draw its punishment, and `game_log`
+    // writes the eval of every ply into the exported PGN -- both read the same recorded history
+    // that this gate controls. Left out, each looked broken with its own switch on: nothing was
+    // ever recorded, so nothing was ever graded and every eval comment came out empty.
+    return !!(config.live_stats || config.live_classify || config.class_on_board || config.opp_alert
+              || config.refute || config.game_log);
 }
 function ensure_classifier() {
     if (self.MephistoClassify || classifier_asked || !classifier_wanted()) return;
@@ -7773,6 +8054,17 @@ function classify_history() {
         // a variant chess.js cannot replay just means no classes this game, never a broken panel
     }
     return move_classes;
+}
+
+// The panel's look-and-place lives in the page, with the geometry, because it is per site. These
+// two are the whole channel: a direct call in the isolated world the panel already shares with the
+// content script (see send_to_active_tab for why that is a call and not a message).
+function read_panel_style() {
+    if (!IS_CONTENT_SCRIPT) return null;
+    try { return self.MephistoContent?.handle({panelStyleRead: true}) || null; } catch (e) { return null; }
+}
+function send_panel_style(style) {
+    send_to_active_tab({panelStyle: style});
 }
 
 function request_draw_eval_bar(data) {
@@ -7904,7 +8196,11 @@ const LIVE_CONFIG_KEYS = [
     'safety_net', 'safety_net_mode', 'safety_net_drop', 'safety_net_max',
     'bot_tricks', 'bot_trick_game', 'bot_trick_delay', 'bot_trick_pgn',
     'computer_evaluation', 'multiple_lines', 'compute_time', 'compute_depth', 'search_mode',
-    'live_classify', 'class_on_board', 'live_classify_which', 'playstyle',
+    'live_classify', 'class_on_board', 'live_classify_which', 'playstyle', 'tablebase_show',
+    // the new panel-side features: all display or pacing decisions the panel makes per move, so a
+    // change on the settings page has to reach an open panel rather than waiting for a reopen
+    'pv_keys', 'refute', 'refute_plies', 'second_opinion', 'opp_prep', 'game_log',
+    'mirror_ratio', 'time_trouble', 'time_trouble_at',
     'maia2_self_elo', 'maia2_oppo_elo',
     'analysis_limit', 'analysis_limit_mode',
     'arrow_opacity', 'arrow_rank', 'arrow_labels', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
@@ -7934,10 +8230,32 @@ const REVIVE_GAP_MS = 8000;    // never faster than this, so a revive cannot bec
 let last_revive_at = 0;
 let revive_attempts = 0;
 
+// A CONVERGED SEARCH IS SILENT TOO, and that is not the same as a dead one. With Autoplay off (also
+// Help Mode, Manual Mode, and a snapped position nobody is playing) the search is `go infinite`, so
+// `search_active` stays true for as long as the panel is open -- and an engine that has proved a
+// mate, or simply has nothing new to say about a quiet position, stops emitting frames. Silence
+// alone therefore meant "dead": the watchdog restarted the search every few seconds and REBUILT the
+// engine every second attempt, which is the panel sitting on its loading bar with Autoplay off.
+// Reported with screen capture on, where it is worst -- a captured position never changes, so
+// nothing else ever re-drives the search and the loop is the only thing happening.
+//
+// So ask before concluding. `isready` is answered by a live engine EVEN MID-SEARCH (it is handled on
+// the input thread, and a wedged command thread answering nothing is exactly the tell that found the
+// preamble deadlock). Any reply at all refreshes last_info_at, so a live engine stands the watchdog
+// down without this function needing to hear the answer itself.
+let engine_probe_at = 0;
 function revive_if_engine_silent() {
     if (!PANEL_BOOTED || !search_active) return;
     if (!last_info_at || Date.now() - last_info_at < ENGINE_SILENT_MS) return;
     if (Date.now() - last_revive_at < REVIVE_GAP_MS) return;
+    // One probe per silence, and only where there is something to probe: send_engine_uci is a no-op
+    // for a native host (it takes its work through request_remote_analyse), so those keep the old
+    // behaviour rather than waiting on an answer that can never come.
+    if (!is_remote() && Date.now() - engine_probe_at > ENGINE_SILENT_MS) {
+        engine_probe_at = Date.now();
+        send_engine_uci('isready');
+        return;   // give it one tick to answer before declaring it dead
+    }
     last_revive_at = Date.now();
     revive_attempts++;
     console.warn(`Mephisto: no engine frame for ${Date.now() - last_info_at}ms during a search `
@@ -7999,6 +8317,14 @@ function watch_config_changes() {
                 if (key === 'live_stats' || key === 'live_classify' || key === 'class_on_board'
                     || key === 'opp_alert') ensure_classifier();
                 if (key === 'tablebase') tablebase_data = null;       // a stale answer must not survive
+                // Display-only: nothing is re-searched, but the board and the evaluation line
+                // are both drawn from what is already in hand and have to be repainted now rather
+                // than at the next engine frame -- with Autoplay off there may not be another one.
+                if (key === 'tablebase' || key === 'tablebase_show') { draw_moves(); update_best_move(null); }
+                if (key === 'refute' || key === 'refute_plies' || key === 'second_opinion') {
+                    draw_moves(); update_best_move(null);
+                }
+                if (key === 'refute' || key === 'game_log') ensure_classifier();   // both read the graded history
                 // a reply computed at the old rating must not sit under a label showing the new one:
                 // drop it and ask again (ensure_threat_human retunes the net in place via setoption)
                 if (key === 'threat_human' || key === 'threat_human_elo') {
@@ -8081,6 +8407,38 @@ let last_draw_trace = null; // see the note in draw_moves: this trace is per-CHA
 // on the board, and a board covered in verdicts is not what everyone wants while playing. Drawn on
 // the PANEL's own board, not the site's: the site board has no badge layer, and the panel board is
 // the one the panel already owns.
+// WHY THAT MOVE WAS BAD, drawn rather than named. The badge says "blunder"; this says what the
+// blunder LOSES -- the opponent's whole punishing line, on the board, ply by ply. Everything it
+// needs is already in hand at that moment: the position after your move is the one being searched,
+// so the engine's own principal variation from here IS the refutation, and the classifier has
+// already decided whether the move deserves one.
+//
+// Only after YOUR move, only when it graded inaccuracy or worse, and only while the opponent is to
+// move -- once they reply the line is history and the board has moved on.
+const REFUTE_CLASSES = ['inaccuracy', 'mistake', 'miss', 'blunder'];
+const REFUTE_COLOR = '#d1495b';   // its own red, darker than the threat arrow's, and it is the only
+                                  // thing on the board that means "this already happened"
+function draw_refutation(hint_arrows, page_arrows) {
+    if (!config.refute) return;
+    const moves = (premove_tracker.moves || '').trim().split(/\s+/).filter(Boolean);
+    if (!moves.length) return;
+    // The move just played must be OURS -- the opponent's mistakes are the Opponent Mistake Alert's
+    // job, and drawing both would put two red lines on one board.
+    const mover = (moves.length % 2 === 1) ? 'white' : 'black';
+    if (mover !== our_side()) return;
+    const klass = classify_history()[moves.length - 1];
+    if (!REFUTE_CLASSES.includes(klass)) return;
+    const pv = last_eval.lines?.[0]?.pv;
+    if (!pv || !last_eval.fen) return;
+    const limit = Math.max(1, Math.min(6, config.refute_plies || 4));
+    const steps = pv_walk_moves(last_eval.fen, pv, limit);
+    const col = user_color('arrow_color_refute', REFUTE_COLOR);
+    for (const step of steps) {
+        draw_move(step.uci, col, PANEL_ROOT.getElementById('move-annotations'), 0.14, step.ply + 1, '');
+        if (page_arrows) hint_arrows.push({move: step.uci, width: 0.14, color: col, rank: step.ply + 1, label: ''});
+    }
+}
+
 function draw_last_move_class() {
     if (!config.live_classify && !config.class_on_board) return;
     const moves = (premove_tracker.moves || '').trim().split(/\s+/).filter(Boolean);
@@ -8253,16 +8611,23 @@ function draw_moves() {
     // The tablebase pick leads the board too: it is the move autoplay makes, so its arrow is the
     // widest one, labeled with the mate count (or TB), and an engine line that agrees with it is
     // not drawn twice underneath.
-    const tb_arrow = tablebase_pick(last_eval.fen);
+    // IN ITS OWN COLOUR, not line 1's. It is a different kind of answer from an engine line and the
+    // board has to say so; the label carries the mate count where the tables have one.
+    const tb_pick = tablebase_pick(last_eval.fen);
+    const tb_arrow = (tb_pick && tb_show_tb()) ? tb_pick : null;
     if (tb_arrow) {
         const tb_label = tablebase_data?.dtm != null
             ? '#' + Math.ceil(Math.abs(tablebase_data.dtm) / 2) : 'TB';
-        draw_move(tb_arrow, line_color(0), PANEL_ROOT.getElementById('move-annotations'), 0.25, 0, tb_label);
-        if (page_arrows) hint_arrows.push({move: tb_arrow, width: 0.25, color: line_color(0), rank: 0, label: tb_label});
+        const tb_col = user_color('arrow_color_tb', TB_COLOR);
+        draw_move(tb_arrow, tb_col, PANEL_ROOT.getElementById('move-annotations'), 0.25, 0, tb_label);
+        if (page_arrows) hint_arrows.push({move: tb_arrow, width: 0.25, color: tb_col, rank: 0, label: tb_label});
     }
 
     for (let i = 0; i < last_eval.activeLines; i++) {
+        if (!tb_show_engine()) break;                  // 'Tablebase only': its arrow is the whole board
         if (!last_eval.lines[i]) continue;
+        // Only when the tablebase arrow was actually DRAWN -- under 'Engine only' it was not, and
+        // skipping the engine's own line then left the best move with no arrow at all.
         if (tb_arrow && last_eval.lines[i].move === tb_arrow) continue;
 
         const arrow_color = line_color(i); // per-rank colour (was blue for #1, grey for all the rest)
@@ -8278,6 +8643,15 @@ function draw_moves() {
                               rank, label});
         }
     }
+    // The human net's own pick, when it is not the engine's. Drawn in the same colour the human
+    // reply already uses, so "this is what a person plays" is one colour everywhere.
+    const so = config.second_opinion ? last_eval.secondOpinion : null;
+    if (so && so.uci && so.uci !== last_eval.lines?.[0]?.move) {
+        const hcol = user_color('arrow_color_human_reply', '#a8657f');
+        draw_move(so.uci, hcol, PANEL_ROOT.getElementById('move-annotations'), 0.16, 0, 'H');
+        if (page_arrows) hint_arrows.push({move: so.uci, width: 0.16, color: hcol, rank: 0, label: 'H'});
+    }
+    draw_refutation(hint_arrows, page_arrows);   // ...and, when it was bad, how it gets punished
     draw_last_move_class();   // on top of the arrows: it grades a move already made
 
     if (page_arrows) {
@@ -8557,6 +8931,137 @@ function safety_net_label() {
 // the panel is not playing for you.
 function our_turn_now() {
     try { return String(turn === 'w' ? 'white' : 'black') === our_side(); } catch (e) { return false; }
+}
+
+// ---- OPPONENT PREP: what THIS opponent actually plays here --------------------------------------
+// The opening explorer says what humans play. This says what the person across the board plays --
+// from their own recent public games, which both sites publish. In a long game that is worth more
+// than a database average: people repeat their repertoire, and a line they have played eleven times
+// is a line they will play again.
+//
+// LONGER GAMES ONLY, deliberately. It costs a fetch and a replay of forty games, the answer is only
+// useful while you still have time to think about it, and in bullet you do not. The gate is the
+// longest clock reading seen this game -- the closest thing to a base time that is visible from
+// here, and it survives joining a game late.
+const OPP_PREP_MIN_CLOCK_S = 300;   // five minutes: rapid and up
+const OPP_PREP_MAX_PLY = 24;        // prep is an opening question; past ply 24 they are on their own
+let game_max_clock_s = 0;
+let opp_prep_for = '';              // the opponent we already asked about
+let opp_prep_book = null;           // 'placement turn' -> {uci: count} from THEIR games, their colour
+let opp_prep_games = 0;
+
+function opp_prep_long_enough() { return game_max_clock_s >= OPP_PREP_MIN_CLOCK_S; }
+
+function maybe_opponent_prep(name) {
+    if (!config.opp_prep || !opp_prep_long_enough()) return;
+    if (!/^[\w.-]{2,30}$/.test(name) || name === opp_prep_for) return;
+    opp_prep_for = name;
+    opp_prep_book = null;
+    opp_prep_games = 0;
+    // 'li' / 'cc' are the panel's own site codes; the worker asks lichess or chess.com accordingly,
+    // and anywhere else there is no public archive to ask about.
+    const site = detected_prefix === 'li' ? 'lichess' : detected_prefix === 'cc' ? 'chesscom' : null;
+    if (!site) return;
+    chrome.runtime.sendMessage({oppPrepLookup: {site, username: name}}, (res) => {
+        void chrome.runtime.lastError;
+        if (!res || res.error || !Array.isArray(res.games)) return;
+        if (opp_prep_for !== name) return;              // a new opponent while we waited
+        build_opp_prep_book(name, res.games);
+        update_best_move(null);                          // the label can appear without a new search
+    });
+}
+
+// Replay each game far enough to index the openings, keeping only the moves THEY made. The key is
+// placement + side to move, so a transposition into the same position still matches -- which is the
+// whole point of keying on positions rather than on move order.
+function build_opp_prep_book(name, games) {
+    const book = new Map();
+    let used = 0;
+    const lower = name.toLowerCase();
+    for (const g of games) {
+        const theirColour = (String(g.white || '').toLowerCase() === lower) ? 'w'
+                          : (String(g.black || '').toLowerCase() === lower) ? 'b' : null;
+        if (!theirColour || !g.san) continue;
+        try {
+            const chess = new Chess('chess');
+            let ply = 0;
+            for (const san of g.san.split(' ')) {
+                if (ply >= OPP_PREP_MAX_PLY) break;
+                const before = chess.fen();
+                const mv = chess.move(san);
+                if (!mv) break;                          // an unreadable game stops, it does not throw
+                if (before.split(' ')[1] === theirColour) {
+                    const key = before.split(' ').slice(0, 2).join(' ');
+                    const uci = mv.from + mv.to + (mv.promotion || '');
+                    const at = book.get(key) || {};
+                    at[uci] = (at[uci] || 0) + 1;
+                    book.set(key, at);
+                }
+                ply++;
+            }
+            used++;
+        } catch (e) { /* one unparseable game must not cost the other thirty-nine */ }
+    }
+    opp_prep_book = book;
+    opp_prep_games = used;
+}
+
+// The readout line. Only on THEIR turn: prep is about what they are about to do.
+function opp_prep_label() {
+    if (!config.opp_prep || !opp_prep_book || !last_eval.fen) return '';
+    const [placement, turn] = last_eval.fen.split(' ');
+    if (((turn === 'w') ? 'white' : 'black') === our_side()) return '';
+    const at = opp_prep_book.get(`${placement} ${turn}`);
+    if (!at) return '';
+    const [uci, n] = Object.entries(at).sort((a, b) => b[1] - a[1])[0];
+    return i18n('panel.msg.opp_prep', '{who} has played {move} here ({n}x)',
+                {who: opp_prep_for, move: notate(last_eval.fen, uci), n});
+}
+
+// ---- TWO ENGINES AT ONCE: what a human of a chosen rating would play HERE -----------------------
+// The engine answers "what is best". A human net answers "what does a player of this strength
+// actually play". They are different questions, and the interesting positions are the ones where
+// the answers come apart -- that gap is where a human loses the game, and it is invisible while
+// only one of them is on screen.
+//
+// It costs one forward pass on a net that is already loaded for the threat reply (same client, same
+// rating dial), and it reuses that pass's cache -- so with Human Reply also on, the second opinion
+// is free.
+const SECOND_OPINION_LOW = 0.10;   // the engine's move played less than a tenth of the time by a
+                                   // player of this rating: that is a real disagreement, not noise
+function request_second_opinion(fen, best) {
+    if (!config.second_opinion) return;
+    if (config.variant && config.variant !== 'chess') return;   // the nets know one game
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(best || '')) return;
+    if (second_opinion_at === fen) return;                      // once per position
+    second_opinion_at = fen;
+    safety_human_choices(fen).then((list) => {
+        if (!list || !list.length || last_eval.fen !== fen) return;
+        const top = list[0];
+        const forEngine = list.find(m => m.uci === best);
+        last_eval.secondOpinion = {
+            uci: top.uci, prob: top.prob,
+            engineProb: forEngine ? forEngine.prob : 0,
+            // "Disagrees" is not "picked another move" -- two moves can be near-equal to a human
+            // net. It is the net rating the ENGINE's move as one this player would rarely find.
+            disagrees: top.uci !== best && (forEngine ? forEngine.prob : 0) < SECOND_OPINION_LOW,
+        };
+        update_best_move(null);
+        draw_moves();
+    }).catch(() => {});
+}
+let second_opinion_at = '';
+
+function second_opinion_label() {
+    const o = config.second_opinion ? last_eval.secondOpinion : null;
+    if (!o) return '';
+    const move = notate(last_eval.fen, o.uci);
+    const pct = (o.prob * 100).toFixed(0);
+    return o.disagrees
+        ? i18n('panel.msg.second_opinion_off', 'A {elo} plays {move} ({pct}%) - and almost never the engine\'s',
+               {elo: threat_human_elo(), move, pct})
+        : i18n('panel.msg.second_opinion', 'A {elo} plays {move} ({pct}%)',
+               {elo: threat_human_elo(), move, pct});
 }
 
 function human_reply_label() {
@@ -9199,9 +9704,13 @@ function copy_diagnostics(onDone = () => {}) {
             reason: idle_reason_text,
             search: search_state(),
             fen: last_eval.fen || '',
+            // Every toggle that changes what the panel DOES, including the newer ones: a report that
+            // omits them cannot explain a board with an extra red line on it or a PGN full of
+            // comments, and "which switches were on" is the first question any report raises.
             toggles: ['autoplay', 'premove', 'help_mode', 'manual_mode', 'humanize', 'puzzle_mode',
                       'puzzle_capture', 'puzzle_capture_cdp', 'clock_mode', 'mirror_mode',
-                      'background_play', 'verbose_log']
+                      'background_play', 'verbose_log', 'tablebase', 'refute', 'second_opinion',
+                      'opp_prep', 'game_log', 'pv_keys', 'time_trouble']
                 .filter(k => config[k]).join(' ') || 'none on',
             // The page-side script's own view. Without this a dead content script and a page with no
             // board produce byte-identical reports.

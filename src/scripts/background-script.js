@@ -192,6 +192,94 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     streamerLookup(msg.streamerLookup).then(sendResponse).catch(e => sendResponse({error: String(e)}));
     return true; // async sendResponse
   }
+  // OPPONENT PREP: what this opponent actually plays. Same shape and the same reason as the
+  // streamer lookup above -- the request is made HERE, in the worker, so the game tab's network log
+  // never carries a call about the person you are playing. Public archives only, no key, no login.
+  if (msg.oppPrepLookup) {
+    oppPrepLookup(msg.oppPrepLookup).then(sendResponse).catch(e => sendResponse({error: String(e)}));
+    return true; // async sendResponse
+  }
+  // Is this a COMPLETE install? The update-only archive deliberately omits lib/engine and lib/ort,
+  // so extracting it into a folder that never held a full install leaves an extension with no
+  // engines -- and every failure after that is a confusing symptom (an engine that never loads, a
+  // panel that analyses nothing) rather than a cause. Probe two small files inside the omitted
+  // directories and let the panel say so plainly. Cached: the answer cannot change while we run.
+  if (msg.assetsCheck) {
+    checkBundledAssets().then(sendResponse);
+    return true; // async sendResponse
+  }
+  // Can the panel offer a one-click update? Only when all three hold: the user switched it on, the
+  // download permission is still granted, and a folder has been chosen. Anything less and the notice
+  // stays a link to the release page, because there is nothing to click that would work.
+  if (msg.updateReady) {
+    // TWO facts, not one. `ok` is "can install right now"; `enabled` is "you asked for automatic
+    // updates at all". The panel needs both to decide where its notice should send you -- a switch
+    // that is ON but half set up wants the Updates section, not the release page.
+    Promise.all([
+      MephistoUpdater.isReady().catch(() => false),
+      MephistoUpdater.enabled().catch(() => false),
+    ]).then(([ok, enabled]) => sendResponse({ok, enabled}))
+      .catch(() => sendResponse({ok: false, enabled: false}));
+    return true; // async sendResponse
+  }
+  // Open the settings page AT the Updates section, without arming an install the way startUpdate
+  // does -- this is "come and finish setting this up", not "run it now".
+  if (msg.openUpdates) {
+    chrome.storage.local.set({mephisto_focus_updates: true}, () => {
+      chrome.runtime.openOptionsPage();
+      sendResponse({ok: true});
+    });
+    return true; // async sendResponse
+  }
+  // The panel asking us to run it. The install lives on the settings page (only a page can hold the
+  // directory handle's permission and show progress), so flag it and open that page -- it starts by
+  // itself from there.
+  if (msg.startUpdate) {
+    chrome.storage.local.set({mephisto_autostart_update: true}, () => {
+      chrome.runtime.openOptionsPage();
+      sendResponse({ok: true});
+    });
+    return true; // async sendResponse
+  }
+  if (msg.updateCheck) {
+    // `true` from the panel, `{force}` from the Updates settings page -- both truthy, and
+    // `true?.force` is undefined, so the panel keeps the cached path it always had.
+    updateCheck(msg.updateCheck?.force).then(sendResponse).catch(e => sendResponse({error: String(e)}));
+    return true; // async sendResponse
+  }
+  if (msg.chesscomAnalyze) {
+    chesscomAnalyze(msg.chesscomAnalyze).then(sendResponse).catch(e => sendResponse({error: String(e)}));
+    return true; // async sendResponse
+  }
+  // Bot-game tricks. Runs on the sender's own tab, and only on Play Computer -- see botExploit.
+  if (msg.botExploit) {
+    botExploit(sender.tab, msg.botExploit).then(sendResponse)
+      .catch(e => sendResponse({ok: false, why: String(e)}));
+    return true; // async sendResponse
+  }
+  if (msg.tablebaseLookup) {
+    tablebaseLookup(msg.tablebaseLookup).then(sendResponse).catch(e => sendResponse({error: String(e)}));
+    return true; // async sendResponse
+  }
+  // Settings' "Check" on the local tablebase folder: inventory or a fixable error, never a probe.
+  if (msg.tbInfo) {
+    tbInfoForSettings().then(sendResponse).catch(e => sendResponse({error: String(e)}));
+    return true; // async sendResponse
+  }
+  // THE CLASSIFIER, ON DEMAND. It is 7.6KB that only three opt-in features need (Live Stats, Move
+  // Classification, the opponent alert), so it is not in the per-page bundle -- the panel asks for
+  // it the moment one of them is on, and it lands in the SAME isolated world the content scripts
+  // share. Injecting twice is harmless (the file re-assigns its one global).
+  if (msg.needClassifier) {
+    // NOT named `tabId`: that identifier belongs to the cdpClick sender-trust expression, which the
+    // ladder extracts by name -- a second one here silently shadowed it in the test.
+    const injectTab = sender.tab?.id;
+    if (!injectTab) { sendResponse({ok: false}); return false; }
+    chrome.scripting.executeScript({target: {tabId: injectTab}, files: ['src/scripts/classify-core.js']})
+      .then(() => sendResponse({ok: true}))
+      .catch(e => sendResponse({ok: false, error: String(e)}));
+    return true; // async sendResponse
+  }
   // Is this a COMPLETE install? The update-only archive deliberately omits lib/engine and lib/ort,
   // so extracting it into a folder that never held a full install leaves an extension with no
   // engines -- and every failure after that is a confusing symptom (an engine that never loads, a
@@ -2253,6 +2341,68 @@ chrome.runtime.onConnect.addListener(port => {
 // Cached per name for the session -- a game is one lookup, and a rematch is none.
 const streamerCache = new Map();          // "site|user" -> {live, channel, kind, at}
 const STREAMER_TTL_MS = 10 * 60 * 1000;   // a stream that starts mid-game is not worth re-asking for
+
+// ---- opponent prep ------------------------------------------------------------------------------
+// Their recent public games, as movetext. The MAPPING from positions to moves is built in the panel,
+// which has chess.js; this half is the fetch and nothing else, because the worker has no board.
+// Cached per opponent for the session: a game is one opponent, and asking again per position would
+// be both slow and rude to a public API.
+const OPP_PREP_TTL_MS = 6 * 60 * 60 * 1000;   // their repertoire does not change during a session
+const OPP_PREP_MAX_GAMES = 40;
+const oppPrepCache = new Map();               // site|user -> {at, games}
+
+// One PGN blob -> [{white, black, san}]. Deliberately tolerant: an archive carries variants,
+// abandoned games and comments, and one unparseable game must not cost the other thirty-nine.
+function splitPgnGames(text) {
+    const out = [];
+    for (const chunk of String(text || '').split(/\n\n(?=\[)/)) {
+        const white = /\[White\s+"([^"]*)"/.exec(chunk)?.[1] || '';
+        const black = /\[Black\s+"([^"]*)"/.exec(chunk)?.[1] || '';
+        if (!white && !black) continue;
+        // movetext = everything after the tag block, stripped of comments, NAGs, variations and
+        // move numbers. What is left is SAN, which is what the panel replays.
+        const body = chunk.replace(/\[[^\]]*\]\s*/g, ' ')
+            .replace(/\{[^}]*\}/g, ' ')
+            .replace(/\([^)]*\)/g, ' ')
+            .replace(/\$\d+/g, ' ')
+            .replace(/\d+\.(\.\.)?/g, ' ')
+            .replace(/\b(1-0|0-1|1\/2-1\/2|\*)\b/g, ' ')
+            .trim().split(/\s+/).filter(Boolean);
+        if (body.length) out.push({white, black, san: body.slice(0, 60).join(' ')});
+    }
+    return out;
+}
+
+async function oppPrepLookup({site, username}) {
+    const user = String(username || '').trim();
+    if (!user || !/^[\w.-]{2,30}$/.test(user)) return {error: 'no usable username'};
+    const key = `${site}|${user.toLowerCase()}`;
+    const hit = oppPrepCache.get(key);
+    if (hit && Date.now() - hit.at < OPP_PREP_TTL_MS) return {games: hit.games, cached: true};
+    let text = '';
+    if (site === 'lichess') {
+        const r = await fetch(`https://lichess.org/api/games/user/${encodeURIComponent(user)}`
+                              + `?max=${OPP_PREP_MAX_GAMES}&perfType=blitz,rapid,classical`,
+                              {headers: {Accept: 'application/x-chess-pgn'}});
+        if (!r.ok) return {error: `lichess answered ${r.status}`};
+        text = await r.text();
+    } else {
+        const arch = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(user.toLowerCase())}/games/archives`)
+            .then(r => r.ok ? r.json() : null).catch(() => null);
+        const urls = (arch?.archives || []).slice(-2).reverse();
+        if (!urls.length) return {error: 'no public archive'};
+        const parts = [];
+        for (const u of urls) {
+            const month = await fetch(u).then(r => r.ok ? r.json() : null).catch(() => null);
+            for (const g of (month?.games || [])) if (g.pgn) parts.push(g.pgn);
+            if (parts.length >= OPP_PREP_MAX_GAMES) break;
+        }
+        text = parts.slice(-OPP_PREP_MAX_GAMES).join('\n\n');
+    }
+    const games = splitPgnGames(text).slice(-OPP_PREP_MAX_GAMES);
+    oppPrepCache.set(key, {at: Date.now(), games});
+    return {games};
+}
 
 async function streamerLookup({site, username}) {
   const user = String(username || '').trim();

@@ -86,6 +86,11 @@
             // the wrong trade, so w (for win). j, q and s were the other letters still free.
             bot_trick: 'w',
             panic: 'x',   // everything away, NOW: hide the panel, clear the arrows, stop the search
+            // WALKING THE ENGINE'S LINE. The arrow keys, because that is what every board on the
+            // web uses them for -- but the handlers return false while Walk With Arrow Keys is off,
+            // and a key the panel did not act on is never swallowed, so the site keeps its own
+            // arrow-key navigation until you switch this on.
+            pv_back: 'ArrowLeft', pv_forward: 'ArrowRight',
         },
         // the effective bindings: defaults overlaid with whatever the user saved in config.hotkeys
         hotkeys() {

@@ -34,7 +34,33 @@ class AppearanceSettings extends SettingsPage {
             ['arrow_color_forced_theirs', '#00a693'], ['arrow_color_pv_walk', '#8f8f8f'],
             ['arrow_color_threat', '#bf0000'], ['arrow_color_book', '#14b8a6'],
             ['arrow_color_human_reply', '#a8657f'], ['arrow_color_safety_net', '#4c9f70'],
+            ['arrow_color_tb', '#f59e0b'], ['arrow_color_refute', '#d1495b'],
         ];
+        // ONE CLICK FOR A PALETTE THAT SURVIVES COLOUR BLINDNESS. The shipped defaults lean on
+        // red/green separation, which is exactly the pair deuteranopia and protanopia collapse --
+        // and the arrows are the whole interface here, so "which line is that" stops being
+        // answerable. These are Okabe-Ito, the standard eight-hue set chosen to stay distinct under
+        // every common form; the families past the eighth take neutrals, since there are more arrow
+        // families than there are hues that survive.
+        // ponytail: eight hues, twelve families -- the four least likely to share a board take grey.
+        const COLORBLIND = {
+            arrow_color_line1: '#0072b2', arrow_color_line2: '#009e73', arrow_color_line3: '#e69f00',
+            arrow_color_line4: '#56b4e9', arrow_color_line5: '#cc79a7',
+            arrow_color_forced_ours: '#f0e442', arrow_color_forced_theirs: '#8c8c8c',
+            arrow_color_pv_walk: '#5a5a5a', arrow_color_threat: '#d55e00',
+            arrow_color_book: '#000000', arrow_color_human_reply: '#7f7f7f',
+            arrow_color_safety_net: '#004c6d', arrow_color_tb: '#e69f00',
+            arrow_color_refute: '#d55e00',
+        };
+        document.getElementById('arrow_colorblind')?.addEventListener('click', () => {
+            // JSON.stringify, like every other setting: the panel reads these with JSON.parse, so a
+            // raw '#0072b2' threw there and fell back to the shipped colour -- the palette applied
+            // on this page and did nothing at all on the board. Found in the browser.
+            for (const [key, value] of Object.entries(COLORBLIND)) MephistoConfig.set(key, JSON.stringify(value));
+            // Written straight to storage, so the fields on screen have to be told; Restore Defaults
+            // is the way back, exactly as it is for a hand-edited colour.
+            location.reload();
+        });
         for (const [key, dflt] of ARROW_COLORS) {
             const el = this.registerFormElement(key, key + ':', 'input', '');
             const picker = document.getElementById(key + '_picker');

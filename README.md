@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-3.1.304-3fb950)
+![Version](https://img.shields.io/badge/version-3.1.305-3fb950)
 ![Engines](https://img.shields.io/badge/engines-9-58a6ff)
 ![Sites](https://img.shields.io/badge/sites-5-8b949e)
 ![Languages](https://img.shields.io/badge/languages-14-f0883e)
@@ -150,7 +150,14 @@ have nets but the bundled chess.js can't replay them, so the panel says so rathe
   Masters, all Lichess, or a club band. Needs a personal API token (see that setting).
 - **Read a position off the screen** - the camera button captures the tab, finds the board and loads it, on any site.
   **Follow screen** re-reads twice a second. Nothing is uploaded.
-- **Playable panel board** - click or drag to walk a line, with underpromotion.
+- **Playable panel board** - click or drag to walk a line, with underpromotion, and optionally walk the engine's own
+  line with the arrow keys (off by default, so the site keeps them).
+- **Second opinion** - a human-trained net answers the same position beside the engine, and says so when the two come
+  apart: when the engine's move is one a player of that rating almost never finds.
+- **Copy Analysis** - the position, the score with its depth and every candidate line, as text you can paste.
+  **Re-analyse** searches the position on screen again from scratch; **Loaded** names the engine build and the net that
+  actually answered.
+- **Panel opacity and docking** - fade it over the board or park it against an edge, remembered per site.
 
 <img src="docs/multiple-lines.png" alt="Three candidate lines, each with its own coloured arrow" width="49%"> <img src="docs/opening-explorer.png" alt="The opening explorer, with each book move drawn on the board" width="49%">
 
@@ -165,7 +172,8 @@ A page of its own (**Settings → Analysis**) for studying rather than playing: 
 and Copy FEN/PGN, the engine's lines **and** what a human of a chosen rating would play side by side, a search budget
 in time or depth (or `go infinite`), W/D/L and an eval bar, and a loaded Polyglot book's moves for the position.
 **Moves by rating** sweeps every candidate across the whole rating range as one chart, so you can watch e4 fall away
-and d4 climb. Export writes one self-contained file - board, FEN, line, chart and the numbers behind it.
+and d4 climb. **Compare nets** runs the same position through Maia-1, Maia-2, Maia-3 and Elite Leela and tabulates
+what each one would play. Export writes one self-contained file - board, FEN, line, chart and the numbers behind it.
 
 ### Game review (offline)
 
@@ -190,6 +198,9 @@ API. **Nothing leaves your machine** during the review - the search runs in the 
   uniformity, whether long thinks went to hard positions. **Measurements, never a verdict.**
 - **Review every game** in a file against one engine load, pooled per player. **Export** the report as one
   self-contained file.
+- **Fit Humanize to a player** - every move in the review already carries its centipawn loss, and the Humanize move
+  mix is defined in exactly those bands, so counting them gives the mix that reproduces that player. Measured, rather
+  than guessed at with sliders.
 
 ![The game review page](docs/game-review.png)
 
@@ -260,8 +271,24 @@ free. Nothing about the software changed, the measurement did.
 - **Play Book Moves** - the opening from the Explorer, weighted-random among replies with 20+ games and within 40cp
   of best. **Your own opening book** - load a Polyglot `.bin` and it plays from that instead, weights as given.
 - **Endgame tablebase** - at ≤7 pieces the position is solved, so it outranks engine and book. Point it at your own
-  Syzygy files and it answers off disk, offline; the lichess lookup is the fallback. Wins *convert*: moves follow
+  Syzygy files and it answers off disk, offline - **Download tables** fetches them into that folder from lichess's
+  own server, your choice of **3-4-5 men (0.9 GB), 6 men (149 GB) or both**, and **WDL, DTZ or both** (WDL says
+  won/drawn/lost, DTZ is what converts a win and is most of the size). Anything already there with the right size
+  is skipped, so a stopped download resumes. The lichess lookup is the fallback. Wins *convert*: moves follow
   lila-tablebase's own sort, and at ≤5 men the readout counts the mate. Off by default.
+- **Tablebase Display** - at ≤7 pieces the engine and the tablebase both answer, and they answer different kinds of
+  question: one searches, the other knows. **Both** (the default) draws the tablebase move as its own amber arrow
+  beside the engine's numbered lines and prints both readings on the evaluation line -
+  `Score: 2.31 at depth 24 / Tablebase: winning, DTZ 27`. **Tablebase only** leaves the solved move alone on the
+  board; **Engine only** keeps the arrows and the score the engine's. Display only - the tablebase move is proved
+  and the engine's is not, so it stays the move that gets played whichever you pick.
+- **Refute my mistakes** - when a move of yours grades an inaccuracy or worse, the line that punishes it is drawn on
+  the board. The badge says a move was bad; this shows what it loses.
+- **Opponent prep** - what *this* opponent has played in the position in front of you, from their own recent public
+  games. Longer games only (a clock of five minutes or more), and the lookup is made by the extension's worker, so
+  your game tab never carries a request about the person you are playing.
+- **Time Trouble Mode** - below a threshold you set, the search is capped and the simulated human delay collapses to
+  the floor a click still needs. At ten seconds it is the cursor travel that loses games, not the depth.
 - **Variant endings are seen** - an exploded king, a third check, a king on the hill, the horde's last pawn.
 - **Manual Mode** thinks indefinitely and plays only on your key. **Background Play** (off) defers moves that come
   due while the tab is hidden.
@@ -277,7 +304,9 @@ played, and blunders never fire in a decided game.
 
 Timing follows: quick on obvious moves, long thinks in critical positions, an instant reflex *only* for true
 recaptures and forced moves. **Clock Mode** budgets each move off the page clock (~time/30 + 60% of the increment);
-**Mirror Time** paces to the opponent's last spend −10%. Both size the search to the wait. **Pace to Clock** (off)
+**Mirror Time** paces to a share of the opponent's last spend, 50-150% (90 by default), so it can deliberately
+spend more than they do in a long game; being behind on the clock always cuts the target by a further 30%. Both size
+the search to the wait. **Pace to Clock** (off)
 shortens the *simulated* delay when the clock gets short, never lengthens it.
 
 > **Priority** - *Time:* Mirror ▸ Clock ▸ Humanize ▸ Search Time. *Move:* Book ▸ Humanize ▸ engine best.
@@ -336,7 +365,8 @@ and branch on `id` before choosing an encoding. Unreadable rows are skipped, not
 
 Drag by the title bar, close with ✕. **Compact (▣)** collapses it to the status line; **minimize (–)** hides it behind
 a badge while autoplay keeps running. Quick Settings edits every setting inline. **Re-detect (↻)** rescans the page.
-**Copy FEN / PGN** (a custom start exports with `SetUp`/`FEN` tags), a **grid button** takes a pasted FEN, **⧉** opens
+**Copy FEN / PGN** (a custom start exports with `SetUp`/`FEN` tags; switch on **Evals In Copied PGN** and every ply
+carries the panel's own `{[%eval] [%depth]}` from the game itself), a **grid button** takes a pasted FEN, **⧉** opens
 the position on Lichess, and an **engine health dot** shows whether a native host answered.
 
 ---
@@ -494,6 +524,7 @@ Four are worth knowing before you go looking:
 |---|---|
 | **Threads** / **Memory** | A fresh install takes half your cores. In-browser engines are clamped to 512 MB by the WebAssembly heap limit; native engines get the full value. |
 | **Panel Style** | **Floating panel** lives in the page and is required for Autoplay and Premove. **Toolbar popup** leaves zero page footprint but closes when you click the board. |
+| **Colour-blind palette** | One click on the Appearance page replaces every arrow colour with the Okabe-Ito set, which stays distinguishable under the common forms of colour blindness. The shipped colours separate lines by red against green, the one pair that collapses. |
 | **Playstyle** | Ten characters chosen among lines the engine already called equal - *Attacking*, *Quiet*, *Greedy*, *Space*, *Sacrifice*, *Safe*, *Drawish*, *Ultra attacking*, *Disrespect*, and *Balanced* (the engine's own pick). Never at a cost: **35cp**, or two thirds of the top move's probability on a human net. Needs **Multi Lines ≥ 2**, and hides itself where it cannot apply. |
 | **Lichess API token** | The Opening Explorer is behind OAuth now, so without one it answers 401. Make a personal token with **no scopes** ticked; it is sent nowhere but lichess and left out of diagnostics and exports. |
 

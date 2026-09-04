@@ -354,6 +354,15 @@
         <label for="qs_tablebase" data-i18n="panel.tablebase" data-i18n-tip="panel.tip.with_7_or_fewer_pieces" class="qs-label tooltipped" data-position="left"
               data-tooltip="With 7 or fewer pieces left the position is solved: ask a Syzygy tablebase for the perfect move instead of trusting the search. Outranks the engine and the opening book. Answers from your local files when configured, lichess's online tablebase otherwise. Off by default -- the online lookup sends the position to a third party. Never delays a move.">Tablebase</label>
     </div>
+    <div class="qs-row" id="qs_tb_show_row">
+        <span data-i18n="set.tb_show" data-i18n-tip="set.tip.tb_show" class="qs-label tooltipped" data-position="left"
+              data-tooltip="At 7 pieces or fewer the engine and the tablebase both answer, and they answer different kinds of question - one searches, the other knows. This is who gets the screen. Both draws the tablebase move in its own amber arrow beside the engine's numbered lines and prints both readings on the evaluation line. Tablebase only leaves the solved move alone on the board. Engine only keeps the arrows and the score the engine's. It changes the DISPLAY only: the tablebase move is proved and the engine's is not, so it is still the move that gets played, and the readout still names it.">Tablebase Display</span>
+        <select id="qs_tb_show" class="browser-default">
+            <option data-i18n="set.tb_show_both" value="both">Both</option>
+            <option data-i18n="set.tb_show_tb" value="tablebase">Tablebase only</option>
+            <option data-i18n="set.tb_show_engine" value="engine">Engine only</option>
+        </select>
+    </div>
     <div class="qs-row" id="qs_playstyle_row">
         <span data-i18n="set.playstyle" data-i18n-tip="set.tip.playstyle" class="qs-label tooltipped" data-position="left"
               data-tooltip="A character, not a strength - ten of them, chosen among the lines the engine already found. Attacking prefers the forcing move (check, capture, promotion), Ultra attacking goes further and throws pieces at the king, Quiet takes the calm move, Greedy the most material, Space the move that gains ground, Sacrifice the one that offers material the opponent may take, Safe the one that leaves nothing hanging, Drawish the line closest to equality, and Disrespect the rude one - a second queen, a sacrifice made while already winning, an opening on the rim, a king strolling toward theirs. Never at a cost: at most 35 centipawns, or on a human net two thirds of the top move's probability, so even Disrespect only plays moves the engine calls equal to the best. NEEDS MULTI LINES 2 OR MORE - with one line there is nothing to choose between. Balanced is the engine's own pick.">Playstyle</span>
@@ -368,6 +377,35 @@
             <option data-i18n="set.style_drawish" value="drawish">Drawish</option>
             <option data-i18n="set.style_disrespect" value="disrespect">Disrespect</option>
             <option data-i18n="set.style_ultra" value="ultra">Ultra attacking</option>
+        </select>
+    </div>
+    <div class="qs-row" id="qs_engine_id_row">
+        <span data-i18n="panel.engine_id" data-i18n-tip="panel.tip.engine_id" class="qs-label tooltipped" data-position="left"
+              data-tooltip="What is actually loaded right now: the engine build the panel asked for, and the neural net it reported loading. A build and a net are two different things - a dev Stockfish with an old net is not the engine you think you are running, and nothing else on this panel would tell you.">Loaded</span>
+        <span id="qs_engine_id" class="qs-value">-</span>
+    </div>
+    <div class="qs-row">
+        <span data-i18n="panel.copy_analysis" data-i18n-tip="panel.tip.copy_analysis" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Copy the position and what the engine says about it as plain text: the FEN, the score and depth, and every candidate line with its own score. For a note, a message or an issue - it is the panel's answer in a form you can paste.">Copy Analysis</span>
+        <button id="qs_copyanalysis" type="button">Copy</button>
+    </div>
+    <div class="qs-row">
+        <span data-i18n="panel.reanalyse" data-i18n-tip="panel.tip.reanalyse" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Throw away the current answer and search this same position again from scratch. For when a setting changed under a search, or the readout looks stale and you would rather not move a piece to find out. The board is not touched.">Re-analyse</span>
+        <button id="qs_reanalyse" type="button">Run</button>
+    </div>
+    <div class="qs-row" id="qs_opacity_row">
+        <span data-i18n="panel.opacity" data-i18n-tip="panel.tip.opacity" class="qs-label tooltipped" data-position="left"
+              data-tooltip="How solid the panel itself is drawn, 40-100%. Below 100 the board underneath shows through, which is the point: the panel can sit over the game instead of beside it. Remembered per site, along with where you dragged it.">Panel Opacity</span>
+        <input id="qs_opacity" class="browser-default" type="range" min="40" max="100" step="5">
+    </div>
+    <div class="qs-row" id="qs_dock_row">
+        <span data-i18n="panel.dock" data-i18n-tip="panel.tip.dock" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Park the panel against an edge of the window and keep it there while you play - it follows a resize instead of ending up half off screen. Free leaves it exactly where you drag it, which is what it has always done. Remembered per site.">Dock</span>
+        <select id="qs_dock" class="browser-default">
+            <option data-i18n="panel.dock_free" value="free">Free</option>
+            <option data-i18n="panel.dock_left" value="left">Left edge</option>
+            <option data-i18n="panel.dock_right" value="right">Right edge</option>
         </select>
     </div>
       <!-- Copy Diagnostics. HERE and not in the button row: that row is absolutely positioned by id on

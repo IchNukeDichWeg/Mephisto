@@ -466,6 +466,22 @@ input.set-secret:focus, input.set-path:focus { outline: none; border-color: var(
 .set-btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
 .set-btnrow-end { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--mp-line); }
 
+/* A select that sits in a button row -- same height and palette as the buttons beside it, so the
+   Syzygy set chooser reads as part of the control rather than as a stray form field. */
+select.set-mini-select {
+    height: 30px;
+    margin: 0 6px 0 0;
+    padding: 0 8px;
+    width: auto;
+    border: 1px solid var(--mp-line);
+    border-radius: 4px;
+    background: var(--mp-bg);
+    color: var(--mp-dim);
+    font-size: 13px;
+    font-family: inherit;
+    display: inline-block;
+}
+
 button.set-btn {
     height: 30px;
     padding: 0 12px;

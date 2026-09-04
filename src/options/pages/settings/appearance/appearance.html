@@ -1,7 +1,7 @@
 <!-- Appearance settings. Same row/section language as General; the shared styling lives in
      general.css, which is loaded for both settings pages. -->
 <div class="row">
-    <div class="col s12 m8 offset-m1 xl7 offset-xl1">
+    <div class="col s12 m9 xl9">
         <div id="form-container" class="big-section">
 
             <div class="set-filter">
@@ -202,6 +202,33 @@
                     </div>
                 </div>
 
+                <div class="set-row">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.arrow_color_refute" class="tooltipped" data-position="right" data-tooltip="Colour of the line that punishes one of your own mistakes. Its own dark red: it is the only thing on the board that describes something that already happened, rather than something to play."><span data-i18n="set.arrow_color_refute">Refutation Arrows</span></span></div>
+                    <div class="set-ctl">
+                        <span class="set-color">
+                            <input id="arrow_color_refute_picker" type="color" value="#d1495b" class="set-color-swatch">
+                            <input id="arrow_color_refute_input" type="text" placeholder="#d1495b" maxlength="7" class="set-color-hex">
+                        </span>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.arrow_colorblind" class="tooltipped" data-position="right" data-tooltip="Replace every arrow colour above with the Okabe-Ito palette, an eight-hue set chosen to stay distinguishable under the common forms of colour blindness. The shipped defaults separate lines by red against green, which is the one pair that collapses. Restore Defaults on this page puts the original colours back."><span data-i18n="set.arrow_colorblind">Colour-blind palette</span></span></div>
+                    <div class="set-ctl">
+                        <button id="arrow_colorblind" class="set-btn" type="button" data-i18n="set.apply">Apply</button>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.arrow_color_tb" class="tooltipped" data-position="right" data-tooltip="Colour of the arrow for the endgame tablebase's move. Deliberately unlike the numbered engine lines: a solved move is a different kind of answer from a searched one."><span data-i18n="set.arrow_color_tb">Tablebase Arrow</span></span></div>
+                    <div class="set-ctl">
+                        <span class="set-color">
+                            <input id="arrow_color_tb_picker" type="color" value="#f59e0b" class="set-color-swatch">
+                            <input id="arrow_color_tb_input" type="text" placeholder="#f59e0b" maxlength="7" class="set-color-hex">
+                        </span>
+                    </div>
+                </div>
+
             </section>
 
             <section id="language" class="set-sec scrollspy">
@@ -224,7 +251,7 @@
             </div>
         </div>
     </div>
-    <div class="col hide-on-small-only m2 xl3 sticky-top">
+    <div class="col hide-on-small-only m3 xl3 sticky-top">
         <div class="toc-wrapper pin-top">
             <ul id="toc" class="section table-of-contents">
                 <li><a data-i18n="set.board_and_pieces" href="#board_and_pieces">Board and Pieces</a></li>
