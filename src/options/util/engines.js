@@ -147,6 +147,9 @@ class WasmEngine {
         chrome.runtime.sendMessage({
             toOffscreen: true, clientId: this.clientId, cmd: 'init',
             engine: this.name, variant: this.opts.variant || 'chess', maiaLevel: this.opts.maiaLevel,
+            // Maia-2 answers a MATCHUP: it takes both ratings and ignores maiaLevel. Sent for every
+            // engine because the loader drops what it does not use, exactly as the panel does.
+            elos: this.opts.elos || [this.opts.maiaLevel || 1500, this.opts.maiaLevel || 1500],
         });
         const r = await ready;
         if (r.kind === 'error') throw new Error(r.error);
@@ -171,7 +174,10 @@ class WasmEngine {
         await this.isready();
     }
 
-    isMaia() { return this.name === 'maia' || this.name === 'maia3'; }
+    // Every net that answers in ONE forward pass: no threads, no hash, no MultiPV, no depth to wait
+    // for. Named for what it tests rather than for Maia -- Elite Leela and Maia-2 are the same shape
+    // and were silently sent Threads/Hash/MultiPV they do not have.
+    isMaia() { return ONE_PASS_NETS.includes(this.name); }
 
     send(line) {
         chrome.runtime.sendMessage({toOffscreen: true, clientId: this.clientId, cmd: 'uci', line});
@@ -530,7 +536,10 @@ class NativeEngine {
 
 // The Maia nets are engines here too (the pages ask for them by name for the human pass), so an id
 // is "known" if this list or that one has it.
-const KNOWN_HUMAN = ['maia', 'maia3'];
+// The human-trained nets, which makeEngine must not mistake for an unknown id and replace with
+// Stockfish. Keep in step with ONE_PASS_ENGINES in popup.js.
+const KNOWN_HUMAN = ['maia', 'maia2', 'maia3', 'elite-leela'];
+const ONE_PASS_NETS = KNOWN_HUMAN;
 
 function makeEngine(id, opts, clientId) {
     const spec = ENGINES.find(e => e.id === id);

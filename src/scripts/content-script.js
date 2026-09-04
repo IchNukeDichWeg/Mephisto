@@ -191,7 +191,7 @@ function handleExtensionMessage(response, sender, sendResponse) {
             // The premove was a guess about a position the opponent has now decided; this move is
             // the actual answer to what they played. Dropping the real one to protect the guess is
             // backwards, and it is why enabling Premove could stop autoplay entirely: with a chain
-            // armed on nearly every move (a certified premove chain), a premove click session was in flight
+            // armed on nearly every move, a premove click session was in flight
             // most of the time, so the next real move kept landing on this guard.
             // Superseding is safe: the premove's clicks are already queued at the SITE, and this
             // move carries its own `deselect`, so it starts by clearing any half-made selection.
@@ -312,6 +312,7 @@ function handleExtensionMessage(response, sender, sendResponse) {
         console.log(response.config);
         config = response.config;
         applyHideOpponent(!!config.hide_opponent); // follows the setting on every config push
+        maybeCheckStreamer();   // opt-in; one lookup per opponent, skipped entirely when off
         // config in hand = we can scrape. Start the event-driven pipeline and sync the panel
         // immediately (a re-opened panel must not wait for the next board mutation or fallback poll).
         startPositionObserver();
@@ -326,6 +327,18 @@ function handleExtensionMessage(response, sender, sendResponse) {
         drawMoveClass(response);
     } else if (response.clearMoveClass) {
         clearMoveClass();
+    } else if (response.panelStyle) {
+        // The panel's own Opacity / Dock rows. Per-site, so it is stored here rather than in the
+        // settings: see saveOverlayBox.
+        const st = response.panelStyle;
+        if (typeof st.opacity === 'number') panelOpacity = Math.max(40, Math.min(100, st.opacity));
+        if (['free', 'left', 'right'].includes(st.dock)) panelDock = st.dock;
+        applyPanelStyle();
+        const wrap = overlayEl(PANEL_OVERLAY_ID);
+        if (wrap) saveOverlayBox(wrap);
+    } else if (response.panelStyleRead) {
+        // ...and the panel asks for them when it opens, since they do not live in its config.
+        return {opacity: panelOpacity, dock: panelDock};
     } else if (response.drawEvalBar) {
         scheduleOverlayDraw('evalbar', response);
     } else if (response.clearEvalBar) {
@@ -502,18 +515,45 @@ function overlayEl(id) {
     return overlayRoot ? overlayRoot.querySelector(`#${id}`) : null;
 }
 
+// Opacity and the dock edge ride in the SAME per-site record as the geometry, because they are the
+// same kind of fact: where and how this panel sits on THIS site. They are deliberately not in
+// chrome.storage with the settings -- a panel parked on the right of lichess has no business moving
+// the one on chess.com.
+let panelOpacity = 100;     // percent; 100 = as it always was
+let panelDock = 'free';     // free | left | right
 function saveOverlayBox(wrap) {
     const r = wrap.getBoundingClientRect();
     try {
         localStorage.setItem(OVERLAY_BOX_KEY, JSON.stringify(
-            {left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width)}));
+            {left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width),
+             opacity: panelOpacity, dock: panelDock}));
     } catch (e) { /* storage full/blocked -- panel just won't persist its geometry */ }
+}
+
+// Apply both to the panel that exists right now. Called on load, on a change from the panel's own
+// controls, and on a window resize -- a docked panel that did not follow a resize would end up
+// half off screen, which is the whole reason to dock it.
+function applyPanelStyle() {
+    const wrap = overlayEl(PANEL_OVERLAY_ID);
+    if (!wrap) return;
+    wrap.style.opacity = String(Math.max(40, Math.min(100, panelOpacity)) / 100);
+    if (panelDock === 'free') return;
+    const w = wrap.getBoundingClientRect().width;
+    wrap.style.right = 'auto';
+    wrap.style.left = panelDock === 'left' ? '0px'
+                    : `${Math.max(0, Math.round(window.innerWidth - w))}px`;
 }
 
 function readOverlayBox() {
     try {
         const box = JSON.parse(localStorage.getItem(OVERLAY_BOX_KEY));
         if (!box || !(box.width > 0)) return null;
+        // Adopted before the clamping below so a saved record restores the whole look, not just
+        // the position. Both are validated here rather than at use: junk in storage must not be
+        // able to draw an invisible panel with no way back to it.
+        panelOpacity = (typeof box.opacity === 'number' && box.opacity >= 40 && box.opacity <= 100)
+            ? box.opacity : 100;
+        panelDock = ['free', 'left', 'right'].includes(box.dock) ? box.dock : 'free';
         // clamp back into the viewport (saved on a bigger screen / window since resized)
         const width = Math.min(Math.max(box.width, 340), Math.round(window.innerWidth * 0.95));
         const left = Math.min(Math.max(box.left, 0), window.innerWidth - 60);
@@ -1044,8 +1084,13 @@ async function toggleOverlay() {
         if (!dragging) return;
         dragging = false;
         frame.style.pointerEvents = 'auto';
+        // Dragging a docked panel is a request to undock it: the alternative is a panel that snaps
+        // back to the edge and looks broken. The dock control is how you get it back.
+        if (panelDock !== 'free' && (wrap.getBoundingClientRect().left !== 0)) panelDock = 'free';
         saveOverlayBox(wrap);
     });
+    applyPanelStyle();
+    window.addEventListener('resize', applyPanelStyle);
 }
 
 // ------------------------------------------------------------------------------------------
@@ -1084,7 +1129,7 @@ function boardGeometry(fourpc, region) {
         bgLogAlways('4PC board geometry', {geo: !!geo,
                            rect: geo && [Math.round(geo.rect.left), Math.round(geo.rect.top),
                                          Math.round(geo.rect.width)]});
-        if (!geo) return;
+        if (!geo) return null;
         bounds = geo.rect;
         square = geo.size;
         // fourPCSquareXY already handles all four seat rotations and returns VIEWPORT coords; the
@@ -1122,7 +1167,7 @@ function boardGeometry(fourpc, region) {
         };
     } else {
         const board = getBoard();
-        if (!board) return;
+        if (!board) return null;
         bounds = board.getBoundingClientRect();
         const orientation = getOrientation();
         square = bounds.width / 8;
@@ -3391,7 +3436,12 @@ function pushPosition() {
         lastPushKey = key;
         const resume = resumePush;
         resumePush = false; // one-shot: only the push that follows the tab regaining focus
-        sendToPanel({ dom: res, orient: orient, clocks: scrapeClocks(), fenresponse: true, resume });
+        // The opponent's name rides along ONLY while Opponent Prep is on -- it is the one thing in
+        // this payload that is about a person rather than a position, and a feature nobody switched
+        // on has no business reading it. The lookup it feeds happens in the worker (see
+        // oppPrepLookup), never from this tab.
+        sendToPanel({ dom: res, orient: orient, clocks: scrapeClocks(), fenresponse: true, resume,
+                      opponent: config.opp_prep ? opponentUsername() : null });
     } catch (e) {
         // extension was reloaded -- this orphaned content-script can't reach it anymore
     }

@@ -211,6 +211,7 @@ class AnalysisPage extends SettingsPage {
         $('an_start')?.addEventListener('click', () => { $('an_pgn').value = ''; loadStart(); });
         $('an_paste')?.addEventListener('click', pasteFromClipboard);
         $('an_book_btn')?.addEventListener('click', () => $('an_book_file')?.click());
+        $('an_cmp')?.addEventListener('click', () => compareNets().catch(e => status(String(e.message || e), 'err')));
         $('an_book_file')?.addEventListener('change', onBookFile);
         $('an_first')?.addEventListener('click', () => go(0));
         $('an_prev')?.addEventListener('click', () => go(cursor - 1));
@@ -994,6 +995,79 @@ async function humanFor(pos) {
     const out = raw.map((l, i) => ({uci: l.pv[0], prob: w[i] / total}));
     humanCache.set(key, out);
     return out;
+}
+
+// ---- COMPARE NETS: the same position through every human model we ship ---------------------------
+// The human column answers "what would a player of this rating play". Four different nets answer
+// that question differently, and the disagreements are the interesting part: Maia-1 is a net per
+// band, Maia-2 knows the MATCHUP, Maia-3 is one net across the whole range, and Elite Leela is a
+// strong-human net that is not a Maia at all. Side by side, one position, their own probabilities.
+//
+// A BUTTON, never automatic: it loads up to four nets (a couple of hundred megabytes) and each one
+// pays a forward pass. Nobody wants that on every position they step through.
+const CMP_NETS = [
+    {id: 'maia', label: 'Maia-1'},
+    {id: 'maia2', label: 'Maia-2'},
+    {id: 'maia3', label: 'Maia-3'},
+    {id: 'elite-leela', label: 'Elite Leela'},
+];
+
+async function compareNets() {
+    const pos = positions[cursor];
+    const out = $('an_cmp_out'), meta = $('an_cmp_meta'), btn = $('an_cmp');
+    if (!pos || !out) return;
+    if (anVariant() !== 'chess') { out.innerHTML = '<div class="an-note">The human nets know standard chess only.</div>'; return; }
+    btn.disabled = true;
+    const band = String(cfg('an_band') || CFG.an_band);
+    const cols = [];
+    try {
+        for (const net of CMP_NETS) {
+            meta.textContent = `loading ${net.label}...`;
+            // Its own client id per net, or the offscreen host would treat the second init as a
+            // replacement for the first and both readers would see the survivor (see WasmEngine).
+            const h = makeEngine(net.id, {...engineOpts(), multipv: 5, maiaLevel: band,
+                                          elos: [band, band]}, `analysis-cmp-${net.id}`);
+            try {
+                await h.start();
+                const res = await h.analyse(pos.fen, pos.turn);
+                const raw = (res.lines || []).filter(l => l.pv?.[0]);
+                cols.push({label: net.label, moves: raw.map(l => ({uci: l.pv[0], prob: l.prob}))});
+            } catch (e) {
+                // One missing net must not cost the other three: an install that never took the
+                // full archive may not have its weights, and that is worth saying rather than
+                // failing the whole table.
+                cols.push({label: net.label, error: String(e.message || e)});
+            } finally {
+                try { h.dispose?.(); } catch (e) { /* */ }
+            }
+        }
+    } finally {
+        btn.disabled = false;
+    }
+    meta.textContent = `at ${band}`;
+    renderCmp(pos, cols);
+}
+
+function renderCmp(pos, cols) {
+    const out = $('an_cmp_out');
+    // Rows are MOVES, columns are nets: the question is "who plays what", and a column per net makes
+    // a disagreement visible as a gap in a row rather than something you have to hold in your head.
+    const moves = [];
+    for (const c of cols) for (const m of (c.moves || [])) if (!moves.includes(m.uci)) moves.push(m.uci);
+    if (!moves.length) {
+        out.innerHTML = `<div class="an-note">${cols.map(c => `${esc(c.label)}: ${esc(c.error || 'no answer')}`).join('<br>')}</div>`;
+        return;
+    }
+    const pct = (c, uci) => {
+        const m = (c.moves || []).find(x => x.uci === uci);
+        return m && m.prob != null ? `${(m.prob * 100).toFixed(1)}%` : '-';
+    };
+    const head = `<tr><th></th>${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}</tr>`;
+    const body = moves.map(uci =>
+        `<tr><td>${esc(sanOf(pos.fen, uci) || uci)}</td>${cols.map(c => `<td class="n">${pct(c, uci)}</td>`).join('')}</tr>`).join('');
+    out.innerHTML = `<table class="an-cmp-table">${head}${body}</table>`
+        + (cols.some(c => c.error) ? `<div class="an-note">${cols.filter(c => c.error)
+            .map(c => `${esc(c.label)}: ${esc(c.error)}`).join('<br>')}</div>` : '');
 }
 
 // ---- playing on the board -----------------------------------------------------------------------

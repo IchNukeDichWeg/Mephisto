@@ -951,6 +951,48 @@ const CLASS_LABEL = {
     blunder: 'Blunder',
 };
 
+// ---- FIT HUMANIZE TO A REAL PLAYER --------------------------------------------------------------
+// The Humanize move mix is seven percentages, and until now they were guessed at: you moved sliders
+// until the panel "felt" right. This measures them instead. Every move the chosen player made in
+// this review already has its centipawn loss against the engine's best, and the mix's own bands are
+// defined in exactly those units -- so counting the moves that fall in each band IS the mix that
+// reproduces this player.
+//
+// Deliberately NOT a strength estimate and not a rating: it describes how often this player found
+// the best move and how badly they missed when they did not. Book and forced moves are excluded --
+// everybody plays those the same way, and leaving them in inflates the top share for free.
+const FIT_ORDER = ['second', 'third', 'fourth', 'inaccuracy', 'mistake', 'blunder'];
+function fitHumanize(moves, colour) {
+    // The SAME band edges the panel uses (humanize_thresholds defaults), so a fitted mix means the
+    // same thing to the code that will play it. Read from storage where the user has changed them.
+    const num = (k, d) => { const v = parseFloat(MephistoConfig.get(k)); return Number.isFinite(v) ? v : d; };
+    const edges = {second: num('humanize_cp_second', 40), third: num('humanize_cp_third', 75),
+                   fourth: num('humanize_cp_fourth', 110), inaccuracy: num('humanize_cp_inaccuracy', 230),
+                   mistake: num('humanize_cp_mistake', 377), blunder: num('humanize_cp_blunder', 600)};
+    const counts = {top: 0, second: 0, third: 0, fourth: 0, inaccuracy: 0, mistake: 0, blunder: 0};
+    let n = 0;
+    for (const m of moves) {
+        if (m.color !== colour) continue;
+        if (m.klass === 'book' || m.klass === 'forced') continue;
+        if (m.cpLoss == null) continue;
+        n++;
+        if (m.cpLoss <= 0) { counts.top++; continue; }
+        let placed = false;
+        let lo = 0;
+        for (const k of FIT_ORDER) {
+            if (m.cpLoss > lo && m.cpLoss <= edges[k]) { counts[k]++; placed = true; break; }
+            lo = edges[k];
+        }
+        // Worse than the blunder band is still a blunder -- the mix has nowhere else to put it, and
+        // dropping it would quietly make the player look better than they played.
+        if (!placed) counts.blunder++;
+    }
+    if (!n) return null;
+    const pct = {};
+    for (const k in counts) pct[k] = Math.round(counts[k] * 1000 / n) / 10;
+    return {pct, n};
+}
+
 function renderReport() {
     if (!report) return;
     $('rv-report').classList.remove('hidden');
@@ -958,6 +1000,7 @@ function renderReport() {
     // a preceding chess.com review hides these engine-only blocks; restore them for an engine run.
     document.querySelector('.rv-graph-wrap')?.classList.remove('hidden');
     $('rv_export').disabled = false;
+    $('rv_fit').disabled = false;
     renderHeader();
     renderCards();
     renderGraph();
@@ -2977,6 +3020,23 @@ class ReviewPage {
             note('Stopping after this position...');
         });
         $('rv_export').addEventListener('click', () => exportHtml($('rv_export')));
+        // Which player? The one whose numbers you are looking at -- so it asks, once, with the two
+        // names from the game rather than making you type one. Writing the mix is a real change to
+        // how the panel will play, so it says what it measured and how many moves it is drawn from.
+        $('rv_fit').addEventListener('click', () => {
+            if (!report || !report.moves) return;
+            const tags = report.game?.tags || {};
+            const white = tags.White || 'White', black = tags.Black || 'Black';
+            const ans = prompt(`Fit the Humanize move mix to which player?\n\n`
+                + `1 = ${white} (white)\n2 = ${black} (black)`, '1');
+            if (ans !== '1' && ans !== '2') return;
+            const fit = fitHumanize(report.moves, ans === '1' ? 'w' : 'b');
+            const btn = $('rv_fit');
+            if (!fit) { btn.textContent = 'No gradeable moves'; setTimeout(() => btn.textContent = 'Fit Humanize to a player', 2500); return; }
+            for (const [k, v] of Object.entries(fit.pct)) MephistoConfig.set(`humanize_${k}`, String(v));
+            btn.textContent = `Fitted from ${fit.n} moves`;
+            setTimeout(() => btn.textContent = 'Fit Humanize to a player', 4000);
+        });
         $('rv_first').addEventListener('click', () => showPly(0));
         $('rv_prev').addEventListener('click', () => showPly(cursor - 1));
         $('rv_next').addEventListener('click', () => showPly(cursor + 1));

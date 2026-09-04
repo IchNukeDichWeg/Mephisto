@@ -215,7 +215,36 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('grind_delay', 'Grind Delay (s):', 'input', 5);
         this.registerFormElement('premove', 'Premove:', 'checkbox', false);
         this.registerFormElement('ponder', 'Pondering:', 'checkbox', false);
-        this.registerFormElement('tablebase', 'Endgame Tablebase:', 'checkbox', false);
+        const tablebase_cb = this.registerFormElement('tablebase', 'Endgame Tablebase:', 'checkbox', false);
+        this.registerFormElement('tablebase_show', 'Tablebase Display:', 'select', 'both');
+        this.registerFormElement('pv_keys', 'Walk With Arrow Keys:', 'checkbox', false);
+        this.registerFormElement('mirror_ratio', 'Mirror Ratio (%):', 'input', 90);
+        const refute = this.registerFormElement('refute', 'Refute My Mistakes:', 'checkbox', false);
+        this.registerFormElement('refute_plies', 'Refutation Length:', 'input', 4);
+        this.registerFormElement('second_opinion', 'Second Opinion:', 'checkbox', false);
+        this.registerFormElement('opp_prep', 'Opponent Prep:', 'checkbox', false);
+        this.registerFormElement('game_log', 'Evals In Copied PGN:', 'checkbox', false);
+        const sync_refute_row = () => {
+            document.getElementById('refute_plies_row')?.classList.toggle('hidden', !refute.getValue());
+        };
+        refute.registerChangeListener(sync_refute_row);
+        sync_refute_row();
+        const time_trouble = this.registerFormElement('time_trouble', 'Time Trouble Mode:', 'checkbox', false);
+        this.registerFormElement('time_trouble_at', 'Time Trouble Below (s):', 'input', 30);
+        // the threshold only means anything while the mode is on
+        const sync_tt_row = () => {
+            document.getElementById('time_trouble_at_row')?.classList.toggle('hidden', !time_trouble.getValue());
+        };
+        time_trouble.registerChangeListener(sync_tt_row);
+        sync_tt_row();
+        // The display choice only means anything while the tablebase is on -- same treatment the
+        // other dependent rows get, so a control that can do nothing is not sitting there inviting
+        // a change.
+        const sync_tb_show_row = () => {
+            document.getElementById('tb_show_section')?.classList.toggle('hidden', !tablebase_cb.getValue());
+        };
+        tablebase_cb.registerChangeListener(sync_tb_show_row);
+        sync_tb_show_row();
         // a folder path on THIS machine; the service worker probes it via the native host
         this.registerFormElement('tb_path', 'Local Tablebase Folder:', 'input', '');
         this.registerFormElement('move_reason', 'Explain Moves:', 'checkbox', false);
@@ -303,8 +332,8 @@ class GeneralSettings extends SettingsPage {
             // with ONE_PASS_ENGINES in popup.js; the ladder pins that this stays a subset of its list.
             const ONE_PASS = ['maia', 'maia3', 'elite-leela'];
             const NO_ELO = [...ONE_PASS, 'tetrarch-native'];
-            document.getElementById('elo_section')
-                ?.classList.toggle('hidden', NO_ELO.includes(engine_select.getValue()));
+            const eloSection = document.getElementById('elo_section');
+            eloSection.classList.toggle('hidden', NO_ELO.includes(engine_select.getValue()));
             // Playstyle needs more than one scored line from an engine whose moves chess.js can
             // replay: a cloud/remote engine answers with one, four-player chess has its own path.
             // Keep in step with playstyle_applies() in popup.js.
@@ -497,6 +526,140 @@ class GeneralSettings extends SettingsPage {
                 say(`${res.tables} tables (${men}). Endgame Tablebase answers from this folder first, ${how}.`);
             });
         });
+        // ---- DOWNLOAD THE TABLES --------------------------------------------------------------
+        // Local Syzygy answers offline and tells nobody what you are looking at, and getting the
+        // files was an errand somebody else's website explained. This fetches them straight into
+        // the folder you already picked.
+        //
+        // THE SERVER'S OWN LISTING IS THE FILE LIST. An earlier version generated the 145 names
+        // from the piece combinations and fetched them from `/tables/standard/3-4-5/` -- a path
+        // that does not exist. The real layout splits WDL from DTZ (`3-4-5-wdl`, `3-4-5-dtz`,
+        // `6-wdl`, `6-dtz`), and reading the index also hands us each file's exact SIZE, which is
+        // what makes "already there" mean "complete" rather than "a name that exists".
+        const TB_BASE = 'https://tablebase.lichess.ovh/tables/standard';
+        // TWO INDEPENDENT CHOICES, because they are two different questions. How many men -- 3-4-5
+        // (0.9 GB) or the six-man set (149 GB) -- and which tables: WDL says whether a position is
+        // won, drawn or lost and is the smaller half; DTZ is what actually CONVERTS a win under the
+        // 50-move rule, and is most of the bytes. Either alone is useful, so either alone is
+        // offerable, and the sizes come from the server rather than from a number in this file.
+        const TB_DIRS = {
+            '345': {wdl: '3-4-5-wdl', dtz: '3-4-5-dtz'},
+            '6': {wdl: '6-wdl', dtz: '6-dtz'},
+        };
+        const tbChosenDirs = () => {
+            const men = $('tb_download_men')?.value || '345';
+            const kind = $('tb_download_kind')?.value || 'both';
+            const mens = men === 'both' ? ['345', '6'] : [men];
+            const kinds = kind === 'both' ? ['wdl', 'dtz'] : [kind];
+            const out = [];
+            for (const m of mens) for (const k of kinds) out.push(TB_DIRS[m][k]);
+            return out;
+        };
+        const TB_PARALLEL = 4;      // the host is somebody else's; four at a time is polite and fast
+        // `KRBvKR.rtbw   07-Dec-2013 02:14   739600` -- name and size, which is all we need.
+        const tbParseIndex = (html) => [...html.matchAll(/href="(K[^"]+\.(?:rtbw|rtbz))"[^<]*<\/a>\s+\S+\s+\S+\s+(\d+)/g)]
+            .map(m => ({name: m[1], size: +m[2]}));
+
+        let tbDownloading = false;
+        $('tb_download')?.addEventListener('click', async () => {
+            const btn = $('tb_download');
+            if (tbDownloading) { tbDownloading = false; btn.textContent = 'Download tables'; return; }
+            const dirs = tbChosenDirs();
+            const handle = await self.MephistoTbStore.getHandle().catch(() => null);
+            if (!handle) { say('Choose a folder first - that is where the tables go.', true); return; }
+            // The picker asked for READ; writing into that folder is a separate grant, and asking
+            // for it only now means nobody hands over write access for a feature they never used.
+            let perm = 'denied';
+            try { perm = await handle.requestPermission({mode: 'readwrite'}); } catch (e) { /* */ }
+            if (perm !== 'granted') { say('Writing to that folder was not allowed.', true); return; }
+            let host = false;
+            try { host = await chrome.permissions.request({origins: ['https://tablebase.lichess.ovh/*']}); } catch (e) { /* */ }
+            if (!host) { say('Downloading needs permission to reach tablebase.lichess.ovh.', true); return; }
+            tbDownloading = true;
+            btn.textContent = 'Stop';
+            say('Reading the file list...');
+            const wanted = [];
+            for (const dir of dirs) {
+                let html = '';
+                try { html = await fetch(`${TB_BASE}/${dir}/`).then(r => r.ok ? r.text() : ''); } catch (e) { /* */ }
+                const files = tbParseIndex(html);
+                if (!files.length) { say(`Could not read the file list for ${dir}.`, true); tbDownloading = false; btn.textContent = 'Download tables'; return; }
+                for (const f of files) wanted.push({...f, dir});
+            }
+            // ASKED AFTER THE LIST IS READ, so the number in the question is the real one rather
+            // than a constant in this file that can go stale when the server's tables change.
+            const wantGb = wanted.reduce((a, f) => a + f.size, 0) / 1073741824;
+            if (wantGb > 10 && !confirm(`${dirs.join(', ')}: ${wanted.length} files, about `
+                                        + `${wantGb.toFixed(0)} GB. Continue?`)) {
+                tbDownloading = false;
+                btn.textContent = 'Download tables';
+                say(`Cancelled - that would have been ${wantGb.toFixed(0)} GB.`);
+                return;
+            }
+
+            // ALREADY THERE means already there AND the right size. A half file left by a stop or a
+            // dropped connection reads as a table and answers wrongly, which is worse than missing.
+            let done = 0, skipped = 0, bytes = 0, failed = 0;
+            const t0 = Date.now();
+            const total = wanted.length;
+            const totalBytes = wanted.reduce((a, f) => a + f.size, 0);
+            const report = () => {
+                const el = (Date.now() - t0) / 1000;
+                const mb = bytes / 1048576;
+                const rate = el > 0 ? mb / el : 0;
+                const left = (totalBytes / 1048576) - mb;
+                const eta = rate > 0 ? left / rate : 0;
+                const pct = Math.round((done + skipped) * 100 / total);
+                say(`${pct}%  ${done + skipped}/${total} files  ${mb.toFixed(0)}/${(totalBytes / 1048576).toFixed(0)} MB  `
+                    + `${rate.toFixed(1)} MB/s  elapsed ${Math.floor(el / 60)}m${String(Math.floor(el % 60)).padStart(2, '0')}s  `
+                    + `ETA ${Math.floor(eta / 60)}m${String(Math.floor(eta % 60)).padStart(2, '0')}s`
+                    + (failed ? `  (${failed} failed)` : ''));
+            };
+            const queue = wanted.slice();
+            const worker = async () => {
+                while (tbDownloading) {
+                    const f = queue.shift();
+                    if (!f) return;
+                    try {
+                        const existing = await handle.getFileHandle(f.name).then(h => h.getFile()).catch(() => null);
+                        if (existing && existing.size === f.size) { skipped++; report(); continue; }
+                    } catch (e) { /* not there -- fetch it */ }
+                    let res;
+                    try { res = await fetch(`${TB_BASE}/${f.dir}/${f.name}`); } catch (e) { failed++; continue; }
+                    if (!res.ok) { failed++; continue; }
+                    const buf = await res.arrayBuffer();
+                    // Written under a temporary name and renamed only once it is complete, so a stop
+                    // or a dropped connection can never leave a half file that LOOKS like a table.
+                    const tmp = await handle.getFileHandle(`${f.name}.part`, {create: true});
+                    const w = await tmp.createWritable();
+                    await w.write(buf);
+                    await w.close();
+                    try {
+                        if (tmp.move) await tmp.move(f.name);
+                        else {
+                            const dest = await handle.getFileHandle(f.name, {create: true});
+                            const dw = await dest.createWritable();
+                            await dw.write(buf);
+                            await dw.close();
+                            await handle.removeEntry(`${f.name}.part`).catch(() => {});
+                        }
+                    } catch (e) { failed++; continue; }
+                    done++;
+                    bytes += buf.byteLength;
+                    report();
+                }
+            };
+            report();
+            await Promise.all(Array.from({length: TB_PARALLEL}, worker));
+            const stopped = !tbDownloading;
+            tbDownloading = false;
+            btn.textContent = 'Download tables';
+            say(`${stopped ? 'Stopped. ' : 'Done. '}${done} downloaded (${(bytes / 1048576).toFixed(0)} MB), `
+                + `${skipped} already there${failed ? `, ${failed} failed` : ''}. Press Check to verify.`,
+                failed > 0);
+            notifyWorker();
+        });
+
         sync();
     }
 

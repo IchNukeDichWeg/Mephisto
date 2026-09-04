@@ -3,7 +3,7 @@
   "manifest_version": 3,
   "name": "Mephisto Chess Extension",
   "description": "Next best move analysis for your favorite chess websites",
-  "version": "3.1.304",
+  "version": "3.1.305",
   "homepage_url": "https://github.com/AlexPetrusca/Mephisto",
   "author": "Alex Petrusca",
   "icons": {
@@ -99,7 +99,8 @@
   },
   "optional_host_permissions": [
     "https://github.com/IchNukeDichWeg/Mephisto/releases/download/*",
-    "https://release-assets.githubusercontent.com/*"
+    "https://release-assets.githubusercontent.com/*",
+    "https://tablebase.lichess.ovh/*"
   ],
   "host_permissions": [
     "http://localhost:8080/*",
