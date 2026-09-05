@@ -574,7 +574,11 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         const tCap = Date.now() - t0;
         await ensureOffscreen();
         const t1 = Date.now();
-        const res = await chrome.runtime.sendMessage({recognizeBoard: {dataUri, crop: msg.captureAndRecognize.crop}});
+        // clientId: the board box is cached in the offscreen document, which serves EVERY panel, and
+        // window size is per-window rather than per-tab -- so without this two game tabs in
+        // same-sized windows shared one crop rectangle and read each other's boards.
+        const res = await chrome.runtime.sendMessage({recognizeBoard: {
+            dataUri, crop: msg.captureAndRecognize.crop, clientId: String(tab.id)}});
         // Split, because the two halves have completely different fixes: the capture is the
         // browser's encoder, the recognise is the model. Without the split "screen reading is slow"
         // points at neither.

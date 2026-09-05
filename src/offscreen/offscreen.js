@@ -345,6 +345,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // the .onnx bytes are same-origin. Async, so keep the channel open with `return true`.
     if (msg && msg.recognizeBoard) {
         import('/src/offscreen/vision.js')
+            // msg.recognizeBoard carries a clientId (the asking tab): the board box is cached per
+            // client, because two game tabs in same-sized windows otherwise share one crop rectangle
+            // and tab B gets read through tab A's box.
             .then(m => m.recognize(msg.recognizeBoard))
             .then(sendResponse)
             .catch(e => sendResponse({error: String(e)}));

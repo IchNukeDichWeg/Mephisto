@@ -471,12 +471,28 @@ async function readBoard(bitmap, box) {
 // detector only runs again when that stops being true or when the position model reports a read it
 // is not confident about (which is what a wrong box looks like from here).
 //
-// The cache is per image geometry rather than per tab: a resized window, a different monitor or a
-// zoom change all alter it, and all three genuinely move the board.
-let boxCache = null;   // {w, h, box}
+// THE KEY IS THE CLIENT AND THE GEOMETRY, not the geometry alone. This document is ONE document for
+// every panel, and window size is per-window rather than per-tab, so two game tabs in same-sized
+// windows used to share one crop rectangle: tab B's read was taken through tab A's box. The
+// stale-box recovery below only fires on a read with no kings or almost no pieces, so a box that
+// HALF overlaps the real board decodes as a plausible, wrong position -- a confident FEN for a board
+// that is not on screen. Geometry stays in the key because a resize, a different monitor or a zoom
+// change all genuinely move the board.
+const boxCache = new Map();   // "clientId|w|h" -> box
+// tab ids are unbounded over a session, so the map needs a cap; the box is tiny and the cost of a
+// miss is one detector run, so evict-oldest (the file's usual idiom) is enough.
+const BOX_CACHE_MAX = 32;
 let boxMisses = 0;
 
-export function resetBoardBox() { boxCache = null; }   // the caller can force a fresh detection
+const boxKey = (clientId, w, h) => `${clientId || 'anon'}|${w}|${h}`;
+
+function boxCacheSet(key, box) {
+    boxCache.set(key, box);
+    if (boxCache.size > BOX_CACHE_MAX) boxCache.delete(boxCache.keys().next().value);
+}
+
+// the caller can force a fresh detection; it passes the same key its reads use
+export function resetBoardBox(key) { if (key === undefined) boxCache.clear(); else boxCache.delete(key); }
 
 // The frame that arrives is usually the frame that arrived last time: while the opponent thinks,
 // the follow loop captures a screen that has not changed. The crop hash below already skips the
@@ -504,7 +520,7 @@ function uriHash(s) {
 // panel is ours, so it steps out of the way for the one frame a detection capture needs -- see
 // with_panel_hidden() in popup.js. A follow read passes the box it already knows and needs none of
 // this.
-export async function recognize({dataUri, crop}) {
+export async function recognize({dataUri, crop, clientId}) {
     await ready();
     const t0 = performance.now();
     if (!crop && lastResult && uriHash(dataUri) === lastUriHash) {
@@ -518,13 +534,14 @@ export async function recognize({dataUri, crop}) {
     const tDecode = performance.now();
     let box = crop, cached = false, tDetect = tDecode;
     if (!box) {
-        if (boxCache && boxCache.w === bitmap.width && boxCache.h === bitmap.height) {
-            box = boxCache.box;
+        const key = boxKey(clientId, bitmap.width, bitmap.height);
+        if (boxCache.has(key)) {
+            box = boxCache.get(key);
             cached = true;
         } else {
             box = await detectBoard(bitmap);
             tDetect = performance.now();
-            if (box) boxCache = {w: bitmap.width, h: bitmap.height, box};
+            if (box) boxCacheSet(key, box);
         }
     }
     if (!box) return {error: 'no board found'};
@@ -544,7 +561,7 @@ export async function recognize({dataUri, crop}) {
         boxMisses++;
         const fresh = await detectBoard(bitmap);
         if (fresh) {
-            boxCache = {w: bitmap.width, h: bitmap.height, box: fresh};
+            boxCacheSet(boxKey(clientId, bitmap.width, bitmap.height), fresh);
             const second = await readBoard(bitmap, fresh);
             if (!staleRead(second) || pieceCount(second) >= pieceCount(read)) { read = second; box = fresh; }
         }
