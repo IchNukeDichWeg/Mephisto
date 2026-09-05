@@ -347,6 +347,27 @@ class GeneralSettings extends SettingsPage {
                 if (out) out.innerText = range.getValue();
             });
         }
+        // Playstyle needs more than one scored line from an engine whose moves chess.js can replay:
+        // a cloud/remote engine answers with one, four-player chess has its own path, a Fairy variant
+        // cannot be replayed, and one line is not a choice. FULL mirror of playstyle_applies() in
+        // popup.js -- this used to read the engine only, so Multiple Lines = 1 or a Fairy variant left
+        // a Playstyle control on screen that the picker ignores. All three inputs are on this page,
+        // so all three drive the row.
+        const NO_STYLE = ['cloud-chessapi', 'cloud-stockfish-online', 'cloud-chesscom',
+                          'remote', 'tetrarch-native'];
+        const sync_playstyle_row = () => {
+            const applies = !NO_STYLE.includes(engine_select.getValue())
+                && ['chess', 'fischerandom'].includes(variant_select.getValue())
+                && (parseInt(multipv_range.getValue()) || 1) >= 2;
+            // `hidden`, NOT `filter-hidden`: the latter belongs to the settings search box alone
+            // (SettingsPage.wireFilter re-toggles it on EVERY .set-row per keystroke), so one
+            // character typed in the filter used to un-hide the row again.
+            document.getElementById('playstyle_select')?.closest('.set-row')
+                ?.classList.toggle('hidden', !applies);
+        };
+        multipv_range.registerChangeListener(sync_playstyle_row);
+        variant_select.registerChangeListener(sync_playstyle_row);
+        sync_playstyle_row();
         engine_select.registerChangeListener(() => {
             // stockfish.online takes a depth and nothing else, so choosing it moves the budget to
             // Depth (and choosing anything else puts back whatever was there). The select has to
@@ -371,16 +392,6 @@ class GeneralSettings extends SettingsPage {
             const ONE_PASS = ['maia', 'maia2', 'maia3', 'elite-leela'];
             const NO_ELO = [...ONE_PASS, 'tetrarch-native'];
             eloSection?.classList.toggle('hidden', NO_ELO.includes(engine_select.getValue()));
-            // Playstyle needs more than one scored line from an engine whose moves chess.js can
-            // replay: a cloud/remote engine answers with one, four-player chess has its own path.
-            // Keep in step with playstyle_applies() in popup.js.
-            const NO_STYLE = ['cloud-chessapi', 'cloud-stockfish-online', 'cloud-chesscom',
-                              'remote', 'tetrarch-native'];
-            // `hidden`, NOT `filter-hidden`: the latter belongs to the settings search box alone
-            // (SettingsPage.wireFilter re-toggles it on EVERY .set-row per keystroke), so one
-            // character typed in the filter used to un-hide the row again.
-            document.getElementById('playstyle_select')?.closest('.set-row')
-                ?.classList.toggle('hidden', NO_STYLE.includes(engine_select.getValue()));
             // The four-player mode override replaces Variant for Tetrarch: a different question
             // (which RULES this board plays by) for the one engine it applies to.
             document.getElementById('fourpc_mode_section')
@@ -402,6 +413,9 @@ class GeneralSettings extends SettingsPage {
                 engineLabelTooltiped?.classList.add('hidden');
                 engineLabelUntooltiped?.classList.remove('hidden');
             }
+            // LAST: the block above can reset the variant to `chess`, and the Playstyle row's answer
+            // depends on the variant that ends up selected, not the one that was there on entry.
+            sync_playstyle_row();
         })
     }
 
