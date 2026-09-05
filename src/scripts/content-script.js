@@ -348,7 +348,9 @@ function handleExtensionMessage(response, sender, sendResponse) {
         // The panel's own Opacity / Dock rows. Per-site, so it is stored here rather than in the
         // settings: see saveOverlayBox.
         const st = response.panelStyle;
-        if (typeof st.opacity === 'number') panelOpacity = Math.max(40, Math.min(100, st.opacity));
+        // isFinite, not typeof: `typeof NaN === 'number'`, and Math.min(100, NaN) wrote
+        // `opacity: NaN` (ignored by CSS) and saved it as null.
+        if (Number.isFinite(st.opacity)) panelOpacity = Math.max(40, Math.min(100, st.opacity));
         if (['free', 'left', 'right'].includes(st.dock)) panelDock = st.dock;
         applyPanelStyle();
         const wrap = overlayEl(PANEL_OVERLAY_ID);
@@ -580,6 +582,11 @@ function readOverlayBox() {
         panelOpacity = (typeof box.opacity === 'number' && box.opacity >= 40 && box.opacity <= 100)
             ? box.opacity : 100;
         panelDock = ['free', 'left', 'right'].includes(box.dock) ? box.dock : 'free';
+        // A non-numeric left/top clamps to NaN, `top: NaNpx` is dropped as invalid, and the fixed
+        // box falls to its static position below the fold: the invisible panel this comment
+        // promises against. Look, opacity and dock are already adopted above; only the geometry
+        // is refused.
+        if (!Number.isFinite(box.left) || !Number.isFinite(box.top)) return null;
         // clamp back into the viewport (saved on a bigger screen / window since resized)
         const width = Math.min(Math.max(box.width, 340), Math.round(window.innerWidth * 0.95));
         const left = Math.min(Math.max(box.left, 0), window.innerWidth - 60);
