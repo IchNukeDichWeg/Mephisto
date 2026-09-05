@@ -9344,13 +9344,22 @@ function maybe_opponent_prep(name) {
     if (!site) return;
     chrome.runtime.sendMessage({oppPrepLookup: {site, username: name}}, (res) => {
         void chrome.runtime.lastError;
-        if (!res || res.error || !Array.isArray(res.games)) return;
+        if (!res || res.error || !Array.isArray(res.games)) {
+            // UN-LATCH, like maybe_player_book: a cold worker (the common case on the first move of
+            // a game), a 429 or a timeout must not mean "never ask about this opponent again". The
+            // next fenresponse carrying the opponent's name re-asks.
+            if (opp_prep_for === name) opp_prep_for = '';
+            return;
+        }
         if (opp_prep_for !== name) return;              // a new opponent while we waited
         build_opp_prep_book(name, res.games);
         update_best_move(null);                          // the label can appear without a new search
     });
 }
 
+// Replay each game far enough to index the openings, keeping only the moves THEY made. The key is
+// placement + side to move, so a transposition into the same position still matches -- which is the
+// whole point of keying on positions rather than on move order.
 // ONE BUILDER, TWO FEATURES. Opponent Prep reads it to say what they play; the Player Book reads
 // it to decide what WE play. `winsOnly` is the difference that makes a book of your own games worth
 // having: every game you ever played includes every opening you lost with.
