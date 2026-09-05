@@ -1188,7 +1188,7 @@ function boardGeometry(fourpc, region) {
         // fourPCSquareXY already handles all four seat rotations and returns VIEWPORT coords; the
         // overlay is positioned at the board's origin, so subtract it back off.
         squareCenter = (sq) => {
-            const pt = fourPCSquareXY(sq);
+            const pt = fourPCSquareXY(sq, geo);
             return pt ? [pt.x - bounds.left, pt.y - bounds.top] : [0, 0];
         };
     } else if (site === 'chessbase' && cbGeometry()) {
@@ -2906,13 +2906,15 @@ function scrapePosition4PC() {
     }
     // the extra block is omitted entirely when empty -- never written as {} (RULES.md 11.1)
     const extra = ep.some(Boolean) ? `-{'enPassant':(${ep.map(e => `'${e}'`).join(',')})}` : '';
-    return `4PC:${fourPCOurSeat() || '?'}:${fourPCMode()}:${turn}-${dead.join(',')}-${short.join(',')}-${long.join(',')}-0,0,0,0-0${extra}-${ranks.join('/')}`;
+    return `4PC:${fourPCOurSeat(geo) || '?'}:${fourPCMode()}:${turn}-${dead.join(',')}-${short.join(',')}-${long.join(',')}-0,0,0,0-0${extra}-${ranks.join('/')}`;
 }
 
 // square -> viewport point, for clicking a move the engine returned. Same coordinate map in reverse,
 // so a rotated board needs no special case.
-function fourPCSquareXY(sq) {
-    const geo = fourPCGeometry();
+// `geo` is passed by callers that already hold one: fourPCGeometry scans every svg, reads 28 labels
+// and forces a layout, and was being re-run per square, per scrape and per click (7 calls for a
+// three-arrow hint frame, 2 per click). A bare call still measures fresh.
+function fourPCSquareXY(sq, geo = fourPCGeometry()) {
     if (!geo) return null;
     const file = sq.replace(/\d+$/, ''), rank = parseInt(sq.match(/\d+$/)[0], 10);
     const colOf = (map, want) => Object.keys(map).find(k => String(map[k]) === String(want));
@@ -2926,8 +2928,7 @@ function fourPCSquareXY(sq) {
 
 // Which seat is OURS. chess.com always seats you at the bottom, but you can be any colour, so this
 // asks the coordinate map which back row lies along the bottom edge rather than trusting a position.
-function fourPCOurSeat() {
-    const geo = fourPCGeometry();
+function fourPCOurSeat(geo = fourPCGeometry()) {
     if (!geo) return null;
     const bottom = 13;   // screen row 13 is the last rank of the board as drawn
     if (geo.fileAxis === 'y') {
@@ -3044,7 +3045,7 @@ function simulateMove4PC(move, think = null, sessionGen = undefined) {
     // below); this one did not, which is the whole bug.
     const rectOf = (sq) => {
         const geo = fourPCGeometry();
-        const pt = geo && fourPCSquareXY(sq);
+        const pt = geo && fourPCSquareXY(sq, geo);
         return pt ? new DOMRect(pt.x - geo.size / 2, pt.y - geo.size / 2, geo.size, geo.size) : null;
     };
     if (!rectOf(m[1]) || !rectOf(m[2])) {
