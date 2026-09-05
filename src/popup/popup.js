@@ -4128,6 +4128,9 @@ function pv_walk_forward() {
     try {
         const chess = new Chess(config.variant, at);
         if (!chess.move(uci)) return false;
+        // first step from a live position: record where the line starts, or index -1 (the back
+        // arrow, the "start" chip) has no fen to go to and the walk is stuck at its first move
+        if (!panel_line.length && !panel_line_base) panel_line_base = at;
         panel_line_push(chess.history().slice(-1)[0], uci, chess.fen());
         panel_line_goto(panel_line.length - 1);
         return true;
