@@ -5422,6 +5422,12 @@ function on_new_pos(fen, startFen, moves) {
             // pure analysis / manual / ponder: no move is owed, so the search runs to the Analysis
             // Limit -- and that limit is infinite unless the slider was moved off its right end.
             send_engine_uci(`go ${analysis_go_args() || 'infinite'}`);
+        } else if (in_time_trouble()) {
+            // Time Trouble promises a quarter-second search (the tooltip says so) and `go depth`
+            // ignores movetime, so in Depth mode a scramble still waited out the full depth and only
+            // the human-delay half applied. A scramble is not the reproducible case the depth
+            // branch protects, so the cap is sent as a plain movetime ahead of it.
+            send_engine_uci(`go movetime ${TIME_TROUBLE_SEARCH_MS}`);
         } else if (searching_by_depth()) {
             // `go depth` only -- NOT `go depth N movetime M`. A movetime alongside a depth is a
             // race, and whichever fires first decides, which would make the reproducible instrument
