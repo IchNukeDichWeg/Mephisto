@@ -1920,7 +1920,13 @@ function on_engine_error(message) {
     engine_ready = false; // a reopen mid-restart must do a full init, not warm-reuse the dead engine
     update_best_move(i18n('panel.msg.engine_restarting', 'Engine crashed - restarting (attempt {n}/3)', {n: engine_restarts}));
     initialize_engine()
-        .then(() => { last_eval = {fen: '', activeLines: 0, lines: []}; }) // force re-analysis on next fen poll
+        .then(() => {
+            last_eval = {fen: '', activeLines: 0, lines: []}; // force re-analysis on next fen poll
+            // A held setup position (pasted FEN, screen capture, follow-screen) drops every scrape at
+            // the door and the silence watchdog is inert (initialize_engine cleared search_active),
+            // so nothing would ever issue a `go` again -- re-drive it ourselves, as the watchdog does.
+            if (setup_fen) on_new_pos(setup_fen, setup_fen, '');
+        })
         .catch((e) => console.error('Engine restart failed:', e))
         .finally(() => engine_restarting = false);
 }
