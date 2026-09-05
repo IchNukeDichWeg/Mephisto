@@ -133,6 +133,17 @@ def format_line(line, terminal, bestmove):
             formatted_line['mate'] = white.mate()
         else:
             formatted_line['score'] = white.score()
+        # S8: bring this copy up to parity with uci-native-host.py -- the Remote backend was the
+        # only UCI-speaking backend with no WDL bar and no aspiration-window flag.
+        if line.get('lowerbound') or line.get('upperbound'):
+            formatted_line['bound'] = True
+        wdl = line.get('wdl')  # present only when the engine declares UCI_ShowWDL
+        if wdl is not None:
+            try:
+                w = wdl.white()  # -> Wdl(wins, draws, losses) from White's perspective, permille
+                formatted_line['wdl'] = [w.wins, w.draws, w.losses]  # [white, draw, black]
+            except Exception:
+                pass  # unexpected wdl shape (old python-chess) -- just omit it, never crash analyse
         return formatted_line
     # no principal variation. game over is a property of the POSITION, not of the
     # engine output (a book move also arrives with no pv, and a superseded request
@@ -206,7 +217,16 @@ def analyse():
         except ValueError as ex:
             return {'error': f'invalid position: {ex}'}, 400
 
-        time_limit = chess.engine.Limit(time=time_ms / 1000)
+        # S5: nodes/depth read before the time fallback -- same precedence as uci-native-host.py
+        # (nodes > depth > time), so Analysis Limit's nodes/depth units work on the Remote backend too.
+        depth = data.get('depth')
+        nodes = data.get('nodes')
+        if isinstance(nodes, int) and nodes > 0:
+            time_limit = chess.engine.Limit(nodes=nodes, time=time_ms / 1000)
+        elif isinstance(depth, int) and depth > 0:
+            time_limit = chess.engine.Limit(depth=depth, time=time_ms / 1000)
+        else:
+            time_limit = chess.engine.Limit(time=time_ms / 1000)
         try:
             multipv = int(engine_options.get('MultiPV', 1))
         except (TypeError, ValueError):
@@ -278,7 +298,9 @@ if __name__ == '__main__':
     print("In the extension, set Engine = \"Remote Engine\". Keep this window open while you play.")
     print("Press Ctrl+C here to stop.")
     try:
-        app.run(host='127.0.0.1', port=args.port)  # loopback only - never expose on the LAN
+        # S2: threaded=True -- single-threaded Werkzeug meant /configure queued behind a running
+        # /analyse and request_counter supersession (above) could never actually fire.
+        app.run(host='127.0.0.1', port=args.port, threaded=True)  # loopback only - never expose on the LAN
     except OSError as ex:
         sys.exit(f"Couldn't start the server on port {args.port}:\n    {ex}\n"
                  f"That port may already be in use (is this script already running?). "
