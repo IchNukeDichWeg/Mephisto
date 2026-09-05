@@ -164,6 +164,13 @@ function disposeClient(clientId) {
     const engine = clients[clientId];
     delete searching[clientId];
     delete lastSeen[clientId];
+    // ...AND THE QUEUE. `pending` used to survive a dispose, so commands sent to engine A while it
+    // was loading (Fairy's per-variant net takes seconds) were flushed into engine B after a switch
+    // -- including a `go` on the previous position, or on another variant entirely. This is the
+    // root-cause site: it covers initEngine, the 5-minute abandon sweep and the explicit dispose.
+    // Nothing is lost: the panel re-sends its whole preamble after an `init` (popup.js
+    // initialize_engine), so a dropped queue is re-issued for the engine it was meant for.
+    delete pending[clientId];
     if (!engine) return;
     // STOP, AND DO NOT QUIT. Measured on this build: `stop` takes a 403% search to 0% -- but a
     // `quit` sent straight after it kills the main thread before it has processed the stop, and the
@@ -364,7 +371,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             (pending[clientId] = pending[clientId] || []).push(msg.line); // still loading -> queue
         }
     } else if (cmd === 'dispose') {
-        disposeClient(clientId);
-        delete pending[clientId];
+        disposeClient(clientId);   // clears pending too, so the duplicate that used to live here is gone
     }
 });
