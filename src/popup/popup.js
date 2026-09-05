@@ -1637,6 +1637,12 @@ function maia2_on_line(text) {
 // The setoption/ucinewgame/isready lines that follow in initialize_engine are then forwarded in order.
 async function ensure_offscreen_engine(engineName) {
     try { await chrome.runtime.sendMessage({ensureOffscreen: true}); } catch (e) { /* SW spinning up */ }
+    // "Never heard THIS engine" is the silence watchdog's idle state (last_info_at 0). Without the
+    // reset a frame heard from the PREVIOUS engine armed it during the load: the host queues even
+    // `isready` until the net is up, so the probe went unanswered, and the revive at ~16s rebuilt the
+    // engine -- which restarted the load from zero. Any net slower than that never came up (Maia-3
+    // band switch, crash restart, reopen after the document idle-closed).
+    last_info_at = 0; revive_attempts = 0; engine_probe_at = 0;
     // Fire the init and return WITHOUT waiting for 'ready'. The offscreen host queues any uci sent
     // while it loads and flushes it in order, so nothing is lost -- and the panel no longer stalls
     // behind a slow engine load (Fairy's per-variant NNUE), which is why its board used to appear late.
@@ -8483,15 +8489,18 @@ function revive_if_engine_silent() {
     if (!PANEL_BOOTED || !search_active) return;
     if (!last_info_at || Date.now() - last_info_at < ENGINE_SILENT_MS) return;
     if (Date.now() - last_revive_at < REVIVE_GAP_MS) return;
-    // One probe per silence, and only where there is something to probe: send_engine_uci is a no-op
-    // for a native host (it takes its work through request_remote_analyse), so those keep the old
-    // behaviour rather than waiting on an answer that can never come.
-    if (!is_remote() && Date.now() - engine_probe_at > ENGINE_SILENT_MS) {
-        engine_probe_at = Date.now();
-        send_engine_uci('isready');
-        return;   // give it one tick to answer before declaring it dead
+    // One probe per silence: a probe older than the last frame belongs to an earlier silence, so
+    // this silence has not been asked about yet. A probe younger than the window is still owed its
+    // answer -- one tick (2s) was not enough for a host that answers `isready` only once it has
+    // finished loading. (Native hosts never arm this watchdog: search_active is set only in the
+    // WASM branch of on_new_pos. The is_remote clause is belt and braces, send_engine_uci is a
+    // no-op there.)
+    if (!is_remote()) {
+        if (engine_probe_at <= last_info_at) { engine_probe_at = Date.now(); send_engine_uci('isready'); return; }
+        if (Date.now() - engine_probe_at < ENGINE_SILENT_MS) return;
     }
     last_revive_at = Date.now();
+    engine_probe_at = 0;    // the next silence asks again before it buries
     revive_attempts++;
     console.warn(`Mephisto: no engine frame for ${Date.now() - last_info_at}ms during a search `
                  + `(attempt ${revive_attempts}) -- reviving`);
@@ -8505,7 +8514,9 @@ function revive_if_engine_silent() {
     if (revive_attempts >= 2) {
         revive_attempts = 0;
         console.warn('Mephisto: still silent -- rebuilding the engine');
-        try { initialize_engine(); } catch (e) { console.warn('Mephisto: engine rebuild failed', e); }
+        // async: the try only sees a synchronous throw, the .catch sees the rebuild itself failing
+        try { initialize_engine().catch(e => console.warn('Mephisto: engine rebuild failed', e)); }
+        catch (e) { console.warn('Mephisto: engine rebuild failed', e); }
         // A held setup position is OURS to restart -- no scrape will ever re-drive it (the handler
         // drops fenresponses while setup_fen is held). Safe to issue while the rebuild is still
         // loading: the host queues in order and initialize_engine now stops the queued search
@@ -10297,6 +10308,7 @@ function native_send(cmd, data, onInfo) {
 // Bound to the fen it was requested for, so late frames from a superseded search are ignored.
 function on_native_info(info, fen) {
     native_alive = true;                     // it spoke, whatever else happens to this frame
+    last_info_at = Date.now();               // so search_state() reads the truth for a native host too
     if (premove_tracker.fen !== fen) return; // stale: position already moved on
     const pvIdx = (info.multipv || 1) - 1;
     // Premove certification for the native engines: track how stable each line's reply is across
