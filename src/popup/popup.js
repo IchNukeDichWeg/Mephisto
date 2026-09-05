@@ -5183,9 +5183,8 @@ function on_new_pos(fen, startFen, moves) {
     }
     // a forced move (one legal reply) needs no thinking time -- play it fast even mid-pace
     try {
-        if (new Chess(config.variant, fen).moves().length === 1) movetime = Math.min(movetime, config.compute_time);
+        if (legal_moves_count(fen) === 1) movetime = Math.min(movetime, config.compute_time);
     } catch (e) { /* variant fen chess.js can't parse -- skip the forced-move shortcut */ }
-
     // ...and in time trouble every move is that move. Applied last so it wins over the pacing modes,
     // which are budgeting a clock this says is nearly gone.
     if (in_time_trouble()) movetime = Math.min(movetime, TIME_TROUBLE_SEARCH_MS);
@@ -5912,11 +5911,27 @@ function render_move_reason(uci) {
 const CONFIDENCE_ONLY_MOVE_CP = 150; // best is winning by this much more -> effectively forced
 const CONFIDENCE_EQUAL_CP = 20;      // within this -> genuinely a choice
 
+// The legal-move count of a position, memoised one deep. Four readers ask it of the SAME fen (the
+// forced-move shortcut in on_new_pos, the readout's "Only move", the humanize roll and pick), and
+// the readout asks on EVERY info frame -- a new Chess and a full generation per frame on the thread
+// that also services clicks, with MultiPV 20 under Humanize (audit 2026-09-05). Keyed on the
+// variant too: the same fen under another rule set has another count. Throws like Chess does on a
+// fen it cannot parse; every caller keeps its own try/catch.
+let legal_count_key = null, legal_count = 0;
+function legal_moves_count(fen) {
+    const key = `${config.variant}|${fen}`;
+    if (key !== legal_count_key) {
+        legal_count = new Chess(config.variant, fen).moves().length;
+        legal_count_key = key;
+    }
+    return legal_count;
+}
+
 function move_confidence_label() {
     try {
         if (!last_eval.fen || config.simon_says_mode) return '';
         // a single legal move is "only move" regardless of what the engine reports
-        const legal = new Chess(config.variant, last_eval.fen).moves().length;
+        const legal = legal_moves_count(last_eval.fen);
         if (legal === 1) return i18n('panel.conf.only_move', 'Only move');
         const a = last_eval.lines?.[0], b = last_eval.lines?.[1];
         if (!a || !b) return '';                       // Multi Lines = 1, or line 2 not in yet
@@ -6397,7 +6412,7 @@ let humanize_roll = null;
 
 function roll_humanize_category(fen) {
     try {
-        if (new Chess(config.variant, fen).moves().length === 1) return {r: 0, category: 'instant response'};
+        if (legal_moves_count(fen) === 1) return {r: 0, category: 'instant response'};
     } catch (e) { /* variant fen chess.js can't parse -- fall through to the mix roll */ }
     const r = Math.random() * 100;
     return {r, category: HUMANIZE_LABEL[category_for_roll(r, humanize_rates())]};
@@ -6910,8 +6925,7 @@ function humanize_pick(best) {
     const recapture = lastOpp && halfmove === 0 && best.slice(2, 4) === lastOpp.slice(2, 4);
     let forced = false, fullmove = 999;
     try {
-        const chess = new Chess(config.variant, fen);
-        forced = chess.moves().length === 1;
+        forced = legal_moves_count(fen) === 1;
         fullmove = parseInt(fen.split(' ')[5]) || 999;
     } catch (e) { /* variant fen chess.js can't parse -- classification just loses two signals */ }
 
