@@ -2404,32 +2404,54 @@ function splitPgnGames(text) {
 // Somebody's recent public games as one PGN blob, from whichever site they play on. Split out of
 // oppPrepLookup so the Player Book can ask the same two archives for more games without a second
 // copy of the two APIs' quirks. Throws nothing: a string, possibly empty.
+// NEVER LET A HUNG REQUEST HOLD THE CHANNEL. Every other fetch in this file is timed out; these two
+// were not, so a stalled archive kept the caller's sendResponse channel open indefinitely -- and
+// opponent prep only runs on games >=300s, so that stall is a long think spent waiting rather than
+// analysing. Same AbortController-plus-cleared-timer pattern the explorer uses.
+const ARCHIVE_TIMEOUT_MS = 8000;   // archives are megabytes, so longer than the explorer's 4s
+
+async function archiveFetch(url, init) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), ARCHIVE_TIMEOUT_MS);
+    try { return await fetch(url, {...init, signal: ctl.signal}); }
+    finally { clearTimeout(timer); }
+}
+
 async function fetchArchivePgn(site, user, max) {
     if (site === 'lichess') {
-        const r = await fetch(`https://lichess.org/api/games/user/${encodeURIComponent(user)}`
+        // THIS BRANCH HITS LICHESS, so it is bound by the shared budget like the explorer and the
+        // tablebase. It used to consult neither, so a prep lookup could keep hammering lichess
+        // through a cooldown the other two were honouring -- and extend it for them.
+        if (lichess_blocked()) throw new Error('lichess cooling down');
+        const r = await archiveFetch(`https://lichess.org/api/games/user/${encodeURIComponent(user)}`
                               + `?max=${max}&perfType=blitz,rapid,classical`,
                               {headers: {Accept: 'application/x-chess-pgn'}});
         if (!r.ok) throw new Error(`lichess answered ${r.status}`);
+        lichess_note_response(r, 'archive');
         return await r.text();
     }
-    const arch = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(user.toLowerCase())}/games/archives`)
+    const arch = await archiveFetch(`https://api.chess.com/pub/player/${encodeURIComponent(user.toLowerCase())}/games/archives`)
         .then(r => r.ok ? r.json() : null).catch(() => null);
     // chess.com serves ONE FILE PER MONTH, so how far back to reach depends on how many games are
     // wanted -- forty is a month or two, two hundred is half a year for most people.
     const months = Math.max(2, Math.ceil(max / 40));
     const urls = (arch?.archives || []).slice(-months).reverse();
     if (!urls.length) throw new Error('no public archive');
+    // ONE ROUND TRIP, NOT `months` OF THEM. The loop used to await each monthly file in turn -- up
+    // to five multi-megabyte files for PLAYER_BOOK_MAX_GAMES, so months x RTT. They are independent,
+    // so they go together and the `max` cut is applied afterwards.
+    const fetched = await Promise.all(urls.map(u =>
+        archiveFetch(u).then(r => r.ok ? r.json() : null).catch(() => null)));
     const parts = [];
     // A PER-MONTH FAILURE USED TO READ AS "no games": each monthly file is swallowed with
     // `.catch(() => null)`, so a 429 across all of them returned '' -- and the callers cached that
     // as an empty repertoire for six hours. Count them: if not one month came back, that is a fetch
     // failure and it has to throw, so "rate-limited" and "genuinely no games" stop reading alike.
     let got = 0;
-    for (const u of urls) {
-        const month = await fetch(u).then(r => r.ok ? r.json() : null).catch(() => null);
+    for (const month of fetched) {
         if (month) got++;
         for (const g of (month?.games || [])) if (g.pgn) parts.push(g.pgn);
-        if (parts.length >= max) break;
+        if (parts.length >= max) break;   // the cut the serial loop made: same games out, one RTT in
     }
     if (!got) throw new Error('chess.com archive unavailable');
     return parts.slice(-max).join('\n\n');
