@@ -243,9 +243,9 @@ const CHESSJS_VARIANTS = ['chess', 'fischerandom', 'crazyhouse', 'kingofthehill'
 // silently ignored by Stockfish, so the slider must stay within these): modern SF uses
 // Skill::LowestElo/HighestElo = 1320/3190; SF 11 = 1350/2850; Fairy-SF 14 = 500/2850.
 const ELO_RANGE = {
-    'stockfish-dev-nnue': [1320, 3190],
+    'stockfish-19-nnue': [1320, 3190],
+    'stockfish-19-small-nnue': [1320, 3190],
     'stockfish-18-nnue': [1320, 3190],
-    'stockfish-18-small-nnue': [1320, 3190],
     'stockfish-11-hce': [1350, 2850],
     'fairy-stockfish-14-nnue': [500, 2850],
     // full-power native engines (real Stockfish/Fairy -> same UCI_Elo ranges)
@@ -315,30 +315,7 @@ function keep_alive(active, allowCreate = false) {
     } catch (e) { /* Web Audio unavailable -> background throttling stays; no worse than before */ }
 }
 
-// WHAT ONE BOOT REGISTERS ON SHARED SURFACES: the document (three listeners), the 1s poll and the
-// chrome.storage watcher. suspend() removed none of them, and every engine/variant/Elo change is a
-// reopen (content-script reopenPanel), so each switch added a listener set, a poll that kept the
-// content script scraping for a dead panel every second, and one more config watcher asking for
-// the human reply / pushing config / re-arming keep-alive per change (P1/P6). One helper, called
-// by suspend AND by a second boot, so nothing on these surfaces ever doubles.
-let panel_doc_listeners = [];   // [[type, fn, capture]]
-let panel_poll_timer = null;
-let config_watch_listener = null;
-function teardown_panel_boot() {
-    for (const [type, fn, capture] of panel_doc_listeners) document.removeEventListener(type, fn, capture);
-    panel_doc_listeners = [];
-    if (panel_poll_timer !== null) clearInterval(panel_poll_timer);
-    panel_poll_timer = null;
-    if (config_watch_listener) { try { chrome.storage.onChanged.removeListener(config_watch_listener); } catch (e) { /* no chrome.storage here */ } }
-    config_watch_listener = null;
-}
-function on_document(type, fn, capture) {
-    document.addEventListener(type, fn, capture);
-    panel_doc_listeners.push([type, fn, capture]);
-}
-
 async function initPanel(root, tabId) {
-    teardown_panel_boot();   // a second boot without a suspend in between must not double anything
     // root = the closed shadow root when the panel lives in-page (4c-2); unset in the popup PAGE
     // (toolbar popup), where the panel owns the whole document.
     if (root) { PANEL_ROOT = root; PANEL_TIP_HOST = root; }
@@ -379,7 +356,7 @@ async function initPanel(root, tabId) {
     if (REMOVED_ENGINES.includes(storedEngine)) storedEngine = null;
     config = {
         // general settings
-        engine: storedEngine || 'stockfish-dev-nnue',
+        engine: MephistoConfig.liveEngine(storedEngine) || 'stockfish-19-nnue',
         variant: JSON.parse(MephistoConfig.get('variant')) || 'chess',
         // Four-player mode OVERRIDE. 'auto' reads it off chess.com's own mode chip; the other two
         // force it. Detection can only ever be a guess about someone else's markup, and the mode
@@ -607,9 +584,9 @@ async function initPanel(root, tabId) {
     // -- Chrome puts a speaker icon on the tab strip for that, so it bought nothing and added a
     // visible tell. Now it runs only when you have actually asked to play in the background.
     const on_gesture = () => { user_has_gestured = true; keep_alive(keep_alive_wanted(), true); };
-    on_document('pointerdown', on_gesture, true); // gesture: may create
-    on_document('keydown', on_gesture, true);     // ...and so is a hotkey
-    on_document('visibilitychange', () => keep_alive(keep_alive_wanted()), false);
+    document.addEventListener('pointerdown', on_gesture, true); // gesture: may create
+    document.addEventListener('keydown', on_gesture, true);     // ...and so is a hotkey
+    document.addEventListener('visibilitychange', () => keep_alive(keep_alive_wanted()));
     push_config();
     init_quick_settings();
     maybe_autodetect_variant(); // variant game page -> auto-apply the variant (+ Fairy) once
@@ -746,7 +723,6 @@ async function initPanel(root, tabId) {
             // field (dropping the now-invalid en passant); if handing the move to that side would be
             // illegal we refuse the flip. When forced, treat it as a fresh position (no move chain).
             const rawTurn = fen.split(' ')[1];
-            turn = rawTurn || 'w';   // adopted HERE, after the empty/legal gates (see parse_position_from_response)
             if (rawTurn !== turn_detected_prev) { turn_override = null; turn_detected_prev = rawTurn; }
             if (turn_override && turn_override !== rawTurn) {
                 const flipped = flip_fen_turn(fen);
@@ -825,7 +801,7 @@ async function initPanel(root, tabId) {
     // Clamped to >=1s so a legacy saved fen_refresh (10ms era) can't reinstate the old
     // 100-scrapes-a-second polling stampede.
     request_fen();
-    panel_poll_timer = setInterval(function () {
+    setInterval(function () {
         request_fen();
         // chess.com is a single-page app: this script is not rebuilt when the user navigates from
         // the bot list into a game, so the row's visibility has to be re-decided, not decided once.
@@ -866,7 +842,7 @@ async function initPanel(root, tabId) {
         const url = `https://lichess.org/analysis/${variant}?fen=${last_eval.fen.split(' ')[0]}`;
         // the background opens it: window.open from a content script runs in the SITE's context and
         // gets swallowed by popup blocking / page policy
-        chrome.runtime.sendMessage({openUrl: url})?.catch?.(() => {});
+        chrome.runtime.sendMessage({openUrl: url});
     });
     PANEL_ROOT.getElementById('copyfen')?.addEventListener('click', () => copy_to_button('copyfen', last_eval.fen));
     PANEL_ROOT.getElementById('qs_copyanalysis')?.addEventListener('click',
@@ -886,7 +862,7 @@ async function initPanel(root, tabId) {
     });
     PANEL_ROOT.getElementById('copypgn')?.addEventListener('click', () => copy_to_button('copypgn', current_pgn()));
     PANEL_ROOT.getElementById('config').addEventListener('click', () => {
-        chrome.runtime.sendMessage({openOptions: true})?.catch?.(() => {}); // the background opens it (see above)
+        chrome.runtime.sendMessage({openOptions: true}); // the background opens it (see above)
     });
     // force re-detection: an SPA can swap games without any reload (e.g. a rematch), and if a
     // scrape ever goes stale this rescans the page and restarts the analysis from scratch
@@ -1546,13 +1522,10 @@ function init_quick_settings() {
 // popup used on the in-iframe engine object, so send_engine_uci and initialize_engine barely change;
 // engine output/errors come back over chrome.runtime and route to the existing handlers below.
 let ENGINE_CLIENT = (MY_TAB_ID != null) ? String(MY_TAB_ID) : 'toolbar'; // one engine per panel
-const WASM_ENGINES = ['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue',
+const WASM_ENGINES = ['stockfish-19-nnue', 'stockfish-19-small-nnue', 'stockfish-18-nnue',
                       'fairy-stockfish-14-nnue', 'stockfish-11-hce', 'maia', 'maia2', 'maia3', 'elite-leela'];
 const offscreen_engine = {
-    // MV3 sendMessage without a callback returns a promise that REJECTS when the worker is restarting
-    // or the offscreen document is gone; the try only sees a synchronous throw. The line is lost
-    // either way -- the .catch just keeps "Uncaught (in promise)" out of the console bug reports are read from.
-    uci: (line) => { try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'uci', line})?.catch?.(() => {}); } catch (e) { /* SW/offscreen gone */ } },
+    uci: (line) => { try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'uci', line}); } catch (e) { /* SW/offscreen gone */ } },
 };
 // engine output -> existing handlers (filtered to THIS panel's engine)
 chrome.runtime.onMessage.addListener((msg) => {
@@ -1581,7 +1554,7 @@ let maia2 = null; // {level, doneFen, pending: {fen, line, timer}} -- lazily cre
 // Only while searching: an idle engine burns nothing, so there is nothing to keep alive.
 setInterval(() => {
     if (!search_active) return;
-    try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'ping'})?.catch?.(() => {}); }
+    try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'ping'}); }
     catch (e) { /* SW/offscreen gone -- the lease expiring is exactly the right outcome */ }
 }, 15000);
 
@@ -1590,26 +1563,19 @@ function maia2_client() { return ENGINE_CLIENT + ':m2'; }
 function maia2_dispose() {
     if (maia2 && maia2.pending) clearTimeout(maia2.pending.timer);
     maia2 = null;
-    try { chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'dispose'})?.catch?.(() => {}); } catch (e) { /* gone */ }
+    try { chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'dispose'}); } catch (e) { /* gone */ }
 }
 
 // Fire the second inference for a reply-less Maia line, at most once per position. Called from
 // the parser right after the tracker records line 0 during the opponent's turn.
 function maia2_kick(line) {
-    // Only the one-pass nets need a second inference (a search engine's line already carries a
-    // reply). The ONE_PASS_ENGINES refactor inverted this guard, which silently killed premove on
-    // every Maia engine from v3.1.250 to v3.1.305 -- the ladder now executes this function.
-    if (!is_one_pass()) return;
+    if (is_one_pass()) return;
     if (!config.premove || !config.autoplay || premove_tracker.premoved) return;
     if (config.help_mode || config.puzzle_mode || config.simon_says_mode) return;
     if (config.variant && config.variant !== 'chess') return;
     const fen = premove_tracker.fen;
     if (!fen || !line || !line.pred || line.reply) return;
-    // `level` is the dial the :m2 client was built with, so a dial change disposes the stale
-    // client; Maia-2's dial is the self/opponent Elo pair, not maia_level
-    const elos = [config.maia2_self_elo, config.maia2_oppo_elo];
-    const level = (config.engine === 'maia3') ? config.maia3_elo
-                : (config.engine === 'maia2') ? elos.join('/') : config.maia_level;
+    const level = (config.engine === 'maia3') ? config.maia3_elo : config.maia_level;
     if (maia2 && maia2.level !== level) maia2_dispose(); // band switched -> the old client runs a stale net
     if (maia2 && maia2.doneFen === fen) return;          // one inference per position
     let fen2;
@@ -1621,10 +1587,8 @@ function maia2_kick(line) {
     if (!maia2) {
         maia2 = {level};
         // no ensureOffscreen needed: the MAIN engine is Maia right now, so the document exists
-        // same init shape as ensure_offscreen_engine: `elos` is what maia2.js reads, without it the
-        // second client would load at maia2.js's default ratings
         try { chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'init',
-                                          engine: config.engine, variant: config.variant, maiaLevel: level, elos})?.catch?.(() => {}); } catch (e) { maia2 = null; return; }
+                                          engine: config.engine, variant: config.variant, maiaLevel: level}); } catch (e) { maia2 = null; return; }
     }
     if (maia2.pending) clearTimeout(maia2.pending.timer);
     maia2.doneFen = fen;
@@ -1634,8 +1598,8 @@ function maia2_kick(line) {
     // first premove opportunity of the game on exactly the engine this feature is for.
     maia2.pending = {fen, line, timer: setTimeout(() => { if (maia2) maia2.pending = null; }, 12000)};
     try {
-        chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'uci', line: `position fen ${fen2}`})?.catch?.(() => {});
-        chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'uci', line: 'go'})?.catch?.(() => {});
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'uci', line: `position fen ${fen2}`});
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'uci', line: 'go'});
     } catch (e) { maia2.pending = null; }
 }
 
@@ -1664,19 +1628,13 @@ function maia2_on_line(text) {
 // The setoption/ucinewgame/isready lines that follow in initialize_engine are then forwarded in order.
 async function ensure_offscreen_engine(engineName) {
     try { await chrome.runtime.sendMessage({ensureOffscreen: true}); } catch (e) { /* SW spinning up */ }
-    // "Never heard THIS engine" is the silence watchdog's idle state (last_info_at 0). Without the
-    // reset a frame heard from the PREVIOUS engine armed it during the load: the host queues even
-    // `isready` until the net is up, so the probe went unanswered, and the revive at ~16s rebuilt the
-    // engine -- which restarted the load from zero. Any net slower than that never came up (Maia-3
-    // band switch, crash restart, reopen after the document idle-closed).
-    last_info_at = 0; revive_attempts = 0; engine_probe_at = 0;
     // Fire the init and return WITHOUT waiting for 'ready'. The offscreen host queues any uci sent
     // while it loads and flushes it in order, so nothing is lost -- and the panel no longer stalls
     // behind a slow engine load (Fairy's per-variant NNUE), which is why its board used to appear late.
     chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'init',
                                 engine: engineName, variant: config.variant,
                                 maiaLevel: engineName === 'maia3' ? config.maia3_elo : config.maia_level,
-                                elos: [config.maia2_self_elo, config.maia2_oppo_elo]})?.catch?.(() => {});
+                                elos: [config.maia2_self_elo, config.maia2_oppo_elo]});
 }
 
 async function initialize_engine(reuseWarm = false) {
@@ -1792,6 +1750,26 @@ async function initialize_engine(reuseWarm = false) {
     last_init_maia = config.maia_level;
     last_init_fp = fp;
     console.log('Engine ready!', engine);
+}
+
+async function fetch_nnue(engineBasePath, nnue) {
+    // GitHub refuses blobs over 100MB, so oversized nets ship split into
+    // `<name>.part0..N` chunks (plain byte splits); stitch them back together here.
+    const whole = await fetch(`${engineBasePath}/${nnue}`).then(res => res.ok ? res.arrayBuffer() : null).catch(() => null);
+    if (whole) return whole;
+    const parts = [];
+    for (let i = 0; ; i++) {
+        const part = await fetch(`${engineBasePath}/${nnue}.part${i}`).then(res => res.ok ? res.arrayBuffer() : null).catch(() => null);
+        if (!part) break;
+        parts.push(part);
+    }
+    if (!parts.length) throw new Error(`NNUE not found: ${nnue} (neither whole file nor .partN chunks)`);
+    const buffer = new Uint8Array(parts.reduce((total, part) => total + part.byteLength, 0));
+    parts.reduce((offset, part) => {
+        buffer.set(new Uint8Array(part), offset);
+        return offset + part.byteLength;
+    }, 0);
+    return buffer.buffer;
 }
 
 function send_engine_uci(message) {
@@ -1927,13 +1905,7 @@ function on_engine_error(message) {
     engine_ready = false; // a reopen mid-restart must do a full init, not warm-reuse the dead engine
     update_best_move(i18n('panel.msg.engine_restarting', 'Engine crashed - restarting (attempt {n}/3)', {n: engine_restarts}));
     initialize_engine()
-        .then(() => {
-            last_eval = {fen: '', activeLines: 0, lines: []}; // force re-analysis on next fen poll
-            // A held setup position (pasted FEN, screen capture, follow-screen) drops every scrape at
-            // the door and the silence watchdog is inert (initialize_engine cleared search_active),
-            // so nothing would ever issue a `go` again -- re-drive it ourselves, as the watchdog does.
-            if (setup_fen) on_new_pos(setup_fen, setup_fen, '');
-        })
+        .then(() => { last_eval = {fen: '', activeLines: 0, lines: []}; }) // force re-analysis on next fen poll
         .catch((e) => console.error('Engine restart failed:', e))
         .finally(() => engine_restarting = false);
 }
@@ -2054,8 +2026,8 @@ function on_engine_best_move(best, threat, isTerminal=false) {
     // The search is over, so whatever was held back for being shallow is the final word on this
     // position -- draw it rather than leaving the bar showing the move before.
     if (isTerminal) flush_held_eval();
-    // (no per-frame deep clone of last_eval for a log line here: this runs on every pv-1 info frame,
-    // and the terminal bgTrace('bestmove', ...) below already carries the useful facts)
+
+    console.log('EVALUATION:', JSON.parse(JSON.stringify(last_eval)));
     const piece_name_map = {
         P: i18n('piece.pawn', 'Pawn'), R: i18n('piece.rook', 'Rook'), N: i18n('piece.knight', 'Knight'),
         B: i18n('piece.bishop', 'Bishop'), Q: i18n('piece.queen', 'Queen'), K: i18n('piece.king', 'King'),
@@ -2603,30 +2575,16 @@ function notate(fen, uci) {
     }
 }
 
-// first few moves of a UCI pv, in the configured notation, for the alternative-lines panel.
-// render_alt_lines re-renders EVERY line on each multipv frame, so with N lines one depth cost
-// (N-1)*N previews (a Chess build + up to 7 replays each) of which only N were new (P2): memo by
-// (fen, pv, plies, notation). Cleared when full -- the keys change every depth, so it would only grow.
-const san_preview_memo = new Map();
-const SAN_PREVIEW_MEMO_MAX = 64;
+// first few moves of a UCI pv, in the configured notation, for the alternative-lines panel
 function san_preview(fen, pv, plies = 6) {
-    const key = `${fen}|${pv}|${plies}|${config.move_notation}`;
-    const hit = san_preview_memo.get(key);
-    if (hit !== undefined) return hit;
     const ucis = pv_moves(pv).slice(0, plies);
-    let out;
-    if (config.move_notation === 'uci') out = ucis.join(' ');
-    else {
-        try {
-            const chess = new Chess(config.variant, fen);
-            out = ucis.map(u => chess.move({from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4]}).san).join(' ');
-        } catch (e) {
-            out = ucis.join(' '); // variant/parse hiccup -> raw UCI is still useful
-        }
+    if (config.move_notation === 'uci') return ucis.join(' ');
+    try {
+        const chess = new Chess(config.variant, fen);
+        return ucis.map(u => chess.move({from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4]}).san).join(' ');
+    } catch (e) {
+        return ucis.join(' '); // variant/parse hiccup -> raw UCI is still useful
     }
-    if (san_preview_memo.size >= SAN_PREVIEW_MEMO_MAX) san_preview_memo.clear();
-    san_preview_memo.set(key, out);
-    return out;
 }
 
 // the panel under the board: one row per engine line (eval + start of the line) when the
@@ -2727,9 +2685,7 @@ function note_unsupported_variant(name) {
 }
 
 function on_engine_response(message) {
-    // Every UCI line, before the currmove/bound filter: with DevTools open the console retains each
-    // one for the life of the tab, and `go infinite` never stops producing them. Same switch as bgTrace.
-    if (config.verbose_log) console.log('on_engine_response', message);
+    console.log('on_engine_response', message);
     if (typeof message === 'string' && message.startsWith('info string mephisto-unsupported-variant')) {
         return note_unsupported_variant(message.split(' ').pop());
     }
@@ -2802,15 +2758,11 @@ function on_engine_response(message) {
             }
         }
 
-        if (!lineInfo.rawScore) return;   // a scoreless depth line has nothing to store or draw
         const scoreNumber = Number(lineInfo.rawScore.substring(lineInfo.rawScore.indexOf(' ') + 1));
         const scoreType = lineInfo.rawScore.includes('cp') ? 'score' : 'mate';
         lineInfo[scoreType] = (turn === 'w' ? 1 : -1) * scoreNumber;
 
-        // A mated/stalemated position answers `info depth 0 score mate 0` with no multipv and no
-        // pv: `multipv - 1` was NaN, which made activeLines NaN, and the pv split below threw out of
-        // the onMessage listener once per game end.
-        const pvIdx = (Number.isInteger(lineInfo.multipv) ? lineInfo.multipv : 1) - 1;
+        const pvIdx = (lineInfo.multipv - 1) || 0;
         // premove: while this position is searched, track how stable each line's 2nd move
         // (our reply to the predicted opponent move) is across depths 13 / 14 / latest
         if (config.premove && lineInfo.pv && pvIdx < premove_lines && Number.isInteger(lineInfo.depth)) {
@@ -2826,14 +2778,7 @@ function on_engine_response(message) {
             if (pvIdx === 0) maybe_premove_forced_reply(line);
             if (pvIdx === 0) maia2_kick(line); // Maia lines have no reply; ask the net for ours
         }
-        last_eval.activeLines = Math.max(last_eval.activeLines, pvIdx + 1);
-        if (!lineInfo.pv) {
-            // no move to show or draw, but KEEP the line: the `bestmove (none)` that follows reads
-            // `'mate' in lines[0]` to tell checkmate from stalemate
-            if (pvIdx === 0) last_eval.lines = new Array(config.multiple_lines);
-            last_eval.lines[pvIdx] = lineInfo;
-            return;
-        }
+        last_eval.activeLines = Math.max(last_eval.activeLines, lineInfo.multipv);
         if (pvIdx === 0) {
             // fresh depth: clear last depth's lines, then set line 0
             last_eval.lines = new Array(config.multiple_lines);
@@ -3633,7 +3578,8 @@ function try_puzzle_capture(fen) {
     puzzle_rating = (typeof hit.rating === 'number' && hit.rating > 0) ? hit.rating : null;
     puzzle_from_page = true;
     puzzle_answered = puzzle_key(fen);
-    void_puzzle_deferral(fen);
+    puzzle_deferred = null;
+    clearTimeout(puzzle_defer_timer);
     console.log(`Puzzle: solution read from the page -- ${hit.line}`
               + (puzzle_rating ? ` (rated ${puzzle_rating})` : ''));
     update_best_move_suffix();
@@ -3654,17 +3600,7 @@ function request_puzzle_solution(fen) {
         return;
     }
     if (!puzzle_db_enabled()) return;
-    if (puzzle_solutions?.has(puzzle_key(fen))) {
-        // Already covered by the line in hand -- the opponent's reply positions are in it with a null
-        // move. MEMBERSHIP COUNTS AS AN ANSWER: a bare return left puzzle_answered unset, so on_new_pos
-        // armed a 1.5s deferral for every opponent ply, and its watchdog then re-entered on_new_pos
-        // with the opponent's position while the board was already on ours -- a board flicker, a
-        // "did not answer in time" warning and a dropped-then-retried puzzle move, every ply.
-        puzzle_answered = puzzle_key(fen);
-        puzzle_deferred = null;   // whatever was armed is for a position the board has left
-        clearTimeout(puzzle_defer_timer);
-        return;
-    }
+    if (puzzle_solutions?.has(puzzle_key(fen))) return; // already covered by the line in hand
     if (puzzle_asked === puzzle_key(fen)) return;       // asked once; the answer is coming or was null
     puzzle_asked = puzzle_key(fen);
     chrome.runtime.sendMessage({puzzleLookup: {fen, site: detected_prefix}}, (res) => {
@@ -3678,7 +3614,8 @@ function request_puzzle_solution(fen) {
         }
         // A HIT ends the wait too. Without this the deferral stays armed and its watchdog re-enters
         // on_new_pos 1.5s later for a position that has already been answered and played.
-        void_puzzle_deferral(fen);
+        puzzle_deferred = null;
+        clearTimeout(puzzle_defer_timer);
         puzzle_solutions = puzzle_expand(fen, res.solution);
         puzzle_rating = res.rating ?? null;
         puzzle_from_page = false;
@@ -3707,16 +3644,6 @@ let puzzle_defer_timer = null;
 // one message and one indexed read, so this is generous by an order of magnitude -- it exists so a
 // worker that never answers costs a slower move rather than NO move, which is the worse failure.
 const PUZZLE_LOOKUP_WAIT_MS = 1500;
-
-// End the wait only for THIS position. A hit for A landing after B armed its own wait used to void
-// B's deferral unconditionally; B's miss then found nothing to release and B was never searched --
-// a spinner until the next position (P4). The miss path (release_deferred_search) always matched
-// by fen; the hit paths now do the same.
-function void_puzzle_deferral(fen) {
-    if (!puzzle_deferred || puzzle_key(puzzle_deferred.fen) !== puzzle_key(fen)) return;
-    puzzle_deferred = null;
-    clearTimeout(puzzle_defer_timer);
-}
 
 function release_deferred_search(fen) {
     const w = puzzle_deferred;
@@ -3789,10 +3716,7 @@ const PUZZLE_MOVE_DELAY_MS = 300;
 // you drag it while watching puzzles being solved, and a value that only takes effect on the next
 // panel rebuild would be useless for that.
 function puzzle_move_delay_ms() {
-    let v = null;
-    // humanize_get's shape: a non-JSON value in the store threw here, synchronously inside on_new_pos,
-    // and every puzzle move failed with a PANEL THREW trace. Junk is the default below, not a throw.
-    try { v = JSON.parse(MephistoConfig.get('puzzle_delay') ?? 'null'); } catch (e) { /* corrupt store */ }
+    const v = JSON.parse(MephistoConfig.get('puzzle_delay') ?? 'null');
     return (typeof v === 'number' && v >= 0 && v <= 3000) ? v : PUZZLE_MOVE_DELAY_MS;
 }
 // The pending pre-move pause. Superseded rather than stacked: on_new_pos can legitimately run twice
@@ -4154,9 +4078,6 @@ function pv_walk_forward() {
     try {
         const chess = new Chess(config.variant, at);
         if (!chess.move(uci)) return false;
-        // first step from a live position: record where the line starts, or index -1 (the back
-        // arrow, the "start" chip) has no fen to go to and the walk is stuck at its first move
-        if (!panel_line.length && !panel_line_base) panel_line_base = at;
         panel_line_push(chess.history().slice(-1)[0], uci, chess.fen());
         panel_line_goto(panel_line.length - 1);
         return true;
@@ -4305,9 +4226,7 @@ function pgn_san_tokens(pgn) {
     t = t.replace(/\$\d+/g, ' ');                // NAGs
     // Result markers BEFORE castling is normalised: "1-0" and "0-1" must not survive to be read as
     // a castle, and "1/2-1/2" must not leave a stray "1/2".
-    // Whitespace-bounded, not \b: `½` is not a \w character, so `\b½` needed a word character
-    // BEFORE it and the `½-½` alternative could never match.
-    t = t.replace(/(?<!\S)(?:1-0|0-1|1\/2-1\/2|½-½)(?!\S)|\*/g, ' ');
+    t = t.replace(/\b(?:1-0|0-1|1\/2-1\/2|½-½)\b|\*/g, ' ');
     t = t.replace(/\d+\s*\.(?:\.\.)?/g, ' ');    // move numbers, with or without "..." and spacing
     t = t.replace(/\be\.p\.?/gi, ' ');           // the optional en-passant marker
     return t.split(/\s+/)
@@ -4544,17 +4463,12 @@ const SNAP_QUOTA_MS = 500;
 const SNAP_FOLLOW_MS = SNAP_QUOTA_MS;
 let snap_follow_timer = null;
 let snap_follow_busy = false;
-// Which start owns the chain. A stop/start while a read was in flight left the OLD chain alive: it
-// resumed after its await, saw a non-null timer (the new chain's) and rescheduled itself, so two
-// chains asked Chrome for captures at twice the quota and following became a stream of quota errors.
-let snap_follow_gen = 0;
 
 function snap_following() {
     return snap_follow_timer !== null;
 }
 
 function snap_follow_stop() {
-    snap_follow_gen++;
     if (snap_follow_timer !== null) clearTimeout(snap_follow_timer);
     snap_follow_timer = null;
     update_snap_follow_button();
@@ -4562,17 +4476,16 @@ function snap_follow_stop() {
 
 function snap_follow_start() {
     if (snap_following() || !snap_crop) return;
-    const gen = ++snap_follow_gen;
     // Chained, NOT setInterval. A read is a full-tab PNG capture plus a 59MB ONNX pass, and
     // chrome.tabs.captureVisibleTab is throttled by Chrome to about 2 calls/second -- so a fixed
     // 250ms clock did not produce 4 reads/second, it produced quota errors and ticks dropped by the
     // busy flag, which is why the panel ran behind a video. Firing the next read when the last one
     // FINISHES runs the pipeline flat out at whatever rate it can actually sustain.
     const loop = async () => {
-        if (gen !== snap_follow_gen || snap_follow_timer === null) return;
+        if (snap_follow_timer === null) return;
         const t0 = Date.now();
         await snap_follow_tick();
-        if (gen !== snap_follow_gen || snap_follow_timer === null) return;   // stopped, or restarted, meanwhile
+        if (snap_follow_timer === null) return;
         // STRAIGHT BACK IN, BUT NOT FASTER THAN CHROME ALLOWS. The chain already guarantees one read
         // at a time, so a gap on top of that only adds latency -- except that captureVisibleTab is
         // quota'd at about two calls a second, and asking more often does not return frames faster,
@@ -5183,8 +5096,9 @@ function on_new_pos(fen, startFen, moves) {
     }
     // a forced move (one legal reply) needs no thinking time -- play it fast even mid-pace
     try {
-        if (legal_moves_count(fen) === 1) movetime = Math.min(movetime, config.compute_time);
+        if (new Chess(config.variant, fen).moves().length === 1) movetime = Math.min(movetime, config.compute_time);
     } catch (e) { /* variant fen chess.js can't parse -- skip the forced-move shortcut */ }
+
     // ...and in time trouble every move is that move. Applied last so it wins over the pacing modes,
     // which are budgeting a clock this says is nearly gone.
     if (in_time_trouble()) movetime = Math.min(movetime, TIME_TROUBLE_SEARCH_MS);
@@ -5421,12 +5335,6 @@ function on_new_pos(fen, startFen, moves) {
             // pure analysis / manual / ponder: no move is owed, so the search runs to the Analysis
             // Limit -- and that limit is infinite unless the slider was moved off its right end.
             send_engine_uci(`go ${analysis_go_args() || 'infinite'}`);
-        } else if (in_time_trouble()) {
-            // Time Trouble promises a quarter-second search (the tooltip says so) and `go depth`
-            // ignores movetime, so in Depth mode a scramble still waited out the full depth and only
-            // the human-delay half applied. A scramble is not the reproducible case the depth
-            // branch protects, so the cap is sent as a plain movetime ahead of it.
-            send_engine_uci(`go movetime ${TIME_TROUBLE_SEARCH_MS}`);
         } else if (searching_by_depth()) {
             // `go depth` only -- NOT `go depth N movetime M`. A movetime alongside a depth is a
             // race, and whichever fires first decides, which would make the reproducible instrument
@@ -5564,11 +5472,6 @@ function apply_ep_square(fen, lastMove) {
     }
 }
 
-// Returns {fen, startFen?, moves?} and touches NO panel state beyond the cache and the detection
-// status. It used to write the global `turn` in every branch, so a scrape rejected afterwards (en
-// prise throw, illegal, empty) left `turn` describing a position the panel never took while the
-// running search's frames were stored with the wrong sign for up to a poll (~100ms) -- routine on
-// chess.com puzzle pages mid-animation. The scrape handler adopts the turn once it accepts the fen.
 function parse_position_from_response(txt) {
     const prefixMap = {
         li: i18n('panel.detected_on', 'Game detected on {site}', {site: 'Lichess.org'}),
@@ -5581,7 +5484,10 @@ function parse_position_from_response(txt) {
     function parse_position_from_moves(txt, startFen = null) {
         const directKey = (startFen) ? `${startFen}_${txt}` : txt;
         const directHit = fen_cache.get(directKey);
-        if (directHit) return directHit; // reuse position
+        if (directHit) { // reuse position
+            turn = directHit.fen.charAt(directHit.fen.indexOf(' ') + 1);
+            return directHit;
+        }
 
         let record;
         const lastMoveRegex = /([\w-+=#]+[*]+)$/;
@@ -5590,6 +5496,7 @@ function parse_position_from_response(txt) {
         if (indirectHit) { // append newest move
             const chess = new Chess(config.variant, indirectHit.fen);
             const moveReceipt = chess.move(txt.match(lastMoveRegex)[0].split('*****')[0]);
+            turn = chess.turn();
             record = {fen: chess.fen(), startFen: indirectHit.startFen, moves: indirectHit.moves + ' ' + moveReceipt.lan}
         } else { // perform all moves
             const chess = new Chess(config.variant, startFen);
@@ -5599,6 +5506,7 @@ function parse_position_from_response(txt) {
                 const moveReceipt = chess.move(san);
                 moves += moveReceipt.lan + ' ';
             }
+            turn = chess.turn();
             record = {fen: chess.fen(), startFen: chess.startFen(), moves: moves.trim()};
         }
 
@@ -5610,7 +5518,10 @@ function parse_position_from_response(txt) {
     // puzzle. It decides whether castling rights are inferred -- see the block below.
     function parse_position_from_pieces(txt, isStartPos = false) {
         const directHit = fen_cache.get(txt);
-        if (directHit) return directHit; // reuse position
+        if (directHit) { // reuse position
+            turn = directHit.fen.charAt(directHit.fen.indexOf(' ') + 1);
+            return directHit;
+        }
 
         const chess = new Chess(config.variant);
         chess.clear(); // clear the board so we can place our pieces
@@ -5647,10 +5558,11 @@ function parse_position_from_response(txt) {
             }
         }
         chess.setTurn(playerTurn);
+        turn = chess.turn();
 
         // a mid-animation scrape or wrong turn guess can yield a position where the side to move
         // could capture the king - searching such a position crashes the stockfish wasm (OOB)
-        const opponent = (chess.turn() === 'w') ? 'b' : 'w';
+        const opponent = (turn === 'w') ? 'b' : 'w';
         if (chess._isKingAttacked(opponent)) {
             throw Error('illegal position scraped (opponent king en prise)');
         }
@@ -5699,6 +5611,7 @@ function parse_position_from_response(txt) {
     } else if (metaTag === 'cbfen' || metaTag === 'ccgeo') { // a complete FEN shipped as-is: ChessBase, and the chess.com
         // variants boards that are read geometrically (Setup Chess builds its own start position,
         // so there is no move list to replay and no start to replay it from).
+        turn = txt.split(' ')[1] || 'w';
         return {fen: txt};
     } else { // chess.com and lichess.org pages
         return parse_position_from_moves(txt);
@@ -5911,27 +5824,11 @@ function render_move_reason(uci) {
 const CONFIDENCE_ONLY_MOVE_CP = 150; // best is winning by this much more -> effectively forced
 const CONFIDENCE_EQUAL_CP = 20;      // within this -> genuinely a choice
 
-// The legal-move count of a position, memoised one deep. Four readers ask it of the SAME fen (the
-// forced-move shortcut in on_new_pos, the readout's "Only move", the humanize roll and pick), and
-// the readout asks on EVERY info frame -- a new Chess and a full generation per frame on the thread
-// that also services clicks, with MultiPV 20 under Humanize (audit 2026-09-05). Keyed on the
-// variant too: the same fen under another rule set has another count. Throws like Chess does on a
-// fen it cannot parse; every caller keeps its own try/catch.
-let legal_count_key = null, legal_count = 0;
-function legal_moves_count(fen) {
-    const key = `${config.variant}|${fen}`;
-    if (key !== legal_count_key) {
-        legal_count = new Chess(config.variant, fen).moves().length;
-        legal_count_key = key;
-    }
-    return legal_count;
-}
-
 function move_confidence_label() {
     try {
         if (!last_eval.fen || config.simon_says_mode) return '';
         // a single legal move is "only move" regardless of what the engine reports
-        const legal = legal_moves_count(last_eval.fen);
+        const legal = new Chess(config.variant, last_eval.fen).moves().length;
         if (legal === 1) return i18n('panel.conf.only_move', 'Only move');
         const a = last_eval.lines?.[0], b = last_eval.lines?.[1];
         if (!a || !b) return '';                       // Multi Lines = 1, or line 2 not in yet
@@ -6412,7 +6309,7 @@ let humanize_roll = null;
 
 function roll_humanize_category(fen) {
     try {
-        if (legal_moves_count(fen) === 1) return {r: 0, category: 'instant response'};
+        if (new Chess(config.variant, fen).moves().length === 1) return {r: 0, category: 'instant response'};
     } catch (e) { /* variant fen chess.js can't parse -- fall through to the mix roll */ }
     const r = Math.random() * 100;
     return {r, category: HUMANIZE_LABEL[category_for_roll(r, humanize_rates())]};
@@ -6925,7 +6822,8 @@ function humanize_pick(best) {
     const recapture = lastOpp && halfmove === 0 && best.slice(2, 4) === lastOpp.slice(2, 4);
     let forced = false, fullmove = 999;
     try {
-        forced = legal_moves_count(fen) === 1;
+        const chess = new Chess(config.variant, fen);
+        forced = chess.moves().length === 1;
         fullmove = parseInt(fen.split(' ')[5]) || 999;
     } catch (e) { /* variant fen chess.js can't parse -- classification just loses two signals */ }
 
@@ -7171,9 +7069,10 @@ function move_situation(fen, uci) {
 let last_capture_square = null;
 
 function fresh_timing(situation) {
-    // humanize_get IS this reader with the guard (junk or non-JSON -> the fallback, never a throw
-    // out of request_automove); the four timing keys are non-negative milliseconds like its own
-    const num = humanize_get;
+    const num = (key, fallback) => {
+        const v = JSON.parse(MephistoConfig.get(key));
+        return (v != null) ? v : fallback;
+    };
     // Read fresh from storage, THEN paced to the clock if that is switched on -- so editing the
     // sliders mid-game still applies to the very next move, and the pacing works from what you
     // actually set rather than from a snapshot.
@@ -7782,7 +7681,6 @@ function render_alt_lines_4pc(lines, flip) {
 // already normalised to your team, so positive is always your side.
 const FOURPC_SEAT_NAME = {R: 'Red', B: 'Blue', Y: 'Yellow', G: 'Green'};
 const FOURPC_TEAM_COLOR = ['#c33c3c', '#3f72c4'];   // team Red (R+Y), team Blue (B+G)
-const fourpc_team = (seat) => (seat === 'R' || seat === 'Y') ? 0 : 1;   // the ONE copy of the pairing
 function update_eval_bar_4pc(line, flip, ourSeat) {
     const wrap = PANEL_ROOT.getElementById('eval-bar');
     const fill = PANEL_ROOT.getElementById('eval-bar-white');
@@ -7791,7 +7689,7 @@ function update_eval_bar_4pc(line, flip, ourSeat) {
     // this, `score` is undefined, the exp() below is NaN, and `height: NaN%` silently freezes the bar
     // wherever it happened to be -- which reads as "the eval bar does not move".
     if (!('mate' in line) && !Number.isFinite(line.score)) return;
-    const ourTeam = fourpc_team(ourSeat);
+    const ourTeam = (ourSeat === 'R' || ourSeat === 'Y') ? 0 : 1;
     let frac;                                       // OUR team's share of the bar
     if ('mate' in line) {
         frac = (flip * line.mate >= 0) ? 1 : 0;
@@ -7873,12 +7771,13 @@ function on_new_pos_4pc(payload) {
     // own terms -- me against the other three -- and there is no negation that turns one seat's
     // outlook into another's. The score is shown as the mover's own, unflipped; the readout already
     // names whose turn it is.
-    const flip = (mode !== 'ffa' && ourSeat !== '?' && fourpc_team(turn) !== fourpc_team(ourSeat)) ? -1 : 1;
+    const team = (seat) => (seat === 'R' || seat === 'Y') ? 0 : 1;
+    const flip = (mode !== 'ffa' && ourSeat !== '?' && team(turn) !== team(ourSeat)) ? -1 : 1;
     set_detection_status(i18n('panel.fourpc_detected', '4-player chess - {seat} to move',
         {seat: FOURPC_SEAT_NAME[turn] || turn}));
     if (!is_fourpc_engine()) {
         update_best_move(i18n('panel.fourpc_needs_engine',
-            'Select the Tetrarch engine to analyse 4-player chess'));
+            'Select the Tetrarch engine to analyse 4-player chess (Teams mode only)'));
         return;
     }
     fourpc_busy = true;
@@ -8239,16 +8138,9 @@ function record_eval_history(frac) {
     // ...and what the ENGINE saw here, which is what makes the move that leaves this position
     // classifiable: its rank among the lines, and how much better it was than the second choice.
     if (last_eval.fen && Array.isArray(last_eval.lines)) {
-        // MATE LINES ARE KEPT. The info parser sets exactly one of score/mate, so a score-only
-        // filter dropped every mating line: a ply seen as mate from the first depth was never
-        // recorded, and a mate found deeper kept the earlier cp snapshot (the PGN said 9.50 where
-        // the panel said "Checkmate in 5"). The classifier wants a number, so a mate carries the
-        // same +/-100000 sentinel line_cp_ours uses; the PGN comment reads `mate` first.
         const lines = last_eval.lines
-            .filter(l => l && l.move && (typeof l.score === 'number' || typeof l.mate === 'number'))
-            .map(l => ({move: l.move,
-                        score: typeof l.score === 'number' ? l.score : (l.mate > 0 ? 100000 : -100000),
-                        mate: typeof l.mate === 'number' ? l.mate : undefined}));
+            .filter(l => l && l.move && typeof l.score === 'number')
+            .map(l => ({move: l.move, score: l.score}));
         // KEEP THE FULLEST SNAPSHOT, never the newest. The engine rebuilds its line array at the top
         // of every depth iteration with pv 1 alone, so a snapshot taken at that instant shows ONE
         // line -- and one line is exactly how a forced position looks. Taken naively, every move of
@@ -8548,9 +8440,6 @@ const LIVE_CONFIG_KEYS = [
     // the moment it is saved. This is so the hints beside the toggles and on the title bar stop
     // advertising the old one while it does.
     'hotkeys',
-    // apply_language re-translates the panel in place (the same walk the boot does), so a change on
-    // the options page reaches an open panel; without this key its handler below was dead code
-    'language',
 ];
 
 let resync_after_config_change = false;
@@ -8585,18 +8474,15 @@ function revive_if_engine_silent() {
     if (!PANEL_BOOTED || !search_active) return;
     if (!last_info_at || Date.now() - last_info_at < ENGINE_SILENT_MS) return;
     if (Date.now() - last_revive_at < REVIVE_GAP_MS) return;
-    // One probe per silence: a probe older than the last frame belongs to an earlier silence, so
-    // this silence has not been asked about yet. A probe younger than the window is still owed its
-    // answer -- one tick (2s) was not enough for a host that answers `isready` only once it has
-    // finished loading. (Native hosts never arm this watchdog: search_active is set only in the
-    // WASM branch of on_new_pos. The is_remote clause is belt and braces, send_engine_uci is a
-    // no-op there.)
-    if (!is_remote()) {
-        if (engine_probe_at <= last_info_at) { engine_probe_at = Date.now(); send_engine_uci('isready'); return; }
-        if (Date.now() - engine_probe_at < ENGINE_SILENT_MS) return;
+    // One probe per silence, and only where there is something to probe: send_engine_uci is a no-op
+    // for a native host (it takes its work through request_remote_analyse), so those keep the old
+    // behaviour rather than waiting on an answer that can never come.
+    if (!is_remote() && Date.now() - engine_probe_at > ENGINE_SILENT_MS) {
+        engine_probe_at = Date.now();
+        send_engine_uci('isready');
+        return;   // give it one tick to answer before declaring it dead
     }
     last_revive_at = Date.now();
-    engine_probe_at = 0;    // the next silence asks again before it buries
     revive_attempts++;
     console.warn(`Mephisto: no engine frame for ${Date.now() - last_info_at}ms during a search `
                  + `(attempt ${revive_attempts}) -- reviving`);
@@ -8610,9 +8496,7 @@ function revive_if_engine_silent() {
     if (revive_attempts >= 2) {
         revive_attempts = 0;
         console.warn('Mephisto: still silent -- rebuilding the engine');
-        // async: the try only sees a synchronous throw, the .catch sees the rebuild itself failing
-        try { initialize_engine().catch(e => console.warn('Mephisto: engine rebuild failed', e)); }
-        catch (e) { console.warn('Mephisto: engine rebuild failed', e); }
+        try { initialize_engine(); } catch (e) { console.warn('Mephisto: engine rebuild failed', e); }
         // A held setup position is OURS to restart -- no scrape will ever re-drive it (the handler
         // drops fenresponses while setup_fen is held). Safe to issue while the rebuild is still
         // loading: the host queues in order and initialize_engine now stops the queued search
@@ -8630,8 +8514,7 @@ setInterval(revive_if_engine_silent, 2000);
 
 function watch_config_changes() {
     try {
-        // named so teardown_panel_boot can remove it: N reopens used to mean N watchers
-        config_watch_listener = (changes, area) => {
+        chrome.storage.onChanged.addListener((changes, area) => {
             if (area !== 'local' || !PANEL_BOOTED) return;
             let touched = false;
             for (const key of LIVE_CONFIG_KEYS) {
@@ -8656,9 +8539,7 @@ function watch_config_changes() {
                 // one overlay message carries the bar, the graph and the stats strip: clear all
                 // three and let the next evaluation redraw whichever are still switched on
                 if (key === 'eval_bar' || key === 'eval_history' || key === 'live_stats') request_clear_eval_bar();
-                // (not `variant`: it is not a live key -- a variant change needs the engine
-                // re-init, so it goes through the reload path and never reaches this loop)
-                if (key === 'multiple_lines') update_playstyle_row();
+                if (key === 'multiple_lines' || key === 'variant') update_playstyle_row();
                 if (key === 'live_stats' || key === 'live_classify' || key === 'class_on_board'
                     || key === 'opp_alert') ensure_classifier();
                 if (key === 'tablebase') tablebase_data = null;       // a stale answer must not survive
@@ -8681,19 +8562,12 @@ function watch_config_changes() {
                 // drop it and ask again (ensure_threat_human retunes the net in place via setoption)
                 if (key === 'threat_human' || key === 'threat_human_elo') {
                     last_eval.humanReply = null;
-                    threat_human_cache.removeAll();
+                    threat_human_cache.clear();
                     if (config.threat_human && last_eval.fen && last_eval.bestmove) {
                         request_threat_human(last_eval.fen, last_eval.bestmove);
                     } else {
                         update_best_move_suffix();   // toggled off: take the label out of the readout
                     }
-                    // The second opinion and the safety net read the SAME dial: their answers were
-                    // computed at the old rating too, and second_opinion_label prints the new number
-                    // over them ("A 2200 plays e4 (35%)" with a 35% computed at 1500). Drop and re-ask.
-                    last_eval.secondOpinion = null;
-                    last_eval.humanSelf = null;
-                    if (last_eval.fen && last_eval.bestmove) request_second_opinion(last_eval.fen, last_eval.bestmove);
-                    if (last_eval.fen) request_safety_net_human(last_eval.fen);
                 }
                 if (key === 'language') load_language(value).then(apply_language);
                 // these change the go mode / search budget -- restart under the new setting
@@ -8720,8 +8594,7 @@ function watch_config_changes() {
                 fen_request_inflight = false;   // don't let an in-flight poll's guard swallow this
                 request_fen();
             }
-        };
-        chrome.storage.onChanged.addListener(config_watch_listener);
+        });
     } catch (e) { /* no chrome.storage here -> options changes need a panel reload, as before */ }
 }
 
@@ -8825,9 +8698,7 @@ function draw_last_move_class() {
     const cx = 0.5 + ((flipped ? 9 - fx : fx) - 1);
     const cy = 8 - (0.5 + ((flipped ? 9 - ry : ry) - 1));
     // top-right of the square, like the review's board badge, so the piece stays visible
-    // insertAdjacentHTML, not an innerHTML append: the latter re-serialises and re-parses every arrow
-    // already in the overlay (O(k^2) per frame, and every <img> re-requests its src) -- see draw_move
-    overlay.insertAdjacentHTML('beforeend', `
+    overlay.innerHTML += `
         <svg style='position: absolute; z-index: 1; left: 0; top: 0; pointer-events: none;'
              width='344px' height='344px' viewBox='0, 0, 8, 8'>
             <circle cx='${cx + 0.34}' cy='${cy - 0.34}' r='0.26' fill='${C.CLASS_COLOR[klass] || '#8b8987'}'
@@ -8835,7 +8706,7 @@ function draw_last_move_class() {
             <text x='${cx + 0.34}' y='${cy - 0.34}' text-anchor='middle' dominant-baseline='central'
                   font-size='0.3' font-family='system-ui, sans-serif' font-weight='700'
                   fill='#111'>${C.CLASS_GLYPH[klass] || ''}</text>
-        </svg>`);
+        </svg>`;
 }
 
 function draw_moves() {
@@ -8879,14 +8750,18 @@ function draw_moves() {
         const top_score = (turn === 'w' ? 1 : -1) * top_line.score / 100;
         const score = (turn === 'w' ? 1 : -1) * line.score / 100;
         if (top_line.move === line.move) { // is best move?
+            console.log(`0 => ${MAX_STROKE + 2 * STROKE_SHIM}`);
             return MAX_STROKE + 2 * STROKE_SHIM; // accentuate the best move
         } else if (isNaN(top_score) || top_score >= WINNING_THRESHOLD) { // is winning?
             if (isNaN(score)) {
+                console.log(`winning: #${line.mate} => ${MAX_STROKE - STROKE_SHIM}`);
                 return MAX_STROKE - STROKE_SHIM; // moves that checkmate are necessarily good
             } else if (score < WINNING_THRESHOLD) {
+                console.log(`winning: ${score} => losing`);
                 return 0; // hide moves that are not winning
             } else {
                 const delta = (isNaN(top_score) ? MATE_SCORE : top_score) - score;
+                console.log(`winning: ${score} => ok ${delta}`);
                 if (delta <= 0) {
                     return MAX_STROKE - 2 * STROKE_SHIM; // moves that are still winning are good
                 } else {
@@ -8897,9 +8772,11 @@ function draw_moves() {
         } else { // is roughly equal?
             const delta = top_score - score;
             if (isNaN(score) || delta >= WINNING_THRESHOLD) {
+                console.log(`${delta} => 0`);
                 return 0; // hide moves that are too losing or get us checkmated
             } else {
                 const stroke = MAX_STROKE - delta / 15;
+                console.log(`${delta} => ${stroke}`);
                 return Math.min(MAX_STROKE, Math.max(MIN_STROKE, stroke))
             }
         }
@@ -9092,11 +8969,7 @@ function draw_book_moves(fen) {
 let threat_human_id = null;      // offscreen clientId, minted per panel boot
 let threat_human_elo_loaded = null;
 let threat_human_ready = null;   // the in-flight init, so two asks share one load
-// LRU, not Map: one entry per position per feature for the session, cleared only on a rating change,
-// and every worker cache has a cap. 200 covers a long game twice over; lib/lru.min.js has no has()
-// or clear(), so reads are get()-and-test and the wipe is removeAll().
-const HUMAN_CACHE_MAX = 200;
-let threat_human_cache = new LRU(HUMAN_CACHE_MAX);   // fen-after-our-move -> {uci, prob}, valid for ONE rating
+let threat_human_cache = new Map();   // fen-after-our-move -> {uci, prob}, valid for ONE rating
 
 function threat_human_elo() {
     const want = Number(config.threat_human_elo) || 1500;
@@ -9107,12 +8980,10 @@ function ensure_threat_human() {
     const elo = threat_human_elo();
     if (threat_human_ready && threat_human_elo_loaded === elo) return threat_human_ready;
     if (threat_human_ready && threat_human_elo_loaded !== null) {
-        // the net is up -- retune it in place; the cached replies belong to the old rating, and so
-        // does anything still queued: an ask sent before the setoption answers at the old rating
+        // the net is up -- retune it in place; the cached replies belong to the old rating
         threat_human_elo_loaded = elo;
-        threat_human_cache.removeAll();
-        safety_human_cache.removeAll();
-        maia_flush();
+        threat_human_cache.clear();
+        safety_human_cache.clear();
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci',
                                     line: `setoption name SelfElo value ${elo}`});
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci',
@@ -9154,87 +9025,28 @@ function dispose_threat_human() {
     threat_human_id = null;
     threat_human_ready = null;
     threat_human_elo_loaded = null;
-    threat_human_cache.removeAll();
-    safety_human_cache.removeAll();
-    maia_flush();
-    maia_owed = 0;   // the client is gone with its id: nothing it still owed can arrive
-    if (maia_listener) { chrome.runtime.onMessage.removeListener(maia_listener); maia_listener = null; }
-}
-
-// ---- ONE ASKER, ONE QUESTION IN FLIGHT --------------------------------------------------------
-// The wire has no request id: Maia answers `position`/`go` pairs in the order they arrive, and a
-// reply is "whatever multipv/bestmove frames come back next". Three consumers (threat reply, second
-// opinion, safety net) used to attach a listener each and fire in the same tick, so all three
-// resolved on the FIRST bestmove -- the threat reply's, for the position after our move -- and the
-// second opinion drew the OPPONENT's move as ours on every move (audit 2026-09-05, top finding).
-// So: a FIFO. One pair on the wire at a time, the head resolves on its own bestmove, then the next
-// goes out. The same fen asked twice while it is queued shares one pass (second opinion + safety net
-// ask the same position in the same tick: two forward passes became one).
-const MAIA_ASK_TIMEOUT_MS = 15000;   // one forward pass; well past this the net is not answering
-let maia_queue = [];                 // [{fen, resolve, sent, list, timer}], head is the one in flight
-const maia_inflight = new Map();     // fen -> promise, the dedupe
-let maia_owed = 0;                   // bestmoves still owed by asks that timed out or were flushed
-                                     // mid-flight: drop that many before trusting frames again
-                                     // (same shape as pending_stops on the engine wire)
-let maia_listener = null;            // one listener for the client's life, not one per ask
-
-function ask_maia(fen) {
-    const held = maia_inflight.get(fen);
-    if (held) return held;
-    const p = new Promise((resolve) => maia_queue.push({fen, resolve, sent: false, list: [], timer: null}));
-    maia_inflight.set(fen, p);
-    // a failed load answers null to everything queued; the callers already treat null as "no reply"
-    ensure_threat_human().then(maia_pump, () => maia_flush());
-    return p;
-}
-
-// put the head on the wire if nothing is
-function maia_pump() {
-    const head = maia_queue[0];
-    if (!head || head.sent || !threat_human_id) return;
-    if (!maia_listener) {
-        maia_listener = (m) => {
-            if (!m || !m.fromOffscreen || m.clientId !== threat_human_id || m.kind !== 'line') return;
-            const done = /^bestmove\b/.test(m.line || '');
-            if (maia_owed > 0) { if (done) maia_owed--; return; }   // a late answer to a dead ask
-            const cur = maia_queue[0];
-            if (!cur || !cur.sent) return;
-            const info = /info .*multipv (\d+) .*maiaprob (\d+) pv ([a-h][1-8][a-h][1-8][qrbn]?)/.exec(m.line || '');
-            if (info) cur.list[Number(info[1]) - 1] = {uci: info[3], prob: Number(info[2]) / 10000};
-            if (done) maia_settle(cur.list.filter(Boolean));
-        };
-        chrome.runtime.onMessage.addListener(maia_listener);
-    }
-    head.sent = true;
-    head.timer = setTimeout(() => { maia_owed++; maia_settle(null); }, MAIA_ASK_TIMEOUT_MS);
-    chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: `position fen ${head.fen}`});
-    chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: 'go nodes 1'});
-}
-
-// answer the head (null = no answer) and send the next
-function maia_settle(list) {
-    const head = maia_queue.shift();
-    if (!head) return;
-    clearTimeout(head.timer);
-    maia_inflight.delete(head.fen);
-    head.resolve(list);
-    maia_pump();
-}
-
-// dispose / retune / failed load: nothing queued may answer under the new state
-function maia_flush() {
-    if (maia_queue[0]?.sent) maia_owed++;   // its frames are still coming
-    for (const q of maia_queue) { clearTimeout(q.timer); q.resolve(null); }
-    maia_queue = [];
-    maia_inflight.clear();
+    threat_human_cache.clear();
+    safety_human_cache.clear();
 }
 
 // one forward pass for the position after `fen` -- resolves {uci, prob} or null
 async function threat_human_reply(fenAfter) {
-    const held = threat_human_cache.get(fenAfter);
-    if (held) return held;
-    const list = await ask_maia(fenAfter);
-    const answer = list && list[0] || null;   // multipv 1 is the net's top move
+    if (threat_human_cache.has(fenAfter)) return threat_human_cache.get(fenAfter);
+    await ensure_threat_human();
+    const answer = await new Promise((resolve) => {
+        const timer = setTimeout(() => { cleanup(); resolve(null); }, 15000);
+        let top = null;
+        const onMsg = (m) => {
+            if (!m || !m.fromOffscreen || m.clientId !== threat_human_id || m.kind !== 'line') return;
+            const info = /info .*multipv 1 .*maiaprob (\d+) pv ([a-h][1-8][a-h][1-8][qrbn]?)/.exec(m.line || '');
+            if (info) top = {uci: info[2], prob: Number(info[1]) / 10000};
+            if (/^bestmove\b/.test(m.line || '')) { cleanup(); resolve(top); }
+        };
+        const cleanup = () => { clearTimeout(timer); chrome.runtime.onMessage.removeListener(onMsg); };
+        chrome.runtime.onMessage.addListener(onMsg);
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: `position fen ${fenAfter}`});
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: 'go nodes 1'});
+    });
     if (answer) threat_human_cache.set(fenAfter, answer);
     return answer;
 }
@@ -9273,11 +9085,24 @@ function draw_human_reply() {
 // the ORDER, not just the first line. Quiet mode reads the top entry -- silence while your likely
 // move already holds -- and the drawn set is sorted by these probabilities, so what it offers are
 // human-playable moves that still hold the edge, not engine order.
-const safety_human_cache = new LRU(HUMAN_CACHE_MAX);   // fen -> [{uci, prob}] in Maia's own order
+const safety_human_cache = new Map();   // fen -> [{uci, prob}] in Maia's own order
 async function safety_human_choices(fen) {
-    const held = safety_human_cache.get(fen);
-    if (held) return held;
-    const answer = await ask_maia(fen);
+    if (safety_human_cache.has(fen)) return safety_human_cache.get(fen);
+    await ensure_threat_human();
+    const answer = await new Promise((resolve) => {
+        const timer = setTimeout(() => { cleanup(); resolve(null); }, 15000);
+        const list = [];
+        const onMsg = (m) => {
+            if (!m || !m.fromOffscreen || m.clientId !== threat_human_id || m.kind !== 'line') return;
+            const info = /info .*multipv (\d+) .*maiaprob (\d+) pv ([a-h][1-8][a-h][1-8][qrbn]?)/.exec(m.line || '');
+            if (info) list[Number(info[1]) - 1] = {uci: info[3], prob: Number(info[2]) / 10000};
+            if (/^bestmove\b/.test(m.line || '')) { cleanup(); resolve(list.filter(Boolean)); }
+        };
+        const cleanup = () => { clearTimeout(timer); chrome.runtime.onMessage.removeListener(onMsg); };
+        chrome.runtime.onMessage.addListener(onMsg);
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: `position fen ${fen}`});
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: 'go nodes 1'});
+    });
     if (answer && answer.length) safety_human_cache.set(fen, answer);
     return answer || [];
 }
@@ -9372,22 +9197,13 @@ function maybe_opponent_prep(name) {
     if (!site) return;
     chrome.runtime.sendMessage({oppPrepLookup: {site, username: name}}, (res) => {
         void chrome.runtime.lastError;
-        if (!res || res.error || !Array.isArray(res.games)) {
-            // UN-LATCH, like maybe_player_book: a cold worker (the common case on the first move of
-            // a game), a 429 or a timeout must not mean "never ask about this opponent again". The
-            // next fenresponse carrying the opponent's name re-asks.
-            if (opp_prep_for === name) opp_prep_for = '';
-            return;
-        }
+        if (!res || res.error || !Array.isArray(res.games)) return;
         if (opp_prep_for !== name) return;              // a new opponent while we waited
         build_opp_prep_book(name, res.games);
         update_best_move(null);                          // the label can appear without a new search
     });
 }
 
-// Replay each game far enough to index the openings, keeping only the moves THEY made. The key is
-// placement + side to move, so a transposition into the same position still matches -- which is the
-// whole point of keying on positions rather than on move order.
 // ONE BUILDER, TWO FEATURES. Opponent Prep reads it to say what they play; the Player Book reads
 // it to decide what WE play. `winsOnly` is the difference that makes a book of your own games worth
 // having: every game you ever played includes every opening you lost with.
@@ -9668,18 +9484,14 @@ function request_second_opinion(fen, best) {
     if (!config.second_opinion) return;
     if (config.variant && config.variant !== 'chess') return;   // the nets know one game
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(best || '')) return;
-    // Once per position -- keyed on last_eval, which on_new_pos rebuilds, and NOT on a module-level
-    // "asked for" fen: that one survived every re-drive of the same position (a toggle resync, the
-    // watchdog's revive, flipTurn) and the label and the H arrow vanished until the next move.
-    // A pending entry holds the slot so the in-flight case still dedupes.
-    if (last_eval.secondOpinion?.fen === fen) return;
-    last_eval.secondOpinion = {fen, pending: true};
+    if (second_opinion_at === fen) return;                      // once per position
+    second_opinion_at = fen;
     safety_human_choices(fen).then((list) => {
         if (!list || !list.length || last_eval.fen !== fen) return;
         const top = list[0];
         const forEngine = list.find(m => m.uci === best);
         last_eval.secondOpinion = {
-            fen, uci: top.uci, prob: top.prob,
+            uci: top.uci, prob: top.prob,
             engineProb: forEngine ? forEngine.prob : 0,
             // "Disagrees" is not "picked another move" -- two moves can be near-equal to a human
             // net. It is the net rating the ENGINE's move as one this player would rarely find.
@@ -9689,10 +9501,11 @@ function request_second_opinion(fen, best) {
         draw_moves();
     }).catch(() => {});
 }
+let second_opinion_at = '';
 
 function second_opinion_label() {
     const o = config.second_opinion ? last_eval.secondOpinion : null;
-    if (!o || o.pending) return '';   // pending: the slot is held, the net has not answered yet
+    if (!o) return '';
     const move = notate(last_eval.fen, o.uci);
     const pct = (o.prob * 100).toFixed(0);
     return o.disagrees
@@ -9790,21 +9603,18 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
         const MAX_STROKE = 0.25;
         stroke_width = 0.1 * stroke_width / MAX_STROKE;
         const stroke_diff = (MAX_STROKE - stroke_width) / 10;
+        console.log("STROKE_DIFF:", MAX_STROKE, "-", stroke_width, "=", stroke_diff);
 
         const pieceIdentifier = turn + move[0];
         const [pieceSet, ext] = config.pieces.split('.');
         const piecePath = `/res/chesspieces/${pieceSet}/${pieceIdentifier}.${ext}`
-        // insertAdjacentHTML parses only the new fragment. An innerHTML append re-serialised and
-        // re-parsed everything already in the overlay, once per arrow, on every info frame: with MultiPV 5,
-        // pv_walk up to 50, forced chains, refutation and the second opinion that is 20-70 full
-        // re-parses a frame on the thread that also services clicks (the 3 s click timeouts).
-        overlay.insertAdjacentHTML('beforeend', `
+        overlay.innerHTML += `
             <img style='position: absolute; z-index: -1; left: ${imgX}px; top: ${imgY}px; opacity: 0.4;' width='43px'
                 height='43px' src='${piecePath}' alt='${pieceIdentifier}'>
             <svg style='position: absolute; z-index: -1; left: 0; top: 0;' width='344px' height='344px' viewBox='0, 0, 8, 8'>
                 <circle cx='${x}' cy='${y}' r='${0.45 + stroke_diff}' fill='transparent' opacity='0.4' stroke='${color}' stroke-width='${stroke_width}' />
             </svg>
-        `);
+        `;
     } else {
         const coords = get_coords(move);
         const x0 = 0.5 + (coords.x0 - 1);
@@ -9821,7 +9631,7 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
         const ay1 = y1 - 0.4 * (dy / d);
 
         const marker_id = color.replace(/[ ,()]/g, '-');
-        overlay.insertAdjacentHTML('beforeend', `
+        overlay.innerHTML += `
             <svg style='position: absolute; z-index: -1; left: 0; top: 0;' width='344px' height='344px' viewBox='0, 0, 8, 8'>
                 <defs>
                     <marker id='arrow-${marker_id}' markerWidth='13' markerHeight='13' refX='1' refY='7' orient='auto'>
@@ -9832,7 +9642,7 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
                     stroke-width='${stroke_width}' marker-end='url(#arrow-${marker_id})'/>
                 ${arrow_badge_svg(x1, y1, color, rank, label)}
             </svg>
-        `);
+        `;
 
         if (move.length === 5) {
             const imgX = 43 * (coords.x1 - 1);
@@ -9840,10 +9650,10 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
             const pieceIdentifier = turn + move[4];
             const [pieceSet, ext] = config.pieces.split('.');
             const piecePath = `/res/chesspieces/${pieceSet}/${pieceIdentifier}.${ext}`;
-            overlay.insertAdjacentHTML('beforeend', `
+            overlay.innerHTML += `
                 <img style='position: absolute; z-index: -1; left: ${imgX}px; top: ${imgY}px; opacity: 0.4;' width='43px'
                     height='43px' src='${piecePath}' alt='${pieceIdentifier}'>
-            `);
+            `;
         }
     }
 }
@@ -10088,8 +9898,10 @@ const ENGINE_ADVICE_DEPTH = 12;       // the depth floor the live nps samples ar
                                       // two numbers compared are the same kind of measurement
 const ENGINE_ADVICE_SAMPLES = 4;      // live readings before the current engine's speed is settled
 const ENGINE_ADVICE_TIMEOUT = 30000;  // a bench that never finishes must not leave a client behind
-const BIG_NET_WASM = ['stockfish-dev-nnue', 'stockfish-18-nnue'];
-const SMALL_NET_WASM = 'stockfish-18-small-nnue';
+const BIG_NET_WASM = ['stockfish-19-nnue', 'stockfish-18-nnue'];
+// SF19's small build carries a 1.2MB net and benches MORE nodes than the full one, where SF18
+// Small's was 15MB. It is the small recommendation now, and SF18 Small is not in this build.
+const SMALL_NET_WASM = 'stockfish-19-small-nnue';
 let advice_nps = [];                  // live nps readings for the engine in use (null once spent)
 
 // The whole decision, with nothing to look up: every input is passed in, so it can be run.
@@ -10411,7 +10223,7 @@ function native_port_name() {
 function stop_current_engine() {
     try { abandon_search(); } catch (e) { /* */ }
     try {
-        chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'dispose'})?.catch?.(() => {});
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'dispose'});
     } catch (e) { /* SW/offscreen already gone */ }
     maia2_dispose(); // the second-inference client shares the main engine's lifetime
     if (native_bg_port) {
@@ -10478,7 +10290,6 @@ function native_send(cmd, data, onInfo) {
 // Bound to the fen it was requested for, so late frames from a superseded search are ignored.
 function on_native_info(info, fen) {
     native_alive = true;                     // it spoke, whatever else happens to this frame
-    last_info_at = Date.now();               // so search_state() reads the truth for a native host too
     if (premove_tracker.fen !== fen) return; // stale: position already moved on
     const pvIdx = (info.multipv || 1) - 1;
     // Premove certification for the native engines: track how stable each line's reply is across
@@ -10678,10 +10489,6 @@ self.MephistoPanel = {
         try { snap_follow_stop(); } catch (e) { /* ignore */ }
         try { stash_setup_state(); } catch (e) { /* ignore */ } // setup_fen is null -> clears the stash
         try { stop_current_engine(); } catch (e) { /* ignore */ }
-        // The document listeners, the 1s poll and the config watcher this boot registered: without
-        // this a closed panel kept the content script scraping every second for a panel that would
-        // drop the answer, once per reopen.
-        try { teardown_panel_boot(); } catch (e) { /* ignore */ }
         // Drop any manual turn override so reopening auto-adjusts to the current position's real side.
         turn_override = null;
         turn_detected_prev = null;
