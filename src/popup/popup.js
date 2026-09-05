@@ -2050,8 +2050,8 @@ function on_engine_best_move(best, threat, isTerminal=false) {
     // The search is over, so whatever was held back for being shallow is the final word on this
     // position -- draw it rather than leaving the bar showing the move before.
     if (isTerminal) flush_held_eval();
-
-    console.log('EVALUATION:', JSON.parse(JSON.stringify(last_eval)));
+    // (no per-frame deep clone of last_eval for a log line here: this runs on every pv-1 info frame,
+    // and the terminal bgTrace('bestmove', ...) below already carries the useful facts)
     const piece_name_map = {
         P: i18n('piece.pawn', 'Pawn'), R: i18n('piece.rook', 'Rook'), N: i18n('piece.knight', 'Knight'),
         B: i18n('piece.bishop', 'Bishop'), Q: i18n('piece.queen', 'Queen'), K: i18n('piece.king', 'King'),
@@ -2723,7 +2723,9 @@ function note_unsupported_variant(name) {
 }
 
 function on_engine_response(message) {
-    console.log('on_engine_response', message);
+    // Every UCI line, before the currmove/bound filter: with DevTools open the console retains each
+    // one for the life of the tab, and `go infinite` never stops producing them. Same switch as bgTrace.
+    if (config.verbose_log) console.log('on_engine_response', message);
     if (typeof message === 'string' && message.startsWith('info string mephisto-unsupported-variant')) {
         return note_unsupported_variant(message.split(' ').pop());
     }
