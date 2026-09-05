@@ -8655,6 +8655,13 @@ function watch_config_changes() {
                     } else {
                         update_best_move_suffix();   // toggled off: take the label out of the readout
                     }
+                    // The second opinion and the safety net read the SAME dial: their answers were
+                    // computed at the old rating too, and second_opinion_label prints the new number
+                    // over them ("A 2200 plays e4 (35%)" with a 35% computed at 1500). Drop and re-ask.
+                    last_eval.secondOpinion = null;
+                    last_eval.humanSelf = null;
+                    if (last_eval.fen && last_eval.bestmove) request_second_opinion(last_eval.fen, last_eval.bestmove);
+                    if (last_eval.fen) request_safety_net_human(last_eval.fen);
                 }
                 if (key === 'language') load_language(value).then(apply_language);
                 // these change the go mode / search budget -- restart under the new setting
@@ -9624,14 +9631,18 @@ function request_second_opinion(fen, best) {
     if (!config.second_opinion) return;
     if (config.variant && config.variant !== 'chess') return;   // the nets know one game
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(best || '')) return;
-    if (second_opinion_at === fen) return;                      // once per position
-    second_opinion_at = fen;
+    // Once per position -- keyed on last_eval, which on_new_pos rebuilds, and NOT on a module-level
+    // "asked for" fen: that one survived every re-drive of the same position (a toggle resync, the
+    // watchdog's revive, flipTurn) and the label and the H arrow vanished until the next move.
+    // A pending entry holds the slot so the in-flight case still dedupes.
+    if (last_eval.secondOpinion?.fen === fen) return;
+    last_eval.secondOpinion = {fen, pending: true};
     safety_human_choices(fen).then((list) => {
         if (!list || !list.length || last_eval.fen !== fen) return;
         const top = list[0];
         const forEngine = list.find(m => m.uci === best);
         last_eval.secondOpinion = {
-            uci: top.uci, prob: top.prob,
+            fen, uci: top.uci, prob: top.prob,
             engineProb: forEngine ? forEngine.prob : 0,
             // "Disagrees" is not "picked another move" -- two moves can be near-equal to a human
             // net. It is the net rating the ENGINE's move as one this player would rarely find.
@@ -9641,11 +9652,10 @@ function request_second_opinion(fen, best) {
         draw_moves();
     }).catch(() => {});
 }
-let second_opinion_at = '';
 
 function second_opinion_label() {
     const o = config.second_opinion ? last_eval.secondOpinion : null;
-    if (!o) return '';
+    if (!o || o.pending) return '';   // pending: the slot is held, the net has not answered yet
     const move = notate(last_eval.fen, o.uci);
     const pct = (o.prob * 100).toFixed(0);
     return o.disagrees
