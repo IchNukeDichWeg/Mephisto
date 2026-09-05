@@ -326,7 +326,6 @@ function handleExtensionMessage(response, sender, sendResponse) {
             console.warn('Mephisto: automove failed:', e);
         }
     } else if (response.pushConfig) {
-        console.log(response.config);
         config = response.config;
         applyHideOpponent(!!config.hide_opponent); // follows the setting on every config push
         maybeCheckStreamer();   // opt-in; one lookup per opponent, skipped entirely when off
@@ -1999,7 +1998,9 @@ function scrapePosition() {
     }
 }
 
-function scrapePositionFen() {
+// `moves` is the caller's own getMoveRecords() result when it has one (the variant branch already
+// queried it to decide whether to come here); the default keeps every other caller as it was.
+function scrapePositionFen(moves = getMoveRecords()) {
     let res = '';
     // The selected move only truncates the scrape when reviewing history. At the LIVE
     // position lichess often marks no move as selected (notably right after you move,
@@ -2009,13 +2010,13 @@ function scrapePositionFen() {
     if (isChesscomVariants()) {
         // live variant game: scrape every ply's SAN straight through to the latest move (the
         // current position). Fairy-Stockfish rebuilds the position from UCI_Variant + these SANs.
-        for (const cell of getMoveRecords()) {
+        for (const cell of moves) {
             res += cell.textContent.trim() + '*****';
         }
         return res;
     }
     if (site === 'chesscom') {
-        for (const moveWrapper of getMoveRecords()) {
+        for (const moveWrapper of moves) {
             const move = moveWrapper.lastElementChild;
             // This branch takes `.node` unfiltered, unlike the variants branch above which already
             // skips "trailing empty placeholder cells". A childless one made this a TypeError, and
@@ -2042,7 +2043,7 @@ function scrapePositionFen() {
         // the analysis/puzzle tree (.tview2) there's no live position, so honour the selected
         // move there to keep history review working.
         const isLiveGame = !!getLichessMovesApp();
-        for (const move of getMoveRecords()) {
+        for (const move of moves) {
             res += move.innerText.replace(/\n.*/, '') + '*****';
             if (!config.simon_says_mode && !isLiveGame && move === selectedMove) {
                 break;
@@ -3732,6 +3733,7 @@ function getLastMoveHighlights() {
         }
     } else if (site === 'lichess') {
         [toSquare, fromSquare] = Array.from(document.querySelectorAll('.last-move'));
+        if (!toSquare || !fromSquare) return []; // zero or one .last-move: the contract above, not a TypeError
         const toPiece = Array.from(document.querySelectorAll('.main-board piece'))
             .filter(piece => !!piece.classList[1])
             .find(piece => piece.style.transform === toSquare.style.transform);
@@ -4223,8 +4225,9 @@ function determineStartPosition() {
             // find a board until the user reloaded the tab by hand. Reproduced live on lichess:
             // lobby -> "Gegen den Computer spielen" -> a real game with no panel.
             // So: stop hunting every 100ms, but keep looking once a second. getBoard() measured
-            // 0.3-1.3us, which makes this watch free, and it also covers a game that is left open
-            // and navigated away from and back.
+            // 0.3-1.3us, which makes this watch free. ONCE PER DOCUMENT: found() clears the
+            // interval on the first board and nothing re-arms it (pinned in the ladder), so a
+            // From-Position game reached by a later SPA hop does not get its start cached here.
             console.debug('Mephisto: no chess board yet -- watching for one');
             clearInterval(intervalId);
             intervalId = setInterval(found, 1000);
