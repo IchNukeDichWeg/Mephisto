@@ -8219,9 +8219,16 @@ function record_eval_history(frac) {
     // ...and what the ENGINE saw here, which is what makes the move that leaves this position
     // classifiable: its rank among the lines, and how much better it was than the second choice.
     if (last_eval.fen && Array.isArray(last_eval.lines)) {
+        // MATE LINES ARE KEPT. The info parser sets exactly one of score/mate, so a score-only
+        // filter dropped every mating line: a ply seen as mate from the first depth was never
+        // recorded, and a mate found deeper kept the earlier cp snapshot (the PGN said 9.50 where
+        // the panel said "Checkmate in 5"). The classifier wants a number, so a mate carries the
+        // same +/-100000 sentinel line_cp_ours uses; the PGN comment reads `mate` first.
         const lines = last_eval.lines
-            .filter(l => l && l.move && typeof l.score === 'number')
-            .map(l => ({move: l.move, score: l.score}));
+            .filter(l => l && l.move && (typeof l.score === 'number' || typeof l.mate === 'number'))
+            .map(l => ({move: l.move,
+                        score: typeof l.score === 'number' ? l.score : (l.mate > 0 ? 100000 : -100000),
+                        mate: typeof l.mate === 'number' ? l.mate : undefined}));
         // KEEP THE FULLEST SNAPSHOT, never the newest. The engine rebuilds its line array at the top
         // of every depth iteration with pv 1 alone, so a snapshot taken at that instant shows ONE
         // line -- and one line is exactly how a forced position looks. Taken naively, every move of
