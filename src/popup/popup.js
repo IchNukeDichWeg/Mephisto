@@ -8800,7 +8800,9 @@ function draw_last_move_class() {
     const cx = 0.5 + ((flipped ? 9 - fx : fx) - 1);
     const cy = 8 - (0.5 + ((flipped ? 9 - ry : ry) - 1));
     // top-right of the square, like the review's board badge, so the piece stays visible
-    overlay.innerHTML += `
+    // insertAdjacentHTML, not an innerHTML append: the latter re-serialises and re-parses every arrow
+    // already in the overlay (O(k^2) per frame, and every <img> re-requests its src) -- see draw_move
+    overlay.insertAdjacentHTML('beforeend', `
         <svg style='position: absolute; z-index: 1; left: 0; top: 0; pointer-events: none;'
              width='344px' height='344px' viewBox='0, 0, 8, 8'>
             <circle cx='${cx + 0.34}' cy='${cy - 0.34}' r='0.26' fill='${C.CLASS_COLOR[klass] || '#8b8987'}'
@@ -8808,7 +8810,7 @@ function draw_last_move_class() {
             <text x='${cx + 0.34}' y='${cy - 0.34}' text-anchor='middle' dominant-baseline='central'
                   font-size='0.3' font-family='system-ui, sans-serif' font-weight='700'
                   fill='#111'>${C.CLASS_GLYPH[klass] || ''}</text>
-        </svg>`;
+        </svg>`);
 }
 
 function draw_moves() {
@@ -9774,13 +9776,17 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
         const pieceIdentifier = turn + move[0];
         const [pieceSet, ext] = config.pieces.split('.');
         const piecePath = `/res/chesspieces/${pieceSet}/${pieceIdentifier}.${ext}`
-        overlay.innerHTML += `
+        // insertAdjacentHTML parses only the new fragment. An innerHTML append re-serialised and
+        // re-parsed everything already in the overlay, once per arrow, on every info frame: with MultiPV 5,
+        // pv_walk up to 50, forced chains, refutation and the second opinion that is 20-70 full
+        // re-parses a frame on the thread that also services clicks (the 3 s click timeouts).
+        overlay.insertAdjacentHTML('beforeend', `
             <img style='position: absolute; z-index: -1; left: ${imgX}px; top: ${imgY}px; opacity: 0.4;' width='43px'
                 height='43px' src='${piecePath}' alt='${pieceIdentifier}'>
             <svg style='position: absolute; z-index: -1; left: 0; top: 0;' width='344px' height='344px' viewBox='0, 0, 8, 8'>
                 <circle cx='${x}' cy='${y}' r='${0.45 + stroke_diff}' fill='transparent' opacity='0.4' stroke='${color}' stroke-width='${stroke_width}' />
             </svg>
-        `;
+        `);
     } else {
         const coords = get_coords(move);
         const x0 = 0.5 + (coords.x0 - 1);
@@ -9797,7 +9803,7 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
         const ay1 = y1 - 0.4 * (dy / d);
 
         const marker_id = color.replace(/[ ,()]/g, '-');
-        overlay.innerHTML += `
+        overlay.insertAdjacentHTML('beforeend', `
             <svg style='position: absolute; z-index: -1; left: 0; top: 0;' width='344px' height='344px' viewBox='0, 0, 8, 8'>
                 <defs>
                     <marker id='arrow-${marker_id}' markerWidth='13' markerHeight='13' refX='1' refY='7' orient='auto'>
@@ -9808,7 +9814,7 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
                     stroke-width='${stroke_width}' marker-end='url(#arrow-${marker_id})'/>
                 ${arrow_badge_svg(x1, y1, color, rank, label)}
             </svg>
-        `;
+        `);
 
         if (move.length === 5) {
             const imgX = 43 * (coords.x1 - 1);
@@ -9816,10 +9822,10 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
             const pieceIdentifier = turn + move[4];
             const [pieceSet, ext] = config.pieces.split('.');
             const piecePath = `/res/chesspieces/${pieceSet}/${pieceIdentifier}.${ext}`;
-            overlay.innerHTML += `
+            overlay.insertAdjacentHTML('beforeend', `
                 <img style='position: absolute; z-index: -1; left: ${imgX}px; top: ${imgY}px; opacity: 0.4;' width='43px'
                     height='43px' src='${piecePath}' alt='${pieceIdentifier}'>
-            `;
+            `);
         }
     }
 }
