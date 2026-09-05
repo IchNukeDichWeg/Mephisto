@@ -222,6 +222,12 @@ async function initEngine(clientId, engineName, variant, maiaLevel, elos) {
         return await loadEngine(clientId, engineName, variant, maiaLevel, elos);
     } finally {
         loading.delete(clientId);
+        // The idle timer armed by the disposeClient above fires DURING the load, sees busy() true
+        // and returns without rescheduling. So if loadEngine throws (the "NNUE not found and could
+        // not be downloaded" path is the live one), nothing is left in clients or loading, no timer
+        // is armed, and the document never closes -- IDLE_CLOSE_MS simply does not happen until some
+        // later dispose. Re-arming here is the one place that sees every exit from a load.
+        maybeGoIdle();
     }
 }
 
