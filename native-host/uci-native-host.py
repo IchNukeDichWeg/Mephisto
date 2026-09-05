@@ -54,11 +54,16 @@ _NNUE_DIR = _read_sibling(f'{_SLUG}.nnue-dir')
 
 # --- native messaging framing (4-byte LE length prefix + UTF-8 JSON) --------- #
 _stdout_lock = threading.Lock()
+_MAX_MESSAGE_BYTES = 8 * 1024 * 1024  # S9: a few MB is plenty for any real UCI/tbprobe frame; a
+# length this large only comes from a corrupt prefix (four stray bytes), and reading that many
+# bytes off stdin is itself the hang -- exit cleanly (like a closed port) instead of trying.
 def read_message():
     raw = sys.stdin.buffer.read(4)
     if len(raw) < 4:
         return None
     n = struct.unpack('<I', raw)[0]
+    if n > _MAX_MESSAGE_BYTES:
+        return None  # corrupt length prefix -- treat like Chrome closed the port
     return json.loads(sys.stdin.buffer.read(n).decode('utf-8'))
 
 def send_message(obj):
