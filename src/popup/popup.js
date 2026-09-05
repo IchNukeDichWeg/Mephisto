@@ -8854,18 +8854,14 @@ function draw_moves() {
         const top_score = (turn === 'w' ? 1 : -1) * top_line.score / 100;
         const score = (turn === 'w' ? 1 : -1) * line.score / 100;
         if (top_line.move === line.move) { // is best move?
-            console.log(`0 => ${MAX_STROKE + 2 * STROKE_SHIM}`);
             return MAX_STROKE + 2 * STROKE_SHIM; // accentuate the best move
         } else if (isNaN(top_score) || top_score >= WINNING_THRESHOLD) { // is winning?
             if (isNaN(score)) {
-                console.log(`winning: #${line.mate} => ${MAX_STROKE - STROKE_SHIM}`);
                 return MAX_STROKE - STROKE_SHIM; // moves that checkmate are necessarily good
             } else if (score < WINNING_THRESHOLD) {
-                console.log(`winning: ${score} => losing`);
                 return 0; // hide moves that are not winning
             } else {
                 const delta = (isNaN(top_score) ? MATE_SCORE : top_score) - score;
-                console.log(`winning: ${score} => ok ${delta}`);
                 if (delta <= 0) {
                     return MAX_STROKE - 2 * STROKE_SHIM; // moves that are still winning are good
                 } else {
@@ -8876,11 +8872,9 @@ function draw_moves() {
         } else { // is roughly equal?
             const delta = top_score - score;
             if (isNaN(score) || delta >= WINNING_THRESHOLD) {
-                console.log(`${delta} => 0`);
                 return 0; // hide moves that are too losing or get us checkmated
             } else {
                 const stroke = MAX_STROKE - delta / 15;
-                console.log(`${delta} => ${stroke}`);
                 return Math.min(MAX_STROKE, Math.max(MIN_STROKE, stroke))
             }
         }
@@ -9771,7 +9765,6 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
         const MAX_STROKE = 0.25;
         stroke_width = 0.1 * stroke_width / MAX_STROKE;
         const stroke_diff = (MAX_STROKE - stroke_width) / 10;
-        console.log("STROKE_DIFF:", MAX_STROKE, "-", stroke_width, "=", stroke_diff);
 
         const pieceIdentifier = turn + move[0];
         const [pieceSet, ext] = config.pieces.split('.');
