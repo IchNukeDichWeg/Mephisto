@@ -1173,15 +1173,20 @@ function arrowAlpha() {
 // player board with its four rotations, ChessBase's canvas (no element to measure at all), a board
 // the SCREEN READER found in a captured image, and the ordinary DOM board -- and every overlay drawn
 // onto the page needs the same one. Returns null when there is no board to draw on.
+let fourPCGeoLogKey = null;    // last '4PC board geometry' trace, so it is sent on change only
+let fourPCHintLogKey = null;   // same for '4PC hint'
 function boardGeometry(fourpc, region) {
     let bounds, square, squareCenter;
     if (fourpc) {
         const geo = fourPCGeometry();
         // Help Mode on a 4PC board has been reported as drawing nothing twice. Everything upstream
         // of here checks out by reading, so log what actually arrives rather than guess a third time.
-        bgLogAlways('4PC board geometry', {geo: !!geo,
-                           rect: geo && [Math.round(geo.rect.left), Math.round(geo.rect.top),
-                                         Math.round(geo.rect.width)]});
+        // ON CHANGE ONLY: this ran per coalesced frame, up to 120 worker messages/s while the engine
+        // streamed, for a rectangle that does not move (same dedupe as fourPCModeLog).
+        const geoFacts = {geo: !!geo, rect: geo && [Math.round(geo.rect.left), Math.round(geo.rect.top),
+                                                    Math.round(geo.rect.width)]};
+        const geoKey = JSON.stringify(geoFacts);
+        if (geoKey !== fourPCGeoLogKey) { fourPCGeoLogKey = geoKey; bgLogAlways('4PC board geometry', geoFacts); }
         if (!geo) return null;
         bounds = geo.rect;
         square = geo.size;
@@ -1258,7 +1263,12 @@ function drawHintArrows(arrows, region) {
     const geo8 = boardGeometry(fourpc, region);
     // 4PC ONLY, as before: "Help Mode draws nothing on a four-player board" has been reported twice
     // and the arrows themselves are what that report needs. An 8x8 board is not logged at all.
-    if (fourpc) bgLogAlways('4PC hint', {arrows: arrows.length, move: arrows[0]?.move, board: !!geo8});
+    // On change only, like the geometry trace above: the redraw runs on every engine update.
+    if (fourpc) {
+        const hintFacts = {arrows: arrows.length, move: arrows[0]?.move, board: !!geo8};
+        const hintKey = JSON.stringify(hintFacts);
+        if (hintKey !== fourPCHintLogKey) { fourPCHintLogKey = hintKey; bgLogAlways('4PC hint', hintFacts); }
+    }
     if (!geo8) return;
     const {bounds, square, squareCenter} = geo8;
 
