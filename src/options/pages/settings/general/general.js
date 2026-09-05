@@ -375,8 +375,11 @@ class GeneralSettings extends SettingsPage {
             // Keep in step with playstyle_applies() in popup.js.
             const NO_STYLE = ['cloud-chessapi', 'cloud-stockfish-online', 'cloud-chesscom',
                               'remote', 'tetrarch-native'];
+            // `hidden`, NOT `filter-hidden`: the latter belongs to the settings search box alone
+            // (SettingsPage.wireFilter re-toggles it on EVERY .set-row per keystroke), so one
+            // character typed in the filter used to un-hide the row again.
             document.getElementById('playstyle_select')?.closest('.set-row')
-                ?.classList.toggle('filter-hidden', NO_STYLE.includes(engine_select.getValue()));
+                ?.classList.toggle('hidden', NO_STYLE.includes(engine_select.getValue()));
             // The four-player mode override replaces Variant for Tetrarch: a different question
             // (which RULES this board plays by) for the one engine it applies to.
             document.getElementById('fourpc_mode_section')
