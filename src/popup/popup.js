@@ -4304,7 +4304,9 @@ function pgn_san_tokens(pgn) {
     t = t.replace(/\$\d+/g, ' ');                // NAGs
     // Result markers BEFORE castling is normalised: "1-0" and "0-1" must not survive to be read as
     // a castle, and "1/2-1/2" must not leave a stray "1/2".
-    t = t.replace(/\b(?:1-0|0-1|1\/2-1\/2|½-½)\b|\*/g, ' ');
+    // Whitespace-bounded, not \b: `½` is not a \w character, so `\b½` needed a word character
+    // BEFORE it and the `½-½` alternative could never match.
+    t = t.replace(/(?<!\S)(?:1-0|0-1|1\/2-1\/2|½-½)(?!\S)|\*/g, ' ');
     t = t.replace(/\d+\s*\.(?:\.\.)?/g, ' ');    // move numbers, with or without "..." and spacing
     t = t.replace(/\be\.p\.?/gi, ' ');           // the optional en-passant marker
     return t.split(/\s+/)
