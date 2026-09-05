@@ -1790,26 +1790,6 @@ async function initialize_engine(reuseWarm = false) {
     console.log('Engine ready!', engine);
 }
 
-async function fetch_nnue(engineBasePath, nnue) {
-    // GitHub refuses blobs over 100MB, so oversized nets ship split into
-    // `<name>.part0..N` chunks (plain byte splits); stitch them back together here.
-    const whole = await fetch(`${engineBasePath}/${nnue}`).then(res => res.ok ? res.arrayBuffer() : null).catch(() => null);
-    if (whole) return whole;
-    const parts = [];
-    for (let i = 0; ; i++) {
-        const part = await fetch(`${engineBasePath}/${nnue}.part${i}`).then(res => res.ok ? res.arrayBuffer() : null).catch(() => null);
-        if (!part) break;
-        parts.push(part);
-    }
-    if (!parts.length) throw new Error(`NNUE not found: ${nnue} (neither whole file nor .partN chunks)`);
-    const buffer = new Uint8Array(parts.reduce((total, part) => total + part.byteLength, 0));
-    parts.reduce((offset, part) => {
-        buffer.set(new Uint8Array(part), offset);
-        return offset + part.byteLength;
-    }, 0);
-    return buffer.buffer;
-}
-
 function send_engine_uci(message) {
     if (message.startsWith('go ')) last_go = message;
     try {
