@@ -4513,12 +4513,17 @@ const SNAP_QUOTA_MS = 500;
 const SNAP_FOLLOW_MS = SNAP_QUOTA_MS;
 let snap_follow_timer = null;
 let snap_follow_busy = false;
+// Which start owns the chain. A stop/start while a read was in flight left the OLD chain alive: it
+// resumed after its await, saw a non-null timer (the new chain's) and rescheduled itself, so two
+// chains asked Chrome for captures at twice the quota and following became a stream of quota errors.
+let snap_follow_gen = 0;
 
 function snap_following() {
     return snap_follow_timer !== null;
 }
 
 function snap_follow_stop() {
+    snap_follow_gen++;
     if (snap_follow_timer !== null) clearTimeout(snap_follow_timer);
     snap_follow_timer = null;
     update_snap_follow_button();
@@ -4526,16 +4531,17 @@ function snap_follow_stop() {
 
 function snap_follow_start() {
     if (snap_following() || !snap_crop) return;
+    const gen = ++snap_follow_gen;
     // Chained, NOT setInterval. A read is a full-tab PNG capture plus a 59MB ONNX pass, and
     // chrome.tabs.captureVisibleTab is throttled by Chrome to about 2 calls/second -- so a fixed
     // 250ms clock did not produce 4 reads/second, it produced quota errors and ticks dropped by the
     // busy flag, which is why the panel ran behind a video. Firing the next read when the last one
     // FINISHES runs the pipeline flat out at whatever rate it can actually sustain.
     const loop = async () => {
-        if (snap_follow_timer === null) return;
+        if (gen !== snap_follow_gen || snap_follow_timer === null) return;
         const t0 = Date.now();
         await snap_follow_tick();
-        if (snap_follow_timer === null) return;
+        if (gen !== snap_follow_gen || snap_follow_timer === null) return;   // stopped, or restarted, meanwhile
         // STRAIGHT BACK IN, BUT NOT FASTER THAN CHROME ALLOWS. The chain already guarantees one read
         // at a time, so a gap on top of that only adds latency -- except that captureVisibleTab is
         // quota'd at about two calls a second, and asking more often does not return frames faster,
