@@ -746,6 +746,7 @@ async function initPanel(root, tabId) {
             // field (dropping the now-invalid en passant); if handing the move to that side would be
             // illegal we refuse the flip. When forced, treat it as a fresh position (no move chain).
             const rawTurn = fen.split(' ')[1];
+            turn = rawTurn || 'w';   // adopted HERE, after the empty/legal gates (see parse_position_from_response)
             if (rawTurn !== turn_detected_prev) { turn_override = null; turn_detected_prev = rawTurn; }
             if (turn_override && turn_override !== rawTurn) {
                 const flipped = flip_fen_turn(fen);
@@ -5558,6 +5559,11 @@ function apply_ep_square(fen, lastMove) {
     }
 }
 
+// Returns {fen, startFen?, moves?} and touches NO panel state beyond the cache and the detection
+// status. It used to write the global `turn` in every branch, so a scrape rejected afterwards (en
+// prise throw, illegal, empty) left `turn` describing a position the panel never took while the
+// running search's frames were stored with the wrong sign for up to a poll (~100ms) -- routine on
+// chess.com puzzle pages mid-animation. The scrape handler adopts the turn once it accepts the fen.
 function parse_position_from_response(txt) {
     const prefixMap = {
         li: i18n('panel.detected_on', 'Game detected on {site}', {site: 'Lichess.org'}),
@@ -5570,10 +5576,7 @@ function parse_position_from_response(txt) {
     function parse_position_from_moves(txt, startFen = null) {
         const directKey = (startFen) ? `${startFen}_${txt}` : txt;
         const directHit = fen_cache.get(directKey);
-        if (directHit) { // reuse position
-            turn = directHit.fen.charAt(directHit.fen.indexOf(' ') + 1);
-            return directHit;
-        }
+        if (directHit) return directHit; // reuse position
 
         let record;
         const lastMoveRegex = /([\w-+=#]+[*]+)$/;
@@ -5582,7 +5585,6 @@ function parse_position_from_response(txt) {
         if (indirectHit) { // append newest move
             const chess = new Chess(config.variant, indirectHit.fen);
             const moveReceipt = chess.move(txt.match(lastMoveRegex)[0].split('*****')[0]);
-            turn = chess.turn();
             record = {fen: chess.fen(), startFen: indirectHit.startFen, moves: indirectHit.moves + ' ' + moveReceipt.lan}
         } else { // perform all moves
             const chess = new Chess(config.variant, startFen);
@@ -5592,7 +5594,6 @@ function parse_position_from_response(txt) {
                 const moveReceipt = chess.move(san);
                 moves += moveReceipt.lan + ' ';
             }
-            turn = chess.turn();
             record = {fen: chess.fen(), startFen: chess.startFen(), moves: moves.trim()};
         }
 
@@ -5604,10 +5605,7 @@ function parse_position_from_response(txt) {
     // puzzle. It decides whether castling rights are inferred -- see the block below.
     function parse_position_from_pieces(txt, isStartPos = false) {
         const directHit = fen_cache.get(txt);
-        if (directHit) { // reuse position
-            turn = directHit.fen.charAt(directHit.fen.indexOf(' ') + 1);
-            return directHit;
-        }
+        if (directHit) return directHit; // reuse position
 
         const chess = new Chess(config.variant);
         chess.clear(); // clear the board so we can place our pieces
@@ -5644,11 +5642,10 @@ function parse_position_from_response(txt) {
             }
         }
         chess.setTurn(playerTurn);
-        turn = chess.turn();
 
         // a mid-animation scrape or wrong turn guess can yield a position where the side to move
         // could capture the king - searching such a position crashes the stockfish wasm (OOB)
-        const opponent = (turn === 'w') ? 'b' : 'w';
+        const opponent = (chess.turn() === 'w') ? 'b' : 'w';
         if (chess._isKingAttacked(opponent)) {
             throw Error('illegal position scraped (opponent king en prise)');
         }
@@ -5697,7 +5694,6 @@ function parse_position_from_response(txt) {
     } else if (metaTag === 'cbfen' || metaTag === 'ccgeo') { // a complete FEN shipped as-is: ChessBase, and the chess.com
         // variants boards that are read geometrically (Setup Chess builds its own start position,
         // so there is no move list to replay and no start to replay it from).
-        turn = txt.split(' ')[1] || 'w';
         return {fen: txt};
     } else { // chess.com and lichess.org pages
         return parse_position_from_moves(txt);
