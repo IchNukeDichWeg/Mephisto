@@ -2405,11 +2405,18 @@ async function fetchArchivePgn(site, user, max) {
     const urls = (arch?.archives || []).slice(-months).reverse();
     if (!urls.length) throw new Error('no public archive');
     const parts = [];
+    // A PER-MONTH FAILURE USED TO READ AS "no games": each monthly file is swallowed with
+    // `.catch(() => null)`, so a 429 across all of them returned '' -- and the callers cached that
+    // as an empty repertoire for six hours. Count them: if not one month came back, that is a fetch
+    // failure and it has to throw, so "rate-limited" and "genuinely no games" stop reading alike.
+    let got = 0;
     for (const u of urls) {
         const month = await fetch(u).then(r => r.ok ? r.json() : null).catch(() => null);
+        if (month) got++;
         for (const g of (month?.games || [])) if (g.pgn) parts.push(g.pgn);
         if (parts.length >= max) break;
     }
+    if (!got) throw new Error('chess.com archive unavailable');
     return parts.slice(-max).join('\n\n');
 }
 
@@ -2426,6 +2433,11 @@ async function oppPrepLookup({site, username}) {
         return {error: String(e.message || e)};
     }
     const games = splitPgnGames(text).slice(-OPP_PREP_MAX_GAMES);
+    // NEVER CACHE AN EMPTY RESULT. Its sibling playerBookLookup has had this guard all along: an
+    // empty answer is far more likely a swallowed 429 than a player with no public games, and the
+    // TTL here is SIX HOURS -- one rate-limited moment used to report "no repertoire" for the rest
+    // of the session with no way for the user to retry.
+    if (!games.length) return {error: `no public games for ${user}`};
     oppPrepCache.set(key, {at: Date.now(), games});
     return {games};
 }
