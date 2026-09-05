@@ -2773,11 +2773,15 @@ function on_engine_response(message) {
             }
         }
 
+        if (!lineInfo.rawScore) return;   // a scoreless depth line has nothing to store or draw
         const scoreNumber = Number(lineInfo.rawScore.substring(lineInfo.rawScore.indexOf(' ') + 1));
         const scoreType = lineInfo.rawScore.includes('cp') ? 'score' : 'mate';
         lineInfo[scoreType] = (turn === 'w' ? 1 : -1) * scoreNumber;
 
-        const pvIdx = (lineInfo.multipv - 1) || 0;
+        // A mated/stalemated position answers `info depth 0 score mate 0` with no multipv and no
+        // pv: `multipv - 1` was NaN, which made activeLines NaN, and the pv split below threw out of
+        // the onMessage listener once per game end.
+        const pvIdx = (Number.isInteger(lineInfo.multipv) ? lineInfo.multipv : 1) - 1;
         // premove: while this position is searched, track how stable each line's 2nd move
         // (our reply to the predicted opponent move) is across depths 13 / 14 / latest
         if (config.premove && lineInfo.pv && pvIdx < premove_lines && Number.isInteger(lineInfo.depth)) {
@@ -2793,7 +2797,14 @@ function on_engine_response(message) {
             if (pvIdx === 0) maybe_premove_forced_reply(line);
             if (pvIdx === 0) maia2_kick(line); // Maia lines have no reply; ask the net for ours
         }
-        last_eval.activeLines = Math.max(last_eval.activeLines, lineInfo.multipv);
+        last_eval.activeLines = Math.max(last_eval.activeLines, pvIdx + 1);
+        if (!lineInfo.pv) {
+            // no move to show or draw, but KEEP the line: the `bestmove (none)` that follows reads
+            // `'mate' in lines[0]` to tell checkmate from stalemate
+            if (pvIdx === 0) last_eval.lines = new Array(config.multiple_lines);
+            last_eval.lines[pvIdx] = lineInfo;
+            return;
+        }
         if (pvIdx === 0) {
             // fresh depth: clear last depth's lines, then set line 0
             last_eval.lines = new Array(config.multiple_lines);
