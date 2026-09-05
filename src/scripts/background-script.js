@@ -2215,9 +2215,27 @@ const popupPortsByName = {};         // port name -> Set of popup Ports
 // unique to THIS worker, and the reply is renumbered back to whatever the asking panel called it. That
 // makes the routing exact instead of probable: two panels may both use id 1 and it still cannot be
 // ambiguous, which "make the panels pick different numbers" could only ever make unlikely.
-// outer id -> {port, innerId}
+// outer id -> {port, innerId, at}
 const nativeRequestOwner = new Map();
 let nativeSeq = 0;
+
+// AN ABANDONED SEARCH NEVER SPENDS ITS ID. An entry is deleted on the terminal reply, on a
+// postMessage throw, or when the asking port disconnects -- so a request whose host simply never
+// answers (a crashed engine, a superseded search the host dropped) leaks one entry for the life of
+// the worker. That is what the `owners=` gauge below was put there to show, and it does climb.
+//
+// Swept by AGE at insertion rather than on a timer: an MV3 service worker is killed and restarted
+// at the browser's discretion, so a setInterval here is not a thing that can be relied on, and the
+// only moment that matters is when the map is about to grow. No live search runs for ten minutes
+// (the panel's own native release is rt + 6000ms), so anything older than that is dead by
+// definition. ponytail: a linear scan of a map that holds single digits in practice.
+const NATIVE_OWNER_MAX_AGE_MS = 10 * 60 * 1000;
+
+function sweepNativeOwners(now = Date.now()) {
+  for (const [id, o] of nativeRequestOwner) {
+    if (now - (o.at || 0) > NATIVE_OWNER_MAX_AGE_MS) nativeRequestOwner.delete(id);
+  }
+}
 // THE WORKER'S OWN LOAD, because nothing has ever reported it. A native engine's frames are relayed
 // HERE, one per search depth, on the same single thread that dispatches every click -- so "clicks
 // get slower the longer the game runs" and "it stays slow in the next game" are both questions about
@@ -2330,7 +2348,8 @@ chrome.runtime.onConnect.addListener(port => {
       let out = req;
       if (req && req.id != null) {
         const outer = ++nativeSeq;
-        nativeRequestOwner.set(outer, {port, innerId: req.id});
+        sweepNativeOwners();   // the map is only ever about to grow here
+        nativeRequestOwner.set(outer, {port, innerId: req.id, at: Date.now()});
         out = {...req, id: outer};
       }
       nativeTrace('-> host', name, {...out, innerId: req && req.id});
