@@ -3635,6 +3635,11 @@ function sanChildren(el) {
 }
 
 function recoverMoveContainer() {
+    // chess.com puzzle pages ship no move list at all, so "no container" is the expected state
+    // there, not a renamed tag -- and this full-DOM walk (textContent on every leaf under body)
+    // was paid every 2 s for the whole puzzle session. Here rather than at the two callers, so
+    // both the container lookup and the move-records fallback skip it.
+    if (site === 'chesscom' && isPuzzlePage()) return null;
     // still good? keep it -- this is the common path once we've re-anchored
     if (recoveredMoves?.isConnected && sanChildren(recoveredMoves).length >= RECOVER_MIN_MOVES) {
         return recoveredMoves;
