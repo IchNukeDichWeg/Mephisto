@@ -3898,24 +3898,37 @@ function isAnimating() {
 
 function loadStartPosCache() {
     const cache = new LRU(10);
-    const entries = JSON.parse(localStorage.getItem(LOCAL_CACHE)) || [];
+    // The key lives in the SITE's localStorage, so anything can be under it. A non-JSON string or a
+    // non-array (`{}`) threw out of determineStartPosition, startPosCache stayed undefined, and
+    // readStartPos then threw on every lichess/chess960 scrape: panel dead on the start position.
+    let entries = [];
+    try {
+        const v = JSON.parse(localStorage.getItem(LOCAL_CACHE));
+        if (Array.isArray(v)) entries = v;
+    } catch (e) { /* junk in storage: start empty, the next write replaces it */ }
     for (const entry of entries.reverse()) {
-        cache.set(entry.key, entry.value);
+        if (entry && typeof entry === 'object') cache.set(entry.key, entry.value);
     }
     return cache;
 }
 
 function saveStartPosCache() {
-    localStorage.setItem(LOCAL_CACHE, JSON.stringify(startPosCache.toJSON()));
+    try {
+        localStorage.setItem(LOCAL_CACHE, JSON.stringify(startPosCache.toJSON()));
+    } catch (e) { /* storage full/blocked -- the start position just is not remembered */ }
 }
 
+// Both accessors can run before determineStartPosition has loaded the cache (or after it failed):
+// an empty LRU is the right answer then, not a TypeError that kills the scrape.
 function readStartPos(url) {
+    if (!startPosCache) startPosCache = new LRU(10);
     const startPos = startPosCache.get(url);
     saveStartPosCache();
     return startPos;
 }
 
 function writeStartPos(url, startPos) {
+    if (!startPosCache) startPosCache = new LRU(10);
     startPosCache.set(url, startPos);
     saveStartPosCache();
 }
