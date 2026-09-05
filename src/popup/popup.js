@@ -964,11 +964,23 @@ async function initPanel(root, tabId) {
 async function hide_unavailable_natives() {
     const sel = PANEL_ROOT.getElementById('qs_engine');
     if (!sel) return;
+    // A COLD SERVICE WORKER LOSES THIS RACE. The probe is one connect with a 1s timeout, and right
+    // after an extension reload the worker is still starting -- the connect answers nothing in time,
+    // the engine is judged missing, and it stays hidden for the whole session with no way to tell it
+    // from "not installed". Reported live: a freshly installed native engine simply not in the list.
+    // So a FAILED probe is retried once, a second later, by which time the worker is up. A host that
+    // really is not installed fails both times and costs one extra second in the background.
+    const probe = async (eng) => {
+        if (await native_host_available(eng)) return true;   // port name == engine value here
+        await new Promise(r => setTimeout(r, 1000));
+        return native_host_available(eng);
+    };
     await Promise.all(NATIVE_ENGINES.map(async (eng) => {
         const opt = [...sel.options].find(o => o.value === eng);
         if (!opt) return;
-        const ok = await native_host_available(eng); // native port name == engine value here
+        const ok = await probe(eng);
         opt.hidden = !ok && eng !== config.engine;
+        if (!ok) console.log(`Mephisto: native host for ${eng} did not answer twice -- hiding it`);
     }));
 }
 // In the iframe (and toolbar popup) the panel boots on DOMContentLoaded. Once the panel moves in-page
@@ -3417,9 +3429,23 @@ function tb_show_engine(fen) { return tb_show() !== 'tablebase' || !tablebase_pi
 // The verdict line under the readout. The readout itself names the tablebase move whenever the
 // pick will drive the play (see on_engine_best_move); this label carries the verdict, the count
 // and the source.
+// ALWAYS FROM YOUR SIDE. A tablebase answers the side to move, so on your move it said "winning"
+// and on theirs "losing" -- the same position, described from whichever side happened to be on the
+// clock, which reads as the game swinging every ply. The engine's own score is already normalised
+// this way; this makes the tablebase agree with it. The MOVE is untouched: it is played for
+// whoever is to move, and only the sentence about it changes.
+const TB_FLIP = {win: 'loss', loss: 'win', 'cursed-win': 'blessed-loss', 'blessed-loss': 'cursed-win'};
+
+function tablebase_category_for_us(category, fen) {
+    const turn = String(fen || '').split(' ')[1];
+    if (!turn || !category) return category;
+    const theirMove = ((turn === 'w') ? 'white' : 'black') !== our_side();
+    return theirMove ? (TB_FLIP[category] || category) : category;
+}
+
 function tablebase_label() {
     if (!tablebase_data || tablebase_data.fen !== last_eval.fen) return '';
-    const c = tablebase_data.category;
+    const c = tablebase_category_for_us(tablebase_data.category, tablebase_data.fen);
     // dtm is a real MATE distance in PLIES (lichess's Gaviota data, <=5 men; merged into local
     // answers when the network allows); dtz only counts plies to a capture or pawn move. With a
     // mate distance the label counts MATE IN MOVES -- what a chess player reads -- and without
@@ -3716,7 +3742,8 @@ const PUZZLE_MOVE_DELAY_MS = 300;
 // you drag it while watching puzzles being solved, and a value that only takes effect on the next
 // panel rebuild would be useless for that.
 function puzzle_move_delay_ms() {
-    const v = JSON.parse(MephistoConfig.get('puzzle_delay') ?? 'null');
+    let v = null;
+    try { v = JSON.parse(MephistoConfig.get('puzzle_delay') ?? 'null'); } catch (e) { v = null; }
     return (typeof v === 'number' && v >= 0 && v <= 3000) ? v : PUZZLE_MOVE_DELAY_MS;
 }
 // The pending pre-move pause. Superseded rather than stacked: on_new_pos can legitimately run twice
@@ -5995,6 +6022,37 @@ function game_log_comment(ply) {
     return `{[%eval ${white}]${depth}}`;
 }
 
+// WHAT ANALYSED THIS GAME, written so that nothing else has to understand it.
+//
+// `Annotator` is a real PGN tag from the standard's own supplemental list, and it means exactly
+// this: who (or what) annotated the game. Everything more specific goes in tags NAMESPACED with
+// `Mephisto`, because the one way to break a reader is to put our meaning on a name it already has
+// -- a GUI that reads `Event` or `Round` must find what it expects there. An unknown tag is
+// required to be ignored, and both sites do; lichess keeps them on import, and chess.com drops them
+// without complaint.
+//
+// Deliberately NOT in the movetext: a comment before the first move is the one place some readers
+// still mishandle, and the `{[%eval ...]}` comments per ply already carry the per-move story.
+function pgn_provenance_tags() {
+    const sel = PANEL_ROOT?.getElementById?.('qs_engine');
+    const engine = [...(sel?.options || [])].find(o => o.value === config.engine)?.textContent?.trim()
+                   || config.engine;
+    const net = engine_net_seen ? ` net ${engine_net_seen}` : '';
+    const budget = searching_by_depth() ? `depth ${config.compute_depth}` : `${config.compute_time}ms`;
+    let version = '';
+    try { version = chrome.runtime.getManifest().version; } catch (e) { /* no runtime here */ }
+    const modes = ['autoplay', 'humanize', 'clock_mode', 'mirror_mode', 'premove', 'tablebase',
+                   'book_play', 'player_book', 'contempt', 'complexity_clock', 'human_times']
+        .filter(k => config[k]);
+    const tags = [
+        `[Annotator "Mephisto${version ? ' ' + version : ''}"]`,
+        `[MephistoEngine "${engine}${net}"]`,
+        `[MephistoSearch "${budget}, MultiPV ${config.multiple_lines}, threads ${config.threads}"]`,
+    ];
+    if (modes.length) tags.push(`[MephistoModes "${modes.join(' ')}"]`);
+    return tags.map(t => t.replace(/[\r\n]+/g, ' '));
+}
+
 function current_pgn() {
     const {startFen, moves} = last_pos;
     if (!moves) return null;
@@ -6006,7 +6064,7 @@ function current_pgn() {
     } catch (e) { return null; }
     if (!san.length) return null;
 
-    const tags = [`[Variant "${config.variant}"]`];
+    const tags = [`[Variant "${config.variant}"]`, ...pgn_provenance_tags()];
     // A non-standard start (chess960, "From Position") MUST ship as SetUp+FEN tags -- without them
     // the PGN reads back from move 1 of the standard position, i.e. a different game entirely.
     if (startFen) tags.push('[SetUp "1"]', `[FEN "${startFen}"]`);
@@ -8139,8 +8197,10 @@ function record_eval_history(frac) {
     // classifiable: its rank among the lines, and how much better it was than the second choice.
     if (last_eval.fen && Array.isArray(last_eval.lines)) {
         const lines = last_eval.lines
-            .filter(l => l && l.move && typeof l.score === 'number')
-            .map(l => ({move: l.move, score: l.score}));
+            .filter(l => l && l.move && (typeof l.score === 'number' || typeof l.mate === 'number'))
+            .map(l => ({move: l.move,
+                        score: typeof l.score === 'number' ? l.score : (l.mate > 0 ? 100000 : -100000),
+                        mate: typeof l.mate === 'number' ? l.mate : undefined}));
         // KEEP THE FULLEST SNAPSHOT, never the newest. The engine rebuilds its line array at the top
         // of every depth iteration with pv 1 alone, so a snapshot taken at that instant shows ONE
         // line -- and one line is exactly how a forced position looks. Taken naively, every move of
@@ -8158,7 +8218,11 @@ function record_eval_history(frac) {
         // taken at the same shallow depth, so the pair is comparable whatever happened afterwards.
         const ref = (!fresh && prev.ref) ? prev.ref
                   : (depth >= CLASSIFY_MIN_DEPTH ? {frac, depth} : null);
-        if (lines.length && fuller) ply_facts[ply] = {fen: last_eval.fen, turn, lines, depth, ref};
+        // AND THE TABLEBASE'S VERDICT, when this position had one. It is what makes a proved
+        // conversion gradeable at all: the engine's centipawns say a rook was thrown away, the
+        // tablebase says the win was held, and only one of those is a fact.
+        const tb = (tablebase_data && tablebase_data.fen === last_eval.fen) ? tablebase_data.category : null;
+        if (lines.length && fuller) ply_facts[ply] = {fen: last_eval.fen, turn, lines, depth, ref, tb};
     }
     if (ply_facts.length > ply + 1) ply_facts.length = ply + 1;
 }
@@ -8203,6 +8267,19 @@ function ensure_classifier() {
             if (!res || !res.ok) classifier_asked = false;   // worker asleep or refused: retry later
         });
     } catch (e) { classifier_asked = false; }
+}
+
+// The five tablebase verdicts, as a scale, so two of them can be compared. A child position is
+// scored for the side to move THERE, which is the opponent -- so it is negated to read it from the
+// mover's side, exactly as the tablebase's own move ordering does.
+const TB_RESULT_VALUE = {win: 2, 'cursed-win': 1, draw: 0, 'blessed-loss': -1, loss: -2};
+// The verdicts a proved result is allowed to overrule. `book` and `forced` are facts of their own,
+// and the good grades need no help.
+const TB_OVERRIDABLE = new Set(['inaccuracy', 'mistake', 'blunder']);
+
+function tb_held_the_result(before, after) {
+    if (!(before in TB_RESULT_VALUE) || !(after in TB_RESULT_VALUE)) return false;
+    return -TB_RESULT_VALUE[after] >= TB_RESULT_VALUE[before];
 }
 
 function classify_history() {
@@ -8262,6 +8339,22 @@ function classify_history() {
                 ? C.sacrificesMaterial(Chess, config.variant || 'chess', fen, uci) : false;
             move_classes[i] = (winBefore == null || winAfter == null || !comparable) ? null
                 : C.classify({winBefore, winAfter, rank, onlyMove, isBook: false, secondWin, sacrifice});
+            // A SOLVED POSITION IS NOT A MATTER OF OPINION. At seven men or fewer the tablebase
+            // knows the result, and a move that holds it cannot be a mistake however the engine's
+            // number moved -- the conversion that wins a K+P ending by giving up a rook reads as a
+            // -900 blunder and is the only move that wins. Reported from a real game: Rxg5+, the
+            // tablebase's own first choice, graded a blunder.
+            //
+            // It only ever REMOVES a negative verdict. Grading a move badly because the tablebase
+            // says the result got worse would need the same care about depth and comparability that
+            // the rest of this function spends, and it is not what went wrong.
+            if (move_classes[i] && tb_held_the_result(ply_facts[i]?.tb, ply_facts[i + 1]?.tb)
+                && TB_OVERRIDABLE.has(move_classes[i])) {
+                console.log(`Classify: ${Math.floor(i / 2) + 1}${white ? '.' : '...'} ${uci} was `
+                    + `${move_classes[i]} by the engine's number, but the tablebase says the result `
+                    + `held (${ply_facts[i].tb} -> ${ply_facts[i + 1].tb}) -- grading it best`);
+                move_classes[i] = 'best';
+            }
             // One line per verdict, with the numbers behind it -- the same courtesy the tablebase and
             // the book get. A verdict nobody can check is a verdict nobody can report a fault in.
             if (move_classes[i] && move_classes[i] !== last_logged_class[i]) {
