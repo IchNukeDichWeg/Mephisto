@@ -42,7 +42,7 @@ class AppearanceSettings extends SettingsPage {
         // answerable. These are Okabe-Ito, the standard eight-hue set chosen to stay distinct under
         // every common form; the families past the eighth take neutrals, since there are more arrow
         // families than there are hues that survive.
-        // ponytail: eight hues, twelve families -- the four least likely to share a board take grey.
+        // ponytail: eight hues, fourteen families -- the four least likely to share a board take grey.
         const COLORBLIND = {
             arrow_color_line1: '#0072b2', arrow_color_line2: '#009e73', arrow_color_line3: '#e69f00',
             arrow_color_line4: '#56b4e9', arrow_color_line5: '#cc79a7',
