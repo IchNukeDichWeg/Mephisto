@@ -366,7 +366,7 @@ class GeneralSettings extends SettingsPage {
             // tetrarch speaks its own four-player protocol and has no such option at all.
             // The one-pass nets have no UCI_Elo either -- their strength IS the net. Keep in step
             // with ONE_PASS_ENGINES in popup.js; the ladder pins that this stays a subset of its list.
-            const ONE_PASS = ['maia', 'maia3', 'elite-leela'];
+            const ONE_PASS = ['maia', 'maia2', 'maia3', 'elite-leela'];
             const NO_ELO = [...ONE_PASS, 'tetrarch-native'];
             const eloSection = document.getElementById('elo_section');
             eloSection.classList.toggle('hidden', NO_ELO.includes(engine_select.getValue()));
