@@ -4821,11 +4821,16 @@ async function simulatePremoveSequence(moves, sessionGen = undefined) {
 }
 
 function simulatePvMoves(pv, sessionGen = undefined) {
-    const boardBounds = getBoard().getBoundingClientRect();
+    if (!getBoard()) return Promise.resolve(); // nothing to click on; the panel's retry re-asks
 
     function deriveLastMove() {
         function deriveCoords(square) {
             if (!square) return 'no';
+            // Measured per read, never once for the whole line: the first click of a session raises
+            // the debugger infobar and reflows the board (the case simulateMove4PC.rectOf was fixed
+            // for), so a rectangle hoisted above the sequence misnamed every highlight after our
+            // first move, confirmResponse returned false and the line was silently abandoned.
+            const boardBounds = getBoard().getBoundingClientRect();
             const squareBounds = square.getBoundingClientRect();
             const xIdx = Math.floor(((squareBounds.x + 1) - boardBounds.x) / squareBounds.width);
             const yIdx = Math.floor(((squareBounds.y + 1) - boardBounds.y) / squareBounds.height);
