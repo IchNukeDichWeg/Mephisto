@@ -109,6 +109,11 @@ let batchReports = null;    // every game's report, when a batch was run
 // closes (keyed by tab id) and this client is deliberately not one, so a run abandoned by closing
 // the tab would leave a multi-threaded search burning cores with nobody watching it.
 let activeEngine = null;
+// ...and the WHOLE pool, for the same reason. Stop and the tab-close handler used to address
+// `activeEngine` alone, which is engines[0]: with the default two workers, pressing Stop left the
+// second engine searching out its full budget (up to 300 s per position in Time mode) after the page
+// had already said "Stopped.".
+let activeEngines = [];
 
 const $ = (id) => document.getElementById(id);
 

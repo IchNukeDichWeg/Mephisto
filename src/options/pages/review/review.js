@@ -324,7 +324,14 @@ async function runReview(game, rig, onProgress) {
                 tick(`position ${searched} of ${positions.length}`);
             }
         };
-        await Promise.all(pool.map(worker));
+        // ONE CONSUMER PER WORKER. `Promise.all` reports the first rejection and abandons the
+        // rest, so when Stop makes worker 0 throw and disposeRig then bails the others' waiters
+        // (engines.js `dispose`), each remaining worker rejected with nobody listening -- an
+        // "Uncaught (in promise) Error: engine disposed" apiece. The pass still reports the first.
+        const runningWorkers = pool.map(worker);
+        const firstFailure = Promise.all(runningWorkers);
+        runningWorkers.forEach(p => p.catch(() => {}));
+        await firstFailure;
     })();
 
     const humanPass = (async () => {
@@ -613,6 +620,7 @@ async function startRig(override) {
     const engine = engines[0];
     opts.workers = engines.length;
     activeEngine = engine;
+    activeEngines = engines;   // Stop and pagehide address the pool, not just engines[0]
     let human = null;
     // the Maia nets know one game: any other rules run without a human pass
     const humanKind = (override || variant !== 'chess') ? '' : cfg('rv_human');
@@ -748,6 +756,7 @@ function disposeRig(rig) {
     try { rig?.engine?.dispose(); } catch (e) { /* */ }
     try { rig?.human?.dispose(); } catch (e) { /* */ }
     activeEngine = null;
+    activeEngines = [];
 }
 
 // The opening, from a table that ships WITH the extension. It used to ask the Lichess opening
@@ -3016,7 +3025,11 @@ class ReviewPage {
             // An unbounded search never returns on its own, so asking the loop to stop "after this
             // position" would wait for ever. Interrupt the search itself; the engine answers with
             // bestmove, this position is scored with what it found, and the loop then sees `cancel`.
-            activeEngine?.stopSearch?.();
+            // EVERY engine in the pool. Stopping engines[0] alone left the other N-1 searching
+            // their current position out at full budget after the page said "Stopped.".
+            for (const e of (activeEngines.length ? activeEngines : [activeEngine])) {
+                try { e?.stopSearch?.(); } catch (err) { /* already gone */ }
+            }
             note('Stopping after this position...');
         });
         $('rv_export').addEventListener('click', () => exportHtml($('rv_export')));
@@ -3065,8 +3078,12 @@ class ReviewPage {
 
 function stopOnUnload() {
     cancel = true;
-    try { activeEngine?.dispose(); } catch (e) { /* already gone */ }
+    // The whole pool: a closed tab used to orphan workers 1..N-1, each still burning its threads.
+    for (const e of (activeEngines.length ? activeEngines : [activeEngine])) {
+        try { e?.dispose(); } catch (err) { /* already gone */ }
+    }
     activeEngine = null;
+    activeEngines = [];
 }
 
 function onKey(e) {
