@@ -595,7 +595,26 @@ class GeneralSettings extends SettingsPage {
             for (const m of mens) for (const k of kinds) out.push(TB_DIRS[m][k]);
             return out;
         };
-        const TB_PARALLEL = 4;      // the host is somebody else's; four at a time is polite and fast
+        // The host is somebody else's; four at a time is polite and fast. But each worker holds its
+        // whole file in memory as an ArrayBuffer, and a six-man table is up to ~9 GB where a 3-4-5 one
+        // is single-digit MB -- four of those at once is a tab that dies with no message. Two while a
+        // `6-*` directory is in the run. (Streaming the body straight into the writable would remove
+        // the buffer entirely; it also removes the fallback path's second write, so it is a bigger
+        // change than this one and is not made here.)
+        const tbParallel = (dirs) => dirs.some(d => d.startsWith('6-')) ? 2 : 4;
+        // The progress arithmetic, hoisted out of `report()` so it can be driven directly: `report()`
+        // is a closure inside the click handler and the ladder cannot reach it.
+        // SKIPPED BYTES LEAVE BOTH SIDES. `totalBytes` sums every wanted file, but a file already
+        // present at the right size is never fetched, so counting it in the denominator made a resume
+        // of a nearly-complete 3-4-5 set read "300/900 MB, ETA 41m" with 40 MB actually left. The rate
+        // stays measured on downloaded bytes only -- that is the one thing the clock knows.
+        const tbEta = (bytes, skippedBytes, totalBytes, elapsed) => {
+            const mb = bytes / 1048576;
+            const totalMb = Math.max(0, totalBytes - skippedBytes) / 1048576;
+            const rate = elapsed > 0 ? mb / elapsed : 0;
+            const left = Math.max(0, totalMb - mb);
+            return {mb, totalMb, rate, eta: rate > 0 ? left / rate : 0};
+        };
         // `KRBvKR.rtbw   07-Dec-2013 02:14   739600` -- name and size, which is all we need.
         const tbParseIndex = (html) => [...html.matchAll(/href="(K[^"]+\.(?:rtbw|rtbz))"[^<]*<\/a>\s+\S+\s+\S+\s+(\d+)/g)]
             .map(m => ({name: m[1], size: +m[2]}));
@@ -615,89 +634,113 @@ class GeneralSettings extends SettingsPage {
             let host = false;
             try { host = await chrome.permissions.request({origins: ['https://tablebase.lichess.ovh/*']}); } catch (e) { /* */ }
             if (!host) { say('Downloading needs permission to reach tablebase.lichess.ovh.', true); return; }
-            tbDownloading = true;
-            btn.textContent = 'Stop';
-            say('Reading the file list...');
-            const wanted = [];
-            for (const dir of dirs) {
-                let html = '';
-                try { html = await fetch(`${TB_BASE}/${dir}/`).then(r => r.ok ? r.text() : ''); } catch (e) { /* */ }
-                const files = tbParseIndex(html);
-                if (!files.length) { say(`Could not read the file list for ${dir}.`, true); tbDownloading = false; btn.textContent = 'Download tables'; return; }
-                for (const f of files) wanted.push({...f, dir});
-            }
-            // ASKED AFTER THE LIST IS READ, so the number in the question is the real one rather
-            // than a constant in this file that can go stale when the server's tables change.
-            const wantGb = wanted.reduce((a, f) => a + f.size, 0) / 1073741824;
-            if (wantGb > 10 && !confirm(`${dirs.join(', ')}: ${wanted.length} files, about `
-                                        + `${wantGb.toFixed(0)} GB. Continue?`)) {
+            // try/FINALLY around the whole run: anything that escapes below (a rejected worker,
+            // a revoked handle) used to leave tbDownloading true and the button reading "Stop"
+            // forever -- the page had to be reloaded to download anything again.
+            try {
+                tbDownloading = true;
+                btn.textContent = 'Stop';
+                say('Reading the file list...');
+                const wanted = [];
+                for (const dir of dirs) {
+                    let html = '';
+                    try { html = await fetch(`${TB_BASE}/${dir}/`).then(r => r.ok ? r.text() : ''); } catch (e) { /* */ }
+                    const files = tbParseIndex(html);
+                    if (!files.length) { say(`Could not read the file list for ${dir}.`, true); tbDownloading = false; btn.textContent = 'Download tables'; return; }
+                    for (const f of files) wanted.push({...f, dir});
+                }
+                // ASKED AFTER THE LIST IS READ, so the number in the question is the real one rather
+                // than a constant in this file that can go stale when the server's tables change.
+                const wantGb = wanted.reduce((a, f) => a + f.size, 0) / 1073741824;
+                if (wantGb > 10 && !confirm(`${dirs.join(', ')}: ${wanted.length} files, about `
+                                            + `${wantGb.toFixed(0)} GB. Continue?`)) {
+                    tbDownloading = false;
+                    btn.textContent = 'Download tables';
+                    say(`Cancelled - that would have been ${wantGb.toFixed(0)} GB.`);
+                    return;
+                }
+
+                // ALREADY THERE means already there AND the right size. A half file left by a stop or a
+                // dropped connection reads as a table and answers wrongly, which is worse than missing.
+                let done = 0, skipped = 0, bytes = 0, failed = 0, skippedBytes = 0;
+                const t0 = Date.now();
+                const total = wanted.length;
+                const totalBytes = wanted.reduce((a, f) => a + f.size, 0);
+                const report = () => {
+                    const el = (Date.now() - t0) / 1000;
+                    const {mb, totalMb, rate, eta} = tbEta(bytes, skippedBytes, totalBytes, el);
+                    const pct = Math.round((done + skipped) * 100 / total);
+                    say(`${pct}%  ${done + skipped}/${total} files  ${mb.toFixed(0)}/${totalMb.toFixed(0)} MB  `
+                        + `${rate.toFixed(1)} MB/s  elapsed ${Math.floor(el / 60)}m${String(Math.floor(el % 60)).padStart(2, '0')}s  `
+                        + `ETA ${Math.floor(eta / 60)}m${String(Math.floor(eta % 60)).padStart(2, '0')}s`
+                        + (failed ? `  (${failed} failed)` : ''));
+                };
+                const queue = wanted.slice();
+                const worker = async () => {
+                    while (tbDownloading) {
+                        const f = queue.shift();
+                        if (!f) return;
+                        try {
+                            const existing = await handle.getFileHandle(f.name).then(h => h.getFile()).catch(() => null);
+                            // skippedBytes so the ETA's denominator drops what will never be fetched
+                            if (existing && existing.size === f.size) { skipped++; skippedBytes += f.size; report(); continue; }
+                        } catch (e) { /* not there -- fetch it */ }
+                        let res;
+                        try { res = await fetch(`${TB_BASE}/${f.dir}/${f.name}`); } catch (e) { failed++; continue; }
+                        if (!res.ok) { failed++; continue; }
+                        // The read and the write are guarded like the fetch above and the rename below:
+                        // a full disk, a revoked handle or a connection dropped mid-body used to reject
+                        // the whole Promise.all out of a click handler with no catch, which left
+                        // tbDownloading true, the button stuck on "Stop" and three siblings fetching
+                        // unobserved against a full disk.
+                        let buf, tmp;
+                        try {
+                            buf = await res.arrayBuffer();
+                            // Written under a temporary name and renamed only once it is complete, so a
+                            // stop or a dropped connection can never leave a half file that LOOKS like a
+                            // table. (`.part` never matches a real name, so the size check ignores it.)
+                            tmp = await handle.getFileHandle(`${f.name}.part`, {create: true});
+                            const w = await tmp.createWritable();
+                            await w.write(buf);
+                            await w.close();
+                        } catch (e) {
+                            failed++;
+                            // Out of space is not a per-file problem: the remaining 145 files cannot fit
+                            // either, so stop the whole run instead of failing every one of them in turn.
+                            if (e && e.name === 'QuotaExceededError') {
+                                tbDownloading = false;   // the siblings read this in their while()
+                                say('Out of space in that folder - stopped. Free some room, or choose a smaller set.', true);
+                            }
+                            continue;
+                        }
+                        try {
+                            if (tmp.move) await tmp.move(f.name);
+                            else {
+                                const dest = await handle.getFileHandle(f.name, {create: true});
+                                const dw = await dest.createWritable();
+                                await dw.write(buf);
+                                await dw.close();
+                                await handle.removeEntry(`${f.name}.part`).catch(() => {});
+                            }
+                        } catch (e) { failed++; continue; }
+                        done++;
+                        bytes += buf.byteLength;
+                        report();
+                    }
+                };
+                report();
+                await Promise.all(Array.from({length: tbParallel(dirs)}, worker));
+                const stopped = !tbDownloading;
                 tbDownloading = false;
                 btn.textContent = 'Download tables';
-                say(`Cancelled - that would have been ${wantGb.toFixed(0)} GB.`);
-                return;
+                say(`${stopped ? 'Stopped. ' : 'Done. '}${done} downloaded (${(bytes / 1048576).toFixed(0)} MB), `
+                    + `${skipped} already there${failed ? `, ${failed} failed` : ''}. Press Check to verify.`,
+                    failed > 0);
+                notifyWorker();
+            } finally {
+                tbDownloading = false;      // also releases the siblings' while (tbDownloading)
+                btn.textContent = 'Download tables';
             }
-
-            // ALREADY THERE means already there AND the right size. A half file left by a stop or a
-            // dropped connection reads as a table and answers wrongly, which is worse than missing.
-            let done = 0, skipped = 0, bytes = 0, failed = 0;
-            const t0 = Date.now();
-            const total = wanted.length;
-            const totalBytes = wanted.reduce((a, f) => a + f.size, 0);
-            const report = () => {
-                const el = (Date.now() - t0) / 1000;
-                const mb = bytes / 1048576;
-                const rate = el > 0 ? mb / el : 0;
-                const left = (totalBytes / 1048576) - mb;
-                const eta = rate > 0 ? left / rate : 0;
-                const pct = Math.round((done + skipped) * 100 / total);
-                say(`${pct}%  ${done + skipped}/${total} files  ${mb.toFixed(0)}/${(totalBytes / 1048576).toFixed(0)} MB  `
-                    + `${rate.toFixed(1)} MB/s  elapsed ${Math.floor(el / 60)}m${String(Math.floor(el % 60)).padStart(2, '0')}s  `
-                    + `ETA ${Math.floor(eta / 60)}m${String(Math.floor(eta % 60)).padStart(2, '0')}s`
-                    + (failed ? `  (${failed} failed)` : ''));
-            };
-            const queue = wanted.slice();
-            const worker = async () => {
-                while (tbDownloading) {
-                    const f = queue.shift();
-                    if (!f) return;
-                    try {
-                        const existing = await handle.getFileHandle(f.name).then(h => h.getFile()).catch(() => null);
-                        if (existing && existing.size === f.size) { skipped++; report(); continue; }
-                    } catch (e) { /* not there -- fetch it */ }
-                    let res;
-                    try { res = await fetch(`${TB_BASE}/${f.dir}/${f.name}`); } catch (e) { failed++; continue; }
-                    if (!res.ok) { failed++; continue; }
-                    const buf = await res.arrayBuffer();
-                    // Written under a temporary name and renamed only once it is complete, so a stop
-                    // or a dropped connection can never leave a half file that LOOKS like a table.
-                    const tmp = await handle.getFileHandle(`${f.name}.part`, {create: true});
-                    const w = await tmp.createWritable();
-                    await w.write(buf);
-                    await w.close();
-                    try {
-                        if (tmp.move) await tmp.move(f.name);
-                        else {
-                            const dest = await handle.getFileHandle(f.name, {create: true});
-                            const dw = await dest.createWritable();
-                            await dw.write(buf);
-                            await dw.close();
-                            await handle.removeEntry(`${f.name}.part`).catch(() => {});
-                        }
-                    } catch (e) { failed++; continue; }
-                    done++;
-                    bytes += buf.byteLength;
-                    report();
-                }
-            };
-            report();
-            await Promise.all(Array.from({length: TB_PARALLEL}, worker));
-            const stopped = !tbDownloading;
-            tbDownloading = false;
-            btn.textContent = 'Download tables';
-            say(`${stopped ? 'Stopped. ' : 'Done. '}${done} downloaded (${(bytes / 1048576).toFixed(0)} MB), `
-                + `${skipped} already there${failed ? `, ${failed} failed` : ''}. Press Check to verify.`,
-                failed > 0);
-            notifyWorker();
         });
 
         sync();
