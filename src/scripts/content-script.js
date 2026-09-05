@@ -3960,11 +3960,12 @@ function saveStartPosCache() {
 
 // Both accessors can run before determineStartPosition has loaded the cache (or after it failed):
 // an empty LRU is the right answer then, not a TypeError that kills the scrape.
+// Read-only: this used to re-serialise the cache to localStorage on every read (every lichess
+// `chess` scrape, every chess960 scrape) purely to persist LRU recency. A 10-entry LRU does not
+// need per-read touching; recency is persisted by the next write.
 function readStartPos(url) {
     if (!startPosCache) startPosCache = new LRU(10);
-    const startPos = startPosCache.get(url);
-    saveStartPosCache();
-    return startPos;
+    return startPosCache.get(url);
 }
 
 function writeStartPos(url, startPos) {
