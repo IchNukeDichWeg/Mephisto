@@ -356,10 +356,12 @@ class GeneralSettings extends SettingsPage {
                 search_mode_select.setValue(budget);
                 sync_budget_rows();
             }
-            let section = variant_select.elem;
-            while (!section.classList.contains('section')) {
-                section = section.parentElement
-            }
+            // `closest`, not a hand-rolled parent walk: the old loop had no null guard, so a renamed
+            // or dropped #variant_select (FormElement tolerates exactly that -- see its `missing`
+            // flag) walked past <html> and threw on `null.classList`, killing every later line of
+            // this handler. Everything below is `?.`-guarded for the same reason.
+            const section = variant_select.elem?.closest?.('.section');
+            const eloSection = document.getElementById('elo_section');
             // Engines with no UCI_Elo. The panel already hid the row for these (NO_ELO_ENGINES in
             // popup.js, which this must match); this page did not, so it kept offering a strength
             // cap that nothing ever applied -- maia picks its strength by which net is loaded, and
@@ -368,8 +370,7 @@ class GeneralSettings extends SettingsPage {
             // with ONE_PASS_ENGINES in popup.js; the ladder pins that this stays a subset of its list.
             const ONE_PASS = ['maia', 'maia2', 'maia3', 'elite-leela'];
             const NO_ELO = [...ONE_PASS, 'tetrarch-native'];
-            const eloSection = document.getElementById('elo_section');
-            eloSection.classList.toggle('hidden', NO_ELO.includes(engine_select.getValue()));
+            eloSection?.classList.toggle('hidden', NO_ELO.includes(engine_select.getValue()));
             // Playstyle needs more than one scored line from an engine whose moves chess.js can
             // replay: a cloud/remote engine answers with one, four-player chess has its own path.
             // Keep in step with playstyle_applies() in popup.js.
@@ -385,9 +386,9 @@ class GeneralSettings extends SettingsPage {
             document.getElementById('fourpc_mode_section')
                 ?.classList.toggle('hidden', engine_select.getValue() !== 'tetrarch-native');
             if (['fairy-stockfish-14-nnue', 'fairy-native'].includes(engine_select.getValue())) {
-                section.classList.remove('hidden');
+                section?.classList.remove('hidden');
             } else {
-                section.classList.add('hidden');
+                section?.classList.add('hidden');
                 // Chess960 survives an engine switch: every mainline Stockfish plays it via
                 // UCI_Chess960 (sent at engine init). Only fairy-only variants reset.
                 if (!['chess', 'fischerandom'].includes(variant_select.getValue())) {
@@ -395,11 +396,11 @@ class GeneralSettings extends SettingsPage {
                 }
             }
             if (engine_select.getValue() === 'remote') {
-                engineLabelTooltiped.classList.remove('hidden');
-                engineLabelUntooltiped.classList.add('hidden');
+                engineLabelTooltiped?.classList.remove('hidden');
+                engineLabelUntooltiped?.classList.add('hidden');
             } else {
-                engineLabelTooltiped.classList.add('hidden');
-                engineLabelUntooltiped.classList.remove('hidden');
+                engineLabelTooltiped?.classList.add('hidden');
+                engineLabelUntooltiped?.classList.remove('hidden');
             }
         })
     }
