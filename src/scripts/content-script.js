@@ -2965,6 +2965,12 @@ function findTheBoardPromoPicker(geo) {
     if (!geo) return null;
     const sq = geo.size;
     for (const el of document.querySelectorAll('div, dialog')) {
+        // The shape needs four sizeable children, so anything with fewer is out BEFORE its rect is
+        // read: getBoundingClientRect forces layout and this ran on every div of the document, per
+        // element and per child, polled at 40 ms (variants) / 120 ms (4PC) for 1.5-1.8 s (C3).
+        // ponytail: a child-count pre-filter, not a board-ancestor scope -- the picker's place in
+        // the tree is generated markup nobody has pinned; scope it if the poll still shows up.
+        if (el.children.length < 4) continue;
         const r = el.getBoundingClientRect();
         // Roughly two squares wide and two to three tall, sitting over the board.
         if (r.width < sq * 1.4 || r.width > sq * 3.2) continue;
