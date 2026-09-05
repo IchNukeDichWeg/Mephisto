@@ -8,7 +8,7 @@ import * as ort from '/lib/ort/ort.wasm.bundle.min.mjs';
 
 // ort env (threads, wasm paths) is configured ONCE in ort-env.js, shared by every session
 // creator so the thread count cannot depend on which module happened to load first.
-import '/src/offscreen/ort-env.js';
+import {readyEnv} from '/src/offscreen/ort-env.js';
 
 // weights come through the shared fetcher (bundled -> .partN -> cache -> models-v1 release), so an
 // update-only install that never shipped the 23M net can still download it.
@@ -76,6 +76,7 @@ export async function createMaia3Engine(listen, initialElo) {
     // is where the weights are downloaded once and kept (see model-fetch.js).
     const note = (msg) => { try { listen(`info string ${msg}`); } catch (e) { /* no listener yet */ } };
     const bytes = new Uint8Array(await fetchModel('/lib/engine/maia3', 'maia3-23m.onnx', note));
+    await readyEnv();   // see maia.js: the thread budget must land before the FIRST session is created
     const session = await ort.InferenceSession.create(bytes);
     console.log(`[Maia-3] 23M model loaded (${bytes.length} bytes), onnxruntime ready`);
 
