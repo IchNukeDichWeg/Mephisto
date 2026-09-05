@@ -9,7 +9,7 @@ import * as ort from '/lib/ort/ort.wasm.bundle.min.mjs';
 
 // ort env (threads, wasm paths) is configured ONCE in ort-env.js, shared by every session
 // creator so the thread count cannot depend on which module happened to load first.
-import '/src/offscreen/ort-env.js';
+import {readyEnv} from '/src/offscreen/ort-env.js';
 
 // ---- lc0 canonical 1858 policy index (harvested from lc0; ships as JSON) -----------------------
 let moveToIdx = null;
@@ -111,6 +111,12 @@ export async function createMaiaEngine(level, listen, net = null) {
     const dir = net ? net.dir : '/lib/engine/maia';
     const file = net ? net.file : `maia-${level}.onnx`;
     const bytes = new Uint8Array(await fetchModel(dir, file, note));
+    // ort-env.js:42 states the contract: EVERY session creator must await this first, because
+    // onnxruntime fixes its thread count at the FIRST InferenceSession.create in the document. Without
+    // it, a Maia engine opened before the first screen read pinned the recogniser at the default
+    // two threads for the life of the document and the user's vision_threads was discarded
+    // silently -- the exact failure ort-env.js was written to close (measured 1109ms -> 620ms).
+    await readyEnv();
     const session = await ort.InferenceSession.create(bytes);
     console.log(`[lc0 net] ${file} loaded (${bytes.length} bytes), onnxruntime ready`);
 
