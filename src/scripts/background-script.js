@@ -2256,6 +2256,9 @@ function workerLoadLine() {
     `fanout=${nativeFramesOut}`,
     `rate=${nativeFramesRecent.length}/s`,
     `owners=${nativeRequestOwner.size}`,   // leaks one per ABANDONED search: watch it climb
+    // the three archive/streamer caches, which are keyed on a name that changes every game. Read
+    // this after a session: it should PLATEAU at the caps, not track the opponents faced.
+    `books=${playerBookCache.size}/${oppPrepCache.size}/${streamerCache.size}`,
     `panels=${peers}`,
     `attached=${attached.size}`,
     `hop=${hopLastMs}/${hopWorstMs}ms`,                                   // last / worst page->worker
@@ -2351,6 +2354,17 @@ chrome.runtime.onConnect.addListener(port => {
 // Cached per name for the session -- a game is one lookup, and a rematch is none.
 const streamerCache = new Map();          // "site|user" -> {live, channel, kind, at}
 const STREAMER_TTL_MS = 10 * 60 * 1000;   // a stream that starts mid-game is not worth re-asking for
+const STREAMER_CACHE_MAX = 200;           // the lightest of the three: one small record an entry
+
+// The three archive/streamer maps are keyed `site|username`, and the username is a NEW OPPONENT
+// EVERY GAME. Their TTLs are checked on read, so nothing ever deletes an expired entry and the map
+// only grows: a long session of blitz is hundreds of opponents against a service-worker heap, and
+// playerBookCache entries are the heavy ones (200 games x up to 60 SAN tokens, order 40 KB each).
+// Same evict-oldest idiom as EXPLORER_CACHE_MAX/TABLEBASE_CACHE_MAX above; caps are per-map because
+// the entries differ in size by ~5x.
+function capMap(map, max) {
+    while (map.size > max) map.delete(map.keys().next().value);
+}
 
 // ---- opponent prep ------------------------------------------------------------------------------
 // Their recent public games, as movetext. The MAPPING from positions to moves is built in the panel,
@@ -2359,6 +2373,7 @@ const STREAMER_TTL_MS = 10 * 60 * 1000;   // a stream that starts mid-game is no
 // be both slow and rude to a public API.
 const OPP_PREP_TTL_MS = 6 * 60 * 60 * 1000;   // their repertoire does not change during a session
 const OPP_PREP_MAX_GAMES = 40;
+const OPP_PREP_CACHE_MAX = 100;               // ~8 KB an entry (see capMap)
 const oppPrepCache = new Map();               // site|user -> {at, games}
 
 // One PGN blob -> [{white, black, san}]. Deliberately tolerant: an archive carries variants,
@@ -2439,6 +2454,7 @@ async function oppPrepLookup({site, username}) {
     // of the session with no way for the user to retry.
     if (!games.length) return {error: `no public games for ${user}`};
     oppPrepCache.set(key, {at: Date.now(), games});
+    capMap(oppPrepCache, OPP_PREP_CACHE_MAX);
     return {games};
 }
 
@@ -2449,6 +2465,7 @@ async function oppPrepLookup({site, username}) {
 // the game in front of you.
 const PLAYER_BOOK_MAX_GAMES = 200;
 const PLAYER_BOOK_TTL_MS = 12 * 60 * 60 * 1000;
+const PLAYER_BOOK_CACHE_MAX = 20;                // ~40 KB an entry (200 games), so a tighter cap
 const playerBookCache = new Map();               // site|user -> {at, games}
 
 async function playerBookLookup({site, username}) {
@@ -2466,6 +2483,7 @@ async function playerBookLookup({site, username}) {
     const games = splitPgnGames(text).slice(-PLAYER_BOOK_MAX_GAMES);
     if (!games.length) return {error: `no public games for ${user}`};
     playerBookCache.set(key, {at: Date.now(), games});
+    capMap(playerBookCache, PLAYER_BOOK_CACHE_MAX);
     return {games};
 }
 
@@ -2504,5 +2522,6 @@ async function streamerLookup({site, username}) {
     return {error: String(e.message || e)};   // offline, rate-limited, or the shape changed
   }
   streamerCache.set(key, out);
+  capMap(streamerCache, STREAMER_CACHE_MAX);
   return out;
 }
