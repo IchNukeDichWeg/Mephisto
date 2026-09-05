@@ -865,7 +865,7 @@ async function initPanel(root, tabId) {
         const url = `https://lichess.org/analysis/${variant}?fen=${last_eval.fen.split(' ')[0]}`;
         // the background opens it: window.open from a content script runs in the SITE's context and
         // gets swallowed by popup blocking / page policy
-        chrome.runtime.sendMessage({openUrl: url});
+        chrome.runtime.sendMessage({openUrl: url})?.catch?.(() => {});
     });
     PANEL_ROOT.getElementById('copyfen')?.addEventListener('click', () => copy_to_button('copyfen', last_eval.fen));
     PANEL_ROOT.getElementById('qs_copyanalysis')?.addEventListener('click',
@@ -885,7 +885,7 @@ async function initPanel(root, tabId) {
     });
     PANEL_ROOT.getElementById('copypgn')?.addEventListener('click', () => copy_to_button('copypgn', current_pgn()));
     PANEL_ROOT.getElementById('config').addEventListener('click', () => {
-        chrome.runtime.sendMessage({openOptions: true}); // the background opens it (see above)
+        chrome.runtime.sendMessage({openOptions: true})?.catch?.(() => {}); // the background opens it (see above)
     });
     // force re-detection: an SPA can swap games without any reload (e.g. a rematch), and if a
     // scrape ever goes stale this rescans the page and restarts the analysis from scratch
@@ -1548,7 +1548,10 @@ let ENGINE_CLIENT = (MY_TAB_ID != null) ? String(MY_TAB_ID) : 'toolbar'; // one 
 const WASM_ENGINES = ['stockfish-dev-nnue', 'stockfish-18-nnue', 'stockfish-18-small-nnue',
                       'fairy-stockfish-14-nnue', 'stockfish-11-hce', 'maia', 'maia2', 'maia3', 'elite-leela'];
 const offscreen_engine = {
-    uci: (line) => { try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'uci', line}); } catch (e) { /* SW/offscreen gone */ } },
+    // MV3 sendMessage without a callback returns a promise that REJECTS when the worker is restarting
+    // or the offscreen document is gone; the try only sees a synchronous throw. The line is lost
+    // either way -- the .catch just keeps "Uncaught (in promise)" out of the console bug reports are read from.
+    uci: (line) => { try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'uci', line})?.catch?.(() => {}); } catch (e) { /* SW/offscreen gone */ } },
 };
 // engine output -> existing handlers (filtered to THIS panel's engine)
 chrome.runtime.onMessage.addListener((msg) => {
@@ -1577,7 +1580,7 @@ let maia2 = null; // {level, doneFen, pending: {fen, line, timer}} -- lazily cre
 // Only while searching: an idle engine burns nothing, so there is nothing to keep alive.
 setInterval(() => {
     if (!search_active) return;
-    try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'ping'}); }
+    try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'ping'})?.catch?.(() => {}); }
     catch (e) { /* SW/offscreen gone -- the lease expiring is exactly the right outcome */ }
 }, 15000);
 
@@ -1586,7 +1589,7 @@ function maia2_client() { return ENGINE_CLIENT + ':m2'; }
 function maia2_dispose() {
     if (maia2 && maia2.pending) clearTimeout(maia2.pending.timer);
     maia2 = null;
-    try { chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'dispose'}); } catch (e) { /* gone */ }
+    try { chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'dispose'})?.catch?.(() => {}); } catch (e) { /* gone */ }
 }
 
 // Fire the second inference for a reply-less Maia line, at most once per position. Called from
@@ -1620,7 +1623,7 @@ function maia2_kick(line) {
         // same init shape as ensure_offscreen_engine: `elos` is what maia2.js reads, without it the
         // second client would load at maia2.js's default ratings
         try { chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'init',
-                                          engine: config.engine, variant: config.variant, maiaLevel: level, elos}); } catch (e) { maia2 = null; return; }
+                                          engine: config.engine, variant: config.variant, maiaLevel: level, elos})?.catch?.(() => {}); } catch (e) { maia2 = null; return; }
     }
     if (maia2.pending) clearTimeout(maia2.pending.timer);
     maia2.doneFen = fen;
@@ -1630,8 +1633,8 @@ function maia2_kick(line) {
     // first premove opportunity of the game on exactly the engine this feature is for.
     maia2.pending = {fen, line, timer: setTimeout(() => { if (maia2) maia2.pending = null; }, 12000)};
     try {
-        chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'uci', line: `position fen ${fen2}`});
-        chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'uci', line: 'go'});
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'uci', line: `position fen ${fen2}`})?.catch?.(() => {});
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'uci', line: 'go'})?.catch?.(() => {});
     } catch (e) { maia2.pending = null; }
 }
 
@@ -1672,7 +1675,7 @@ async function ensure_offscreen_engine(engineName) {
     chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'init',
                                 engine: engineName, variant: config.variant,
                                 maiaLevel: engineName === 'maia3' ? config.maia3_elo : config.maia_level,
-                                elos: [config.maia2_self_elo, config.maia2_oppo_elo]});
+                                elos: [config.maia2_self_elo, config.maia2_oppo_elo]})?.catch?.(() => {});
 }
 
 async function initialize_engine(reuseWarm = false) {
@@ -10306,7 +10309,7 @@ function native_port_name() {
 function stop_current_engine() {
     try { abandon_search(); } catch (e) { /* */ }
     try {
-        chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'dispose'});
+        chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'dispose'})?.catch?.(() => {});
     } catch (e) { /* SW/offscreen already gone */ }
     maia2_dispose(); // the second-inference client shares the main engine's lifetime
     if (native_bg_port) {
