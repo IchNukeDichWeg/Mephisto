@@ -8528,6 +8528,9 @@ const LIVE_CONFIG_KEYS = [
     // the moment it is saved. This is so the hints beside the toggles and on the title bar stop
     // advertising the old one while it does.
     'hotkeys',
+    // apply_language re-translates the panel in place (the same walk the boot does), so a change on
+    // the options page reaches an open panel; without this key its handler below was dead code
+    'language',
 ];
 
 let resync_after_config_change = false;
@@ -8633,7 +8636,9 @@ function watch_config_changes() {
                 // one overlay message carries the bar, the graph and the stats strip: clear all
                 // three and let the next evaluation redraw whichever are still switched on
                 if (key === 'eval_bar' || key === 'eval_history' || key === 'live_stats') request_clear_eval_bar();
-                if (key === 'multiple_lines' || key === 'variant') update_playstyle_row();
+                // (not `variant`: it is not a live key -- a variant change needs the engine
+                // re-init, so it goes through the reload path and never reaches this loop)
+                if (key === 'multiple_lines') update_playstyle_row();
                 if (key === 'live_stats' || key === 'live_classify' || key === 'class_on_board'
                     || key === 'opp_alert') ensure_classifier();
                 if (key === 'tablebase') tablebase_data = null;       // a stale answer must not survive
