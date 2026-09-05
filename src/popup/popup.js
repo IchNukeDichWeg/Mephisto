@@ -2599,16 +2599,30 @@ function notate(fen, uci) {
     }
 }
 
-// first few moves of a UCI pv, in the configured notation, for the alternative-lines panel
+// first few moves of a UCI pv, in the configured notation, for the alternative-lines panel.
+// render_alt_lines re-renders EVERY line on each multipv frame, so with N lines one depth cost
+// (N-1)*N previews (a Chess build + up to 7 replays each) of which only N were new (P2): memo by
+// (fen, pv, plies, notation). Cleared when full -- the keys change every depth, so it would only grow.
+const san_preview_memo = new Map();
+const SAN_PREVIEW_MEMO_MAX = 64;
 function san_preview(fen, pv, plies = 6) {
+    const key = `${fen}|${pv}|${plies}|${config.move_notation}`;
+    const hit = san_preview_memo.get(key);
+    if (hit !== undefined) return hit;
     const ucis = pv_moves(pv).slice(0, plies);
-    if (config.move_notation === 'uci') return ucis.join(' ');
-    try {
-        const chess = new Chess(config.variant, fen);
-        return ucis.map(u => chess.move({from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4]}).san).join(' ');
-    } catch (e) {
-        return ucis.join(' '); // variant/parse hiccup -> raw UCI is still useful
+    let out;
+    if (config.move_notation === 'uci') out = ucis.join(' ');
+    else {
+        try {
+            const chess = new Chess(config.variant, fen);
+            out = ucis.map(u => chess.move({from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4]}).san).join(' ');
+        } catch (e) {
+            out = ucis.join(' '); // variant/parse hiccup -> raw UCI is still useful
+        }
     }
+    if (san_preview_memo.size >= SAN_PREVIEW_MEMO_MAX) san_preview_memo.clear();
+    san_preview_memo.set(key, out);
+    return out;
 }
 
 // the panel under the board: one row per engine line (eval + start of the line) when the
