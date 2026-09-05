@@ -265,6 +265,15 @@ def do_analyse(data, mid):
 
 def do_configure(data):
     get_engine()  # a configure is a real use -> open the engine (a ping never gets here)
+    # S4: stop the outstanding search BEFORE taking engine_lock, mirroring do_analyse's pre-lock
+    # stale.stop() -- without this a Threads/Hash change queues behind whatever search is running.
+    with request_lock:
+        stale = current_analysis
+    if stale is not None:
+        try:
+            stale.stop()
+        except Exception:
+            pass
     with engine_lock:
         for key, value in (data.get('options') or {}).items():
             engine_options[key] = value
