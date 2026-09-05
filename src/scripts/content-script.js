@@ -2208,6 +2208,10 @@ function getOrientation() {
         const fen = cbFen();
         return (fen && fen.split(' ')[1] === 'b') ? 'black' : 'white';
     }
+    // Four-player never uses this answer (the lane reads its seat from the coordinate labels), but
+    // the variants branch below would decode a base64 sprite per piece -- up to 64 -- on every push
+    // and every poll to produce it, since 4PC's data-color 0-3 misses the fast path.
+    if (is4PC()) return 'white';
     if (isChesscomVariants()) {
         return getChesscomVariantsOrientation();
     } else if (site === 'chesscom') {
