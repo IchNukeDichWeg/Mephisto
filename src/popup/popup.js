@@ -1569,13 +1569,20 @@ function maia2_dispose() {
 // Fire the second inference for a reply-less Maia line, at most once per position. Called from
 // the parser right after the tracker records line 0 during the opponent's turn.
 function maia2_kick(line) {
-    if (is_one_pass()) return;
+    // Only the one-pass nets need a second inference (a search engine's line already carries a
+    // reply). The ONE_PASS_ENGINES refactor inverted this guard, which silently killed premove on
+    // every Maia engine from v3.1.250 to v3.1.305 -- the ladder now executes this function.
+    if (!is_one_pass()) return;
     if (!config.premove || !config.autoplay || premove_tracker.premoved) return;
     if (config.help_mode || config.puzzle_mode || config.simon_says_mode) return;
     if (config.variant && config.variant !== 'chess') return;
     const fen = premove_tracker.fen;
     if (!fen || !line || !line.pred || line.reply) return;
-    const level = (config.engine === 'maia3') ? config.maia3_elo : config.maia_level;
+    // `level` is the dial the :m2 client was built with, so a dial change disposes the stale
+    // client; Maia-2's dial is the self/opponent Elo pair, not maia_level
+    const elos = [config.maia2_self_elo, config.maia2_oppo_elo];
+    const level = (config.engine === 'maia3') ? config.maia3_elo
+                : (config.engine === 'maia2') ? elos.join('/') : config.maia_level;
     if (maia2 && maia2.level !== level) maia2_dispose(); // band switched -> the old client runs a stale net
     if (maia2 && maia2.doneFen === fen) return;          // one inference per position
     let fen2;
@@ -1587,8 +1594,10 @@ function maia2_kick(line) {
     if (!maia2) {
         maia2 = {level};
         // no ensureOffscreen needed: the MAIN engine is Maia right now, so the document exists
+        // same init shape as ensure_offscreen_engine: `elos` is what maia2.js reads, without it the
+        // second client would load at maia2.js's default ratings
         try { chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'init',
-                                          engine: config.engine, variant: config.variant, maiaLevel: level}); } catch (e) { maia2 = null; return; }
+                                          engine: config.engine, variant: config.variant, maiaLevel: level, elos}); } catch (e) { maia2 = null; return; }
     }
     if (maia2.pending) clearTimeout(maia2.pending.timer);
     maia2.doneFen = fen;
