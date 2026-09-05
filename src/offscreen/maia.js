@@ -165,7 +165,14 @@ export async function createMaiaEngine(level, listen, net = null) {
                 if (fenM) setPosition(fenM[1], fenM[2]);
                 else if (startM) setPosition(null, startM[1]);
             }
-            else if (line.startsWith('go')) go().catch(e => listen(`info string maia error ${e}`));
+            // A FAILED PASS STILL OWES THE PANEL A TERMINAL FRAME. Without the `bestmove`, the
+            // panel's owed-frame accounting never closes and it sits on "calculating" for the life
+            // of the tab -- and the silence watchdog stands down, because `isready` is answered from
+            // a local `if` whether or not the ONNX session is usable.
+            else if (line.startsWith('go')) go().catch((e) => {
+                listen(`info string maia error ${e}`);   // `${e}` not `e.message`: a non-Error throw reads "undefined"
+                listen('bestmove (none)');
+            });
             // ucinewgame/stop/quit: no-ops (single pass, no search state)
         },
         terminate() { try { session.release && session.release(); } catch (e) { /* */ } },
