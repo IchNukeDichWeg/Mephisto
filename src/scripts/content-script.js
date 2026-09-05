@@ -1105,6 +1105,10 @@ async function toggleOverlay() {
         if (!resizing) return; // see the drag mouseup below for why this must be conditional
         resizing = false;
         frame.style.pointerEvents = 'auto';
+        // The grip anchors the top-left corner and grows rightwards, so a right-docked panel's
+        // right edge is now past innerWidth until the next window resize re-docks it. Re-dock
+        // first (no-op for `free`), then persist the corrected box.
+        applyPanelStyle();
         saveOverlayBox(wrap);
     }, {signal});
 
