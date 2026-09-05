@@ -371,6 +371,12 @@ async function initPanel(root, tabId) {
         game_log: JSON.parse(MephistoConfig.get('game_log')) || false, // write evals into the copied PGN
         second_opinion: JSON.parse(MephistoConfig.get('second_opinion')) || false, // a human net beside the engine
         opp_prep: JSON.parse(MephistoConfig.get('opp_prep')) || false, // their own recent games, long games only
+        // The player book: somebody's own openings, played as they play them. See player_book_pick.
+        player_book: JSON.parse(MephistoConfig.get('player_book')) || false,
+        player_book_user: JSON.parse(MephistoConfig.get('player_book_user') || '""'),
+        // Wins only, ON by default WHEN THE FEATURE IS ON: a book built from every game somebody
+        // played contains every opening they lost with, which is the opposite of prep.
+        player_book_wins: (JSON.parse(MephistoConfig.get('player_book_wins')) !== false),
         maia_level: JSON.parse(MephistoConfig.get('maia_level')) || '1500', // which Maia net (rating band) when engine=maia
         maia3_elo: JSON.parse(MephistoConfig.get('maia3_elo')) || 1500, // Maia-3 target Elo (600-2600, live input, not a reload)
         // Maia-2 asks who is playing WHOM: the same position is answered differently by a 1200
@@ -470,6 +476,17 @@ async function initPanel(root, tabId) {
         verbose_log: JSON.parse(MephistoConfig.get('verbose_log')) || false,
         mirror_mode: JSON.parse(MephistoConfig.get('mirror_mode')) || false,
         mirror_ratio: JSON.parse(MephistoConfig.get('mirror_ratio')) || 90, // % of the opponent's spend
+        // Move times drawn from the shape real ones have, not from a flat band. See lognormal_ms.
+        human_times: JSON.parse(MephistoConfig.get('human_times')) || false,
+        // Session stats: what this browser session has actually done. See session_stats_label.
+        session_stats: JSON.parse(MephistoConfig.get('session_stats')) || false,
+        // Ending a game that is over: both off, and both with a threshold. See end_game_action.
+        auto_resign: JSON.parse(MephistoConfig.get('auto_resign')) || false,
+        auto_resign_cp: JSON.parse(MephistoConfig.get('auto_resign_cp')) || 900,
+        auto_draw: JSON.parse(MephistoConfig.get('auto_draw')) || false,
+        auto_draw_cp: JSON.parse(MephistoConfig.get('auto_draw_cp')) || 20,
+        // The complexity clock: think by how hard the position is. See complexity_k.
+        complexity_clock: JSON.parse(MephistoConfig.get('complexity_clock')) || false,
         time_trouble: JSON.parse(MephistoConfig.get('time_trouble')) || false,
         time_trouble_at: JSON.parse(MephistoConfig.get('time_trouble_at')) || 30, // seconds
         // Manual Mode: the engine searches until YOU press the play-move hotkey, then it plays the
@@ -525,6 +542,9 @@ async function initPanel(root, tabId) {
                 return PLAYSTYLE_STYLES.includes(v) ? v : 'balanced';
             } catch (e) { return 'balanced'; }
         })(),
+        // CONTEMPT: how many centipawns a game you have to WIN is worth. See contempt_pick.
+        contempt: JSON.parse(MephistoConfig.get('contempt')) || false,
+        contempt_cp: JSON.parse(MephistoConfig.get('contempt_cp')) || 30,
         puzzle_mode: JSON.parse(MephistoConfig.get('puzzle_mode')) || false,
         // The panel builds its OWN config from named keys, so a setting the content script has is
         // still undefined here unless it is listed. Missing these two meant try_puzzle_capture read
@@ -2143,8 +2163,16 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         if (!config.help_mode && !config.manual_mode && config.autoplay && isTerminal) {
             // SAFETY: only autoplay a move that actually moves OUR piece and is legal right now.
             // If the turn was mis-scraped we'd otherwise play the opponent's best move as ours.
-            if (premove_reply_playable(last_eval.fen, best)) {
+            // AUTO RESIGN / AUTO DRAW go in FRONT of the move: a game we are ending is not one we
+            // are still making moves in. Both off unless switched on, and null until a threshold has
+            // actually been crossed. A draw is OFFERED and the move still gets played -- that is what
+            // offering a draw is -- so only a resignation takes the move away.
+            const ending = maybe_end_game();
+            if (ending === 'resign') {
+                console.log('Mephisto: not playing a move into a game we have resigned');
+            } else if (premove_reply_playable(last_eval.fen, best)) {
                 // humanize: maybe swap in a close alternative + a human-looking think delay;
+                // a clock-aware mode alone still shapes the timing
                 // a clock-aware mode alone still shapes the timing (budget / opponent mirror).
                 // Never in puzzle mode, whose PV playback must follow the engine line exactly.
                 // Book move (weighted random over the human distribution) outranks the engine's pick
@@ -2178,10 +2206,20 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                     console.warn('Mephisto: ignoring a playstyle move that is not ours/legal here:', styled);
                 }
                 const style_ok = styled !== best && premove_reply_playable(last_eval.fen, styled);
+                // CONTEMPT sits ABOVE the playstyle and below the two facts: a style is a preference
+                // between moves the engine already called equal, while contempt is a decision about
+                // how the GAME ends. Move only -- the timing below is untouched, like the rest.
+                const fought = contempt_pick(best);
+                const fight_ok = fought !== best && premove_reply_playable(last_eval.fen, fought);
+                if (fought !== best && !fight_ok) {
+                    console.warn('Mephisto: ignoring a contempt move that is not ours/legal here:', fought);
+                }
                 const played = tb_ok ? tb
                     : (book && premove_reply_playable(last_eval.fen, book)) ? book
+                    : fight_ok ? fought
                     : style_ok ? styled : best;
-                if (style_ok && !tb_ok && !book) console.log(`Playstyle (${config.playstyle}): playing ${styled} over ${best}`);
+                if (fight_ok && !tb_ok && !book) console.log(`Contempt (${contempt_cp()}cp): playing ${fought} over ${best}, which draws on the spot`);
+                if (style_ok && !fight_ok && !tb_ok && !book) console.log(`Playstyle (${config.playstyle}): playing ${styled} over ${best}`);
                 if (tb_ok && tb !== best) console.log(`Tablebase: playing ${tb} over ${best} (solved position)`);
                 if (!tb_ok && played !== best) console.log(`Book: playing ${played} over ${best} (weighted random)`);
                 if ((config.humanize || clock_aware()) && !config.puzzle_mode) {
@@ -3885,7 +3923,7 @@ function request_explorer(fen) {
 //      from the MultiPV lines the engine is already producing (no extra search)
 // Returns a UCI move, or null to let the engine's move stand.
 function book_pick(fen) {
-    if (!config.book_play) return null;
+    if (!config.book_play && !config.player_book) return null;
     // THE USER'S OWN BOOK OUTRANKS THE ONLINE STATISTICS: its lines are prep, played as given --
     // no minimum-games filter and no engine veto, because second-guessing a deliberately loaded
     // repertoire is exactly what loading one is meant to end. Weighted random over the book's own
@@ -3901,6 +3939,12 @@ function book_pick(fen) {
         }
         return own_book.moves[Math.floor(Math.random() * own_book.moves.length)].uci;
     }
+    // THE PLAYER BOOK sits under an imported .bin (that one is a repertoire chosen on purpose) and
+    // over the online statistics: a real person's own repeated choices beat a database average, and
+    // this one has its own toggle, so it plays whether or not the explorer book is switched on.
+    const mine = player_book_pick(fen);
+    if (mine) return mine;
+    if (!config.book_play) return null;          // the rest of this is the explorer's, and it is off
     if (!explorer_data || explorer_data.fen !== fen) return null;
     const evals = engine_line_scores();          // uci -> cp, from the current MultiPV lines
     const best = Math.max(...Object.values(evals), -Infinity);
@@ -4996,10 +5040,16 @@ function on_new_pos(fen, startFen, moves) {
         // bullet game after it -- so a bullet game would have asked, which is exactly what the
         // gate exists to prevent.
         game_max_clock_s = 0; opp_prep_for = ''; opp_prep_book = null; opp_prep_games = 0;
+        // A NEW GAME IS NOT PAST ANY LINE. Without this a resignation streak carried into the next
+        // game and could end it three moves in, and a draw already offered would never be offered.
+        resign_streak = draw_streak = 0; end_game_sent = '';
+        // The game that just finished, folded into the session totals before anything is cleared.
+        session_note_game(eval_history);
     }
     // fire the book lookup NOW so the answer has the whole search to arrive; never awaited
     request_explorer(fen);
     request_own_book(fen);
+    maybe_player_book();   // one fetch per player per session; it latches itself
     request_tablebase(fen);
     request_puzzle_solution(fen);
     bgTrace('on_new_pos', {turn, autoplay: config.autoplay, puzzle: config.puzzle_mode,
@@ -5808,7 +5858,8 @@ function readout_extras() {
     // engine's own number, where the two readings can be compared -- printing it in both places
     // said the same thing twice and left the eval row still claiming the engine's estimate alone.
     const extra = [puzzle_label(), move_confidence_label(), human_reply_label(),
-                   second_opinion_label(), opp_prep_label(), safety_net_label()].filter(Boolean).join(' · ');
+                   second_opinion_label(), opp_prep_label(), player_book_label(), safety_net_label(),
+                   session_stats_label()].filter(Boolean).join(' · ');
     return extra ? `<span class="line1-extra">${extra}</span>` : '';
 }
 
@@ -6315,6 +6366,65 @@ function in_time_trouble() {
     return T <= time_trouble_at();
 }
 
+// ---- HOW LONG A PERSON ACTUALLY TAKES ----------------------------------------------------------
+// Every think time here is drawn UNIFORMLY: base + random * variance, which is flat between two
+// edges and stops dead at both. Real move times are not flat. They pile up just under a short,
+// typical value and trail away to the right -- most moves come quickly, a few take several times
+// the median, and none takes less than nothing. That shape is a log-normal, and it is the shape a
+// histogram of move times is read as human by.
+//
+// One switch, sampling the same AVERAGE the settings already describe, so the numbers you set still
+// mean what they meant: the median is the mean of the uniform draw it replaces. Sigma is the spread
+// in log space -- 0.5 puts the slow tenth of moves at about 2x the median and the fast tenth at
+// about half, which is what a real move-time histogram looks like.
+//
+// The CURSOR TRAVEL is deliberately left alone: a hand does not move across the board log-normally,
+// and its floor exists for a different reason (a click that lands too fast stops looking like one).
+const HUMAN_TIME_SIGMA = 0.5;
+const HUMAN_TIME_MAX_K = 4;    // the tail is long, not infinite -- never more than 4x the median
+// The midpoints of humanize's own uniform bands, so switching this on changes the SHAPE of its
+// think times without changing what they average.
+const HUMAN_TIME_MEDIAN = {instant: 75, quick: 500, normal: 1300, long: 4250};
+
+function lognormal_ms(median, sigma = HUMAN_TIME_SIGMA) {
+    if (!(median > 0)) return 0;
+    // Box-Muller: two uniforms in, one standard normal out. Math.random() can return exactly 0 and
+    // log(0) is -Infinity, so the first draw is nudged off that edge.
+    const u = Math.random() || Number.MIN_VALUE, v = Math.random();
+    const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    return Math.round(Math.min(median * Math.exp(sigma * z), median * HUMAN_TIME_MAX_K));
+}
+
+// ---- THE COMPLEXITY CLOCK ----------------------------------------------------------------------
+// A fixed think time spends the same seconds on a position with one move as on a position with five.
+// A person does the opposite: they bang out the obvious move and sit on the hard one. This reads how
+// far apart the engine's own top two lines are -- the one complexity measure that is free, because
+// the search has already produced it -- and stretches or shrinks the THINK by that.
+//
+// Multiplicative and opt-in, so it composes with everything rather than replacing anything: with
+// Humanize on it scales humanize's think, with it off it scales the configured one, and the clock
+// caps still sit above it, so it can never spend time the clock does not have. It never stretches a
+// reflex: a recapture is instant because it is a recapture, not because the position is easy.
+const COMPLEXITY_STEPS = [    // gap between the best two lines (cp) -> multiplier on the think
+    {under: 15, k: 1.6},      // a real choice: two moves the engine itself cannot separate
+    {under: 40, k: 1.3},
+    {under: 100, k: 1.0},     // ordinary: the settings as configured
+    {under: 250, k: 0.8},
+];
+const COMPLEXITY_OBVIOUS_K = 0.6;   // one move ahead by more than two and a half pawns: just play it
+
+function complexity_k() {
+    if (!config.complexity_clock) return 1;
+    const cps = (last_eval.lines || []).filter(l => l && l.move)
+        .map(l => line_cp_ours(l)).filter(cp => Number.isFinite(cp))
+        .sort((a, b) => b - a);
+    if (cps.length < 2) return 1;                  // one line is no measure of anything
+    if (Math.abs(cps[0]) >= 90000) return 1;       // a mate is not a hard position, it is a found one
+    const gap = cps[0] - cps[1];
+    for (const step of COMPLEXITY_STEPS) if (gap < step.under) return step.k;
+    return COMPLEXITY_OBVIOUS_K;
+}
+
 // per-move time budget in ms from the scraped clock, or null when no clock-aware mode is on
 // (or the clock is unreadable). ~T/30 + 60% of the increment, never more than T/8.
 function clock_budget_ms() {
@@ -6612,6 +6722,86 @@ function playstyle_pick(best) {
     return pick;
 }
 
+// ---- CONTEMPT: the dial for a game you have to WIN ---------------------------------------------
+// The engine is perfectly happy with a draw. When you are not -- the last round of a tournament, a
+// match you are behind in -- the repetition it offers at 0.00 is half a point gone, and no setting
+// could say so. This one can: it spends up to `contempt_cp` centipawns to avoid a move that ENDS
+// THE GAME as a draw on the spot, and nothing else. When the top move is not one of those it returns
+// the engine's move untouched, so in an ordinary game the dial changes nothing at all.
+//
+// "Ends the game" is a fact here, not an estimate: the candidate is replayed on a board carrying the
+// game's own history, so a threefold, a fifty-move, a stalemate and insufficient material are all
+// chess.js's own verdict rather than a guess from the score. A repetition the engine merely SEES
+// three plies deep is not caught -- that would need the PV, and a PV is a prediction about the
+// opponent. Ceiling stated; the upgrade path is to walk the PV when one is trusted that far.
+const CONTEMPT_MAX_CP = 200;   // more than two pawns is not contempt any more, it is a worse move
+
+function contempt_cp() {
+    const n = parseInt(config.contempt_cp);
+    return Number.isFinite(n) ? Math.max(0, Math.min(CONTEMPT_MAX_CP, n)) : 30;
+}
+
+// The game's own board, replayed from its start so chess.js has counted the repetitions -- which is
+// the only way a threefold is knowable at all. null when the replay cannot be trusted (no move list,
+// a variant chess.js will not play, a mis-scrape), and a null board simply means no move is called a
+// draw: contempt then returns the engine's own pick, which is the right way to be unsure.
+function game_board() {
+    try {
+        const start = last_pos.startFen || last_eval.fen;
+        if (!start || !last_eval.fen) return null;
+        const board = new Chess(config.variant, start);
+        for (const uci of String(last_pos.moves || '').trim().split(/\s+/).filter(Boolean)) {
+            if (!board.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]})) return null;
+        }
+        // It has to be THIS position, not merely a legal one: placement, side, castling and ep.
+        const key = (f) => String(f).split(' ').slice(0, 4).join(' ');
+        return key(board.fen()) === key(last_eval.fen) ? board : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+// Which of these moves ends the game in a draw right now, as a Set of UCI. Empty whenever the board
+// could not be replayed, so an unknown position never loses a move to contempt.
+function drawing_moves(uciList) {
+    const out = new Set();
+    const board = game_board();
+    if (!board) return out;
+    for (const uci of uciList) {
+        try {
+            if (!board.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]})) continue;
+            if (board.isDraw()) out.add(uci);
+            board.undo();
+        } catch (e) { /* a candidate chess.js will not replay is no evidence of a draw */ }
+    }
+    return out;
+}
+
+// The move to play instead of `best` when `best` draws on the spot and something inside the dial
+// does not. `best` back unchanged whenever contempt is off, the top move is not a draw, or every
+// candidate within the tolerance draws as well -- in which case the draw is the position, not a
+// choice anyone is making.
+function contempt_pick(best) {
+    if (!config.contempt || !best) return best;
+    const margin = contempt_cp();
+    if (!margin) return best;
+    const lines = (last_eval.lines || []).filter(l => l && l.move);
+    const bestLine = lines.find(l => l.move === best);
+    const bestCp = bestLine ? line_cp_ours(bestLine) : null;
+    if (!Number.isFinite(bestCp) || Math.abs(bestCp) >= 90000) return best; // a mate is not a draw
+    const drawing = drawing_moves(lines.map(l => l.move));
+    if (!drawing.has(best)) return best;                    // nothing to avoid: the usual case
+    let pick = best, pickCp = -Infinity;
+    for (const l of lines) {
+        if (drawing.has(l.move)) continue;
+        const cp = line_cp_ours(l);
+        if (!Number.isFinite(cp) || cp <= -90000) continue; // never walk into a mate to dodge a draw
+        if (bestCp - cp > margin) continue;                 // outside what the dial is willing to pay
+        if (cp > pickCp) { pick = l.move; pickCp = cp; }
+    }
+    return pick;
+}
+
 function humanize_pick(best) {
     const fen = last_eval.fen;
     const lines = (last_eval.lines || []).filter(l => l && l.move && l.pv);
@@ -6684,6 +6874,13 @@ function humanize_pick(best) {
     const r = Math.random();
     let think = {instant: r * 150, quick: 250 + r * 500,
                  normal: 600 + r * 1400, long: 2000 + r * 4500}[kind];
+    // The complexity clock, when it is on: humanize already sits longer on a TENSE position (the
+    // 'long' kind), and this scales what it sits by how far apart the top lines actually are. Never
+    // on a reflex -- an instant move is instant because it is forced, not because it is easy.
+    // Human Move Times: the same average, drawn from the shape real move times have.
+    if (config.human_times) think = lognormal_ms(HUMAN_TIME_MEDIAN[kind]);
+    if (kind !== 'instant') think *= complexity_k();
+
 
     // ---- clock pacing (only when a clock-aware toggle is on and a clock was read).
     // Mirror Time (its own toggle): spend what the opponent spent on their last move, minus 10%,
@@ -6838,7 +7035,7 @@ function clock_k(secondsLeft) {
 // The think part is scaled; the MOVE part (the click itself) is left alone -- a human's hand does
 // not speed up because the position is simple, and the existing floor exists for the same reason.
 function situational_timing(t, info) {
-    const k = situational_k(info) * clock_k(info && info.secondsLeft);
+    const k = situational_k(info) * clock_k(info && info.secondsLeft) * complexity_k();
     if (k === 1) return t;
     return {
         ...t,
@@ -6882,12 +7079,20 @@ function fresh_timing(situation) {
     // Situation first (what the move IS), then the clock cap (what the clock allows). In that
     // order, because the cap is a ceiling: scaling a move up for a visible mate must not be able to
     // spend time the clock does not have.
-    return clock_pace_timing(situational_timing({
+    const t = {
         think_time: num('think_time', config.think_time),
         think_variance: num('think_variance', config.think_variance),
         move_time: num('move_time', config.move_time),
         move_variance: num('move_variance', config.move_variance),
-    }, situation));
+    };
+    // Human Move Times replaces the flat draw with a log-normal one of the same average, and hands
+    // on a FIXED number (variance 0): the shape is decided here, in one place, rather than half here
+    // and half in the content script's own `think_time + random * variance`.
+    if (config.human_times) {
+        t.think_time = lognormal_ms(t.think_time + t.think_variance / 2);
+        t.think_variance = 0;
+    }
+    return clock_pace_timing(situational_timing(t, situation));
 }
 
 // ---- Self-test: a one-tap health check shown in the status line for a few seconds. Scrape = a
@@ -7730,6 +7935,14 @@ function request_automove(move, think = null, manual = false, opts = {}) {
     // localStorage), so editing the sliders mid-game applies to the next move -- not the snapshot
     // taken when the panel/config first loaded. `?? config.x` keeps the loaded value if unset.
     const timing = fresh_timing(move_situation(last_eval.fen, move));
+    // Session stats count the move HERE, at the one funnel every move of ours goes through, and
+    // count the delay it really waited: the pacing modes' explicit think when there was one, the
+    // configured think when there was not.
+    //
+    // ON-TURN MOVES ONLY (`verify`). A blind premove is queued during the OPPONENT's turn and fires
+    // the instant they move, so the think attached to it is not a wait anybody had -- counting it
+    // would drag the session average toward a number no move ever took.
+    if (verify) session_note_move((think != null) ? think : timing.think_time);
     const message = (config.puzzle_mode)
         // Puzzle Mode ships the move as a one-element `pv` purely because the content-script's
         // puzzle branch takes that shape. It is ONE move: Puzzle Mode used to auto-play the engine's
@@ -7896,7 +8109,13 @@ function record_eval_history(frac) {
     // this same array, so with the graph and the strip both off nothing was ever recorded and
     // nothing was ever graded -- the badge simply never appeared, on any move, with its own toggle
     // on. (The comment below already records this mistake being made once, for the strip.)
-    if ((!config.eval_history && !classifier_wanted()) || typeof frac !== 'number') return;
+    // `session_stats` is in this gate for the reason the comment above records happening twice
+    // already: its accuracy is derived from THIS array, so with only that switch on nothing was ever
+    // recorded and the session line simply never grew an accuracy -- a feature that looks broken
+    // with its own toggle on. It is not in classifier_wanted() on purpose: the accuracy comes from
+    // the eval history alone, and the classifier is a much heavier thing to start for it.
+    if ((!config.eval_history && !config.session_stats && !classifier_wanted())
+        || typeof frac !== 'number') return;
     // premove_tracker is the one place the CURRENT position's startFen + move list are kept
     // (on_new_pos sets it unconditionally, whether or not Premove is on). last_eval carries neither.
     const startFen = premove_tracker.startFen || '';
@@ -8201,6 +8420,9 @@ const LIVE_CONFIG_KEYS = [
     'bot_tricks', 'bot_trick_game', 'bot_trick_delay', 'bot_trick_pgn',
     'computer_evaluation', 'multiple_lines', 'compute_time', 'compute_depth', 'search_mode',
     'live_classify', 'class_on_board', 'live_classify_which', 'playstyle', 'tablebase_show',
+    'contempt', 'contempt_cp', 'complexity_clock', 'human_times',
+    'player_book', 'player_book_user', 'player_book_wins',
+    'auto_resign', 'auto_resign_cp', 'auto_draw', 'auto_draw_cp', 'session_stats',
     // the new panel-side features: all display or pacing decisions the panel makes per move, so a
     // change on the settings page has to reach an open panel rather than waiting for a reopen
     'pv_keys', 'refute', 'refute_plies', 'second_opinion', 'opp_prep', 'game_log',
@@ -8329,6 +8551,13 @@ function watch_config_changes() {
                     draw_moves(); update_best_move(null);
                 }
                 if (key === 'refute' || key === 'game_log') ensure_classifier();   // both read the graded history
+                // A DIFFERENT PLAYER, OR A DIFFERENT FILTER, IS A DIFFERENT BOOK. Without this the
+                // panel kept the book it fetched under the old name and played it under the new one.
+                if (key === 'player_book' || key === 'player_book_user' || key === 'player_book_wins') {
+                    player_book = null; player_book_for = ''; player_book_games = 0;
+                    maybe_player_book();
+                    update_best_move(null);
+                }
                 // a reply computed at the old rating must not sit under a label showing the new one:
                 // drop it and ask again (ensure_threat_human retunes the net in place via setoption)
                 if (key === 'threat_human' || key === 'threat_human_elo') {
@@ -8975,22 +9204,24 @@ function maybe_opponent_prep(name) {
     });
 }
 
-// Replay each game far enough to index the openings, keeping only the moves THEY made. The key is
-// placement + side to move, so a transposition into the same position still matches -- which is the
-// whole point of keying on positions rather than on move order.
-function build_opp_prep_book(name, games) {
+// ONE BUILDER, TWO FEATURES. Opponent Prep reads it to say what they play; the Player Book reads
+// it to decide what WE play. `winsOnly` is the difference that makes a book of your own games worth
+// having: every game you ever played includes every opening you lost with.
+function build_moves_book(games, name, {maxPly, winsOnly}) {
     const book = new Map();
     let used = 0;
-    const lower = name.toLowerCase();
+    const lower = String(name || '').toLowerCase();
     for (const g of games) {
         const theirColour = (String(g.white || '').toLowerCase() === lower) ? 'w'
                           : (String(g.black || '').toLowerCase() === lower) ? 'b' : null;
         if (!theirColour || !g.san) continue;
+        // A game with no Result tag ('*', an archive that dropped it) is not a win anyone can prove.
+        if (winsOnly && g.result !== (theirColour === 'w' ? '1-0' : '0-1')) continue;
         try {
             const chess = new Chess('chess');
             let ply = 0;
             for (const san of g.san.split(' ')) {
-                if (ply >= OPP_PREP_MAX_PLY) break;
+                if (ply >= maxPly) break;
                 const before = chess.fen();
                 const mv = chess.move(san);
                 if (!mv) break;                          // an unreadable game stops, it does not throw
@@ -9006,8 +9237,13 @@ function build_opp_prep_book(name, games) {
             used++;
         } catch (e) { /* one unparseable game must not cost the other thirty-nine */ }
     }
-    opp_prep_book = book;
-    opp_prep_games = used;
+    return {book, used};
+}
+
+function build_opp_prep_book(name, games) {
+    const built = build_moves_book(games, name, {maxPly: OPP_PREP_MAX_PLY, winsOnly: false});
+    opp_prep_book = built.book;
+    opp_prep_games = built.used;
 }
 
 // The readout line. Only on THEIR turn: prep is about what they are about to do.
@@ -9020,6 +9256,217 @@ function opp_prep_label() {
     const [uci, n] = Object.entries(at).sort((a, b) => b[1] - a[1])[0];
     return i18n('panel.msg.opp_prep', '{who} has played {move} here ({n}x)',
                 {who: opp_prep_for, move: notate(last_eval.fen, uci), n});
+}
+
+// ---- WHAT THIS SESSION HAS ACTUALLY DONE -------------------------------------------------------
+// The live stats strip grades the GAME in front of you. Nothing said anything about the session: how
+// many games, how many moves, how long they really took. That is the number that tells you whether
+// the pacing settings are doing what you set them to -- "2.4s average" against a 3-second think time
+// is the answer to a question the sliders cannot answer themselves.
+//
+// It lives for as long as the panel does, which is what "session" means here, and it is said plainly
+// in the tooltip: a reload starts a new one. Nothing is stored, because a running total kept on disk
+// is a thing to explain, migrate and eventually get wrong.
+let session = {games: 0, moves: 0, think_ms: 0, acc: []};
+
+// Our own move, as it goes out. `think` is the pacing modes' explicit delay when there was one, and
+// the configured think otherwise -- the number the move actually waited, either way.
+function session_note_move(think_ms) {
+    if (!Number.isFinite(think_ms)) return;
+    session.moves++;
+    session.think_ms += Math.max(0, think_ms);
+}
+
+// A game just ended (the ply count dropped back to the start). Its accuracy is folded in HERE, once,
+// rather than recomputed on every render: live_stats runs the classifier over the whole history.
+function session_note_game(history) {
+    session.games++;
+    try {
+        const side = our_side();
+        const acc = live_stats(history)[side]?.accuracy;
+        if (Number.isFinite(acc)) session.acc.push(acc);
+    } catch (e) { /* an ungradeable game still counts as a game */ }
+}
+
+function session_stats_label() {
+    if (!config.session_stats || !session.moves) return '';
+    const avg = (session.think_ms / session.moves / 1000).toFixed(1);
+    const acc = session.acc.length
+        ? Math.round(session.acc.reduce((a, b) => a + b, 0) / session.acc.length) : null;
+    // Two strings rather than five: a label built by joining four translated fragments is four
+    // chances for a language to want a different order.
+    return i18n('panel.msg.session', 'Session: {games} games · {moves} moves · {avg}s avg',
+                {games: session.games, moves: session.moves, avg})
+        + (acc != null ? i18n('panel.msg.session_acc', ' · {n}% accuracy', {n: acc}) : '');
+}
+
+// ---- ENDING A GAME THAT IS OVER ----------------------------------------------------------------
+// A lost game still has to be resigned by hand, and a dead-drawn one still has to be offered, which
+// means sitting there clicking out a position neither side can change. Both are off until asked for,
+// both take a threshold, and neither fires on a single reading: the score has to stay past the line
+// for three of OUR turns running, because one deep line at one depth is not a verdict.
+//
+// The panel decides and the content script presses the button -- the score lives here, the markup
+// lives there. Once per game per action: a declined draw offer is not re-offered every move, which
+// is the behaviour that gets people muted.
+const END_GAME_STREAK = 3;            // consecutive turns of ours past the line
+const AUTO_DRAW_MIN_FULLMOVE = 20;    // nobody offers a draw on move six; that is just rude
+let resign_streak = 0, draw_streak = 0, end_game_sent = '';
+
+function auto_resign_cp() {
+    const n = parseInt(config.auto_resign_cp);
+    return Number.isFinite(n) ? Math.max(100, Math.min(3000, n)) : 900;
+}
+
+function auto_draw_cp() {
+    const n = parseInt(config.auto_draw_cp);
+    return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 20;
+}
+
+// The decision itself: our own score and the move number in, an action or null out, streaks updated.
+// Deliberately a pure function of the config and its two arguments -- this is the half that decides
+// to end a game, and it is worth being able to run it rather than reason about it.
+function end_game_action(cp, fullmove) {
+    if (!Number.isFinite(cp)) {                 // no score: no evidence, and the count starts again
+        resign_streak = draw_streak = 0;
+        return null;
+    }
+    // A mate score needs no special case: being mated is a very negative number, which is already
+    // past any threshold anyone would set.
+    if (config.auto_resign && cp <= -auto_resign_cp()) resign_streak++; else resign_streak = 0;
+    if (config.auto_draw && Math.abs(cp) <= auto_draw_cp() && fullmove >= AUTO_DRAW_MIN_FULLMOVE) draw_streak++;
+    else draw_streak = 0;
+    if (resign_streak >= END_GAME_STREAK) return 'resign';
+    if (draw_streak >= END_GAME_STREAK) return 'draw';
+    return null;
+}
+
+// Reads the current position's score, asks the rule above, and sends the click ONCE. Returns the
+// action so the caller can decline to also play a move into a game it just resigned.
+// HOW FAR INTO THE GAME WE ARE. NOT from the FEN: the panel's position is SCRAPED FROM THE BOARD,
+// and neither site's DOM carries the move counters -- every live scrape reads "0 1" (measured on
+// lichess 2026-09-04, and it is why the draw offer did not fire once in a whole test game). The move
+// LIST is what the panel really has, so the count comes from there; a game joined from a set-up
+// position still gets the FEN's own number when that one is larger.
+//
+// The same fact is why contempt can only see a THREEFOLD and never the fifty-move rule: the halfmove
+// clock is gone for the same reason, and only the replayed move list can put it back.
+function game_fullmove() {
+    let fromFen = 0;
+    try { fromFen = parseInt(String(last_eval.fen).split(' ')[5]) || 0; } catch (e) { /* variant fen */ }
+    const plies = String(last_pos.moves || '').trim().split(/\s+/).filter(Boolean).length;
+    return Math.max(fromFen, Math.floor(plies / 2) + 1);
+}
+
+function maybe_end_game() {
+    if (!config.auto_resign && !config.auto_draw) return null;
+    if (config.help_mode || config.manual_mode || config.puzzle_mode) return null;
+    const line = (last_eval.lines || []).find(l => l && l.move);
+    const cp = line ? line_cp_ours(line) : null;
+    const action = end_game_action(Number.isFinite(cp) ? cp : NaN, game_fullmove());
+    if (!action) return null;
+    if (action !== end_game_sent) {
+        end_game_sent = action;
+        console.log(`Mephisto: ${action === 'resign' ? 'resigning' : 'offering a draw'} -- the score has been past`
+                    + ` the line for ${END_GAME_STREAK} of our moves`);
+        send_to_active_tab({gameAction: action});
+    }
+    return action;
+}
+
+// ---- THE PLAYER BOOK: somebody's openings, played the way they play them -----------------------
+// Opponent Prep asks the public archive about the person across the board and tells you what it
+// found. This asks it about a person YOU name -- yourself, or a titled player whose openings you
+// want to borrow -- and then PLAYS what came back, weighted by how often they played it. Prep, not
+// statistics: no engine veto and no minimum beyond a single repeat, because second-guessing a
+// repertoire is exactly what choosing one is meant to end.
+//
+// It is a book, so it runs out: past the opening horizon, or in a position that player never had,
+// it returns nothing at all and the engine's move stands. Nothing is deferred and nothing is
+// awaited -- the lookup lands between moves or it does not, like every other book here.
+const PLAYER_BOOK_MAX_PLY = 24;   // the same opening horizon Opponent Prep uses
+const PLAYER_BOOK_MIN = 2;        // played at least twice: once is an accident, not a repertoire
+let player_book = null;           // 'placement turn' -> {uci: count}, that player's moves only
+let player_book_for = '';         // site|user|filter we already asked about, so we ask once
+let player_book_games = 0;
+
+// "name", "lichess:name", "chesscom:name" -> {site, name}. A bare name means the site you are on,
+// which is the common case and the one nobody should have to spell out. null when there is nothing
+// usable in the box, which is also what an empty box gives.
+function parse_player_book_user() {
+    const m = /^(?:(lichess|chesscom|li|cc)\s*[:/]\s*)?([\w.-]{2,30})$/i
+        .exec(String(config.player_book_user || '').trim());
+    if (!m) return null;
+    const tag = (m[1] || '').toLowerCase();
+    const site = tag ? (tag[0] === 'l' ? 'lichess' : 'chesscom')
+                     : (detected_prefix === 'li' ? 'lichess'
+                        : detected_prefix === 'cc' ? 'chesscom' : null);
+    return site ? {site, name: m[2]} : null;
+}
+
+// Ask once per player, per filter. The key carries the wins-only flag because switching that is a
+// different book from the same games, and a book that did not rebuild would silently be the old one.
+function maybe_player_book() {
+    if (!config.player_book) { player_book_for = ''; return; }
+    const who = parse_player_book_user();
+    if (!who) return;
+    const key = `${who.site}|${who.name.toLowerCase()}|${config.player_book_wins ? 'wins' : 'all'}`;
+    if (key === player_book_for) return;
+    player_book_for = key;
+    player_book = null;
+    player_book_games = 0;
+    chrome.runtime.sendMessage({playerBookLookup: {site: who.site, username: who.name}}, (res) => {
+        void chrome.runtime.lastError;
+        // A failed lookup un-latches so the next position tries again -- a worker that was asleep,
+        // or an archive that was briefly down, must not cost the book for the whole session.
+        if (!res || res.error || !Array.isArray(res.games)) {
+            if (player_book_for === key) player_book_for = '';
+            console.warn('Mephisto: player book lookup failed -', res?.error || 'no response');
+            return;
+        }
+        if (player_book_for !== key) return;          // the setting changed while we waited
+        const built = build_moves_book(res.games, who.name,
+                                       {maxPly: PLAYER_BOOK_MAX_PLY, winsOnly: !!config.player_book_wins});
+        player_book = built.book;
+        player_book_games = built.used;
+        console.log(`Player book: ${built.book.size} positions from ${built.used} of ${who.name}'s games`
+                    + (config.player_book_wins ? ' (wins only)' : ''));
+        update_best_move(null);                       // the label can appear without a new search
+    });
+}
+
+// What that player played here, as {uci: count}, or null. Only ever on OUR turn: the key carries the
+// side to move, so a position where it is their move is simply not in our half of the book.
+function player_book_at(fen) {
+    if (!config.player_book || !player_book || !fen) return null;
+    const [placement, turn] = String(fen).split(' ');
+    if (((turn === 'w') ? 'white' : 'black') !== our_side()) return null;
+    const at = player_book.get(`${placement} ${turn}`);
+    if (!at) return null;
+    const total = Object.values(at).reduce((sum, n) => sum + n, 0);
+    return (total >= PLAYER_BOOK_MIN) ? at : null;
+}
+
+// Weighted random over what they actually played -- the same rule the explorer book uses, on a much
+// smaller sample. The rail's own legality check still stands after this returns.
+function player_book_pick(fen) {
+    const at = player_book_at(fen);
+    if (!at) return null;
+    const entries = Object.entries(at);
+    const total = entries.reduce((sum, [, n]) => sum + n, 0);
+    let roll = Math.random() * total;
+    for (const [uci, n] of entries) if ((roll -= n) <= 0) return uci;
+    return entries[entries.length - 1][0];
+}
+
+// The readout line, on the positions the book actually covers: who it is and what they mostly play.
+function player_book_label() {
+    const at = player_book_at(last_eval.fen);
+    if (!at) return '';
+    const [uci, n] = Object.entries(at).sort((a, b) => b[1] - a[1])[0];
+    const who = parse_player_book_user();
+    return i18n('panel.msg.player_book', 'Book: {who} plays {move} here ({n}x)',
+                {who: who ? who.name : '?', move: notate(last_eval.fen, uci), n});
 }
 
 // ---- TWO ENGINES AT ONCE: what a human of a chosen rating would play HERE -----------------------
@@ -9714,7 +10161,9 @@ function copy_diagnostics(onDone = () => {}) {
             toggles: ['autoplay', 'premove', 'help_mode', 'manual_mode', 'humanize', 'puzzle_mode',
                       'puzzle_capture', 'puzzle_capture_cdp', 'clock_mode', 'mirror_mode',
                       'background_play', 'verbose_log', 'tablebase', 'refute', 'second_opinion',
-                      'opp_prep', 'game_log', 'pv_keys', 'time_trouble']
+                      'opp_prep', 'game_log', 'pv_keys', 'time_trouble',
+                      'contempt', 'complexity_clock', 'human_times', 'player_book',
+                      'auto_resign', 'auto_draw', 'session_stats']
                 .filter(k => config[k]).join(' ') || 'none on',
             // The page-side script's own view. Without this a dead content script and a page with no
             // board produce byte-identical reports.

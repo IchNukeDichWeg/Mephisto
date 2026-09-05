@@ -372,6 +372,56 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.player_book" class="tooltipped" data-position="right"
+                              data-tooltip="Build an opening book from a real person's public games and PLAY it,
+                                            weighted by how often they played each move. Put your own username in
+                                            the box for your own repertoire, or anyone else's - a titled player, a
+                                            streamer - to borrow theirs. Works on lichess and chess.com; a bare name
+                                            means the site you are on, and you can spell it out as
+                                            lichess:name or chesscom:name. It is prep, not statistics: no engine
+                                            veto, and it simply runs out past the opening, where the engine's move
+                                            stands again. The lookup is made by the extension's worker, once per
+                                            player per session."><span data-i18n="set.player_book">Player Book</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="player_book_checkbox" type="checkbox" class="set-cb">
+                        <label for="player_book_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row" id="player_book_user_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.player_book_user" class="tooltipped" data-position="right"
+                              data-tooltip="Whose games to build the book from. A bare username means the site you
+                                            are playing on; write lichess:name or chesscom:name to say which
+                                            archive to ask."><span data-i18n="set.player_book_user">Player Book Account</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="player_book_user_input" type="text" placeholder="lichess:username">
+                    </div>
+                </div>
+
+                <div class="set-row" id="player_book_wins_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.player_book_wins" class="tooltipped" data-position="right"
+                              data-tooltip="Build the book only from the games that player WON. On by default, and
+                                            it is what makes your own games usable: a book from every game you ever
+                                            played contains every opening you lost with. Turn it off to take the
+                                            whole repertoire, wins and losses alike - worth it for a strong player
+                                            whose games are all worth having."><span data-i18n="set.player_book_wins">Winning Games Only</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="player_book_wins_checkbox" type="checkbox" class="set-cb">
+                        <label for="player_book_wins_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.mirror_ratio" class="tooltipped" data-position="right"
                               data-tooltip="What share of the opponent's own think Mirror Time spends, 50-150%. It
                                             was fixed at 90, which pulls a little ahead on the clock every move but
@@ -403,6 +453,131 @@
                     <div class="set-ctl">
                         <input id="time_trouble_checkbox" type="checkbox" class="set-cb">
                         <label for="time_trouble_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.human_times" class="tooltipped" data-position="right"
+                              data-tooltip="Draw the think delay from the shape real move times have instead of from
+                                            a flat band. The Think Time and Variance sliders draw evenly between two
+                                            edges and stop dead at both; a person's move times pile up just under a
+                                            short typical value and trail away to the right, with a few moves taking
+                                            several times the median. This keeps the AVERAGE your sliders describe
+                                            and changes only the shape, so a histogram of your move times looks like
+                                            a person's. Works with Humanize on (it reshapes its think) and off. The
+                                            cursor travel is left alone - a hand does not move that way."><span data-i18n="set.human_times">Human Move Times</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="human_times_checkbox" type="checkbox" class="set-cb">
+                        <label for="human_times_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.session_stats" class="tooltipped" data-position="right"
+                              data-tooltip="What this browser session has actually done: games finished, moves
+                                            played, the average time each one really waited, and your accuracy
+                                            across the finished games. It is the number the sliders cannot answer
+                                            themselves - a 2.4s average against a 3-second think time tells you what
+                                            the pacing modes are really doing. It lives as long as the panel does: a
+                                            reload starts a new session, and nothing is stored."><span data-i18n="set.session_stats">Session Stats</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="session_stats_checkbox" type="checkbox" class="set-cb">
+                        <label for="session_stats_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.auto_resign" class="tooltipped" data-position="right"
+                              data-tooltip="Resign when the game is gone. The score has to stay below the threshold
+                                            for three of YOUR turns running, so one deep line at one depth cannot
+                                            end a game. Needs Autoplay, presses the site's own resign button and
+                                            confirms it, and does it once - after that no move is played into a
+                                            game you have resigned. Off unless you switch it on, for the obvious
+                                            reason."><span data-i18n="set.auto_resign">Auto Resign</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="auto_resign_checkbox" type="checkbox" class="set-cb">
+                        <label for="auto_resign_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row" id="auto_resign_cp_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.auto_resign_cp" class="tooltipped" data-position="right"
+                              data-tooltip="How far behind counts as gone, in centipawns, 100 to 3000. 900 is a
+                                            queen."><span data-i18n="set.auto_resign_cp">Resign Below (cp)</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-100">&minus;</button>
+                            <input id="auto_resign_cp_input" type="number" min="100" max="3000" step="100">
+                            <button type="button" class="set-step-btn" data-step="100">+</button>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.auto_draw" class="tooltipped" data-position="right"
+                              data-tooltip="Offer a draw in a position neither side can change: the score within the
+                                            threshold below, for three of YOUR turns running, and past move 20 -
+                                            nobody offers a draw on move six. Needs Autoplay, and it offers ONCE per
+                                            game, because a declined offer repeated every move is what gets people
+                                            muted. The move is still played: offering a draw is something you do
+                                            alongside a move, not instead of one."><span data-i18n="set.auto_draw">Auto Draw Offer</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="auto_draw_checkbox" type="checkbox" class="set-cb">
+                        <label for="auto_draw_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row" id="auto_draw_cp_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.auto_draw_cp" class="tooltipped" data-position="right"
+                              data-tooltip="How level counts as level, in centipawns either way, 0 to 100. 20 is a
+                                            fifth of a pawn."><span data-i18n="set.auto_draw_cp">Draw Within (cp)</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-5">&minus;</button>
+                            <input id="auto_draw_cp_input" type="number" min="0" max="100" step="5">
+                            <button type="button" class="set-step-btn" data-step="5">+</button>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.complexity_clock" class="tooltipped" data-position="right"
+                              data-tooltip="Think by how hard the position is. A fixed think time spends the same
+                                            seconds on a position with one move as on one with five; a person bangs
+                                            out the obvious move and sits on the hard one. This reads how far apart
+                                            the engine's own top two lines are - free, because the search already
+                                            produced it - and stretches the think up to 1.6x when they are within
+                                            15cp of each other, or cuts it to 0.6x when one move is ahead by more
+                                            than 250cp. It scales whatever else is deciding the think, Humanize
+                                            included, and the clock caps still sit above it. NEEDS MULTI LINES 2 OR
+                                            MORE, and it never stretches a reflex."><span data-i18n="set.complexity_clock">Complexity Clock</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="complexity_clock_checkbox" type="checkbox" class="set-cb">
+                        <label for="complexity_clock_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
                     </div>
@@ -984,6 +1159,42 @@
                             <option data-i18n="set.style_disrespect" value="disrespect">Disrespect</option>
                             <option data-i18n="set.style_ultra" value="ultra">Ultra attacking</option>
                         </select>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.contempt" class="tooltipped" data-position="right"
+                              data-tooltip="For a game you have to WIN. The engine is perfectly happy with a draw,
+                                            and the repetition it offers at 0.00 is half a point gone. With this on,
+                                            a move that ENDS THE GAME as a draw on the spot - a threefold, a
+                                            fifty-move, a stalemate, insufficient material - is passed over for the
+                                            best move that does not, as long as that move costs no more than the
+                                            Contempt setting below. When the top move is not one of those, nothing
+                                            changes: this never touches an ordinary position. NEEDS MULTI LINES 2 OR
+                                            MORE, and it never walks into a mate to dodge a draw."><span data-i18n="set.contempt">Play For The Win</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="contempt_checkbox" type="checkbox" class="set-cb">
+                        <label for="contempt_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row" id="contempt_cp_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.contempt_cp" class="tooltipped" data-position="right"
+                              data-tooltip="How many centipawns avoiding the draw is worth, 0 to 200. 30 is a
+                                            third of a pawn: enough to take a real game over a repetition, not
+                                            enough to spoil the position to do it."><span data-i18n="set.contempt_cp">Contempt (cp)</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-10">&minus;</button>
+                            <input id="contempt_cp_input" type="number" min="0" max="200" step="10">
+                            <button type="button" class="set-step-btn" data-step="10">+</button>
+                        </span>
                     </div>
                 </div>
 

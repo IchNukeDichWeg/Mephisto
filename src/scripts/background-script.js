@@ -199,6 +199,12 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     oppPrepLookup(msg.oppPrepLookup).then(sendResponse).catch(e => sendResponse({error: String(e)}));
     return true; // async sendResponse
   }
+  // THE PLAYER BOOK: the same archives, asked about whoever the user named. Here for the same
+  // reason: the lookup is the worker's, not the game tab's.
+  if (msg.playerBookLookup) {
+    playerBookLookup(msg.playerBookLookup).then(sendResponse).catch(e => sendResponse({error: String(e)}));
+    return true;
+  }
   // Is this a COMPLETE install? The update-only archive deliberately omits lib/engine and lib/ort,
   // so extracting it into a folder that never held a full install leaves an extension with no
   // engines -- and every failure after that is a confusing symptom (an engine that never loads, a
@@ -2368,9 +2374,39 @@ function splitPgnGames(text) {
             .replace(/\d+\.(\.\.)?/g, ' ')
             .replace(/\b(1-0|0-1|1\/2-1\/2|\*)\b/g, ' ')
             .trim().split(/\s+/).filter(Boolean);
-        if (body.length) out.push({white, black, san: body.slice(0, 60).join(' ')});
+        // The RESULT comes along now: a book built from the games somebody WON needs to know which
+        // those were, and the tag block is the only place that says so. '*' for an unfinished game.
+        const result = /\[Result\s+"([^"]*)"/.exec(chunk)?.[1] || '*';
+        if (body.length) out.push({white, black, result, san: body.slice(0, 60).join(' ')});
     }
     return out;
+}
+
+// Somebody's recent public games as one PGN blob, from whichever site they play on. Split out of
+// oppPrepLookup so the Player Book can ask the same two archives for more games without a second
+// copy of the two APIs' quirks. Throws nothing: a string, possibly empty.
+async function fetchArchivePgn(site, user, max) {
+    if (site === 'lichess') {
+        const r = await fetch(`https://lichess.org/api/games/user/${encodeURIComponent(user)}`
+                              + `?max=${max}&perfType=blitz,rapid,classical`,
+                              {headers: {Accept: 'application/x-chess-pgn'}});
+        if (!r.ok) throw new Error(`lichess answered ${r.status}`);
+        return await r.text();
+    }
+    const arch = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(user.toLowerCase())}/games/archives`)
+        .then(r => r.ok ? r.json() : null).catch(() => null);
+    // chess.com serves ONE FILE PER MONTH, so how far back to reach depends on how many games are
+    // wanted -- forty is a month or two, two hundred is half a year for most people.
+    const months = Math.max(2, Math.ceil(max / 40));
+    const urls = (arch?.archives || []).slice(-months).reverse();
+    if (!urls.length) throw new Error('no public archive');
+    const parts = [];
+    for (const u of urls) {
+        const month = await fetch(u).then(r => r.ok ? r.json() : null).catch(() => null);
+        for (const g of (month?.games || [])) if (g.pgn) parts.push(g.pgn);
+        if (parts.length >= max) break;
+    }
+    return parts.slice(-max).join('\n\n');
 }
 
 async function oppPrepLookup({site, username}) {
@@ -2380,27 +2416,40 @@ async function oppPrepLookup({site, username}) {
     const hit = oppPrepCache.get(key);
     if (hit && Date.now() - hit.at < OPP_PREP_TTL_MS) return {games: hit.games, cached: true};
     let text = '';
-    if (site === 'lichess') {
-        const r = await fetch(`https://lichess.org/api/games/user/${encodeURIComponent(user)}`
-                              + `?max=${OPP_PREP_MAX_GAMES}&perfType=blitz,rapid,classical`,
-                              {headers: {Accept: 'application/x-chess-pgn'}});
-        if (!r.ok) return {error: `lichess answered ${r.status}`};
-        text = await r.text();
-    } else {
-        const arch = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(user.toLowerCase())}/games/archives`)
-            .then(r => r.ok ? r.json() : null).catch(() => null);
-        const urls = (arch?.archives || []).slice(-2).reverse();
-        if (!urls.length) return {error: 'no public archive'};
-        const parts = [];
-        for (const u of urls) {
-            const month = await fetch(u).then(r => r.ok ? r.json() : null).catch(() => null);
-            for (const g of (month?.games || [])) if (g.pgn) parts.push(g.pgn);
-            if (parts.length >= OPP_PREP_MAX_GAMES) break;
-        }
-        text = parts.slice(-OPP_PREP_MAX_GAMES).join('\n\n');
+    try {
+        text = await fetchArchivePgn(site, user, OPP_PREP_MAX_GAMES);
+    } catch (e) {
+        return {error: String(e.message || e)};
     }
     const games = splitPgnGames(text).slice(-OPP_PREP_MAX_GAMES);
     oppPrepCache.set(key, {at: Date.now(), games});
+    return {games};
+}
+
+// ---- THE PLAYER BOOK ---------------------------------------------------------------------------
+// The same two archives, asked about a person the USER named -- themselves, or anyone whose openings
+// they want to borrow. More games than the prep lookup takes, because a repertoire is a distribution
+// and forty games is not one, and cached for longer: this book is a property of the player, not of
+// the game in front of you.
+const PLAYER_BOOK_MAX_GAMES = 200;
+const PLAYER_BOOK_TTL_MS = 12 * 60 * 60 * 1000;
+const playerBookCache = new Map();               // site|user -> {at, games}
+
+async function playerBookLookup({site, username}) {
+    const user = String(username || '').trim();
+    if (!user || !/^[\w.-]{2,30}$/.test(user)) return {error: 'no usable username'};
+    const key = `${site}|${user.toLowerCase()}`;
+    const hit = playerBookCache.get(key);
+    if (hit && Date.now() - hit.at < PLAYER_BOOK_TTL_MS) return {games: hit.games, cached: true};
+    let text = '';
+    try {
+        text = await fetchArchivePgn(site, user, PLAYER_BOOK_MAX_GAMES);
+    } catch (e) {
+        return {error: String(e.message || e)};
+    }
+    const games = splitPgnGames(text).slice(-PLAYER_BOOK_MAX_GAMES);
+    if (!games.length) return {error: `no public games for ${user}`};
+    playerBookCache.set(key, {at: Date.now(), games});
     return {games};
 }
 

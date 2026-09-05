@@ -1180,7 +1180,12 @@ body.mephisto-compact #alt-lines {
     white-space: normal;
     padding: 4px 6px;
     border-radius: 3px;
-    background: rgba(11, 114, 133, 0.10);
+    /* OPAQUE. This is an absolutely positioned strip and the flow underneath it is not always
+       empty, so a translucent tint painted the notice ON TOP of whatever was there -- reported from
+       a real panel with the alt-lines list showing through it. The yield rules below keep them from
+       sharing the slot at all; this is what makes the failure legible rather than a mess if a new
+       block ever lands there. */
+    background: #e7f4f7;
     color: #0b7285;
     text-decoration: none;
     cursor: pointer;
@@ -1215,7 +1220,7 @@ body.mephisto-compact #alt-lines {
     white-space: normal;
     padding: 4px 6px;
     border-radius: 3px;
-    background: rgba(11, 114, 133, 0.10);
+    background: #e7f4f7;   /* opaque, for the reason spelled out on #update-notice above */
     color: #0b7285;
     text-decoration: none;
     cursor: pointer;
@@ -1232,8 +1237,28 @@ body.mephisto-compact #alt-lines {
 #update-notice:has(~ #setup-fen-row:not([style*="display: none"])),
 #calibrate-notice:has(~ #setup-fen-row:not([style*="display: none"])),
 #engine-notice:has(~ #setup-fen-row:not([style*="display: none"])) { display: none; }
-body.mephisto-dark #calibrate-notice, body.mephisto-dark #engine-notice { color: #4dd0e1; }
-body.mephisto-dark #update-notice { color: #4dd0e1; }
+/* THE LINE LISTS GIVE THE NOTICE ITS SLOT BACK, rather than the notice hiding. #alt-lines is up to
+   122px tall and #book-lines sits under it, so with Multi Lines above 1 the "nothing is laid out
+   below it" assumption is simply false and the notice was painted across the engine's own lines
+   (reported from a real panel, with a screenshot).
+   
+   The notice must NOT be the one to yield here: showing it is what SPENDS `calibrate_pending`, so a
+   notice hidden by CSS is an offer made once and never seen. The list gives up two rows instead --
+   it is a scrolled list of alternatives, and the top ones are the ones anyone reads -- and takes
+   them straight back when the notice goes. Absolute positioning means the notice reserves no space
+   of its own, so this is the only way the space gets reserved at all.
+
+   56px is MEASURED, not picked: with the list at its own 122px the notice landed on top of it, and
+   at 66px it still overlapped by 4px in a live panel (alt-lines ended at y=472, the notice began at
+   y=468). 56px leaves the header and two lines, and a gutter. */
+#update-notice:not([hidden]) ~ #alt-lines,
+#calibrate-notice:not([hidden]) ~ #alt-lines,
+#engine-notice:not([hidden]) ~ #alt-lines { max-height: 56px; }
+#update-notice:not([hidden]) ~ #book-lines,
+#calibrate-notice:not([hidden]) ~ #book-lines,
+#engine-notice:not([hidden]) ~ #book-lines { max-height: 42px; overflow-y: hidden; }
+body.mephisto-dark #calibrate-notice, body.mephisto-dark #engine-notice { color: #4dd0e1; background: #16323a; }
+body.mephisto-dark #update-notice { color: #4dd0e1; background: #16323a; }
 body.mephisto-dark #idle-reason { color: #e8c76a; background: rgba(232, 199, 106, 0.12); }
 body.mephisto-dark #quick-settings #qs_copydiag { background: #2a2b31; color: #e6e6e6; border-color: #43444d; }
 body.mephisto-dark #quick-settings #qs_copydiag:hover { background: #363740; }

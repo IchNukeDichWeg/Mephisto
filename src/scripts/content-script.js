@@ -155,6 +155,12 @@ function handleExtensionMessage(response, sender, sendResponse) {
         startDragSelect();
         return;
     }
+    // The panel decided this game is over (Auto Resign / Auto Draw). It has the score; this side has
+    // the buttons.
+    if (response.gameAction) {
+        doGameAction(response.gameAction);
+        return;
+    }
     if (response.detectVariant) {
         sendResponse({variant: detectVariant(), href: location.href});
         return;
@@ -3986,6 +3992,87 @@ function grindClick(el) {
         if (!GRIND_SITES[site]?.box()) return;   // it worked; the game is on its way
         try { el.click(); } catch (e) { /* silent by design */ }
     }, GRIND_VERIFY_MS);
+}
+
+// ---- RESIGNING AND OFFERING A DRAW -------------------------------------------------------------
+// The panel decides (it is the half with the score); this half presses the button. Both sites put a
+// CONFIRM step behind the first click, so this is a click, a look, and a second click -- and it
+// reuses grindClick, which sends a trusted click and falls back to the element's own if that lands
+// nowhere.
+//
+// EVERY FAILURE IS SILENT, exactly like Grind Mode: this is a convenience on somebody else's markup,
+// and when the button is not where it was the right outcome is that nothing happens and you resign
+// with your own hand. Ceiling: class and label matches, which a redesign will break. The upgrade
+// path is the one Grind Mode already took -- capture the real markup from a live game and match the
+// one hook in it that carries meaning.
+const END_ACTION_GAP_MS = 5000;   // never twice in a breath, whatever arrives from the panel
+const END_ACTION_VERIFY_MS = 400; // how long the trusted click gets before the element is clicked itself
+let endActionAt = 0;
+
+// chess.com hangs its in-game controls off utility classes, so the class fragment is tried first
+// (it survives translation) and the visible label second (it does not, hence the alternatives).
+function ccGameControl(labelRe, cls) {
+    const usable = (e) => e && e.offsetParent !== null && !e.disabled;
+    const byClass = [...document.querySelectorAll(`button[class*="${cls}"], [class*="${cls}"] button`)].find(usable);
+    if (byClass) return byClass;
+    const text = (e) => `${e.getAttribute('aria-label') || ''} ${e.getAttribute('title') || ''} ${e.textContent || ''}`;
+    return [...document.querySelectorAll('button')].filter(usable).find((b) => labelRe.test(text(b))) || null;
+}
+
+const END_ACTION_SITES = {
+    lichess: {
+        // The in-game control row: <button class="fbt resign" title="Resign"> and its draw-offer
+        // neighbour. Clicking either replaces the row with a yes/no pair, which is the confirm.
+        resign: () => document.querySelector('.rcontrols button.resign, .ricons button.resign, button.fbt.resign'),
+        draw: () => document.querySelector('.rcontrols button.draw-yes, .ricons button.draw-yes, button.fbt.draw-yes'),
+        confirm: () => document.querySelector('.act-confirm .yes, .rcontrols .yes, button.yes.fbt'),
+    },
+    chesscom: {
+        resign: () => ccGameControl(/resign|aufgeben|abandonar|rendirse|abandonner/i, 'resign'),
+        draw: () => ccGameControl(/draw|remis|tablas|nulle|patta/i, 'draw'),
+        confirm: () => document.querySelector('[class*="modal"] .cc-button-primary, [class*="popover"] .cc-button-primary'),
+    },
+};
+
+// A TRUSTED CLICK FIRST, THEN THE ELEMENT'S OWN -- and the second one is not optional here.
+// grindClick (above) verifies by asking whether the end-of-game box is still on screen, which is the
+// right check for ITS button and useless for this one. Measured in a live game: the coordinate click
+// landed on OUR OWN PANEL, which sits exactly over lichess's control row, the game carried on, and
+// grindClick's fallback never fired because there was no `.follow-up` box to see. These are ordinary
+// buttons with ordinary listeners, so nothing here needs the click to be trusted -- if the control is
+// still in the document a moment later, the click went somewhere else and the element gets it direct.
+function pressControl(el) {
+    const r = el.getBoundingClientRect();
+    if (r.width && r.height) {
+        try {
+            chrome.runtime.sendMessage({cdpClick: true, x: r.left + r.width / 2, y: r.top + r.height / 2, travelMs: 0},
+                () => void chrome.runtime.lastError);
+        } catch (e) { /* silent by design */ }
+    }
+    setTimeout(() => {
+        if (!document.contains(el)) return;          // it worked: the row has already been replaced
+        try { el.click(); } catch (e) { /* silent by design */ }
+    }, END_ACTION_VERIFY_MS);
+}
+
+function doGameAction(kind) {
+    const rules = END_ACTION_SITES[site];
+    if (!rules || (kind !== 'resign' && kind !== 'draw')) return;
+    if (Date.now() - endActionAt < END_ACTION_GAP_MS) return;   // one press, not a stutter
+    endActionAt = Date.now();
+    const btn = rules[kind]();
+    if (!btn) {
+        bgLogAlways(`game action: no ${kind} control on this page`, {site});
+        return;
+    }
+    bgLogAlways(`game action: ${kind}`, {site});
+    pressControl(btn);
+    // The confirm only exists after the first click, so it is looked for a moment later and never
+    // assumed: a site that does not ask simply has nothing here to find.
+    setTimeout(() => {
+        const yes = rules.confirm();
+        if (yes) pressControl(yes);
+    }, 900);
 }
 
 function grindTick() {

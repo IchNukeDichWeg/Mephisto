@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-3.1.305-3fb950)
+![Version](https://img.shields.io/badge/version-3.1.306-3fb950)
 ![Engines](https://img.shields.io/badge/engines-9-58a6ff)
 ![Sites](https://img.shields.io/badge/sites-5-8b949e)
 ![Languages](https://img.shields.io/badge/languages-14-f0883e)
@@ -287,8 +287,25 @@ free. Nothing about the software changed, the measurement did.
 - **Opponent prep** - what *this* opponent has played in the position in front of you, from their own recent public
   games. Longer games only (a clock of five minutes or more), and the lookup is made by the extension's worker, so
   your game tab never carries a request about the person you are playing.
+- **Player book** - an opening book built from a real person's public games and *played*, weighted by how often
+  they played each move. Your own username for your own repertoire (winning games only, by default), or
+  anyone else's to borrow theirs. lichess and chess.com, `lichess:name` / `chesscom:name` to say which.
 - **Time Trouble Mode** - below a threshold you set, the search is capped and the simulated human delay collapses to
   the floor a click still needs. At ten seconds it is the cursor travel that loses games, not the depth.
+- **Auto Resign** / **Auto Draw Offer** - end a game that is over. The score has to stay past your threshold for
+  three of *your* turns running, it presses the site's own button and confirms it, and it does so once per
+  game. A draw is offered alongside the move; a resignation takes the move away.
+- **Session Stats** - games, moves, the average delay each move really waited, and your accuracy across the
+  session, on the readout line. The one number the pacing sliders cannot answer themselves.
+- **Complexity Clock** - think by how hard the position is. When the engine's top two lines are within 15cp the
+  think stretches to 1.6x; when one move is 250cp clear it drops to 0.6x. It scales whatever else is deciding
+  the think, Humanize included, and the clock caps still sit above it.
+- **Human Move Times** - draws the think from the shape real move times have (log-normal) instead of a flat
+  band, keeping the average your sliders describe. Most moves come quickly, a few take several times the
+  median, and none takes exactly nothing.
+- **Play for the win** - contempt, for the game you cannot afford to draw. A move that ends the game as a draw on
+  the spot (threefold, fifty-move, stalemate, insufficient material) is passed over for the best move that does
+  not, up to the centipawns you are willing to spend. An ordinary position is never touched.
 - **Variant endings are seen** - an exploded king, a third check, a king on the hill, the horde's last pawn.
 - **Manual Mode** thinks indefinitely and plays only on your key. **Background Play** (off) defers moves that come
   due while the tab is hidden.
