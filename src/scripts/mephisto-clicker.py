@@ -52,7 +52,9 @@ def perform_click(x, y):
 
 def perform_move(x0, y0, x1, y1):
     perform_click(x0, y0)
-    pyautogui.sleep(4)
+    # pause between pick-up and drop, scaled the same way perform_click's own drag duration is --
+    # a flat 4s here (S6) made every simulated move visibly slower than a human's hold-and-drop
+    pyautogui.sleep((args.drag_variance * random() + args.drag_time) / 1000)
     perform_click(x1, y1)
 
 
