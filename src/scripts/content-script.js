@@ -527,6 +527,10 @@ function overlayEl(id) {
 // the one on chess.com.
 let panelOpacity = 100;     // percent; 100 = as it always was
 let panelDock = 'free';     // free | left | right
+// The window listeners one open of the panel registers (drag/resize mousemove + mouseup, the dock
+// resize). They close over the whole injected panel DOM, and removeOverlay used to remove none of
+// them: every reopenPanel (engine/variant/Elo change) pinned one more dead panel in memory (C1).
+let overlayListeners = null;
 function saveOverlayBox(wrap) {
     const r = wrap.getBoundingClientRect();
     try {
@@ -716,6 +720,8 @@ function removeOverlay() {
     // while the panel is closed. The engine stays warm (not disposed) so reopening is instant --
     // see MephistoPanel.suspend. tabs.onRemoved still frees it on real tab close.
     try { self.MephistoPanel?.suspend?.(); } catch (e) { /* not yet booted */ }
+    overlayListeners?.abort();   // the window listeners go with the panel they belong to (C1)
+    overlayListeners = null;
     overlayEl(PANEL_OVERLAY_ID)?.remove();
     overlayEl(RESTORE_BADGE_ID)?.remove();
     dropPendingOverlay('evalbar');   // a queued frame must not repaint what we just took off
@@ -1035,6 +1041,11 @@ async function toggleOverlay() {
         console.warn('Mephisto: panel failed to start', e);
     }
 
+    // Every window listener below is registered under one signal, aborted by removeOverlay, so a
+    // closed panel leaves nothing behind that still references its DOM (C1).
+    overlayListeners?.abort();
+    overlayListeners = new AbortController();
+    const signal = overlayListeners.signal;
     // corner-drag resize; persists like drag does
     let resizing = false, resizeFromX, resizeStartW;
     grip.addEventListener('mousedown', e => {
@@ -1057,13 +1068,13 @@ async function toggleOverlay() {
         wrap.style.width = `${w}px`;
         wrap.style.height = `${Math.round(24 + panelH() * scale)}px`; // panelH(): compact must survive a resize
         frame.style.transform = `scale(${scale})`;
-    });
+    }, {signal});
     window.addEventListener('mouseup', () => {
         if (!resizing) return; // see the drag mouseup below for why this must be conditional
         resizing = false;
         frame.style.pointerEvents = 'auto';
         saveOverlayBox(wrap);
-    });
+    }, {signal});
 
     // drag by the title bar; the iframe must not eat mousemove while dragging
     let dragFromX, dragFromY, startLeft, startTop, dragging = false;
@@ -1081,7 +1092,7 @@ async function toggleOverlay() {
         wrap.style.left = `${startLeft + e.clientX - dragFromX}px`;
         wrap.style.top = `${Math.max(0, startTop + e.clientY - dragFromY)}px`;
         wrap.style.right = 'auto';
-    });
+    }, {signal});
     window.addEventListener('mouseup', () => {
         // ONLY a real drag-end may touch the frame: this global listener fires on every mouseup
         // on the page forever, and unconditionally restoring pointer-events:auto re-armed the
@@ -1094,9 +1105,9 @@ async function toggleOverlay() {
         // back to the edge and looks broken. The dock control is how you get it back.
         if (panelDock !== 'free' && (wrap.getBoundingClientRect().left !== 0)) panelDock = 'free';
         saveOverlayBox(wrap);
-    });
+    }, {signal});
     applyPanelStyle();
-    window.addEventListener('resize', applyPanelStyle);
+    window.addEventListener('resize', applyPanelStyle, {signal});
 }
 
 // ------------------------------------------------------------------------------------------
