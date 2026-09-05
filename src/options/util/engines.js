@@ -22,11 +22,11 @@ const LIMIT_INFINITE = 1e9;
 // it would report a blunder as excellent whenever it was a HUMAN-LOOKING blunder. It is the Human
 // model pass instead, which is its own row directly under this one.
 // what an unusable selection falls back to: bundled, small, and plays standard chess
-const ENGINE_FALLBACK = 'stockfish-18-small-nnue';
+const ENGINE_FALLBACK = 'stockfish-19-small-nnue';
 const ENGINES = [
-    {id: 'stockfish-dev-nnue', label: 'Stockfish dev (WASM)', kind: 'wasm'},
+    {id: 'stockfish-19-nnue', label: 'Stockfish 19 (WASM)', kind: 'wasm'},
+    {id: 'stockfish-19-small-nnue', label: 'Stockfish 19 Small (WASM)', kind: 'wasm'},
     {id: 'stockfish-18-nnue', label: 'Stockfish 18 (WASM)', kind: 'wasm'},
-    {id: 'stockfish-18-small-nnue', label: 'Stockfish 18 Small (WASM)', kind: 'wasm'},
     {id: 'stockfish-11-hce', label: 'Stockfish 11 HCE (WASM)', kind: 'wasm'},
     // The one engine here that plays the fairy variants; the offscreen loader picks the matching
     // per-variant net and validates the variant against the engine's own declared list.

@@ -66,6 +66,14 @@
             // because this is only consulted when nothing has been stored yet.
             return cores ? Math.max(1, Math.min(24, Math.floor(cores / 2))) : 4;
         },
+        // AN ENGINE THAT NO LONGER SHIPS. A saved `engine` naming a build that has been removed is
+        // a panel that cannot start: the offscreen loader has no path for it, so every command
+        // queues for an engine that will never load. Both readers use this -- the panel to pick what
+        // to run, the options page to show what is selected.
+        RETIRED_ENGINES: {'stockfish-dev-nnue': 'stockfish-19-nnue',
+                          'stockfish-18-small-nnue': 'stockfish-19-small-nnue'},
+        liveEngine(id) { return this.RETIRED_ENGINES[id] || id; },
+
         // Default hotkeys (action -> key-combo), shared by the keydown listener (content script), the
         // rebind UI (options page), and the panel's "(A)" label hints -- ONE source so they can't drift.
         // Single letters: they fire only when you're not typing in a field, and our capture-phase

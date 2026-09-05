@@ -55,7 +55,7 @@ class GeneralSettings extends SettingsPage {
         M.FormSelect.init(document.querySelectorAll('select'), {});
         M.Range.init(document.querySelectorAll('input[type=range]'), {});
         // tooltips are initialised centrally in SettingsPage.decorateTooltips()
-        const engine_select = this.registerFormElement('engine', 'Engine:', 'select', 'stockfish-dev-nnue');
+        const engine_select = this.registerFormElement('engine', 'Engine:', 'select', 'stockfish-19-nnue');
         const variant_select = this.registerFormElement('variant', 'Variant:', 'select', 'chess');
         this.registerFormElement('fourpc_mode', 'Four-player Mode:', 'select', 'auto');
         const elo_input = this.registerFormElement('elo', 'Elo:', 'input', 0);

@@ -14,9 +14,9 @@
 //                         {fromOffscreen, clientId, kind:'error', error}
 
 const engineMap = {
-    'stockfish-dev-nnue': 'stockfish-dev/sf_dev.js',
+    'stockfish-19-nnue': 'stockfish-19/sf_19.js',
+    'stockfish-19-small-nnue': 'stockfish-19-small/sf_19_smallnet.js',
     'stockfish-18-nnue': 'stockfish-18/sf_18.js',
-    'stockfish-18-small-nnue': 'stockfish-18-small/sf_18_smallnet.js',
     'stockfish-11-hce': 'stockfish-11-hce/sfhce.js',
     'fairy-stockfish-14-nnue': 'fairy-stockfish-14/fsf_14.js',
 };
@@ -164,13 +164,6 @@ function disposeClient(clientId) {
     const engine = clients[clientId];
     delete searching[clientId];
     delete lastSeen[clientId];
-    // ...AND THE QUEUE. `pending` used to survive a dispose, so commands sent to engine A while it
-    // was loading (Fairy's per-variant net takes seconds) were flushed into engine B after a switch
-    // -- including a `go` on the previous position, or on another variant entirely. This is the
-    // root-cause site: it covers initEngine, the 5-minute abandon sweep and the explicit dispose.
-    // Nothing is lost: the panel re-sends its whole preamble after an `init` (popup.js
-    // initialize_engine), so a dropped queue is re-issued for the engine it was meant for.
-    delete pending[clientId];
     if (!engine) return;
     // STOP, AND DO NOT QUIT. Measured on this build: `stop` takes a 403% search to 0% -- but a
     // `quit` sent straight after it kills the main thread before it has processed the stop, and the
@@ -222,12 +215,6 @@ async function initEngine(clientId, engineName, variant, maiaLevel, elos) {
         return await loadEngine(clientId, engineName, variant, maiaLevel, elos);
     } finally {
         loading.delete(clientId);
-        // The idle timer armed by the disposeClient above fires DURING the load, sees busy() true
-        // and returns without rescheduling. So if loadEngine throws (the "NNUE not found and could
-        // not be downloaded" path is the live one), nothing is left in clients or loading, no timer
-        // is armed, and the document never closes -- IDLE_CLOSE_MS simply does not happen until some
-        // later dispose. Re-arming here is the one place that sees every exit from a load.
-        maybeGoIdle();
     }
 }
 
@@ -345,9 +332,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // the .onnx bytes are same-origin. Async, so keep the channel open with `return true`.
     if (msg && msg.recognizeBoard) {
         import('/src/offscreen/vision.js')
-            // msg.recognizeBoard carries a clientId (the asking tab): the board box is cached per
-            // client, because two game tabs in same-sized windows otherwise share one crop rectangle
-            // and tab B gets read through tab A's box.
             .then(m => m.recognize(msg.recognizeBoard))
             .then(sendResponse)
             .catch(e => sendResponse({error: String(e)}));
@@ -380,6 +364,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             (pending[clientId] = pending[clientId] || []).push(msg.line); // still loading -> queue
         }
     } else if (cmd === 'dispose') {
-        disposeClient(clientId);   // clears pending too, so the duplicate that used to live here is gone
+        disposeClient(clientId);
+        delete pending[clientId];
     }
 });

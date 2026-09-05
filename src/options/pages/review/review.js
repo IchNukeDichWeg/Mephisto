@@ -2379,7 +2379,7 @@ const EE_THREADS = 1;     // ...on one thread, as their four single-threaded wor
 // three earlier captured games it totalled 91/104 against Stockfish 18 Small's 88/104 -- despite
 // Small being the same net class as their Lite build, which is the intuition that measurement
 // overrides. With their engine present the question is moot.
-const EE_ENGINE = 'stockfish-dev-nnue';
+const EE_ENGINE = 'stockfish-19-nnue';
 
 function eeElo(tags, color) {
     const raw = Number(tags?.[color === 'w' ? 'WhiteElo' : 'BlackElo']);
