@@ -295,9 +295,9 @@ function handleExtensionMessage(response, sender, sendResponse) {
             } else if (response.fourpc) {
                 // FIRST, and on an explicit flag: 4PC must not be reachable by shape inference,
                 // which is how Puzzle Mode silently stole these moves into the 8x8 simulator.
-                simulateMove4PC(response.move, response.think ?? null).finally(() => endMoving(gen));
+                simulateMove4PC(response.move, response.think ?? null, gen).finally(() => endMoving(gen));
             } else if (response.pv) {
-                simulatePvMoves(response.pv).finally(() => endMoving(gen));
+                simulatePvMoves(response.pv, gen).finally(() => endMoving(gen));
             } else if (response.premoves) {
                 simulatePremoveSequence(response.premoves, gen).finally(() => endMoving(gen));
             } else if (response.move) {
@@ -2990,8 +2990,12 @@ async function promote4PC(piece) {
 // this is a separate path rather than a parameterisation of it. Only the square->rect step differs;
 // the clicking itself is the same primitive, so cursor travel and the move-time budget behave
 // exactly as they do everywhere else.
-function simulateMove4PC(move, think = null) {
+function simulateMove4PC(move, think = null, sessionGen = undefined) {
     const SQ = '[a-n](?:1[0-4]|[1-9])';
+    // Same supersession rule as simulateMove (C2): a session that is no longer the current one
+    // clicks nothing more, checked at every click boundary. Without it a real move superseding
+    // this one interleaved its clicks with these on the live board.
+    const superseded = () => sessionGen !== undefined && sessionGen !== moveGen;
     const m = new RegExp(`^(${SQ})(${SQ})([qrbnQRBN]?)$`).exec(move ?? '');
     if (!m) {
         dropMove('The engine returned a move this board does not understand.',
@@ -3018,15 +3022,20 @@ function simulateMove4PC(move, think = null) {
         await promiseTimeout(think != null ? think : config.think_time + Math.random() * config.think_variance);
         const total = config.move_time + Math.random() * config.move_variance;
         const click = async (sq, travel) => {
+            if (superseded()) {
+                bgLogAlways('4PC move superseded: click abandoned', {move, sq, sessionGen, moveGen});
+                return false;
+            }
             const r = rectOf(sq);
-            if (!r) { console.warn(`Mephisto: 4PC square '${sq}' vanished mid-move`); return; }
+            if (!r) { console.warn(`Mephisto: 4PC square '${sq}' vanished mid-move`); return false; }
             bgLogAlways('4PC click', {sq, x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2),
                                 size: Math.round(r.width), vh: window.innerHeight});
             await simulateClickSquare(r, 0.8, travel);
+            return true;
         };
-        await click(m[1], total * 0.25);
-        await click(m[2], total * 0.75);
-        if (m[3]) {
+        if (await click(m[1], total * 0.25) === false) return;
+        if (await click(m[2], total * 0.75) === false) return;
+        if (m[3] && !superseded()) {
             // Promotion: the picker chess.com opens over the board once the pawn lands.
             await promote4PC(m[3]);
         }
@@ -4787,7 +4796,7 @@ async function simulatePremoveSequence(moves, sessionGen = undefined) {
     }
 }
 
-function simulatePvMoves(pv) {
+function simulatePvMoves(pv, sessionGen = undefined) {
     const boardBounds = getBoard().getBoundingClientRect();
 
     function deriveLastMove() {
@@ -4826,10 +4835,17 @@ function simulatePvMoves(pv) {
 
     async function performSimulatedPvMoveSequence() {
         for (let i = 0; i < pv.length; i++) {
+            // A newer move session owns the board now (C2): the rest of this line belongs to a
+            // position that has moved on. simulateMove checks the same generation at its own
+            // click boundaries, so the ply being clicked cannot outlive a supersede either.
+            if (sessionGen !== undefined && sessionGen !== moveGen) {
+                bgLog('puzzle line superseded: remaining plies abandoned', {left: pv.length - i});
+                return;
+            }
             let lastMove = pv[i - 1];
             let move = pv[i];
             if (i % 2 === 0) { // even index -> my move
-                await simulateMove(move, false);
+                await simulateMove(move, false, null, sessionGen);
             } else { // odd index -> their move
                 if (!await confirmResponse(move, lastMove)) return;
             }
