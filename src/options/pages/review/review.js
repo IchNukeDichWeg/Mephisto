@@ -881,6 +881,12 @@ function countClasses(moves, color) {
 // positions are dominated by the engine load and would promise nonsense), and re-based when the
 // fraction falls a long way -- that is a NEW run, not this one going backwards. The strength pass
 // growing the total mid-run only dents the fraction slightly, below the re-base threshold.
+// The chess.com classifier build actually INSTALLED, which an update moves past the version this
+// file ships against. EE_VERSION is the FLOOR (ee-host.js says so in its own words); the report and
+// the status line must carry what searched, or a disagreement with chess.com is undiagnosable in
+// exactly the case the feature exists for. Module scope so applyEeVerdict can read it too; seeded
+// with the floor and replaced by eeVersion() at page init.
+let eeInstalled = EE_VERSION;
 let ccrJson = '';           // the chess.com review's last raw answer
 let ccrLastError = '';      // the last chess.com error text, for the "copy error & open ticket" button
 
@@ -2398,7 +2404,7 @@ function applyEeVerdict(built, verdict) {
     built.accuracy = {w: caps.white ? caps.white.all : null, b: caps.black ? caps.black.all : null};
     built.counts = {w: countClasses(built.moves, 'w'), b: countClasses(built.moves, 'b')};
     if (verdict.book && verdict.book.name) built.book = {...built.book, name: verdict.book.name};
-    built.ee = {version: EE_VERSION, summary: verdict.gameSummary || '',
+    built.ee = {version: eeInstalled, summary: verdict.gameSummary || '',
                 elo: {w: verdict.whiteElo, b: verdict.blackElo},
                 effectiveElo: {w: verdict.reportCard?.white?.effectiveElo ?? null,
                                b: verdict.reportCard?.black?.effectiveElo ?? null}};
@@ -2605,8 +2611,7 @@ class ReviewPage {
         // ---- chess.com's classifier, locally -----------------------------------------------
         // Three buttons and one rule: nothing downloads until asked. See ee-host.js.
         const eeSay = (t, bad) => { const el = $('rv_ee_status'); if (el) { el.textContent = t; el.classList.toggle('rv-bad', !!bad); } };
-        // The version actually installed, which an update can move past the one we ship against.
-        let eeInstalled = EE_VERSION, eeFound = '';
+        let eeFound = '';   // eeInstalled is at module scope -- the report stamps it too
         const eeSync = async () => {
             const have = await eeCached();
             const get = $('rv_ee_get'), run = $('rv_ee_run'), forget = $('rv_ee_forget'), upd = $('rv_ee_update');
@@ -2779,7 +2784,7 @@ class ReviewPage {
                 progress(1, 'done');
                 const how = sf ? 'their engine and their classifier'
                     : 'their classifier, our engine (Stockfish 18 Small)';
-                eeSay(`Classified by ${how}, v${EE_VERSION}.`);   // the game's sentence renders in the header
+                eeSay(`Classified by ${how}, v${eeInstalled}.`);   // the game's sentence renders in the header
                 $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});
             } catch (e) {
                 eeSay(cancel ? 'Stopped.' : String(e.message || e), !cancel);
