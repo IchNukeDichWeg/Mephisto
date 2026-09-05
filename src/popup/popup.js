@@ -315,7 +315,30 @@ function keep_alive(active, allowCreate = false) {
     } catch (e) { /* Web Audio unavailable -> background throttling stays; no worse than before */ }
 }
 
+// WHAT ONE BOOT REGISTERS ON SHARED SURFACES: the document (three listeners), the 1s poll and the
+// chrome.storage watcher. suspend() removed none of them, and every engine/variant/Elo change is a
+// reopen (content-script reopenPanel), so each switch added a listener set, a poll that kept the
+// content script scraping for a dead panel every second, and one more config watcher asking for
+// the human reply / pushing config / re-arming keep-alive per change (P1/P6). One helper, called
+// by suspend AND by a second boot, so nothing on these surfaces ever doubles.
+let panel_doc_listeners = [];   // [[type, fn, capture]]
+let panel_poll_timer = null;
+let config_watch_listener = null;
+function teardown_panel_boot() {
+    for (const [type, fn, capture] of panel_doc_listeners) document.removeEventListener(type, fn, capture);
+    panel_doc_listeners = [];
+    if (panel_poll_timer !== null) clearInterval(panel_poll_timer);
+    panel_poll_timer = null;
+    if (config_watch_listener) { try { chrome.storage.onChanged.removeListener(config_watch_listener); } catch (e) { /* no chrome.storage here */ } }
+    config_watch_listener = null;
+}
+function on_document(type, fn, capture) {
+    document.addEventListener(type, fn, capture);
+    panel_doc_listeners.push([type, fn, capture]);
+}
+
 async function initPanel(root, tabId) {
+    teardown_panel_boot();   // a second boot without a suspend in between must not double anything
     // root = the closed shadow root when the panel lives in-page (4c-2); unset in the popup PAGE
     // (toolbar popup), where the panel owns the whole document.
     if (root) { PANEL_ROOT = root; PANEL_TIP_HOST = root; }
@@ -584,9 +607,9 @@ async function initPanel(root, tabId) {
     // -- Chrome puts a speaker icon on the tab strip for that, so it bought nothing and added a
     // visible tell. Now it runs only when you have actually asked to play in the background.
     const on_gesture = () => { user_has_gestured = true; keep_alive(keep_alive_wanted(), true); };
-    document.addEventListener('pointerdown', on_gesture, true); // gesture: may create
-    document.addEventListener('keydown', on_gesture, true);     // ...and so is a hotkey
-    document.addEventListener('visibilitychange', () => keep_alive(keep_alive_wanted()));
+    on_document('pointerdown', on_gesture, true); // gesture: may create
+    on_document('keydown', on_gesture, true);     // ...and so is a hotkey
+    on_document('visibilitychange', () => keep_alive(keep_alive_wanted()), false);
     push_config();
     init_quick_settings();
     maybe_autodetect_variant(); // variant game page -> auto-apply the variant (+ Fairy) once
@@ -801,7 +824,7 @@ async function initPanel(root, tabId) {
     // Clamped to >=1s so a legacy saved fen_refresh (10ms era) can't reinstate the old
     // 100-scrapes-a-second polling stampede.
     request_fen();
-    setInterval(function () {
+    panel_poll_timer = setInterval(function () {
         request_fen();
         // chess.com is a single-page app: this script is not rebuilt when the user navigates from
         // the bot list into a game, so the row's visibility has to be re-decided, not decided once.
@@ -8578,7 +8601,8 @@ setInterval(revive_if_engine_silent, 2000);
 
 function watch_config_changes() {
     try {
-        chrome.storage.onChanged.addListener((changes, area) => {
+        // named so teardown_panel_boot can remove it: N reopens used to mean N watchers
+        config_watch_listener = (changes, area) => {
             if (area !== 'local' || !PANEL_BOOTED) return;
             let touched = false;
             for (const key of LIVE_CONFIG_KEYS) {
@@ -8658,7 +8682,8 @@ function watch_config_changes() {
                 fen_request_inflight = false;   // don't let an in-flight poll's guard swallow this
                 request_fen();
             }
-        });
+        };
+        chrome.storage.onChanged.addListener(config_watch_listener);
     } catch (e) { /* no chrome.storage here -> options changes need a panel reload, as before */ }
 }
 
@@ -10552,6 +10577,10 @@ self.MephistoPanel = {
         try { snap_follow_stop(); } catch (e) { /* ignore */ }
         try { stash_setup_state(); } catch (e) { /* ignore */ } // setup_fen is null -> clears the stash
         try { stop_current_engine(); } catch (e) { /* ignore */ }
+        // The document listeners, the 1s poll and the config watcher this boot registered: without
+        // this a closed panel kept the content script scraping every second for a panel that would
+        // drop the answer, once per reopen.
+        try { teardown_panel_boot(); } catch (e) { /* ignore */ }
         // Drop any manual turn override so reopening auto-adjusts to the current position's real side.
         turn_override = null;
         turn_detected_prev = null;
