@@ -327,6 +327,8 @@ function eeRun(assets, commands, {timeoutMs = 180000} = {}) {
 // can, so the collector keeps the DEEPEST line seen per multipv slot, which is correct for both.
 // ONE sandboxed engine, driving the positions handed to it. `take()` yields the next index to
 // search or -1 when the run is finished, so several of these can share one queue -- see sfSearch.
+// Cancellation rides on `take()` as well (opts.isCancelled, checked there): this function needs no
+// signal of its own, and a cancelled run ends the same way a completed one does.
 function sfSearchOne(assets, positions, take, done, {depth = 10, movetime = 0, multipv = 2, hash = 0, uciMoves = null, timeoutMs = 60000} = {}) {
     return new Promise((resolve, reject) => {
         const frame = document.createElement('iframe');
@@ -442,14 +444,29 @@ function sfSearch(assets, positions, opts = {}) {
     const workers = Math.max(1, Math.min(4, opts.workers || 1));
     const {onProgress} = opts;
     let next = 0, finished = 0;
-    const take = () => (next < positions.length ? next++ : -1);
+    let aborted = false;
+    // THE ONE CHOKE POINT. Every worker asks `take()` for its next position, so a cancel checked
+    // here covers the 1-worker and the N-worker paths alike: the engine finishes the position it is
+    // on, sees -1, and leaves through its own finish() -- which removes the iframe and posts `quit`.
+    // Two things stop the queue early: the caller's Stop (opts.isCancelled -- the Stop button used
+    // to be inert for this whole path, at `go depth 26` a position), and a sibling that failed, which
+    // otherwise left up to three hidden iframes searching for the rest of the page's life.
+    const take = () => ((aborted || opts.isCancelled?.() || next >= positions.length) ? -1 : next++);
     const done = () => {
         finished++;
         if (onProgress) { try { onProgress(finished / positions.length, finished, positions.length); } catch (e) { /* */ } }
     };
     if (workers === 1) return sfSearchOne(assets, positions, take, done, opts);
-    return Promise.all(Array.from({length: workers}, () => sfSearchOne(assets, positions, take, done, opts)))
-        .then(() => positions);
+    // allSettled, not all: `all` reports the first failure and abandons the rest unobserved. Here the
+    // rest are live WASM engines, so they are aborted through the flag and waited for; the first
+    // failure is still what the caller sees.
+    const started = Array.from({length: workers},
+        () => sfSearchOne(assets, positions, take, done, opts).catch((e) => { aborted = true; throw e; }));
+    return Promise.allSettled(started).then((rs) => {
+        const bad = rs.find((r) => r.status === 'rejected');
+        if (bad) throw bad.reason;
+        return positions;
+    });
 }
 
 // THE PROTOCOL, exactly as chess.com drives it -- captured from a real game and replayed back into

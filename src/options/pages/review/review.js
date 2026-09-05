@@ -2737,7 +2737,11 @@ class ReviewPage {
                 if (sf) {
                     eeSay(`Searching with chess.com\u2019s own Stockfish (${budget}, ${EE_MULTIPV} lines)\u2026`);
                     const {positions, moves} = buildPositions(game);
-                    await sfSearch(sf, positions, {workers: Math.max(1, Math.min(4, +cfg('rv_workers') || 1)),
+                    // `cancel` is what the Stop button sets. Without it Stop was enabled, pressed,
+                    // and inert on this path -- at the max tier that is `go depth 26` on every
+                    // position of the game, across up to four sandboxed engines.
+                    await sfSearch(sf, positions, {isCancelled: () => cancel,
+                                                   workers: Math.max(1, Math.min(4, +cfg('rv_workers') || 1)),
                                                    depth: tier.depth || EE_DEPTH, movetime: tier.movetime,
                         multipv: EE_MULTIPV,
                         uciMoves: moves.map(m => m.uci),
