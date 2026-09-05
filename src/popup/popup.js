@@ -7762,6 +7762,7 @@ function render_alt_lines_4pc(lines, flip) {
 // already normalised to your team, so positive is always your side.
 const FOURPC_SEAT_NAME = {R: 'Red', B: 'Blue', Y: 'Yellow', G: 'Green'};
 const FOURPC_TEAM_COLOR = ['#c33c3c', '#3f72c4'];   // team Red (R+Y), team Blue (B+G)
+const fourpc_team = (seat) => (seat === 'R' || seat === 'Y') ? 0 : 1;   // the ONE copy of the pairing
 function update_eval_bar_4pc(line, flip, ourSeat) {
     const wrap = PANEL_ROOT.getElementById('eval-bar');
     const fill = PANEL_ROOT.getElementById('eval-bar-white');
@@ -7770,7 +7771,7 @@ function update_eval_bar_4pc(line, flip, ourSeat) {
     // this, `score` is undefined, the exp() below is NaN, and `height: NaN%` silently freezes the bar
     // wherever it happened to be -- which reads as "the eval bar does not move".
     if (!('mate' in line) && !Number.isFinite(line.score)) return;
-    const ourTeam = (ourSeat === 'R' || ourSeat === 'Y') ? 0 : 1;
+    const ourTeam = fourpc_team(ourSeat);
     let frac;                                       // OUR team's share of the bar
     if ('mate' in line) {
         frac = (flip * line.mate >= 0) ? 1 : 0;
@@ -7852,13 +7853,12 @@ function on_new_pos_4pc(payload) {
     // own terms -- me against the other three -- and there is no negation that turns one seat's
     // outlook into another's. The score is shown as the mover's own, unflipped; the readout already
     // names whose turn it is.
-    const team = (seat) => (seat === 'R' || seat === 'Y') ? 0 : 1;
-    const flip = (mode !== 'ffa' && ourSeat !== '?' && team(turn) !== team(ourSeat)) ? -1 : 1;
+    const flip = (mode !== 'ffa' && ourSeat !== '?' && fourpc_team(turn) !== fourpc_team(ourSeat)) ? -1 : 1;
     set_detection_status(i18n('panel.fourpc_detected', '4-player chess - {seat} to move',
         {seat: FOURPC_SEAT_NAME[turn] || turn}));
     if (!is_fourpc_engine()) {
         update_best_move(i18n('panel.fourpc_needs_engine',
-            'Select the Tetrarch engine to analyse 4-player chess (Teams mode only)'));
+            'Select the Tetrarch engine to analyse 4-player chess'));
         return;
     }
     fourpc_busy = true;
