@@ -223,12 +223,39 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('refute_plies', 'Refutation Length:', 'input', 4);
         this.registerFormElement('second_opinion', 'Second Opinion:', 'checkbox', false);
         this.registerFormElement('opp_prep', 'Opponent Prep:', 'checkbox', false);
+        // The player book: a username and a filter, both meaningless while the book is off, so both
+        // rows follow the toggle the way every other dependent control on this page does.
+        const player_book = this.registerFormElement('player_book', 'Player Book:', 'checkbox', false);
+        this.registerFormElement('player_book_user', 'Player Book Account:', 'input', '');
+        this.registerFormElement('player_book_wins', 'Winning Games Only:', 'checkbox', true);
+        const sync_player_book_rows = () => {
+            for (const id of ['player_book_user_row', 'player_book_wins_row']) {
+                document.getElementById(id)?.classList.toggle('hidden', !player_book.getValue());
+            }
+        };
+        player_book.registerChangeListener(sync_player_book_rows);
+        sync_player_book_rows();
         this.registerFormElement('game_log', 'Evals In Copied PGN:', 'checkbox', false);
         const sync_refute_row = () => {
             document.getElementById('refute_plies_row')?.classList.toggle('hidden', !refute.getValue());
         };
         refute.registerChangeListener(sync_refute_row);
         sync_refute_row();
+        this.registerFormElement('session_stats', 'Session Stats:', 'checkbox', false);
+        // Ending the game. Both thresholds follow their toggle, like every other dependent row.
+        const auto_resign = this.registerFormElement('auto_resign', 'Auto Resign:', 'checkbox', false);
+        this.registerFormElement('auto_resign_cp', 'Resign Below (cp):', 'input', 900);
+        const auto_draw = this.registerFormElement('auto_draw', 'Auto Draw Offer:', 'checkbox', false);
+        this.registerFormElement('auto_draw_cp', 'Draw Within (cp):', 'input', 20);
+        const sync_end_rows = () => {
+            document.getElementById('auto_resign_cp_row')?.classList.toggle('hidden', !auto_resign.getValue());
+            document.getElementById('auto_draw_cp_row')?.classList.toggle('hidden', !auto_draw.getValue());
+        };
+        auto_resign.registerChangeListener(sync_end_rows);
+        auto_draw.registerChangeListener(sync_end_rows);
+        sync_end_rows();
+        this.registerFormElement('human_times', 'Human Move Times:', 'checkbox', false);
+        this.registerFormElement('complexity_clock', 'Complexity Clock:', 'checkbox', false);
         const time_trouble = this.registerFormElement('time_trouble', 'Time Trouble Mode:', 'checkbox', false);
         this.registerFormElement('time_trouble_at', 'Time Trouble Below (s):', 'input', 30);
         // the threshold only means anything while the mode is on
@@ -253,6 +280,15 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('book_play', 'Play Book Moves:', 'checkbox', false);
         this.registerFormElement('explorer_db', 'Opening Database:', 'select', 'masters');
         this.registerFormElement('playstyle', 'Playstyle:', 'select', 'balanced');
+        // Contempt: a decision about the RESULT, so it sits beside the playstyle rather than with the
+        // pacing rows. The cp row follows the toggle, like every other dependent control here.
+        const contempt = this.registerFormElement('contempt', 'Play For The Win:', 'checkbox', false);
+        this.registerFormElement('contempt_cp', 'Contempt (cp):', 'input', 30);
+        const sync_contempt_row = () => {
+            document.getElementById('contempt_cp_row')?.classList.toggle('hidden', !contempt.getValue());
+        };
+        contempt.registerChangeListener(sync_contempt_row);
+        sync_contempt_row();
         // A credential, so it is a `password` field, it never reaches the diagnostics report, and
         // onExportConfigValues drops it -- a settings file is something people paste into issues.
         this.registerFormElement('lichess_token', 'Lichess API token:', 'input', '');
