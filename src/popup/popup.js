@@ -3788,7 +3788,10 @@ const PUZZLE_MOVE_DELAY_MS = 300;
 // you drag it while watching puzzles being solved, and a value that only takes effect on the next
 // panel rebuild would be useless for that.
 function puzzle_move_delay_ms() {
-    const v = JSON.parse(MephistoConfig.get('puzzle_delay') ?? 'null');
+    let v = null;
+    // humanize_get's shape: a non-JSON value in the store threw here, synchronously inside on_new_pos,
+    // and every puzzle move failed with a PANEL THREW trace. Junk is the default below, not a throw.
+    try { v = JSON.parse(MephistoConfig.get('puzzle_delay') ?? 'null'); } catch (e) { /* corrupt store */ }
     return (typeof v === 'number' && v >= 0 && v <= 3000) ? v : PUZZLE_MOVE_DELAY_MS;
 }
 // The pending pre-move pause. Superseded rather than stacked: on_new_pos can legitimately run twice
@@ -7150,10 +7153,9 @@ function move_situation(fen, uci) {
 let last_capture_square = null;
 
 function fresh_timing(situation) {
-    const num = (key, fallback) => {
-        const v = JSON.parse(MephistoConfig.get(key));
-        return (v != null) ? v : fallback;
-    };
+    // humanize_get IS this reader with the guard (junk or non-JSON -> the fallback, never a throw
+    // out of request_automove); the four timing keys are non-negative milliseconds like its own
+    const num = humanize_get;
     // Read fresh from storage, THEN paced to the clock if that is switched on -- so editing the
     // sliders mid-game still applies to the very next move, and the pacing works from what you
     // actually set rather than from a snapshot.
