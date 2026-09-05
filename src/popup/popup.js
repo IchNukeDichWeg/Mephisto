@@ -3610,8 +3610,7 @@ function try_puzzle_capture(fen) {
     puzzle_rating = (typeof hit.rating === 'number' && hit.rating > 0) ? hit.rating : null;
     puzzle_from_page = true;
     puzzle_answered = puzzle_key(fen);
-    puzzle_deferred = null;
-    clearTimeout(puzzle_defer_timer);
+    void_puzzle_deferral(fen);
     console.log(`Puzzle: solution read from the page -- ${hit.line}`
               + (puzzle_rating ? ` (rated ${puzzle_rating})` : ''));
     update_best_move_suffix();
@@ -3632,7 +3631,17 @@ function request_puzzle_solution(fen) {
         return;
     }
     if (!puzzle_db_enabled()) return;
-    if (puzzle_solutions?.has(puzzle_key(fen))) return; // already covered by the line in hand
+    if (puzzle_solutions?.has(puzzle_key(fen))) {
+        // Already covered by the line in hand -- the opponent's reply positions are in it with a null
+        // move. MEMBERSHIP COUNTS AS AN ANSWER: a bare return left puzzle_answered unset, so on_new_pos
+        // armed a 1.5s deferral for every opponent ply, and its watchdog then re-entered on_new_pos
+        // with the opponent's position while the board was already on ours -- a board flicker, a
+        // "did not answer in time" warning and a dropped-then-retried puzzle move, every ply.
+        puzzle_answered = puzzle_key(fen);
+        puzzle_deferred = null;   // whatever was armed is for a position the board has left
+        clearTimeout(puzzle_defer_timer);
+        return;
+    }
     if (puzzle_asked === puzzle_key(fen)) return;       // asked once; the answer is coming or was null
     puzzle_asked = puzzle_key(fen);
     chrome.runtime.sendMessage({puzzleLookup: {fen, site: detected_prefix}}, (res) => {
@@ -3646,8 +3655,7 @@ function request_puzzle_solution(fen) {
         }
         // A HIT ends the wait too. Without this the deferral stays armed and its watchdog re-enters
         // on_new_pos 1.5s later for a position that has already been answered and played.
-        puzzle_deferred = null;
-        clearTimeout(puzzle_defer_timer);
+        void_puzzle_deferral(fen);
         puzzle_solutions = puzzle_expand(fen, res.solution);
         puzzle_rating = res.rating ?? null;
         puzzle_from_page = false;
@@ -3676,6 +3684,16 @@ let puzzle_defer_timer = null;
 // one message and one indexed read, so this is generous by an order of magnitude -- it exists so a
 // worker that never answers costs a slower move rather than NO move, which is the worse failure.
 const PUZZLE_LOOKUP_WAIT_MS = 1500;
+
+// End the wait only for THIS position. A hit for A landing after B armed its own wait used to void
+// B's deferral unconditionally; B's miss then found nothing to release and B was never searched --
+// a spinner until the next position (P4). The miss path (release_deferred_search) always matched
+// by fen; the hit paths now do the same.
+function void_puzzle_deferral(fen) {
+    if (!puzzle_deferred || puzzle_key(puzzle_deferred.fen) !== puzzle_key(fen)) return;
+    puzzle_deferred = null;
+    clearTimeout(puzzle_defer_timer);
+}
 
 function release_deferred_search(fen) {
     const w = puzzle_deferred;
