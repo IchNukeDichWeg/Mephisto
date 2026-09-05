@@ -8649,7 +8649,7 @@ function watch_config_changes() {
                 // drop it and ask again (ensure_threat_human retunes the net in place via setoption)
                 if (key === 'threat_human' || key === 'threat_human_elo') {
                     last_eval.humanReply = null;
-                    threat_human_cache.clear();
+                    threat_human_cache.removeAll();
                     if (config.threat_human && last_eval.fen && last_eval.bestmove) {
                         request_threat_human(last_eval.fen, last_eval.bestmove);
                     } else {
@@ -9057,7 +9057,11 @@ function draw_book_moves(fen) {
 let threat_human_id = null;      // offscreen clientId, minted per panel boot
 let threat_human_elo_loaded = null;
 let threat_human_ready = null;   // the in-flight init, so two asks share one load
-let threat_human_cache = new Map();   // fen-after-our-move -> {uci, prob}, valid for ONE rating
+// LRU, not Map: one entry per position per feature for the session, cleared only on a rating change,
+// and every worker cache has a cap. 200 covers a long game twice over; lib/lru.min.js has no has()
+// or clear(), so reads are get()-and-test and the wipe is removeAll().
+const HUMAN_CACHE_MAX = 200;
+let threat_human_cache = new LRU(HUMAN_CACHE_MAX);   // fen-after-our-move -> {uci, prob}, valid for ONE rating
 
 function threat_human_elo() {
     const want = Number(config.threat_human_elo) || 1500;
@@ -9068,10 +9072,12 @@ function ensure_threat_human() {
     const elo = threat_human_elo();
     if (threat_human_ready && threat_human_elo_loaded === elo) return threat_human_ready;
     if (threat_human_ready && threat_human_elo_loaded !== null) {
-        // the net is up -- retune it in place; the cached replies belong to the old rating
+        // the net is up -- retune it in place; the cached replies belong to the old rating, and so
+        // does anything still queued: an ask sent before the setoption answers at the old rating
         threat_human_elo_loaded = elo;
-        threat_human_cache.clear();
-        safety_human_cache.clear();
+        threat_human_cache.removeAll();
+        safety_human_cache.removeAll();
+        maia_flush();
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci',
                                     line: `setoption name SelfElo value ${elo}`});
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci',
@@ -9113,28 +9119,87 @@ function dispose_threat_human() {
     threat_human_id = null;
     threat_human_ready = null;
     threat_human_elo_loaded = null;
-    threat_human_cache.clear();
-    safety_human_cache.clear();
+    threat_human_cache.removeAll();
+    safety_human_cache.removeAll();
+    maia_flush();
+    maia_owed = 0;   // the client is gone with its id: nothing it still owed can arrive
+    if (maia_listener) { chrome.runtime.onMessage.removeListener(maia_listener); maia_listener = null; }
+}
+
+// ---- ONE ASKER, ONE QUESTION IN FLIGHT --------------------------------------------------------
+// The wire has no request id: Maia answers `position`/`go` pairs in the order they arrive, and a
+// reply is "whatever multipv/bestmove frames come back next". Three consumers (threat reply, second
+// opinion, safety net) used to attach a listener each and fire in the same tick, so all three
+// resolved on the FIRST bestmove -- the threat reply's, for the position after our move -- and the
+// second opinion drew the OPPONENT's move as ours on every move (audit 2026-09-05, top finding).
+// So: a FIFO. One pair on the wire at a time, the head resolves on its own bestmove, then the next
+// goes out. The same fen asked twice while it is queued shares one pass (second opinion + safety net
+// ask the same position in the same tick: two forward passes became one).
+const MAIA_ASK_TIMEOUT_MS = 15000;   // one forward pass; well past this the net is not answering
+let maia_queue = [];                 // [{fen, resolve, sent, list, timer}], head is the one in flight
+const maia_inflight = new Map();     // fen -> promise, the dedupe
+let maia_owed = 0;                   // bestmoves still owed by asks that timed out or were flushed
+                                     // mid-flight: drop that many before trusting frames again
+                                     // (same shape as pending_stops on the engine wire)
+let maia_listener = null;            // one listener for the client's life, not one per ask
+
+function ask_maia(fen) {
+    const held = maia_inflight.get(fen);
+    if (held) return held;
+    const p = new Promise((resolve) => maia_queue.push({fen, resolve, sent: false, list: [], timer: null}));
+    maia_inflight.set(fen, p);
+    // a failed load answers null to everything queued; the callers already treat null as "no reply"
+    ensure_threat_human().then(maia_pump, () => maia_flush());
+    return p;
+}
+
+// put the head on the wire if nothing is
+function maia_pump() {
+    const head = maia_queue[0];
+    if (!head || head.sent || !threat_human_id) return;
+    if (!maia_listener) {
+        maia_listener = (m) => {
+            if (!m || !m.fromOffscreen || m.clientId !== threat_human_id || m.kind !== 'line') return;
+            const done = /^bestmove\b/.test(m.line || '');
+            if (maia_owed > 0) { if (done) maia_owed--; return; }   // a late answer to a dead ask
+            const cur = maia_queue[0];
+            if (!cur || !cur.sent) return;
+            const info = /info .*multipv (\d+) .*maiaprob (\d+) pv ([a-h][1-8][a-h][1-8][qrbn]?)/.exec(m.line || '');
+            if (info) cur.list[Number(info[1]) - 1] = {uci: info[3], prob: Number(info[2]) / 10000};
+            if (done) maia_settle(cur.list.filter(Boolean));
+        };
+        chrome.runtime.onMessage.addListener(maia_listener);
+    }
+    head.sent = true;
+    head.timer = setTimeout(() => { maia_owed++; maia_settle(null); }, MAIA_ASK_TIMEOUT_MS);
+    chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: `position fen ${head.fen}`});
+    chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: 'go nodes 1'});
+}
+
+// answer the head (null = no answer) and send the next
+function maia_settle(list) {
+    const head = maia_queue.shift();
+    if (!head) return;
+    clearTimeout(head.timer);
+    maia_inflight.delete(head.fen);
+    head.resolve(list);
+    maia_pump();
+}
+
+// dispose / retune / failed load: nothing queued may answer under the new state
+function maia_flush() {
+    if (maia_queue[0]?.sent) maia_owed++;   // its frames are still coming
+    for (const q of maia_queue) { clearTimeout(q.timer); q.resolve(null); }
+    maia_queue = [];
+    maia_inflight.clear();
 }
 
 // one forward pass for the position after `fen` -- resolves {uci, prob} or null
 async function threat_human_reply(fenAfter) {
-    if (threat_human_cache.has(fenAfter)) return threat_human_cache.get(fenAfter);
-    await ensure_threat_human();
-    const answer = await new Promise((resolve) => {
-        const timer = setTimeout(() => { cleanup(); resolve(null); }, 15000);
-        let top = null;
-        const onMsg = (m) => {
-            if (!m || !m.fromOffscreen || m.clientId !== threat_human_id || m.kind !== 'line') return;
-            const info = /info .*multipv 1 .*maiaprob (\d+) pv ([a-h][1-8][a-h][1-8][qrbn]?)/.exec(m.line || '');
-            if (info) top = {uci: info[2], prob: Number(info[1]) / 10000};
-            if (/^bestmove\b/.test(m.line || '')) { cleanup(); resolve(top); }
-        };
-        const cleanup = () => { clearTimeout(timer); chrome.runtime.onMessage.removeListener(onMsg); };
-        chrome.runtime.onMessage.addListener(onMsg);
-        chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: `position fen ${fenAfter}`});
-        chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: 'go nodes 1'});
-    });
+    const held = threat_human_cache.get(fenAfter);
+    if (held) return held;
+    const list = await ask_maia(fenAfter);
+    const answer = list && list[0] || null;   // multipv 1 is the net's top move
     if (answer) threat_human_cache.set(fenAfter, answer);
     return answer;
 }
@@ -9173,24 +9238,11 @@ function draw_human_reply() {
 // the ORDER, not just the first line. Quiet mode reads the top entry -- silence while your likely
 // move already holds -- and the drawn set is sorted by these probabilities, so what it offers are
 // human-playable moves that still hold the edge, not engine order.
-const safety_human_cache = new Map();   // fen -> [{uci, prob}] in Maia's own order
+const safety_human_cache = new LRU(HUMAN_CACHE_MAX);   // fen -> [{uci, prob}] in Maia's own order
 async function safety_human_choices(fen) {
-    if (safety_human_cache.has(fen)) return safety_human_cache.get(fen);
-    await ensure_threat_human();
-    const answer = await new Promise((resolve) => {
-        const timer = setTimeout(() => { cleanup(); resolve(null); }, 15000);
-        const list = [];
-        const onMsg = (m) => {
-            if (!m || !m.fromOffscreen || m.clientId !== threat_human_id || m.kind !== 'line') return;
-            const info = /info .*multipv (\d+) .*maiaprob (\d+) pv ([a-h][1-8][a-h][1-8][qrbn]?)/.exec(m.line || '');
-            if (info) list[Number(info[1]) - 1] = {uci: info[3], prob: Number(info[2]) / 10000};
-            if (/^bestmove\b/.test(m.line || '')) { cleanup(); resolve(list.filter(Boolean)); }
-        };
-        const cleanup = () => { clearTimeout(timer); chrome.runtime.onMessage.removeListener(onMsg); };
-        chrome.runtime.onMessage.addListener(onMsg);
-        chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: `position fen ${fen}`});
-        chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: 'go nodes 1'});
-    });
+    const held = safety_human_cache.get(fen);
+    if (held) return held;
+    const answer = await ask_maia(fen);
     if (answer && answer.length) safety_human_cache.set(fen, answer);
     return answer || [];
 }
