@@ -102,6 +102,12 @@ export async function createMaia3Engine(listen, initialElo) {
             const idx = MOVE_TO_IDX.get(black ? mirrorMove(u) : u);
             if (idx !== undefined) scored.push([u, logits[idx]]);
         }
+        // Not reachable today (every legal UCI, castling and both colours' promotions after
+        // mirrorMove included, is in the 4352-entry vocab, and 960 is blocked by
+        // NO_CHESS960_ENGINES) -- but the FAILURE MODE differed from its siblings: maia.js falls
+        // back to legalUcis[0] and maia2.js emits `bestmove ${legal[0]}`, while this threw on
+        // Math.max(...[]) and emitted no bestmove at all. Same fallback as maia2.js.
+        if (!scored.length) { listen(`bestmove ${legal[0]}`); return; }
         const mx = Math.max(...scored.map(s => s[1]));
         let sum = 0; for (const s of scored) { s[2] = Math.exp(s[1] - mx); sum += s[2]; }
         for (const s of scored) s[2] /= sum;
@@ -135,7 +141,12 @@ export async function createMaia3Engine(listen, initialElo) {
                 if (fm) { fen = fm[1]; moves = fm[2] || ''; }
                 else if (sm) { fen = null; moves = sm[1] || ''; }
             }
-            else if (line.startsWith('go')) go().catch(e => listen(`info string maia3 error ${e}`));
+            // see maia.js: a failed pass still owes the panel a terminal frame, or the search never
+            // closes and the watchdog stands down on the locally-answered `isready`
+            else if (line.startsWith('go')) go().catch((e) => {
+                listen(`info string maia3 error ${e}`);
+                listen('bestmove (none)');
+            });
         },
         terminate() { try { session.release && session.release(); } catch (e) { /* */ } },
     };

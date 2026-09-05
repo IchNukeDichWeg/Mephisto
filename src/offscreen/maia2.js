@@ -163,7 +163,13 @@ export async function createMaia2Engine(listen, initialSelf, initialOppo) {
                 moves = (m && m[2]) || '';
                 return;
             }
-            if (s.startsWith('go')) { go().catch(e => listen(`info string maia2 failed: ${e.message}`)); return; }
+            // see maia.js: a failed pass still owes the panel a terminal frame, or the search never
+            // closes and the watchdog stands down on the locally-answered `isready`. `${e}` rather
+            // than `e.message`, matching its siblings: a non-Error throw read "failed: undefined".
+            if (s.startsWith('go')) {
+                go().catch((e) => { listen(`info string maia2 error ${e}`); listen('bestmove (none)'); });
+                return;
+            }
             if (s === 'stop' || s === 'quit') return;   // one forward pass: there is nothing to stop
         },
         // disposeClient/abandon in offscreen.js both call this behind `engine.terminate &&`, so its
