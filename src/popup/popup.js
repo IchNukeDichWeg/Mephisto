@@ -469,6 +469,9 @@ async function initPanel(root, tabId) {
         // guess at, so it gets a switch.
         verbose_log: JSON.parse(MephistoConfig.get('verbose_log')) || false,
         mirror_mode: JSON.parse(MephistoConfig.get('mirror_mode')) || false,
+        mirror_ratio: JSON.parse(MephistoConfig.get('mirror_ratio')) || 90, // % of the opponent's spend
+        time_trouble: JSON.parse(MephistoConfig.get('time_trouble')) || false,
+        time_trouble_at: JSON.parse(MephistoConfig.get('time_trouble_at')) || 30, // seconds
         // Manual Mode: the engine searches until YOU press the play-move hotkey, then it plays the
         // best move it found. Your own timing -- overrides the clock-pacing modes and never auto-fires.
         manual_mode: JSON.parse(MephistoConfig.get('manual_mode')) || false,
@@ -7925,7 +7928,8 @@ function record_eval_history(frac) {
         // a normal game graded as Forced (seen live, the whole strip read "4="). The count for a
         // position only ever grows, so keeping the maximum is both correct and self-healing.
         const prev = ply_facts[ply];
-        const fuller = !prev || prev.fen !== last_eval.fen || lines.length >= prev.lines.length;
+        const fresh = !prev || prev.fen !== last_eval.fen;
+        const fuller = fresh || lines.length >= prev.lines.length;
         const depth = Number(last_eval.lines?.[0]?.depth) || 0;
         // THE FIRST FRAME PAST THE FLOOR, kept for good. Grading compares two positions, and live
         // each one is searched for however long it happens to get -- one gets 12 plies, the next 26
