@@ -1013,7 +1013,7 @@ const CMP_NETS = [
 ];
 
 async function compareNets() {
-    const pos = positions[cursor];
+    const pos = positions[cursor], atPly = cursor;
     const out = $('an_cmp_out'), meta = $('an_cmp_meta'), btn = $('an_cmp');
     if (!pos || !out) return;
     if (anVariant() !== 'chess') { out.innerHTML = '<div class="an-note">The human nets know standard chess only.</div>'; return; }
@@ -1044,7 +1044,16 @@ async function compareNets() {
     } finally {
         btn.disabled = false;
     }
-    meta.textContent = `at ${band}`;
+    // The four nets are hundreds of megabytes and tens of seconds; `btn.disabled` blocks re-entry
+    // here but nothing stops the user stepping through the game meanwhile. The table would then be
+    // filled in for the position they LEFT -- internally consistent (same `pos` for the search and
+    // for sanOf), so it looks right and says nothing. The ply is stamped either way, so a stale
+    // table is self-identifying even if this guard is ever lost.
+    if (positions[atPly] !== pos) {
+        meta.textContent = `discarded - the board moved on (was ply ${atPly}, at ${band})`;
+        return;
+    }
+    meta.textContent = `at ${band}, ply ${atPly}`;
     renderCmp(pos, cols);
 }
 
