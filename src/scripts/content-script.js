@@ -277,6 +277,17 @@ function handleExtensionMessage(response, sender, sendResponse) {
         // Think/Move Time sliders mid-game takes effect on the very next move (not the game-start snapshot)
         if (response.timing) Object.assign(config, response.timing);
         const gen = beginMoving(response.think, response.verify === false);
+        // A REJECTED click (dispatchSimulateClickInner / dispatchSimulateDrag rethrow) escaped every
+        // chain below: the try catches sync throws only and `.finally` merely released the guard.
+        // Worse, the rejection also skipped simulateMoveVerified's dedupe reset, so the unchanged
+        // board produced the same push key, both dedupes swallowed it, and the panel sat on an
+        // unplayed answer until the opponent moved (C5). Same recovery as the mismatch abort.
+        const failed = (e) => {
+            console.warn('Mephisto: automove failed:', e);
+            lastPushKey = lastDisplayKey = null;
+            resumePush = true;
+            schedulePush();
+        };
         try {
             // Dispatch on the SHAPE OF THE MESSAGE, never on our own copy of the config.
             //
@@ -295,15 +306,15 @@ function handleExtensionMessage(response, sender, sendResponse) {
             } else if (response.fourpc) {
                 // FIRST, and on an explicit flag: 4PC must not be reachable by shape inference,
                 // which is how Puzzle Mode silently stole these moves into the 8x8 simulator.
-                simulateMove4PC(response.move, response.think ?? null, gen).finally(() => endMoving(gen));
+                simulateMove4PC(response.move, response.think ?? null, gen).catch(failed).finally(() => endMoving(gen));
             } else if (response.pv) {
-                simulatePvMoves(response.pv, gen).finally(() => endMoving(gen));
+                simulatePvMoves(response.pv, gen).catch(failed).finally(() => endMoving(gen));
             } else if (response.premoves) {
-                simulatePremoveSequence(response.premoves, gen).finally(() => endMoving(gen));
+                simulatePremoveSequence(response.premoves, gen).catch(failed).finally(() => endMoving(gen));
             } else if (response.move) {
                 simulateMoveVerified(response.move, response.deselect, response.verify, response.think ?? null,
                                      2, null, gen)
-                    .finally(() => endMoving(gen));
+                    .catch(failed).finally(() => endMoving(gen));
             } else {
                 // No move in a message that claimed to carry one. Nothing to click, so release the
                 // guard rather than sitting on it until the watchdog.
