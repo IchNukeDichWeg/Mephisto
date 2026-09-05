@@ -531,6 +531,11 @@ let panelDock = 'free';     // free | left | right
 // resize). They close over the whole injected panel DOM, and removeOverlay used to remove none of
 // them: every reopenPanel (engine/variant/Elo change) pinned one more dead panel in memory (C1).
 let overlayListeners = null;
+// Which open of the panel is current. The placeholder carries PANEL_OVERLAY_ID so a second click
+// dismisses it, but the first toggleOverlay was still parked on the asset wait and built the panel
+// anyway when the worker answered; a third click meant two panels and initPanel twice. A bump on
+// every close, a compare after every await.
+let overlayOpenGen = 0;
 function saveOverlayBox(wrap) {
     const r = wrap.getBoundingClientRect();
     try {
@@ -720,6 +725,7 @@ function removeOverlay() {
     // while the panel is closed. The engine stays warm (not disposed) so reopening is instant --
     // see MephistoPanel.suspend. tabs.onRemoved still frees it on real tab close.
     try { self.MephistoPanel?.suspend?.(); } catch (e) { /* not yet booted */ }
+    overlayOpenGen++;            // an open still waiting on its assets is cancelled by this close
     overlayListeners?.abort();   // the window listeners go with the panel they belong to (C1)
     overlayListeners = null;
     overlayEl(PANEL_OVERLAY_ID)?.remove();
@@ -891,6 +897,7 @@ async function toggleOverlay() {
     // message is about, so it is stamped out here where BOTH the success and the failure path can
     // read it -- inside the try it was in scope for neither.
     const assetsAsked = Date.now();
+    const myOpen = ++overlayOpenGen;
     // Say more the longer it takes, rather than sitting on one word. Cleared either way below.
     const slow = setTimeout(() => {
         placeholder.textContent = 'Mephisto - waiting for the extension’s background worker. ' +
@@ -920,6 +927,13 @@ async function toggleOverlay() {
     }
     clearTimeout(slow);
     bgLogAlways('panel assets', {ms: Date.now() - assetsAsked});
+    // Dismissed (or reopened) while the worker was answering: this open is no longer wanted. The
+    // placeholder being gone is the same fact seen from the DOM, and the second test also covers a
+    // close that raced the increment.
+    if (myOpen !== overlayOpenGen || !placeholder.isConnected) {
+        bgLogAlways('panel open cancelled while waiting for assets', {ms: Date.now() - assetsAsked});
+        return;
+    }
     if (!assets || assets.error || !assets.html) {
         bgLogAlways('panel assets unavailable', {error: assets && assets.error});
         placeholder.textContent = 'Mephisto could not load its panel' +
