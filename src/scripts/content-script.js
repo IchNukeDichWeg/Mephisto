@@ -2156,6 +2156,9 @@ function scrapePositionPuz() {
     } else {
         const pieceMap = {pawn: 'p', rook: 'r', knight: 'n', bishop: 'b', queen: 'q', king: 'k'};
         const colorMap = {white: 'w', black: 'b'};
+        // One layout read per scrape, not one per piece (C4): every piece is a square wide, and
+        // the board is the element isAnimating() just measured.
+        const squarePx = getBoard().getBoundingClientRect().width / 8;
         for (const piece of getPieces()) {
             let transform;
             if (piece.classList.contains('dragging')) {
@@ -2165,7 +2168,7 @@ function scrapePositionPuz() {
             }
             const xyCoords = transform.substring(transform.indexOf('(') + 1, transform.length - 1)
                 .replaceAll('px', '').replace(' ', '').split(',')
-                .map(num => Number(num) / piece.getBoundingClientRect().width + 1);
+                .map(num => Number(num) / squarePx + 1);
             if (piece.classList[0] === 'ghost') {
                 continue; // the drag placeholder, not a real piece
             }
