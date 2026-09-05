@@ -166,5 +166,9 @@ export async function createMaia2Engine(listen, initialSelf, initialOppo) {
             if (s.startsWith('go')) { go().catch(e => listen(`info string maia2 failed: ${e.message}`)); return; }
             if (s === 'stop' || s === 'quit') return;   // one forward pass: there is nothing to stop
         },
+        // disposeClient/abandon in offscreen.js both call this behind `engine.terminate &&`, so its
+        // absence here was a SILENT no-op: the ONNX session (and its wasm arena) leaked on every
+        // switch away from Maia-2. Same body as maia.js/maia3.js.
+        terminate() { try { session.release && session.release(); } catch (e) { /* */ } },
     };
 }
