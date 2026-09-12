@@ -5912,7 +5912,15 @@ function update_best_move(line1) {
 // something that was refusing by design. One sentence, in the panel, where the person who needs it
 // is already looking. The DETAIL still goes to the trace -- this is the user-facing half.
 let idle_reason_text = '';
+// A SHORT HOLD, for an answer somebody asked for. clear_idle_reason runs on every engine frame while
+// a game is being played -- that is right for "nothing is wrong", and wrong for the self-test's
+// result, which was wiped within a frame of being written (measured live 2026-09-12: the line was
+// correct and unreadable). A clear is suppressed while the hold is up; a real REASON still wins,
+// because a reason appearing is never noise.
+let idle_hold_until = 0;
+
 function set_idle_reason(text) {
+    if (!text && Date.now() < idle_hold_until) return;
     idle_reason_text = text || '';
     const el = PANEL_ROOT.getElementById('idle-reason');
     if (!el) return; // stale cached popup.html
@@ -7212,6 +7220,8 @@ function fresh_timing(situation) {
 // position is currently detected; Engine = it has produced analysis for it; Native = for a native
 // engine, the host actually answered a ping (the real active check -- a missing host is the usual
 // "nothing happens" cause). Restores the status line after ~6s.
+const SELF_TEST_MS = 6000;   // how long the result stands, on both lines it is written to
+
 async function run_self_test() {
     const el = PANEL_ROOT.getElementById('game-detection');
     if (!el) return;
@@ -7226,10 +7236,27 @@ async function run_self_test() {
         nativePart = nativeOK ? ' · Native ✓' : ' · Native ✗ (run native-host/install.sh)';
     }
     const mark = (b) => b ? '✓' : '✗';
-    const allOK = scrapeOK && engineOK && nativeOK;
-    el.innerText = `Self-test - Scrape ${mark(scrapeOK)} · Engine ${mark(engineOK)}${nativePart}`;
+    // The feature rows, but only the ones that apply here -- a self-test that lists three switched-off
+    // features every time is a self-test nobody reads to the end of.
+    const feats = feature_rows(health_state()).filter(r => r.ok !== null);
+    const featPart = feats.map(r => ` · ${r.label} ${mark(r.ok)}`).join('');
+    const allOK = scrapeOK && engineOK && nativeOK && feats.every(r => r.ok);
+    const line = `Self-test - Scrape ${mark(scrapeOK)} · Engine ${mark(engineOK)}${nativePart}${featPart}`;
+    el.innerText = line;
     el.classList.toggle('unsupported', !allOK);
-    setTimeout(() => { el.innerText = prev; el.classList.toggle('unsupported', wasUnsupported); }, 6000);
+    // ...AND WHERE IT WILL STILL BE IN A SECOND. The detection line is re-rendered on every engine
+    // frame, so during a live game this result was painted over before anyone could read it -- the
+    // answer was correct and invisible (measured 2026-09-12: sampling the element every 120ms never
+    // caught it once). The idle line is the panel's own place for "here is why", it is what the
+    // Diagnostics button already writes to, and nothing else overwrites it.
+    idle_hold_until = Date.now() + SELF_TEST_MS;
+    set_idle_reason(line);
+    setTimeout(() => {
+        el.innerText = prev;
+        el.classList.toggle('unsupported', wasUnsupported);
+        idle_hold_until = 0;
+        set_idle_reason('');
+    }, SELF_TEST_MS);
 }
 
 // ---- Lichess win% + accuracy (win-percent model, PR #11148 + AccuracyPercent.scala). cp is
@@ -7256,16 +7283,53 @@ function accuracy_from_drop(drop) {
 // on a WASM engine, and reporting it as one would send people chasing the wrong thing.
 // One place that knows where each fact lives, so the check and the diagnostics cannot drift.
 function health_state() {
+    const fen = (last_eval && last_eval.fen) || null;
+    const men = fen ? piece_count(fen) : null;
     return {
         site: (typeof site !== 'undefined' && site) || null,
         board: !!(last_eval && last_eval.fen),
-        fen: (last_eval && last_eval.fen) || null,
+        fen,
         config: !!config,
         engine: !!engine || uses_native() || is_remote(),
         engineName: config?.engine || null,
         usesNative: uses_native(),
         nativeUp: native_alive,
+        // ...and the three features that can be switched on, working, and producing nothing:
+        lines: effective_multipv(),
+        needsLines: MULTIPV_FLOOR_MODES.filter(k => config?.[k]),
+        playerBook: config?.player_book
+            ? {who: parse_player_book_user(), loaded: !!player_book, games: player_book_games} : null,
+        tablebase: tablebase_enabled()
+            ? {men, inRange: men != null && men <= TABLEBASE_MAX_MEN,
+               answered: !!(tablebase_data && fen && tablebase_data.fen === fen)} : null,
     };
+}
+
+// THE WAYS THE PANEL CAN BE WORKING AND STILL DOING NOTHING. The rows above answer "did anything
+// answer at all"; these answer the quieter question -- a feature switched on, with everything it
+// needs missing. A book that never loaded, a tablebase that has not been asked, an engine searching
+// one line for two features that read the second: each of those looks exactly like a panel that is
+// fine. `ok: null` is "does not apply here", so nothing is reported broken for being switched off.
+function feature_rows(st) {
+    const rows = [];
+    const row = (label, ok, detail) => rows.push({label, ok, detail});
+    const needs = st.needsLines || [];
+    row('Engine lines', needs.length ? (st.lines >= 2) : null,
+        needs.length ? `${needs.join(' + ')} read the engine's second line; it is searching ${st.lines}`
+                     : 'nothing switched on needs a second line');
+    const pb = st.playerBook;
+    row('Player book', pb ? !!pb.loaded : null,
+        !pb ? 'switched off'
+            : !pb.who ? 'no player named -- put a username in Settings'
+            : pb.loaded ? `${pb.games} of ${pb.who.name}'s games`
+            : 'the archive has not answered yet');
+    const tb = st.tablebase;
+    row('Tablebase', tb ? (tb.inRange ? !!tb.answered : null) : null,
+        !tb ? 'switched off'
+            : !tb.inRange ? `${tb.men ?? '?'} men on the board -- solved play starts at ${TABLEBASE_MAX_MEN}`
+            : tb.answered ? 'this position is solved'
+            : 'no answer for this position yet');
+    return rows;
 }
 
 function health_rows(state) {
@@ -7280,7 +7344,7 @@ function health_rows(state) {
     row('Native host', st.usesNative ? !!st.nativeUp : null,
         st.usesNative ? (st.nativeUp ? st.engineName : 'the host is not answering -- run its installer once')
                       : 'not needed for this engine');
-    return rows;
+    return rows.concat(feature_rows(st));
 }
 
 function live_stats(history) {
