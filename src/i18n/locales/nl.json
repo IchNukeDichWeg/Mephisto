@@ -586,7 +586,7 @@
   "set.auto_resign_cp": "Opgeven onder (cp)",
   "set.tip.auto_draw": "Remise aanbieden in een stelling die niemand nog kan veranderen: score binnen de drempel gedurende drie van JOUW beurten achtereen, en na zet 20 - niemand biedt bij zet zes remise aan. Vereist Autoplay en biedt ÉÉN keer per partij aan, want een afgewezen aanbod elke zet herhalen is precies waarvoor mensen gedempt worden. De zet wordt gewoon gespeeld: remise bied je naast een zet aan, niet in plaats ervan.",
   "set.auto_draw": "Automatisch remiseaanbod",
-  "set.tip.session_stats": "Wat deze browsersessie werkelijk heeft gedaan: afgemaakte partijen, gespeelde zetten, de gemiddelde tijd die elke zet echt wachtte, en je nauwkeurigheid over de afgemaakte partijen. Het is het getal dat de schuifjes zelf niet kunnen geven: 2,4s gemiddeld tegen een denktijd van 3 seconden vertelt je wat de tempomodi echt doen. Het leeft zolang het paneel leeft: herladen start een nieuwe sessie, en er wordt niets bewaard.",
+  "set.tip.session_stats": "Wat deze browsersessie werkelijk heeft gedaan: afgemaakte partijen, gespeelde zetten, de gemiddelde tijd die elke zet echt wachtte, en je nauwkeurigheid over de afgemaakte partijen. Het is het getal dat de schuifjes zelf niet kunnen geven: 2,4s gemiddeld tegen een denktijd van 3 seconden vertelt je wat de tempomodi echt doen. Het telt de lopende partij net zo goed mee als de afgemaakte, overleeft een herlading en begint elke dag opnieuw.",
   "set.session_stats": "Sessiestatistieken",
   "set.tip.auto_draw_cp": "Wat als gelijk telt, in centipionnen aan beide kanten, 0 tot 100. 20 is een vijfde pion.",
   "set.auto_draw_cp": "Remise binnen (cp)",

@@ -586,7 +586,7 @@
   "set.auto_resign_cp": "Şunun altında terk et (cp)",
   "set.tip.auto_draw": "Kimsenin değiştiremeyeceği bir konumda beraberlik teklif et: değerlendirme SENİN üst üste üç hamlende eşik içinde ve 20. hamleden sonra - kimse altıncı hamlede beraberlik teklif etmez. Autoplay gerekir ve oyun başına BİR kez teklif eder, çünkü reddedilmiş bir teklifi her hamle tekrarlamak insanların susturulma sebebidir. Hamle yine de oynanır: beraberlik bir hamlenin yerine değil, yanında teklif edilir.",
   "set.auto_draw": "Otomatik beraberlik teklifi",
-  "set.tip.session_stats": "Bu tarayıcı oturumunun gerçekte ne yaptığı: biten oyunlar, oynanan hamleler, her hamlenin gerçekte beklediği ortalama süre ve biten oyunlardaki isabetin. Kaydırıcıların kendi başına yanıtlayamadığı sayı budur: 3 saniyelik düşünme süresine karşılık 2,4s ortalama, tempo modlarının gerçekte ne yaptığını söyler. Panel kadar yaşar: sayfayı yenilemek yeni bir oturum başlatır ve hiçbir şey saklanmaz.",
+  "set.tip.session_stats": "Bu tarayıcı oturumunun gerçekte ne yaptığı: biten oyunlar, oynanan hamleler, her hamlenin gerçekte beklediği ortalama süre ve biten oyunlardaki isabetin. Kaydırıcıların kendi başına yanıtlayamadığı sayı budur: 3 saniyelik düşünme süresine karşılık 2,4s ortalama, tempo modlarının gerçekte ne yaptığını söyler. Devam eden oyunu da biten oyunlar gibi sayar, sayfa yenilense de kalır ve her gün yeniden başlar.",
   "set.session_stats": "Oturum istatistikleri",
   "set.tip.auto_draw_cp": "Neyin eşit sayılacağı, iki yönde santipiyon cinsinden, 0 ile 100 arası. 20 bir piyonun beşte biridir.",
   "set.auto_draw_cp": "Şu fark içinde beraberlik (cp)",

@@ -586,7 +586,7 @@
   "set.auto_resign_cp": "Abandonar abaixo de (cp)",
   "set.tip.auto_draw": "Oferecer empate numa posição que ninguém pode mudar: avaliação dentro do limite por três turnos SEUS seguidos e depois do lance 20 - ninguém oferece empate no sexto lance. Precisa de Autoplay e oferece UMA vez por partida, porque repetir uma oferta recusada a cada lance é o que faz alguém ser silenciado. O lance é jogado do mesmo jeito: empate se oferece junto com um lance, não no lugar dele.",
   "set.auto_draw": "Oferta de empate automática",
-  "set.tip.session_stats": "O que esta sessão do navegador realmente fez: partidas terminadas, lances jogados, o tempo médio que cada um de fato esperou e sua precisão nas partidas terminadas. É o número que os controles não conseguem responder sozinhos: uma média de 2,4s contra 3 segundos de reflexão diz o que os modos de ritmo estão realmente fazendo. Dura o que o painel durar: recarregar começa uma nova sessão, e nada é armazenado.",
+  "set.tip.session_stats": "O que esta sessão do navegador realmente fez: partidas terminadas, lances jogados, o tempo médio que cada um de fato esperou e sua precisão nas partidas terminadas. É o número que os controles não conseguem responder sozinhos: uma média de 2,4s contra 3 segundos de reflexão diz o que os modos de ritmo estão realmente fazendo. Conta a partida em andamento tanto quanto as terminadas, sobrevive a um recarregamento e recomeça a cada dia.",
   "set.session_stats": "Estatísticas da sessão",
   "set.tip.auto_draw_cp": "O que conta como igual, em centipeões para cada lado, de 0 a 100. 20 é um quinto de peão.",
   "set.auto_draw_cp": "Empate dentro de (cp)",

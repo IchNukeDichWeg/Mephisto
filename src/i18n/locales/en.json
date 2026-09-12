@@ -586,7 +586,7 @@
   "set.auto_resign_cp": "Resign Below (cp)",
   "set.tip.auto_draw": "Offer a draw in a position neither side can change: the score within the threshold below, for three of YOUR turns running, and past move 20 - nobody offers a draw on move six. Needs Autoplay, and it offers ONCE per game, because a declined offer repeated every move is what gets people muted. The move is still played: offering a draw is something you do alongside a move, not instead of one.",
   "set.auto_draw": "Auto Draw Offer",
-  "set.tip.session_stats": "What this browser session has actually done: games finished, moves played, the average time each one really waited, and your accuracy across the finished games. It is the number the sliders cannot answer themselves - a 2.4s average against a 3-second think time tells you what the pacing modes are really doing. It lives as long as the panel does: a reload starts a new session, and nothing is stored.",
+  "set.tip.session_stats": "What this browser session has actually done: games finished, moves played, the average time each one really waited, and your accuracy across the finished games. It is the number the sliders cannot answer themselves - a 2.4s average against a 3-second think time tells you what the pacing modes are really doing. It counts the game in progress as well as the finished ones, survives a reload, and starts fresh each day.",
   "set.session_stats": "Session Stats",
   "set.tip.auto_draw_cp": "How level counts as level, in centipawns either way, 0 to 100. 20 is a fifth of a pawn.",
   "set.auto_draw_cp": "Draw Within (cp)",

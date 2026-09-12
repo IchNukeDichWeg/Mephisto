@@ -588,6 +588,7 @@ async function initPanel(root, tabId) {
     document.addEventListener('keydown', on_gesture, true);     // ...and so is a hotkey
     document.addEventListener('visibilitychange', () => keep_alive(keep_alive_wanted()));
     push_config();
+    session_restore();   // today's totals, now that the config store is loaded
     init_quick_settings();
     maybe_autodetect_variant(); // variant game page -> auto-apply the variant (+ Fairy) once
 
@@ -5079,7 +5080,7 @@ function on_new_pos(fen, startFen, moves) {
         // game and could end it three moves in, and a draw already offered would never be offered.
         resign_streak = draw_streak = 0; end_game_sent = '';
         // The game that just finished, folded into the session totals before anything is cleared.
-        session_note_game(eval_history);
+        session_note_game(eval_history, eval_history_game);
     }
     // fire the book lookup NOW so the answer has the whole search to arrive; never awaited
     request_explorer(fen);
@@ -9418,35 +9419,90 @@ function opp_prep_label() {
 // the pacing settings are doing what you set them to -- "2.4s average" against a 3-second think time
 // is the answer to a question the sliders cannot answer themselves.
 //
-// It lives for as long as the panel does, which is what "session" means here, and it is said plainly
-// in the tooltip: a reload starts a new one. Nothing is stored, because a running total kept on disk
-// is a thing to explain, migrate and eventually get wrong.
-let session = {games: 0, moves: 0, think_ms: 0, acc: []};
+// IT SURVIVES A RELOAD. It used to live exactly as long as the panel, which made it useless for the
+// thing people actually wanted it for -- a site navigation, a settings change, any reload at all put
+// the count back to zero mid-session. It is kept in chrome.storage.local with the DAY it belongs to,
+// and the first move of a new day starts a new count: a total with no horizon is a number nobody can
+// read, and a day is the horizon a session of chess actually has.
+const SESSION_KEY = 'session_totals';
+
+// The LOCAL day, deliberately not toISOString() -- that is UTC, and it would roll the counter over
+// at 01:00 or 02:00 local time in this timezone.
+function session_day() {
+    const d = new Date();
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+function session_fresh() {
+    return {day: session_day(), games: 0, moves: 0, think_ms: 0, acc: [], folded: null};
+}
+
+let session = session_fresh();
+
+// Read back what today already holds. Called once the config store is loaded -- a sync read before
+// that returns an empty cache, which would silently start a second count for the same day.
+function session_restore() {
+    try {
+        const rec = JSON.parse(MephistoConfig.get(SESSION_KEY) || 'null');
+        if (rec && rec.day === session_day() && Array.isArray(rec.acc)) {
+            session = {day: rec.day, games: rec.games | 0, moves: rec.moves | 0,
+                       think_ms: rec.think_ms | 0, acc: rec.acc.filter(Number.isFinite), folded: null};
+        }
+    } catch (e) { /* unreadable totals are simply today's first move */ }
+}
+
+// Rolls the day over and writes. Every counted event goes through here, so a panel left open across
+// midnight starts the new day on its next move rather than adding to yesterday.
+function session_save() {
+    if (session.day !== session_day()) session = session_fresh();
+    try { MephistoConfig.set(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* not worth a throw */ }
+}
 
 // Our own move, as it goes out. `think` is the pacing modes' explicit delay when there was one, and
 // the configured think otherwise -- the number the move actually waited, either way.
 function session_note_move(think_ms) {
     if (!Number.isFinite(think_ms)) return;
+    if (session.day !== session_day()) session = session_fresh();
     session.moves++;
     session.think_ms += Math.max(0, think_ms);
+    session_save();
 }
 
 // A game just ended (the ply count dropped back to the start). Its accuracy is folded in HERE, once,
 // rather than recomputed on every render: live_stats runs the classifier over the whole history.
-function session_note_game(history) {
+// `gameKey` is the history's own game (eval_history_game), remembered so the live reading below does
+// not count this same game a second time in the window before the next game clears the history.
+function session_note_game(history, gameKey) {
+    if (session.day !== session_day()) session = session_fresh();
     session.games++;
+    session.folded = gameKey ?? null;
     try {
         const side = our_side();
         const acc = live_stats(history)[side]?.accuracy;
         if (Number.isFinite(acc)) session.acc.push(acc);
     } catch (e) { /* an ungradeable game still counts as a game */ }
+    session_save();
+}
+
+// THE GAME IN FRONT OF YOU COUNTS TOO. Accuracy was folded in only when a game ENDED, so the number
+// could not appear at all until you had finished one -- and a session spent on a single long game
+// showed moves and seconds with no accuracy beside them, which reads as "it cannot measure this".
+// The live game is averaged in alongside the finished ones and is not stored: it is folded for real
+// by session_note_game the moment it ends.
+function session_live_accuracy() {
+    try {
+        if (eval_history_game != null && eval_history_game === session.folded) return null;
+        const acc = live_stats(eval_history)[our_side()]?.accuracy;
+        return Number.isFinite(acc) ? acc : null;
+    } catch (e) { return null; }
 }
 
 function session_stats_label() {
     if (!config.session_stats || !session.moves) return '';
     const avg = (session.think_ms / session.moves / 1000).toFixed(1);
-    const acc = session.acc.length
-        ? Math.round(session.acc.reduce((a, b) => a + b, 0) / session.acc.length) : null;
+    const live = session_live_accuracy();
+    const all = (live != null) ? session.acc.concat(live) : session.acc;
+    const acc = all.length ? Math.round(all.reduce((a, b) => a + b, 0) / all.length) : null;
     // Two strings rather than five: a label built by joining four translated fragments is four
     // chances for a language to want a different order.
     return i18n('panel.msg.session', 'Session: {games} games · {moves} moves · {avg}s avg',
