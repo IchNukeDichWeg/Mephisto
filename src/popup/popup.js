@@ -6849,24 +6849,48 @@ function game_board() {
     }
 }
 
-// Which of these moves ends the game in a draw right now, as a Set of UCI. Empty whenever the board
-// could not be replayed, so an unknown position never loses a move to contempt.
-function drawing_moves(uciList) {
+// A DRAW IS RARELY ONE MOVE AWAY. Checking only the move itself saw stalemates and the third
+// repetition, and missed the commonest draw an engine actually steers into: a level line whose own
+// PV repeats two or three moves later. Those came back scored 0.00 with contempt watching and
+// nothing to object to, because the repetition had not happened yet.
+//
+// So a line is followed as far as the engine published it, but ONLY while the engine calls the
+// position dead level -- a line it scores +3 is not a draw it is choosing, and following that one
+// would let a won position hand its move to contempt. A line with no PV, or one the engine scores
+// away from zero, gets exactly the one-ply check it always got.
+const CONTEMPT_PV_PLIES = 8;     // half a dozen moves ahead: past that it is the opponent's choice
+const CONTEMPT_LEVEL_CP = 15;    // "the engine is calling this a draw", in its own units
+
+// Which of these lines ends the game in a draw, as a Set of their first UCI. Empty whenever the
+// board could not be replayed, so an unknown position never loses a move to contempt.
+function drawing_moves(lines) {
     const out = new Set();
     const board = game_board();
     if (!board) return out;
-    for (const uci of uciList) {
-        try {
-            if (!board.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]})) continue;
-            if (board.isDraw()) out.add(uci);
-            board.undo();
-        } catch (e) { /* a candidate chess.js will not replay is no evidence of a draw */ }
+    for (const line of (lines || [])) {
+        const uci = line && line.move;
+        if (!uci) continue;
+        const pv = String(line.pv || '').trim().split(/\s+/).filter(Boolean);
+        // the PV has to actually start with this move, or it is describing something else
+        const walk = (pv[0] === uci) ? pv.slice(0, CONTEMPT_PV_PLIES) : [uci];
+        const level = Math.abs(line_cp_ours(line)) <= CONTEMPT_LEVEL_CP;
+        let played = 0, drew = false;
+        for (const mv of walk) {
+            try {
+                if (!board.move({from: mv.slice(0, 2), to: mv.slice(2, 4), promotion: mv[4]})) break;
+            } catch (e) { break; }   // a move chess.js will not replay is no evidence of a draw
+            played++;
+            if (board.isDraw()) { drew = true; break; }
+            if (!level) break;       // only a line the engine calls level is followed past its own move
+        }
+        for (let i = 0; i < played; i++) board.undo();
+        if (drew) out.add(uci);
     }
     return out;
 }
 
-// The move to play instead of `best` when `best` draws on the spot and something inside the dial
-// does not. `best` back unchanged whenever contempt is off, the top move is not a draw, or every
+// The move to play instead of `best` when `best` draws -- on the spot, or down its own level line --
+// and something inside the dial does not. `best` back unchanged whenever contempt is off, the top move is not a draw, or every
 // candidate within the tolerance draws as well -- in which case the draw is the position, not a
 // choice anyone is making.
 function contempt_pick(best) {
@@ -6877,7 +6901,7 @@ function contempt_pick(best) {
     const bestLine = lines.find(l => l.move === best);
     const bestCp = bestLine ? line_cp_ours(bestLine) : null;
     if (!Number.isFinite(bestCp) || Math.abs(bestCp) >= 90000) return best; // a mate is not a draw
-    const drawing = drawing_moves(lines.map(l => l.move));
+    const drawing = drawing_moves(lines);
     if (!drawing.has(best)) return best;                    // nothing to avoid: the usual case
     let pick = best, pickCp = -Infinity;
     for (const l of lines) {
