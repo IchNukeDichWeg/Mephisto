@@ -708,6 +708,14 @@ async function initPanel(root, tabId) {
                 // a corrupt/transient scrape (mid-animation, wrong turn guess) can yield an
                 // illegal position; feeding one to the wasm engine crashes it (OOB). Skip it.
                 console.warn('Mephisto: skipping illegal scraped position:', fen);
+                // ...AND SAY WHY, because skipping it silently is a panel that reports "Game
+                // detected" and then analyses nothing, for ever, with no reason on screen. The
+                // commonest cause is not a corrupt read at all: it is a VARIANT board while the
+                // panel is set to standard chess, and those positions are illegal by standard
+                // rules on purpose (found sweeping lichess's variants 2026-09-12 -- a Horde board
+                // sat dead, because Horde starts with 36 white pawns and no white king).
+                // English, like every other string on this line (see health_rows).
+                set_idle_reason(illegal_scrape_reason(fen));
                 return;
             }
             if (response.displayOnly) {
@@ -2886,6 +2894,20 @@ function cross_check_position(fen) {
             `  ours: ${ours}\n  page: ${theirs}\n` +
             '  The page is more likely right -- re-detect, or report this with both strings.');
     } catch (e) { /* a diagnostic must never break the move path */ }
+}
+
+// WHY a scraped position was refused, in words the panel can show. Two causes, and they want
+// different actions: a board whose piece counts break STANDARD chess is almost always a variant
+// game the panel has not been told about (lichess auto-detect is deliberately manual -- see
+// maybe_autodetect_variant), while anything else is usually a half-rendered read that fixes itself.
+function illegal_scrape_reason(fen) {
+    const placement = String(fen).split(' ')[0];
+    const count = (re) => (placement.match(re) || []).length;
+    const variantish = (!config.variant || config.variant === 'chess')
+        && (count(/P/g) > 8 || count(/p/g) > 8 || count(/K/g) !== 1 || count(/k/g) !== 1);
+    return variantish
+        ? 'That position is not legal in standard chess - if this is a variant game, set Variant in the Engine tab (or press Detect beside it).'
+        : 'The position read off the board was not legal, so it was not analysed. A half-drawn board usually fixes itself on the next move.';
 }
 
 function is_legal_position(fen) {
