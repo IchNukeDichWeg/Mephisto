@@ -970,6 +970,43 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /idle_hold_until = Date\.now\(\) \+ SELF_TEST_MS;/.test(pj));
 }
 
+// ---- every engine is listed beside its own native twin ---------------------------------------------
+{
+    console.log('\nengine order:');
+    const ph = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const ej = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // WASM first, its native twin directly under it (user call 2026-09-12). The three lists used to
+    // disagree: the panel and the settings page led with the native build, engines.js grouped all
+    // the WASM ones and then all the native ones.
+    //
+    // BUILD-AWARE, because the two trees do not ship the same natives: one has a native per Stockfish
+    // version, the other has a single generic one. So the rule is stated as a SHAPE -- a native sits
+    // immediately after a WASM build -- rather than as a fixed table of pairs. A twin is a native of
+    // an engine that also ships as WASM; the specials further down the list are not twins of
+    // anything and are matched by family rather than by name, so this file names no engine a build
+    // might keep to itself.
+    const isWasm = (id) => /^(stockfish|fairy-stockfish)-/.test(id);
+    const isTwin = (id) => id.endsWith('-native') && /^(sf|stockfish|fairy)/.test(id);
+    const slice = (src, from, re) => [...src.slice(src.indexOf(from), src.indexOf('</select>', src.indexOf(from))).matchAll(re)].map(m => m[1]);
+    const lists = {
+        panel: slice(ph, '<select id="qs_engine"', /<option value="([^"]+)"/g),
+        settings: slice(gh, 'id="engine_select"', /<option value="([^"]+)"/g),
+        engines: [...ej.slice(ej.indexOf('const ENGINES = ['), ej.indexOf('\n];', ej.indexOf('const ENGINES = ['))).matchAll(/\{id: '([^']+)'/g)].map(m => m[1]),
+    };
+    for (const [where, ids] of Object.entries(lists)) {
+        ok(`${where}: the big net leads`, ids[0] === 'stockfish-19-nnue', ids[0]);
+        const twins = ids.filter(isTwin);
+        ok(`${where}: it lists ${twins.length} native twin(s)`, twins.length >= 1, twins);
+        for (const t of twins) {
+            const at = ids.indexOf(t);
+            ok(`${where}: ${t} follows a WASM build`, at > 0 && isWasm(ids[at - 1]),
+               ids.slice(Math.max(0, at - 1), at + 1));
+        }
+    }
+}
+
 // ---- a board with no last move is still a board -----------------------------------------------------
 {
     console.log('\nturn reader:');
