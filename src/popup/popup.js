@@ -5379,12 +5379,20 @@ function on_new_pos(fen, startFen, moves) {
             // pure analysis / manual / ponder: no move is owed, so the search runs to the Analysis
             // Limit -- and that limit is infinite unless the slider was moved off its right end.
             send_engine_uci(`go ${analysis_go_args() || 'infinite'}`);
-        } else if (searching_by_depth()) {
+        } else if (searching_by_depth() && !in_time_trouble()) {
             // `go depth` only -- NOT `go depth N movetime M`. A movetime alongside a depth is a
             // race, and whichever fires first decides, which would make the reproducible instrument
             // stop being reproducible on a slow machine. The pacing modes still hold the move back
             // afterwards; they just no longer cut the search short.
             send_engine_uci(`go depth ${config.compute_depth}`);
+        } else if (searching_by_depth()) {
+            // ...EXCEPT WITH SECONDS LEFT ON THE CLOCK. Depth mode sends no movetime at all, so the
+            // time-trouble cap computed above was applied to a number this branch never sends: the
+            // feature promised "when your clock is nearly gone, move fast" and did nothing whenever
+            // the budget was set by depth. A search that is reproducible and a game that is lost on
+            // time is the wrong trade, and it is the trade only someone who switched this on is
+            // asking for -- so in time trouble, and only then, the budget becomes the clock.
+            send_engine_uci(`go movetime ${Math.min(movetime, TIME_TROUBLE_SEARCH_MS)}`);
         } else {
             send_engine_uci(`go movetime ${movetime}`); // autoplay needs a final bestmove to act on
         }

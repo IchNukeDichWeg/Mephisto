@@ -970,6 +970,23 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /idle_hold_until = Date\.now\(\) \+ SELF_TEST_MS;/.test(pj));
 }
 
+// ---- Time Trouble caps a budget the engine is actually given ----------------------------------------
+{
+    console.log('\ntime trouble:');
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The cap is applied to `movetime`. In Depth search mode the engine is sent `go depth N` and no
+    // movetime at all, so the cap landed on a number that branch never used: the feature promised
+    // "your clock is nearly gone, move fast" and did nothing whenever the budget was set by depth.
+    ok('depth mode gives way to the clock when the clock is nearly gone',
+       /} else if \(searching_by_depth\(\) && !in_time_trouble\(\)\) \{/.test(pj));
+    ok('...and that branch sends a movetime, which is the thing the cap applies to',
+       pj.includes('send_engine_uci(`go movetime ${Math.min(movetime, TIME_TROUBLE_SEARCH_MS)}`)'));
+    ok('...and the plain depth search still sends depth ALONE, never both',
+       /send_engine_uci\(`go depth \$\{config\.compute_depth\}`\)/.test(pj)
+       && !/go depth \$\{config\.compute_depth\} movetime/.test(pj));
+}
+
 // ---- the Maia reply fetch runs on the engines it was written for ------------------------------------
 {
     console.log('\nmaia premove:');
