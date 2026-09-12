@@ -23,6 +23,7 @@ const Core = self.MephistoReviewCore;
 // because the Analysis page needs the same ones. Pulled onto locals here so the rest of this file
 // reads exactly as it did.
 const {ENGINES, MAIA_BANDS, WasmEngine, NativeEngine, makeEngine, nativeHostAvailable,
+       takesRating, ratingSteps, ratingFor, humanLabel,
        LIMIT_INFINITE} = self.MephistoEngines;
 
 // ---- config -----------------------------------------------------------------------------------
@@ -391,8 +392,7 @@ function strengthBands(kind) {
     // Maia 3 is one net on a dial, so it can be asked anywhere. Walked in 100s (user call
     // 2026-08-24, was 200s): 21 bands instead of 11 doubles this pass, but the estimate is the point
     // of the pass and a 100-point grid is the resolution people read it at.
-    return kind === 'maia3' ? Array.from({length: 21}, (_, i) => String(600 + i * 100))
-                            : MAIA_BANDS.slice();
+    return takesRating(kind) ? ratingSteps(kind) : MAIA_BANDS.slice();
 }
 
 // A move only says something about strength if there was a choice to make. Book moves are memory,
@@ -424,8 +424,8 @@ async function strengthPass(positions, moves, prog, rig) {
     let shared = null;
     let borrowed = false;
     try {
-        if (kind === 'maia3') {
-            // The human pass's engine is the SAME 92MB net this sweep was loading a second copy of,
+        if (takesRating(kind)) {
+            // The human pass's engine is the SAME net this sweep was loading a second copy of,
             // and by the time this runs that pass is finished (both passes are awaited before
             // assemble). Borrow it and sweep it across its rating dial instead: the second net load
             // -- most of the estimate's wait, and all of its extra memory -- disappears.
@@ -434,7 +434,7 @@ async function strengthPass(positions, moves, prog, rig) {
                 borrowed = true;
                 shared.send(`setoption name MultiPV value ${STRENGTH_MULTIPV}`);
             } else {
-                shared = makeEngine('maia3', {variant: 'chess', multipv: STRENGTH_MULTIPV, maiaLevel: bands[0],
+                shared = makeEngine(kind, {variant: 'chess', multipv: STRENGTH_MULTIPV, maiaLevel: bands[0],
                                               limitKind: 'depth', limitValue: 1, threads: 1, hash: 16}, 'review-strength');
                 await shared.start();
             }
@@ -477,8 +477,9 @@ async function strengthPass(positions, moves, prog, rig) {
             // Hand the engine back exactly as the human pass runs it: a batch review reuses this rig
             // for the next game, and its human pass assumes five lines at the configured rating.
             shared.send('setoption name MultiPV value 5');
-            shared.send(`setoption name SelfElo value ${cfg('rv_maia3_elo')}`);
-            shared.send(`setoption name OppoElo value ${cfg('rv_maia3_elo')}`);
+            const back = ratingFor(cfg('rv_human'), cfg('rv_maia3_elo'));
+            shared.send(`setoption name SelfElo value ${back}`);
+            shared.send(`setoption name OppoElo value ${back}`);
         } else { shared?.dispose?.(); }
     }
 
@@ -625,7 +626,10 @@ async function startRig(override) {
     // the Maia nets know one game: any other rules run without a human pass
     const humanKind = (override || variant !== 'chess') ? '' : cfg('rv_human');
     if (humanKind) {
-        const level = humanKind === 'maia3' ? String(cfg('rv_maia3_elo')) : String(cfg('rv_maia_band'));
+        // Maia-2 asks "you at X against an opponent at Y"; a review has one dial, so both sides are
+        // the same rating -- an even game, which is what the report is describing anyway.
+        const level = takesRating(humanKind) ? ratingFor(humanKind, cfg('rv_maia3_elo'))
+                                             : String(cfg('rv_maia_band'));
         // Five of Maia's own choices: its RANK of the played move says far more than a yes/no.
         // Its own client id: it runs ALONGSIDE the analysis engine now, not after it.
         human = makeEngine(humanKind, {...opts, multipv: 5, maiaLevel: level}, 'review-human');
@@ -1330,7 +1334,7 @@ function renderStrength() {
     sec.classList.toggle('hidden', !on);
     if (!on) return;
 
-    const model = st.kind === 'maia3' ? 'Maia 3' : 'Maia 1';
+    const model = humanLabel(st.kind);
     $('rv_strength_note').innerHTML =
         `Each rating the ${esc(model)} model has was asked what it would play in every position where there `
       + `was a real choice - book moves and forced moves are left out, because everyone plays those the same `
@@ -1502,7 +1506,8 @@ function renderHumanReport() {
     const on = cfg('rv_human_report') && report.moves.some(m => m.maiaRank != null);
     sec.classList.toggle('hidden', !on);
     if (!on) return;
-    const band = report.humanKind === 'maia3' ? cfg('rv_maia3_elo') : cfg('rv_maia_band');
+    const band = takesRating(report.humanKind) ? ratingFor(report.humanKind, cfg('rv_maia3_elo'))
+                                               : cfg('rv_maia_band');
     const col = (color) => {
         const mine = report.moves.filter(m => m.color === color && m.maiaRank != null);
         if (!mine.length) return '';
@@ -2585,7 +2590,12 @@ function bindHumanUi() {
     band0.innerHTML = MAIA_BANDS.map(b => `<option value="${b}">${b}</option>`).join('');
     const sync = () => {
         $('rv_maia_band').classList.toggle('hidden', sel.value !== 'maia');
-        $('rv_maia3_wrap').classList.toggle('hidden', sel.value !== 'maia3');
+        // The rating box is shared by every dial model; its id keeps Maia-3's name because that is
+        // the stored key, and renaming it would cost a migration to say the same thing.
+        $('rv_maia3_wrap').classList.toggle('hidden', !takesRating(sel.value));
+        const steps = ratingSteps(sel.value);
+        const box = $('rv_maia3_elo');
+        if (box) { box.min = steps[0]; box.max = steps[steps.length - 1]; }
     };
     sel.value = cfg('rv_human');
     sel.addEventListener('change', () => { setCfg('rv_human', sel.value); sync(); });
