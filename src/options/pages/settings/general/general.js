@@ -1007,10 +1007,14 @@ class GeneralSettings extends SettingsPage {
         });
     }
 
-    // Self-update. NOT a FormElement, and no config key at all: the CHROME PERMISSION is the
-    // setting. A stored flag beside it could only ever disagree with it -- revoke the host in
-    // chrome://extensions and a stored `true` would still render as On while every download failed.
-    // So the checkbox is drawn from chrome.permissions.contains() and writes nothing.
+    // Self-update. NOT a FormElement, but it DOES have a config key -- `auto_update`, written by
+    // MephistoUpdater.setEnabled and read back by .enabled(). This comment used to describe the
+    // opposite ("no config key at all: the CHROME PERMISSION is the setting"), which was the
+    // original design and the reason the switch could not be turned off: chrome.permissions.remove
+    // can answer false and keep the permission, so a checkbox drawn from the permission stayed on
+    // however often you clicked it. The SETTING is what the user chose; the permission is only a
+    // capability, and the two are rendered together below -- on-with-no-permission says so rather
+    // than lying in either direction.
     initUpdater() {
         const cb = document.getElementById('auto_update_checkbox');
         const checkBtn = document.getElementById('update_check_btn');
