@@ -6453,25 +6453,34 @@ function in_time_trouble() {
 // histogram of move times is read as human by.
 //
 // One switch, sampling the same AVERAGE the settings already describe, so the numbers you set still
-// mean what they meant: the median is the mean of the uniform draw it replaces. Sigma is the spread
-// in log space -- 0.5 puts the slow tenth of moves at about 2x the median and the fast tenth at
-// about half, which is what a real move-time histogram looks like.
+// mean what they meant. Sigma is the spread in log space -- 0.5 puts the slow tenth of moves at
+// about 2x the typical one and the fast tenth at about half, which is what a real move-time
+// histogram looks like.
+//
+// THE MEAN IS THE TARGET, NOT THE MEDIAN. A log-normal's mean sits exp(sigma^2/2) ABOVE its median
+// -- 1.133x at sigma 0.5 -- so feeding the setting straight in as the median made every move take
+// ~13% longer on average than the slider said, for everyone who switched this on (a 3s think really
+// spent 3.4s). The draw is shifted down by that factor, which makes the MEAN the number you set and
+// the typical move a little quicker than it: mean E[x] = target, median = 0.88 * target. The 4x
+// clamp below adds ~0.2% back, which is under the rounding.
 //
 // The CURSOR TRAVEL is deliberately left alone: a hand does not move across the board log-normally,
 // and its floor exists for a different reason (a click that lands too fast stops looking like one).
 const HUMAN_TIME_SIGMA = 0.5;
-const HUMAN_TIME_MAX_K = 4;    // the tail is long, not infinite -- never more than 4x the median
+const HUMAN_TIME_MAX_K = 4;    // the tail is long, not infinite -- never more than 4x the average
 // The midpoints of humanize's own uniform bands, so switching this on changes the SHAPE of its
 // think times without changing what they average.
-const HUMAN_TIME_MEDIAN = {instant: 75, quick: 500, normal: 1300, long: 4250};
+const HUMAN_TIME_MEAN = {instant: 75, quick: 500, normal: 1300, long: 4250};
 
-function lognormal_ms(median, sigma = HUMAN_TIME_SIGMA) {
-    if (!(median > 0)) return 0;
+// `mean` is the average the caller wants back, not the median -- see the note above.
+function lognormal_ms(mean, sigma = HUMAN_TIME_SIGMA) {
+    if (!(mean > 0)) return 0;
     // Box-Muller: two uniforms in, one standard normal out. Math.random() can return exactly 0 and
     // log(0) is -Infinity, so the first draw is nudged off that edge.
     const u = Math.random() || Number.MIN_VALUE, v = Math.random();
     const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-    return Math.round(Math.min(median * Math.exp(sigma * z), median * HUMAN_TIME_MAX_K));
+    // exp(sigma*(z - sigma/2)) has mean exactly 1: the shift is what keeps the average honest.
+    return Math.round(Math.min(mean * Math.exp(sigma * (z - sigma / 2)), mean * HUMAN_TIME_MAX_K));
 }
 
 // ---- THE COMPLEXITY CLOCK ----------------------------------------------------------------------
@@ -6957,7 +6966,7 @@ function humanize_pick(best) {
     // 'long' kind), and this scales what it sits by how far apart the top lines actually are. Never
     // on a reflex -- an instant move is instant because it is forced, not because it is easy.
     // Human Move Times: the same average, drawn from the shape real move times have.
-    if (config.human_times) think = lognormal_ms(HUMAN_TIME_MEDIAN[kind]);
+    if (config.human_times) think = lognormal_ms(HUMAN_TIME_MEAN[kind]);
     if (kind !== 'instant') think *= complexity_k();
 
 
