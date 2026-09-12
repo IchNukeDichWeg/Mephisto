@@ -1913,12 +1913,24 @@ function tryScrapePosition() {
         }
         return res || 'no';
     } catch (e) {
-        // the frame matters as much as the message: an unexpected TypeError anywhere in the scrape
-        // wedges the panel exactly like the deliberate aborts do, but needs a completely different fix
-        lastScrapeFail = String(e && e.message).slice(0, 40)
-            + ' @ ' + String((String(e && e.stack).split('\n')[1] || '').trim()).slice(0, 70);
+        lastScrapeFail = scrapeFailLabel(e);
         return 'no'; // skip the current attempt, if we can't scrape
     }
+}
+
+// THE FRAME MATTERS AS MUCH AS THE MESSAGE -- an unexpected TypeError anywhere in the scrape wedges
+// the panel exactly like the deliberate aborts do, but needs a completely different fix. It used to
+// be reported as 70 characters of `at chrome-extension://<32-char id>/src/scripts/con`, which is the
+// id and nothing else: no file, no line, no column. Dropping the origin leaves the part that
+// identifies the bug -- and takes the EXTENSION ID out of a report written to be pasted in public,
+// which is the one thing in this dump that should never leave the machine.
+function scrapeFailLabel(e) {
+    const msg = String(e && e.message).slice(0, 70);
+    const frame = String((String(e && e.stack).split('\n')[1] || '').trim())
+        .replace(/chrome-extension:\/\/[a-p]{32}\//g, '')
+        .replace(/^at\s+/, '')
+        .slice(0, 70);
+    return frame ? `${msg} @ ${frame}` : msg;
 }
 
 function scrapePosition() {
