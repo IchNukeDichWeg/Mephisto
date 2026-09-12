@@ -3810,12 +3810,20 @@ function getTurn() {
         return (getOrientation() === 'black') ? 'b' : 'w';
     }
 
+    // AN EMPTY READ IS AN ANSWER, NOT AN EXCEPTION -- and this caller was still only listening for
+    // the exception. getLastMoveHighlights was made defensive (it returns [] for "no last move
+    // readable" instead of throwing), which left `[1]` as undefined, sailing past a catch that could
+    // no longer fire, into `toSquare.style` two branches below. On lichess that is every position
+    // with no `.last-move` on the board -- the START OF A GAME -- so the very first scrape threw,
+    // the retries threw with it, and the panel gave up before the game had a move in it. Spectating
+    // an existing game worked, because there the highlight is already on the board.
     let toSquare;
     try {
         toSquare = getLastMoveHighlights()[1];
     } catch (e) {
-        return turnFromContext(); // no last-move highlight to read the turn from
+        toSquare = undefined;   // blitztactics still throws; treat it as the same answer
     }
+    if (!toSquare) return turnFromContext(); // no last-move highlight to read the turn from
 
     let turn;
     if (site === 'chesscom') {
