@@ -379,17 +379,17 @@
             <option data-i18n="set.style_ultra" value="ultra">Ultra attacking</option>
         </select>
     </div>
-    <div class="qs-row" id="qs_engine_id_row">
+    <div class="qs-row qs-oneline" id="qs_engine_id_row">
         <span data-i18n="panel.engine_id" data-i18n-tip="panel.tip.engine_id" class="qs-label tooltipped" data-position="left"
               data-tooltip="What is actually loaded right now: the engine build the panel asked for, and the neural net it reported loading. A build and a net are two different things - a dev Stockfish with an old net is not the engine you think you are running, and nothing else on this panel would tell you.">Loaded</span>
         <span id="qs_engine_id" class="qs-value">-</span>
     </div>
-    <div class="qs-row">
+    <div class="qs-row qs-oneline">
         <span data-i18n="panel.copy_analysis" data-i18n-tip="panel.tip.copy_analysis" class="qs-label tooltipped" data-position="left"
               data-tooltip="Copy the position and what the engine says about it as plain text: the FEN, the score and depth, and every candidate line with its own score. For a note, a message or an issue - it is the panel's answer in a form you can paste.">Copy Analysis</span>
         <button id="qs_copyanalysis" type="button">Copy</button>
     </div>
-    <div class="qs-row">
+    <div class="qs-row qs-oneline">
         <span data-i18n="panel.reanalyse" data-i18n-tip="panel.tip.reanalyse" class="qs-label tooltipped" data-position="left"
               data-tooltip="Throw away the current answer and search this same position again from scratch. For when a setting changed under a search, or the readout looks stale and you would rather not move a piece to find out. The board is not touched.">Re-analyse</span>
         <button id="qs_reanalyse" type="button">Run</button>
@@ -412,7 +412,7 @@
      a 45px pitch and its own comment shows five is exactly what fits -- a sixth fell out of the
      layout and landed on the board. A labelled row is also more discoverable than a sixth
      unlabelled icon, which is the point of the thing. -->
-<div class="qs-row">
+<div class="qs-row qs-oneline">
         <span data-i18n="set.copy_diagnostics" class="qs-label">Copy Diagnostics</span>
         <button id="qs_copydiag" type="button"
                 class="tooltipped" data-position="left" data-i18n-tip="panel.tip.copy_diagnostics" data-tooltip="Names the missing part in the panel -- site, board, position, settings, engine, native host -- AND copies the full report: version, engine, what was detected, why the last move was or was not played, and the recent trace. Press it any time; safe to paste into a bug report.">Copy</button>
