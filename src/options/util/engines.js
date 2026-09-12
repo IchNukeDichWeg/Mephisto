@@ -25,13 +25,13 @@ const LIMIT_INFINITE = 1e9;
 const ENGINE_FALLBACK = 'stockfish-19-small-nnue';
 const ENGINES = [
     {id: 'stockfish-19-nnue', label: 'Stockfish 19 (WASM)', kind: 'wasm'},
+    {id: 'sf-native', label: 'Stockfish (native)', kind: 'native'},
     {id: 'stockfish-19-small-nnue', label: 'Stockfish 19 Small (WASM)', kind: 'wasm'},
     {id: 'stockfish-18-nnue', label: 'Stockfish 18 (WASM)', kind: 'wasm'},
     {id: 'stockfish-11-hce', label: 'Stockfish 11 HCE (WASM)', kind: 'wasm'},
     // The one engine here that plays the fairy variants; the offscreen loader picks the matching
     // per-variant net and validates the variant against the engine's own declared list.
     {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish 14 (WASM)', kind: 'wasm'},
-    {id: 'sf-native', label: 'Stockfish (native)', kind: 'native'},
     {id: 'fairy-native', label: 'Fairy-Stockfish (native)', kind: 'native'},
 ];
 
