@@ -9477,18 +9477,28 @@ function auto_draw_cp() {
     return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 20;
 }
 
-// The decision itself: our own score and the move number in, an action or null out, streaks updated.
-// Deliberately a pure function of the config and its two arguments -- this is the half that decides
-// to end a game, and it is worth being able to run it rather than reason about it.
-function end_game_action(cp, fullmove) {
+// A PROVED RESULT OUTRANKS A SEARCH. At seven men or fewer the tablebase knows how the game ends and
+// the engine only has an opinion, and the two disagree exactly where it matters: a fortress the
+// search scores -900 is a DRAW, and resigning it is the worst thing this feature can do. The proof
+// is a VETO and never a trigger -- it can stop a resignation or a draw offer, but it never starts
+// one, because the three-turn streak exists so that no single reading ends a game.
+// `proved` is the category FROM OUR SIDE (tablebase_category_for_us), or null off the tablebase.
+const TB_NOT_LOST = new Set(['win', 'cursed-win', 'draw', 'blessed-loss']);
+
+// The decision itself: our own score, the move number and any proof in, an action or null out,
+// streaks updated. Deliberately a pure function of the config and its arguments -- this is the half
+// that decides to end a game, and it is worth being able to run it rather than reason about it.
+function end_game_action(cp, fullmove, proved) {
     if (!Number.isFinite(cp)) {                 // no score: no evidence, and the count starts again
         resign_streak = draw_streak = 0;
         return null;
     }
     // A mate score needs no special case: being mated is a very negative number, which is already
     // past any threshold anyone would set.
-    if (config.auto_resign && cp <= -auto_resign_cp()) resign_streak++; else resign_streak = 0;
-    if (config.auto_draw && Math.abs(cp) <= auto_draw_cp() && fullmove >= AUTO_DRAW_MIN_FULLMOVE) draw_streak++;
+    if (config.auto_resign && cp <= -auto_resign_cp() && !TB_NOT_LOST.has(proved)) resign_streak++;
+    else resign_streak = 0;
+    if (config.auto_draw && Math.abs(cp) <= auto_draw_cp() && fullmove >= AUTO_DRAW_MIN_FULLMOVE
+        && proved !== 'win') draw_streak++;
     else draw_streak = 0;
     if (resign_streak >= END_GAME_STREAK) return 'resign';
     if (draw_streak >= END_GAME_STREAK) return 'draw';
@@ -9499,17 +9509,31 @@ function end_game_action(cp, fullmove) {
 // action so the caller can decline to also play a move into a game it just resigned.
 // HOW FAR INTO THE GAME WE ARE. NOT from the FEN: the panel's position is SCRAPED FROM THE BOARD,
 // and neither site's DOM carries the move counters -- every live scrape reads "0 1" (measured on
-// lichess 2026-09-04, and it is why the draw offer did not fire once in a whole test game). The move
-// LIST is what the panel really has, so the count comes from there; a game joined from a set-up
-// position still gets the FEN's own number when that one is larger.
+// lichess 2026-09-04, and it is why the draw offer did not fire once in a whole test game).
 //
-// The same fact is why contempt can only see a THREEFOLD and never the fifty-move rule: the halfmove
-// clock is gone for the same reason, and only the replayed move list can put it back.
+// THE LARGEST OF THREE SOURCES, because none of them can over-count and all of them can under-count:
+//
+//   * the scraped FEN -- reads "0 1" on every live scrape, so it only helps on a set-up position;
+//   * the replayed board (game_board(), the one contempt uses) -- authoritative WHEN the start
+//     position carried counters, which is the panel's own set-up FEN path;
+//   * the ply count -- always available, and right whenever the game was watched from move one.
+//
+// The replay alone is NOT enough, and that was measured rather than reasoned: lichess's start
+// position reaches the panel as a placement-and-turn string (fenToPuzString in the content script
+// drops castling, en passant AND the counters), so a game joined at move 40 replays from a board
+// that believes it is move 1. Taking the board's number on its own therefore made this WORSE than
+// the arithmetic it replaced -- proved live on 2026-09-12, a from-position game at move 40 that
+// never opened Auto Draw's "not before move 20" gate.
 function game_fullmove() {
+    let fromBoard = 0;
+    try {
+        const board = game_board();
+        if (board) fromBoard = parseInt(String(board.fen()).split(' ')[5]) || 0;
+    } catch (e) { /* a position the replay cannot reproduce simply does not vote */ }
     let fromFen = 0;
     try { fromFen = parseInt(String(last_eval.fen).split(' ')[5]) || 0; } catch (e) { /* variant fen */ }
     const plies = String(last_pos.moves || '').trim().split(/\s+/).filter(Boolean).length;
-    return Math.max(fromFen, Math.floor(plies / 2) + 1);
+    return Math.max(fromBoard, fromFen, Math.floor(plies / 2) + 1);
 }
 
 function maybe_end_game() {
@@ -9517,7 +9541,9 @@ function maybe_end_game() {
     if (config.help_mode || config.manual_mode || config.puzzle_mode) return null;
     const line = (last_eval.lines || []).find(l => l && l.move);
     const cp = line ? line_cp_ours(line) : null;
-    const action = end_game_action(Number.isFinite(cp) ? cp : NaN, game_fullmove());
+    const proved = (tablebase_data && tablebase_data.fen === last_eval.fen)
+        ? tablebase_category_for_us(tablebase_data.category, tablebase_data.fen) : null;
+    const action = end_game_action(Number.isFinite(cp) ? cp : NaN, game_fullmove(), proved);
     if (!action) return null;
     if (action !== end_game_sent) {
         end_game_sent = action;
