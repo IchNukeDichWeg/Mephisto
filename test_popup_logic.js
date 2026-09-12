@@ -966,6 +966,34 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /idle_hold_until = Date\.now\(\) \+ SELF_TEST_MS;/.test(pj));
 }
 
+// ---- a row with a button is a row on ONE line ------------------------------------------------------
+{
+    console.log('\none-line rows:');
+    const css = fs.readFileSync(ROOT + '/src/popup/popup.css', 'utf8');
+    const html = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The rule used to be tied to ONE button's id, so the three rows added after it wrapped into two
+    // cramped lines exactly as that one had. A class cannot be outgrown the same way.
+    ok('the one-line layout is a class, not one button\'s id',
+       /#quick-settings \.qs-row\.qs-oneline \{/.test(css) && !/\.qs-row:has\(#qs_copydiag\) \{/.test(css));
+    ok('...and the pill belongs to every button in such a row',
+       /#quick-settings \.qs-oneline > button \{/.test(css) && !/#quick-settings #qs_copydiag \{/.test(css));
+    ok('...in dark mode too', /body\.mephisto-dark #quick-settings \.qs-oneline > button \{/.test(css));
+    ok('the value shrinks rather than the label, and shows it was cut',
+       /#quick-settings \.qs-value \{[^}]*text-overflow: ellipsis;/.test(css)
+       && /#quick-settings \.qs-value \{[^}]*min-width: 0;/.test(css));
+    // THE REGRESSION GUARD: any row whose control is a bare button or a bare value must carry the
+    // class, or it wraps. A row that gets one added later fails here rather than in a screenshot.
+    const rows = html.split('<div class="qs-row').slice(1)
+        .map(r => '<div class="qs-row' + r.slice(0, r.indexOf('</div>')));
+    const wrappers = rows.filter(r => /<button/.test(r) || /class="qs-value"/.test(r))
+        .filter(r => !/<select|<input/.test(r))              // a select row lays itself out
+        .filter(r => !/qs-bot-actions/.test(r));             // the bot row stacks on purpose
+    ok(`every bare-button / bare-value row is marked (${wrappers.length} of them)`,
+       wrappers.length >= 4 && wrappers.every(r => r.includes('qs-oneline')),
+       wrappers.filter(r => !r.includes('qs-oneline')).map(r => r.slice(0, 80)));
+}
+
 // ---- the notice strip does not sit on the answer ----------------------------------------------------
 {
     console.log('\nnotice overlap:');

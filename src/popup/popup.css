@@ -692,17 +692,33 @@ html, body {
 }
 #quick-settings #qs_variant_detect:hover { background: #f0f0f0; }
 
-/* Label left, button right, on ONE line. A plain .qs-row carries no layout of its own -- the
+/* LABEL LEFT, CONTROL RIGHT, ON ONE LINE. A plain .qs-row carries no layout of its own -- the
    toggle rows bring their own flex and the select rows are laid out by the full-width select -- so
-   this one wrapped into two cramped lines with the button tucked under the label. */
-#quick-settings .qs-row:has(#qs_copydiag) {
+   a row whose control is a button or a bare value wrapped into two cramped lines with the control
+   tucked under the label. That was fixed once by naming Copy Diagnostics' id, which left the three
+   rows added after it (Loaded, Copy Analysis, Re-analyse) to wrap in exactly the same way. The
+   class says what the row IS, so the next one cannot.
+   Only the VALUE gives way when the line is tight: a truncated label is a row you cannot identify,
+   and the value carries its full text in a title. */
+#quick-settings .qs-row.qs-oneline {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
     min-height: 28px;
-    margin-top: 10px;
 }
+#quick-settings .qs-row.qs-oneline > .qs-label { margin-bottom: 0; flex: 0 0 auto; }
+#quick-settings .qs-value {
+    flex: 0 1 auto;
+    min-width: 0;            /* without this a flex item refuses to shrink and the ellipsis never shows */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--mp-mute);
+}
+/* Copy Diagnostics closes the panel, so it keeps the gap that separates it from the rows above. */
+#quick-settings .qs-row.qs-oneline:has(#qs_copydiag) { margin-top: 10px; }
 /* Same pill as the detect button beside it, just wide enough for a word. */
 /* Bot game. The row stacks: label, dropdown, then the two actions side by side -- the dropdown is
    a full-width .browser-default like every other select here, so the buttons cannot share its line.
@@ -734,7 +750,8 @@ html, body {
    reason the inline selects carry this rule. Without it the options are dark-on-dark. */
 #quick-settings #qs_bot_game option { background: var(--mp-bg); color: var(--mp-text); }
 
-#quick-settings #qs_copydiag {
+/* One pill for every button that sits at the right of its row. */
+#quick-settings .qs-oneline > button {
     flex: 0 0 auto;
     height: 28px;
     padding: 0 12px;
@@ -746,7 +763,7 @@ html, body {
     border-radius: 4px;
     cursor: pointer;
 }
-#quick-settings #qs_copydiag:hover { background: #f0f0f0; }
+#quick-settings .qs-oneline > button:hover { background: #f0f0f0; }
 
 #quick-settings select.browser-default,
 #quick-settings input.browser-default {
@@ -1260,8 +1277,8 @@ body.mephisto-compact #alt-lines {
 body.mephisto-dark #calibrate-notice, body.mephisto-dark #engine-notice { color: #4dd0e1; background: #16323a; }
 body.mephisto-dark #update-notice { color: #4dd0e1; background: #16323a; }
 body.mephisto-dark #idle-reason { color: #e8c76a; background: rgba(232, 199, 106, 0.12); }
-body.mephisto-dark #quick-settings #qs_copydiag { background: #2a2b31; color: #e6e6e6; border-color: #43444d; }
-body.mephisto-dark #quick-settings #qs_copydiag:hover { background: #363740; }
+body.mephisto-dark #quick-settings .qs-oneline > button { background: #2a2b31; color: #e6e6e6; border-color: #43444d; }
+body.mephisto-dark #quick-settings .qs-oneline > button:hover { background: #363740; }
 body.mephisto-dark #quick-settings #qs_bot_play,
 body.mephisto-dark #quick-settings #qs_bot_draw { background: #2a2b31; color: #e6e6e6; border-color: #43444d; }
 body.mephisto-dark #quick-settings #qs_bot_play:hover,
