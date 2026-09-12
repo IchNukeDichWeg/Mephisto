@@ -586,7 +586,7 @@
   "set.auto_resign_cp": "Abandonar por debajo de (cp)",
   "set.tip.auto_draw": "Ofrecer tablas en una posición que ninguno puede cambiar: evaluación dentro del umbral durante tres turnos TUYOS seguidos y pasada la jugada 20 - nadie ofrece tablas en la jugada seis. Necesita Autoplay y ofrece UNA vez por partida, porque repetir una oferta rechazada cada jugada es lo que hace que te silencien. La jugada se juega igual: las tablas se ofrecen junto a una jugada, no en su lugar.",
   "set.auto_draw": "Oferta de tablas automática",
-  "set.tip.session_stats": "Lo que esta sesión del navegador ha hecho realmente: partidas terminadas, jugadas realizadas, el tiempo medio que cada una esperó de verdad y tu precisión en las partidas terminadas. Es el número que los deslizadores no pueden responder por sí solos: una media de 2,4s frente a 3 segundos de reflexión te dice qué están haciendo de verdad los modos de ritmo. Vive lo que vive el panel: recargar empieza una sesión nueva, y no se guarda nada.",
+  "set.tip.session_stats": "Lo que esta sesión del navegador ha hecho realmente: partidas terminadas, jugadas realizadas, el tiempo medio que cada una esperó de verdad y tu precisión en las partidas terminadas. Es el número que los deslizadores no pueden responder por sí solos: una media de 2,4s frente a 3 segundos de reflexión te dice qué están haciendo de verdad los modos de ritmo. Cuenta la partida en curso igual que las terminadas, sobrevive a una recarga y empieza de nuevo cada día.",
   "set.session_stats": "Estadísticas de sesión",
   "set.tip.auto_draw_cp": "Qué cuenta como igualdad, en centipeones a cada lado, de 0 a 100. 20 es un quinto de peón.",
   "set.auto_draw_cp": "Tablas dentro de (cp)",

@@ -586,7 +586,7 @@
   "set.auto_resign_cp": "Poddaj poniżej (cp)",
   "set.tip.auto_draw": "Zaproponować remis w pozycji, której nikt już nie zmieni: ocena w granicach progu przez trzy TWOJE ruchy z rzędu i po 20. posunięciu - nikt nie proponuje remisu w szóstym ruchu. Wymaga Autoplay i proponuje RAZ na partię, bo powtarzanie odrzuconej propozycji co ruch jest dokładnie tym, za co ludzie dostają wyciszenie. Ruch i tak zostaje zagrany: remis proponuje się obok ruchu, nie zamiast niego.",
   "set.auto_draw": "Automatyczna propozycja remisu",
-  "set.tip.session_stats": "Co ta sesja przeglądarki naprawdę zrobiła: skończone partie, zagrane ruchy, średni czas, który każdy ruch faktycznie odczekał, i twoja dokładność w skończonych partiach. To liczba, na którą suwaki same nie odpowiedzą: średnia 2,4s przy 3-sekundowym czasie namysłu mówi, co tryby tempa naprawdę robią. Żyje tak długo jak panel: przeładowanie zaczyna nową sesję, a nic nie jest zapisywane.",
+  "set.tip.session_stats": "Co ta sesja przeglądarki naprawdę zrobiła: skończone partie, zagrane ruchy, średni czas, który każdy ruch faktycznie odczekał, i twoja dokładność w skończonych partiach. To liczba, na którą suwaki same nie odpowiedzą: średnia 2,4s przy 3-sekundowym czasie namysłu mówi, co tryby tempa naprawdę robią. Liczy trwającą partię tak samo jak zakończone, przetrwa przeładowanie i każdego dnia zaczyna od nowa.",
   "set.session_stats": "Statystyki sesji",
   "set.tip.auto_draw_cp": "Co liczy się jako równo, w centypionach w obie strony, od 0 do 100. 20 to piąta część piona.",
   "set.auto_draw_cp": "Remis w granicach (cp)",

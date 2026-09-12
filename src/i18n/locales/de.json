@@ -586,7 +586,7 @@
   "set.auto_resign_cp": "Aufgeben unter (cp)",
   "set.tip.auto_draw": "Remis anbieten, wenn keine Seite mehr etwas ändern kann: Bewertung drei EIGENE Züge in Folge innerhalb der Schwelle und nach Zug 20 - niemand bietet im sechsten Zug Remis an. Braucht Autoplay und bietet EINMAL pro Partie an, denn ein abgelehntes Angebot jeden Zug zu wiederholen ist genau das, wofür man stummgeschaltet wird. Der Zug wird trotzdem gespielt: Remis bietet man neben einem Zug an, nicht statt eines Zuges.",
   "set.auto_draw": "Automatisches Remisangebot",
-  "set.tip.session_stats": "Was diese Browsersitzung tatsächlich getan hat: beendete Partien, gespielte Züge, die durchschnittlich wirklich gewartete Zeit pro Zug und deine Genauigkeit über die beendeten Partien. Es ist die Zahl, die die Regler selbst nicht beantworten können - 2,4s Durchschnitt bei 3 Sekunden Denkzeit sagt dir, was die Pacing-Modi wirklich tun. Es lebt so lange wie das Panel: ein Neuladen startet eine neue Sitzung, gespeichert wird nichts.",
+  "set.tip.session_stats": "Was diese Browsersitzung tatsächlich getan hat: beendete Partien, gespielte Züge, die durchschnittlich wirklich gewartete Zeit pro Zug und deine Genauigkeit über die beendeten Partien. Es ist die Zahl, die die Regler selbst nicht beantworten können - 2,4s Durchschnitt bei 3 Sekunden Denkzeit sagt dir, was die Pacing-Modi wirklich tun. Es zählt die laufende Partie ebenso wie die beendeten, übersteht ein Neuladen und beginnt jeden Tag neu.",
   "set.session_stats": "Sitzungsstatistik",
   "set.tip.auto_draw_cp": "Was als ausgeglichen gilt, in Centipawns nach beiden Seiten, 0 bis 100. 20 ist ein Fünftel Bauer.",
   "set.auto_draw_cp": "Remis innerhalb (cp)",

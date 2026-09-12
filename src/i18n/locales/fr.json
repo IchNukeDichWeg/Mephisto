@@ -586,7 +586,7 @@
   "set.auto_resign_cp": "Abandonner sous (cp)",
   "set.tip.auto_draw": "Proposer la nulle dans une position que personne ne peut changer : évaluation dans le seuil pendant trois de VOS tours d'affilée, et après le coup 20 - personne ne propose la nulle au sixième coup. Nécessite Autoplay et propose UNE fois par partie, car répéter une offre refusée à chaque coup est ce qui fait couper la parole. Le coup est quand même joué : la nulle se propose à côté d'un coup, pas à sa place.",
   "set.auto_draw": "Proposition de nulle automatique",
-  "set.tip.session_stats": "Ce que cette session du navigateur a réellement fait : parties terminées, coups joués, le temps moyen réellement attendu par coup et votre précision sur les parties terminées. C'est le chiffre auquel les curseurs ne peuvent pas répondre eux-mêmes : 2,4s de moyenne pour 3 secondes de réflexion vous dit ce que font vraiment les modes de rythme. Cela dure autant que le panneau : un rechargement démarre une nouvelle session, et rien n'est enregistré.",
+  "set.tip.session_stats": "Ce que cette session du navigateur a réellement fait : parties terminées, coups joués, le temps moyen réellement attendu par coup et votre précision sur les parties terminées. C'est le chiffre auquel les curseurs ne peuvent pas répondre eux-mêmes : 2,4s de moyenne pour 3 secondes de réflexion vous dit ce que font vraiment les modes de rythme. Elle compte la partie en cours comme les parties terminées, survit à un rechargement et repart à zéro chaque jour.",
   "set.session_stats": "Statistiques de session",
   "set.tip.auto_draw_cp": "Ce qui compte comme égal, en centipions des deux côtés, de 0 à 100. 20 vaut un cinquième de pion.",
   "set.auto_draw_cp": "Nulle à moins de (cp)",

@@ -586,7 +586,7 @@
   "set.auto_resign_cp": "Abbandona sotto (cp)",
   "set.tip.auto_draw": "Offrire patta in una posizione che nessuno può cambiare: valutazione entro la soglia per tre TUOI turni di fila e dopo la mossa 20 - nessuno offre patta alla sesta. Serve Autoplay e offre UNA volta per partita, perché ripetere un'offerta rifiutata a ogni mossa è ciò che fa mutare qualcuno. La mossa viene comunque giocata: la patta si offre accanto a una mossa, non al suo posto.",
   "set.auto_draw": "Offerta di patta automatica",
-  "set.tip.session_stats": "Che cosa ha fatto davvero questa sessione del browser: partite finite, mosse giocate, il tempo medio realmente atteso da ciascuna e la tua precisione sulle partite finite. È il numero a cui i cursori non possono rispondere da soli: una media di 2,4s contro 3 secondi di riflessione ti dice che cosa stanno facendo davvero i modi di ritmo. Dura quanto il pannello: un ricaricamento apre una nuova sessione, e non viene salvato nulla.",
+  "set.tip.session_stats": "Che cosa ha fatto davvero questa sessione del browser: partite finite, mosse giocate, il tempo medio realmente atteso da ciascuna e la tua precisione sulle partite finite. È il numero a cui i cursori non possono rispondere da soli: una media di 2,4s contro 3 secondi di riflessione ti dice che cosa stanno facendo davvero i modi di ritmo. Conta la partita in corso quanto quelle finite, sopravvive a un ricaricamento e riparte da zero ogni giorno.",
   "set.session_stats": "Statistiche di sessione",
   "set.tip.auto_draw_cp": "Cosa conta come pari, in centipedoni da entrambe le parti, da 0 a 100. 20 è un quinto di pedone.",
   "set.auto_draw_cp": "Patta entro (cp)",
