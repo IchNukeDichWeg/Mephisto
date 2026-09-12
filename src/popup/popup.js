@@ -2770,6 +2770,14 @@ function on_engine_response(message) {
             }
         }
 
+        // A FRAME WITH NO LINE IS NOT A LINE. Two shapes arrive without one and both used to reach the
+        // code below and throw on `pv.split`: the depth-0 frame an engine emits for a position that is
+        // ALREADY OVER ("info depth 0 score mate 0" at checkmate -- the only uncaught error in a full
+        // game, caught live 2026-09-12), and the depth-1 placeholder a MultiPV search emits for its
+        // second line before it has one ("... multipv 2 score cp 0 ... pv" with nothing after it).
+        // The second is why this surfaced now: two lines are searched wherever Contempt or the
+        // Complexity Clock is on, so that placeholder is no longer something only Humanize users saw.
+        if (!lineInfo.pv || !lineInfo.rawScore) return;
         const scoreNumber = Number(lineInfo.rawScore.substring(lineInfo.rawScore.indexOf(' ') + 1));
         const scoreType = lineInfo.rawScore.includes('cp') ? 'score' : 'mate';
         lineInfo[scoreType] = (turn === 'w' ? 1 : -1) * scoreNumber;
@@ -6265,8 +6273,21 @@ const HUMANIZE_DEEP_MULTIPV = 20;
 // move is usually only ~40-60cp worse than best. Any band that extends past this needs a wide list.
 const HUMANIZE_SHALLOW_REACH_CP = 60;
 
+// TWO FEATURES READ THE ENGINE'S SECOND LINE, and at Multi Lines 1 -- the default -- there is no
+// second line, so both silently did nothing for anyone who had not also raised the slider. Contempt
+// needs an alternative to the move that draws; the Complexity Clock measures the gap between the top
+// two. Humanize already raises the search's line count for its own needs (below) and the DISPLAY
+// still honours config.multiple_lines, so this is the same trick in the same place: what the ENGINE
+// is asked for, not what the panel lists.
+const MULTIPV_FLOOR_MODES = ['contempt', 'complexity_clock'];
+
+function multipv_floor() {
+    return MULTIPV_FLOOR_MODES.some(k => config[k]) ? 2 : 1;
+}
+
 function effective_multipv() {
-    if (!config.humanize) return config.multiple_lines;
+    const floor = multipv_floor();
+    if (!config.humanize) return Math.max(floor, parseInt(config.multiple_lines) || 1);
     const rates = humanize_rates();
     const t = humanize_thresholds();
     // Every non-top band picks its move from the engine's LINE LIST, so the list must reach as deep
@@ -6280,7 +6301,7 @@ function effective_multipv() {
     for (const cat of ['second', 'third', 'fourth', 'inaccuracy', 'mistake', 'blunder'])
         if ((rates[cat] || 0) > 0) deepest = Math.max(deepest, t[cat]);
     const wantsDeep = deepest > HUMANIZE_SHALLOW_REACH_CP;
-    return Math.max(wantsDeep ? HUMANIZE_DEEP_MULTIPV : 6, config.multiple_lines);
+    return Math.max(wantsDeep ? HUMANIZE_DEEP_MULTIPV : 6, parseInt(config.multiple_lines) || 1, floor);
 }
 
 // Ordered worst-to... no: BEST-to-worst. The roll walks these as cumulative % slices; each non-top
@@ -7694,7 +7715,7 @@ function fourpc_arrow_specs(lines, best) {
     const specs = (lines || [])
         .map(l => l && (l.move || (l.pv && l.pv[0])))
         .filter(mv => mv && !seen.has(mv) && seen.add(mv))
-        .slice(0, effective_multipv())
+        .slice(0, Math.max(1, parseInt(config.multiple_lines) || 1))   // shown, not searched -- see draw_moves
         .map((mv, i) => ({move: mv, color: line_color(i), width: i === 0 ? 0.22 : 0.14}));
     return specs.length ? specs : (best ? [{move: best, color: line_color(0), width: 0.22}] : []);
 }
@@ -7707,14 +7728,15 @@ function fourpc_arrow_specs(lines, best) {
 function render_alt_lines_4pc(lines, flip) {
     const panel = PANEL_ROOT.getElementById('alt-lines');
     if (!panel) return;
-    if (effective_multipv() <= 1 || !lines || lines.length < 2) {
+    const shown = Math.max(1, parseInt(config.multiple_lines) || 1);   // shown, not searched
+    if (shown <= 1 || !lines || lines.length < 2) {
         panel.style.display = 'none';
         panel.innerHTML = '';
         return;
     }
     panel.style.display = '';
     const rows = [];
-    for (let i = 0; i < Math.min(lines.length, effective_multipv()); i++) {
+    for (let i = 0; i < Math.min(lines.length, shown); i++) {
         const line = lines[i];
         if (!line) continue;
         const moves = line.pv && line.pv.length ? line.pv : (line.move ? [line.move] : []);
@@ -8949,7 +8971,13 @@ function draw_moves() {
         if (page_arrows) hint_arrows.push({move: tb_arrow, width: 0.25, color: tb_col, rank: 0, label: tb_label});
     }
 
-    for (let i = 0; i < last_eval.activeLines; i++) {
+    // HOW MANY ARROWS: what you asked to SEE, not what the engine was asked to search. The two came
+    // apart the moment a feature started raising the engine's line count for its own needs -- the
+    // board drew every line the engine sent while the list under it showed config.multiple_lines, so
+    // Humanize put six arrows on a board set to one. effective_multipv's own rule is that the display
+    // honours the slider; this is the loop that was not following it.
+    const shown = Math.max(1, parseInt(config.multiple_lines) || 1);
+    for (let i = 0; i < Math.min(last_eval.activeLines, shown); i++) {
         if (!tb_show_engine()) break;                  // 'Tablebase only': its arrow is the whole board
         if (!last_eval.lines[i]) continue;
         // Only when the tablebase arrow was actually DRAWN -- under 'Engine only' it was not, and
