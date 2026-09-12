@@ -970,6 +970,32 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /idle_hold_until = Date\.now\(\) \+ SELF_TEST_MS;/.test(pj));
 }
 
+// ---- a refused position says why it was refused ----------------------------------------------------
+{
+    console.log('\nillegal scrape:');
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const ctx = {console};
+    ctx.self = ctx;
+    vm.createContext(ctx);
+    vm.runInContext('var config = {variant: "chess"};\n'
+        + pj.slice(pj.indexOf('// WHY a scraped position was refused'), pj.indexOf('function is_legal_position')), ctx);
+    // Horde: 36 white pawns and no white king. Legal there, illegal by standard rules, and the panel
+    // is deliberately NOT auto-switched into a variant on lichess -- so it refused the board and said
+    // nothing, showing "Game detected" over a dead readout for ever (found sweeping the variants).
+    const HORDE = 'rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w kq - 0 1';
+    ok('a variant board is named as a variant board', /variant game/.test(ctx.illegal_scrape_reason(HORDE)));
+    ok('...and points at the control that fixes it', /Variant in the Engine tab/.test(ctx.illegal_scrape_reason(HORDE)));
+    // a torn read of a standard board is a different cause and wants a different sentence
+    const TORN = '8/8/8/8/8/8/8/K6k w - - 0 1';
+    ok('a plain unreadable position is not blamed on the variant',
+       !/variant game/.test(ctx.illegal_scrape_reason(TORN)) && /fixes itself/.test(ctx.illegal_scrape_reason(TORN)));
+    ctx.config = {variant: 'horde'};
+    ok('...and with the variant already set, the variant is not the suggestion',
+       !/variant game/.test(ctx.illegal_scrape_reason(HORDE)));
+    ok('the skip actually shows it', /set_idle_reason\(illegal_scrape_reason\(fen\)\);/.test(pj));
+}
+
 // ---- Time Trouble caps a budget the engine is actually given ----------------------------------------
 {
     console.log('\ntime trouble:');
