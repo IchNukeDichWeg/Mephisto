@@ -15,7 +15,8 @@ import {wirePgnDrop} from "../../util/dragdrop.js";
 import {refreshLimitWarnings} from "../../util/limits.js";
 
 const Core = self.MephistoReviewCore;
-const {ENGINES, MAIA_BANDS, makeEngine, nativeHostAvailable} = self.MephistoEngines;
+const {ENGINES, MAIA_BANDS, makeEngine, nativeHostAvailable,
+       takesRating, ratingSteps, ratingFor, humanLabel} = self.MephistoEngines;
 
 const $ = (id) => document.getElementById(id);
 
@@ -285,7 +286,9 @@ function fillSelects() {
     }
     const hs = $('an_human_select');
     if (hs && !hs.options.length) {
-        hs.innerHTML = '<option value="maia">Maia 1</option><option value="maia3">Maia 3</option>'
+        hs.innerHTML = '<option value="maia">Maia 1</option>'
+                     + '<option value="maia2">Maia 2</option>'
+                     + '<option value="maia3">Maia 3</option>'
                      + '<option value="">Off</option>';
     }
     const bs = $('an_band_select');
@@ -295,9 +298,7 @@ function fillSelects() {
 // Maia 3 is one net with a rating dial, so it offers the whole range in 100s; Maia 1 offers the
 // bands it actually ships as nets.
 function bandChoices() {
-    return cfg('an_human') === 'maia3'
-        ? Array.from({length: 21}, (_, i) => String(600 + i * 100))
-        : MAIA_BANDS.slice();
+    return takesRating(cfg('an_human')) ? ratingSteps(cfg('an_human')) : MAIA_BANDS.slice();
 }
 
 // The readout is JUST THE NUMBER, at the row's right edge -- the same shape as every other slider
@@ -631,7 +632,7 @@ async function exportPosition(btn) {
             if (data) img.src = data; else img.remove();
         }
 
-        const human = cfg('an_human') ? `${cfg('an_human') === 'maia3' ? 'Maia 3' : 'Maia 1'}` : 'off';
+        const human = cfg('an_human') ? humanLabel(cfg('an_human')) : 'off';
         const pgn = pgnText();
         const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -786,11 +787,12 @@ async function reloadHuman() {
     // same pair the sweep sends) instead of disposing it and reloading 92MB -- which is what the
     // panel has done since v3.1.280, and what this page did not. The rebuild was also the hang:
     // dial -> dispose -> everything queued behind the old engine waited forever.
-    if (human && cfg('an_human') === 'maia3' && String(humanKey || '').startsWith('maia3|')) {
-        const band = String(cfg('an_band') || CFG.an_band);
+    const dialKind = cfg('an_human');
+    if (human && takesRating(dialKind) && String(humanKey || '').startsWith(`${dialKind}|`)) {
+        const band = ratingFor(dialKind, cfg('an_band') || CFG.an_band);
         human.send(`setoption name SelfElo value ${band}`);
         human.send(`setoption name OppoElo value ${band}`);
-        humanKey = `maia3|${band}`;
+        humanKey = `${dialKind}|${band}`;
         const pos = positions[cursor];
         if (!pos) return;
         renderHumanLines(pos, null);
@@ -969,7 +971,7 @@ async function humanFor(pos) {
     // queue also means a sweep may finish first and leave the answer in its cache; take it and skip
     // the pass. Maia 1 keeps its own per-band engines, and skips the queue rather than waiting
     // behind a sweep it cannot collide with.
-    const res = kind === 'maia3'
+    const res = takesRating(kind)
         ? await queueSweep(() => {
               const again = bandCache.get(bandKey(pos.fen, kind))?.[cfg('an_band')];
               return again?.length ? {cached: again} : h.analyse(pos.fen, pos.turn);
@@ -1570,8 +1572,7 @@ function wireBandsHover(host, steps, series) {
 }
 
 function bandSteps(kind) {
-    return kind === 'maia3' ? Array.from({length: 21}, (_, i) => String(600 + i * 100))
-                            : MAIA_BANDS.slice();
+    return takesRating(kind) ? ratingSteps(kind) : MAIA_BANDS.slice();
 }
 
 // EVERYTHING ABOVE 1%, not a fixed count. The clamp at five was OURS, not the model's -- Maia has
@@ -1598,8 +1599,8 @@ async function sweepBands(pos, kind, run, onStep) {
     let shared = null;
     let borrowed = false;
     try {
-        if (kind === 'maia3') {   // one net, swept across its rating dial
-            // The human column's engine IS this net. Loading a second 92MB copy for the sweep is
+        if (takesRating(kind)) {   // one net, swept across its rating dial
+            // The human column's engine IS this net. Loading a second copy for the sweep is
             // what made the first sweep after picking Maia 3 a long wait, so borrow the one already
             // running instead: every caller of it is serialised through queueSweep, so the dial can
             // be turned without a search in flight.
@@ -1608,7 +1609,7 @@ async function sweepBands(pos, kind, run, onStep) {
                 borrowed = true;
                 shared.send(`setoption name MultiPV value ${BAND_MULTIPV}`);
             } else {
-                shared = makeEngine('maia3', {variant: 'chess', multipv: BAND_MULTIPV, maiaLevel: steps[0],
+                shared = makeEngine(kind, {variant: 'chess', multipv: BAND_MULTIPV, maiaLevel: steps[0],
                                               limitKind: 'depth', limitValue: 1, threads: 1, hash: 16}, 'analysis-band');
                 await shared.start();
             }
@@ -1625,7 +1626,7 @@ async function sweepBands(pos, kind, run, onStep) {
                                    `analysis-band-${band}`);
                     await e.start();
                 } else {
-                    // MAIA 3 TAKES SelfElo/OppoElo, NOT UCI_Elo (see src/offscreen/maia3.js).
+                    // MAIA 2 AND 3 TAKE SelfElo/OppoElo, NOT UCI_Elo (see src/offscreen/maia3.js).
                     // setoption ignores a name it does not know, so the whole sweep silently ran
                     // at the Elo the engine was built with: 21 identical inputs, 21 identical
                     // answers, and a chart of perfectly flat lines. Both ends are set, because

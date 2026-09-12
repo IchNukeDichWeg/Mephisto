@@ -42,6 +42,38 @@ const ENGINES = [
 // every line, which is how they were finally noticed.
 const MAIA_BANDS = ['1100', '1200', '1300', '1400', '1500', '1600', '1700', '1800', '1900', '2200'];
 
+// WHICH HUMAN MODELS TAKE A RATING RATHER THAN A BAND. Maia-1 ships one net per band and can only be
+// asked for the bands it has. Maia-2 and Maia-3 are single nets conditioned on Elo, so they take a
+// dial. Every page spelled this as `kind === 'maia3'`, which is why Maia-2 could not simply be added
+// to a dropdown: it would have been handed Maia-1's band list and Maia-1's wiring.
+const MAIA_RATING_KINDS = ['maia2', 'maia3'];
+const takesRating = (kind) => MAIA_RATING_KINDS.includes(kind);
+
+// The steps a dial can usefully take, which is NOT the same question for the two nets. Maia-3 is
+// conditioned continuously and is asked in 100s across the range it was trained on. Maia-2 BUCKETS:
+// everything under 1100 is one bucket and everything from 2000 up is another (maia2/utils.py
+// map_to_category, mirrored in offscreen/maia2.js eloBucket), so 1000..2000 in 100s is exactly its
+// eleven buckets and nothing else -- offering it 600 or 2600 would return an answer that really
+// means "<1100" or ">=2000" while reading as a precise rating.
+function ratingSteps(kind) {
+    return (kind === 'maia2')
+        ? Array.from({length: 11}, (_, i) => String(1000 + i * 100))
+        : Array.from({length: 21}, (_, i) => String(600 + i * 100));
+}
+
+// A stored rating, clamped to what the chosen net can actually tell apart.
+function ratingFor(kind, value) {
+    const steps = ratingSteps(kind);
+    const lo = Number(steps[0]), hi = Number(steps[steps.length - 1]);
+    const n = Number(value);
+    if (!Number.isFinite(n)) return String(Math.round((lo + hi) / 200) * 100);
+    return String(Math.min(hi, Math.max(lo, Math.round(n / 100) * 100)));
+}
+
+// The name to print. One place, so a report and a dropdown cannot disagree about what ran.
+const HUMAN_LABELS = {maia: 'Maia 1', maia2: 'Maia 2', maia3: 'Maia 3', 'elite-leela': 'Elite Leela'};
+const humanLabel = (kind) => HUMAN_LABELS[kind] || kind || '';
+
 const CFG_DEFAULTS = {
     rv_engine: 'stockfish-18-nnue',
     rv_limit_kind: 'depth',
@@ -579,5 +611,6 @@ function nativeHostAvailable(portName) {
 
 self.MephistoEngines = {
     ENGINES, MAIA_BANDS, WasmEngine, NativeEngine, makeEngine, nativeHostAvailable,
+    MAIA_RATING_KINDS, takesRating, ratingSteps, ratingFor, humanLabel,
     NATIVE_DEPTH_CAP_MS, LIMIT_INFINITE,
 };

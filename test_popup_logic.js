@@ -450,7 +450,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         // counts) -- while the page keys its caches by the plain fen the board renders
         ['results stream in rather than arriving once', /startInfinite\(engineFen\(pos\), pos\.turn, \(res\) =>/.test(aj)],
         ['Maia 1 sweeps its own bands', /: MAIA_BANDS\.slice\(\);/.test(aj)],
-        ['Maia 3 sweeps 600-2600 in 100s', /600 \+ i \* 100/.test(aj) && /length: 21/.test(aj)],
+        // The steps used to be spelled out here AND in the review page. They moved to engines.js
+        // when Maia 2 was added, because the two nets do not take the same dial -- the values
+        // themselves are pinned in the human-models section below.
+        ['the dial models sweep the steps engines.js gives them',
+            /takesRating\(kind\) \? ratingSteps\(kind\) : MAIA_BANDS\.slice\(\)/.test(aj)],
         ['the Maia 3 sweep reuses one net rather than loading twenty-one',
             /setoption name SelfElo value \$\{band\}/.test(aj) && /shared\?\.dispose/.test(aj)],
         ['a sweep whose position left the board is dropped', /run !== bandRun/.test(aj)],
@@ -984,6 +988,43 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
          < cs.indexOf('const hlPiece = document.querySelector(`.piece.${toSquare.classList[1]}`)'));
     ok('the reader it protects still says [] rather than throwing',
        /if \(!toSquare \|\| !fromSquare\) return \[\];/.test(cs));
+}
+
+// ---- every human model is offered wherever human models are offered --------------------------------
+{
+    console.log('\nhuman models:');
+    const eng = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // Maia-2 was wired everywhere EXCEPT the two dropdowns -- KNOWN_HUMAN already accepted it and the
+    // offscreen adapter already took its ratings, so the only thing missing was being offerable.
+    ok('the review page offers Maia 2', /<option value="maia2">/.test(rv));
+    ok('...and so does the analysis page', /<option value="maia2">/.test(an));
+    for (const kind of ['maia', 'maia2', 'maia3']) {
+        ok(`${kind} is a known human model`, new RegExp(`KNOWN_HUMAN = \\[[^\\]]*'${kind}'`).test(eng));
+    }
+    const ctx = {console};
+    ctx.self = ctx;
+    vm.createContext(ctx);
+    vm.runInContext(eng.slice(eng.indexOf('// WHICH HUMAN MODELS TAKE A RATING'),
+                              eng.indexOf('const humanLabel =')), ctx);
+    // top-level `const` lives in the context's lexical scope, not on the global object -- read it by
+    // evaluating the name, the same way premove_certified's accessors are read above
+    const takesRating = vm.runInContext('takesRating', ctx);
+    eq('Maia 1 ships bands, not a dial', takesRating('maia'), false);
+    eq('Maia 2 takes a rating', takesRating('maia2'), true);
+    eq('...and so does Maia 3', takesRating('maia3'), true);
+    // Maia-2 buckets: <1100 is one bucket and >=2000 is another (offscreen/maia2.js eloBucket), so a
+    // dial that offered 600 or 2600 would report a rating the net cannot actually tell apart.
+    eq('Maia 2 is asked only where its buckets differ', [ctx.ratingSteps('maia2')[0], ctx.ratingSteps('maia2').at(-1), ctx.ratingSteps('maia2').length], ['1000', '2000', 11]);
+    eq('Maia 3 is asked across its whole range', [ctx.ratingSteps('maia3')[0], ctx.ratingSteps('maia3').at(-1)], ['600', '2600']);
+    eq('a stored rating is clamped to what the net can tell apart', ctx.ratingFor('maia2', 2600), '2000');
+    eq('...and kept when it is in range', ctx.ratingFor('maia3', 1700), '1700');
+    // The proxy that caused it: `kind === 'maia3'` meant "takes a rating" in ~20 places.
+    const proxies = [...an.matchAll(/=== 'maia3'/g)].length
+                  + [...fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8').matchAll(/=== 'maia3'/g)].length;
+    ok('no page still spells "takes a rating" as "is Maia 3"', proxies === 0, proxies);
 }
 
 // ---- a failed scrape names the line, not the extension id ------------------------------------------
