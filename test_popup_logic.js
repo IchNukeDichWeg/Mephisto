@@ -966,6 +966,32 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /idle_hold_until = Date\.now\(\) \+ SELF_TEST_MS;/.test(pj));
 }
 
+// ---- a failed scrape names the line, not the extension id ------------------------------------------
+{
+    console.log('\nscrape failure label:');
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = cs.slice(cs.indexOf('function scrapeFailLabel'), cs.indexOf('\n}', cs.indexOf('function scrapeFailLabel')) + 2);
+    const label = new Function(src + '; return scrapeFailLabel;')();
+    // A MADE-UP ID ON PURPOSE. This file is in a public repo; the real unpacked id is a fingerprint
+    // and is exactly what the code under test exists to strip, so it must not be the fixture.
+    const err = {
+        message: "Cannot read properties of undefined (reading 'textContent')",
+        stack: "TypeError: Cannot read properties of undefined (reading 'textContent')\n"
+             + "    at getMoveRecords (chrome-extension://abcdefghijklmnopabcdefghijklmnop/src/scripts/content-script.js:3721:44)\n"
+             + "    at scrapePositionFen (chrome-extension://abcdefghijklmnopabcdefghijklmnop/src/scripts/content-script.js:2001:17)",
+    };
+    const out = label(err);
+    // The old rule spent its whole budget on the origin: "... (rea @ at chrome-extension://<32 chars>".
+    ok('the property being read survives the truncation', /reading 'textContent'/.test(out), out);
+    ok('...and so do the function, the file and the line',
+       /getMoveRecords/.test(out) && /content-script\.js:3721:44/.test(out), out);
+    // This dump exists to be pasted into an issue. The id is a fingerprint and must not ride along.
+    ok('the extension id is not in a report written to be pasted', !/[a-p]{32}/.test(out), out);
+    ok('an error with no stack still reports its message', /^boom/.test(label({message: 'boom'})), label({message: 'boom'}));
+    ok('the catch uses it', /lastScrapeFail = scrapeFailLabel\(e\);/.test(cs));
+}
+
 // ---- a row with a button is a row on ONE line ------------------------------------------------------
 {
     console.log('\none-line rows:');
