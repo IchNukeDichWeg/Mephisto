@@ -966,6 +966,26 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /idle_hold_until = Date\.now\(\) \+ SELF_TEST_MS;/.test(pj));
 }
 
+// ---- a board with no last move is still a board -----------------------------------------------------
+{
+    console.log('\nturn reader:');
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // getLastMoveHighlights was made defensive -- it returns [] for "no last move readable" instead
+    // of throwing -- and getTurn was still only listening for the throw. `[][1]` is undefined, which
+    // sailed past a catch that could no longer fire and into `toSquare.style`. On lichess that is
+    // every board with no `.last-move` on it: THE START OF A GAME. Measured 2026-09-12 on a fresh
+    // game at move 0 -- without the guard "No Chess Game Detected" and 12 scrape failures, with it
+    // detected and none. It is why playing as black worked (White had moved) and white did not.
+    ok('an empty highlight read is handled, not just a thrown one',
+       /if \(!toSquare\) return turnFromContext\(\);/.test(cs));
+    ok('...and the guard comes BEFORE anything reads the square',
+       cs.indexOf('if (!toSquare) return turnFromContext();')
+         < cs.indexOf('const hlPiece = document.querySelector(`.piece.${toSquare.classList[1]}`)'));
+    ok('the reader it protects still says [] rather than throwing',
+       /if \(!toSquare \|\| !fromSquare\) return \[\];/.test(cs));
+}
+
 // ---- a failed scrape names the line, not the extension id ------------------------------------------
 {
     console.log('\nscrape failure label:');
