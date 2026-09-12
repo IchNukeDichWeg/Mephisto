@@ -970,6 +970,17 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /idle_hold_until = Date\.now\(\) \+ SELF_TEST_MS;/.test(pj));
 }
 
+// ---- the diagnostics say what they mean ------------------------------------------------------------
+{
+    console.log('\ndiagnostics wording:');
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
+    // The line lists OPEN PORTS. Read as "what is installed" it says the opposite of the truth: a
+    // machine with every host installed shows one entry if only one engine has been used.
+    ok('the hosts line says it lists connections, not installations',
+       /connected \(not a list of what is installed\)/.test(bg));
+}
+
 // ---- every engine is listed beside its own native twin ---------------------------------------------
 {
     console.log('\nengine order:');

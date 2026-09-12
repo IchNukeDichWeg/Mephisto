@@ -801,7 +801,11 @@ async function buildDiagnostics(ctx = {}) {
     `Mephisto ${m.version}  (${m.name})`,
     `chrome    ${(navigator.userAgent.match(/Chrome\/[\d.]+/) || ['?'])[0]}  ${navigator.platform}`,
     `engines   ${assets.ok ? 'bundled assets present' : 'MISSING: ' + assets.missing.join(', ')}`,
-    `hosts     ${Object.keys(nativePorts).join(', ') || 'none connected'}`,
+    // CONNECTED, NOT INSTALLED: one open port per native engine actually used this session. A short
+    // list here is the normal state and says nothing about what is on the machine -- reading a
+    // one-entry list as "only that one is installed" cost a detour on 2026-09-12, when every host on
+    // the machine was installed and answering a ping in under a quarter second. The word is the fix.
+    `hosts     ${Object.keys(nativePorts).join(', ') || 'none'} connected (not a list of what is installed)`,
     `optional  ${(perm.origins || []).length} host permission(s) granted`,
     `lichess   API token ${hasToken ? 'set' : 'not set'}`,
     ctx.site ? `site      ${ctx.site}${ctx.path ? '  ' + ctx.path : ''}` : null,
