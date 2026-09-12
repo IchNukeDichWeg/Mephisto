@@ -616,5 +616,11 @@
   "set.tb_men_both": "3-4-5 和 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "仅 WDL",
-  "set.tb_kind_dtz": "仅 DTZ"
+  "set.tb_kind_dtz": "仅 DTZ",
+  "rv.custom": "自定义",
+  "rv.preset_fast": "快速 - 深度 18",
+  "rv.preset_standard": "标准 - 深度 22",
+  "rv.preset_deep": "深度 - 深度 24",
+  "rv.preset_max": "最大 - 深度 26",
+  "rv.tip.depth_preset": "与 Chess.com 自家复盘所提供的分析深度一致，使两个准确率描述同一次搜索。自定义会保留你输入的值。"
 }

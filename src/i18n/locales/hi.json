@@ -616,5 +616,11 @@
   "set.tb_men_both": "3-4-5 और 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "केवल WDL",
-  "set.tb_kind_dtz": "केवल DTZ"
+  "set.tb_kind_dtz": "केवल DTZ",
+  "rv.custom": "कस्टम",
+  "rv.preset_fast": "तेज़ - गहराई 18",
+  "rv.preset_standard": "मानक - गहराई 22",
+  "rv.preset_deep": "गहरा - गहराई 24",
+  "rv.preset_max": "अधिकतम - गहराई 26",
+  "rv.tip.depth_preset": "वही विश्लेषण गहराइयाँ जो Chess.com की अपनी Game Review देती है, ताकि दोनों सटीकता मान एक ही खोज बताएँ। कस्टम आपके टाइप किए मान को वैसा ही रखता है।"
 }

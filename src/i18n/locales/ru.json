@@ -616,5 +616,11 @@
   "set.tb_men_both": "3-4-5 и 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "только WDL",
-  "set.tb_kind_dtz": "только DTZ"
+  "set.tb_kind_dtz": "только DTZ",
+  "rv.custom": "Свой",
+  "rv.preset_fast": "Быстро - глубина 18",
+  "rv.preset_standard": "Стандарт - глубина 22",
+  "rv.preset_deep": "Глубоко - глубина 24",
+  "rv.preset_max": "Максимум - глубина 26",
+  "rv.tip.depth_preset": "Глубины разбора, совпадающие с теми, что предлагает Game Review на Chess.com, чтобы обе точности описывали один и тот же поиск. Свой оставляет введённое значение."
 }

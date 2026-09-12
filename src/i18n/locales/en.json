@@ -616,5 +616,11 @@
   "set.tb_men_both": "3-4-5 and 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "WDL only",
-  "set.tb_kind_dtz": "DTZ only"
+  "set.tb_kind_dtz": "DTZ only",
+  "rv.custom": "Custom",
+  "rv.preset_fast": "Fast - depth 18",
+  "rv.preset_standard": "Standard - depth 22",
+  "rv.preset_deep": "Deep - depth 24",
+  "rv.preset_max": "Maximum - depth 26",
+  "rv.tip.depth_preset": "Review depths that match the ones Chess.com's own Game Review offers, so the two accuracy numbers describe the same search. Custom leaves whatever you typed."
 }

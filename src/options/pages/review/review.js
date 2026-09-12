@@ -2520,6 +2520,19 @@ function storedFor(kind) {
 // `fromInput` says the box is the truth this time (a keystroke or a -/+ step); otherwise the MODE is,
 // so the box is loaded with the number this mode was last left on rather than reinterpreting the other
 // mode's number in these units. Internal value is plies (Depth) or ms (Time).
+// The preset select follows the box rather than driving it: a depth someone typed that happens to be
+// a rung shows as that rung, anything else shows Custom, and in Time mode the control is hidden
+// because a depth ladder means nothing there.
+function syncDepthPreset() {
+    const sel = document.getElementById('rv_depth_preset');
+    if (!sel) return;
+    const depthMode = (document.getElementById('rv_limit_kind')?.value === 'depth');
+    sel.style.display = depthMode ? '' : 'none';
+    if (!depthMode) return;
+    const now = String(parseInt(document.getElementById('rv_limit_num')?.value) || '');
+    sel.value = [...sel.options].some(o => o.value === now) ? now : '';
+}
+
 function syncLimitUi(fromInput) {
     const kind = $('rv_limit_kind').value;
     const num = $('rv_limit_num');
@@ -2930,8 +2943,26 @@ class ReviewPage {
         $('rv_limit_kind').value = cfg('rv_limit_kind');
         $('rv_limit_kind').addEventListener('change', () => {
             setCfg('rv_limit_kind', $('rv_limit_kind').value);
+            syncDepthPreset();
             syncLimitUi();
         });
+        // THE LADDER CHESS.COM REVIEWS AT. Picking a rung switches the budget to Depth and fills the
+        // box; it stores nothing of its own, so the box stays the single source of truth and a typed
+        // value simply reads back as Custom. Only meaningful in Depth mode, so it hides in Time mode.
+        $('rv_depth_preset')?.addEventListener('change', () => {
+            const v = $('rv_depth_preset').value;
+            if (!v) return;                                   // Custom: leave whatever is there
+            if (cfg('rv_limit_kind') !== 'depth') {
+                $('rv_limit_kind').value = 'depth';
+                setCfg('rv_limit_kind', 'depth');
+            }
+            $('rv_limit_num').value = v;
+            syncLimitUi(true);
+            syncDepthPreset();
+        });
+        $('rv_limit_num')?.addEventListener('change', syncDepthPreset);
+        $('rv_limit_num')?.addEventListener('input', syncDepthPreset);
+        syncDepthPreset();
         bindNumber('rv_multipv', 'rv_multipv');
         bindNumber('rv_workers', 'rv_workers');
         bindNumber('rv_threads', 'rv_threads');

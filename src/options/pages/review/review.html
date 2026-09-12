@@ -229,6 +229,21 @@
                             <input id="rv_limit_num" type="number" min="0.1" step="0.5">
                             <button type="button" class="set-step-btn" data-step="1">+</button>
                         </span>
+                        <!-- THE SAME RUNGS CHESS.COM REVIEWS AT. Its Game Review "Strength" control is a
+                             DEPTH ladder -- the option values are literally 18/22/24/26, and the seconds
+                             beside them are an estimate of what that depth costs, not the budget itself
+                             (read out of its own settings dialog, 2026-09-12). Matching the rungs is what
+                             makes an accuracy number here comparable to one there; picking a rung just
+                             fills the box beside it, which stays free-form. -->
+                        <select id="rv_depth_preset" class="rv-select browser-default" data-i18n-tip="rv.tip.depth_preset"
+                                class="tooltipped" data-position="right"
+                                data-tooltip="Review depths that match the ones Chess.com's own Game Review offers, so the two accuracy numbers describe the same search. Custom leaves whatever you typed.">
+                            <option value="" data-i18n="rv.custom">Custom</option>
+                            <option value="18" data-i18n="rv.preset_fast">Fast - depth 18</option>
+                            <option value="22" data-i18n="rv.preset_standard">Standard - depth 22</option>
+                            <option value="24" data-i18n="rv.preset_deep">Deep - depth 24</option>
+                            <option value="26" data-i18n="rv.preset_max">Maximum - depth 26</option>
+                        </select>
                         <!-- the active budget the run reads: plies in Depth, ms in Time -->
                         <input id="rv_limit_value" type="hidden">
                     </div>
