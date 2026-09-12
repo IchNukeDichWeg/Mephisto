@@ -616,5 +616,11 @@
   "set.tb_men_both": "3-4-5 と 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "WDL のみ",
-  "set.tb_kind_dtz": "DTZ のみ"
+  "set.tb_kind_dtz": "DTZ のみ",
+  "rv.custom": "カスタム",
+  "rv.preset_fast": "高速 - 深さ18",
+  "rv.preset_standard": "標準 - 深さ22",
+  "rv.preset_deep": "深い - 深さ24",
+  "rv.preset_max": "最大 - 深さ26",
+  "rv.tip.depth_preset": "Chess.com の Game Review が提供するのと同じ解析深度。両方の正確度が同じ探索を表すようになります。カスタムは入力した値をそのまま使います。"
 }

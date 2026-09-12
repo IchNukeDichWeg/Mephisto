@@ -616,5 +616,11 @@
   "set.tb_men_both": "3-4-5 en 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "alleen WDL",
-  "set.tb_kind_dtz": "alleen DTZ"
+  "set.tb_kind_dtz": "alleen DTZ",
+  "rv.custom": "Aangepast",
+  "rv.preset_fast": "Snel - diepte 18",
+  "rv.preset_standard": "Standaard - diepte 22",
+  "rv.preset_deep": "Diep - diepte 24",
+  "rv.preset_max": "Maximum - diepte 26",
+  "rv.tip.depth_preset": "Analysediepten die overeenkomen met die van de Game Review van Chess.com, zodat beide nauwkeurigheden dezelfde zoektocht beschrijven. Aangepast laat staan wat je typte."
 }

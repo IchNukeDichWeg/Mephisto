@@ -616,5 +616,11 @@
   "set.tb_men_both": "3-4-5 i 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "tylko WDL",
-  "set.tb_kind_dtz": "tylko DTZ"
+  "set.tb_kind_dtz": "tylko DTZ",
+  "rv.custom": "Własne",
+  "rv.preset_fast": "Szybko - głębokość 18",
+  "rv.preset_standard": "Standard - głębokość 22",
+  "rv.preset_deep": "Głęboko - głębokość 24",
+  "rv.preset_max": "Maksimum - głębokość 26",
+  "rv.tip.depth_preset": "Głębokości analizy odpowiadające tym z Game Review na Chess.com, aby obie wartości dokładności opisywały to samo przeszukiwanie. Własne zostawia wpisaną wartość."
 }

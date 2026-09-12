@@ -970,6 +970,29 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /idle_hold_until = Date\.now\(\) \+ SELF_TEST_MS;/.test(pj));
 }
 
+// ---- the review can be run at the depths the other review uses ---------------------------------------
+{
+    console.log('\nreview depth ladder:');
+    const rh = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // Chess.com's Game Review "Strength" is a DEPTH ladder: its own option values are 18/22/24/26 and
+    // the seconds printed beside them are an estimate of the cost, not the budget (read out of its
+    // settings dialog 2026-09-12). Matching the rungs is what makes two accuracy numbers comparable.
+    const opts = [...rh.slice(rh.indexOf('id="rv_depth_preset"'), rh.indexOf('</select>', rh.indexOf('id="rv_depth_preset"')))
+                    .matchAll(/<option value="(\d*)"/g)].map(m => m[1]);
+    eq('the rungs are the ones that review uses', opts, ['', '18', '22', '24', '26']);
+    ok('picking a rung switches the budget to depth', /\$\('rv_limit_kind'\)\.value = 'depth';/.test(rj));
+    ok('...and fills the box, which stays the source of truth', /\$\('rv_limit_num'\)\.value = v;/.test(rj));
+    ok('a typed depth reads back as its rung, anything else as Custom',
+       /sel\.value = \[\.\.\.sel\.options\]\.some\(o => o\.value === now\) \? now : '';/.test(rj));
+    ok('the ladder hides in Time mode, where a depth means nothing',
+       /sel\.style\.display = depthMode \? '' : 'none';/.test(rj));
+    // and the budget must still reach the engine as a real depth limit
+    const ej = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    ok('a depth budget is sent as `go depth N`', /if \(limitKind === 'depth'\) return `go depth \$\{limitValue\}`;/.test(ej));
+}
+
 // ---- a game at move zero is White to play, on every site --------------------------------------------
 {
     console.log('\nopening turn:');

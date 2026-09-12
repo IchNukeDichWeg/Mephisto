@@ -616,5 +616,11 @@
   "set.tb_men_both": "3-4-5 및 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "WDL만",
-  "set.tb_kind_dtz": "DTZ만"
+  "set.tb_kind_dtz": "DTZ만",
+  "rv.custom": "사용자 지정",
+  "rv.preset_fast": "빠름 - 깊이 18",
+  "rv.preset_standard": "표준 - 깊이 22",
+  "rv.preset_deep": "깊게 - 깊이 24",
+  "rv.preset_max": "최대 - 깊이 26",
+  "rv.tip.depth_preset": "Chess.com의 Game Review가 제공하는 것과 같은 분석 깊이입니다. 두 정확도가 같은 탐색을 나타내게 됩니다. 사용자 지정은 입력한 값을 그대로 둡니다."
 }

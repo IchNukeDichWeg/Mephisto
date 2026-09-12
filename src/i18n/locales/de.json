@@ -616,5 +616,11 @@
   "set.tb_men_both": "3-4-5 und 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "nur WDL",
-  "set.tb_kind_dtz": "nur DTZ"
+  "set.tb_kind_dtz": "nur DTZ",
+  "rv.custom": "Eigene",
+  "rv.preset_fast": "Schnell - Tiefe 18",
+  "rv.preset_standard": "Standard - Tiefe 22",
+  "rv.preset_deep": "Tief - Tiefe 24",
+  "rv.preset_max": "Maximum - Tiefe 26",
+  "rv.tip.depth_preset": "Analysetiefen, die denen der Game Review von Chess.com entsprechen, damit beide Genauigkeitswerte dieselbe Suche beschreiben. Eigene lässt den eingetippten Wert stehen."
 }

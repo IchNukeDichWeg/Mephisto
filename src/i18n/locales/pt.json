@@ -616,5 +616,11 @@
   "set.tb_men_both": "3-4-5 e 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "apenas WDL",
-  "set.tb_kind_dtz": "apenas DTZ"
+  "set.tb_kind_dtz": "apenas DTZ",
+  "rv.custom": "Personalizado",
+  "rv.preset_fast": "Rápido - profundidade 18",
+  "rv.preset_standard": "Padrão - profundidade 22",
+  "rv.preset_deep": "Profundo - profundidade 24",
+  "rv.preset_max": "Máximo - profundidade 26",
+  "rv.tip.depth_preset": "Profundidades de análise iguais às da Game Review do Chess.com, para que as duas precisões descrevam a mesma busca. Personalizado mantém o que você digitou."
 }

@@ -616,5 +616,11 @@
   "set.tb_men_both": "3-4-5 ve 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "yalnızca WDL",
-  "set.tb_kind_dtz": "yalnızca DTZ"
+  "set.tb_kind_dtz": "yalnızca DTZ",
+  "rv.custom": "Özel",
+  "rv.preset_fast": "Hızlı - derinlik 18",
+  "rv.preset_standard": "Standart - derinlik 22",
+  "rv.preset_deep": "Derin - derinlik 24",
+  "rv.preset_max": "Maksimum - derinlik 26",
+  "rv.tip.depth_preset": "Chess.com'un kendi Game Review'unun sunduğu analiz derinlikleriyle aynı olanlar, böylece iki isabet değeri aynı aramayı tanımlar. Özel, yazdığınız değeri bırakır."
 }
