@@ -5085,7 +5085,7 @@ function on_new_pos(fen, startFen, moves) {
     // fire the book lookup NOW so the answer has the whole search to arrive; never awaited
     request_explorer(fen);
     request_own_book(fen);
-    maybe_player_book();   // one fetch per player per session; it latches itself
+    maybe_player_book();   // one fetch per player, cached across reloads; it latches itself
     request_tablebase(fen);
     request_puzzle_solution(fen);
     bgTrace('on_new_pos', {turn, autoplay: config.autoplay, puzzle: config.puzzle_mode,
@@ -9640,6 +9640,36 @@ function parse_player_book_user() {
     return site ? {site, name: m[2]} : null;
 }
 
+// ONCE PER PLAYER, NOT ONCE PER PAGE LOAD. "One fetch per session" meant one fetch per RELOAD: every
+// navigation on a single-page site, every settings change that restarts the panel, pulled the whole
+// archive down again -- hundreds of games for a book that had not changed. The built book is kept in
+// chrome.storage.local under the same key the fetch is latched on, so a reload reads it back with no
+// request at all. A repertoire is not a thing that moves in an afternoon, and the cache expires
+// anyway; switching player or filter is a different key and fetches.
+const PLAYER_BOOK_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // a week: long enough to be worth it, short
+                                                      // enough that a repertoire change lands
+const PLAYER_BOOK_CACHE_KEY = 'player_book_cache';
+const PLAYER_BOOK_CACHE_MAX = 400000;                 // chars of JSON; a book bigger than this is
+                                                      // not worth the storage quota it would take
+
+function player_book_cache_read(key) {
+    try {
+        const rec = JSON.parse(MephistoConfig.get(PLAYER_BOOK_CACHE_KEY) || 'null');
+        if (!rec || rec.key !== key || !rec.book) return null;
+        if (!(Date.now() - rec.at < PLAYER_BOOK_TTL_MS)) return null;
+        return {book: new Map(Object.entries(rec.book)), used: rec.used | 0};
+    } catch (e) { return null; }   // an unreadable cache is simply a miss
+}
+
+function player_book_cache_write(key, built) {
+    try {
+        const rec = JSON.stringify({key, at: Date.now(), used: built.used,
+                                    book: Object.fromEntries(built.book)});
+        if (rec.length > PLAYER_BOOK_CACHE_MAX) return;
+        MephistoConfig.set(PLAYER_BOOK_CACHE_KEY, rec);
+    } catch (e) { /* a book that will not serialise is simply not cached */ }
+}
+
 // Ask once per player, per filter. The key carries the wins-only flag because switching that is a
 // different book from the same games, and a book that did not rebuild would silently be the old one.
 function maybe_player_book() {
@@ -9651,6 +9681,14 @@ function maybe_player_book() {
     player_book_for = key;
     player_book = null;
     player_book_games = 0;
+    const cached = player_book_cache_read(key);
+    if (cached) {
+        player_book = cached.book;
+        player_book_games = cached.used;
+        console.log(`Player book: ${cached.book.size} positions from ${cached.used} of ${who.name}'s games (cached)`);
+        update_best_move(null);
+        return;
+    }
     chrome.runtime.sendMessage({playerBookLookup: {site: who.site, username: who.name}}, (res) => {
         void chrome.runtime.lastError;
         // A failed lookup un-latches so the next position tries again -- a worker that was asleep,
@@ -9665,6 +9703,7 @@ function maybe_player_book() {
                                        {maxPly: PLAYER_BOOK_MAX_PLY, winsOnly: !!config.player_book_wins});
         player_book = built.book;
         player_book_games = built.used;
+        player_book_cache_write(key, built);
         console.log(`Player book: ${built.book.size} positions from ${built.used} of ${who.name}'s games`
                     + (config.player_book_wins ? ' (wins only)' : ''));
         update_best_move(null);                       // the label can appear without a new search
