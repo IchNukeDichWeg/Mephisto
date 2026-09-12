@@ -3795,6 +3795,15 @@ function getTurn() {
         if (site === 'lichess') {
             return 'w';
         }
+        // THE SAME IS TRUE ON CHESS.COM, and it was left on the orientation rule below -- which is a
+        // PUZZLE rule: a puzzle is a set-up position drawn from the solver's side, a game at move 0
+        // is not. So a fresh game read as "Black to play" over an untouched board, evaluated for the
+        // wrong side, and never played move 1. Reported on Play Computer 2026-09-12, where it is the
+        // whole game: that page ships no move list at all, so this branch decides the opening turn.
+        // White moves first whichever colour you are, which is why this does not consult orientation.
+        if (site === 'chesscom' && !isPuzzlePage()) {
+            return 'w';
+        }
         return (getOrientation() === 'black') ? 'w' : 'b'; // chess.com / blitztactics puzzle
     }
 
