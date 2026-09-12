@@ -1582,7 +1582,15 @@ function maia2_dispose() {
 // Fire the second inference for a reply-less Maia line, at most once per position. Called from
 // the parser right after the tracker records line 0 during the opponent's turn.
 function maia2_kick(line) {
-    if (is_one_pass()) return;
+    // ONLY a one-pass net, and the guard used to say the opposite. Everything below assumes the main
+    // engine IS a Maia -- it reads that engine's rating dial, it skips ensureOffscreen "because the
+    // MAIN engine is Maia right now", and a Stockfish line already carries the reply this exists to
+    // fetch (the `line.reply` check three lines down bails on it anyway). So `if (is_one_pass())
+    // return` meant the function could never do anything, and Premove on every Maia engine was dead.
+    // It came in with the ONE_PASS_ENGINES cleanup around 3.1.250, was fixed in 3.1.307, and came
+    // BACK when that release's popup.js was reverted wholesale after it stopped analysing.
+    // Measured 2026-09-12 on a 24-move game at Maia-3 1500: zero :m2 inferences, zero premoves.
+    if (!is_one_pass()) return;
     if (!config.premove || !config.autoplay || premove_tracker.premoved) return;
     if (config.help_mode || config.puzzle_mode || config.simon_says_mode) return;
     if (config.variant && config.variant !== 'chess') return;

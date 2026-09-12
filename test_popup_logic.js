@@ -970,6 +970,25 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /idle_hold_until = Date\.now\(\) \+ SELF_TEST_MS;/.test(pj));
 }
 
+// ---- the Maia reply fetch runs on the engines it was written for ------------------------------------
+{
+    console.log('\nmaia premove:');
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // maia2_kick asks the human net for OUR reply to its predicted move, because a one-pass net's pv
+    // is one move long and carries no reply. Everything in it assumes the main engine is that net.
+    // The guard said `if (is_one_pass()) return`, so it bailed on exactly those engines and Premove
+    // was dead on all of them. Measured 2026-09-12 over a 24-move Maia-3 game: zero premove lines
+    // before, sixteen after.
+    const body = pj.slice(pj.indexOf('function maia2_kick(line) {'), pj.indexOf('function maia2_on_line'));
+    ok('it runs only FOR a one-pass net, not only against one', /if \(!is_one_pass\(\)\) return;/.test(body), body.slice(0, 80));
+    ok('...and it is still the first thing the function asks',
+       body.indexOf('is_one_pass()') < body.indexOf('config.premove'));
+    // the reason it can skip ensureOffscreen at all -- if this comment goes, the guard above matters
+    ok('it still relies on the main engine being that net',
+       /the MAIN engine is Maia right now/.test(body));
+}
+
 // ---- the diagnostics say what they mean ------------------------------------------------------------
 {
     console.log('\ndiagnostics wording:');
