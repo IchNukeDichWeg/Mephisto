@@ -188,6 +188,12 @@ export class SettingsPage {
         // pasted into issues, and a lichess token in one is a token in someone else's hands. The
         // field is one paste to refill on the other machine.
         delete all.lichess_token;
+        // ...and neither does anything that is a RECORD rather than a setting. The session totals are
+        // this machine's day, and the cached player book is a username and somebody's whole opening
+        // repertoire -- up to 400KB of it. Both are JSON strings, so the filter above keeps them; both
+        // rebuild themselves on the other machine, and neither belongs in a file pasted into an issue.
+        delete all.session_totals;
+        delete all.player_book_cache;
         const url = URL.createObjectURL(new Blob([JSON.stringify(all, null, 2)], {type: 'application/json'}));
         const a = document.createElement('a');
         a.href = url;
