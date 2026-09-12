@@ -970,6 +970,26 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /idle_hold_until = Date\.now\(\) \+ SELF_TEST_MS;/.test(pj));
 }
 
+// ---- a game at move zero is White to play, on every site --------------------------------------------
+{
+    console.log('\nopening turn:');
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const fn = cs.slice(cs.indexOf('function turnFromContext()'), cs.indexOf('// Storm and Racer never need the guess'));
+    // With no move list and no last-move highlight -- a game at its STARTING position -- the turn was
+    // read off the board ORIENTATION, which is a PUZZLE rule: a puzzle is a set-up position drawn
+    // from the solver's side, a game at move 0 is not. lichess was fixed for this once; chess.com was
+    // left behind, and its Play Computer page ships no move list at all, so that branch decides the
+    // opening turn there. Symptom, reported 2026-09-12: "it thought black has to play but white
+    // starts and we are white -- it evaluated for black and never moved".
+    ok('lichess says White at the start', /if \(site === 'lichess'\) \{\s*\n\s*return 'w';/.test(fn));
+    ok('...and so does chess.com, outside a puzzle',
+       /if \(site === 'chesscom' && !isPuzzlePage\(\)\) \{\s*\n\s*return 'w';/.test(fn));
+    ok('...and neither consults the orientation to decide it',
+       fn.indexOf("site === 'chesscom' && !isPuzzlePage()") < fn.lastIndexOf('getOrientation()'));
+    ok('a puzzle still reads its own orientation', /getOrientation\(\) === 'black'\) \? 'w' : 'b'/.test(fn));
+}
+
 // ---- a refused position says why it was refused ----------------------------------------------------
 {
     console.log('\nillegal scrape:');
