@@ -1497,3 +1497,11 @@ body.mephisto-bar-host #net-annotations { top: 0; }
     white-space: nowrap;
 }
 #quick-settings .turn-switch:hover .turn-side { color: var(--mp-text); }
+
+/* IN-PAGE PANEL ONLY (the selector does not exist in the toolbar popup, where this rule is inert).
+   resizePanelBox() grows `.mephisto-panel-box` to its CONTENT, but the body's height comes from the
+   rehomed `html, body { height: 646px }` and stays put -- so every pixel past 646 painted the box's
+   own #f0f0f0 instead of the theme, a bright band above the button row in dark mode. Filling the box
+   paints the theme over all of it. Must stay AFTER the rehomed rule: same specificity, later wins.
+   `overflow-y: auto` above still scrolls when the viewport ceiling stops the box growing. */
+#mephisto-panel-body { height: 100%; }
