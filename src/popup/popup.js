@@ -8991,6 +8991,11 @@ function draw_moves() {
     }
     if (last_eval.lines[0] == null) return;
 
+    // EVERY LISTED LINE GETS AN ARROW (user call 2026-09-14). Width still carries the judgement --
+    // best move thickest, down to MIN_STROKE for a move that loses outright -- but a line the panel
+    // LISTS and the board omits breaks the thing the colours are for: each eval row is colour-matched
+    // to its own arrow, so a suppressed arrow left a coloured row pointing at nothing. Was: any line
+    // >= WINNING_THRESHOLD behind the best returned 0 and was dropped.
     function strokeFunc(line) {
         const MATE_SCORE = 20;
         const WINNING_THRESHOLD = 4;
@@ -9001,18 +9006,14 @@ function draw_moves() {
         const top_score = (turn === 'w' ? 1 : -1) * top_line.score / 100;
         const score = (turn === 'w' ? 1 : -1) * line.score / 100;
         if (top_line.move === line.move) { // is best move?
-            console.log(`0 => ${MAX_STROKE + 2 * STROKE_SHIM}`);
             return MAX_STROKE + 2 * STROKE_SHIM; // accentuate the best move
         } else if (isNaN(top_score) || top_score >= WINNING_THRESHOLD) { // is winning?
             if (isNaN(score)) {
-                console.log(`winning: #${line.mate} => ${MAX_STROKE - STROKE_SHIM}`);
                 return MAX_STROKE - STROKE_SHIM; // moves that checkmate are necessarily good
             } else if (score < WINNING_THRESHOLD) {
-                console.log(`winning: ${score} => losing`);
-                return 0; // hide moves that are not winning
+                return MIN_STROKE; // throwing the win away: drawn, but at the thinnest weight
             } else {
                 const delta = (isNaN(top_score) ? MATE_SCORE : top_score) - score;
-                console.log(`winning: ${score} => ok ${delta}`);
                 if (delta <= 0) {
                     return MAX_STROKE - 2 * STROKE_SHIM; // moves that are still winning are good
                 } else {
@@ -9023,11 +9024,9 @@ function draw_moves() {
         } else { // is roughly equal?
             const delta = top_score - score;
             if (isNaN(score) || delta >= WINNING_THRESHOLD) {
-                console.log(`${delta} => 0`);
-                return 0; // hide moves that are too losing or get us checkmated
+                return MIN_STROKE; // too losing, or gets us mated -- drawn at the thinnest weight
             } else {
                 const stroke = MAX_STROKE - delta / 15;
-                console.log(`${delta} => ${stroke}`);
                 return Math.min(MAX_STROKE, Math.max(MIN_STROKE, stroke))
             }
         }
@@ -9955,7 +9954,7 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
         overlay.lastElementChild?.remove();
         return; // hide overlay on win/loss
     } else if (stroke_width === 0) {
-        return; // hide losing moves
+        return; // a caller asking for no arrow gets none; strokeFunc's floor is MIN_STROKE
     }
 
     function get_coord(square) {

@@ -1252,3 +1252,38 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         && /#alt-lines \{[^}]*max-height: 122px;/.test(css));
 }
 
+
+// ---- strokeFunc, executed: EVERY listed line gets an arrow ------------------------------------
+// The panel colour-matches each eval row to its own arrow, so a row the board omits points at
+// nothing. A line far behind the best used to return 0 and vanish (reported 2026-09-14: three rows
+// listed, two arrows drawn). It must now come back at MIN_STROKE -- thin, but drawn.
+{
+    console.log('\nstroke widths:');
+    const ok = (name, cond, extra) => { if (cond) console.log('ok   ' + name);
+        else { fails++; console.log('FAIL ' + name + (extra ? ' -- ' + extra : '')); } };
+    const ss = src.indexOf('    function strokeFunc(line) {');
+    const se = src.indexOf('\n    }', src.indexOf('return Math.min(MAX_STROKE, Math.max(MIN_STROKE, stroke))', ss)) + 6;
+    if (ss < 0 || se < 6) { fails++; console.log('FAIL could not slice strokeFunc'); }
+    else {
+        const fctx = vm.createContext({});
+        // strokeFunc closes over `turn` and `last_eval`; line 0 is the best move it compares against.
+        const width = (turn, lines, i) => {
+            vm.runInContext(`var turn = ${JSON.stringify(turn)}; var last_eval = {lines: ${JSON.stringify(lines)}};`, fctx);
+            vm.runInContext(src.slice(ss, se), fctx);
+            return vm.runInContext(`strokeFunc(last_eval.lines[${i}])`, fctx);
+        };
+        // The reported position: best +2.10, then +0.94, then -7.32 (a 9.42 drop -- the old cutoff was 4).
+        const reported = [{move: 'f3f1', score: 210}, {move: 'd3f1', score: 94}, {move: 'g1f2', score: -732}];
+        const best = width('w', reported, 0), mid = width('w', reported, 1), lost = width('w', reported, 2);
+        ok('the best move is the thickest arrow', best > mid, `best ${best} vs ${mid}`);
+        ok('a close second is thinner than the best', mid < best && mid > 0, `${mid}`);
+        ok('a line 9.42 behind is still DRAWN (was 0 -- the reported bug)', lost > 0, `${lost}`);
+        ok('...and is the thinnest of the three', lost < mid, `${lost} vs ${mid}`);
+        // and from black's side, where the sign flips
+        const blk = [{move: 'a1a2', score: -210}, {move: 'b1b2', score: 732}];
+        ok('black: a line 9.42 behind is drawn too', width('b', blk, 1) > 0);
+        // a move that gets us mated (score NaN) took the same vanishing path
+        const mated = [{move: 'a1a2', score: 210}, {move: 'b1b2', score: NaN, mate: -1}];
+        ok('a line that gets us mated is drawn, not dropped', width('w', mated, 1) > 0);
+    }
+}
