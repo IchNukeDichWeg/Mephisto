@@ -293,6 +293,17 @@ function stdev(xs) {
 // Lichess weights each move's accuracy by how much was at stake around it (a volatility window), so
 // a dead-drawn shuffle cannot inflate the number. Same idea here: the weight is the standard
 // deviation of the win% over a window centred on the move, floored so every move still counts.
+//
+// THIS NUMBER IS NOT CHESS.COM'S, AND IT IS NOT SUPPOSED TO BE. Measured 2026-09-12 against the real
+// Game Review service: 8 games from a public archive, both colours, 16 paired points, their Stockfish
+// 16 / Strength 22 vs ours at depth 22. Mean signed gap (theirs - ours) -1.64, mean |gap| 3.24, and
+// individual games ran from -7.7 to +6.3 in BOTH directions. The least-squares line came out
+// theirs = 0.9993*ours - 1.584: slope 1.0 to four decimals, i.e. no scaling error at all, and applying
+// the constant shift moved mean |gap| only 3.24 -> 2.88 with a worst residual of 7.94. So the gap is
+// per-position disagreement between two different engines, not a bias in this formula, and no
+// correction term can remove it. Do not re-run that calibration; a fitted "chess.com mode" here would
+// be false precision. Anyone who wants their number can have the exact one -- the local chess.com
+// classifier (rv_ee_run) returns their own CAPS and overwrites report.accuracy with it.
 function accuracyFor(moves, color) {
     const mine = moves.filter(m => m.color === color && m.acc != null);
     if (!mine.length) return null;
