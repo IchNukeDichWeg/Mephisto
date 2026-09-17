@@ -98,6 +98,7 @@ const CFG_DEFAULTS = {
     rv_book: true,
     rv_human_report: false,
     rv_strength: false,      // the maximum-likelihood rating estimate; a pass per rating band
+    rv_explain: false,       // chess.com's coach prose over OUR review -- their words, our numbers
 
     rv_batch: false,
     rv_mode: 'own',          // which of the three reviews the page shows: own | local | online
