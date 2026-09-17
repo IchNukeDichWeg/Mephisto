@@ -184,7 +184,8 @@ API. **Nothing leaves your machine** during the review - the search runs in the 
   engine), and **4-player** PGN4 through Tetrarch, Teams or free-for-all.
 - **Any engine at your budget** - bundled WASM or a native host, a reproducible depth (default 16) or a time per
   move, 1-10 lines, your own threads and hash. **Engines at once** (default 2) runs it as a worker pool - measured
-  64.7s to 25.7s on the same game.
+  64.7s to 25.7s on the same game. The depth box also offers **the rungs chess.com's own Game Review uses** - 18,
+  22, 24, 26 - because two accuracy numbers only describe the same thing if they came from the same search.
 - **Accuracy and move quality** on Lichess's formulas and the same bands the panel judges live moves by, so a review
   agrees with what the panel said at the time.
 - **Eval graph** with the phase boundaries marked, clickable; **openings named offline** from a bundled copy of
@@ -194,6 +195,11 @@ API. **Nothing leaves your machine** during the review - the search runs in the 
   (optional)** - which rating best explains the moves played, with the ratings it cannot tell apart, a per-phase
   breakdown, the moves the verdict rests on, and a compare-two-ratings view. A strength estimate, not a fair-play
   measurement.
+- **Explain the moves (optional)** - chess.com's explanation engine writes a sentence per move and a line about the
+  game, over **this** review: their words, every number still ours. Their engine never knows which engine searched,
+  so it describes our own analysis at our own depth. Needs the same offline download as the classifier below;
+  nothing leaves the machine. Where their grade of a move differs from ours - roughly one move in five - the report
+  says so and keeps both.
 - **Fair-play indicators** - engine-match rate over real choices, sharp positions, phases, longest streak, accuracy
   uniformity, whether long thinks went to hard positions. **Measurements, never a verdict.**
 - **Review every game** in a file against one engine load, pooled per player. **Export** the report as one
