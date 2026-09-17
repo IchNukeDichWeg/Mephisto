@@ -199,8 +199,8 @@ API. **Nothing leaves your machine** during the review - the search runs in the 
 - **Explain the moves (optional)** - chess.com's explanation engine writes a sentence per move and a line about the
   game, over **this** review: their words, every number still ours. Their engine never knows which engine searched,
   so it describes our own analysis at our own depth. Needs the same offline download as the classifier below;
-  nothing leaves the machine. Where their grade of a move differs from ours - roughly one move in five - the report
-  says so and keeps both.
+  nothing leaves the machine. Where their grade of a move differs from ours - measured 8, 12 and 15 of 45 moves on
+  the same game, the spread being our own search rather than theirs - the report says so and keeps both grades.
 - **Fair-play indicators** - engine-match rate over real choices, sharp positions, phases, longest streak, accuracy
   uniformity, whether long thinks went to hard positions. **Measurements, never a verdict.**
 - **Review every game** in a file against one engine load, pooled per player. **Export** the report as one
