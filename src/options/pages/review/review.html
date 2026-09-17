@@ -235,8 +235,8 @@
                              (read out of its own settings dialog, 2026-09-12). Matching the rungs is what
                              makes an accuracy number here comparable to one there; picking a rung just
                              fills the box beside it, which stays free-form. -->
-                        <select id="rv_depth_preset" class="rv-select browser-default" data-i18n-tip="rv.tip.depth_preset"
-                                class="tooltipped" data-position="right"
+                        <select id="rv_depth_preset" class="rv-select browser-default tooltipped"
+                                data-i18n-tip="rv.tip.depth_preset" data-position="right"
                                 data-tooltip="Review depths that match the ones Chess.com's own Game Review offers, so the two accuracy numbers describe the same search. Custom leaves whatever you typed.">
                             <option value="" data-i18n="rv.custom">Custom</option>
                             <option value="18" data-i18n="rv.preset_fast">Fast - depth 18</option>
@@ -345,6 +345,27 @@
                     <div class="set-ctl">
                         <input id="rv_strength" type="checkbox" class="set-cb">
                         <label for="rv_strength" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span class="tooltipped" data-position="right"
+                              data-tooltip="Adds chess.com's coach commentary to THIS review - a sentence per move and a
+                                            line about the game - while every number stays ours. Their explanation engine
+                                            is engine-agnostic: it is fed the lines our own engine found, at our own
+                                            depth, so the words describe the analysis above rather than a second one.
+                                            Needs the same 28.7 MB download as the Chess.com classifier row below; the
+                                            game never leaves this machine. Where their grade of a move differs from
+                                            ours, the report says how often.">
+                            Explain the moves <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="rv_explain" type="checkbox" class="set-cb">
+                        <label for="rv_explain" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
                     </div>

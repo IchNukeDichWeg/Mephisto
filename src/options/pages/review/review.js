@@ -1070,12 +1070,24 @@ function renderHeader() {
     }
     // the classifier's one-sentence verdict on the GAME reads as part of the header, right under
     // the names it is about (it used to trail the run's status line, where it scrolled away)
-    const summary = report.ee?.summary || report.ccrSummary || '';
+    const summary = report.ee?.summary || report.ccrSummary || report.prose?.summary || '';
     $('rv_header').innerHTML =
         `<div class="rv-vs">${esc(playerLine('w'))} &ndash; ${esc(playerLine('b'))}`
         + ` &nbsp;${esc(report.game.result)}</div>`
         + `<div class="rv-meta">${bits.join(' · ')}</div>`
-        + (summary ? `<div class="rv-gamenote">\u201c${esc(summary)}\u201d</div>` : '');
+        + (summary ? `<div class="rv-gamenote">\u201c${esc(summary)}\u201d</div>` : '')
+        // WHOSE WORDS THESE ARE. The prose is chess.com's coach; every number above it is ours. Say
+        // so, and say how often their label disagreed with ours, rather than letting a borrowed
+        // sentence read as the report's own verdict.
+        + (report.prose
+            ? `<div class="rv-meta">${report.prose.error
+                ? `No commentary: ${esc(report.prose.error)}`
+                : `Commentary by chess.com\u2019s coach v${esc(String(report.prose.version || '?'))} on our own analysis`
+                  + ` \u2014 ${report.prose.got} of ${report.prose.of} moves`
+                  + (report.prose.disagreed
+                      ? `, and it graded ${report.prose.disagreed} differently from us`
+                      : ', agreeing with our grades throughout')}</div>`
+            : '');
 }
 
 function renderCards() {
@@ -2220,6 +2232,21 @@ async function onRun() {
             const built = await runReview(list[g], rig,
                 (frac, what) => progress(base + frac * span, label + what));
             built.pgnText = gameText(list[g]);
+            // ...and, if asked, their coach's words over our numbers (see applyEeProse).
+            if (cfg('rv_explain') && !cancel) {
+                const assets = await eeCached();
+                if (!assets) built.prose = {error: 'the explanation engine is not downloaded - get it in the Chess.com classifier row'};
+                else {
+                    progress(base + span * 0.97, label + 'asking chess.com\u2019s coach');
+                    try {
+                        applyEeProse(built, await eeRun(assets, eeCommands({
+                            positions: built.positions, moves: built.moves,
+                            whiteElo: eeElo(list[g].tags, 'w'), blackElo: eeElo(list[g].tags, 'b'),
+                            result: list[g].tags?.Result || '*', userColor: 'white',
+                        })));
+                    } catch (e) { built.prose = {error: String(e.message || e)}; }
+                }
+            }
             done.push(built);
         }
         if (!done.length) throw new Error('stopped');
@@ -2380,10 +2407,14 @@ const EE_THREADS = 1;     // ...on one thread, as their four single-threaded wor
 // deterministic (one worker, positions in order) so it has no race to lose, while two of their runs
 // each land somewhere slightly different. There is nothing left to chase here.
 //
-// The fallback engine, for when their Stockfish has not been downloaded, is Stockfish dev: over
-// three earlier captured games it totalled 91/104 against Stockfish 18 Small's 88/104 -- despite
-// Small being the same net class as their Lite build, which is the intuition that measurement
-// overrides. With their engine present the question is moot.
+// The fallback engine, for when their Stockfish has not been downloaded, is the full-net Stockfish:
+// over three earlier captured games it totalled 91/104 against Stockfish 18 Small's 88/104 --
+// despite Small being the same net class as their Lite build, which is the intuition that
+// measurement overrides. With their engine present the question is moot.
+//
+// That 91/104 was measured on stockfish-dev, which this build retired for Stockfish 19 (upstream
+// dropped the dev target the day 19 released). The number is NOT re-measured: it says a full net
+// beats a small one at this job, which is the reason the pin exists, and 19 is the full net now.
 const EE_ENGINE = 'stockfish-19-nnue';
 
 function eeElo(tags, color) {
@@ -2413,6 +2444,35 @@ function applyEeVerdict(built, verdict) {
                 elo: {w: verdict.whiteElo, b: verdict.blackElo},
                 effectiveElo: {w: verdict.reportCard?.white?.effectiveElo ?? null,
                                b: verdict.reportCard?.black?.effectiveElo ?? null}};
+    return built;
+}
+
+// THEIR WORDS OVER OUR NUMBERS. applyEeVerdict above replaces the whole judgement -- classes,
+// per-move accuracy, CAPS -- because "classify like chess.com" is the point of that button. This one
+// takes ONLY the prose: the coach sentence per move and the game summary. Every number in the report
+// stays ours, from our engine at our depth.
+//
+// It works because the classifier is engine-agnostic: eeCommands feeds it `variation <pv> cp <n>
+// depth <d>` built from whatever searched (see the note above sfSearchOne), so handing it our own
+// review's positions is the same shape it always gets -- just deeper, since our default depth is 22
+// against their 10.
+//
+// `disagreed` is kept and shown rather than hidden: their sentence is written about their own label,
+// so when their label differs from ours the prose can describe a move we graded differently. Their
+// classifier sees OUR evals here, so this should be rare -- the count says whether it was.
+function applyEeProse(built, verdict) {
+    const pos = verdict.positions || [];
+    let got = 0, disagreed = 0;
+    built.moves.forEach((m, i) => {
+        const p = pos[i + 1] || pos[i];               // their array is offset by the start position
+        if (!p) return;
+        const say = p.playedMove && p.playedMove.speech;
+        if (say && (say.personal || say.impersonal)) { m.commentary = say.personal || say.impersonal; got++; }
+        const theirs = EE_CLASS[p.classificationName];
+        if (theirs && m.klass && theirs !== m.klass) { m.classAlt = theirs; disagreed++; }
+    });
+    built.prose = {version: eeInstalled, summary: verdict.gameSummary || '', got, disagreed,
+                   of: built.moves.length};
     return built;
 }
 
@@ -3045,7 +3105,7 @@ class ReviewPage {
             tierSel.addEventListener('change', () => { setCfg('rv_ee_tier', tierSel.value); eeSync(); sfSync(); });
         }
 
-        for (const key of ['rv_book', 'rv_human_report', 'rv_strength', 'rv_batch']) {
+        for (const key of ['rv_book', 'rv_human_report', 'rv_strength', 'rv_explain', 'rv_batch']) {
             const el = $(key);
             if (!el) continue;
             el.checked = !!cfg(key);
