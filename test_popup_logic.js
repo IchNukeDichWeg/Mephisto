@@ -241,6 +241,54 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     }
 }
 
+// A lichess board that starts with BLACK to move (content-script). Two halves, both real source:
+// the tree renders `<index>4</index><move class="empty">...</move>` for White's skipped half-move,
+// and the analysis URL is the only place the turn is written down. Before this, the placeholder was
+// scraped as a move with an empty SAN -- the panel replayed "" ("Invalid move: ") and said the game
+// was not detected on EVERY black-to-move analysis position, a case the suite did not cover.
+// Verified live 2026-09-17: "Black to play, best move is Nf6" on
+// /analysis/fromPosition/r1bqk1nr/pppp1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R_b_KQ_-_4_4.
+{
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const slice = (name) => {
+        const start = cs.indexOf('\nfunction ' + name + '(');
+        const end = cs.indexOf('\n}', start);
+        if (start < 0 || end < 0) throw new Error('could not slice ' + name);
+        return cs.slice(start, end + 2);
+    };
+    const lctx = {console};
+    vm.createContext(lctx);
+    vm.runInContext(slice('hasSanText') + slice('lichessUrlFen'), lctx);
+    const hasSanText = lctx.hasSanText;
+    const urlFen = (href) => {
+        const u = new URL(href);
+        lctx.location = {pathname: u.pathname, search: u.search};
+        lctx.URLSearchParams = URLSearchParams;
+        return vm.runInContext('lichessUrlFen()', lctx);
+    };
+
+    eq('hasSanText: lichess empty-move placeholder is not a move', hasSanText({textContent: '...'}), false);
+    eq('hasSanText: move-number index is not a move', hasSanText({textContent: '4'}), false);
+    eq('hasSanText: a SAN is a move', hasSanText({textContent: 'Nf6'}), true);
+    eq('hasSanText: castling is a move', hasSanText({textContent: 'O-O-O+'}), true);
+    eq('hasSanText: the game-result line is not a move',
+       hasSanText({textContent: '0-1 White resigned \u2022 Black is victorious'}), false);
+
+    const FEN = 'r1bqk1nr/pppp1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R';
+    eq('lichessUrlFen: analysis path states the turn',
+       urlFen(`https://lichess.org/analysis/fromPosition/${FEN}_b_KQ_-_4_4`),
+       `${FEN} b KQ - 4 4`);
+    eq('lichessUrlFen: ?fen= query too',
+       urlFen(`https://lichess.org/analysis?fen=${FEN}_w_KQ_-_4_4`), `${FEN} w KQ - 4 4`);
+    eq('lichessUrlFen: a plain analysis board has no FEN', urlFen('https://lichess.org/analysis'), null);
+    eq('lichessUrlFen: a real game URL has no FEN', urlFen('https://lichess.org/abcd1234/black'), null);
+
+    // and the analysis move list actually goes through the filter (the call site, not just the helper)
+    if (/querySelectorAll\('\.tview2 move'\)\)\.filter\(hasSanText\)/.test(cs))
+        console.log('ok   the .tview2 analysis move list is SAN-filtered');
+    else { fails++; console.log('FAIL the .tview2 analysis move list is not SAN-filtered'); }
+}
+
 // ---- EVERY setting carries a hover description (user call 2026-08-15) ------------------------
 // A setting whose control has no tooltip in its row fails here, so a new row cannot ship mute.
 // The control is matched by its FULL suffix (_select/_input/_checkbox/_range/_picker) -- matching
