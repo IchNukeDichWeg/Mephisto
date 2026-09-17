@@ -3571,6 +3571,15 @@ function getSelectedMoveRecord() {
     return selectedMove;
 }
 
+// A move-list cell holds a real SAN when it has a destination square, or is castling (a drop like
+// P@e4 matches the first test too). Sites put non-moves in the same list -- move-number tags, the
+// game-result line, trailing placeholder cells, and lichess's `<move class="empty">...</move>`,
+// which it renders for White's skipped half-move whenever a position starts with BLACK to move.
+function hasSanText(el) {
+    const t = el.textContent.trim();
+    return /[a-h][1-8]/.test(t) || /^O-O(-O)?[+#]?$/.test(t);
+}
+
 function getMoveRecords() {
     let moves;
     if (site === 'taketaketake') {
@@ -3580,10 +3589,7 @@ function getMoveRecords() {
         // one <div.moves-table-cell.moves-move> per ply, textContent = SAN. Keep only real moves
         // (a SAN has a destination square, is castling, or a drop like P@e4) so trailing empty
         // placeholder cells and any result/annotation marker don't get scraped as bogus moves.
-        return Array.from(document.querySelectorAll('.moves-table-cell.moves-move')).filter(el => {
-            const t = el.textContent.trim();
-            return /[a-h][1-8]/.test(t) || /^O-O(-O)?[+#]?$/.test(t);
-        });
+        return Array.from(document.querySelectorAll('.moves-table-cell.moves-move')).filter(hasSanText);
     }
     if (site === 'chesscom') {  // wc-chess-board
         moves = document.querySelectorAll('.node'); // vs player + computer (new)
@@ -3600,14 +3606,16 @@ function getMoveRecords() {
             // This drops the move-number tags AND the game-result/status element lichess appends
             // to the move list on game end (e.g. "0-1 White resigned • Black is victorious"),
             // which would otherwise be scraped as a bogus move and abort the whole parse.
-            moves = Array.from(liveMoves.children).filter(el => {
-                const t = el.textContent.trim();
-                return /[a-h][1-8]/.test(t) || /^O-O(-O)?[+#]?$/.test(t);
-            });
+            moves = Array.from(liveMoves.children).filter(hasSanText);
         } else {
             moves = document.querySelectorAll('kwdb'); // live game (older lichess DOM)
             if (moves.length === 0) {
-                moves = document.querySelectorAll('.tview2 move'); // analysis / puzzle / training
+                // Filtered like the live list above: on a BLACK-TO-MOVE analysis board the tree is
+                // `<index>4</index><move class="empty">...</move>`, and that placeholder was scraped
+                // as a move with an empty SAN -- the panel replayed "" and said "Invalid move: " on
+                // every poll, i.e. board not detected. It also made getMoveRecords() non-empty at
+                // move 0, which skips onPositionLoad's custom-start capture entirely.
+                moves = Array.from(document.querySelectorAll('.tview2 move')).filter(hasSanText);
             }
         }
     }
@@ -4294,10 +4302,25 @@ function fenToPuzString(fen) {
 // lichess ships the game's starting FEN in the page (the round data calls it initialFen). Read it
 // from the raw HTML rather than a DOM path, so a markup reshuffle doesn't break it -- and validate
 // hard, because a wrong start position corrupts every scrape that follows.
+// lichess states an analysis board's start position in the URL itself:
+// /analysis[/<variant>]/<FEN, underscores for spaces> (slashes and all), or ?fen=<FEN>. On an
+// analysis page that is the ONLY copy -- there is no round JSON and no editor link -- so without it
+// a set-up position has no turn, no castling rights and no en-passant square.
+function lichessUrlFen() {
+    const q = (new URLSearchParams(location.search).get('fen') || '').replace(/_/g, ' ').trim();
+    if (q) return q;
+    const m = decodeURIComponent(location.pathname)
+        .match(/(?:^|\/)((?:[1-8pnbrqkPNBRQK]{1,8}\/){7}[1-8pnbrqkPNBRQK]{1,8}_[wb](?:_[^/?#]*)?)$/);
+    return m ? m[1].replace(/_/g, ' ').trim() : null;
+}
+
 function readInitialFenFromPage() {
     if (site !== 'lichess') return null;
     try {
-        let m = document.documentElement.innerHTML.match(/"initialFen"\s*:\s*"([^"]+)"/);
+        // The URL first: an analysis board has nothing else, and where both exist they agree.
+        const urlFen = lichessUrlFen();
+        let m = urlFen ? [null, urlFen]
+            : document.documentElement.innerHTML.match(/"initialFen"\s*:\s*"([^"]+)"/);
         // vs-AI From-Position pages ship no round JSON at all; their one copy of the start is the
         // variant-link's editor href, underscores for spaces, TURN INCLUDED -- which matters,
         // because the piece-scrape fallback cannot see the turn (found 2026-08-14 when a
