@@ -516,7 +516,18 @@ html.dark .rv-ev-strong  { color: #d15050; }
    slider SHRINKS when the row runs out of room -- wrapping is what put the readout underneath the
    select and read as broken. No min-width on the readout: reserving 130px is exactly what pushed
    it off the line. */
+/* BUDGET IS THE ONLY ROW WITH THREE CONTROLS, and every row shares one fixed 234px control column
+   (options.css). `nowrap` inside it does not overlap -- it CRUSHES: measured 2026-09-17 at 1400px,
+   kind 86 + the -/+ box 47 + the depth rung 86, so the number box the stepper exists to show was
+   down to a digit and a half. Sized for this row alone; the label beside it is one word and has the
+   width to give. The number box is the last thing that should shrink: it holds 2 digits in Depth and
+   4 characters in Time. */
 .rv-budget { flex-wrap: nowrap; }
+#rv-analysis .set-ctl.rv-budget { flex: 0 0 auto; gap: 6px; }
+#rv-analysis .set-ctl.rv-budget > #rv_limit_kind { flex: 0 0 auto; width: 110px; max-width: 110px; }
+#rv-analysis .set-ctl.rv-budget > #rv_depth_preset { flex: 0 0 auto; width: 152px; max-width: 152px; }
+#rv-analysis .set-ctl.rv-budget > .set-step { flex: 0 0 auto; }
+#rv-analysis .set-ctl.rv-budget .set-step input[type=number] { width: 58px; }
 .rv-unit { font-size: 12px; color: var(--mp-dim); white-space: nowrap; }
 
 /* the one-time chess.com caution gate (10s before Accept goes live) */
