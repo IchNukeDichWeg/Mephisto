@@ -18,7 +18,7 @@ move on the board or plays it for you with human timing. It also reviews finishe
 
 Click the toolbar icon for a floating panel that stays open while you play.
 
-![Analysis with five candidate lines drawn on the board](docs/analysis-lines.png)
+<img src="docs/analysis-lines.png" alt="Analysis with five candidate lines drawn on the board" width="82%">
 
 [Fair play](#fair-play---read-this-first) · [Install](#install) · [Engines](#engines) · [Features](#features) ·
 [Sites](#supported-sites) · [Settings](#settings-reference) · [Footprint](#page-footprint) · [Roadmap](#roadmap)
@@ -106,8 +106,9 @@ entries are the exception, and they are opt-in.
 
 | Engine | Notes |
 | --- | --- |
-| **Stockfish dev NNUE** | Latest development build. Default. |
-| **Stockfish 18 / 18 Small NNUE** | Full dual-net build (large net ships split, stitched at load), or the lighter net. |
+| **Stockfish 19 NNUE** | The default. The full dual-net build; the large net ships split and is stitched at load. |
+| **Stockfish 19 Small NNUE** | The same engine on the small net - about 1 MB against 99, for a machine or a connection that cannot take the full one. |
+| **Stockfish 18 NNUE** | The previous mainline, kept so a review can be repeated against the engine that produced it. |
 | **Stockfish 11 HCE** | Classical eval, no NNUE - light and fast. |
 | **Fairy-Stockfish 14 NNUE** | Required for [variants](#variants); each has its own bundled net. |
 | **Maia-1** | The original Maia nets, one per rating band (**1100-1900**, plus **2200**). |
@@ -161,7 +162,7 @@ have nets but the bundled chess.js can't replay them, so the panel says so rathe
 
 <img src="docs/multiple-lines.png" alt="Three candidate lines, each with its own coloured arrow" width="49%"> <img src="docs/opening-explorer.png" alt="The opening explorer, with each book move drawn on the board" width="49%">
 
-![Reading a position straight off a YouTube video](docs/read-from-screen.png)
+<img src="docs/read-from-screen.png" alt="Reading a position straight off a YouTube video" width="70%">
 
 *Three candidate lines · the explorer's book moves · reading a position off a YouTube video, naming its
 least-confident squares.*
@@ -208,7 +209,7 @@ API. **Nothing leaves your machine** during the review - the search runs in the 
   mix is defined in exactly those bands, so counting them gives the mix that reproduces that player. Measured, rather
   than guessed at with sliders.
 
-![The game review page](docs/game-review.png)
+<img src="docs/game-review.png" alt="The game review page" width="70%">
 
 ### chess.com Game Review
 
@@ -318,7 +319,7 @@ free. Nothing about the software changed, the measurement did.
 
 ### Humanize
 
-![The move mix and move-quality thresholds, with live accuracy estimates](docs/humanize.png)
+<img src="docs/humanize.png" alt="The move mix and move-quality thresholds, with live accuracy estimates" width="70%">
 
 Seven shares set how often it plays the top move, a 2nd/3rd/4th line, an inaccuracy, a mistake or a blunder, with
 per-category centipawn thresholds and a live [Lichess accuracy](https://lichess.org/page/accuracy) estimate of the
@@ -338,7 +339,7 @@ shortens the *simulated* delay when the clock gets short, never lengthens it.
 
 <img src="docs/puzzle-database.png" alt="3999 - as high as the Lichess puzzle rating goes" width="49%"> <img src="docs/hotkeys.png" alt="The hotkeys page, each action rebindable" width="49%">
 
-![Hardest (+600) puzzles solved back to back, from the database rather than searched](docs/puzzle-database.gif)
+<img src="docs/puzzle-database.gif" alt="Hardest (+600) puzzles solved back to back, from the database rather than searched" width="70%">
 
 *3999 is the ceiling · every action rebindable · hardest (+600) puzzles back to back, from the database rather than
 searched ([full clip](docs/puzzle-database.mp4)).*
@@ -396,7 +397,7 @@ the position on Lichess, and an **engine health dot** shows whether a native hos
 
 ## Supported sites
 
-![TakeTakeTake, whose board is a WebGPU canvas with no DOM to scrape](docs/taketaketake.png)
+<img src="docs/taketaketake.png" alt="TakeTakeTake, whose board is a WebGPU canvas with no DOM to scrape" width="70%">
 
 *TakeTakeTake, whose board is a WebGPU canvas with no DOM to scrape.*
 
@@ -462,7 +463,7 @@ Chess.com's **4-player chess** (`/variants/4-player-chess`), analysed by
 **Tetrarch (4-player)** in the engine dropdown; the panel switches to it on a four-player board and back when you
 leave.
 
-![Four-player chess on Chess.com, with the 14x14 panel board and the suggested move drawn on it](docs/four-player.png)
+<img src="docs/four-player.png" alt="Four-player chess on Chess.com, with the 14x14 panel board and the suggested move drawn on it" width="70%">
 
 *Teams mode - the panel's own 14×14 board, rotated so you sit at the bottom, with the engine's move drawn on it.*
 
