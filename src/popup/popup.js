@@ -1719,7 +1719,12 @@ async function initialize_engine(reuseWarm = false) {
             // (UCI_Variant 'chess' drops the variant net) and skips options an engine doesn't declare.
             "UCI_Chess960": config.variant === 'fischerandom',
             "UCI_Variant": config.variant || 'chess',
-            ...(config.elo > 0 && config.elo <= 3190 ? {"UCI_LimitStrength": true, "UCI_Elo": config.elo} : {}),
+            // Same rule as the WASM branch below: cap only inside the engine's own range, and SEND the
+            // cap's removal. Omitting it left the host at the last cap it was given, and Rodent IV
+            // boots with UCI_LimitStrength on. Engines with no Elo option get neither key.
+            ...(NO_ELO_ENGINES.includes(config.engine) ? {}
+                : config.elo > 0 && config.elo <= (ELO_RANGE[config.engine] || [1320, 3190])[1]
+                    ? {"UCI_LimitStrength": true, "UCI_Elo": config.elo} : {"UCI_LimitStrength": false}),
         }).catch(on_remote_error);
         remote_multipv_set = effective_multipv(); // baseline just configured; don't re-push it
     } else {
