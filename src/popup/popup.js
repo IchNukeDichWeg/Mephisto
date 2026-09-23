@@ -2803,10 +2803,26 @@ function note_unsupported_variant(name) {
     }
 }
 
+// A net or model the install does not bundle is fetched from the engines release on first use
+// (model-fetch.js), and a 98 MB net takes long enough that the loading bar alone reads as stuck.
+// The host reports `info string mephisto-download <file> <got> <total>`; this is the move-line text.
+function download_progress_text(message) {
+    const m = /^info string mephisto-download (\S+) (\d+) (\d+)$/.exec(typeof message === 'string' ? message : '');
+    if (!m) return null;
+    const got = Number(m[2]), total = Number(m[3]);
+    return i18n('panel.msg.downloading_net', 'Downloading {file}: {pct}% of {mb} MB (first use only)',
+        {file: m[1], pct: total ? Math.floor(100 * got / total) : 0, mb: (total / 1e6).toFixed(1)});
+}
+
 function on_engine_response(message) {
     console.log('on_engine_response', message);
     if (typeof message === 'string' && message.startsWith('info string mephisto-unsupported-variant')) {
         return note_unsupported_variant(message.split(' ').pop());
+    }
+    const download = download_progress_text(message);
+    if (download) {
+        last_info_at = Date.now();   // a download in progress is not a silent engine (revive_if_engine_silent)
+        return update_best_move(download);
     }
     if (is_remote()) {
         last_eval = Object.assign(last_eval, message);
