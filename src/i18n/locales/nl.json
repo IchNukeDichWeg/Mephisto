@@ -628,5 +628,7 @@
   "set.material_balance": "Materiaalbalans",
   "set.tip.material_balance": "Eén regel onder de score: de materiaalbalans van de stelling op het paneelbord, wit min zwart in pionnen (D 9, T 5, L 3, P 3, p 1), en welke stukken verschillen - \"Materiaal +2 (B+P tegen N)\" betekent dat wit een loper en een pion heeft waar zwart een paard heeft. De stukletters zijn de Engelse (Q R B N P).",
   "set.square_heatmap": "Heatmap veldcontrole",
-  "set.tip.square_heatmap": "Kleurt elk veld van het paneelbord naar wie het beheerst: blauw waar wit het met meer stukken aanvalt, rood waar zwart dat doet, donkerder naarmate de voorsprong groter is (tot drie). Velden die beide even vaak aanvallen blijven ongekleurd. Opnieuw getekend als de stelling verandert, onder de stukken en de pijlen."
+  "set.tip.square_heatmap": "Kleurt elk veld van het paneelbord naar wie het beheerst: blauw waar wit het met meer stukken aanvalt, rood waar zwart dat doet, donkerder naarmate de voorsprong groter is (tot drie). Velden die beide even vaak aanvallen blijven ongekleurd. Opnieuw getekend als de stelling verandert, onder de stukken en de pijlen.",
+  "set.humanize_target_acc": "Doelnauwkeurigheid",
+  "set.tip.humanize_target_acc": "Stuurt de mix naar een partijnauwkeurigheid, 50 tot 99 (0 = uit). Zolang de lopende nauwkeurigheid van de partij boven het doel ligt, schuift het aandeel van de beste zet naar de zwakkere banden die je een aandeel gaf; eronder naar de beste zet. Het herweegt alleen de aandelen hierboven: een band op 0 wordt nooit gespeeld, geen drempel verschuift, en terugslagen, gedwongen zetten en de regel tegen blunders in al besliste partijen blijven gelijk. Gemeten met dezelfde formule als Live Stats, zodra vier van je zetten beoordeeld zijn."
 }

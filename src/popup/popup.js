@@ -6515,6 +6515,88 @@ function category_for_roll(r, rates) {
     return 'top';
 }
 
+// ---- TARGET ACCURACY (humanize_target_acc, 0 = off) ---------------------------------------------
+// The mix alone fixes the ODDS of each band, not the result: a quiet game hands every band a pool of
+// harmless moves and lands at 97%, a sharp one at 80%, from the same sliders. With a target set, the
+// mix is re-weighted every move by how far THIS game's running accuracy (our side, the same Lichess
+// formula Live Stats and Session Stats show) sits from it. The control rule, a clamped proportional
+// controller on the SHARES -- never on the thresholds:
+//
+//   err = accuracy - target (percentage points); exactly on target nothing changes.
+//   k   = MAX_SHIFT * min(1, |err| / SPAN)                 -- 0 on target, MAX_SHIFT from SPAN out.
+//   above target: the Top share gives up k of itself to the non-top bands, split by share x depth
+//                 (second line = 1 ... blunder = 6), so it leans to the WEAKER bands you allowed.
+//   below target: every non-top band gives up k of itself to Top.
+//
+// The error is on the game's CUMULATIVE average, which already integrates every move, so a gentle
+// gain just settles off target (the equilibrium is where the steered mix's own average equals the
+// running one). Measured on a toy model -- fixed accuracy per band (100/90/80/70/60/45/30), the
+// default mix, 2,000 seeded games of 40 moves, readings rounded like live_stats -- final accuracy
+// mean / rms error vs target 85 / 88 / 95:
+//   deadband 1, SPAN 10:  88.7/4.0  90.2/2.6  92.7/2.8
+//   SPAN 4:               86.8/2.1  88.9/1.4  93.7/1.7
+//   SPAN 1 (this):        85.8/1.2  88.2/0.7  94.4/0.9
+// A toy, not a game: real band accuracies depend on the position, so this proves the direction and
+// the settling, not the exact number a real game lands on.
+//
+// It only moves weight between bands that already have a share: a band at 0 stays at 0, so it can
+// never play a kind of move the mix forbids, and the cp bands, the blunder-in-a-decided-game rule,
+// recaptures, forced moves and mates are all decided in humanize_pick exactly as before. MAX_SHIFT
+// < 1 keeps every allowed band alive, so the set of bands in play (and the MultiPV it needs) never
+// changes. Until MIN_MOVES of ours are graded the reading is noise (book moves score 100%), so the
+// mix is left alone.
+const HUMANIZE_TARGET_MIN = 50, HUMANIZE_TARGET_MAX = 99;
+const HUMANIZE_TARGET_SPAN = 1;          // points off target for the full push (see the table above)
+const HUMANIZE_TARGET_MAX_SHIFT = 0.75;  // most of a donor share that can move in one pick
+const HUMANIZE_TARGET_MIN_MOVES = 4;
+
+function humanize_target() {
+    const t = humanize_get('humanize_target_acc', 0);
+    return (t >= HUMANIZE_TARGET_MIN && t <= HUMANIZE_TARGET_MAX) ? t : 0;
+}
+
+// Pure: rates (the normalized mix), acc (running accuracy or null), target (0 = off) -> new rates,
+// still summing to 100. Returns the input object untouched whenever there is nothing to do.
+function humanize_steer(rates, acc, target) {
+    if (!target || acc == null || !Number.isFinite(acc)) return rates;
+    const err = acc - target;
+    if (!err) return rates;
+    const k = HUMANIZE_TARGET_MAX_SHIFT * Math.min(1, Math.abs(err) / HUMANIZE_TARGET_SPAN);
+    const lower = HUMANIZE_ORDER.slice(1);
+    const out = {...rates};
+    if (err > 0) {
+        const w = {};
+        let W = 0;
+        lower.forEach((c, i) => { w[c] = (rates[c] || 0) * (i + 1); W += w[c]; });
+        if (!W) return rates;                 // no weaker band allowed: nothing to lean on
+        const moved = (rates.top || 0) * k;
+        out.top = (rates.top || 0) - moved;
+        for (const c of lower) out[c] = (rates[c] || 0) + moved * w[c] / W;
+    } else {
+        let moved = 0;
+        for (const c of lower) { const m = (rates[c] || 0) * k; out[c] = (rates[c] || 0) - m; moved += m; }
+        out.top = (rates.top || 0) + moved;
+    }
+    return out;
+}
+
+// Our side's running accuracy in the game on the board, or null while too few moves are graded.
+function humanize_game_accuracy() {
+    try {
+        const s = live_stats(eval_history)[our_side()];
+        return (s && s.moves >= HUMANIZE_TARGET_MIN_MOVES && Number.isFinite(s.accuracy)) ? s.accuracy : null;
+    } catch (e) { return null; }
+}
+
+// The mix a roll is made against: the sliders, steered toward the target when one is set. The
+// pre-roll and the pick both read it, and our accuracy cannot change between the two (no move of
+// ours is graded in between), so the countdown's label and the move played still agree.
+function humanize_mix() {
+    const rates = humanize_rates();
+    const target = humanize_target();
+    return target ? humanize_steer(rates, humanize_game_accuracy(), target) : rates;
+}
+
 // Pre-rolled humanize outcome for the current move, decided at SEARCH START so the countdown can
 // show which move is coming from the very beginning (not just the last instant). The random slice
 // roll doesn't need the search -- only whether the chosen line is actually PLAYABLE does, which
@@ -6528,7 +6610,7 @@ function roll_humanize_category(fen) {
         if (new Chess(config.variant, fen).moves().length === 1) return {r: 0, category: 'instant response'};
     } catch (e) { /* variant fen chess.js can't parse -- fall through to the mix roll */ }
     const r = Math.random() * 100;
-    return {r, category: HUMANIZE_LABEL[category_for_roll(r, humanize_rates())]};
+    return {r, category: HUMANIZE_LABEL[category_for_roll(r, humanize_mix())]};
 }
 
 // our-perspective centipawns for a line whose score/mate are stored white-relative;
@@ -7084,7 +7166,7 @@ function humanize_pick(best) {
         const playable = (m) => premove_reply_playable(fen, m); // moves OUR piece + legal here
         const loss = (l) => bestCp - line_cp_ours(l);
         const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000); // never move INTO mate
-        const rates = humanize_rates(); // move mix percents; live-tunable in the options page
+        const rates = humanize_mix(); // move mix percents (target-steered when set); live-tunable
         // reuse the roll made at search start (so the countdown's shown move matches what's played)
         const r = (humanize_roll != null) ? humanize_roll.r : Math.random() * 100;
         // Each non-top category is a (lo, hi] centipawn band whose edges the user sets in the options
@@ -8423,7 +8505,9 @@ function record_eval_history(frac) {
     // recorded and the session line simply never grew an accuracy -- a feature that looks broken
     // with its own toggle on. It is not in classifier_wanted() on purpose: the accuracy comes from
     // the eval history alone, and the classifier is a much heavier thing to start for it.
-    if ((!config.eval_history && !config.session_stats && !classifier_wanted())
+    // Humanize's target accuracy steers by this same array, so it records too while one is set.
+    if ((!config.eval_history && !config.session_stats && !classifier_wanted()
+         && !(config.humanize && humanize_target()))
         || typeof frac !== 'number') return;
     // premove_tracker is the one place the CURRENT position's startFen + move list are kept
     // (on_new_pos sets it unconditionally, whether or not Premove is on). last_eval carries neither.

@@ -1387,3 +1387,206 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         ok('a line that gets us mated is drawn, not dropped', width('w', mated, 1) > 0);
     }
 }
+
+// ==== AGENT PANEL CHECKS (material imbalance, square heatmap, Humanize target accuracy) ====
+{
+    console.log('\nmaterial balance / square heatmap / target accuracy:');
+    const ok = (name, cond, extra) => { if (cond) console.log('ok   ' + name);
+        else { fails++; console.log('FAIL ' + name + (extra ? ' -- ' + extra : '')); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // the board's own {e4: 'wP'} map, built from a FEN the way panel-board.js fenToObj does
+    const posOf = (fen) => {
+        const o = {};
+        fen.split(' ')[0].split('/').forEach((row, r) => {
+            let f = 0;
+            for (const ch of row) {
+                if (/\d/.test(ch)) f += +ch;
+                else { o['abcdefgh'[f] + (8 - r)] = (ch === ch.toUpperCase() ? 'w' : 'b') + ch.toUpperCase(); f++; }
+            }
+        });
+        return o;
+    };
+
+    // ---- A + B: the pure half, executed against the real chess.js
+    const ms = psrc.indexOf('const MATERIAL_VALUE');
+    const me = psrc.indexOf('let heat_memo');
+    const hs = psrc.indexOf('function panel_board_rendered(');
+    const he = psrc.indexOf('\n}\n', hs) + 3;
+    if (ms < 0 || me < ms || hs < 0 || he < 3) { fails++; console.log('FAIL could not slice the material/heatmap block'); }
+    else {
+        const mctx = vm.createContext({console});
+        mctx.self = mctx;
+        vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), mctx);
+        vm.runInContext(psrc.slice(ms, me), mctx);
+        const label = (fen) => vm.runInContext(`material_label(${JSON.stringify(Object.values(posOf(fen)))})`, mctx);
+        const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+        ok('material: the start position is level', label(START) === 'Material =', label(START));
+        ok('material: B+P against N reads +1 with both sides named',
+           label('4k3/8/8/3n4/8/8/3P4/2B1K3 w - - 0 1') === 'Material +1 (B+P vs N)',
+           label('4k3/8/8/3n4/8/8/3P4/2B1K3 w - - 0 1'));
+        ok('material: the exchange is +2 (R vs B)',
+           label('2b1k3/8/8/8/8/8/8/R3K3 w - - 0 1') === 'Material +2 (R vs B)');
+        ok('material: Black a queen up is -9, one-sided detail',
+           label('3qk3/8/8/8/8/8/8/4K3 w - - 0 1') === 'Material -9 (Q)');
+        ok('material: equal points, different pieces still says which',
+           label('2n1k3/8/8/8/8/8/8/2B1K3 w - - 0 1') === 'Material = (B vs N)');
+        ok('material: multiples are counted, not repeated',
+           label('4k3/8/8/8/8/8/PP6/4K3 w - - 0 1') === 'Material +2 (2P)');
+
+        const ctl = (fen) => vm.runInContext(`square_control(${JSON.stringify(posOf(fen))})`, mctx);
+        const s = ctl(START);
+        ok('heatmap: start position, e3 is White x2 and e6 Black x2', s.e3 === 2 && s.e6 === -2, JSON.stringify({e3: s.e3, e6: s.e6}));
+        ok('heatmap: start position, e4/e5 are nobody\'s', !('e4' in s) && !('e5' in s));
+        const r = ctl('4k3/8/8/8/8/8/8/R3K3 w - - 0 1');
+        ok('heatmap: rook + king both count on d1, a king alone on d8',
+           r.d1 === 2 && r.d8 === -1 && r.a8 === 1, JSON.stringify({d1: r.d1, d8: r.d8, a8: r.a8}));
+        // e5 is hit by the d4 pawn and the f3 knight, and defended by the d6 pawn and c6 knight
+        const c = ctl('4k3/8/2np4/8/3P4/5N2/8/4K3 w - - 0 1');
+        ok('heatmap: an evenly contested square stays untinted', !('e5' in c), JSON.stringify(c.e5));
+        const tint = (d) => vm.runInContext(`heat_tint(${d})`, mctx);
+        ok('heatmap tint: none at 0, capped at 3, colour by side',
+           tint(0) === null && tint(5) === tint(3) && tint(1) !== tint(3) && tint(2) !== tint(-2));
+
+        // panel_board_rendered: fake DOM, and a counting square_control -- the memo is the claim
+        // that a re-render of the SAME position (a click picking up a piece) costs no chess.js
+        vm.runInContext(psrc.slice(me, he), mctx);
+        vm.runInContext(`var calls = 0; const real_sc = square_control;
+            square_control = (p) => { calls++; return real_sc(p); };
+            var mat = {hidden: true, textContent: ''};
+            var PANEL_ROOT = {getElementById: (id) => id === 'material' ? mat : null};
+            var config = {material_balance: false, square_heatmap: false};
+            function fakeBoard() {
+                const sq = [];
+                for (const f of 'abcdefgh') for (let r = 1; r <= 8; r++)
+                    sq.push({classList: ['square-55d63', 'white-1e1d7', 'square-' + f + r], style: {}, id: f + r});
+                return {sq, querySelectorAll: () => sq};
+            }`, mctx);
+        const run = (code) => vm.runInContext(code, mctx);
+        run(`var p1 = ${JSON.stringify(posOf(START))}; var b = fakeBoard(); panel_board_rendered(p1, b);`);
+        ok('both off: row hidden, no tint, no chess.js',
+           run('mat.hidden') === true && run('b.sq.every(s => !s.style.backgroundImage)') && run('calls') === 0);
+        run(`config.material_balance = true; config.square_heatmap = true; b = fakeBoard(); panel_board_rendered(p1, b);`);
+        ok('material on: row shown with the label', run('mat.hidden') === false && run('mat.textContent') === 'Material =');
+        ok('heatmap on: e3 tinted, e4 left alone',
+           /linear-gradient/.test(run(`b.sq.find(s => s.id === 'e3').style.backgroundImage`))
+           && !run(`b.sq.find(s => s.id === 'e4').style.backgroundImage`));
+        run(`b = fakeBoard(); panel_board_rendered(p1, b); b = fakeBoard(); panel_board_rendered(p1, b);`);
+        ok('same position re-rendered: tint re-applied, square_control NOT re-run',
+           run('calls') === 1 && /linear-gradient/.test(run(`b.sq.find(s => s.id === 'e3').style.backgroundImage`)),
+           'calls ' + run('calls'));
+        run(`panel_board_rendered(${JSON.stringify(posOf('4k3/8/8/8/8/8/8/R3K3 w - - 0 1'))}, fakeBoard());`);
+        ok('a new position recomputes once', run('calls') === 2);
+    }
+
+    // ---- wiring: painted from the board's render hook, never from the per-frame path
+    const dm = psrc.indexOf('function draw_moves()');
+    const dmEnd = psrc.indexOf('\n}\n', dm);
+    ok('draw_moves (every engine frame) never touches the heatmap or the material line',
+       dm > 0 && !/panel_board_rendered|square_control|material_label/.test(psrc.slice(dm, dmEnd)));
+    ok('the panel board is built with onRender: panel_board_rendered',
+       /MephistoBoard\('board', \{[\s\S]*?onRender: panel_board_rendered[\s\S]*?\}\);/.test(psrc));
+    const pb = fs.readFileSync(ROOT + '/src/scripts/panel-board.js', 'utf8');
+    ok('panel-board.js calls onRender after the board is in the DOM (8x8 renderer)',
+       /host\.appendChild\(board\);\s*\n\s*if \(onRender\) \{ try \{ onRender\(pos, board\)/.test(pb));
+    ok('both toggles are live config keys and re-render the board on change',
+       /'material_balance', 'square_heatmap',/.test(psrc)
+       && /key === 'material_balance' \|\| key === 'square_heatmap'\) \{ try \{ board\.resize\(\)/.test(psrc));
+    const css = fs.readFileSync(ROOT + '/src/popup/popup.css', 'utf8');
+    ok('#material is one clipped line and costs no height while hidden',
+       /#material \{[^}]*height: 20px;[^}]*white-space: nowrap;/.test(css)
+       && /#material\[hidden\], body\.mephisto-compact #material \{ display: none; \}/.test(css)
+       && /<div id="material" hidden><\/div>/.test(fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8')));
+
+    // ---- C: the controller, executed
+    const hs2 = psrc.indexOf('const HUMANIZE_ORDER');
+    const he2 = psrc.indexOf("// Our side's running accuracy");
+    if (hs2 < 0 || he2 < hs2) { fails++; console.log('FAIL could not slice the humanize target block'); }
+    else {
+        const hctx = vm.createContext({console});
+        vm.runInContext('var store = {}; var MephistoConfig = {get: (k) => store[k]};', hctx);
+        vm.runInContext(psrc.slice(hs2, he2), hctx);
+        const H = (code) => vm.runInContext(code, hctx);
+        const target = (v) => { H(`store.humanize_target_acc = ${JSON.stringify(JSON.stringify(v))}`); return H('humanize_target()'); };
+        ok('target: 0 / 49 / 100 / junk are off, 50 and 99 are kept',
+           target(0) === 0 && target(49) === 0 && target(100) === 0 && target('x') === 0
+           && target(50) === 50 && target(99) === 99);
+        const MIX = {top: 50, second: 40, third: 4, fourth: 0, inaccuracy: 0, mistake: 5, blunder: 1};
+        const steer = (acc, t, mix = MIX) =>
+            H(`humanize_steer(${JSON.stringify(mix)}, ${acc === null ? 'null' : acc}, ${t})`);
+        const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+        const same = (o) => JSON.stringify(o) === JSON.stringify(MIX);
+        ok('steer: off, no reading, or exactly on target -> the mix untouched',
+           same(steer(95, 0)) && same(steer(null, 80)) && same(steer(80, 80)));
+        const up = steer(95, 80), down = steer(60, 80);
+        ok('above target: Top gives weight away, the total stays 100',
+           up.top < MIX.top && Math.abs(sum(up) - 100) < 1e-9, JSON.stringify(up));
+        ok('above target: it leans WEAKER -- blunder gains more per share than second line',
+           up.blunder / MIX.blunder > up.second / MIX.second);
+        ok('below target: every allowed band gives to Top, none reaches 0',
+           down.top > MIX.top && Math.abs(sum(down) - 100) < 1e-9
+           && ['second', 'third', 'mistake', 'blunder'].every(k => down[k] > 0 && down[k] < MIX[k]));
+        ok('a band at 0 stays at 0 both ways (never outside the mix)',
+           up.fourth === 0 && up.inaccuracy === 0 && down.fourth === 0 && down.inaccuracy === 0);
+        ok('the push grows with the error and saturates at MAX_SHIFT',
+           steer(80.25, 80).top > steer(80.5, 80).top && steer(80.5, 80).top > up.top
+           && Math.abs(up.top - MIX.top * 0.25) < 1e-9 && Math.abs(steer(99, 50).top - MIX.top * 0.25) < 1e-9);
+        ok('a Top-only mix above target has nothing to lean on and is left alone',
+           JSON.stringify(steer(99, 70, {top: 100, second: 0, third: 0, fourth: 0, inaccuracy: 0, mistake: 0, blunder: 0}))
+           === JSON.stringify({top: 100, second: 0, third: 0, fourth: 0, inaccuracy: 0, mistake: 0, blunder: 0}));
+
+        // Closed loop on a TOY model (not the engine): each band is scored a fixed accuracy, a game
+        // is 40 of our moves rolled through the real category_for_roll + humanize_steer, seeded.
+        // What it proves: the rule moves the result toward the target and holds it there; what it
+        // does not: the real per-band accuracies, which depend on the position.
+        const toy = H(`(() => {
+            const ACC = {top: 100, second: 90, third: 80, fourth: 70, inaccuracy: 60, mistake: 45, blunder: 30};
+            const MIXX = ${JSON.stringify(MIX)};
+            let seed = 12345; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+            const play = (t) => {
+                let err = 0;
+                for (let g = 0; g < 200; g++) {
+                    const a = [];
+                    for (let m = 0; m < 40; m++) {
+                        // rounded, as live_stats reports it
+                        const run = a.length >= 4 ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : null;
+                        a.push(ACC[category_for_roll(rnd() * 100, humanize_steer(MIXX, run, t))]);
+                    }
+                    err += a.reduce((x, y) => x + y, 0) / a.length;
+                }
+                return err / 200;
+            };
+            return {free: play(0), at85: play(85), at95: play(95)};
+        })()`);
+        ok(`toy loop: the mix alone lands ~92, target 85 -> ${toy.at85.toFixed(1)}, target 95 -> ${toy.at95.toFixed(1)}`,
+           Math.abs(toy.free - 91.75) < 1.5 && Math.abs(toy.at85 - 85) < 1.5 && Math.abs(toy.at95 - 95) < 1.5,
+           JSON.stringify(toy));
+    }
+    ok('the roll and the pick both use the steered mix; the MultiPV sizing keeps the raw one',
+       /category_for_roll\(r, humanize_mix\(\)\)/.test(psrc) && /const rates = humanize_mix\(\);/.test(psrc)
+       && /function effective_multipv\(\)[\s\S]*?const rates = humanize_rates\(\);/.test(psrc));
+    ok('the eval history records while a target is set (the controller reads it)',
+       /!\(config\.humanize && humanize_target\(\)\)\)/.test(psrc));
+
+    // ---- settings rows + every new key in all 14 locales
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    ok('settings: three rows, registered, default off',
+       /id="material_balance_checkbox"/.test(gh) && /id="square_heatmap_checkbox"/.test(gh)
+       && /id="humanize_target_acc_input"/.test(gh)
+       && /registerFormElement\('material_balance', [^)]*'checkbox', false\)/.test(gj)
+       && /registerFormElement\('square_heatmap', [^)]*'checkbox', false\)/.test(gj)
+       && /registerFormElement\('humanize_target_acc', [^)]*'input', 0\)/.test(gj));
+    const KEYS = ['panel.material', 'panel.material_vs', 'set.material_balance', 'set.tip.material_balance',
+                  'set.square_heatmap', 'set.tip.square_heatmap', 'set.humanize_target_acc', 'set.tip.humanize_target_acc'];
+    const locDir = ROOT + '/src/i18n/locales/';
+    const missing = [];
+    for (const f of fs.readdirSync(locDir).filter(f => f.endsWith('.json'))) {
+        let o = {};
+        try { o = JSON.parse(fs.readFileSync(locDir + f, 'utf8')); } catch (e) { missing.push(f + ': unparseable'); continue; }
+        for (const k of KEYS) if (typeof o[k] !== 'string' || !o[k]) missing.push(f + ':' + k);
+    }
+    ok(`i18n: the ${KEYS.length} new keys are in all 14 locales`,
+       fs.readdirSync(locDir).filter(f => f.endsWith('.json')).length === 14 && !missing.length, missing.join(', '));
+}
+// ==== END AGENT PANEL CHECKS ====
+

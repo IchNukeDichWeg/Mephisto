@@ -628,5 +628,7 @@
   "set.material_balance": "Bilans materiału",
   "set.tip.material_balance": "Jedna linia pod oceną: bilans materiału pozycji na planszy panelu, białe minus czarne w pionach (H 9, W 5, G 3, S 3, P 1), oraz które bierki się różnią - \"Materiał +2 (B+P przeciw N)\" oznacza, że białe mają gońca i piona tam, gdzie czarne mają skoczka. Litery bierek są angielskie (Q R B N P).",
   "set.square_heatmap": "Mapa kontroli pól",
-  "set.tip.square_heatmap": "Barwi każde pole planszy panelu według tego, kto je kontroluje: niebieskie, gdzie białe atakują je większą liczbą bierek, czerwone, gdzie czarne, ciemniejsze im większa przewaga (do trzech). Pola atakowane po równo zostają bez koloru. Rysowane od nowa przy zmianie pozycji, pod bierkami i strzałkami."
+  "set.tip.square_heatmap": "Barwi każde pole planszy panelu według tego, kto je kontroluje: niebieskie, gdzie białe atakują je większą liczbą bierek, czerwone, gdzie czarne, ciemniejsze im większa przewaga (do trzech). Pola atakowane po równo zostają bez koloru. Rysowane od nowa przy zmianie pozycji, pod bierkami i strzałkami.",
+  "set.humanize_target_acc": "Docelowa dokładność",
+  "set.tip.humanize_target_acc": "Kieruje mieszankę ku docelowej dokładności partii, od 50 do 99 (0 = wył.). Gdy bieżąca dokładność partii jest powyżej celu, udział najlepszego ruchu przesuwa się ku słabszym pasmom, którym dano udział; poniżej - ku najlepszemu ruchowi. Zmienia tylko wagi udziałów powyżej: pasmo z 0 nigdy nie jest grane, żaden próg się nie przesuwa, a odbicia, ruchy wymuszone i zasada braku podstawek w rozstrzygniętej partii pozostają bez zmian. Mierzona tym samym wzorem co Live Stats, gdy cztery twoje ruchy zostaną ocenione."
 }

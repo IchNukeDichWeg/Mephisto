@@ -297,6 +297,8 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('background_play', 'Background Play:', 'checkbox', false);
         this.registerFormElement('help_mode', 'Help Mode:', 'checkbox', false);
         this.registerFormElement('humanize', 'Humanize:', 'checkbox', false);
+        // 0 = off; the panel reads it fresh per move (humanize_target), like the rest of the mix
+        this.registerFormElement('humanize_target_acc', 'Target Accuracy:', 'input', 0);
         this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
         this.registerFormElement('clock_pace', 'Pace to Clock:', 'checkbox', false);
         this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);

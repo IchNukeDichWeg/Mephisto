@@ -628,5 +628,7 @@
   "set.material_balance": "Materyal Dengesi",
   "set.tip.material_balance": "Skorun altında tek satır: panel tahtasındaki konumun materyal dengesi, beyaz eksi siyah, piyon cinsinden (V 9, K 5, F 3, A 3, P 1), ve hangi taşların farklı olduğu - \"Materyal +2 (B+P - N)\" beyazın, siyahın atına karşı fil ve piyonu olduğu anlamına gelir. Taş harfleri İngilizcedir (Q R B N P).",
   "set.square_heatmap": "Kare Kontrol Isı Haritası",
-  "set.tip.square_heatmap": "Panel tahtasındaki her kareyi kimin kontrol ettiğine göre renklendirir: beyazın daha çok taşla saldırdığı kareler mavi, siyahın saldırdıkları kırmızı, üstünlük büyüdükçe daha koyu (üçe kadar). İki tarafın eşit saldırdığı kareler renksiz kalır. Konum değiştiğinde taşların ve okların altında yeniden çizilir."
+  "set.tip.square_heatmap": "Panel tahtasındaki her kareyi kimin kontrol ettiğine göre renklendirir: beyazın daha çok taşla saldırdığı kareler mavi, siyahın saldırdıkları kırmızı, üstünlük büyüdükçe daha koyu (üçe kadar). İki tarafın eşit saldırdığı kareler renksiz kalır. Konum değiştiğinde taşların ve okların altında yeniden çizilir.",
+  "set.humanize_target_acc": "Hedef İsabet",
+  "set.tip.humanize_target_acc": "Karışımı bir oyun isabetine doğru yönlendirir, 50 ile 99 arası (0 = kapalı). Oyunun anlık isabeti hedefin üstündeyken en iyi hamlenin payı, pay verdiğin daha zayıf bantlara kayar; altındayken en iyi hamleye. Yalnızca yukarıdaki payları yeniden ağırlıklandırır: payı 0 olan bant asla oynanmaz, hiçbir eşik değişmez, geri almalar, zorunlu hamleler ve karara bağlanmış oyunda hata yapmama kuralı aynı kalır. Live Stats ile aynı formülle, dört hamlen değerlendirildikten sonra ölçülür."
 }

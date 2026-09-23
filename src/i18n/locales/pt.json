@@ -628,5 +628,7 @@
   "set.material_balance": "Balanço material",
   "set.tip.material_balance": "Uma linha sob a avaliação: o balanço material da posição no tabuleiro do painel, brancas menos pretas em peões (D 9, T 5, B 3, C 3, P 1), e quais peças diferem - \"Material +2 (B+P contra N)\" significa que as brancas têm bispo e peão onde as pretas têm um cavalo. As letras das peças são as inglesas (Q R B N P).",
   "set.square_heatmap": "Mapa de controle das casas",
-  "set.tip.square_heatmap": "Colore cada casa do tabuleiro do painel conforme quem a controla: azul onde as brancas a atacam com mais peças, vermelho onde as pretas o fazem, mais escuro quanto maior a vantagem (até três). Casas atacadas por igual ficam sem cor. Redesenhado quando a posição muda, sob as peças e as setas."
+  "set.tip.square_heatmap": "Colore cada casa do tabuleiro do painel conforme quem a controla: azul onde as brancas a atacam com mais peças, vermelho onde as pretas o fazem, mais escuro quanto maior a vantagem (até três). Casas atacadas por igual ficam sem cor. Redesenhado quando a posição muda, sob as peças e as setas.",
+  "set.humanize_target_acc": "Precisão alvo",
+  "set.tip.humanize_target_acc": "Direciona a mistura para uma precisão de partida, de 50 a 99 (0 = desligado). Enquanto a precisão acumulada da partida estiver acima do alvo, a fatia do melhor lance pende para as faixas mais fracas a que você deu fatia; abaixo, para o melhor lance. Só redistribui as fatias acima: uma faixa em 0 nunca é jogada, nenhum limite muda, e as recapturas, os lances forçados e a regra de não errar em partida decidida continuam iguais. Medida com a mesma fórmula do Live Stats, assim que quatro lances seus forem avaliados."
 }

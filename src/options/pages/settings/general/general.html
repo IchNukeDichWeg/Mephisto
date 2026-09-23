@@ -1813,6 +1813,16 @@
                     </tbody>
                 </table>
 
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.humanize_target_acc" class="tooltipped" data-position="right"
+                              data-tooltip="Steer the mix toward a game accuracy, 50 to 99 (0 = off). While the game's running accuracy is above the target, the Top share leans toward the weaker bands you gave a share; below it, toward the top move. It only re-weights the shares above: a band at 0 is never played, no threshold moves, and recaptures, forced moves and the no-blunders-when-decided rule are unchanged. Measured with the same formula Live Stats shows, once four of your moves are graded."><span data-i18n="set.humanize_target_acc">Target Accuracy</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="humanize_target_acc_input" type="number" min="0" max="99" step="1" class="set-num">
+                    </div>
+                </div>
+
                 <p data-i18n="set.note.giving_a_share_to_anything" class="set-note">
                     Giving a share to anything below the near-best bands makes the engine search a wider list so a move
                     that bad exists to choose from - that costs search depth. A pure Top + Second mix keeps the cheaper
