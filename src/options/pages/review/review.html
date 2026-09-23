@@ -593,6 +593,35 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Taking the review somewhere else. Everything here but the two lichess buttons stays
+                     on this machine; those two publish the game on lichess and ask first. The export
+                     leaves this block out (.rv-share): it has nothing to click in a file. -->
+                <div id="rv_share" class="rv-share">
+                    <span data-i18n="rv.share" data-i18n-tip="rv.tip.share" class="tooltipped rv-share-h" data-position="right"
+                          data-tooltip="The review outside this page. The annotated PGN is the game with a glyph per graded
+                                        move (!! ! ?! ? ??), the engine eval and clock on every move, and the coach sentence
+                                        where there is one; lichess, chess.com and ChessBase all read it. The image is a
+                                        summary card sized for a social-media preview. Import to lichess publishes the game
+                                        there as an anonymous import. Add to my study puts it in one of your own studies as
+                                        a new chapter and needs a Lichess API token with the study:write scope (Settings).
+                                        Both lichess buttons ask before anything is sent.">
+                        Share <i class="material-icons info-tooltip">info</i>
+                    </span>
+                    <div class="rv-btns">
+                        <button id="rv_pgn_copy" class="set-btn" type="button" data-i18n="rv.copy_pgn">Copy annotated PGN</button>
+                        <button id="rv_pgn_save" class="set-btn" type="button" data-i18n="rv.download_pgn">Download .pgn</button>
+                        <button id="rv_card_copy" class="set-btn" type="button" data-i18n="rv.copy_image">Copy image</button>
+                        <button id="rv_card_save" class="set-btn" type="button" data-i18n="rv.download_image">Download image</button>
+                    </div>
+                    <div class="rv-btns">
+                        <button id="rv_li_import" class="set-btn" type="button" data-i18n="rv.lichess_import">Import to lichess</button>
+                        <input id="rv_li_study" class="rv-input rv-study-url" type="text" spellcheck="false" autocomplete="off"
+                               data-i18n-ph="rv.study_url_ph" placeholder="lichess study URL">
+                        <button id="rv_li_study_btn" class="set-btn" type="button" data-i18n="rv.add_to_study">Add to my study</button>
+                    </div>
+                    <div id="rv_share_status" class="rv-status"></div>
+                </div>
             </section>
 
             <!-- ============================= BATCH ================================ -->

@@ -596,6 +596,138 @@ function estimate(evidenceLines, ind) {
     return {level, score, confidence, text: `${TEXT[level]} ${WHY[confidence]}`};
 }
 
+// ---- annotated PGN ------------------------------------------------------------------------------
+// The review written back INTO the game, in the notation every chess site already reads: a NAG per
+// move for its grade, `[%eval]` in the comment for the score (lichess's own export format, which
+// chess.com and ChessBase read too), and the coach sentence when there is one.
+//
+// NAG MAPPING. PGN's standard glyphs are move-quality marks, and only the marked end of our scale
+// has one. Best/Excellent/Good/Book/Forced are the unremarkable middle and get NO glyph -- an `!`
+// on every engine move would drown the ones that earned it, and lichess marks nothing there either.
+//   brilliant  -> $3 !!      great     -> $1 !
+//   inaccuracy -> $6 ?!      mistake   -> $2 ?      miss -> $2 ?      blunder -> $4 ??
+// Miss is `?`: it is a WON position let go (see classify), which is a mistake in size or worse, but
+// it is not the one-move collapse `??` means. $5 !? ("interesting") is deliberately unused: nothing
+// we measure says "speculative", and a glyph we cannot justify is noise in someone else's file.
+const NAG_FOR_CLASS = {brilliant: 3, great: 1, inaccuracy: 6, mistake: 2, miss: 2, blunder: 4};
+
+// White-positive cp -> the `[%eval]` operand: pawns to two decimals, or `#N` / `#-N` for a mate.
+// Mate-in-0 (the mated position itself) has no operand anyone writes, so it returns null.
+function pgnEval(cp) {
+    if (cp == null || !Number.isFinite(cp)) return null;
+    if (isMateScore(cp)) {
+        const n = MATE_CP - Math.abs(cp);
+        return n > 0 ? (cp > 0 ? '#' : '#-') + n : null;
+    }
+    return (cp / 100).toFixed(2);
+}
+
+function pgnClock(sec) {
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = (sec % 60).toFixed(1);
+    return `${h}:${String(m).padStart(2, '0')}:${s.padStart(4, '0')}`;
+}
+
+// {tags, result, startFen, moves: [{san, klass, cp (white-positive, AFTER the move), clk, commentary}]}
+// -> one PGN game. Comment text cannot hold `}` (it ends the comment), so braces become parentheses.
+function annotatedPgn(game) {
+    const tags = {...(game.tags || {})};
+    const result = game.result || tags.Result || '*';
+    tags.Result = result;
+    const tagText = Object.entries(tags)
+        .map(([k, v]) => `[${k} "${String(v ?? '').replace(/[\\"]/g, c => '\\' + c)}"]`).join('\n');
+    // Numbering comes from the start FEN: a set-up position can start on move 30, with black to move.
+    const fen = (game.startFen || tags.FEN || '').split(' ');
+    let num = parseInt(fen[5], 10) || 1;
+    let white = fen[1] !== 'b';
+    const out = [];
+    let needNum = true;
+    for (const m of game.moves || []) {
+        if (white) out.push(`${num}.`);
+        else if (needNum) out.push(`${num}...`);
+        out.push(m.san);
+        const nag = NAG_FOR_CLASS[m.klass];
+        if (nag) out.push('$' + nag);
+        const bits = [];
+        const ev = pgnEval(m.cp);
+        if (ev) bits.push(`[%eval ${ev}]`);
+        if (m.clk != null && Number.isFinite(m.clk)) bits.push(`[%clk ${pgnClock(m.clk)}]`);
+        const say = String(m.commentary || '').replace(/[{]/g, '(').replace(/[}]/g, ')').replace(/\s+/g, ' ').trim();
+        if (say) bits.push(say);
+        needNum = !!bits.length;          // after a comment, black's move carries its own number again
+        if (bits.length) out.push(`{ ${bits.join(' ')} }`);
+        if (!white) num++;
+        white = !white;
+    }
+    out.push(result);
+    // 80-column lines, the export format's limit; a token is never split.
+    const lines = [];
+    let line = '';
+    for (const tok of out) {
+        if (line && line.length + 1 + tok.length > 80) { lines.push(line); line = tok; }
+        else line = line ? `${line} ${tok}` : tok;
+    }
+    if (line) lines.push(line);
+    return `${tagText}\n\n${lines.join('\n')}\n`;
+}
+
+// ---- lichess ------------------------------------------------------------------------------------
+// The two ways into lichess, as the REQUESTS they are, so the page and the test agree on exactly what
+// leaves the machine (lichess API spec, lichess-org/api):
+//   POST /api/import                       anonymous; form field `pgn`; answers {id, url}. 100/hour.
+//   POST /api/study/{id}/import-pgn        needs a token with `study:write`; fields `pgn`, `name`
+//                                          (1-100 chars); answers {chapters: [{id, name}], error}.
+// The anonymous import carries NO token even when one is set: it does not need one, and a request
+// that does not carry the token cannot leak it.
+const LICHESS = 'https://lichess.org';
+
+// A study URL (lichess.org/study/AbCd1234 or .../AbCd1234/chapterId) or the bare 8-character id.
+function lichessStudyId(text) {
+    const s = String(text || '').trim();
+    const m = /lichess\.org\/study\/([A-Za-z0-9]{8})(?:[/?#]|$)/.exec(s) || /^([A-Za-z0-9]{8})$/.exec(s);
+    return m ? m[1] : null;
+}
+
+function lichessRequest(kind, pgn, opts = {}) {
+    const body = new URLSearchParams({pgn});
+    if (kind === 'import') {
+        return {url: `${LICHESS}/api/import`,
+                init: {method: 'POST', headers: {Accept: 'application/json'}, body}};
+    }
+    if (kind === 'study') {
+        if (opts.name) body.set('name', String(opts.name).slice(0, 100));
+        return {url: `${LICHESS}/api/study/${opts.studyId}/import-pgn`,
+                init: {method: 'POST', body,
+                       headers: {Accept: 'application/json', Authorization: `Bearer ${opts.token}`}}};
+    }
+    throw new Error('unknown lichess request ' + kind);
+}
+
+// Where to send the user after a success. Only a lichess.org address is ever opened: the link comes
+// out of a network answer, and a tab this page opens should not be steerable by one.
+function lichessResultUrl(kind, body, studyId) {
+    if (kind === 'study') {
+        const ch = body?.chapters?.[0]?.id;
+        return /^[A-Za-z0-9]{8}$/.test(studyId || '')
+            ? `${LICHESS}/study/${studyId}` + (/^[A-Za-z0-9]{8}$/.test(ch || '') ? `/${ch}` : '') : null;
+    }
+    const url = String(body?.url || '');
+    return url.startsWith(LICHESS + '/') ? url : null;
+}
+
+// A failed answer -> the sentence that tells the user what to change. lichess answers a token that
+// lacks the scope with 403, an unknown/expired token with 401, and a study that is not yours (or does
+// not exist) with 404 -- the last two read the same from outside, so the text names both.
+function lichessError(status, kind, body) {
+    const said = body && (body.error || body.message);
+    if (status === 429) return 'lichess is rate-limiting this; wait a minute and try again.';
+    if (kind === 'study') {
+        if (status === 401) return 'lichess did not accept the token. Make a new one in Settings > General > Lichess API token, with the study:write scope ticked.';
+        if (status === 403) return 'The token has no study:write scope. Make a new token with study:write ("Create, update, delete studies and broadcasts") ticked and paste it in Settings > General.';
+        if (status === 404) return 'lichess found no study with that id that this token can write to. Check the URL, and that the study is yours or you are a contributor.';
+    }
+    return `lichess answered ${status}${said ? ': ' + (typeof said === 'string' ? said : JSON.stringify(said)) : ''}`;
+}
+
 // ---- UCI line reading ---------------------------------------------------------------------------
 // `info depth 20 seldepth 27 multipv 1 score cp 34 nodes ... pv e2e4 e7e5`
 function parseInfo(line) {
@@ -635,6 +767,7 @@ root.MephistoReviewCore = {
     parsePgn, clockToSeconds, formatDate, gamePhases, phaseOf, LEVELS,
     toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
     accuracyFor, indicators, evidence, estimate, parseInfo, clamp,
+    NAG_FOR_CLASS, annotatedPgn, lichessStudyId, lichessRequest, lichessResultUrl, lichessError,
 };
 
 })(typeof self !== 'undefined' ? self : globalThis);

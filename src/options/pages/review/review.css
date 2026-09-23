@@ -663,3 +663,7 @@ html.dark .rv-ev-strong  { color: #d15050; }
 }
 .rv-detail .rv-alt-grade { color: var(--mp-dim); }
 
+.rv-share { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--mp-hair); }
+.rv-share .rv-btns + .rv-btns { margin-top: 8px; }
+.rv-share-h { display: inline-flex; align-items: center; gap: 5px; margin-bottom: 8px; font-weight: 600; }
+.rv-share .rv-study-url { width: 240px; }

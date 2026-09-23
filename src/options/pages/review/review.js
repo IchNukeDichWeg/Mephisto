@@ -2098,7 +2098,7 @@ async function exportHtml(btn) {
             + $('rv-report').outerHTML + ($('rv-strength')?.outerHTML || '') + $('rv-indicators').outerHTML
             + `</div></div></div>`;
         wrap.querySelectorAll('.hidden').forEach(el => el.classList.remove('hidden'));
-        wrap.querySelectorAll('.rv-nav, .tooltipped .info-tooltip').forEach(el => el.remove());
+        wrap.querySelectorAll('.rv-nav, .rv-share, .tooltipped .info-tooltip').forEach(el => el.remove());
         wrap.querySelector('#rv_graph_cursor')?.remove();
         wrap.querySelector('#rv_move_detail')?.remove();
 
@@ -2129,17 +2129,251 @@ ${exportMoveTable()}
 </div></main></body></html>`;
 
         showPly(wasAt);
-        const name = `review-${(t.White || 'white').replace(/\W+/g, '_')}`
-            + `-vs-${(t.Black || 'black').replace(/\W+/g, '_')}.html`;
-        const url = URL.createObjectURL(new Blob([html], {type: 'text/html'}));
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = name;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        saveBlob(new Blob([html], {type: 'text/html'}), fileStem() + '.html');
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = label; }
     }
+}
+
+// One name for every file the review writes, so the .html, .pgn and .png of one game sort together.
+function fileStem() {
+    const t = report.game.tags || {};
+    return `review-${(t.White || 'white').replace(/\W+/g, '_')}-vs-${(t.Black || 'black').replace(/\W+/g, '_')}`;
+}
+
+function saveBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// ---- share: annotated PGN, lichess, image ------------------------------------------------------
+function shareNote(text, bad) {
+    const el = $('rv_share_status');
+    if (!el) return;
+    el.textContent = text || '';
+    el.classList.toggle('rv-bad', !!bad);
+}
+
+// The rendered report as an annotated PGN (see Core.annotatedPgn for the glyph mapping). The eval is
+// the position AFTER the move, white-positive, which is what `[%eval]` means in lichess's own export.
+// Clocks come from the parsed game; the chess.com-review path has none and simply writes no [%clk].
+function reportPgn() {
+    const g = report.game;
+    return Core.annotatedPgn({
+        tags: g.tags, result: g.result, startFen: g.startFen,
+        moves: report.moves.map(m => ({
+            san: m.san, klass: m.klass, commentary: m.commentary,
+            cp: report.positions[m.ply + 1]?.lines?.[0]?.cp,
+            clk: g.moves?.[m.ply]?.clk,
+        })),
+    });
+}
+
+async function copyPgn() {
+    if (!report) return;
+    try {
+        await navigator.clipboard.writeText(reportPgn());
+        shareNote('Annotated PGN copied.');
+    } catch (e) { shareNote(`Could not copy: ${e.message || e}`, true); }
+}
+
+function savePgn() {
+    if (!report) return;
+    saveBlob(new Blob([reportPgn()], {type: 'application/x-chess-pgn'}), fileStem() + '.pgn');
+    shareNote('');
+}
+
+// The token the Settings page stores (a JSON string, like every setting). Read here, per click, and
+// only for the study request -- the anonymous import never touches it.
+async function lichessToken() {
+    try {
+        const {lichess_token: raw} = await chrome.storage.local.get('lichess_token');
+        return String(JSON.parse(raw ?? '""') || '').trim();
+    } catch (e) { return ''; }
+}
+
+function openTab(url) {
+    if (chrome.tabs?.create) chrome.tabs.create({url});
+    else window.open(url, '_blank', 'noopener');
+}
+
+// PUBLISHES THE GAME, so it only ever runs from its own button, names the destination in a confirm
+// first, and sends exactly the request Core.lichessRequest builds (the suite pins that request).
+async function sendToLichess(kind, btn) {
+    if (!report) return;
+    let opts = {};
+    if (kind === 'study') {
+        const studyId = Core.lichessStudyId($('rv_li_study')?.value);
+        if (!studyId) return shareNote('Paste the URL of one of your lichess studies first (lichess.org/study/...).', true);
+        const token = await lichessToken();
+        if (!token) {
+            return shareNote('Adding to a study needs a Lichess API token with the study:write scope. Make one at '
+                + 'lichess.org/account/oauth/token/create and paste it in Settings > General > Lichess API token.', true);
+        }
+        opts = {studyId, token, name: `${playerName('w')} - ${playerName('b')}`};
+    }
+    const req = Core.lichessRequest(kind, reportPgn(), opts);
+    const ask = kind === 'study'
+        ? `Add this game as a new chapter to your lichess study ${opts.studyId}?\n\nThis sends the annotated PGN `
+          + `and your Lichess API token to ${req.url}. The chapter is as visible as the study is.`
+        : `Publish this game on lichess?\n\nThis sends the game to ${req.url} as an anonymous import, without `
+          + `your token. Imported games are public on lichess. Lichess keeps the MOVES only: the grades, evals and `
+          + `comments are dropped on import - use "Add to my study" to keep them.`;
+    if (!confirm(ask)) return shareNote('Nothing was sent.');
+    if (btn) btn.disabled = true;
+    shareNote('Sending to lichess...');
+    try {
+        const r = await fetch(req.url, req.init);
+        const body = await r.json().catch(() => null);
+        if (!r.ok) return shareNote(Core.lichessError(r.status, kind, body), true);
+        const url = Core.lichessResultUrl(kind, body, opts.studyId);
+        if (!url) return shareNote('lichess accepted the game but sent back no link to it.', true);
+        shareNote(`Sent: ${url}` + (kind === 'study' ? '' : ' - moves only; lichess drops annotations on import')
+            + (body?.error ? ` (lichess noted: ${body.error})` : ''));
+        openTab(url);
+    } catch (e) {
+        shareNote(`Could not reach lichess: ${e.message || e}`, true);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+// THE SHARE CARD. 1200x630 is the size link previews are cut to (Open Graph's recommendation, which
+// X, Discord and Slack all follow), and every font is sized to survive being shown at ~40% of that:
+// nothing under 24px except the footer. The colours are the PAGE'S OWN tokens, read at click time,
+// so the card is light or dark with the page and there is no second palette to drift.
+const CARD_W = 1200, CARD_H = 630;
+
+function cardPalette() {
+    const css = getComputedStyle(document.documentElement);
+    const v = (name, dflt) => css.getPropertyValue(name).trim() || dflt;
+    const probe = document.createElement('span');
+    document.body.appendChild(probe);
+    const cls = {};
+    for (const k of Core.CLASS_ORDER) {
+        probe.className = `rv-c-${k}`;
+        cls[k] = getComputedStyle(probe).getPropertyValue('--rv-c').trim() || CLASS_COLOUR[k] || '#7d8a91';
+    }
+    probe.remove();
+    return {bg: v('--mp-bg', '#ffffff'), text: v('--mp-text', '#14171a'), dim: v('--mp-dim', '#4a5057'),
+            mute: v('--mp-mute', '#8b9198'), hair: v('--mp-hair', '#eceef0'), line: v('--mp-line', '#dcdfe3'), cls};
+}
+
+function cardData() {
+    const t = report.game.tags || {};
+    return {
+        white: playerLine('w'), black: playerLine('b'), result: report.game.result || t.Result || '*',
+        opening: report.book?.name || '', date: Core.formatDate(t.Date), event: t.Event || '',
+        acc: report.accuracy || {}, counts: report.counts || {w: {}, b: {}},
+        order: Core.CLASS_ORDER, labels: CLASS_LABEL,
+        evals: report.positions.map(p => p.lines?.[0]?.cp ?? 0),
+    };
+}
+
+// Pure drawing: a 2D context, the numbers, the palette. No DOM, so the suite runs it on a recording
+// context and checks every string lands inside the card.
+function drawShareCard(ctx, d, pal) {
+    const W = 1200, H = 630, P = 56;
+    const FONT = '-apple-system, system-ui, "Segoe UI", Roboto, sans-serif';
+    const font = (px, weight) => { ctx.font = `${weight || 400} ${px}px ${FONT}`; };
+    // shorten with an ellipsis until it fits: a long opening or a titled name must not run off the card
+    const fit = (text, max) => {
+        let s = String(text || '');
+        if (ctx.measureText(s).width <= max) return s;
+        while (s.length > 1 && ctx.measureText(s + '…').width > max) s = s.slice(0, -1);
+        return s + '…';
+    };
+    const text = (s, x, y, color, align) => { ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.fillText(s, x, y); };
+
+    ctx.fillStyle = pal.bg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.textBaseline = 'alphabetic';
+
+    // top line: the opening, then the date / event, whatever is known
+    font(26, 400);
+    const top = [d.opening, d.date || d.event].filter(Boolean).join('  ·  ') || 'Game review';
+    text(fit(top, W - 2 * P), P, 76, pal.mute);
+    ctx.fillStyle = pal.hair;
+    ctx.fillRect(P, 98, W - 2 * P, 2);
+
+    const cols = [{c: 'w', x0: P, x1: 540, name: d.white}, {c: 'b', x0: 660, x1: W - P, name: d.black}];
+    const result = d.result === '1/2-1/2' ? '½-½' : d.result;
+    font(36, 700);
+    text(result, W / 2, 156, pal.text, 'center');
+    for (const col of cols) {
+        const w = col.x1 - col.x0;
+        font(36, 600);
+        text(fit(col.name, w), col.x0, 156, pal.text);
+        const a = d.acc[col.c];
+        font(84, 700);
+        text(a == null ? 'n/a' : `${a.toFixed(1)}%`, col.x0, 252, pal.text);
+        font(24, 400);
+        text('accuracy', col.x0, 286, pal.mute);
+        // the classes this side actually played, in the report's order, two short columns of up to six
+        const rows = d.order.filter(k => d.counts[col.c]?.[k]);
+        const sub = (w - 24) / 2;
+        rows.slice(0, 12).forEach((k, i) => {
+            const x = col.x0 + (i >= 6 ? sub + 24 : 0), y = 336 + (i % 6) * 34;
+            ctx.fillStyle = pal.cls[k] || pal.mute;
+            ctx.beginPath();
+            ctx.arc(x + 9, y - 9, 9, 0, Math.PI * 2);
+            ctx.fill();
+            font(26, 400);
+            text(fit(d.labels[k] || k, sub - 28 - 40), x + 28, y, pal.dim);   // 40px holds a two-digit count
+            font(26, 700);
+            text(String(d.counts[col.c][k]), x + sub, y, pal.cls[k] || pal.text, 'right');
+        });
+    }
+
+    // the eval graph, the same squash and the same two-tone fill as the page's own graph
+    const gx = P, gy = 530, gw = W - 2 * P, gh = 60, mid = gy + gh / 2;
+    ctx.fillStyle = pal.hair; ctx.fillRect(gx, gy, gw, gh / 2);
+    ctx.fillStyle = pal.line; ctx.fillRect(gx, mid, gw, gh / 2);
+    const pts = d.evals.length ? d.evals : [0];
+    const px = (i) => gx + (pts.length === 1 ? 0 : (i / (pts.length - 1)) * gw);
+    const py = (cp) => mid - (gh / 2) * 0.94 * Math.tanh(Math.max(-2500, Math.min(2500, cp)) / 400);
+    ctx.beginPath();
+    ctx.moveTo(gx, mid);
+    pts.forEach((cp, i) => ctx.lineTo(px(i), py(cp)));
+    ctx.lineTo(gx + gw, mid);
+    ctx.closePath();
+    ctx.globalAlpha = 0.72;
+    ctx.fillStyle = pal.text;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    font(18, 400);
+    text('Mephisto game review', W - P, 616, pal.mute, 'right');
+}
+
+function shareCanvas() {
+    const cv = document.createElement('canvas');
+    cv.width = CARD_W;
+    cv.height = CARD_H;
+    drawShareCard(cv.getContext('2d'), cardData(), cardPalette());
+    return new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('the canvas gave no image')), 'image/png'));
+}
+
+async function copyCard() {
+    if (!report) return;
+    try {
+        // ClipboardItem accepts the promise itself, which keeps the click's user activation alive
+        // while the PNG encodes -- awaiting the blob first can lose it and the write is refused.
+        await navigator.clipboard.write([new ClipboardItem({'image/png': shareCanvas()})]);
+        shareNote('Image copied.');
+    } catch (e) { shareNote(`Could not copy the image: ${e.message || e}`, true); }
+}
+
+async function saveCard() {
+    if (!report) return;
+    try {
+        saveBlob(await shareCanvas(), fileStem() + '.png');
+        shareNote('');
+    } catch (e) { shareNote(`Could not draw the image: ${e.message || e}`, true); }
 }
 
 // ---- chess.com import -------------------------------------------------------------------------
@@ -3159,6 +3393,12 @@ class ReviewPage {
             note('Stopping after this position...');
         });
         $('rv_export').addEventListener('click', () => exportHtml($('rv_export')));
+        $('rv_pgn_copy')?.addEventListener('click', copyPgn);
+        $('rv_pgn_save')?.addEventListener('click', savePgn);
+        $('rv_card_copy')?.addEventListener('click', copyCard);
+        $('rv_card_save')?.addEventListener('click', saveCard);
+        $('rv_li_import')?.addEventListener('click', () => sendToLichess('import', $('rv_li_import')));
+        $('rv_li_study_btn')?.addEventListener('click', () => sendToLichess('study', $('rv_li_study_btn')));
         // Which player? The one whose numbers you are looking at -- so it asks, once, with the two
         // names from the game rather than making you type one. Writing the mix is a real change to
         // how the panel will play, so it says what it measured and how many moves it is drawn from.

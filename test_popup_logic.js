@@ -1785,3 +1785,180 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 }
 // ==== END AGENT HOTKEY CHECKS ====
 
+// ==== AGENT REVIEW CHECKS (coach grade shown, NAG export, lichess study export, share card) ====
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    // the WHOLE core, against the real chess.js: annotatedPgn writes, parsePgn (the extension's only
+    // PGN reader -- lib/chess.js has none) reads it back, chess.js replays every move
+    const c = {console: {log() {}}, URLSearchParams};   // the page has it; a bare vm context does not
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const Core = c.MephistoReviewCore, Chess = c.Chess, MATE = Core.MATE_CP;
+
+    // a real opening with captures and both castles, graded with every one of the eleven classes
+    const sans = ['e4', 'd5', 'exd5', 'Qxd5', 'Nc3', 'Qa5', 'd4', 'Nf6', 'Nf3', 'Bf5', 'Bc4', 'e6', 'O-O',
+                  'Nbd7', 'Bd2', 'O-O-O', 'Qe2', 'Bxc2'];
+    const klasses = ['book', 'book', 'best', 'excellent', 'good', 'inaccuracy', 'great', 'forced', 'mistake',
+                     'miss', 'brilliant', 'blunder', 'best', 'good', 'excellent', 'best', 'mistake', 'blunder'];
+    const cps = [30, 25, 40, -10, 20, 90, 95, 100, 60, 220, MATE - 3, -(MATE - 2), 0, 12, 7, -5, 80, -300];
+    const chess = new Chess('chess');
+    for (const s of sans) if (!chess.move(s)) throw new Error('bad fixture move ' + s);
+    const moves = sans.map((san, i) => ({san, klass: klasses[i], cp: cps[i], clk: 180 - i * 2.5,
+        commentary: i === 9 ? 'A {braced} note}' : i === 3 ? 'Takes back.' : ''}));
+    const tags = {Event: 'Rated "blitz" \\ game', White: 'Alice', Black: 'Bob', Result: '0-1', Date: '2026.09.01'};
+    const pgn = Core.annotatedPgn({tags, result: '0-1', moves});
+    const back = Core.parsePgn(pgn);
+    ok('annotated PGN: parsePgn reads exactly one game back', back.length === 1, back.length);
+    const g = back[0] || {moves: [], tags: {}};
+    ok('annotated PGN: every move survives, in order', JSON.stringify(g.moves.map(m => m.san)) === JSON.stringify(sans),
+       g.moves.map(m => m.san));
+    const replay = new Chess('chess');
+    ok('annotated PGN: chess.js replays every move read back as legal', g.moves.every(m => !!replay.move(m.san)));
+    ok('annotated PGN: tags round-trip, quote and backslash escaped',
+       g.tags.Event === tags.Event && g.tags.White === 'Alice' && g.result === '0-1', g.tags.Event);
+    const wantEval = cps.map(cp => Core.isMateScore(cp) ? (cp > 0 ? '#3' : '#-2') : (cp / 100).toFixed(2));
+    ok('annotated PGN: [%eval] in lichess format on every move (pawns, #N, #-N)',
+       JSON.stringify(g.moves.map(m => m.eval)) === JSON.stringify(wantEval), g.moves.map(m => m.eval));
+    ok('annotated PGN: [%clk] round-trips', g.moves.every((m, i) => Math.abs(m.clk - moves[i].clk) < 0.05),
+       g.moves.map(m => m.clk));
+    ok('annotated PGN: coach sentence kept, a brace in it cannot end the comment early',
+       g.moves[9].comment === 'A (braced) note)' && g.moves[3].comment === 'Takes back.' && g.moves[0].comment === '',
+       [g.moves[9].comment, g.moves[3].comment]);
+    // the glyphs, read straight off the movetext: SAN followed by its NAG
+    const body = pgn.slice(pgn.indexOf('\n\n') + 2);
+    const nagOf = (i) => { const m = new RegExp(`\\b${sans[i].replace(/[+]/g, '\\+')} (\\$\\d+)`).exec(body.split(/\{[^}]*\}/).join(' ')); return m ? m[1] : null; };
+    const WANT = {brilliant: '$3', great: '$1', inaccuracy: '$6', mistake: '$2', miss: '$2', blunder: '$4'};
+    ok('annotated PGN: NAG per class ($3 !!, $1 !, $6 ?!, $2 ?, $4 ??; none on best/excellent/good/book/forced)',
+       klasses.every((k, i) => nagOf(i) === (WANT[k] || null)), klasses.map((k, i) => k + ':' + nagOf(i)));
+    // strict grammar: every movetext token is a number, a SAN chess.js accepts, a NAG, a comment or the result
+    const toks = body.replace(/\{[^}]*\}/g, ' {} ').trim().split(/\s+/);
+    const g2 = new Chess('chess');
+    const bad = toks.filter(t => !(/^\d+\.(\.\.)?$/.test(t) || /^\$\d+$/.test(t) || t === '{}' || t === '0-1'
+                                   || g2.move(t)));
+    ok('annotated PGN: movetext is only numbers, legal SAN, NAGs, comments and the result', !bad.length, bad);
+    ok('annotated PGN: braces balance and no line runs past 80 columns',
+       (pgn.match(/\{/g) || []).length === (pgn.match(/\}/g) || []).length && pgn.split('\n').every(l => l.length <= 80));
+    ok('annotated PGN: black\'s move after a comment carries its own "N..." number', /\}\s+1\.\.\.\s+d5\s/.test(body) && /\}\s+2\.\.\.\s+Qxd5\s/.test(body), body.slice(0, 120));
+    // a set-up position with black to move numbers from the FEN
+    const fen = 'r3k3/8/8/8/8/8/8/4K2R b Kq - 0 30';
+    const p2 = Core.annotatedPgn({tags: {SetUp: '1', FEN: fen}, startFen: fen, result: '*',
+                                  moves: [{san: 'O-O-O', klass: 'best'}, {san: 'O-O', klass: 'good'}]});
+    const r2 = Core.parsePgn(p2)[0];
+    const c2 = new Chess('chess', fen);
+    ok('annotated PGN: a FEN start with black to move opens "30... O-O-O" and replays',
+       /\n30\.\.\. O-O-O 31\. O-O \*/.test(p2) && r2 && r2.moves.every(m => !!c2.move(m.san)), p2);
+    ok('annotated PGN: mate-in-0 writes no eval rather than "#0"',
+       !/%eval #-?0\b/.test(Core.annotatedPgn({tags: {}, moves: [{san: 'e4', klass: 'best', cp: MATE}]})));
+
+    // the lichess requests, exactly as sent
+    const imp = Core.lichessRequest('import', 'PGN', {token: 'lip_secret'});
+    const impHeaders = JSON.stringify(imp.init.headers);
+    ok('lichess: the anonymous import goes to /api/import and never carries the token',
+       imp.url === 'https://lichess.org/api/import' && imp.init.method === 'POST' && !/Authorization|lip_secret/.test(impHeaders)
+       && imp.init.body.get('pgn') === 'PGN' && !imp.init.body.has('token'), impHeaders);
+    const st = Core.lichessRequest('study', 'PGN', {studyId: 'AbCd1234', token: 'lip_x', name: 'N'.repeat(140)});
+    ok('lichess: the study import goes to /api/study/{id}/import-pgn with the Bearer token and a <=100-char name',
+       st.url === 'https://lichess.org/api/study/AbCd1234/import-pgn' && st.init.headers.Authorization === 'Bearer lip_x'
+       && st.init.body.get('pgn') === 'PGN' && st.init.body.get('name').length === 100, st.url);
+    const ids = ['https://lichess.org/study/AbCd1234', 'lichess.org/study/AbCd1234/XyZw9876', 'AbCd1234',
+                 'https://lichess.org/study/AbCd1234?x=1', 'https://evil.example/study/AbCd1234', 'https://lichess.org/study/short', ''];
+    ok('lichess: a study URL or bare id gives the id; another host or a short id gives nothing',
+       JSON.stringify(ids.map(Core.lichessStudyId)) === JSON.stringify(['AbCd1234', 'AbCd1234', 'AbCd1234', 'AbCd1234', null, null, null]),
+       ids.map(Core.lichessStudyId));
+    ok('lichess: only a lichess.org link from the answer is ever opened',
+       Core.lichessResultUrl('import', {url: 'https://lichess.org/AbCdEfGh'}) === 'https://lichess.org/AbCdEfGh'
+       && Core.lichessResultUrl('import', {url: 'https://evil.example/x'}) === null
+       && Core.lichessResultUrl('import', {url: 'https://lichess.org.evil.example/x'}) === null
+       && Core.lichessResultUrl('study', {chapters: [{id: 'Ch4pter1'}]}, 'AbCd1234') === 'https://lichess.org/study/AbCd1234/Ch4pter1');
+    ok('lichess: a 403 on the study path names the missing study:write scope, a 401 the token',
+       /study:write/.test(Core.lichessError(403, 'study')) && /token/.test(Core.lichessError(401, 'study'))
+       && /429|rate/.test(Core.lichessError(429, 'import')));
+
+    // both grades: the real moveCell / coachGrade, run with and without Explain the moves
+    const mctx = vm.createContext({Math});
+    const cut = (from, to) => { const a = rj.indexOf(from), b = rj.indexOf(to, a); if (a < 0 || b < 0) throw new Error('slice ' + from); return rj.slice(a, b); };
+    vm.runInContext(cut('const esc = ', 'function scoreText') + cut('const CLASS_LABEL = {', '// ---- FIT HUMANIZE')
+                    + cut('const CLASS_BADGE = {', 'function renderDetail') + cut('// chess.com\'s coach grade for a move', 'function renderIndicators')
+                    + '\nvar report = null;', mctx);
+    const cell = (prose, m) => { mctx.__p = prose; mctx.__m = m; return vm.runInContext('report = {prose: __p}; moveCell(__m)', mctx); };
+    const alt = {ply: 4, color: 'w', san: 'Nc3', klass: 'mistake', classAlt: 'inaccuracy', cpLoss: 80};
+    const withP = cell({got: 3, of: 3, disagreed: 1}, alt);
+    ok('both grades: a move the coach graded differently is marked, ours stays the class',
+       /rv-c-mistake rv-alt/.test(withP) && /title="Mistake - chess.com&#39;s coach: Inaccuracy"/.test(withP), withP.slice(0, 160));
+    ok('both grades: no marker when Explain the moves did not run, or failed',
+       !/rv-alt/.test(cell(null, alt)) && !/rv-alt/.test(cell({error: 'x'}, alt)));
+    ok('both grades: no marker when the two grades agree',
+       !/rv-alt/.test(cell({got: 1}, {...alt, classAlt: 'mistake'})));
+    ok('both grades: the move detail shows the coach grade beside ours',
+       /const alt = coachGrade\(played\)/.test(rj) && /chess\.com's coach: <span class="rv-klass">\$\{CLASS_LABEL\[alt\]\}/.test(rj));
+
+    // the share card, drawn on a recording context in both themes
+    const W = 1200, H = 630;
+    const recorder = () => {
+        const calls = [];
+        let size = 10;
+        const r = {calls, textAlign: 'left', globalAlpha: 1, fillStyle: '', textBaseline: '',
+            set font(f) { this._f = f; size = +(/(\d+)px/.exec(f) || [0, 10])[1]; }, get font() { return this._f; },
+            // generous glyph width, so a pass here holds for real fonts too
+            measureText: (s) => ({width: String(s).length * size * 0.62}),
+            fillRect(x, y, w, h) { calls.push({op: 'rect', x, y, w, h, fill: this.fillStyle}); },
+            fillText(s, x, y) { calls.push({op: 'text', s, x, y, size, align: this.textAlign, fill: this.fillStyle, w: String(s).length * size * 0.62}); },
+            beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, arc() {}, fill() {}, stroke() {},
+        };
+        return r;
+    };
+    const sctx = vm.createContext({Math, String});
+    vm.runInContext(cut('function drawShareCard', 'function shareCanvas'), sctx);
+    const order = ['brilliant', 'great', 'best', 'excellent', 'good', 'book', 'forced', 'inaccuracy', 'mistake', 'miss', 'blunder'];
+    const all = Object.fromEntries(order.map((k, i) => [k, i + 1]));
+    const data = {white: 'GM Maximilian Very-Long-Surname-For-Testing (2850)', black: 'Bob (1500)', result: '1/2-1/2',
+                  opening: 'Sicilian Defense: Najdorf Variation, English Attack, Anti-English with a very long tail name',
+                  date: '01.09.2026', event: '', acc: {w: 87.34, b: null}, counts: {w: all, b: {best: 3}},
+                  order, labels: Object.fromEntries(order.map(k => [k, k[0].toUpperCase() + k.slice(1)])),
+                  evals: [0, 30, -50, 400, MATE - 2, -200]};
+    for (const [theme, pal] of [['light', {bg: '#ffffff', text: '#14171a', dim: '#4a5057', mute: '#8b9198', hair: '#eceef0', line: '#dcdfe3', cls: {}}],
+                                ['dark', {bg: '#16171b', text: '#e8eaec', dim: '#b7bbc0', mute: '#6b7079', hair: '#26282d', line: '#34353d', cls: {}}]]) {
+        const rec = recorder();
+        sctx.__c = rec; sctx.__d = data; sctx.__p = pal;
+        vm.runInContext('drawShareCard(__c, __d, __p)', sctx);
+        const texts = rec.calls.filter(x => x.op === 'text');
+        const first = rec.calls[0];
+        ok(`share card (${theme}): painted on the page's own background`,
+           first && first.op === 'rect' && first.w === W && first.h === H && first.fill === pal.bg);
+        const outside = texts.filter(t => {
+            const left = t.align === 'center' ? t.x - t.w / 2 : t.align === 'right' ? t.x - t.w : t.x;
+            return left < 0 || left + t.w > W || t.y - t.size < 0 || t.y > H;
+        });
+        ok(`share card (${theme}): every string lands inside the 1200x630 card`, !outside.length, outside.map(t => t.s));
+        const overlap = texts.filter(t => t.align === 'left' && t.x < 600 && t.x + t.w > 560 && t.y > 100 && t.y < 300);   // below the full-width top line
+        ok(`share card (${theme}): a long name or opening is cut with an ellipsis, not run into the other column`,
+           !overlap.length && texts.some(t => /Maximilian.*…$/.test(t.s)) && texts.some(t => /^Sicilian.*…$/.test(t.s)),
+           overlap.map(t => t.s));
+        const s = texts.map(t => t.s);
+        ok(`share card (${theme}): players, result, both accuracies, counts and opening are on it`,
+           s.includes('Bob (1500)') && s.includes('½-½') && s.includes('87.3%') && s.includes('n/a')
+           && order.every(k => s.includes(data.labels[k])) && s.includes('11') && s.includes('3'), s);
+        ok(`share card (${theme}): no text is drawn in the background colour, nothing under 18px`,
+           texts.every(t => t.fill !== pal.bg && t.size >= 18));
+    }
+
+    // every string the share row uses exists in all 14 locales
+    const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    const block = html.slice(html.indexOf('id="rv_share"'), html.indexOf('id="rv_share_status"'));
+    const keys = [...block.matchAll(/data-i18n(?:-tip|-ph)?="([^"]+)"/g)].map(m => m[1]);
+    const locDir = ROOT + '/src/i18n/locales/';
+    const missing = [];
+    for (const f of fs.readdirSync(locDir).filter(f => f.endsWith('.json'))) {
+        const d = JSON.parse(fs.readFileSync(locDir + f, 'utf8'));
+        for (const k of keys) if (!d[k]) missing.push(f + ':' + k);
+        if (!/study:write/.test(d['set.tip.lichess_token'] || '')) missing.push(f + ':set.tip.lichess_token scope advice');
+    }
+    ok(`share row: all ${keys.length} strings translated in all 14 locales, token tip names study:write`,
+       keys.length >= 9 && fs.readdirSync(locDir).filter(f => f.endsWith('.json')).length === 14 && !missing.length, missing);
+}
+// ==== END AGENT REVIEW CHECKS ====
+
