@@ -99,12 +99,82 @@
             // and a key the panel did not act on is never swallowed, so the site keeps its own
             // arrow-key navigation until you switch this on.
             pv_back: 'ArrowLeft', pv_forward: 'ArrowRight',
+            // The cheat sheet. '?' is where every web app with shortcuts (GitHub, Gmail, lichess
+            // itself) puts its list, so it is the first key anyone tries. It is typed with Shift on
+            // every layout, which is why hotkeyString drops Shift for symbols (see canonHotkey).
+            shortcuts: '?',
         },
-        // the effective bindings: defaults overlaid with whatever the user saved in config.hotkeys
+        // What each action is called, wherever a person reads the list: the Hotkeys settings rows,
+        // the macro step pickers and the panel's cheat sheet. Here, beside the defaults, because
+        // three places reading one list cannot disagree about what "u" does.
+        HOTKEY_LABELS: {
+            manual_play: 'Play move (Manual Mode)', manual_mode: 'Toggle Manual Mode', autoplay: 'Toggle Autoplay',
+            premove: 'Toggle Premove', explorer: 'Toggle Opening Explorer', book_play: 'Toggle Book Moves',
+            help_mode: 'Toggle Help Mode', humanize: 'Toggle Humanize', clock_mode: 'Toggle Clock Mode',
+            clock_pace: 'Toggle Pace to Clock', mirror_mode: 'Toggle Mirror Time', eval_bar: 'Toggle Eval Bar',
+            eval_history: 'Toggle Eval History', live_stats: 'Toggle Live Stats',
+            tablebase: 'Toggle Endgame Tablebase', puzzle_mode: 'Toggle Puzzle Mode',
+            copy_fen: 'Copy FEN', copy_pgn: 'Copy PGN', copy_diagnostics: 'Copy Diagnostics',
+            redetect: 'Re-detect game', compact: 'Compact view', minimize: 'Minimize / restore panel',
+            bot_trick: 'Bot Tricks - play the chosen game at a bot',
+            panic: 'Panic - hide the panel, stop the engine',
+            pv_back: 'Walk the line back', pv_forward: 'Walk the line forward',
+            shortcuts: 'Show shortcuts',
+        },
+        // "Shift+?" -> "?". A symbol already says whether Shift was down ('?' vs '/', '!' vs '1'), and
+        // WHICH key needs Shift differs by layout ('?' is Shift+/ on US, Shift+ß on German), so a
+        // binding that kept it would be a different string on every keyboard. Letters keep it: 'a'
+        // and 'A' fold together, so there Shift is the only difference. Space keeps it too.
+        canonHotkey(k) {
+            if (typeof k !== 'string') return '';
+            return k.replace(/Shift\+((?:Meta\+)?)(.)$/,
+                (m, meta, c) => (c !== ' ' && c.toLowerCase() === c.toUpperCase()) ? meta + c : m);
+        },
+        // canonical combo string for a keydown: "Alt+a", "Shift+Ctrl+k", " " (space), "ArrowUp", "?".
+        // ONE normalization for the listener (content script) and the rebind UI (options page), so
+        // what gets stored is exactly what gets compared.
+        hotkeyString(e) {
+            const parts = [];
+            if (e.ctrlKey) parts.push('Ctrl');
+            if (e.altKey) parts.push('Alt');
+            if (e.shiftKey) parts.push('Shift');
+            if (e.metaKey) parts.push('Meta');
+            parts.push(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+            return this.canonHotkey(parts.join('+'));
+        },
+        // the effective bindings: defaults overlaid with whatever the user saved in config.hotkeys.
+        // Canonicalized on the way out, so a "Shift+?" saved before canonHotkey existed still fires.
         hotkeys() {
             let saved = {};
             try { saved = JSON.parse(this.get('hotkeys')) || {}; } catch (e) { /* unset/corrupt */ }
-            return {...this.HOTKEY_DEFAULTS, ...saved};
+            const out = {...this.HOTKEY_DEFAULTS, ...saved};
+            for (const a in out) out[a] = this.canonHotkey(out[a]);
+            return out;
+        },
+        // HOTKEY MACROS: one key, a list of existing actions run in order. Stored as config
+        // `hotkey_macros` = [{key, steps: [action, ...]}]. Sanitized HERE, on every read, so the
+        // listener never has to trust storage: a step must be a real action id (so a macro can
+        // never name itself or another macro -- macros have no ids to name), at most 8 of them.
+        HOTKEY_MACRO_MAX_STEPS: 8,
+        hotkeyMacros() {
+            let saved;
+            try { saved = JSON.parse(this.get('hotkey_macros')); } catch (e) { /* unset/corrupt */ }
+            if (!Array.isArray(saved)) return [];
+            return saved.filter(m => m && Array.isArray(m.steps)).map(m => ({
+                key: this.canonHotkey(m.key),
+                steps: m.steps.filter(s => Object.hasOwn(this.HOTKEY_DEFAULTS, s))
+                    .slice(0, this.HOTKEY_MACRO_MAX_STEPS),
+            }));
+        },
+        // Who already owns `key`: an action id, 'macro:<index>', or null. `skipMacro` is the macro
+        // being rebound, so pressing its own key again is not a clash with itself.
+        hotkeyOwner(key, skipMacro = -1) {
+            if (!key) return null;
+            const b = this.hotkeys();
+            for (const a in b) if (b[a] === key) return a;
+            const ms = this.hotkeyMacros();
+            for (let i = 0; i < ms.length; i++) if (i !== skipMacro && ms[i].key === key) return 'macro:' + i;
+            return null;
         },
         // --- ENGINES THAT ONLY UNDERSTAND A DEPTH -------------------------------------------------
         // stockfish.online's whole API is a fen and a depth: there is nowhere to put a search TIME,

@@ -571,6 +571,24 @@ tr.set-mix-total td { border-bottom: 0; font-weight: 600; padding-top: 8px; }
     background: var(--mp-on-soft);
     color: var(--mp-text);
 }
+/* macros: one per line, since a row carries a key, up to 8 step pickers and a Remove button */
+.set-keys.set-macros { grid-template-columns: 1fr; }
+.set-keys .set-macro > span:first-child { flex: none; }
+.set-macro-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.set-macro-steps > select,
+.set-macro-steps > button {
+    width: auto;
+    height: 26px;
+    padding: 0 6px;
+    border: 1px solid var(--mp-line);
+    border-radius: 3px;
+    background: var(--mp-bg);
+    color: var(--mp-text);
+    font-size: 12.5px;
+    cursor: pointer;
+}
+.set-macro-steps > button { color: var(--mp-dim); }
+.set-macro-steps > button:hover { border-color: var(--mp-on); color: var(--mp-on); }
 
 @media (max-width: 992px) {
     .set-keys { grid-template-columns: 1fr; }

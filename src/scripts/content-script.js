@@ -442,15 +442,10 @@ self.MephistoContent = {
 // to an action and hands it to the panel (do_hotkey in popup.js). Bindings are ACTION -> key-combo
 // in config.hotkeys (one JSON key -> rides along in settings export/import); defaults + merge live in
 // config-store.js so the listener, the rebind UI and the panel labels can't drift.
-// canonical combo string for a keydown: "Alt+a", "Shift+Ctrl+k", " " (space), "ArrowUp"
+// canonical combo string for a keydown: "Alt+a", "Shift+Ctrl+k", " " (space), "ArrowUp", "?".
+// The rule itself lives in config-store.js so the options page stores exactly what this compares.
 function hotkeyString(e) {
-    const parts = [];
-    if (e.ctrlKey) parts.push('Ctrl');
-    if (e.altKey) parts.push('Alt');
-    if (e.shiftKey) parts.push('Shift');
-    if (e.metaKey) parts.push('Meta');
-    parts.push(e.key.length === 1 ? e.key.toLowerCase() : e.key);
-    return parts.join('+');
+    return MephistoConfig.hotkeyString(e);
 }
 // exposed so the options page can capture a new binding with the same normalization
 self.MephistoHotkeyString = hotkeyString;
@@ -476,6 +471,20 @@ document.addEventListener('keydown', (e) => {
             if (self.MephistoPanel.hotkey(action)) { e.preventDefault(); e.stopPropagation(); }
             return;
         }
+    }
+    // A macro is its steps pressed in order: each goes through MephistoPanel.hotkey, the very call
+    // a single key makes, so a step behaves exactly like its own key (Space inert with Manual Mode
+    // off, and so on). It stops when a step takes the panel away (panic) -- the rest would flip
+    // checkboxes on a panel that is gone. Swallowed if ANY step acted, same contract as one key.
+    for (const macro of MephistoConfig.hotkeyMacros()) {
+        if (!macro.key || macro.key !== pressed) continue;
+        let acted = false;
+        for (const step of macro.steps) {
+            if (!self.MephistoPanel?.isBooted?.()) break;
+            if (self.MephistoPanel.hotkey(step)) acted = true;
+        }
+        if (acted) { e.preventDefault(); e.stopPropagation(); }
+        return;
     }
 }, true);
 

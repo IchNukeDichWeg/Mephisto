@@ -1590,3 +1590,198 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 }
 // ==== END AGENT PANEL CHECKS ====
 
+// ==== AGENT HOTKEY CHECKS (shortcut cheat sheet, hotkey macros) ====
+// The REAL config-store.js (whole file, stubbed chrome.storage), the REAL content-script keydown
+// listener and hotkeyString (sliced), and the REAL cheat-sheet functions and do_hotkey (sliced) run
+// against a small fake DOM. Nothing here is retyped from the source.
+{
+    console.log('\nhotkeys: cheat sheet + macros:');
+    const ok = (name, cond, extra) => { if (cond) console.log('ok   ' + name);
+        else { fails++; console.log('FAIL ' + name + (extra ? ' -- ' + extra : '')); } };
+    const hctx = {console, location: {protocol: 'https:'}, navigator: {},
+        chrome: {storage: {local: {get: async () => ({}), set() {}, remove() {}},
+                           onChanged: {addListener() {}}}}};
+    hctx.self = hctx;
+    vm.createContext(hctx);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8'), hctx);
+    const C = hctx.MephistoConfig;
+    const reset = () => { C.remove('hotkeys'); C.remove('hotkey_macros'); };
+
+    // --- config-store: defaults, labels, canonical key strings
+    ok('the cheat sheet action defaults to ?', C.HOTKEY_DEFAULTS.shortcuts === '?');
+    const unlabeled = Object.keys(C.HOTKEY_DEFAULTS).filter(a => !C.HOTKEY_LABELS[a]);
+    ok('every default action has a label (settings rows + cheat sheet)', !unlabeled.length, unlabeled.join(','));
+    const ks = (o) => C.hotkeyString({ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, ...o});
+    ok('? typed with Shift is stored and compared as "?"', ks({key: '?', shiftKey: true}) === '?', ks({key: '?', shiftKey: true}));
+    ok('Shift still counts for letters', ks({key: 'A', shiftKey: true}) === 'Shift+a');
+    ok('Shift still counts for Space', ks({key: ' ', shiftKey: true}) === 'Shift+ ');
+    ok('Ctrl+Shift+? keeps Ctrl, drops the implied Shift', ks({key: '?', ctrlKey: true, shiftKey: true}) === 'Ctrl+?');
+    reset();
+    C.set('hotkeys', JSON.stringify({shortcuts: 'Shift+?', autoplay: 'Shift+a'}));
+    ok('a saved "Shift+?" binding is read back canonical', C.hotkeys().shortcuts === '?' && C.hotkeys().autoplay === 'Shift+a');
+
+    // --- config-store: macro sanitizing + clash owner
+    reset();
+    C.set('hotkey_macros', JSON.stringify([
+        {key: 'Shift+!', steps: ['autoplay', 'macro:0', 'bogus', 'humanize', 'premove', 'premove', 'premove',
+                                 'premove', 'premove', 'premove', 'premove']},
+        null, {key: 'j'}, 'junk']));
+    const ms = C.hotkeyMacros();
+    ok('malformed macros are dropped on read', ms.length === 1, JSON.stringify(ms));
+    ok('a macro step must be a real action (no macro inside a macro)',
+        ms[0] && !ms[0].steps.includes('macro:0') && !ms[0].steps.includes('bogus'), JSON.stringify(ms[0]));
+    ok('a macro holds at most 8 steps', ms[0] && ms[0].steps.length === 8, ms[0] && ms[0].steps.length);
+    ok('a macro key is canonical too', ms[0] && ms[0].key === '!');
+    C.set('hotkey_macros', 'not json');
+    ok('corrupt macro storage reads as no macros', C.hotkeyMacros().length === 0);
+    reset();
+    C.set('hotkey_macros', JSON.stringify([{key: 'j', steps: ['autoplay']}]));
+    ok('owner of a bound action key is that action', C.hotkeyOwner('a') === 'autoplay');
+    ok('owner of a macro key is that macro', C.hotkeyOwner('j') === 'macro:0');
+    ok('a macro re-pressing its own key is not a clash', C.hotkeyOwner('j', 0) === null);
+    ok('a free key has no owner', C.hotkeyOwner('Alt+j') === null);
+
+    // --- content-script listener: macros through the same MephistoPanel.hotkey as single keys
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const hs = cs.indexOf('function hotkeyString(e) {');
+    const ls = cs.indexOf("document.addEventListener('keydown', (e) => {\n    if (!self.MephistoPanel?.isBooted?.()) return;");
+    const le = cs.indexOf('\n}, true);', ls) + 10;
+    if (hs < 0 || ls < 0 || le < 10) { fails++; console.log('FAIL could not slice the content-script hotkey listener'); }
+    else {
+        let handler = null, calls = [], booted = true;
+        hctx.document = {addEventListener: (t, f) => { if (t === 'keydown') handler = f; }};
+        hctx.overlayHost = null; hctx.overlayRoot = null;
+        hctx.MephistoPanel = {isBooted: () => booted, hotkey: (a) => {
+            calls.push(a); if (a === 'panic') booted = false; return a !== 'manual_play'; }};
+        vm.runInContext(cs.slice(hs, cs.indexOf('\n}\n', hs) + 3), hctx);
+        vm.runInContext(cs.slice(ls, le), hctx);
+        const press = (o) => {
+            calls = []; booted = true;
+            const e = {key: 'q', ctrlKey: false, altKey: false, shiftKey: false, metaKey: false,
+                target: {tagName: 'DIV'}, prevented: false, preventDefault() { this.prevented = true; }, stopPropagation() {}, ...o};
+            handler(e);
+            return e;
+        };
+        reset();
+        C.set('hotkey_macros', JSON.stringify([
+            {key: 'q', steps: ['autoplay', 'humanize']},
+            {key: 'j', steps: ['autoplay', 'panic', 'humanize']},
+            {key: 'Alt+m', steps: ['manual_play']}]));
+        let e = press({key: 'q'});
+        ok('a macro key runs its steps in order', JSON.stringify(calls) === '["autoplay","humanize"]', JSON.stringify(calls));
+        ok('...and the key is swallowed', e.prevented);
+        press({key: 'j'});
+        ok('a macro stops once a step takes the panel away (panic)', JSON.stringify(calls) === '["autoplay","panic"]', JSON.stringify(calls));
+        e = press({key: 'm', altKey: true});
+        ok('a macro whose steps all did nothing leaves the key to the site', calls.length === 1 && !e.prevented);
+        press({key: 'q', target: {tagName: 'INPUT'}});
+        ok('a macro key typed into a field does nothing', calls.length === 0);
+        e = press({key: '?', shiftKey: true});
+        ok('Shift+? on the page opens the cheat sheet action', JSON.stringify(calls) === '["shortcuts"]' && e.prevented, JSON.stringify(calls));
+    }
+
+    // --- popup.js: cheat sheet rows (live bindings) + the sheet itself + do_hotkey routing
+    const pS = src.indexOf('function hotkey_pretty(k) {');
+    const rS = src.indexOf('function shortcut_sheet_rows(');
+    const dS = src.indexOf('function do_hotkey(action) {');
+    if (pS < 0 || rS < 0 || dS < 0) { fails++; console.log('FAIL could not slice the cheat sheet'); }
+    else {
+        const byId = (n, id) => n.id === id ? n : n.children.reduce((f, c) => f || byId(c, id), null);
+        let body;
+        const mk = () => ({children: [], style: {}, parent: null, id: '',
+            append(...c) { c.forEach(x => this.appendChild(x)); },
+            appendChild(c) { c.parent = this; this.children.push(c); },
+            addEventListener() {}, remove() { if (this.parent) { this.parent.children = this.parent.children.filter(x => x !== this); this.parent = null; } },
+            get isConnected() { let p = this; while (p.parent) p = p.parent; return p === body; }});
+        body = mk();
+        const docL = new Set();
+        hctx.document = {createElement: mk, addEventListener: (t, f) => docL.add(f), removeEventListener: (t, f) => docL.delete(f)};
+        hctx.PANEL_ROOT = {getElementById: (id) => byId(body, id)};
+        hctx.panel_body = () => body;
+        vm.runInContext(src.slice(pS, src.indexOf('\n}\n', pS) + 3), hctx);
+        vm.runInContext(src.slice(rS, dS), hctx);
+        reset();
+        C.set('hotkeys', JSON.stringify({autoplay: 'Alt+q', humanize: ''}));
+        C.set('hotkey_macros', JSON.stringify([{key: 'j', steps: ['autoplay', 'humanize']}]));
+        const rows = vm.runInContext('shortcut_sheet_rows(MephistoConfig.hotkeys(), MephistoConfig.hotkeyMacros(), MephistoConfig.HOTKEY_LABELS)', hctx);
+        const row = (l) => rows.find(r => r[0] === l);
+        ok('the sheet shows a REBOUND key, read live', row('Toggle Autoplay')?.[1] === 'Alt+Q', JSON.stringify(row('Toggle Autoplay')));
+        ok('a cleared key shows as "-", the row stays', row('Toggle Humanize')?.[1] === '-');
+        ok('the sheet lists its own key', row('Show shortcuts')?.[1] === '?');
+        ok('every action has a row, plus one per macro', rows.length === Object.keys(C.HOTKEY_LABELS).length + 1, rows.length);
+        ok('a macro row names its steps and key',
+            rows.some(r => r[0] === 'Macro: Toggle Autoplay > Toggle Humanize' && r[1] === 'J'), JSON.stringify(rows.slice(-1)));
+        const extra = vm.runInContext('shortcut_sheet_rows({zz_new: "k"}, [], {})', hctx);
+        ok('an action with no label still shows under its id', extra[0]?.[0] === 'zz_new' && extra[0]?.[1] === 'K');
+
+        const open = () => !!byId(body, 'mp-shortcuts');
+        ok('the key opens the sheet', vm.runInContext('toggle_shortcut_sheet()', hctx) === true && open() && docL.size === 1);
+        const sheet = byId(body, 'mp-shortcuts');
+        ok('the sheet uses theme colours with light fallbacks (readable in both themes)',
+            /background:var\(--mp-bg,#fff\)/.test(sheet.style.cssText) && /color:var\(--mp-text,#14171a\)/.test(sheet.style.cssText));
+        const esc = [...docL][0];
+        const ev = (key) => ({key, prevented: false, preventDefault() { this.prevented = true; }, stopPropagation() {}});
+        const other = ev('a'); esc(other);
+        ok('another key leaves it open and is not swallowed', open() && !other.prevented);
+        const e1 = ev('Escape'); esc(e1);
+        ok('Esc closes it, is swallowed, and its listener goes', !open() && e1.prevented && docL.size === 0);
+        vm.runInContext('toggle_shortcut_sheet()', hctx);
+        vm.runInContext('toggle_shortcut_sheet()', hctx);
+        ok('the same key closes it again', !open() && docL.size === 0);
+        vm.runInContext('toggle_shortcut_sheet()', hctx);
+        byId(body, 'mp-shortcuts').remove(); // the panel torn down under it (panic)
+        const stale = ev('Escape'); [...docL][0](stale);
+        ok('a sheet removed with the panel lets its listener go without eating Esc', docL.size === 0 && !stale.prevented);
+
+        // do_hotkey itself routes the action (sliced; everything else it could call is a stub)
+        vm.runInContext('var panic = () => "panic"; var manual_play = () => "mp"; var HOTKEY_TOGGLES = {};', hctx);
+        vm.runInContext(src.slice(dS, src.indexOf('\n}\n', dS) + 3), hctx);
+        vm.runInContext('toggle_shortcut_sheet = () => "sheet";', hctx);
+        ok('do_hotkey("shortcuts") opens the cheat sheet', vm.runInContext('do_hotkey("shortcuts")', hctx) === 'sheet');
+    }
+
+    // --- settings page: the macro UI exists, carries a tooltip, and every new string is in all 14 locales
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    ok('Hotkeys section has the macro list, add button, message line and a tooltip',
+        ['id="hotkey_macros"', 'id="hotkey_macro_add_btn"', 'id="hotkey_macro_msg"', 'data-i18n-tip="set.tip.hotkey_macros"'].every(s => gh.includes(s)));
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    ok('Show shortcuts is a row in the Hotkeys settings list', /const ORDER = \[[^\]]*'shortcuts'/.test(gj));
+    const NEW_KEYS = ['set.hotkey_macros', 'set.tip.hotkey_macros', 'set.add_macro', 'set.note.hotkey_macros', 'set.macro_n',
+        'set.macro_add_step', 'set.macro_remove_step', 'set.macro_remove', 'set.macro_key_clash', 'set.macro_reset_cleared',
+        'panel.shortcuts_title', 'panel.shortcuts_hint', 'panel.shortcuts_macro', 'panel.shortcuts_click'];
+    const locDir = ROOT + '/src/i18n/locales/';
+    const locs = fs.readdirSync(locDir).filter(f => f.endsWith('.json'));
+    const en = JSON.parse(fs.readFileSync(locDir + 'en.json', 'utf8'));
+    const ph = (s) => (String(s).match(/\{\w+\}/g) || []).sort().join();
+    const bad = [];
+    for (const f of locs) {
+        const o = JSON.parse(fs.readFileSync(locDir + f, 'utf8'));
+        for (const k of NEW_KEYS) if (!o[k] || ph(o[k]) !== ph(en[k])) bad.push(f + ':' + k);
+    }
+    ok(`hotkey strings present with matching placeholders in all ${locs.length} locales`, locs.length === 14 && !bad.length, bad.join(' '));
+    reset();
+}
+// A macro step starts UNCHOSEN (lead's fix after headless testing): it used to default to ORDER[0],
+// "Play move (Manual Mode)", so a half-configured macro played a move. An empty step must be dropped
+// by the sanitizer, so it can never fire.
+{
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const ok2 = (n, c) => { if (c) console.log('ok   ' + n); else { fails++; console.log('FAIL ' + n); } };
+    ok2('new macro starts with an unchosen step', /macros\.push\(\{key: '', steps: \[''\]\}\)/.test(gj));
+    ok2('"+ Step" adds an unchosen step', /m\.steps\.push\(''\)/.test(gj));
+    ok2('no step defaults to ORDER[0] any more', !/steps: \[ORDER\[0\]\]|m\.steps\.push\(ORDER\[0\]\)/.test(gj));
+    // same stubbed context the hotkey block above uses for the real config-store.js
+    const sctx = {console, location: {protocol: 'https:'}, navigator: {},
+        chrome: {storage: {local: {get: async () => ({}), set() {}, remove() {}}, onChanged: {addListener() {}}}}};
+    sctx.self = sctx;
+    vm.createContext(sctx);
+    try {
+        vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8'), sctx);
+        const MC = sctx.MephistoConfig;
+        MC.set('hotkey_macros', JSON.stringify([{key: 'j', steps: ['', 'eval_bar', '']}]));
+        const got = MC.hotkeyMacros();
+        ok2('sanitizer drops unchosen steps, keeps the chosen one', got.length === 1 && got[0].steps.length === 1 && got[0].steps[0] === 'eval_bar');
+    } catch (e) { fails++; console.log('FAIL sanitizer check could not run: ' + String(e).slice(0, 80)); }
+}
+// ==== END AGENT HOTKEY CHECKS ====
+

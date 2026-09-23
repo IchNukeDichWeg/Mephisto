@@ -52,7 +52,7 @@ Chess.com and Lichess redesigns. Everything the original did still works. New he
 - **Engines** - Stockfish dev / 18, the human-trained **Maia-1 / Maia-2 / Maia-3** and **Elite Leela**, an Elo cap
   and ten **playstyles**.
 - **Playing like a person** - Humanize, Clock Mode, Mirror Time.
-- **Automation** - Safe Premove, Pondering, Help Mode, Manual Mode, rebindable hotkeys.
+- **Automation** - Safe Premove, Pondering, Help Mode, Manual Mode, rebindable hotkeys, hotkey macros (one key runs several actions) and a `?` shortcut cheat sheet.
 - **Beyond the engine** - Opening Explorer, endgame tablebase, puzzle database.
 - **On screen** - eval bar, eval history graph, screen reading, screenshot-to-FEN, a playable panel board.
 - **Coverage** - chess.com variants, four-player chess, TakeTakeTake, Chess960, fourteen languages.

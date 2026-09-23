@@ -1841,6 +1841,26 @@
                     itself uses, rebind it with any Ctrl/Alt/Shift/Meta combination.
                 </p>
                 <div id="hotkey_rows" class="set-keys"></div>
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n="set.hotkey_macros">Macros</span>
+                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.hotkey_macros"
+                              data-tooltip="One key that runs several of the actions above in order, exactly as if you
+                                            had pressed each of their keys - for example Toggle Autoplay, then Toggle
+                                            Humanize. Up to 8 steps. A macro key must be free: one already bound to an
+                                            action or another macro is refused."><i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <button data-i18n="set.add_macro" id="hotkey_macro_add_btn" type="button" class="set-btn">Add macro</button>
+                    </div>
+                </div>
+                <p data-i18n="set.note.hotkey_macros" class="set-note">
+                    Each step works like its own key, so a step that would do nothing on its own (Play move with
+                    Manual Mode off) does nothing inside a macro either. Reset hotkeys to defaults keeps your macros;
+                    only a macro key that a restored default now uses is cleared, and the page says so.
+                </p>
+                <div id="hotkey_macros" class="set-keys set-macros"></div>
+                <p id="hotkey_macro_msg" class="set-status" role="status"></p>
                 <div class="set-btnrow">
                     <button data-i18n="set.reset_hotkeys_to_defaults" id="hotkey_reset_btn" type="button" class="set-btn">Reset hotkeys to defaults</button>
                 </div>

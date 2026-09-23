@@ -434,8 +434,9 @@ class GeneralSettings extends SettingsPage {
     // background service worker flips the toolbar popup on/off (chrome.action.setPopup) and can't
     // read the popup page's localStorage. Writing it fires chrome.storage.onChanged in the worker.
     // Hotkeys: one rebindable key per action, stored together in config.hotkeys (a single JSON key,
-    // so settings export/import carries them). DEFAULTS + labels must match content-script.js's
-    // HOTKEY_DEFAULTS. Clicking a key captures the next keydown (Esc cancels, Backspace/Delete clears).
+    // so settings export/import carries them). Defaults and labels both live in config-store.js
+    // (HOTKEY_DEFAULTS / HOTKEY_LABELS). Clicking a key captures the next keydown (Esc cancels,
+    // Backspace/Delete clears). Macros ride in config.hotkey_macros beside them.
     // [-] value [+] beside a number field. Steps by the input's OWN `step` and clamps to its own
     // min/max, so one handler serves ms fields (25), the poll interval (50) and Elo (10) alike.
     // Dispatches BOTH 'input' and 'change'. The comment here used to say 'change' was what
@@ -784,41 +785,92 @@ class GeneralSettings extends SettingsPage {
         const container = document.getElementById('hotkey_rows');
         const resetBtn = document.getElementById('hotkey_reset_btn');
         if (!container || !resetBtn) return; // stale cached page html
-        const DEFAULTS = MephistoConfig.HOTKEY_DEFAULTS; // shared source (config-store.js)
-        const LABELS = {
-            manual_play: 'Play move (Manual Mode)', autoplay: 'Toggle Autoplay', premove: 'Toggle Premove',
-            help_mode: 'Toggle Help Mode', humanize: 'Toggle Humanize', clock_mode: 'Toggle Clock Mode', clock_pace: 'Toggle Pace to Clock',
-            mirror_mode: 'Toggle Mirror Time', manual_mode: 'Toggle Manual Mode', eval_bar: 'Toggle Eval Bar',
-            eval_history: 'Toggle Eval History', live_stats: 'Toggle Live Stats',
-            tablebase: 'Toggle Endgame Tablebase',
-            puzzle_mode: 'Toggle Puzzle Mode', explorer: 'Toggle Opening Explorer',
-            book_play: 'Toggle Book Moves', copy_fen: 'Copy FEN', copy_pgn: 'Copy PGN', copy_diagnostics: 'Copy Diagnostics',
-            panic: 'Panic - hide the panel, stop the engine',
-            redetect: 'Re-detect game',
-            compact: 'Compact view', minimize: 'Minimize / restore panel',
-            bot_trick: 'Bot Tricks - play the chosen game at a bot',
-        };
+        // shared with the panel's cheat sheet (config-store.js), so the two can never name an action
+        // differently
+        const LABELS = MephistoConfig.HOTKEY_LABELS;
         const ORDER = ['manual_play', 'manual_mode', 'autoplay', 'premove', 'explorer', 'book_play',
             // Only actions the panel can actually perform: an action listed here with no entry in
             // LABELS and no quick-settings checkbox behind it rendered a row labelled "undefined"
             // whose binding did nothing (live_classify and streamer_alert did exactly that).
             'help_mode', 'humanize', 'clock_mode', 'clock_pace', 'mirror_mode', 'eval_bar', 'eval_history', 'live_stats', 'tablebase', 'puzzle_mode',
-            'copy_fen', 'copy_pgn', 'copy_diagnostics', 'redetect', 'compact', 'minimize', 'bot_trick', 'panic'];
-        // same normalization as the content-script listener, so what we store matches what it compares
-        const keyString = (e) => {
-            const parts = [];
-            if (e.ctrlKey) parts.push('Ctrl');
-            if (e.altKey) parts.push('Alt');
-            if (e.shiftKey) parts.push('Shift');
-            if (e.metaKey) parts.push('Meta');
-            parts.push(e.key.length === 1 ? e.key.toLowerCase() : e.key);
-            return parts.join('+');
-        };
+            'copy_fen', 'copy_pgn', 'copy_diagnostics', 'redetect', 'compact', 'minimize', 'bot_trick', 'panic',
+            'pv_back', 'pv_forward', 'shortcuts'];
+        // the content-script listener's own normalization (config-store.js), so what we store is
+        // exactly what it compares
+        const keyString = (e) => MephistoConfig.hotkeyString(e);
         const pretty = (k) => !k ? ' - ' : k.split('+').map(p => p === ' ' ? 'Space' : (p.length === 1 ? p.toUpperCase() : p)).join(' + ');
-        const load = () => { try { return {...DEFAULTS, ...(JSON.parse(MephistoConfig.get('hotkeys')) || {})}; } catch (e) { return {...DEFAULTS}; } };
         const save = (obj) => MephistoConfig.set('hotkeys', JSON.stringify(obj));
-        let bindings = load();
-        let capturing = null; // the action currently being rebound
+        let bindings = MephistoConfig.hotkeys();
+        // the action being rebound, or 'macro:<index>' for a macro's key (hotkeyOwner's format)
+        let capturing = null;
+
+        // ---- Macros: one key, a sequence of the actions above (config `hotkey_macros`, sanitized by
+        // MephistoConfig.hotkeyMacros). Steps are picked from ORDER only, so a macro cannot contain a
+        // macro -- there is nothing to pick one by.
+        const macroBox = document.getElementById('hotkey_macros'); // null on a stale cached page
+        const macroAdd = document.getElementById('hotkey_macro_add_btn');
+        const macroMsg = document.getElementById('hotkey_macro_msg');
+        const t = (k, d, v) => MephistoI18n.t(k, d, v);
+        const MAX_STEPS = MephistoConfig.HOTKEY_MACRO_MAX_STEPS;
+        let macros = MephistoConfig.hotkeyMacros();
+        const saveMacros = () => MephistoConfig.set('hotkey_macros', JSON.stringify(macros));
+        const say = (text) => { if (macroMsg) macroMsg.textContent = text; };
+        const ownerName = (o) => o.startsWith('macro:')
+            ? t('set.macro_n', 'Macro {n}', {n: Number(o.slice(6)) + 1}) : (LABELS[o] || o);
+        const smallBtn = (text, onClick) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = text;
+            b.addEventListener('click', onClick);
+            return b;
+        };
+        const renderMacros = () => {
+            if (!macroBox) return;
+            macroBox.innerHTML = '';
+            macros.forEach((m, i) => {
+                const row = document.createElement('div');
+                row.className = 'set-key set-macro';
+                const label = document.createElement('span');
+                label.textContent = t('set.macro_n', 'Macro {n}', {n: i + 1});
+                const cap = `macro:${i}`;
+                const keyBtn = smallBtn(capturing === cap ? 'press a key…' : pretty(m.key),
+                    () => { capturing = (capturing === cap) ? null : cap; render(); });
+                keyBtn.className = (capturing === cap) ? 'capturing' : '';
+                const steps = document.createElement('span');
+                steps.className = 'set-macro-steps';
+                m.steps.forEach((step, j) => {
+                    const sel = document.createElement('select');
+                    sel.className = 'browser-default'; // Materialize would hide a select it did not init
+                    sel.add(new Option(t('set.macro_pick_step', 'Choose an action…'), '', false, !step));
+                    for (const a of ORDER) sel.add(new Option(LABELS[a] || a, a, false, a === step));
+                    sel.addEventListener('change', () => { m.steps[j] = sel.value; saveMacros(); });
+                    steps.appendChild(sel);
+                    if (m.steps.length > 1) {
+                        const x = smallBtn('×', () => { m.steps.splice(j, 1); saveMacros(); render(); });
+                        x.title = t('set.macro_remove_step', 'Remove this step');
+                        steps.appendChild(x);
+                    }
+                });
+                if (m.steps.length < MAX_STEPS) {
+                    steps.appendChild(smallBtn(t('set.macro_add_step', '+ Step'),
+                        () => { m.steps.push(''); saveMacros(); render(); }));
+                }
+                const del = smallBtn(t('set.macro_remove', 'Remove'), () => {
+                    macros.splice(i, 1); saveMacros(); capturing = null; say(''); render();
+                });
+                row.append(label, keyBtn, steps, del);
+                macroBox.appendChild(row);
+            });
+        };
+        // a new macro starts with no key and one UNCHOSEN step: inert until both are picked. It used
+        // to start on ORDER[0], "Play move (Manual Mode)", so a macro you had only half set up
+        // played a move when its key was pressed.
+        macroAdd?.addEventListener('click', () => {
+            macros.push({key: '', steps: ['']});
+            saveMacros();
+            capturing = `macro:${macros.length - 1}`; // straight to choosing its key
+            render();
+        });
 
         const render = () => {
             container.innerHTML = '';
@@ -835,20 +887,51 @@ class GeneralSettings extends SettingsPage {
                 row.append(label, btn);
                 container.appendChild(row);
             }
+            renderMacros();
         };
         // one document-level capture listener; only acts while rebinding
         document.addEventListener('keydown', (e) => {
             if (!capturing) return;
             e.preventDefault(); e.stopPropagation();
-            if (e.key === 'Escape') { capturing = null; return render(); }
-            if (e.key === 'Backspace' || e.key === 'Delete') { bindings[capturing] = ''; save(bindings); capturing = null; return render(); }
+            const mi = capturing.startsWith('macro:') ? Number(capturing.slice(6)) : -1;
+            if (e.key === 'Escape') { capturing = null; say(''); return render(); }
+            if (e.key === 'Backspace' || e.key === 'Delete') {
+                if (mi >= 0) { macros[mi].key = ''; saveMacros(); } else { bindings[capturing] = ''; save(bindings); }
+                capturing = null; say(''); return render();
+            }
             if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return; // wait for the real key
-            bindings[capturing] = keyString(e);
-            save(bindings);
+            const k = keyString(e);
+            // REFUSED, visibly, and still listening for another key. The listener runs single keys
+            // before macros, so a macro on a bound key would simply never fire -- and an action moved
+            // onto a macro's key would silently disable the macro. Action-onto-action duplicates are
+            // left as they always were: that is the existing contract, not this feature's to change.
+            const owner = MephistoConfig.hotkeyOwner(k, mi);
+            if (owner && owner !== capturing && (mi >= 0 || owner.startsWith('macro:'))) {
+                say(t('set.macro_key_clash', '{key} is already used by "{owner}" - pick another key, or Esc to cancel.',
+                    {key: pretty(k), owner: ownerName(owner)}));
+                return;
+            }
+            if (mi >= 0) { macros[mi].key = k; saveMacros(); } else { bindings[capturing] = k; save(bindings); }
             capturing = null;
+            say('');
             render();
         }, true);
-        resetBtn.addEventListener('click', () => { MephistoConfig.remove('hotkeys'); bindings = {...DEFAULTS}; capturing = null; render(); });
+        // Reset restores the ACTION keys only. Macros are yours, not defaults, so they are kept -- but
+        // a macro whose key a restored default now claims loses that key (the macro and its steps
+        // stay, unbound), and the page says so. Keeping both would leave the macro silently dead.
+        resetBtn.addEventListener('click', () => {
+            MephistoConfig.remove('hotkeys');
+            bindings = MephistoConfig.hotkeys();
+            capturing = null;
+            const taken = new Set(Object.values(bindings));
+            let cleared = 0;
+            for (const m of macros) if (m.key && taken.has(m.key)) { m.key = ''; cleared++; }
+            if (cleared) saveMacros();
+            say(cleared ? t('set.macro_reset_cleared',
+                'Hotkeys reset. {n} macro key(s) matched a restored default and were cleared - the macros are kept.',
+                {n: cleared}) : '');
+            render();
+        });
         render();
     }
 

@@ -7844,8 +7844,88 @@ function panic() {
     return true;
 }
 
+// ---- THE SHORTCUT CHEAT SHEET. Every action with the key it has RIGHT NOW, read at the moment it
+// opens -- a sheet built once would keep advertising a key rebound since, and a list that lies about
+// shortcuts is worse than none. A cleared binding shows as "-" rather than vanishing, so the row you
+// are looking for is still there to tell you it has no key. Macros are listed after the actions.
+// Pure (bindings + macros in, [label, key] rows out) so the suite can run it without a DOM.
+function shortcut_sheet_rows(keys, macros, labels) {
+    const rows = [];
+    for (const action in labels) rows.push([labels[action], hotkey_pretty(keys[action]) || '-']);
+    // an action someone added to the defaults without a label still shows, under its id
+    for (const action in keys) if (!(action in labels)) rows.push([action, hotkey_pretty(keys[action]) || '-']);
+    for (const m of macros) {
+        if (!m.steps.length) continue;
+        rows.push([`${i18n('panel.shortcuts_macro', 'Macro')}: ${m.steps.map(s => labels[s] || s).join(' > ')}`,
+                   hotkey_pretty(m.key) || '-']);
+    }
+    return rows;
+}
+
+let shortcut_sheet_esc = null; // the Esc listener while the sheet is open; removed with it
+
+function close_shortcut_sheet() {
+    PANEL_ROOT.getElementById?.('mp-shortcuts')?.remove();
+    if (shortcut_sheet_esc) document.removeEventListener('keydown', shortcut_sheet_esc, true);
+    shortcut_sheet_esc = null;
+}
+
+function toggle_shortcut_sheet() {
+    if (PANEL_ROOT.getElementById?.('mp-shortcuts')) { close_shortcut_sheet(); return true; }
+    const host = panel_body();
+    if (!host) return false;
+    const keys = MephistoConfig.hotkeys();
+    const sheet = document.createElement('div');
+    sheet.id = 'mp-shortcuts';
+    // Inline, and every colour a theme variable WITH its light value as the fallback: in the in-page
+    // panel the light palette sits on :root, which matches nothing inside a shadow root, while dark
+    // mode's copy is rehomed onto the panel body and inherited from there. Fixed inside the scaled
+    // (transformed) panel box pins it to that box, not the page, and it ignores the body's scroll.
+    // z 1000: over the board's arrow layers (50/51), under the panel's tooltips.
+    sheet.style.cssText = 'position:fixed;inset:0;z-index:1000;overflow:auto;box-sizing:border-box;' +
+        'padding:10px 14px;background:var(--mp-bg,#fff);color:var(--mp-text,#14171a);' +
+        'font:12px/18px Roboto,sans-serif;text-align:left;white-space:normal;cursor:default';
+    const title = document.createElement('div');
+    title.style.cssText = 'font-weight:bold;font-size:14px;line-height:22px;margin-bottom:4px';
+    title.textContent = i18n('panel.shortcuts_title', 'Keyboard shortcuts');
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:0 18px';
+    for (const [label, key] of shortcut_sheet_rows(keys, MephistoConfig.hotkeyMacros(), MephistoConfig.HOTKEY_LABELS)) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:8px;border-bottom:1px solid var(--mp-hair,#f0f1f2)';
+        const l = document.createElement('span');
+        l.style.cssText = 'flex:1 1 auto;min-width:0';
+        l.textContent = label;
+        const k = document.createElement('span');
+        k.style.cssText = 'flex:none;font:11px/18px ui-monospace,Menlo,monospace;color:var(--mp-dim,#4a5058)';
+        k.textContent = key;
+        row.append(l, k);
+        grid.appendChild(row);
+    }
+    const hint = document.createElement('div');
+    hint.style.cssText = 'margin-top:6px;color:var(--mp-dim,#4a5058)';
+    hint.textContent = i18n('panel.shortcuts_hint', '{key} or Esc closes this list. Rebind keys and build macros under Settings - Hotkeys.',
+        // unbound (reachable only from a macro): a click closes it too, and says something true
+        {key: hotkey_pretty(keys.shortcuts) || i18n('panel.shortcuts_click', 'A click')});
+    sheet.append(title, grid, hint);
+    sheet.addEventListener('click', close_shortcut_sheet);
+    host.appendChild(sheet);
+    // Esc is not a binding, so the content script's listener never sees it as one -- the sheet
+    // listens for it itself, only while open. A panel torn down under an open sheet (panic) leaves
+    // the listener behind; the isConnected check lets that one step aside and remove itself.
+    shortcut_sheet_esc = (e) => {
+        if (!sheet.isConnected) { close_shortcut_sheet(); return; }
+        if (e.key !== 'Escape') return;
+        e.preventDefault(); e.stopPropagation();
+        close_shortcut_sheet();
+    };
+    document.addEventListener('keydown', shortcut_sheet_esc, true);
+    return true;
+}
+
 function do_hotkey(action) {
     if (action === 'panic') return panic();
+    if (action === 'shortcuts') return toggle_shortcut_sheet();
     if (action === 'manual_play') return manual_play();
     if (action === 'copy_fen') { copy_to_button('copyfen', last_eval.fen); return true; }
     if (action === 'copy_pgn') { copy_to_button('copypgn', current_pgn()); return true; }
