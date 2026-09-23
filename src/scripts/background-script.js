@@ -2205,6 +2205,7 @@ const NATIVE_HOSTS = {
   // native-messaging host names allow only [a-z0-9._] -- NO hyphens -> underscores in the app id
   'sf-native': {app: 'com.sf_native.host', label: 'Stockfish (native)'},
   'fairy-native': {app: 'com.fairy_native.host', label: 'Fairy-Stockfish (native)'},
+  'rodent-native': {app: 'com.rodent_native.host', label: 'Rodent IV (native)'},
   // four-player chess -- see native-host/install-native.sh --tetrarch and the README
   'tetrarch-native': {app: 'com.tetrarch.host', label: 'Tetrarch (4-player)'},
 };

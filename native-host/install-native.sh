@@ -100,18 +100,34 @@ mkdir -p "$RUNTIME_DIR/engines"
 
 pin_shebang() { local f="$1" tmp; tmp="$(mktemp)"; { printf '#!%s\n' "$PYBIN"; tail -n +2 "$f"; } > "$tmp"; cat "$tmp" > "$f"; rm -f "$tmp"; }
 
-# slug | binary | nnue-dir ("" = none). Fairy switches EvalFile per variant from the bundled nets.
+# Rodent IV is built from its pinned upstream source by build-rodent.sh the first time (~20 s; needs
+# git and a C++ compiler), then reused. It reads personalities/ from BESIDE its own executable, so the
+# whole directory is installed, not just the binary. No compiler -> it is skipped, nothing else changes.
+RODENT_DIR="$SRC_DIR/engines/rodent-iv"
+if [ ! -x "$RODENT_DIR/rodent-iv" ] && command -v c++ >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
+  echo "-> building Rodent IV from source (first install only)..."
+  ( cd "$SRC_DIR" && ./build-rodent.sh ) || echo "!! Rodent IV did not build -- skipping it"
+fi
+RODENT_BIN=""; [ -x "$RODENT_DIR/rodent-iv" ] && RODENT_BIN="$RODENT_DIR/rodent-iv"
+
+# slug | binary | nnue-dir ("" = none) | home dir (optional: an engine that reads data files beside
+# its own executable gets that whole directory copied). Fairy switches EvalFile per variant.
 NNUE_SRC="$SRC_DIR/../lib/engine/fairy-stockfish-14/nnue"
-SPECS=("sf-native|$SF_BIN|" "fairy-native|$FAIRY_BIN|$NNUE_SRC")
+SPECS=("sf-native|$SF_BIN||" "fairy-native|$FAIRY_BIN|$NNUE_SRC|" "rodent-native|$RODENT_BIN||$RODENT_DIR")
 [ -n "$PYBIN" ] || SPECS=()   # no python-chess -> no UCI hosts, but Tetrarch below still installs
 
 installed=0
 for spec in "${SPECS[@]}"; do
-  slug="${spec%%|*}"; rest="${spec#*|}"; bin="${rest%%|*}"; nnue="${rest#*|}"
+  IFS='|' read -r slug bin nnue home <<< "$spec"
   if [ -z "$bin" ] || [ ! -x "$bin" ]; then
     echo "-- skipping $slug (no binary; pass --${slug%-native} /path or install it)"; continue
   fi
-  runbin="$RUNTIME_DIR/engines/$slug.bin"; rm -f "$runbin"; cp "$bin" "$runbin"; chmod +x "$runbin"
+  if [ -n "$home" ] && [ -d "$home" ]; then
+    rundir="$RUNTIME_DIR/engines/$slug"; rm -rf "$rundir"; mkdir -p "$rundir"; cp -R "$home"/. "$rundir"/
+    runbin="$rundir/$(basename "$bin")"; chmod +x "$runbin"
+  else
+    runbin="$RUNTIME_DIR/engines/$slug.bin"; rm -f "$runbin"; cp "$bin" "$runbin"; chmod +x "$runbin"
+  fi
   host="$RUNTIME_DIR/$slug-host.py"; rm -f "$host"; cp "$SRC_DIR/uci-native-host.py" "$host"; pin_shebang "$host"; chmod +x "$host"
   echo "$runbin" > "$RUNTIME_DIR/$slug.path"
   if [ -n "$nnue" ] && [ -d "$nnue" ]; then

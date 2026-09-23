@@ -2111,6 +2111,99 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 }
 // ==== END AGENT ANALYSIS CHECKS ====
 
+// ==== AGENT ENGINE CHECKS (Rodent IV) ====
+{
+    console.log('\nrodent iv:');
+    const rd = (p) => fs.readFileSync(ROOT + p, 'utf8');
+    const pj = rd('/src/popup/popup.js'), ph = rd('/src/popup/popup.html');
+    const gh = rd('/src/options/pages/settings/general/general.html');
+    const gj = rd('/src/options/pages/settings/general/general.js');
+    const bg = rd('/src/scripts/background-script.js'), ej = rd('/src/options/util/engines.js');
+    // The installer is install.sh in the local build and install-native.sh in the public repo (the one
+    // deliberate difference between the two READMEs) -- read whichever this checkout has.
+    const inst = rd(fs.existsSync(ROOT + '/native-host/install.sh') ? '/native-host/install.sh' : '/native-host/install-native.sh');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const lineOf = (src, re) => (src.match(re) || [''])[0];
+
+    // every list a native engine has to be in, or it is offered and cannot start (or the reverse)
+    ok('the panel offers it', /<option value="rodent-native">/.test(ph));
+    ok('the settings page offers it', /<option value="rodent-native">/.test(gh));
+    ok('the review/analysis list has it as a native', /\{id: 'rodent-native', [^}]*kind: 'native'\}/.test(ej));
+    ok('the panel routes it over native messaging',
+       /'rodent-native'/.test(lineOf(pj, /const NATIVE_ENGINES = \[[^\]]*\]/)));
+    // host names allow no hyphens: the worker's app id and the installer's derived one must meet
+    ok('the worker knows its host', /'rodent-native': \{app: 'com\.rodent_native\.host'/.test(bg));
+    ok('the installer registers it, personalities/ copied beside the binary',
+       // either installer's spelling: the 4th spec field (home dir) is the rodent-iv folder
+       /"rodent-native\|[^\n]*\|\|[^\n]*(engines\/rodent-iv|\$RODENT_DIR)"/.test(inst)
+           && /engines\/rodent-iv/.test(inst));
+
+    // the two copies of "which engines have a Personality" agree
+    const list = (src, re) => { const m = src.match(re); return m ? JSON.parse(m[1].replace(/'/g, '"')) : null; };
+    const pr = list(pj, /const RODENT_ENGINES = (\[[^\]]*\])/), gr = list(gj, /const RODENT = (\[[^\]]*\])/);
+    ok('panel and settings agree on which engines take a Personality',
+       JSON.stringify(pr) === JSON.stringify(gr) && pr && pr.includes('rodent-native'), [pr, gr]);
+    ok('the row starts hidden and is toggled on that list',
+       /class="set-row section hidden" id="rodent_personality_section"/.test(gh)
+       && /getElementById\('rodent_personality_section'\)\s*\?\.classList\.toggle\('hidden', !RODENT\.includes\(engine_select\.getValue\(\)\)\)/.test(gj));
+    ok('the setting defaults to the engine\'s own default',
+       /registerFormElement\('rodent_personality', [^)]*'select', '---'\)/.test(gj)
+       && /rodent_personality: JSON\.parse\(MephistoConfig\.get\('rodent_personality'\)\) \|\| '---'/.test(pj));
+    ok('a change on the settings page reaches an open panel',
+       /'rodent_personality',/.test(pj) && /key === 'rodent_personality' && RODENT_ENGINES\.includes/.test(pj));
+
+    // THE REAL configure object, executed: the Personality always travels for Rodent (the host keeps
+    // the last value it was given), never for anything else, and the Elo cap stays in each engine's
+    // own range with its removal SENT -- Rodent boots with UCI_LimitStrength on.
+    const cut = (from, to) => { const a = pj.indexOf(from); const b = pj.indexOf(to, a); return a < 0 || b < 0 ? '' : pj.slice(a, b + to.length); };
+    const eloSpread = cut('...(NO_ELO_ENGINES.includes(config.engine) ? {}', '{"UCI_LimitStrength": false}),');
+    const persSpread = cut('...(RODENT_ENGINES.includes(config.engine) ? {"Personality"', ': {}),');
+    const defs = [cut('const ONE_PASS_ENGINES', ';'), cut('const NO_ELO_ENGINES', ';'),
+                  cut('const RODENT_ENGINES', ';'), cut('const ELO_RANGE = {', '\n};')].join('\n');
+    ok('the configure spreads and their tables slice out', eloSpread && persSpread && defs.split('\n').length > 4);
+    const cc = vm.createContext({});
+    vm.runInContext(defs + '\nvar build = (config) => ({' + eloSpread + '\n' + persSpread + '\n});', cc);
+    const opts = (c) => JSON.parse(JSON.stringify(cc.build(c)));
+    const eq = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringify(want), got);
+    eq('rodent, default: the engine default personality and no cap',
+       opts({engine: 'rodent-native', elo: 0, rodent_personality: '---'}),
+       {UCI_LimitStrength: false, Personality: '---'});
+    eq('rodent, Tal at 1500',
+       opts({engine: 'rodent-native', elo: 1500, rodent_personality: 'Tal'}),
+       {UCI_LimitStrength: true, UCI_Elo: 1500, Personality: 'Tal'});
+    eq('rodent, 3000 is past its 2800 ceiling: uncapped, not a refused UCI_Elo',
+       opts({engine: 'rodent-native', elo: 3000, rodent_personality: '---'}),
+       {UCI_LimitStrength: false, Personality: '---'});
+    eq('a Stockfish native never gets a Personality',
+       opts({engine: 'sf18-native', elo: 0, rodent_personality: 'Tal'}), {UCI_LimitStrength: false});
+    eq('an engine with no Elo option gets neither key', opts({engine: 'tetrarch-native', elo: 1500}), {});
+
+    // the dropdown's values are what the ENGINE lists: basic.ini's first set, keeping only aliases
+    // whose file exists (uci_options.cpp does exactly that). Only checkable where the build is staged.
+    const pdir = ROOT + '/native-host/engines/rodent-iv/personalities';
+    const opts2 = [...gh.slice(gh.indexOf('id="rodent_personality_select"'), gh.indexOf('</select>', gh.indexOf('id="rodent_personality_select"')))
+        .matchAll(/<option[^>]*value="([^"]+)"/g)].map(m => m[1]);
+    if (fs.existsSync(pdir + '/basic.ini')) {
+        const ini = fs.readFileSync(pdir + '/basic.ini', 'utf8').split(/\r?\n/);
+        const first = ini.findIndex(l => l.startsWith('PERSONALITY_SET='));
+        const next = ini.findIndex((l, i) => i > first && l.startsWith('PERSONALITY_SET='));
+        const engine = ini.slice(first + 1, next < 0 ? undefined : next)
+            .filter(l => /^[^#;'/\s][^=]*=/.test(l))
+            .filter(l => fs.existsSync(pdir + '/' + l.split('=')[1].trim()))
+            .map(l => l.split('=')[0]);
+        eq('the dropdown lists exactly the engine\'s personalities', opts2, ['---', ...engine]);
+    } else {
+        console.log('skip the dropdown vs basic.ini check (Rodent not built here: native-host/build-rodent.sh)');
+    }
+
+    for (const f of fs.readdirSync(ROOT + '/src/i18n/locales').filter(f => f.endsWith('.json'))) {
+        const j = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8'));
+        ok(`${f}: the Personality row is translated`,
+           ['set.rodent_personality', 'set.rodent_personality_default', 'set.tip.rodent_personality'].every(k => j[k]));
+    }
+}
+// ==== END AGENT ENGINE CHECKS ====
+
 // ==== AGENT INFRA CHECKS (engines asset release, changelog) ====
 // The slim full zip drops every net listed in src/offscreen/engine-assets.json, and a fresh install
 // fetches them from the assets release by that manifest's sha256. A manifest that has drifted from

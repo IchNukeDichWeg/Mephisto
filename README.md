@@ -49,8 +49,8 @@ Chess.com and Lichess redesigns. Everything the original did still works. New he
 
 - **Game Review** - a full offline review (accuracy, move quality, eval graph, fair-play indicators), **and
   chess.com's own Game Review** on the same board, run from your own account.
-- **Engines** - Stockfish dev / 18, the human-trained **Maia-1 / Maia-2 / Maia-3** and **Elite Leela**, an Elo cap
-  and ten **playstyles**.
+- **Engines** - Stockfish 19 / 18, the human-trained **Maia-1 / Maia-2 / Maia-3** and **Elite Leela**, **Rodent IV**
+  and its personalities, an Elo cap and ten **playstyles**.
 - **Playing like a person** - Humanize, Clock Mode, Mirror Time.
 - **Automation** - Safe Premove, Pondering, Help Mode, Manual Mode, rebindable hotkeys, hotkey macros (one key runs several actions) and a `?` shortcut cheat sheet.
 - **Beyond the engine** - Opening Explorer, endgame tablebase, puzzle database.
@@ -118,6 +118,7 @@ entries are the exception, and they are opt-in.
 | **Elite Leela** | A Leela net trained on the **Lichess Elite Database** (human games at 2200+). One forward pass: policy for the move, its own WDL head for the score. |
 | **Tetrarch (4-player)** | Four-player chess only - see [four-player chess](#four-player-chess). One-time install. |
 | **Remote / native** | A real engine binary outside the browser - see [full-power engines](#full-power-native-engines-optional). |
+| **Rodent IV (native)** | A character engine: pick one of 36 personalities (Tal, Petrosian, Pawnsacker...) in Settings, each with its own piece values and style. Build once with `native-host/build-rodent.sh`, then run the installer. |
 | **Stockfish 18 / 17.1 (online)** | Server-side Stockfish over HTTPS for a machine that cannot run one locally. **The position leaves your machine on every move**, one line only, so a local engine is both faster and private. Repeats inside 15s are answered from memory; stockfish.online takes only a depth, so selecting it switches the budget to Depth and back. |
 
 <img src="docs/maia3.png" alt="Maia-3 with the 600-2600 rating slider" width="49%"> <img src="docs/variants.png" alt="Atomic on Lichess, analysed by Fairy-Stockfish" width="49%">

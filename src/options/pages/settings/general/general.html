@@ -34,6 +34,7 @@
                             <option value="stockfish-11-hce">Stockfish 11 HCE WASM</option>
                             <option value="fairy-stockfish-14-nnue">Fairy Stockfish 14 WASM</option>
                             <option value="fairy-native">Fairy-Stockfish (local, full power - setup required)</option>
+                            <option value="rodent-native">Rodent IV (local, personalities - setup required)</option>
                             <option value="maia">Maia-1 (rating band)</option>
                             <option value="maia2">Maia-2 (you vs opponent)</option>
                             <option value="maia3">Maia-3 (600-2600)</option>
@@ -45,6 +46,62 @@
                         </select>
                     </label>
                 </div>
+                <!-- Rodent IV only. The values are the engine's own `Personality` combo entries, copied
+                     from its `uci` output (Bosboom's alias really is "Bosboom.txt" upstream); a value the
+                     engine does not list would be refused by the host. '---' is the engine's default. -->
+                <div class="set-row section hidden" id="rodent_personality_section">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.rodent_personality" class="tooltipped" data-position="right"
+                              data-tooltip="Rodent IV's playing style, sent as its UCI option `Personality`. Each
+                                            one loads a personality file the engine ships: piece values, attack and
+                                            pawn-structure weights, and for some a deliberately weaker search. Engine
+                                            default loads none. Only Rodent IV reads this; it applies from the next search.">
+                            <span data-i18n="set.rodent_personality">Personality</span> <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <select name="rodent_personality" id="rodent_personality_select">
+                            <option data-i18n="set.rodent_personality_default" value="---">Engine default</option>
+                            <option value="Alekhine">Alekhine</option>
+                            <option value="Amanda">Amanda</option>
+                            <option value="Ampere">Ampere</option>
+                            <option value="Anand">Anand</option>
+                            <option value="Anderssen">Anderssen</option>
+                            <option value="Bosboom.txt">Bosboom</option>
+                            <option value="Botvinnik">Botvinnik</option>
+                            <option value="Cloe">Cloe</option>
+                            <option value="Deborah">Deborah</option>
+                            <option value="Defender">Defender</option>
+                            <option value="Dynamic">Dynamic</option>
+                            <option value="Fischer">Fischer</option>
+                            <option value="Grumpy">Grumpy</option>
+                            <option value="Karpov">Karpov</option>
+                            <option value="Kasparov">Kasparov</option>
+                            <option value="Kortchnoi">Kortchnoi</option>
+                            <option value="Larsen">Larsen</option>
+                            <option value="Lasker">Lasker</option>
+                            <option value="Marshall">Marshall</option>
+                            <option value="Morphy">Morphy</option>
+                            <option value="Nimzowitsch">Nimzowitsch</option>
+                            <option value="Partisan">Partisan</option>
+                            <option value="Pawnsacker">Pawnsacker</option>
+                            <option value="Pedrita">Pedrita</option>
+                            <option value="Petrosian">Petrosian</option>
+                            <option value="Preston">Preston</option>
+                            <option value="Reti">Reti</option>
+                            <option value="Rubinstein">Rubinstein</option>
+                            <option value="Simple">Simple</option>
+                            <option value="Spassky">Spassky</option>
+                            <option value="Spitfire">Spitfire</option>
+                            <option value="Strangler">Strangler</option>
+                            <option value="Steinitz">Steinitz</option>
+                            <option value="Tarrasch">Tarrasch</option>
+                            <option value="Tal">Tal</option>
+                            <option value="Topalov">Topalov</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="set-row section" id="elo_section">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.cap_the_engine_s_playing" class="tooltipped" data-position="right"

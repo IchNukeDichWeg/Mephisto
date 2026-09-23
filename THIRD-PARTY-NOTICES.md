@@ -30,6 +30,22 @@ For each entry: **Component — License — Copyright/authors — Source (corres
   Copyright (c) Fabian Fichter and the Fairy-Stockfish contributors —
   <https://github.com/fairy-stockfish/Fairy-Stockfish>. Corresponding source at that URL.
 
+- **Fairy-Stockfish, large-board build** — `lib/engine/fairy-stockfish-14-large` (shogi, xiangqi and
+  the other 9x9/9x10 variants; used by the Analysis page only) — **GPL-3.0-or-later** — same authors
+  and source as above. Built with `@lichess-org/stockfish-web` (<https://github.com/lichess-org/stockfish-web>,
+  GPL-3.0) at its commit `6e32b3d`, emscripten 5.0.7: its `fsf_14` target (Fairy-Stockfish commit
+  `a621470b` plus that repository's `patches/fsf_14.patch`) with the extra compiler flags
+  `-DLARGEBOARDS -DPRECOMPUTED_MAGICS` (what Fairy-Stockfish's own Makefile adds for
+  `largeboards=yes`) and `-DSTOCKFISH_WEB_FSF_14` (so the build's glue keeps the fsf_14 NNUE loader).
+
+- **Rodent IV** — the optional native engine built into `native-host/engines/rodent-iv/` (binary
+  plus its `personalities/` files) — **GPL-3.0-or-later** — Copyright (c) Pawel Koziol and
+  Bernhard C. Maerz, derived from Sungorus 1.4 by Pablo Vazquez —
+  <https://github.com/nescitus/rodent-iv>. Built from upstream commit `e8d84c8` by
+  `native-host/build-rodent.sh`, which carries the two local modifications as a patch (a thread
+  start that read a dead stack frame, and the missing macOS home-directory lookup). Corresponding
+  source: that commit plus the patch in the script. The upstream `LICENSE` is copied beside the binary.
+
 ## Neural networks — engine evaluation (GPL-3.0)
 
 - **Stockfish NNUE networks** — the `.nnue` files under `lib/engine/stockfish-*/` — **GPL-3.0** as

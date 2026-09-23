@@ -59,6 +59,7 @@ class GeneralSettings extends SettingsPage {
         const variant_select = this.registerFormElement('variant', 'Variant:', 'select', 'chess');
         this.registerFormElement('fourpc_mode', 'Four-player Mode:', 'select', 'auto');
         const elo_input = this.registerFormElement('elo', 'Elo:', 'input', 0);
+        this.registerFormElement('rodent_personality', 'Rodent Personality:', 'select', '---');
         this.registerFormElement('move_notation', 'Move Notation:', 'select', 'san');
         this.registerFormElement('arrow_labels', 'Label Arrows:', 'checkbox', false);
         const arrow_opacity_range = this.registerFormElement('arrow_opacity', 'Arrow Opacity:', 'range', 75);
@@ -396,6 +397,11 @@ class GeneralSettings extends SettingsPage {
             const ONE_PASS = ['maia', 'maia2', 'maia3', 'elite-leela'];
             const NO_ELO = [...ONE_PASS, 'tetrarch-native'];
             eloSection?.classList.toggle('hidden', NO_ELO.includes(engine_select.getValue()));
+            // Rodent IV's Personality, beside its Elo cap rather than in place of it: a personality
+            // is a style, not a strength. Keep in step with RODENT_ENGINES in popup.js (the ladder pins it).
+            const RODENT = ['rodent-native'];
+            document.getElementById('rodent_personality_section')
+                ?.classList.toggle('hidden', !RODENT.includes(engine_select.getValue()));
             // The four-player mode override replaces Variant for Tetrarch: a different question
             // (which RULES this board plays by) for the one engine it applies to.
             document.getElementById('fourpc_mode_section')

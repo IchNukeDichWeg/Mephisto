@@ -213,7 +213,11 @@ function update_engine_id() {
     el.title = el.textContent;
 }
 
-const NATIVE_ENGINES = ['sf-native', 'fairy-native', 'tetrarch-native'];
+const NATIVE_ENGINES = ['sf-native', 'fairy-native', 'rodent-native', 'tetrarch-native'];
+// Rodent IV plays in a STYLE: its `Personality` combo loads one of the personality files the build
+// ships (eval weights, piece values, sometimes a weaker search). '---' is the engine's own default,
+// i.e. no personality file. Keep in step with RODENT in general.js; the ladder pins that they agree.
+const RODENT_ENGINES = ['rodent-native'];
 // Cloud evaluation: a real Stockfish, on someone else's machine, reached over HTTPS. THE POSITION
 // LEAVES THIS MACHINE -- that is the cost, and it is why these are named "cloud" everywhere they
 // appear. A native host is both faster and private, so this is the fallback for a machine that
@@ -253,6 +257,9 @@ const ELO_RANGE = {
     'sf18-native': [1320, 3190],
     'sf11-native': [1350, 2850],
     'fairy-native': [500, 2850],
+    // Rodent IV declares 800-2800 and treats 2800 as unweakened (params.cpp SetSpeed); it also
+    // starts with UCI_LimitStrength ON, so turning the cap off has to be SENT, not just omitted.
+    'rodent-native': [800, 2800],
     'remote': [1320, 3190], // unknown engine; assume the modern SF range
 };
 // Sits above every engine's ceiling (max is 3190), so it reads as "no cap / full strength".
@@ -377,6 +384,7 @@ async function initPanel(root, tabId) {
         // Wins only, ON by default WHEN THE FEATURE IS ON: a book built from every game somebody
         // played contains every opening they lost with, which is the opposite of prep.
         player_book_wins: (JSON.parse(MephistoConfig.get('player_book_wins')) !== false),
+        rodent_personality: JSON.parse(MephistoConfig.get('rodent_personality')) || '---', // '---' = Rodent's own default
         maia_level: JSON.parse(MephistoConfig.get('maia_level')) || '1500', // which Maia net (rating band) when engine=maia
         maia3_elo: JSON.parse(MephistoConfig.get('maia3_elo')) || 1500, // Maia-3 target Elo (600-2600, live input, not a reload)
         // Maia-2 asks who is playing WHOM: the same position is answered differently by a 1200
@@ -1685,7 +1693,8 @@ async function initialize_engine(reuseWarm = false) {
     // would clear a multi-GB hash (the stall you saw on a native engine with a big Hash). Keeping the
     // hash across a reopen is a bonus: the next search starts warm.
     const fp = [config.engine, config.variant, config.memory, config.threads,
-                effective_multipv(), config.elo, !!config.premove, config.maia_level].join('|');
+                effective_multipv(), config.elo, !!config.premove, config.maia_level,
+                config.rodent_personality].join('|');
     if (reuseWarm && engine_ready && fp === last_init_fp) {
         if (WASM_ENGINES.includes(config.engine)) engine = offscreen_engine;
         console.log('Engine warm - reused as-is (no reconfigure)');
@@ -1725,6 +1734,8 @@ async function initialize_engine(reuseWarm = false) {
             ...(NO_ELO_ENGINES.includes(config.engine) ? {}
                 : config.elo > 0 && config.elo <= (ELO_RANGE[config.engine] || [1320, 3190])[1]
                     ? {"UCI_LimitStrength": true, "UCI_Elo": config.elo} : {"UCI_LimitStrength": false}),
+            // Always sent for Rodent, '---' included: the host keeps the last configure it was given.
+            ...(RODENT_ENGINES.includes(config.engine) ? {"Personality": config.rodent_personality} : {}),
         }).catch(on_remote_error);
         remote_multipv_set = effective_multipv(); // baseline just configured; don't re-push it
     } else {
@@ -8956,7 +8967,7 @@ const LIVE_CONFIG_KEYS = [
     // change on the settings page has to reach an open panel rather than waiting for a reopen
     'pv_keys', 'refute', 'refute_plies', 'second_opinion', 'opp_prep', 'game_log',
     'mirror_ratio', 'time_trouble', 'time_trouble_at',
-    'maia2_self_elo', 'maia2_oppo_elo',
+    'maia2_self_elo', 'maia2_oppo_elo', 'rodent_personality',
     'analysis_limit', 'analysis_limit_mode',
     'arrow_opacity', 'arrow_rank', 'arrow_labels', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
     'premove_confidence', 'premove_plies', 'move_time', 'move_variance', 'move_reason',
@@ -9089,6 +9100,14 @@ function watch_config_changes() {
                     player_book = null; player_book_for = ''; player_book_games = 0;
                     maybe_player_book();
                     update_best_move(null);
+                }
+                // Rodent's personality: same path -- the answer under the old style is dropped.
+                if (key === 'rodent_personality' && RODENT_ENGINES.includes(config.engine)) {
+                    config.rodent_personality = value || '---';
+                    request_remote_configure({'Personality': config.rodent_personality}).catch(() => {});
+                    abandon_search();
+                    last_eval.fen = '';
+                    resync_after_config_change = true;
                 }
                 // a reply computed at the old rating must not sit under a label showing the new one:
                 // drop it and ask again (ensure_threat_human retunes the net in place via setoption)

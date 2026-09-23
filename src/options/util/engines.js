@@ -33,6 +33,9 @@ const ENGINES = [
     // per-variant net and validates the variant against the engine's own declared list.
     {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish 14 (WASM)', kind: 'wasm'},
     {id: 'fairy-native', label: 'Fairy-Stockfish (native)', kind: 'native'},
+    // No WASM twin, so it sits after the twin pairs. A review runs it at whichever personality the
+    // host was last given (the panel's setting when both are open, the engine's default otherwise).
+    {id: 'rodent-native', label: 'Rodent IV (native)', kind: 'native'},
 ];
 
 // The human model. Its own list because it answers its own question, and because the bands are the

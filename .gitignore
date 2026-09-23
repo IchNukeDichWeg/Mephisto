@@ -3,3 +3,6 @@
 
 __pycache__/
 *.pyc
+
+# engines built on the user's machine by the native-host installers (e.g. build-rodent.sh)
+native-host/engines/
