@@ -1,0 +1,75 @@
+# README screenshots from the real extension, on demand only. The pictures come back as a workflow
+# ARTIFACT to look at and copy into docs/ by hand: nothing here commits, so a bad shot can never land
+# in the README on its own. Takes ~10 min (checkout of the ~1 GB tree, the suite, the harness, then
+# ~3-6 min of shots).
+name: screenshots
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # puppeteer's install step downloads its matching Chrome for Testing (branded Chrome ignores
+      # --load-extension, CfT honours it). Installed OUTSIDE the checkout: the checkout IS the
+      # unpacked extension, and a node_modules inside it would be loaded along with it. The scripts
+      # find it through NODE_PATH, the same convention release-zips.sh documents for the harness.
+      - name: Install puppeteer + Chrome for Testing
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pp" --no-audit --no-fund puppeteer@24
+          echo "NODE_PATH=$RUNNER_TEMP/pp/node_modules" >> "$GITHUB_ENV"
+
+      # Ubuntu 24.04 blocks the unprivileged user namespaces Chrome's sandbox needs. Lifting that on a
+      # throwaway runner keeps the sandbox ON, instead of teaching every script --no-sandbox.
+      - name: Allow the Chrome sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      # the suite prints FAIL lines but exits 0, so the verdict is read from its output
+      - name: Suite
+        shell: bash
+        run: |
+          set -o pipefail
+          node test_popup_logic.js | tee suite.log
+          echo "$(grep -c '^ok' suite.log) ok, $(grep -c '^FAIL' suite.log || true) FAIL"
+          ! grep -q '^FAIL' suite.log
+
+      - name: Fixture harness
+        run: node test/run-harness.js
+
+      # --headless: the mode the script was actually proven in (8 shots in 82 s on a local run, 2026-09-23);
+      # no virtual display needed. The Opening Explorer answers 401 without a Lichess token, and the
+      # script FAILS that shot rather than ship a picture of the error -- so with no LICHESS_TOKEN secret
+      # the shot is left out instead of turning every run red. The token goes through a file, never argv.
+      - name: Screenshots
+        env:
+          LICHESS_TOKEN: ${{ secrets.LICHESS_TOKEN }}
+        run: |
+          if [ -n "$LICHESS_TOKEN" ]; then
+            printf '%s' "$LICHESS_TOKEN" > "$RUNNER_TEMP/lichess.token"
+            node test/screenshots.mjs --out shots --headless --lichess-token-file "$RUNNER_TEMP/lichess.token"
+          else
+            node test/screenshots.mjs --out shots --headless \
+              --only analysis-lines,multiple-lines,maia3,variants,game-review,humanize,hotkeys
+          fi
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: readme-screenshots
+          path: |
+            shots/
+            suite.log
+          if-no-files-found: warn
+          retention-days: 14
