@@ -2111,3 +2111,137 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 }
 // ==== END AGENT ANALYSIS CHECKS ====
 
+// ==== AGENT INFRA CHECKS (engines asset release, changelog) ====
+// The slim full zip drops every net listed in src/offscreen/engine-assets.json, and a fresh install
+// fetches them from the assets release by that manifest's sha256. A manifest that has drifted from
+// lib/engine is a slim install whose engines refuse their own download, so the manifest is checked
+// byte for byte here, and the REAL fetchModel runs against a mocked network and Cache API.
+(async () => {
+    const crypto = require('crypto'), path = require('path');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+    console.log('\nengine assets manifest:');
+    const man = JSON.parse(fs.readFileSync(ROOT + '/src/offscreen/engine-assets.json', 'utf8')).files || {};
+    const disk = {};   // name -> {dir, whole?, parts[]}, the same grouping the manifest builder uses
+    const walk = (d) => {
+        for (const e of fs.readdirSync(d, {withFileTypes: true})) {
+            if (e.isDirectory()) { walk(path.join(d, e.name)); continue; }
+            const m = /^(.+\.(?:nnue|onnx))(?:\.part(\d+))?$/.exec(e.name);
+            if (!m) continue;
+            const f = disk[m[1]] ??= {dir: path.relative(ROOT, d).split(path.sep).join('/'), parts: []};
+            if (m[2] === undefined) f.whole = path.join(d, e.name); else f.parts[+m[2]] = path.join(d, e.name);
+        }
+    };
+    walk(ROOT + '/lib/engine');
+    const notListed = Object.keys(disk).filter(n => !man[n]);
+    ok('every net and model on disk is in the manifest (the slim zip drops exactly these)', notListed.length === 0, notListed);
+    const gone = Object.keys(man).filter(n => !disk[n] || disk[n].dir !== man[n].dir);
+    ok('...and every manifest entry is on disk, in the directory it names', gone.length === 0, gone);
+    const drift = Object.keys(man).filter(n => disk[n]).filter(n => {
+        const bytes = disk[n].whole ? fs.readFileSync(disk[n].whole) : Buffer.concat(disk[n].parts.map(p => fs.readFileSync(p)));
+        return bytes.length !== man[n].size || sha(bytes) !== man[n].sha256;
+    });
+    ok('...byte for byte: size and sha256 match what is bundled', drift.length === 0, drift);
+    ok('...each with a release tag the loader accepts', Object.values(man).every(e => /^[a-z]+-v\d+$/.test(e.tag)));
+    const off = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8');
+    const vStart = off.indexOf('const variantNnueMap = {');
+    const variantNets = [...off.slice(vStart, off.indexOf('};', vStart)).matchAll(/:\s*'([^']+\.nnue)'/g)].map(m => m[1]);
+    ok('every Fairy net the loader can ask for is in the manifest', variantNets.length > 5 && variantNets.every(n => man[n]),
+        variantNets.filter(n => !man[n]));
+    const fnStart = off.indexOf('async function fetchNnue(');
+    ok('the Stockfish/Fairy net loader goes through the shared model fetcher',
+        fnStart > 0 && off.slice(fnStart, off.indexOf('\n}\n', fnStart)).includes("import('/src/offscreen/model-fetch.js')"));
+
+    console.log('\nfetchModel (bundled -> cache -> release, sha256-checked):');
+    const good = Buffer.from('the right net bytes. '.repeat(50));
+    const tampered = Buffer.concat([Buffer.from('X'), good.subarray(1)]);   // same size, wrong bytes
+    const entry = (tag) => ({dir: 'lib/engine/t', size: good.length, sha256: sha(good), tag});
+    const files = {'a.nnue': entry('engines-v1'), 'bad.nnue': entry('engines-v1'), 'big.nnue': entry('engines-v1'),
+                   'stale.nnue': entry('engines-v1'), 'local.nnue': entry('engines-v1'), 'm.onnx': entry('models-v1')};
+    const served = {'a.nnue': good, 'bad.nnue': tampered, 'big.nnue': Buffer.concat([good, Buffer.from('more')]),
+                    'stale.nnue': good, 'm.onnx': good};
+    const requested = [], store = new Map();
+    const fetchMock = async (url) => {
+        requested.push(url);
+        if (url === '/src/offscreen/engine-assets.json') return new Response(JSON.stringify({files}));
+        if (url === '/lib/engine/t/local.nnue') return new Response(good);
+        if (url.startsWith('/')) throw new TypeError('Failed to fetch');   // not in this archive
+        const body = served[url.split('/').pop()];
+        return body ? new Response(body) : new Response('', {status: 404});
+    };
+    const cachesMock = {open: async () => ({
+        match: async (u) => store.has(u) ? new Response(store.get(u)) : undefined,
+        put: async (u, r) => { store.set(u, Buffer.from(await r.arrayBuffer())); },
+        delete: async (u) => store.delete(u),
+    })};
+    const mctx = vm.createContext({fetch: fetchMock, caches: cachesMock, crypto: globalThis.crypto, Response, console});
+    vm.runInContext(fs.readFileSync(ROOT + '/src/offscreen/model-fetch.js', 'utf8').replace(/^export /gm, ''), mctx);
+    const fetchModel = vm.runInContext('fetchModel', mctx), releaseUrl = vm.runInContext('releaseUrl', mctx);
+    const same = (buf) => Buffer.from(buf).equals(good);
+    const fails_with = async (p, re) => { try { await p; return 'resolved'; } catch (e) { return re.test(String(e)) || String(e); } };
+    const REL = 'https://github.com/IchNukeDichWeg/Mephisto/releases/download/';
+
+    ok('a bundled net is used as-is, with no network', same(await fetchModel('/lib/engine/t', 'local.nnue'))
+        && !requested.some(u => u.startsWith('https:')), requested);
+    const notes = [];
+    ok('a missing net comes from the release its manifest entry names', same(await fetchModel('/lib/engine/t', 'a.nnue', n => notes.push(n)))
+        && requested.includes(REL + 'engines-v1/a.nnue'), requested.filter(u => u.startsWith('https:')));
+    ok('...with progress the panel can draw, ending at 100%', notes.includes('downloading a.nnue')
+        && notes.includes(`mephisto-download a.nnue ${good.length} ${good.length}`), notes);
+    ok('...and it is cached under that URL', store.has(REL + 'engines-v1/a.nnue'));
+    const before = requested.length;
+    ok('the second load comes from the cache, not the network', same(await fetchModel('/lib/engine/t', 'a.nnue'))
+        && !requested.slice(before).some(u => u.startsWith('https:')), requested.slice(before));
+    ok('a download with the wrong bytes is refused by sha256', await fails_with(fetchModel('/lib/engine/t', 'bad.nnue'), /SHA-256/));
+    ok('...and not cached', !store.has(REL + 'engines-v1/bad.nnue'));
+    ok('a download longer than the manifest size is cut off', await fails_with(fetchModel('/lib/engine/t', 'big.nnue'), /larger than/));
+    store.set(REL + 'engines-v1/stale.nnue', tampered);
+    ok('a corrupt cache entry is dropped and downloaded again', same(await fetchModel('/lib/engine/t', 'stale.nnue'))
+        && Buffer.from(store.get(REL + 'engines-v1/stale.nnue')).equals(good));
+    await fetchModel('/lib/engine/t', 'm.onnx');
+    ok('a model keeps its own release tag (models-v1)', requested.includes(REL + 'models-v1/m.onnx'));
+    ok('a file in no manifest is an error, not a guess', await fails_with(fetchModel('/lib/engine/t', 'nope.nnue'), /not in its engine manifest/));
+    ok('releaseUrl takes a bare name and a <word>-vN tag only',
+        releaseUrl('engines-v1', '../x.nnue') === null && releaseUrl('../v1', 'a.nnue') === null
+        && releaseUrl('engines-v2', 'a.nnue') === REL + 'engines-v2/a.nnue');
+
+    // the panel half: the move-line text for a download in progress
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const dStart = pj.indexOf('function download_progress_text(');
+    const dctx = vm.createContext({});
+    vm.runInContext(pj.slice(dStart, pj.indexOf('\n}\n', dStart) + 2), dctx);
+    const dl = (m) => vm.runInContext('download_progress_text', dctx)(m);
+    ok('the panel turns a download note into a percentage of the size',
+        dl('info string mephisto-download nn-1a298aa575a0.nnue 49255592 98511183')
+            === 'Downloading nn-1a298aa575a0.nnue: 50% of 98.5 MB (first use only)',
+        dl('info string mephisto-download nn-1a298aa575a0.nnue 49255592 98511183'));
+    ok('...and leaves every other engine line alone', dl('info string NNUE evaluation using nn-1a298aa575a0.nnue') === null
+        && dl('info depth 12 score cp 30') === null && dl({bestmove: 'e2e4'}) === null);
+
+    console.log('\nchangelog (tools/changelog.mjs):');
+    const cl = fs.readFileSync(ROOT + '/tools/changelog.mjs', 'utf8');
+    const cctx = vm.createContext({});
+    vm.runInContext(cl.slice(cl.indexOf('// ==== pure'), cl.indexOf('// ==== end pure ====')), cctx);
+    const render = vm.runInContext('renderChangelog', cctx);
+    const releases = [
+        {tag_name: 'v3.1.2', name: 'v3.1.2 - two', body: '**two**\r\nChecks | 1\r\nHarness | 2', published_at: '2026-09-02T00:00:00Z'},
+        {tag_name: 'models-v1', name: 'models', body: 'weights', published_at: '2026-09-01T00:00:00Z'},
+        {tag_name: 'v3.1.10', name: 'v3.1.10 - ten', body: '# Big heading\nx', published_at: '2026-09-10T00:00:00Z'},
+        {tag_name: 'v3.1.3', name: 'draft', draft: true, body: 'unreleased'},
+    ];
+    const archive = '# Archived release notes\n\nintro\n\n---\n\n## Mephisto 3.1.1 — old one\n\n*Tagged v3.1.1.*\n\n'
+        + '## What\'s new since 3.1.0\n- a\n\n---\n\n## Second pass: releases nobody downloaded\n\nRemoved v3.1.0\n\n---\n\n'
+        + '## v3.1.2 - archived copy\n\nstale text\n';
+    const md = render(releases, archive);
+    const heads = md.split('\n').filter(l => l.startsWith('## '));
+    ok('newest first by version (10 before 2), live and archived merged',
+        JSON.stringify(heads) === JSON.stringify(['## v3.1.10 - ten', '## v3.1.2 - two', '## Mephisto 3.1.1 — old one']), heads);
+    ok('...a version on both sides is the live release, not the archive', !md.includes('stale text'));
+    ok('...assets tags and drafts are not versions', !md.includes('weights') && !md.includes('unreleased'));
+    ok('...an archived note\'s own "## What\'s new since 3.1.0" is demoted, not a second entry',
+        md.includes("### What's new since 3.1.0"));
+    ok('...release stats lines keep their line breaks', md.includes('Checks | 1  \nHarness | 2'));
+    ok('with no archive (the local tree) it is the live releases alone',
+        render(releases, '').split('\n').filter(l => l.startsWith('## ')).length === 2);
+})().catch(e => { fails++; console.log('FAIL infra checks threw: ' + (e && e.stack || e)); });
+// ==== END AGENT INFRA CHECKS ====
