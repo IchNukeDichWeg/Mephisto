@@ -180,6 +180,11 @@ in time or depth (or `go infinite`), W/D/L and an eval bar, and a loaded Polyglo
 and d4 climb. **Compare nets** runs the same position through Maia-1, Maia-2, Maia-3 and Elite Leela and tabulates
 what each one would play. Export writes one self-contained file - board, FEN, line, chart and the numbers behind it.
 
+**Engine match** plays two engines against each other from the start or the position on the board, colours
+alternating, over as many games as you set - one thread each - with every result, its reason and the PGN. **Shogi and
+Xiangqi** get their own boards (9x9 with pieces in hand, 9x10 with the river and palaces) on a large-board
+Fairy-Stockfish build, where the engine itself decides every rule: legal moves, drops, promotion, the result.
+
 ### Game review (offline)
 
 **Settings → Game Review.** Paste a PGN, load a `.pgn`, or fetch recent games from Chess.com's or Lichess's public
@@ -204,11 +209,17 @@ API. **Nothing leaves your machine** during the review - the search runs in the 
   game, over **this** review: their words, every number still ours. Their engine never knows which engine searched,
   so it describes our own analysis at our own depth. Needs the same offline download as the classifier below;
   nothing leaves the machine. Where their grade of a move differs from ours - measured 8, 12 and 15 of 45 moves on
-  the same game, the spread being our own search rather than theirs - the report says so and keeps both grades.
+  the same game, the spread being our own search rather than theirs - the report says so and keeps both grades:
+  ours first, the coach's beside it, the move marked in the list.
 - **Fair-play indicators** - engine-match rate over real choices, sharp positions, phases, longest streak, accuracy
   uniformity, whether long thinks went to hard positions. **Measurements, never a verdict.**
 - **Review every game** in a file against one engine load, pooled per player. **Export** the report as one
   self-contained file.
+- **Share** - an **annotated PGN** (a !! ! ?! ? ?? glyph per graded move, the eval and clock on every move, the coach's
+  sentence where there is one) to copy or download; a **share card**, one 1200x630 image with both accuracies, the
+  class counts and the eval strip; and **Send to lichess**. That one publishes the game and asks first. Lichess keeps
+  the *moves only* on an anonymous import (measured: every glyph, eval and comment is dropped), so **Add to my
+  study** - a token with the `study:write` scope - is the way to keep the annotations there.
 - **Fit Humanize to a player** - every move in the review already carries its centipawn loss, and the Humanize move
   mix is defined in exactly those bands, so counting them gives the mix that reproduces that player. Measured, rather
   than guessed at with sliders.
