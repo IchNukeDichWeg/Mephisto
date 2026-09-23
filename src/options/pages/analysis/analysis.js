@@ -13,6 +13,7 @@ import {SettingsPage} from "../../util/SettingsPage.js";
 const {readBook: readPolyglot, lookup: lookupPolyglot} = self.MephistoPolyglot;
 import {wirePgnDrop} from "../../util/dragdrop.js";
 import {refreshLimitWarnings} from "../../util/limits.js";
+import {showLargeGame, hideLargeGame} from "./large-board.js";
 
 const Core = self.MephistoReviewCore;
 const {ENGINES, MAIA_BANDS, makeEngine, nativeHostAvailable,
@@ -23,6 +24,7 @@ const $ = (id) => document.getElementById(id);
 // Its own settings: an analysis runs on different numbers from live play, and sharing one set would
 // silently make the other wrong.
 const CFG = {
+    an_game: 'chess',     // chess | shogi | xiangqi -- the last two live in large-board.js
     an_variant: 'chess',
     an_engine2: '',       // off: the second column is a choice, not a default
     an_engine: 'stockfish-18-nnue',
@@ -166,6 +168,8 @@ class AnalysisPage extends SettingsPage {
         $('an_human_select')?.addEventListener('change', () => { syncBandRow(); reloadHuman(); });
         $('an_band_select')?.addEventListener('change', () => reloadHuman());
         $('an_engine_select')?.addEventListener('change', () => reloadEngine());
+        this.registerFormElement('an_game', 'Game:', 'select', CFG.an_game);
+        $('an_game_select')?.addEventListener('change', () => applyGame());
         this.registerFormElement('an_variant', 'Variant:', 'select', CFG.an_variant);
         this.registerFormElement('an_engine2', 'Second engine:', 'select', CFG.an_engine2);
         $('an_variant_select')?.addEventListener('change', () => onVariantChange());
@@ -245,6 +249,42 @@ class AnalysisPage extends SettingsPage {
         loadStart();
         watchBoardSize();
         requestAnimationFrame(() => { buildBoard(); render(); });
+        // after the stored values are in the form (the same wait anWarn uses above)
+        setTimeout(() => applyGame(true), 300);
+    }
+}
+
+// SHOGI AND XIANGQI ARE NOT CHESS VARIANTS HERE. chess.js cannot hold a 9x9 or 9x10 board, so they
+// do not go through newChess/the tree/the match at all: large-board.js draws its own board and asks
+// the large Fairy build for everything rules-related. Switching to one stands the whole chess side
+// down (searches, engines, human model); switching back rebuilds it the way an engine change does.
+function largeGame() { const g = String(cfg('an_game') || 'chess'); return g === 'chess' ? '' : g; }
+function largeOpts() {
+    const depth = String(cfg('an_limit_kind')) === 'depth'
+        ? Math.max(1, Math.min(AN_DEPTH_MAX, +cfg('an_depth') || CFG.an_depth)) : 0;
+    const secs = +cfg('an_time');
+    return {...engineOpts(), depth, secs: secs >= AN_INFINITE ? 0 : secs};
+}
+function applyGame(initial) {
+    const g = largeGame();
+    $('an-form')?.classList.toggle('an-large-on', !!g);
+    if (g) {
+        stopMatch();
+        // through the analysis queue, like reloadEngine: a search still starting must finish
+        // starting before its engine goes, or it lands on a disposed one
+        analyseChain = analyseChain.then(async () => {
+            await stopSearch();
+            if (engine) { try { engine.dispose?.(); } catch (e) { /* */ } engine = null; }
+            if (engine2) { try { engine2.dispose?.(); } catch (e) { /* */ } engine2 = null; }
+            if (human) { try { human.dispose?.(); } catch (e) { /* */ } human = null; humanKey = null; }
+        }, () => {});
+        showLargeGame(g, largeOpts);
+    } else if (!initial) {
+        hideLargeGame();
+        requestAnimationFrame(() => { buildBoard(); render(); });
+        // the human model rebuilds itself on the first position it is asked about (ensureHuman)
+        reloadEngine2();
+        reloadEngine();
     }
 }
 
@@ -838,6 +878,8 @@ async function reloadHuman() {
 }
 
 function teardown() {
+    hideLargeGame();
+    stopMatch();
     stopSearch();
     if (engine) { try { engine.dispose?.(); } catch (e) { /* */ } engine = null; }
     if (engine2) { try { engine2.dispose?.(); } catch (e) { /* */ } engine2 = null; }
@@ -904,6 +946,7 @@ function analyseCurrent() {
 
 async function analyseNow() {
     if (match?.running) return;          // the match's engines are the only searches while it plays
+    if (largeGame()) return;             // the chess board is hidden; large-board.js owns the engine
     const at = cursor;
     const pos = positions[at];
     if (!pos) return;

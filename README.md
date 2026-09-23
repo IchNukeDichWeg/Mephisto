@@ -55,7 +55,8 @@ Chess.com and Lichess redesigns. Everything the original did still works. New he
 - **Automation** - Safe Premove, Pondering, Help Mode, Manual Mode, rebindable hotkeys, hotkey macros (one key runs several actions) and a `?` shortcut cheat sheet.
 - **Beyond the engine** - Opening Explorer, endgame tablebase, puzzle database.
 - **On screen** - eval bar, eval history graph, screen reading, screenshot-to-FEN, a playable panel board.
-- **Coverage** - chess.com variants, four-player chess, TakeTakeTake, Chess960, fourteen languages.
+- **Coverage** - chess.com variants, four-player chess, TakeTakeTake, Chess960, **Shogi and Xiangqi** on the Analysis
+  page, fourteen languages.
 - **Under the hood** - a zero-iframe panel with no page-visible extension URLs, and settings export/import.
 
 ---

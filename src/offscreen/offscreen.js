@@ -19,6 +19,9 @@ const engineMap = {
     'stockfish-18-nnue': 'stockfish-18/sf_18.js',
     'stockfish-11-hce': 'stockfish-11-hce/sfhce.js',
     'fairy-stockfish-14-nnue': 'fairy-stockfish-14/fsf_14.js',
+    // The same Fairy build with largeboards=yes: the only one that has shogi and xiangqi (9x9, 9x10).
+    // A separate engine rather than a replacement because large-board builds are slower at everything.
+    'fairy-stockfish-14-large-nnue': 'fairy-stockfish-14-large/fsf_14_large.js',
 };
 // Fairy-Stockfish ships one NNUE net per variant (it can't recommend its own like mainline SF).
 const variantNnueMap = {
@@ -35,6 +38,9 @@ const variantNnueMap = {
     'minihouse': 'minihouse-d415b4dbfe2c.nnue',
     'seirawan': 'seirawan-432c65fe71fc.nnue',
     'chaturanga': 'chaturanga-1889e98f8d54.nnue',
+    // large build only (fairy-stockfish-14-large/nnue); the 8x8 build does not declare these variants
+    'shogi': 'shogi-878ca61334a7.nnue',
+    'xiangqi': 'xiangqi-c07e94a5c7cb.nnue',
 };
 
 const clients = {}; // clientId -> engine instance
@@ -274,7 +280,7 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
     // isn't in yet (it would search with no net). Publish + flush together, below.
 
     if (engineName.includes('nnue')) {
-        if (engineName === 'fairy-stockfish-14-nnue') {
+        if (engineName === 'fairy-stockfish-14-nnue' || engineName === 'fairy-stockfish-14-large-nnue') {
             // A VARIANT THE ENGINE DOES NOT HAVE IS IGNORED, SILENTLY. Fairy answers an unknown
             // UCI_Variant by staying on the one it was already playing -- so asking it for Duck
             // Chess gets you a full-strength STANDARD CHESS analysis of a duck position, with no

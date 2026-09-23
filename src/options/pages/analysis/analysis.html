@@ -9,6 +9,15 @@
                 <h3 data-i18n="an.setup" class="set-h">Setup</h3>
 
                 <div class="an-grid">
+                    <label class="an-f an-f-game"><span data-i18n-tip="an.tip.game" class="tooltipped" data-position="top" data-tooltip="Chess uses the board below. Shogi and xiangqi get their own board, analysed by the large-board build of Fairy-Stockfish."><span data-i18n="an.game">Game</span></span>
+                        <select id="an_game_select" class="browser-default">
+                            <option value="chess" data-i18n="an.game_chess">Chess</option>
+                            <option value="shogi" data-i18n="an.game_shogi">Shogi</option>
+                            <option value="xiangqi" data-i18n="an.game_xiangqi">Xiangqi</option>
+                        </select></label>
+                </div>
+
+                <div class="an-grid">
                     <label class="an-f an-f-engine"><span data-i18n-tip="an.tip.engine" class="tooltipped" data-position="top" data-tooltip="Which engine analyses the position, for as long as the budget below allows."><span data-i18n="an.engine">Engine</span></span>
                         <select id="an_engine_select" class="browser-default"></select></label>
                     <label class="an-f an-f-engine"><span data-i18n-tip="an.tip.variant" class="tooltipped" data-position="top" data-tooltip="Which rules this board plays by. Loading a PGN with a Variant tag sets it for you. Fairy-only variants switch the engine to Fairy-Stockfish; the human model and the tablebase are standard chess only."><span data-i18n="an.variant">Variant</span></span>
@@ -135,6 +144,77 @@
                         </div>
                     </div>
                 </div>
+            </section>
+
+            <!-- Shogi / xiangqi. Shown instead of the chess board and the match when the Game is not
+                 chess (large-board.js). The engine is the rules authority here; see that file. -->
+            <section id="an-large" class="set-sec">
+                <h3 data-i18n="an.board" class="set-h">Board</h3>
+                <div class="an-grid-load">
+                    <label class="an-f an-f-wide"><span data-i18n="an.lg_fen">FEN (Fairy-Stockfish notation)</span>
+                        <input id="an_lg_fen" class="set-ta" type="text" spellcheck="false"></label>
+                    <div class="an-f an-f-btns">
+                        <button id="an_lg_load" class="set-btn" type="button" data-i18n="an.load_btn">Load</button>
+                        <button id="an_lg_start" class="set-btn" type="button" data-i18n="an.start_btn">Start position</button>
+                        <button id="an_lg_flip" class="set-btn" type="button" data-i18n="an.flip">Flip</button>
+                    </div>
+                </div>
+                <div class="an-lg-note" data-i18n="an.lg_note">Only the FEN's shape, its piece letters and one king per side are checked here. Every rule (legal moves, check, promotion, drops, the result) comes from the engine itself. Use Fairy-Stockfish's FEN, not SFEN: w means Sente or Red to move.</div>
+                <div id="an_lg_status" class="an-status"></div>
+                <div class="an-lg-main">
+                    <div class="an-lg-boardcol">
+                        <div id="an_lg_hand_top" class="an-lg-hand hidden"></div>
+                        <svg id="an_lg_board" class="an-lg-board" viewBox="0 0 9 10"></svg>
+                        <div id="an_lg_hand_bottom" class="an-lg-hand hidden"></div>
+                    </div>
+                    <div class="an-lg-side">
+                        <div class="an-lg-turnrow"><span id="an_lg_turn" class="an-lg-turn"></span>
+                            <span class="an-lg-nav">
+                                <button id="an_lg_prev" class="set-btn" type="button" title="Previous">&lsaquo;</button>
+                                <button id="an_lg_next" class="set-btn" type="button" title="Next">&rsaquo;</button>
+                            </span></div>
+                        <div class="an-col-h"><span id="an_lg_lines_h">Engine lines</span><span id="an_lg_meta" class="an-col-sub"></span></div>
+                        <div id="an_lg_lines" class="an-lines"></div>
+                        <div class="an-col-h an-lg-moves-h"><span data-i18n="an.lg_moves">Moves</span></div>
+                        <div id="an_lg_moves" class="an-lg-moves"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Engine against engine, played out on the board above. Its own section rather than
+                 more Setup rows: it borrows the board but not the analysis, which stands down for
+                 the length of the match. -->
+            <section id="an-match" class="set-sec scrollspy">
+                <h3 data-i18n="an.match" class="set-h">Engine match</h3>
+                <div class="an-grid">
+                    <label class="an-f an-f-engine"><span data-i18n-tip="an.tip.match" class="tooltipped" data-position="top" data-tooltip="Two engines play each other from the chosen position, colours alternating each game, one thread each. The games play out on the board above."><span data-i18n="an.match_a">Engine A</span></span>
+                        <select id="an_match_a" class="browser-default"></select></label>
+                    <label class="an-f an-f-engine"><span data-i18n-tip="an.tip.match" class="tooltipped" data-position="top" data-tooltip="Two engines play each other from the chosen position, colours alternating each game, one thread each. The games play out on the board above."><span data-i18n="an.match_b">Engine B</span></span>
+                        <select id="an_match_b" class="browser-default"></select></label>
+                    <label class="an-f an-f-engine"><span data-i18n-tip="an.tip.match_budget" class="tooltipped" data-position="top" data-tooltip="Depth: every move is searched exactly that many plies deep. Milliseconds: every move gets that much thinking time."><span data-i18n="an.match_budget">Budget per move</span></span>
+                        <span class="an-match-budget">
+                            <select id="an_match_kind" class="browser-default">
+                                <option value="depth" data-i18n="rv.depth">Depth</option>
+                                <option value="time" data-i18n="an.match_ms">Milliseconds</option>
+                            </select>
+                            <input id="an_match_value" type="number" min="1" max="60000" step="1" value="8">
+                        </span></label>
+                    <label class="an-f an-f-engine"><span data-i18n="an.match_start">Start from</span>
+                        <select id="an_match_from" class="browser-default">
+                            <option value="standard" data-i18n="an.match_std">Standard start</option>
+                            <option value="current" data-i18n="an.match_cur">Current position</option>
+                        </select></label>
+                    <label class="an-f an-f-num"><span data-i18n-tip="an.tip.match_games" class="tooltipped" data-position="top" data-tooltip="How many games. Colours alternate, so an even number gives both engines each colour equally often."><span data-i18n="an.match_games">Games</span></span>
+                        <input id="an_match_games" type="number" min="1" max="100" step="1" value="2"></label>
+                </div>
+                <div class="an-grid-load">
+                    <button id="an_match_run" class="set-btn" type="button" data-i18n="an.match_run">Start match</button>
+                    <button id="an_match_stop" class="set-btn" type="button" data-i18n="an.match_stop" disabled>Stop</button>
+                    <button id="an_match_copy" class="set-btn" type="button" data-i18n="an.copy_pgn">Copy PGN</button>
+                </div>
+                <div id="an_match_status" class="an-status"></div>
+                <div id="an_match_games_out"></div>
+                <textarea id="an_match_pgn" class="set-ta an-match-pgn hidden" rows="6" spellcheck="false" readonly></textarea>
             </section>
         </div>
     </div>

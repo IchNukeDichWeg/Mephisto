@@ -40,6 +40,13 @@ For each entry: **Component — License — Copyright/authors — Source (corres
   `lib/engine/fairy-stockfish-14/nnue/` — **GPL-3.0** as distributed with Fairy-Stockfish —
   © the Fairy-Stockfish project — <https://github.com/fairy-stockfish/Fairy-Stockfish>.
 
+- **Fairy-Stockfish shogi and xiangqi NNUE networks** — `lib/engine/fairy-stockfish-14-large/nnue/`
+  `shogi-878ca61334a7.nnue` (by Fabian Fichter) and `xiangqi-c07e94a5c7cb.nnue` (by the Pikafish
+  developers, 2025-10-31) — **GPL-3.0** as distributed with Fairy-Stockfish, like the nets above —
+  listed at <https://fairy-stockfish.github.io/nnue/> and downloaded from the Google Drive folder that
+  page links. Each file's name carries the first 12 hex digits of its SHA-256, and both match. (That
+  page puts only networks dated 2026 or later under CC0; these two predate that.)
+
 ## Neural networks — human-like play (Maia)
 
 - **Maia (Maia-1) networks 1100–1900** — `lib/engine/maia/maia-1100.onnx … maia-1900.onnx` —

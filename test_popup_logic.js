@@ -2025,3 +2025,89 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     })()`);
     eq('match: a game\'s PGN round-trips through the page\'s parser', rt, {ok: true, n: 4, fen: true, num: true, white: true, reason: true, quote: true});
 }
+{
+    // SHOGI / XIANGQI. The page knows no rules (the large Fairy build is the authority); what it DOES
+    // own is the FEN gate in front of the engine, the move-notation reader and the click->move
+    // mapping. The REAL pure block of large-board.js runs here; the wiring is pinned from the sources.
+    console.log('\nshogi / xiangqi (large board):');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const lj = fs.readFileSync(ROOT + '/src/options/pages/analysis/large-board.js', 'utf8');
+    const p0 = lj.indexOf('// ---- PURE'), p1 = lj.indexOf('// ---- END PURE');
+    ok('large: the pure block can be sliced', p0 > 0 && p1 > p0);
+    const lctx = {};
+    vm.createContext(lctx);
+    vm.runInContext(lj.slice(p0, p1) + ';this.P = {LARGE_GAMES, parseLargeFen, parseLargeMove, largeCandidates};', lctx);
+    const P = lctx.P;
+    const pieces = (v) => P.parseLargeFen(v, P.LARGE_GAMES[v].start).cells.flat().filter(Boolean).length;
+    eq('large: both start positions parse, 40 shogi pieces and 32 xiangqi pieces, first player to move',
+       [pieces('shogi'), pieces('xiangqi'), P.parseLargeFen('shogi', P.LARGE_GAMES.shogi.start).turn], [40, 32, 'w']);
+    const s = P.parseLargeFen('shogi', 'lnsgkgsnl/1r5+B1/pppppp1pp/6p2/9/2P6/PP1PPPPPP/7R1/LNSGKGSNL[Bbpp] b - - 0 2');
+    eq('large: a promoted piece and both hands read as the engine printed them',
+       [s.cells[7][7], s.hand, s.turn], ['+B', {w: {B: 1}, b: {b: 1, p: 2}}, 'b']);
+    const why = (v, fen) => { try { P.parseLargeFen(v, fen); return 'accepted'; } catch (e) { return e.key; } };
+    eq('large: the gate refuses what would crash or mislead the engine', [
+        why('shogi', 'lnsg1gsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL[] w - - 0 1'),     // no gote king
+        why('shogi', 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/LNSGKGSNL[] w - - 0 1'),          // 8 ranks
+        why('shogi', 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSN[] w - - 0 1'),     // 8 files
+        why('shogi', 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5Q1/LNSGKGSNL[] w - - 0 1'),    // a queen
+        why('shogi', 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5+G1/LNSGKGSNL[] w - - 0 1'),   // gold never promotes
+        why('xiangqi', P.LARGE_GAMES.xiangqi.start.replace(' w ', '[P] w ')),                      // xiangqi has no hand
+        why('xiangqi', P.LARGE_GAMES.xiangqi.start.replace(' w ', ' x ')),                         // side to move
+    ], ['kings', 'shape', 'shape', 'piece', 'piece', 'hand', 'turn']);
+    eq('large: Fairy move notation (promotion, drop, the xiangqi tenth rank, junk)',
+       [P.parseLargeMove('b2h8+'), P.parseLargeMove('B@e5'), P.parseLargeMove('c10e8'), P.parseLargeMove('e2e4q'), P.parseLargeMove('')],
+       [{from: [1, 1], to: [7, 7], promo: true}, {drop: 'B', to: [4, 4]}, {from: [2, 9], to: [4, 7], promo: false}, null, null]);
+    const legal = ['b2g7', 'b2h8', 'b2h8+', 'B@h8', 'h2h3'];
+    eq('large: a click can only mean moves on the engine\'s own list (optional promotion offers both)',
+       [P.largeCandidates(legal, [1, 1], [7, 7]), P.largeCandidates(legal, 'B', [7, 7]), P.largeCandidates(legal, [1, 1], [0, 0])],
+       [['b2h8', 'b2h8+'], ['B@h8'], []]);
+    // wiring
+    const oj = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8');
+    const mapped = /'fairy-stockfish-14-large-nnue': '([^']+)'/.exec(oj)?.[1];
+    ok('large: the offscreen loader maps the engine to a shipped file', !!mapped && fs.existsSync(ROOT + '/lib/engine/' + mapped), mapped);
+    ok('large: ...and runs Fairy\'s variant + per-variant net path for it',
+       /engineName === 'fairy-stockfish-14-nnue' \|\| engineName === 'fairy-stockfish-14-large-nnue'/.test(oj));
+    const netDir = ROOT + '/lib/engine/fairy-stockfish-14-large/nnue/';
+    const nets = ['shogi', 'xiangqi'].map(v => new RegExp(`'${v}': '([^']+)'`).exec(oj)?.[1]);
+    // A net over GitHub's 100 MB file limit lives in the repo as .part0.. pieces (the loader joins them),
+    // so read it whole OR reassembled. The whole-file-only version crashed the suite in the public
+    // repo, where the 160 MB shogi net is four parts -- and a crash reads as "fewer checks", not a FAIL.
+    const netBytes = (n) => {
+        if (fs.existsSync(netDir + n)) return fs.readFileSync(netDir + n);
+        const parts = []; for (let i = 0; fs.existsSync(`${netDir}${n}.part${i}`); i++) parts.push(fs.readFileSync(`${netDir}${n}.part${i}`));
+        return parts.length ? Buffer.concat(parts) : null;
+    };
+    ok('large: shogi and xiangqi each map to a net that is in the large build\'s nnue folder',
+       nets.every(n => n && netBytes(n)), nets);
+    const man = JSON.parse(fs.readFileSync(ROOT + '/src/offscreen/engine-assets.json', 'utf8')).files;
+    const crypto = require('crypto');
+    ok('large: both nets are in the assets manifest with their real size and sha256',
+       nets.every(n => man[n] && man[n].dir === 'lib/engine/fairy-stockfish-14-large/nnue' && man[n].tag === 'engines-v1'
+           && man[n].size === netBytes(n).length
+           && man[n].sha256 === crypto.createHash('sha256').update(netBytes(n)).digest('hex')));
+    // Fairy names its nets <variant>-<first 12 hex of sha256>, so the file name is its own checksum
+    ok('large: ...and each net\'s bytes match the hash in its name', nets.every(n => man[n]?.sha256.startsWith(n.replace(/^.*-|\.nnue$/g, ''))));
+    const ej = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    ok('large: Analysis page only -- not in the shared ENGINES list the panel/settings parity checks read',
+       !/\{id: 'fairy-stockfish-14-large-nnue'/.test(ej) && /'fairy-stockfish-14-large-nnue'/.test(lj));
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    ok('large: the chess analysis stands down while a large game is shown',
+       /if \(largeGame\(\)\) return;/.test(aj) && /hideLargeGame\(\);\n\s+stopMatch\(\);/.test(aj));
+    ok('large: moves are played only off the engine\'s perft list, positions only off its `d`',
+       /if \(!legal\.includes\(uci\)\) return;/.test(lj) && /'go perft 1'/.test(lj) && /\/\^Fen: \//.test(lj));
+    // every string the large board shows, in all 14 locales, same placeholders as English
+    const ah = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.html', 'utf8');
+    const keys = [...new Set([...ah.matchAll(/data-i18n(?:-tip)?="(an\.(?:game[^"]*|tip\.game|lg_[^"]+))"/g), ...lj.matchAll(/'(an\.(?:game_|lg_)[^']+)'/g)].map(m => m[1]))];
+    const locDir = ROOT + '/src/i18n/locales/';
+    const en = JSON.parse(fs.readFileSync(locDir + 'en.json', 'utf8'));
+    const ph = (s) => JSON.stringify((String(s).match(/\{\w+\}/g) || []).sort());
+    const missing = [];
+    for (const f of fs.readdirSync(locDir).filter(f => f.endsWith('.json'))) {
+        const j = JSON.parse(fs.readFileSync(locDir + f, 'utf8'));
+        for (const k of keys) if (!j[k] || ph(j[k]) !== ph(en[k])) missing.push(`${f}:${k}`);
+    }
+    ok(`large: all ${keys.length} strings translated in all 14 locales with matching placeholders`,
+       keys.length >= 25 && fs.readdirSync(locDir).filter(f => f.endsWith('.json')).length === 14 && !missing.length, missing);
+}
+// ==== END AGENT ANALYSIS CHECKS ====
+

@@ -336,3 +336,57 @@
     .an-movescell .an-moves { position: static; max-height: 420px; }
     .an-boardrow .an-nav { grid-column: 1 / -1; grid-row: 4; }
 }
+
+/* ---- shogi / xiangqi (large-board.js) ----------------------------------------------------------
+   The Game selector swaps the chess board, its engine controls and the match for #an-large. Lines,
+   Threads, Hash and the budget stay: the large board uses the same ones. */
+#an-large { display: none; }
+#an-form.an-large-on #an-large { display: block; }
+#an-form.an-large-on #an-board,
+#an-form.an-large-on #an-match,
+#an-form.an-large-on #an-setup .an-f-engine,
+#an-form.an-large-on #an-setup .an-f-human,
+#an-form.an-large-on #an-setup .an-f-band,
+#an-form.an-large-on #an-setup .an-f-check,
+#an-form.an-large-on #an-setup .an-grid-load,
+#an-form.an-large-on #an_status { display: none !important; }
+#an_lg_fen { min-height: 0; height: 36px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.an-lg-note { margin-top: 8px; font-size: 12px; color: var(--mp-dim); }
+.an-lg-main { display: grid; grid-template-columns: minmax(0, 560px) minmax(220px, 1fr); gap: 20px; margin-top: 12px; }
+@media (max-width: 860px) { .an-lg-main { grid-template-columns: 1fr; } }
+.an-lg-board { width: 100%; height: auto; display: block; user-select: none; }
+/* the board is its own wooden object, the same in light and dark themes, like a real one */
+.an-lg-wood { fill: #e3bf7a; }
+.an-lg-grid { stroke: #4a3515; stroke-width: 0.03; }
+.an-lg-star { fill: #4a3515; }
+.an-lg-river { font-size: 0.42px; fill: #4a3515; text-anchor: middle; dominant-baseline: central; font-family: serif; }
+.an-lg-coord { font-size: 0.26px; fill: #6b5226; text-anchor: middle; dominant-baseline: central; }
+.an-lg-koma { fill: #f3dca8; stroke: #6b4f1d; stroke-width: 0.025; }
+.an-lg-kanji { font-size: 0.46px; fill: #111; text-anchor: middle; dominant-baseline: central; font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif CJK JP", serif; }
+.an-lg-kanji.an-lg-promoted { fill: #c21d1d; }
+.an-lg-disc { fill: #f6e3b8; stroke-width: 0.03; }
+.an-lg-ring { fill: none; stroke-width: 0.02; }
+.an-lg-disc.an-lg-w, .an-lg-ring.an-lg-w { stroke: #b3261e; }
+.an-lg-disc.an-lg-b, .an-lg-ring.an-lg-b { stroke: #1b1b1b; }
+.an-lg-han { font-size: 0.44px; text-anchor: middle; dominant-baseline: central; font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif; }
+.an-lg-han.an-lg-w { fill: #b3261e; }
+.an-lg-han.an-lg-b { fill: #1b1b1b; }
+.an-lg-sel { fill: rgba(255, 214, 0, 0.45); }
+.an-lg-dot { fill: rgba(20, 110, 40, 0.65); pointer-events: none; }
+.an-lg-best { stroke: rgba(21, 101, 192, 0.85); stroke-width: 0.13; stroke-linecap: round; pointer-events: none; }
+.an-lg-arrowhead { fill: rgba(21, 101, 192, 0.85); }
+.an-lg-best-drop { fill: none; stroke: rgba(21, 101, 192, 0.85); stroke-width: 0.08; pointer-events: none; }
+.an-lg-hit { fill: transparent; cursor: pointer; }
+.an-lg-hand { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 40px; padding: 4px 0; font-size: 12px; color: var(--mp-dim); }
+.an-lg-hand-label { margin-right: 6px; }
+.an-lg-handpc { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px; border: 1px solid var(--mp-line); border-radius: 4px; background: var(--mp-bg); color: var(--mp-text); cursor: pointer; }
+.an-lg-handpc svg { width: 30px; height: 30px; }
+.an-lg-handpc.an-lg-on { border-color: var(--mp-on); box-shadow: 0 0 0 2px var(--mp-on); }
+.an-lg-turnrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.an-lg-turn { font-weight: 600; color: var(--mp-text); }
+.an-lg-nav { display: inline-flex; gap: 6px; }
+.an-lg-moves-h { margin-top: 16px; }
+.an-lg-moves { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.8; color: var(--mp-text); }
+.an-lg-mv { cursor: pointer; padding: 1px 3px; border-radius: 3px; }
+.an-lg-mv:hover { background: var(--mp-hover); }
+.an-lg-mv.an-lg-cur { background: var(--mp-hover); font-weight: 600; }
