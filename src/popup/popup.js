@@ -621,6 +621,7 @@ async function initPanel(root, tabId) {
         onMove: play_on_panel_board, // click or drag a piece to play it and keep analysing
         needsPromotion: panel_move_promotes, // ask which piece before a promoting move
         legalTargets: panel_legal_targets,   // dots on where the picked-up piece may actually go
+        onRender: panel_board_rendered,      // material readout + square heatmap, per position
     });
 
     // init fen LRU cache

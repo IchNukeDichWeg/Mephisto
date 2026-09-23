@@ -626,5 +626,7 @@
   "panel.material": "Material {diff}",
   "panel.material_vs": "{white} vs {black}",
   "set.material_balance": "Material Balance",
-  "set.tip.material_balance": "One line under the score: the material count of the position on the panel board, White minus Black in pawns (Q 9, R 5, B 3, N 3, P 1), and which pieces differ - \"Material +2 (B+P vs N)\" means White has a bishop and a pawn where Black has a knight."
+  "set.tip.material_balance": "One line under the score: the material count of the position on the panel board, White minus Black in pawns (Q 9, R 5, B 3, N 3, P 1), and which pieces differ - \"Material +2 (B+P vs N)\" means White has a bishop and a pawn where Black has a knight.",
+  "set.square_heatmap": "Square Control Heatmap",
+  "set.tip.square_heatmap": "Tint every square of the panel board by who controls it: blue where White has more pieces attacking it, red where Black does, darker the bigger the lead (up to three). Squares both sides hit equally stay untinted. Redrawn when the position changes, under the pieces and the arrows."
 }

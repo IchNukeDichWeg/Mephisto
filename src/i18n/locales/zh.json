@@ -626,5 +626,7 @@
   "panel.material": "子力 {diff}",
   "panel.material_vs": "{white} 对 {black}",
   "set.material_balance": "子力对比",
-  "set.tip.material_balance": "评分下方一行：面板棋盘上局面的子力对比，白方减黑方，以兵为单位（Q 9、R 5、B 3、N 3、P 1），并列出哪些棋子不同 - \"+2 (B+P 对 N)\" 表示白方有象和兵，而黑方对应的是一只马。"
+  "set.tip.material_balance": "评分下方一行：面板棋盘上局面的子力对比，白方减黑方，以兵为单位（Q 9、R 5、B 3、N 3、P 1），并列出哪些棋子不同 - \"+2 (B+P 对 N)\" 表示白方有象和兵，而黑方对应的是一只马。",
+  "set.square_heatmap": "格子控制热图",
+  "set.tip.square_heatmap": "按控制方给面板棋盘的每一格着色：白方攻击子更多的格子为蓝色，黑方更多的为红色，领先越多颜色越深（最多三个）。双方攻击数相同的格子不着色。局面变化时重绘，位于棋子和箭头之下。"
 }

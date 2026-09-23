@@ -626,5 +626,7 @@
   "panel.material": "Materiale {diff}",
   "panel.material_vs": "{white} contro {black}",
   "set.material_balance": "Bilancio materiale",
-  "set.tip.material_balance": "Una riga sotto la valutazione: il bilancio materiale della posizione sulla scacchiera del pannello, Bianco meno Nero in pedoni (D 9, T 5, A 3, C 3, P 1), e quali pezzi differiscono - \"Materiale +2 (B+P contro N)\" significa che il Bianco ha alfiere e pedone dove il Nero ha un cavallo. Le lettere dei pezzi sono quelle inglesi (Q R B N P)."
+  "set.tip.material_balance": "Una riga sotto la valutazione: il bilancio materiale della posizione sulla scacchiera del pannello, Bianco meno Nero in pedoni (D 9, T 5, A 3, C 3, P 1), e quali pezzi differiscono - \"Materiale +2 (B+P contro N)\" significa che il Bianco ha alfiere e pedone dove il Nero ha un cavallo. Le lettere dei pezzi sono quelle inglesi (Q R B N P).",
+  "set.square_heatmap": "Mappa di controllo delle case",
+  "set.tip.square_heatmap": "Colora ogni casa della scacchiera del pannello in base a chi la controlla: blu dove il Bianco la attacca con più pezzi, rosso dove lo fa il Nero, più scuro quanto maggiore il vantaggio (fino a tre). Le case attaccate in parità restano senza colore. Ridisegnata quando cambia la posizione, sotto i pezzi e le frecce."
 }

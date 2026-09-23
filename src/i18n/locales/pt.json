@@ -626,5 +626,7 @@
   "panel.material": "Material {diff}",
   "panel.material_vs": "{white} contra {black}",
   "set.material_balance": "Balanço material",
-  "set.tip.material_balance": "Uma linha sob a avaliação: o balanço material da posição no tabuleiro do painel, brancas menos pretas em peões (D 9, T 5, B 3, C 3, P 1), e quais peças diferem - \"Material +2 (B+P contra N)\" significa que as brancas têm bispo e peão onde as pretas têm um cavalo. As letras das peças são as inglesas (Q R B N P)."
+  "set.tip.material_balance": "Uma linha sob a avaliação: o balanço material da posição no tabuleiro do painel, brancas menos pretas em peões (D 9, T 5, B 3, C 3, P 1), e quais peças diferem - \"Material +2 (B+P contra N)\" significa que as brancas têm bispo e peão onde as pretas têm um cavalo. As letras das peças são as inglesas (Q R B N P).",
+  "set.square_heatmap": "Mapa de controle das casas",
+  "set.tip.square_heatmap": "Colore cada casa do tabuleiro do painel conforme quem a controla: azul onde as brancas a atacam com mais peças, vermelho onde as pretas o fazem, mais escuro quanto maior a vantagem (até três). Casas atacadas por igual ficam sem cor. Redesenhado quando a posição muda, sob as peças e as setas."
 }

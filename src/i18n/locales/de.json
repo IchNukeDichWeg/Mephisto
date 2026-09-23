@@ -626,5 +626,7 @@
   "panel.material": "Material {diff}",
   "panel.material_vs": "{white} gegen {black}",
   "set.material_balance": "Materialbilanz",
-  "set.tip.material_balance": "Eine Zeile unter der Bewertung: die Materialbilanz der Stellung auf dem Panel-Brett, Weiß minus Schwarz in Bauerneinheiten (D 9, T 5, L 3, S 3, B 1), und welche Figuren sich unterscheiden - \"Material +2 (B+P vs N)\" heißt, Weiß hat Läufer und Bauer, wo Schwarz einen Springer hat. Die Figurenbuchstaben sind die englischen (Q R B N P)."
+  "set.tip.material_balance": "Eine Zeile unter der Bewertung: die Materialbilanz der Stellung auf dem Panel-Brett, Weiß minus Schwarz in Bauerneinheiten (D 9, T 5, L 3, S 3, B 1), und welche Figuren sich unterscheiden - \"Material +2 (B+P vs N)\" heißt, Weiß hat Läufer und Bauer, wo Schwarz einen Springer hat. Die Figurenbuchstaben sind die englischen (Q R B N P).",
+  "set.square_heatmap": "Feldkontrolle-Heatmap",
+  "set.tip.square_heatmap": "Färbt jedes Feld des Panel-Bretts danach, wer es kontrolliert: blau, wo Weiß mehr Angreifer hat, rot, wo Schwarz mehr hat, dunkler je größer der Vorsprung (bis drei). Felder, die beide gleich oft angreifen, bleiben ungefärbt. Neu gezeichnet, wenn sich die Stellung ändert, unter den Figuren und Pfeilen."
 }
