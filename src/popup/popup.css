@@ -1334,6 +1334,22 @@ body.mephisto-dark #game-detection.unsupported { color: #ff7a70; }
     font-variant-numeric: tabular-nums;
 }
 #nps, #wdl { color: var(--mp-mute) !important; height: 20px; line-height: 20px; }
+/* Material balance (Settings > Panel), one line under the WDL row. [hidden] while off, so it costs
+   no height unless asked for; clipped with an ellipsis, never wrapped, because the panel is a
+   fixed-height box and a second line would push everything under it down. */
+#material {
+    width: 378px;
+    height: 20px;
+    margin: 4px 0 0 0;
+    font: 13px/20px -apple-system, 'Roboto', system-ui, sans-serif;
+    color: var(--mp-mute);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#material[hidden], body.mephisto-compact #material { display: none; }
 #next-move { font: 13px/20px -apple-system, 'Roboto', system-ui, sans-serif !important;
              color: var(--mp-dim) !important; height: 20px; }
 #move-reason { color: var(--mp-mute) !important;

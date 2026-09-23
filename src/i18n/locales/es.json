@@ -622,5 +622,9 @@
   "rv.preset_standard": "Estándar - profundidad 22",
   "rv.preset_deep": "Profundo - profundidad 24",
   "rv.preset_max": "Máximo - profundidad 26",
-  "rv.tip.depth_preset": "Profundidades de revisión iguales a las que ofrece la propia Game Review de Chess.com, para que ambas precisiones describan la misma búsqueda. Personalizado deja lo que escribiste."
+  "rv.tip.depth_preset": "Profundidades de revisión iguales a las que ofrece la propia Game Review de Chess.com, para que ambas precisiones describan la misma búsqueda. Personalizado deja lo que escribiste.",
+  "panel.material": "Material {diff}",
+  "panel.material_vs": "{white} contra {black}",
+  "set.material_balance": "Balance de material",
+  "set.tip.material_balance": "Una línea bajo la evaluación: el balance de material de la posición del tablero del panel, blancas menos negras en peones (D 9, T 5, A 3, C 3, P 1), y qué piezas difieren - \"Material +2 (B+P vs N)\" significa que las blancas tienen alfil y peón donde las negras tienen un caballo. Las letras de las piezas son las inglesas (Q R B N P)."
 }

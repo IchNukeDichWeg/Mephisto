@@ -622,5 +622,9 @@
   "rv.preset_standard": "Standard - profondeur 22",
   "rv.preset_deep": "Profond - profondeur 24",
   "rv.preset_max": "Maximum - profondeur 26",
-  "rv.tip.depth_preset": "Profondeurs d'analyse identiques à celles de la Game Review de Chess.com, pour que les deux précisions décrivent la même recherche. Personnalisé conserve ce que vous avez saisi."
+  "rv.tip.depth_preset": "Profondeurs d'analyse identiques à celles de la Game Review de Chess.com, pour que les deux précisions décrivent la même recherche. Personnalisé conserve ce que vous avez saisi.",
+  "panel.material": "Matériel {diff}",
+  "panel.material_vs": "{white} contre {black}",
+  "set.material_balance": "Bilan matériel",
+  "set.tip.material_balance": "Une ligne sous l'évaluation : le bilan matériel de la position sur l'échiquier du panneau, Blancs moins Noirs en pions (D 9, T 5, F 3, C 3, P 1), et les pièces qui diffèrent - \"Matériel +2 (B+P contre N)\" signifie que les Blancs ont un fou et un pion là où les Noirs ont un cavalier. Les lettres des pièces sont les lettres anglaises (Q R B N P)."
 }

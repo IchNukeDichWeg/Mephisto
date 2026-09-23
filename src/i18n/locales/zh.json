@@ -622,5 +622,9 @@
   "rv.preset_standard": "标准 - 深度 22",
   "rv.preset_deep": "深度 - 深度 24",
   "rv.preset_max": "最大 - 深度 26",
-  "rv.tip.depth_preset": "与 Chess.com 自家复盘所提供的分析深度一致，使两个准确率描述同一次搜索。自定义会保留你输入的值。"
+  "rv.tip.depth_preset": "与 Chess.com 自家复盘所提供的分析深度一致，使两个准确率描述同一次搜索。自定义会保留你输入的值。",
+  "panel.material": "子力 {diff}",
+  "panel.material_vs": "{white} 对 {black}",
+  "set.material_balance": "子力对比",
+  "set.tip.material_balance": "评分下方一行：面板棋盘上局面的子力对比，白方减黑方，以兵为单位（Q 9、R 5、B 3、N 3、P 1），并列出哪些棋子不同 - \"+2 (B+P 对 N)\" 表示白方有象和兵，而黑方对应的是一只马。"
 }

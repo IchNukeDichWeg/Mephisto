@@ -442,6 +442,9 @@ async function initPanel(root, tabId) {
         // Accuracy as it happens, on its own strip under the eval history.
         live_stats: JSON.parse(MephistoConfig.get('live_stats')) || false,
         live_classify: JSON.parse(MephistoConfig.get('live_classify')) || false,
+        // Both drawn from the panel board's own position, once per position (panel_board_rendered).
+        material_balance: JSON.parse(MephistoConfig.get('material_balance')) || false,
+        square_heatmap: JSON.parse(MephistoConfig.get('square_heatmap')) || false,
         // The same verdict, on the SITE's board instead of the panel's. Independent of the toggle
         // above on purpose: someone watching the real board wants the badge there whether or not the
         // panel's little board is also carrying one.
@@ -2473,6 +2476,92 @@ function render_wdl(line) {
     const blackPct = (100 - wdl[0] / 10 - wdl[1] / 10).toFixed(1); // derive third -> always sums to 100
     const w = `White ${whitePct}%`, d = `Draw ${drawPct}%`, b = `Black ${blackPct}%`;
     el.textContent = (board.orientation() === 'black') ? `${b} | ${d} | ${w}` : `${w} | ${d} | ${b}`;
+}
+
+// ---- WHAT THE BOARD SHOWS, PER POSITION: material balance + square-control heatmap ----------------
+// Both are facts about the placement alone, so they are painted from the panel board's render hook
+// (panel-board.js onRender), which fires when the shown position changes -- NOT from draw_moves,
+// which runs on every engine frame. `pos` is the board's own {e4: 'wP'} map, i.e. the FEN it was
+// set from, so the readout can never describe a different position than the one on screen.
+const MATERIAL_VALUE = {q: 9, r: 5, b: 3, n: 3, p: 1};   // the textbook scale, kings uncounted
+
+// pieces: ['wP', 'bN', ...]. diff is White minus Black in pawns; white/black name what each side has
+// that the other does not ("B" vs "N+P"), so an even count with different pieces still says so.
+function material_balance(pieces) {
+    const n = {w: {q: 0, r: 0, b: 0, n: 0, p: 0}, b: {q: 0, r: 0, b: 0, n: 0, p: 0}};
+    for (const p of pieces) {
+        const side = n[p[0]], t = String(p[1] || '').toLowerCase();
+        if (side && t in side) side[t]++;
+    }
+    let diff = 0;
+    const extra = {w: [], b: []};
+    for (const t of ['q', 'r', 'b', 'n', 'p']) {
+        const d = n.w[t] - n.b[t];
+        diff += d * MATERIAL_VALUE[t];
+        if (d) extra[d > 0 ? 'w' : 'b'].push((Math.abs(d) > 1 ? Math.abs(d) : '') + t.toUpperCase());
+    }
+    return {diff, white: extra.w.join('+'), black: extra.b.join('+')};
+}
+
+// "Material +2 (B+P vs N)" -- White-relative like the score line above it. One line by design: the
+// panel is a fixed-height box, and #material clips rather than wraps.
+function material_label(pieces) {
+    const m = material_balance(pieces);
+    const diff = m.diff > 0 ? `+${m.diff}` : m.diff < 0 ? String(m.diff) : '=';
+    const detail = (m.white && m.black)
+        ? i18n('panel.material_vs', '{white} vs {black}', {white: m.white, black: m.black})
+        : (m.white || m.black);
+    return i18n('panel.material', 'Material {diff}', {diff}) + (detail ? ` (${detail})` : '');
+}
+
+// Who controls each square: White attackers minus Black attackers, straight from chess.js (so pins
+// and x-rays are counted the way chess.js counts them -- a pinned piece still attacks, a battery
+// behind it does not). Placement only; the side to move does not change what attacks what.
+function square_control(pos) {
+    const chess = new Chess();
+    chess.clear();
+    for (const [sq, p] of Object.entries(pos)) chess.put({type: p[1].toLowerCase(), color: p[0]}, sq);
+    const out = {};
+    for (const f of 'abcdefgh') for (let r = 1; r <= 8; r++) {
+        const sq = f + r;
+        const d = chess.attackers(sq, 'w').length - chess.attackers(sq, 'b').length;
+        if (d) out[sq] = d;
+    }
+    return out;
+}
+
+// A lead of HEAT_CAP attackers is full strength; more reads the same, because past three the square
+// is simply "theirs" and a darker tint would start hiding the piece. Blue = White, red = Black.
+const HEAT_CAP = 3, HEAT_ALPHA_STEP = 0.15;
+function heat_tint(d) {
+    if (!d) return null;
+    const a = (HEAT_ALPHA_STEP * Math.min(HEAT_CAP, Math.abs(d))).toFixed(2);
+    return d > 0 ? `rgba(33, 150, 243, ${a})` : `rgba(229, 57, 53, ${a})`;
+}
+
+// The map is memoized on the board's `pos` object, which is only replaced when the POSITION changes
+// -- a click that picks up a piece re-renders the same pos and costs 64 style writes, no chess.js.
+let heat_memo = {pos: null, map: null};
+function panel_board_rendered(pos, boardEl) {
+    const mat = PANEL_ROOT.getElementById('material');
+    if (mat) {
+        mat.hidden = !config.material_balance;
+        if (config.material_balance) mat.textContent = material_label(Object.values(pos));
+    }
+    if (!config.square_heatmap) return;
+    if (heat_memo.pos !== pos) {
+        let map = null;
+        try { map = square_control(pos); } catch (e) { /* a placement chess.js refuses: no tint */ }
+        heat_memo = {pos, map};
+    }
+    if (!heat_memo.map) return;
+    // A background-IMAGE on the square itself: under the piece <img>, under every arrow layer (those
+    // are separate overlays above the board), and it is the square's own box, so clicks are untouched.
+    for (const s of boardEl.querySelectorAll('.square-55d63')) {
+        const sq = [...s.classList].map(c => c.match(/^square-([a-h][1-8])$/)).find(Boolean)?.[1];
+        const tint = sq && heat_tint(heat_memo.map[sq]);
+        if (tint) s.style.backgroundImage = `linear-gradient(${tint}, ${tint})`;
+    }
 }
 
 // One distinct colour per engine line, so with Multi Lines on you can tell which arrow is which:
@@ -7930,6 +8019,9 @@ function show_4pc_board(fen4, ourSeat) {
         const ts = PANEL_ROOT.getElementById('qs_turn_switch');
         if (ts) ts.style.display = 'none';
         if (!board4pc) board4pc = MephistoBoard4PC('board', {root: PANEL_ROOT});
+        // the 8x8 material line would describe the last two-player board, not this one
+        const mat = PANEL_ROOT.getElementById('material');
+        if (mat) mat.hidden = true;
         board4pc.orientation((ourSeat || 'r').toLowerCase());   // you are always at the bottom
         board4pc.position(fen4);
     } catch (e) { /* host not built yet; the next position paints it */ }
@@ -8682,6 +8774,7 @@ const LIVE_CONFIG_KEYS = [
     'analysis_limit', 'analysis_limit_mode',
     'arrow_opacity', 'arrow_rank', 'arrow_labels', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
     'premove_confidence', 'premove_plies', 'move_time', 'move_variance', 'move_reason',
+    'material_balance', 'square_heatmap',
     ...ARROW_COLOR_KEYS, // repaint on the next frame, no reload
     'think_time', 'think_variance', 'elo', 'opp_alert', 'dark_mode',
     // toggling the trace has to take effect on the session you are already debugging
@@ -8794,6 +8887,8 @@ function watch_config_changes() {
                 if (key === 'live_stats' || key === 'live_classify' || key === 'class_on_board'
                     || key === 'opp_alert') ensure_classifier();
                 if (key === 'tablebase') tablebase_data = null;       // a stale answer must not survive
+                // both are painted by the board's render hook; re-render once so a toggle shows now
+                if (key === 'material_balance' || key === 'square_heatmap') { try { board.resize(); } catch (e) { /* */ } }
                 // Display-only: nothing is re-searched, but the board and the evaluation line
                 // are both drawn from what is already in hand and have to be repainted now rather
                 // than at the next engine frame -- with Autoplay off there may not be another one.

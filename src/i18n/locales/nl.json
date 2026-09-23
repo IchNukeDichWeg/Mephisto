@@ -622,5 +622,9 @@
   "rv.preset_standard": "Standaard - diepte 22",
   "rv.preset_deep": "Diep - diepte 24",
   "rv.preset_max": "Maximum - diepte 26",
-  "rv.tip.depth_preset": "Analysediepten die overeenkomen met die van de Game Review van Chess.com, zodat beide nauwkeurigheden dezelfde zoektocht beschrijven. Aangepast laat staan wat je typte."
+  "rv.tip.depth_preset": "Analysediepten die overeenkomen met die van de Game Review van Chess.com, zodat beide nauwkeurigheden dezelfde zoektocht beschrijven. Aangepast laat staan wat je typte.",
+  "panel.material": "Materiaal {diff}",
+  "panel.material_vs": "{white} tegen {black}",
+  "set.material_balance": "Materiaalbalans",
+  "set.tip.material_balance": "Eén regel onder de score: de materiaalbalans van de stelling op het paneelbord, wit min zwart in pionnen (D 9, T 5, L 3, P 3, p 1), en welke stukken verschillen - \"Materiaal +2 (B+P tegen N)\" betekent dat wit een loper en een pion heeft waar zwart een paard heeft. De stukletters zijn de Engelse (Q R B N P)."
 }

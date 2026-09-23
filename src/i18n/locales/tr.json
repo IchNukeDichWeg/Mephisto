@@ -622,5 +622,9 @@
   "rv.preset_standard": "Standart - derinlik 22",
   "rv.preset_deep": "Derin - derinlik 24",
   "rv.preset_max": "Maksimum - derinlik 26",
-  "rv.tip.depth_preset": "Chess.com'un kendi Game Review'unun sunduğu analiz derinlikleriyle aynı olanlar, böylece iki isabet değeri aynı aramayı tanımlar. Özel, yazdığınız değeri bırakır."
+  "rv.tip.depth_preset": "Chess.com'un kendi Game Review'unun sunduğu analiz derinlikleriyle aynı olanlar, böylece iki isabet değeri aynı aramayı tanımlar. Özel, yazdığınız değeri bırakır.",
+  "panel.material": "Materyal {diff}",
+  "panel.material_vs": "{white} - {black}",
+  "set.material_balance": "Materyal Dengesi",
+  "set.tip.material_balance": "Skorun altında tek satır: panel tahtasındaki konumun materyal dengesi, beyaz eksi siyah, piyon cinsinden (V 9, K 5, F 3, A 3, P 1), ve hangi taşların farklı olduğu - \"Materyal +2 (B+P - N)\" beyazın, siyahın atına karşı fil ve piyonu olduğu anlamına gelir. Taş harfleri İngilizcedir (Q R B N P)."
 }

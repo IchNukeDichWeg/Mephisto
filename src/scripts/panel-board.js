@@ -51,7 +51,12 @@
         // rules of its own -- it draws pieces and reports clicks -- so the legality comes from the
         // panel, which has chess.js and the real position. Absent, nothing is highlighted.
         const legalTargets = cfg.legalTargets || null;
-        let selected = null;               // the square currently picked up, if any
+        // (pos, boardEl) after every render. The board is rebuilt from scratch on a position,
+        // orientation or selection change -- never per engine frame -- so this is the one place the
+        // panel hears "what is shown changed", whichever of its many board.position() calls did it.
+        // `pos` is a new object only when the POSITION changed, so a caller can memoize on it.
+        const onRender = cfg.onRender || null;
+        let selected = null;              // the square currently picked up, if any
         let targets = [];                  // legal destinations for `selected`, drawn as dots
         // Fall back to the theme path if the inlined map is missing this piece: buildPieces only
         // records pieces whose fetch succeeded, so one failure left `src=""` -- which the browser
@@ -236,6 +241,7 @@
             }
             host.innerHTML = '';
             host.appendChild(board);
+            if (onRender) { try { onRender(pos, board); } catch (e) { /* a decoration never breaks the board */ } }
         }
 
         render();

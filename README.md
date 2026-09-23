@@ -159,6 +159,8 @@ have nets but the bundled chess.js can't replay them, so the panel says so rathe
   **Re-analyse** searches the position on screen again from scratch; **Loaded** names the engine build and the net that
   actually answered.
 - **Panel opacity and docking** - fade it over the board or park it against an edge, remembered per site.
+- **Material balance** and a **square-control heatmap** (optional) - the material count in pawns with what differs
+  ("+1 (B+P vs N)"), and each square of the panel board tinted by who attacks it more, recomputed per position.
 
 <img src="docs/multiple-lines.png" alt="Three candidate lines, each with its own coloured arrow" width="49%"> <img src="docs/opening-explorer.png" alt="The opening explorer, with each book move drawn on the board" width="49%">
 

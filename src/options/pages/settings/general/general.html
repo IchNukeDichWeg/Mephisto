@@ -819,6 +819,26 @@
                     </div>
                 </div>
 
+                <div class="set-row set-toggle">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.material_balance" class="tooltipped" data-position="right" data-tooltip="One line under the score: the material count of the position on the panel board, White minus Black in pawns (Q 9, R 5, B 3, N 3, P 1), and which pieces differ - &quot;Material +2 (B+P vs N)&quot; means White has a bishop and a pawn where Black has a knight."><span data-i18n="set.material_balance">Material Balance</span></span></div>
+                    <div class="set-ctl">
+                        <input id="material_balance_checkbox" type="checkbox" class="set-cb">
+                        <label for="material_balance_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row set-toggle">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.square_heatmap" class="tooltipped" data-position="right" data-tooltip="Tint every square of the panel board by who controls it: blue where White has more pieces attacking it, red where Black does, darker the bigger the lead (up to three). Squares both sides hit equally stay untinted. Redrawn when the position changes, under the pieces and the arrows."><span data-i18n="set.square_heatmap">Square Control Heatmap</span></span></div>
+                    <div class="set-ctl">
+                        <input id="square_heatmap_checkbox" type="checkbox" class="set-cb">
+                        <label for="square_heatmap_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
                 <div class="set-row">
                     <div class="set-lbl"><span data-i18n-tip="set.tip.vision_threads" class="tooltipped" data-position="right" data-tooltip="How many CPU cores the screen reader may use. It runs a large model on every read, and while it FOLLOWS a board it does that over and over -- so this is a budget, not a speed dial: two cores read a board in about three quarters of a second, six in about six tenths. Takes effect the next time the engine host starts."><span data-i18n="set.vision_threads">Screen Reader Cores</span></span></div>
                     <div class="set-ctl">

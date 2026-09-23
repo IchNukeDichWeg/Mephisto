@@ -622,5 +622,9 @@
   "rv.preset_standard": "표준 - 깊이 22",
   "rv.preset_deep": "깊게 - 깊이 24",
   "rv.preset_max": "최대 - 깊이 26",
-  "rv.tip.depth_preset": "Chess.com의 Game Review가 제공하는 것과 같은 분석 깊이입니다. 두 정확도가 같은 탐색을 나타내게 됩니다. 사용자 지정은 입력한 값을 그대로 둡니다."
+  "rv.tip.depth_preset": "Chess.com의 Game Review가 제공하는 것과 같은 분석 깊이입니다. 두 정확도가 같은 탐색을 나타내게 됩니다. 사용자 지정은 입력한 값을 그대로 둡니다.",
+  "panel.material": "기물 {diff}",
+  "panel.material_vs": "{white} 대 {black}",
+  "set.material_balance": "기물 균형",
+  "set.tip.material_balance": "점수 아래 한 줄: 패널 보드 위 포지션의 기물 균형을 백 빼기 흑, 폰 단위로 보여 줍니다 (Q 9, R 5, B 3, N 3, P 1). 어떤 기물이 다른지도 표시합니다 - \"+2 (B+P 대 N)\"은 흑의 나이트에 대해 백이 비숍과 폰을 가졌다는 뜻입니다."
 }

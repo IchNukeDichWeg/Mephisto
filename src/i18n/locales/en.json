@@ -622,5 +622,9 @@
   "rv.preset_standard": "Standard - depth 22",
   "rv.preset_deep": "Deep - depth 24",
   "rv.preset_max": "Maximum - depth 26",
-  "rv.tip.depth_preset": "Review depths that match the ones Chess.com's own Game Review offers, so the two accuracy numbers describe the same search. Custom leaves whatever you typed."
+  "rv.tip.depth_preset": "Review depths that match the ones Chess.com's own Game Review offers, so the two accuracy numbers describe the same search. Custom leaves whatever you typed.",
+  "panel.material": "Material {diff}",
+  "panel.material_vs": "{white} vs {black}",
+  "set.material_balance": "Material Balance",
+  "set.tip.material_balance": "One line under the score: the material count of the position on the panel board, White minus Black in pawns (Q 9, R 5, B 3, N 3, P 1), and which pieces differ - \"Material +2 (B+P vs N)\" means White has a bishop and a pawn where Black has a knight."
 }

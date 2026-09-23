@@ -622,5 +622,9 @@
   "rv.preset_standard": "標準 - 深さ22",
   "rv.preset_deep": "深い - 深さ24",
   "rv.preset_max": "最大 - 深さ26",
-  "rv.tip.depth_preset": "Chess.com の Game Review が提供するのと同じ解析深度。両方の正確度が同じ探索を表すようになります。カスタムは入力した値をそのまま使います。"
+  "rv.tip.depth_preset": "Chess.com の Game Review が提供するのと同じ解析深度。両方の正確度が同じ探索を表すようになります。カスタムは入力した値をそのまま使います。",
+  "panel.material": "駒得 {diff}",
+  "panel.material_vs": "{white} 対 {black}",
+  "set.material_balance": "駒の損得",
+  "set.tip.material_balance": "評価値の下に1行: パネル盤面の駒の損得を、白マイナス黒のポーン単位で表示します (Q 9, R 5, B 3, N 3, P 1)。どの駒が違うかも示します - \"+2 (B+P 対 N)\" は、黒のナイトに対して白がビショップとポーンを持っているという意味です。"
 }

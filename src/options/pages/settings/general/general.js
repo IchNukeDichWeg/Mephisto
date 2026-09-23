@@ -71,6 +71,8 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('board_animation', 'Board Animation:', 'checkbox', true);
         this.registerFormElement('live_stats', 'Live Stats:', 'checkbox', false);
         this.registerFormElement('live_classify', 'Move Classification:', 'checkbox', false);
+        this.registerFormElement('material_balance', 'Material Balance:', 'checkbox', false);
+        this.registerFormElement('square_heatmap', 'Square Control Heatmap:', 'checkbox', false);
         this.registerFormElement('class_on_board', 'Classification On The Board:', 'checkbox', false);
         this.registerFormElement('streamer_alert', 'Opponent Streaming Notice:', 'checkbox', false);
         const search_mode_select = this.registerFormElement('search_mode', 'Search Budget:', 'select', 'time');
