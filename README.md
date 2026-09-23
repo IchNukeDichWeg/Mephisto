@@ -343,7 +343,8 @@ played, and blunders never fire in a decided game.
 
 **Target accuracy (optional)** steers the mix toward a game accuracy you set: above the target it leans on the weaker
 bands you allowed, below it back toward the top move, never outside your thresholds. It needs a few graded moves before
-it acts, and its gain was tuned on a model rather than measured in play - treat the number as a direction, not a promise.
+it acts. Its gain was tuned on a model, and a first check in play did not show it working: six games against
+Lichess's level-4 computer ended between 89.6% and 97.8% whatever the target (off, 75 or 95). Treat it as experimental.
 
 Timing follows: quick on obvious moves, long thinks in critical positions, an instant reflex *only* for true
 recaptures and forced moves. **Clock Mode** budgets each move off the page clock (~time/30 + 60% of the increment);
