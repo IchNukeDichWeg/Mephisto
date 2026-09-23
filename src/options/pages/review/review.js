@@ -841,7 +841,10 @@ function assemble(game, positions, moves, book, opts) {
         // where being right is a real achievement, which is the only kind worth counting as evidence.
         m.complexity = before.lines.length > 1
             ? Math.abs(before.lines[0].cp - before.lines[1].cp) : null;
-        m.onlyMove = before.lines.length === 1;
+        // chess.js cannot count moves under the Fairy rules (drops, explosions, the hill), so those
+        // variants hand the question to the engine's line count instead
+        m.onlyMove = Core.onlyLegalMove(RV_FAIRY_ONLY.includes(opts.variant) ? null : Chess,
+                                        opts.variant, before.fen, before.lines, opts.multipv);
         m.isBook = m.ply < book.plies;
         // The engine's SECOND choice, mover-relative: what the position was worth if this move had
         // not been found. That gap is what makes a move Great rather than merely best.

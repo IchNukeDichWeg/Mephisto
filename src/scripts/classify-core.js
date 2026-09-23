@@ -70,6 +70,16 @@ function sacrificesMaterial(Chess, variant, fenBefore, uci) {
     }
 }
 
+// Did the side to move have exactly one legal move? Counted ON THE BOARD, never from how many
+// engine lines came back: at MultiPV 1 every position has one line, and reading that as "one legal
+// move" graded every non-book move of a review Forced (measured 2026-09-23, the Immortal Game at
+// Lines 1: 37 of 37). Variants whose rules this chess.js does not know pass Chess = null and fall
+// back to the line count, which only means something when more than one line was asked for.
+function onlyLegalMove(Chess, variant, fen, lines, multipv) {
+    if (Chess) try { return new Chess(variant || 'chess', fen).moves().length === 1; } catch (e) {}
+    return multipv > 1 && (lines?.length || 0) === 1;
+}
+
 // Classify one played move.
 //   rank        where it sat in the engine's list (1 = the engine's own move), or null
 //   onlyMove    the position had exactly one legal move
@@ -133,7 +143,7 @@ const CLASS_COLOR = {brilliant: '#26c2a3', great: '#5c8bb0', best: '#96bc4b', ex
 const CLASS_NOTABLE = ['blunder', 'miss', 'mistake', 'inaccuracy', 'brilliant', 'great'];
 
 root.MephistoClassify = {CLASS_LABEL, CLASS_GLYPH, CLASS_COLOR, CLASS_NOTABLE,
-                         winPercent, classify, sacrificesMaterial, CLASS_ORDER, isMateScore, MATE_CP, clamp,
+                         winPercent, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, isMateScore, MATE_CP, clamp,
                          BLUNDER, MISTAKE, INACCURACY, GOOD, PIECE_VAL};
 
 })(typeof self !== 'undefined' ? self : globalThis);

@@ -410,6 +410,58 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     else { fails++; console.log('FAIL CLASS_ORDER is missing ' + missing.join(', ') + ' (' + order + ')'); }
 }
 
+// ---- Forced means ONE LEGAL MOVE, not one engine line ------------------------------------------
+// assemble() used to set onlyMove from before.lines.length === 1, so at Lines (rv_multipv) = 1 every
+// non-book move was Forced (measured 2026-09-23, Immortal Game at depth 10: book 8 / forced 37, no
+// other class). Runs the REAL assemble() from review.js against the real review-core + chess.js.
+{
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const as = rj.indexOf('function assemble(game, positions, moves, book, opts) {');
+    const ae = rj.indexOf('function countClasses(moves, color) {');
+    const fs0 = rj.indexOf('const RV_FAIRY_ONLY =');
+    const actx = {console: {log() {}}};
+    actx.self = actx;
+    vm.createContext(actx);
+    if (as < 0 || ae < as || fs0 < 0) { fails++; console.log('FAIL could not slice assemble'); }
+    else {
+        vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), actx);
+        vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), actx);
+        vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), actx);
+        vm.runInContext('const Core = self.MephistoReviewCore; function cfg() { return null; }\n'
+            + 'function countClasses() { return {}; }\n'
+            + rj.slice(fs0, rj.indexOf('\n', fs0)) + '\n' + rj.slice(as, ae), actx);
+        // one move from `fen`, scored cp (white-positive) before and after, with `multipv` lines asked
+        const run = (fen, uci, cp, multipv, variant) => vm.runInContext(`(() => {
+            const b = new Chess(${JSON.stringify(variant || 'chess')}, ${JSON.stringify(fen)});
+            const turn = b.turn();
+            const mv = b.move({from: '${uci.slice(0, 2)}', to: '${uci.slice(2, 4)}'});
+            const line = {cp: ${cp}, mate: null, pv: ['${uci}']};
+            const positions = [{fen: ${JSON.stringify(fen)}, turn, lines: [line], depth: 10},
+                               {fen: b.fen(), turn: b.turn(), lines: [{cp: ${cp}, mate: null, pv: []}], depth: 10}];
+            const moves = [{san: mv.san, uci: '${uci}', color: turn, ply: 0}];
+            assemble({tags: {}}, positions, moves, {plies: 0},
+                     {variant: ${JSON.stringify(variant || 'chess')}, multipv: ${multipv}});
+            return moves[0].klass;
+        })()`, actx);
+        const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+        const ONE = 'k7/8/8/8/8/8/1q6/K7 w - - 0 1';   // Ka1 in check from an undefended Qb2: Kxb2 only
+        const legal = vm.runInContext(`new Chess('chess', ${JSON.stringify(ONE)}).moves().length`, actx);
+        const cases = [
+            ['the fixture really has one legal move', legal, 1],
+            ['20 legal moves at MultiPV 1 is NOT forced', run(START, 'e2e4', 30, 1), 'best'],
+            ['one legal move at MultiPV 1 IS forced', run(ONE, 'a1b2', 0, 1), 'forced'],
+            ['one legal move at MultiPV 3 IS forced', run(ONE, 'a1b2', 0, 3), 'forced'],
+            // chess.js cannot count Fairy moves, so one line at MultiPV 1 proves nothing there
+            ['a Fairy variant at MultiPV 1 is not called forced from its line count',
+                run(START, 'e2e4', 30, 1, 'atomic'), 'best'],
+        ];
+        for (const [name, got, want] of cases) {
+            if (got === want) console.log('ok   forced: ' + name);
+            else { fails++; console.log(`FAIL forced: ${name} (got ${got}, want ${want})`); }
+        }
+    }
+}
+
 // ---- the verdict badges and the numbered engine arrows ---------------------------------------
 // The badge is the thing a review is read by, so every class the classifier can return must have
 // one -- a class with no badge draws nothing on the board and looks like a missing verdict.

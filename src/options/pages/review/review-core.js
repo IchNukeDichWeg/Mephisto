@@ -247,7 +247,7 @@ function phaseOf(ply, phases) {
 // The classifier itself lives in src/scripts/classify-core.js, which the panel loads too: the
 // published scheme has ONE implementation, or the strip and the report grade the same move
 // differently the first time either is tuned. This file keeps the review's arithmetic around it.
-const {winPercent, classify, sacrificesMaterial, CLASS_ORDER, isMateScore, MATE_CP, clamp,
+const {winPercent, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, isMateScore, MATE_CP, clamp,
        BLUNDER, MISTAKE, INACCURACY, GOOD, PIECE_VAL} = root.MephistoClassify;
 
 
@@ -633,7 +633,7 @@ function parseInfo(line) {
 // export with no caller is surface that has to keep working for nobody.
 root.MephistoReviewCore = {
     parsePgn, clockToSeconds, formatDate, gamePhases, phaseOf, LEVELS,
-    toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, sacrificesMaterial, CLASS_ORDER, MATE_CP,
+    toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
     accuracyFor, indicators, evidence, estimate, parseInfo, clamp,
 };
 
