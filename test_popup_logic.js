@@ -1962,3 +1962,66 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 }
 // ==== END AGENT REVIEW CHECKS ====
 
+// ==== AGENT ANALYSIS CHECKS (engine vs engine, shogi / xiangqi) ====
+{
+    // The match's rules, executed: the REAL block sliced out of analysis.js, the real chess.js, and
+    // the real PGN parser for the round trip. The loop itself needs engines; this pins what decides
+    // a game and what gets written down about it.
+    console.log('\nengine vs engine match:');
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s0 = aj.indexOf('// ---- ENGINE VS ENGINE'), s1 = aj.indexOf('function matchStatus(');
+    ok('the match block can be sliced', s0 > 0 && s1 > s0);
+    const mctx = {console};
+    mctx.self = mctx;
+    vm.createContext(mctx);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), mctx);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), mctx);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), mctx);
+    vm.runInContext(aj.slice(s0, s1), mctx);
+    const run = (code) => vm.runInContext(code, mctx);
+    const out = (fen, moves, plies = 0, v = 'chess') => run(`(() => { const c = new Chess('${v}'${fen ? `, '${fen}'` : ''});
+        for (const m of ${JSON.stringify(moves)}) c.move(m); return matchOutcome(c, ${plies}); })()`);
+    eq('match: checkmate ends it for the mating side', out('', ['f3', 'e5', 'g4', 'Qh4#']), {result: '0-1', reason: 'checkmate'});
+    eq('match: stalemate', out('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1', []), {result: '1/2-1/2', reason: 'stalemate'});
+    eq('match: insufficient material', out('8/8/8/8/8/5k2/8/5K2 w - - 0 1', []), {result: '1/2-1/2', reason: 'insufficient material'});
+    eq('match: threefold repetition', out('', ['Nf3', 'Nf6', 'Ng1', 'Ng8', 'Nf3', 'Nf6', 'Ng1', 'Ng8']), {result: '1/2-1/2', reason: 'threefold repetition'});
+    eq('match: the 50-move rule', out('7k/8/8/8/8/8/R7/K7 w - - 99 80', ['Ra3']), {result: '1/2-1/2', reason: '50-move rule'});
+    eq('match: a mate on the hundredth quiet ply is a mate, not a draw', out('7k/8/6K1/8/8/8/8/R7 w - - 99 80', ['Ra8#']), {result: '1-0', reason: 'checkmate'});
+    eq('match: the move cap adjudicates a draw', out('', [], run('MATCH_MAX_PLIES')), {result: '1/2-1/2', reason: 'move cap (200 moves)'});
+    eq('match: a game still on is null', out('', ['e4']), null);
+    const mv = (v, fen, uci) => run(`(() => { const m = matchMove(new Chess('${v}', '${fen}'), '${uci}'); return m ? m.san : null; })()`);
+    const castle = 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1';
+    eq('match: a standard castle plays', mv('chess', castle, 'e1g1'), 'O-O');
+    eq('match: a Chess960 engine castles king-takes-rook, and it is translated', [mv('fischerandom', castle, 'e1h1'), mv('fischerandom', castle, 'e1a1')], ['O-O', 'O-O-O']);
+    eq('match: a promotion keeps its piece', mv('chess', '8/P6k/8/8/8/8/8/K7 w - - 0 1', 'a7a8n'), 'a8=N');
+    eq('match: an illegal engine move is refused, not played', mv('chess', castle, 'e1e3'), null);
+    eq('match: the score is kept from engine A\'s side', run(`matchScore([{white: 'A', result: '1-0'}, {white: 'B', result: '1-0'},
+        {white: 'A', result: '1/2-1/2'}, {white: 'B', result: '*'}])`), {a: 1.5, b: 1.5, w: 1, d: 1, l: 1});
+    const ENG = JSON.stringify([{id: 'w1', kind: 'wasm'}, {id: 'n1', kind: 'native'}, {id: 'n2', kind: 'native'}]);
+    ok('match: the same WASM engine may play itself (two client ids, two instances)', run(`matchRefusal('w1', 'w1', 'chess', ${ENG})`) === null);
+    ok('match: ...a native engine against itself is refused with the reason', /one process/.test(run(`matchRefusal('n1', 'n1', 'chess', ${ENG})`) || ''));
+    ok('match: ...two different native engines are fine', run(`matchRefusal('n1', 'n2', 'chess', ${ENG})`) === null);
+    ok('match: a variant chess.js cannot end is refused', !!run(`matchRefusal('w1', 'w1', 'crazyhouse', ${ENG})`));
+    ok('match: Chess960 on a native host is refused', !!run(`matchRefusal('w1', 'n1', 'fischerandom', ${ENG})`));
+    ok('match: the two sides really get two client ids', /'analysis-match-a'/.test(aj) && /'analysis-match-b'/.test(aj));
+    ok('match: one thread per engine', /multipv: 1, threads: 1, hash: MATCH_HASH/.test(aj));
+    ok('match: the page\'s own analysis stands down while it plays',
+       /async function analyseNow\(\) \{\n\s+if \(match\?\.running\) return;/.test(aj) && /if \(!pos \|\| match\?\.running\) return false;/.test(aj));
+    // the PGN goes back through the page's own parser and replays to the same moves -- from a start
+    // position with black to move, which is where move numbering goes wrong
+    const rt = run(`(() => {
+        const std = new Chess('chess').fen();
+        const start = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+        const c = new Chess('chess', start);
+        const sans = ['e5', 'Nf3', 'Nc6', 'Bb5'].map(m => c.move(m).san);
+        const g = {round: 3, white: 'B', startFen: start, sans, result: '*', reason: 'stopped'};
+        const pgn = matchPgn(g, {A: 'SF "A"', B: 'SF B'}, 'ev', 'chess', std);
+        const back = self.MephistoReviewCore.parsePgn(pgn)[0];
+        const r = new Chess('chess', back.startFen);
+        const ok = back.moves.every(m => r.move(typeof m === 'string' ? m : m.san));
+        return {ok, n: r.history().length, fen: back.startFen === start, num: /\\n1\\.\\.\\. e5 2\\. Nf3/.test(pgn),
+                white: /\\[White "SF B"\\]/.test(pgn), reason: /\\{stopped\\} \\*$/.test(pgn), quote: /\\[Black "SF 'A'"\\]/.test(pgn)};
+    })()`);
+    eq('match: a game\'s PGN round-trips through the page\'s parser', rt, {ok: true, n: 4, fen: true, num: true, white: true, reason: true, quote: true});
+}

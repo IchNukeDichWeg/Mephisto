@@ -222,6 +222,14 @@ class AnalysisPage extends SettingsPage {
         $('an_copy_fen')?.addEventListener('click', () => copyOut(positions[cursor]?.fen || '', 'FEN'));
         $('an_copy_pgn')?.addEventListener('click', () => copyOut(pgnText(), 'PGN'));
         $('an_export')?.addEventListener('click', (e) => exportPosition(e.currentTarget));
+        $('an_match_run')?.addEventListener('click', () => runMatch());
+        $('an_match_stop')?.addEventListener('click', () => stopMatch());
+        $('an_match_copy')?.addEventListener('click', () => copyOut($('an_match_pgn')?.value || '', 'PGN'));
+        // a unit switch moves the number too: 8 plies means nothing as 8 milliseconds
+        $('an_match_kind')?.addEventListener('change', (e) => {
+            const v = $('an_match_value');
+            if (v) v.value = e.target.value === 'depth' ? '8' : '500';
+        });
         document.addEventListener('keydown', onKey);
         // The page loader has no onLeave hook, so the route is the teardown signal: the moment the
         // hash is not ours, stop searching and free both engines.
@@ -280,6 +288,19 @@ function fillSelects() {
         for (const e of ENGINES.filter(x => x.kind === 'native')) {
             nativeHostAvailable(e.id).then(ok => {
                 const opt = [...e2.options].find(o => o.value === e.id);
+                if (opt && !ok) { opt.disabled = true; opt.text = `${e.label} (not installed)`; }
+            });
+        }
+    }
+    // the match offers exactly what the analysis can run; a missing native host is marked the same way
+    for (const [id, dflt] of [['an_match_a', cfg('an_engine')], ['an_match_b', 'stockfish-11-hce']]) {
+        const ms = $(id);
+        if (!ms || ms.options.length) continue;
+        ms.innerHTML = ENGINES.map(e => `<option value="${e.id}">${e.label}</option>`).join('');
+        ms.value = ENGINES.some(e => e.id === dflt) ? dflt : ENGINES[0].id;
+        for (const e of ENGINES.filter(x => x.kind === 'native')) {
+            nativeHostAvailable(e.id).then(ok => {
+                const opt = [...ms.options].find(o => o.value === e.id);
                 if (opt && !ok) { opt.disabled = true; opt.text = `${e.label} (not installed)`; }
             });
         }
@@ -846,7 +867,7 @@ function stopSearch() {
 // ---- stepping and analysing ---------------------------------------------------------------------
 
 function go(ply) {
-    if (!positions.length) return;
+    if (!positions.length || match?.running) return;   // the match owns the board while it plays
     treeNode = positions[Core.clamp(ply, 0, positions.length - 1)];
     relinkLine();          // stepping BACK re-roots the forward tail on the mainline children
     render();
@@ -856,7 +877,7 @@ function go(ply) {
 
 // jump to any node in the tree (a variation cell in the move list)
 function goNode(n) {
-    if (!n) return;
+    if (!n || match?.running) return;
     treeNode = n;
     relinkLine();
     render();
@@ -882,6 +903,7 @@ function analyseCurrent() {
 }
 
 async function analyseNow() {
+    if (match?.running) return;          // the match's engines are the only searches while it plays
     const at = cursor;
     const pos = positions[at];
     if (!pos) return;
@@ -1090,7 +1112,7 @@ function renderCmp(pos, cols) {
 // played by SAN because that is the only drop syntax this chess.js accepts.
 function playMove(from, to, promotion, drop) {
     const pos = positions[cursor];
-    if (!pos) return false;
+    if (!pos || match?.running) return false;
     let mv, fenAfter, turnAfter;
     try {
         const c = newChess(pos.fen);
@@ -1924,6 +1946,259 @@ function highlightMove() {
     document.querySelectorAll('.an-mcell.an-sel').forEach(e => e.classList.remove('an-sel'));
     const sel = document.querySelector(`.an-mcell[data-node="${treeNode?.id}"]`);
     if (sel) { sel.classList.add('an-sel'); sel.scrollIntoView({block: 'nearest'}); }
+}
+
+// ---- ENGINE VS ENGINE ---------------------------------------------------------------------------
+// Two engines play each other on this board, colours alternating, and the page keeps the score. The
+// page's own analysis stands down for the length of it (go/playMove/analyseNow all check `match`):
+// the match owns the board, and a second search on the same machine would be a third engine
+// competing for the cores the two players were promised.
+//
+// SAME ENGINE AGAINST ITSELF. The offscreen host keys an engine on its CLIENT ID (engines.js, "ONE ID
+// PER ENGINE") and builds a fresh WASM instance per init, so the two sides get two ids and are two
+// separate engines with separate hash tables, even when both are the same build. The native hosts
+// are different: the service worker runs ONE process per host name for every port that asks, so a
+// native engine against itself would be one process, one hash table, playing both sides. Refused.
+//
+// Standard chess and Chess960 only. chess.js's game-over methods know nothing of a variant's own
+// ending (the hill, the third check, an exploded king), so a match in a variant would play on past
+// the result and report the wrong one.
+const MATCH_VARIANTS = ['chess', 'fischerandom'];
+// A game still going after 200 moves is adjudicated a draw rather than left to run all night.
+const MATCH_MAX_PLIES = 400;
+const MATCH_HASH = 32;       // MB per side: two engines, and a depth/ms budget that never fills more
+// The offscreen host stops a search whose owner has been silent for 60s (its orphan lease), so a
+// longer per-move budget would be cut short there anyway; the cap says so up front.
+const MATCH_MAX_MS = 60000;
+let match = null;            // {running, stopped, engines, games, names, budget} -- the last match stays for its table
+
+function matchRefusal(a, b, variant, engines) {
+    const kind = (id) => engines.find(e => e.id === id)?.kind;
+    if (!kind(a) || !kind(b)) return 'Pick an engine for both sides.';
+    if (!MATCH_VARIANTS.includes(variant))
+        return 'A match needs to know when a game is over, and this page can only tell that for standard chess and Chess960.';
+    if (a === b && kind(a) === 'native')
+        return 'A native engine cannot play itself: both sides would be one process sharing one hash table. Pick the WASM build for one side.';
+    if (variant === 'fischerandom' && (kind(a) === 'native' || kind(b) === 'native'))
+        return 'The native hosts are set up for standard chess only; use WASM engines for Chess960.';
+    return null;
+}
+
+// How the game stands after `plies` moves, or null while it is still on. Checkmate first: a mate
+// delivered on the hundredth quiet ply is a mate, not a fifty-move draw.
+function matchOutcome(c, plies) {
+    if (c.isCheckmate()) return {result: c.turn() === 'w' ? '0-1' : '1-0', reason: 'checkmate'};
+    if (c.isStalemate()) return {result: '1/2-1/2', reason: 'stalemate'};
+    if (c.isInsufficientMaterial()) return {result: '1/2-1/2', reason: 'insufficient material'};
+    if (c.isThreefoldRepetition()) return {result: '1/2-1/2', reason: 'threefold repetition'};
+    if (+(c.fen().split(' ')[4] || 0) >= 100) return {result: '1/2-1/2', reason: '50-move rule'};
+    if (plies >= MATCH_MAX_PLIES) return {result: '1/2-1/2', reason: `move cap (${MATCH_MAX_PLIES / 2} moves)`};
+    return null;
+}
+
+// An engine's UCI move played through the legal list, so nothing chess.js would reject is played.
+// Chess960 engines castle as KING TAKES OWN ROOK (e1h1); chess.js keeps the king's destination
+// (e1g1), so that one shape is translated by which side the rook stands on.
+function matchMove(c, uci) {
+    const from = uci.slice(0, 2), to = uci.slice(2, 4), promo = uci[4] || '';
+    const legal = c.moves({verbose: true});
+    let m = legal.find(x => x.from === from && x.to === to && (x.promotion || '') === promo);
+    if (!m) {
+        const p = c.get(from), r = c.get(to);
+        if (p?.type === 'k' && r?.type === 'r' && r.color === p.color) {
+            const flag = to[0] > from[0] ? 'k' : 'q';
+            m = legal.find(x => x.from === from && x.flags.includes(flag));
+        }
+    }
+    return m ? c.move(m.san) : null;
+}
+
+// From engine A's side: a point for a win, half for a draw; an unfinished game counts for nobody.
+function matchScore(games) {
+    const s = {a: 0, b: 0, w: 0, d: 0, l: 0};
+    for (const g of games) {
+        if (g.result === '1/2-1/2') { s.a += 0.5; s.b += 0.5; s.d++; continue; }
+        if (g.result !== '1-0' && g.result !== '0-1') continue;
+        const aWon = (g.result === '1-0') === (g.white === 'A');
+        if (aWon) { s.a++; s.w++; } else { s.b++; s.l++; }
+    }
+    return s;
+}
+
+// One game as PGN. The reason rides as a closing comment, the way match tools write it, because the
+// Termination tag has a fixed vocabulary that says "normal" for all of mate, stalemate and repetition.
+function matchPgn(g, names, event, variant, standardFen) {
+    const tags = [['Event', event], ['Site', 'Mephisto Analysis'], ['Round', String(g.round)],
+                  ['White', names[g.white]], ['Black', names[g.white === 'A' ? 'B' : 'A']], ['Result', g.result]];
+    if (variant === 'fischerandom') tags.push(['Variant', 'Chess960']);
+    if (g.startFen !== standardFen) tags.push(['SetUp', '1'], ['FEN', g.startFen]);
+    const [, side, , , , full] = g.startFen.split(' ');
+    let num = +full || 1, white = side !== 'b';
+    const body = [];
+    g.sans.forEach((san, i) => {
+        if (white) body.push(`${num}.`);
+        else if (i === 0) body.push(`${num}...`);
+        body.push(san);
+        if (!white) num++;
+        white = !white;
+    });
+    if (g.reason) body.push(`{${g.reason}}`);
+    body.push(g.result);
+    return tags.map(([k, v]) => `[${k} "${String(v).replace(/"/g, "'")}"]`).join('\n') + '\n\n' + body.join(' ');
+}
+
+function matchStatus(text, kind) {
+    const el = $('an_match_status');
+    if (el) { el.textContent = text; el.className = 'an-status' + (kind ? ` an-${kind}` : ''); }
+}
+
+function syncMatchUi() {
+    const running = !!match?.running;
+    for (const id of ['an_match_run', 'an_match_a', 'an_match_b', 'an_match_kind', 'an_match_value',
+                      'an_match_from', 'an_match_games']) {
+        const el = $(id);
+        if (el) el.disabled = running;
+    }
+    const stop = $('an_match_stop');
+    if (stop) stop.disabled = !running;
+}
+
+function matchEvent(m) {
+    return `Mephisto engine match, ${m.budget.kind === 'depth' ? `depth ${m.budget.value}` : `${m.budget.value} ms`} per move`;
+}
+
+function renderMatch() {
+    const out = $('an_match_games_out'), ta = $('an_match_pgn');
+    if (!out || !match) return;
+    const {names, games} = match;
+    const s = matchScore(games);
+    const rows = games.map((g, i) => `<tr><td>${g.round}</td><td>${esc(names[g.white])}</td>`
+        + `<td>${esc(names[g.white === 'A' ? 'B' : 'A'])}</td><td>${esc(g.result)}</td>`
+        + `<td>${esc(g.reason || (match.running && i === games.length - 1 ? 'playing' : ''))}</td>`
+        + `<td>${Math.ceil(g.sans.length / 2)}</td>`
+        + `<td>${match.running ? '' : `<button class="set-btn" type="button" data-game="${i}">Load</button>`}</td></tr>`).join('');
+    out.innerHTML = `<table class="an-match-t"><tr><th>#</th><th>White</th><th>Black</th><th>Result</th>`
+        + `<th>Reason</th><th>Moves</th><th></th></tr>${rows}</table>`;
+    // Load puts the game on the analysis board as an ordinary PGN, so it can be stepped through
+    out.querySelectorAll('[data-game]').forEach(btn => btn.addEventListener('click', () => {
+        const g = games[+btn.dataset.game];
+        if (!g || !$('an_pgn')) return;
+        $('an_pgn').value = matchPgn(g, names, matchEvent(match), match.variant, match.standardFen);
+        loadFromInput();
+        $('an-board')?.scrollIntoView({block: 'start'});
+    }));
+    const pgns = games.filter(g => g.sans.length)
+        .map(g => matchPgn(g, names, matchEvent(match), match.variant, match.standardFen));
+    if (ta) { ta.value = pgns.join('\n\n'); ta.classList.toggle('hidden', !pgns.length); }
+    const scored = s.w + s.d + s.l;
+    if (!match.running) {
+        matchStatus(`${names.A} ${s.a} - ${s.b} ${names.B}` + (scored ? `  (A: +${s.w} =${s.d} -${s.l})` : '')
+            + (match.stopped ? ' - stopped' : '') + (match.error ? ` - ${match.error}` : ''),
+            match.error ? 'err' : undefined);
+    }
+}
+
+function fmtCp(cp) {
+    if (cp == null) return '';
+    return Core.isMateScore(cp) ? `${cp > 0 ? '' : '-'}M${Core.MATE_CP - Math.abs(cp)}`
+        : `${cp > 0 ? '+' : ''}${(cp / 100).toFixed(2)}`;
+}
+
+async function runMatch() {
+    if (match?.running) return;
+    const a = $('an_match_a')?.value, b = $('an_match_b')?.value;
+    const variant = anVariant();
+    const why = matchRefusal(a, b, variant, ENGINES);
+    if (why) return matchStatus(why, 'err');
+    const kind = $('an_match_kind')?.value === 'time' ? 'time' : 'depth';
+    const raw = Math.floor(+$('an_match_value')?.value || 0);
+    const value = kind === 'depth' ? Core.clamp(raw || 8, 1, AN_DEPTH_MAX) : Core.clamp(raw || 500, 10, MATCH_MAX_MS);
+    const n = Core.clamp(Math.floor(+$('an_match_games')?.value || 1), 1, 100);
+    // the rules are captured once: a variant switched mid-match must not change the games still to come
+    const rules = (fen) => fen === undefined ? new Chess(variant) : new Chess(variant, fen);
+    const standardFen = rules().fen();
+    const startFen = $('an_match_from')?.value === 'current' ? (positions[cursor]?.fen || standardFen) : standardFen;
+    if (matchOutcome(rules(startFen), 0)) return matchStatus('That position is already over; there is no game to play from it.', 'err');
+    const label = (id) => ENGINES.find(e => e.id === id)?.label || id;
+    // the same engine on both sides still needs two names, or the table cannot say who won
+    const names = a === b ? {A: `${label(a)} (A)`, B: `${label(b)} (B)`} : {A: label(a), B: label(b)};
+    match = {running: true, stopped: false, engines: [], games: [], names, variant, standardFen,
+             budget: {kind, value}, error: null};
+    syncMatchUi();
+    // the page's own search stops FIRST, through its own queue, and stays stopped (analyseNow checks)
+    analyseChain = analyseChain.then(stopSearch, stopSearch);
+    await analyseChain;
+    const arrows = $('an_arrows');
+    if (arrows) arrows.innerHTML = '';
+    const opts = {variant, limitKind: kind, limitValue: value, multipv: 1, threads: 1, hash: MATCH_HASH};
+    try {
+        matchStatus(`Loading ${names.A} and ${names.B}...`);
+        const ea = makeEngine(a, opts, 'analysis-match-a');
+        const eb = makeEngine(b, opts, 'analysis-match-b');
+        match.engines = [ea, eb];
+        await Promise.all([ea.start(), eb.start()]);
+        for (let i = 0; i < n && !match.stopped; i++) {
+            const aWhite = i % 2 === 0;
+            const g = {round: i + 1, white: aWhite ? 'A' : 'B', startFen, sans: [], result: '*', reason: ''};
+            match.games.push(g);
+            const side = {w: aWhite ? ea : eb, b: aWhite ? eb : ea};
+            const who = {w: aWhite ? names.A : names.B, b: aWhite ? names.B : names.A};
+            // a new game is a new game to the engines too: no hash carried over from the last one
+            for (const e of [ea, eb]) { e.send?.('ucinewgame'); await e.isready?.(); }
+            const c = rules(startFen);
+            board?.position(startFen);
+            renderMatch();
+            while (!match.stopped) {
+                const end = matchOutcome(c, g.sans.length);
+                if (end) { Object.assign(g, end); break; }
+                const turn = c.turn(), fenBefore = c.fen();
+                const res = await side[turn].analyse(fenBefore, turn);
+                if (match.stopped) break;
+                const uci = res?.lines?.[0]?.pv?.[0];
+                const mv = uci ? matchMove(c, uci) : null;
+                if (!mv) {
+                    // a move that is not legal here loses, the rule every match tool plays by
+                    g.result = turn === 'w' ? '0-1' : '1-0';
+                    g.reason = `${who[turn]} gave no legal move (${uci || 'none'})`;
+                    break;
+                }
+                g.sans.push(mv.san);
+                board?.position(c.fen());
+                renderEval({fen: fenBefore, turn}, res);
+                const cp = res.lines[0].cp;
+                const line = `Game ${i + 1}/${n} - move ${Math.ceil(g.sans.length / 2)}: ${who[turn]} played ${mv.san}`
+                    + (cp != null ? ` (${fmtCp(cp)})` : '');
+                matchStatus(line);
+                status(line);
+            }
+            if (match.stopped && g.result === '*') g.reason = 'stopped';
+        }
+    } catch (e) {
+        if (!match.stopped) match.error = String(e.message || e);
+    } finally {
+        for (const e of match.engines) { try { e.dispose?.(); } catch (err) { /* */ } }
+        match.running = false;
+        syncMatchUi();
+        renderMatch();
+        // A native host is ONE process per engine name, shared with this page's own analysis: the
+        // match configured it for one thread and one line, so the page's engine is rebuilt to put
+        // its own settings back. WASM engines had their own instances and need nothing.
+        // ...unless the page has been left: teardown() already freed its engines, and resuming here
+        // would build a fresh one behind a page nobody is looking at
+        if (location.hash.startsWith('#analysis')) {
+            const nat = [a, b].filter(id => ENGINES.find(e => e.id === id)?.kind === 'native');
+            if (nat.includes(cfg('an_engine'))) reloadEngine(); else go(cursor);
+            if (nat.includes(cfg('an_engine2'))) reloadEngine2();
+        }
+    }
+}
+
+function stopMatch() {
+    if (!match?.running) return;
+    match.stopped = true;
+    // stopSearch makes the running analyse() return on its bestmove; the loop then sees `stopped`
+    for (const e of match.engines) { try { e.stopSearch?.(); } catch (err) { /* */ } }
+    matchStatus('Stopping...');
 }
 
 // ---- helpers ------------------------------------------------------------------------------------
