@@ -1293,15 +1293,26 @@ function renderMoves() {
     }
 }
 
+// chess.com's coach grade for a move, when it differs from ours. Only shown when Explain the moves
+// actually ran on THIS report (report.prose, without an error): classAlt is only ever written by
+// applyEeProse, but the guard keeps a stale field from surfacing as if their coach had spoken.
+// Ours stays the primary grade everywhere; theirs is a second opinion beside it, never a replacement.
+function coachGrade(m) {
+    if (!m || !m.classAlt || m.classAlt === m.klass || !CLASS_LABEL[m.classAlt]) return null;
+    return (report?.prose && !report.prose.error) ? m.classAlt : null;
+}
+
 function moveCell(m) {
     if (!m) return '<div class="rv-mcell"></div>';
     const k = m.klass || 'good';
+    const alt = coachGrade(m);
     // White's perspective, like every other number on the page: cpLoss is stored as a magnitude for
     // whoever moved, so a black mistake is white GAINING and reads +N. It used to print -N for both
     // colours, which said "someone lost something" without saying who.
     const swing = (m.cpLoss == null || m.cpLoss < 1) ? null : Math.round(m.cpLoss) * (m.color === 'w' ? -1 : 1);
     const loss = swing == null ? '' : (swing > 0 ? `+${swing}` : `−${Math.abs(swing)}`);
-    return `<div class="rv-mcell rv-c-${k}" data-ply="${m.ply}" title="${esc(CLASS_LABEL[k])}">
+    const title = CLASS_LABEL[k] + (alt ? ` - chess.com's coach: ${CLASS_LABEL[alt]}` : '');
+    return `<div class="rv-mcell rv-c-${k}${alt ? ' rv-alt' : ''}" data-ply="${m.ply}" title="${esc(title)}">
         ${classIcon(k)}<span class="rv-san">${esc(m.san)}</span>
         <span class="rv-loss">${loss}</span></div>`;
 }
@@ -1915,7 +1926,9 @@ function renderDetail(pos, played) {
         el.innerHTML = `<span class="rv-meta">Start position${report.book.name ? ` - ${esc(report.book.name)}` : ''}.</span>`;
     } else {
         const k = played.klass || 'good';
-        const bits = [`<span class="rv-c-${k}"><span class="rv-klass">${CLASS_LABEL[k]}</span></span>`,
+        const alt = coachGrade(played);
+        const bits = [`<span class="rv-c-${k}"><span class="rv-klass">${CLASS_LABEL[k]}</span></span>`
+            + (alt ? ` <span class="rv-c-${alt} rv-alt-grade">- chess.com's coach: <span class="rv-klass">${CLASS_LABEL[alt]}</span></span>` : ''),
             `<b>${esc(moveLabel(played))}</b>`];
         if (played.cpLoss > 0) bits.push(`gave up ${Math.round(played.cpLoss)}cp`);
         if (played.rank) bits.push(`engine's #${played.rank}`);

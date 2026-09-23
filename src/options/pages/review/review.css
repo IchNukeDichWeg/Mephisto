@@ -647,3 +647,19 @@ html.dark .rv-ev-strong  { color: #d15050; }
 .rv4-tok { flex: 1 1 auto; font-variant-numeric: tabular-nums; }
 .rv4-klass { font-size: 11px; padding: 1px 7px; border-radius: 999px; color: #12210a; font-weight: 600; }
 .rv4-cp { color: var(--mp-mute); font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; }
+
+/* ------------------------------------------------------------------- second opinion + share */
+
+/* chess.com's coach graded this move differently: a small dot after the notation, muted so our own
+   grade (the icon and its colour) stays the one the eye lands on. The title says what it means. */
+.rv-mcell.rv-alt .rv-san::after {
+    content: '';
+    display: inline-block;
+    width: 5px; height: 5px;
+    margin-left: 4px;
+    vertical-align: 3px;
+    border-radius: 50%;
+    background: var(--mp-mute);
+}
+.rv-detail .rv-alt-grade { color: var(--mp-dim); }
+
