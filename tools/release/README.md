@@ -6,7 +6,7 @@ each version's zip. They live on fixed assets releases, uploaded once when they 
 | release      | holds                                   | size     |
 |--------------|-----------------------------------------|----------|
 | `models-v1`  | Maia, Maia-2, Maia-3, Elite Leela, vision ONNX (already published) | 314.3 MB |
-| `engines-v1` | Stockfish 18 / 19 / 19-small nets, the 12 Fairy-Stockfish nets | 706.5 MB |
+| `engines-v1` | Stockfish 18 / 19 / 19-small nets, the 12 Fairy-Stockfish nets, the shogi and xiangqi nets | 877.3 MB |
 
 `src/offscreen/engine-assets.json` lists each file with its size, sha256 and release tag. It ships in
 both zips. The loader (`src/offscreen/model-fetch.js`) tries the bundled file first, then the git
@@ -24,7 +24,7 @@ both zips. The loader (`src/offscreen/model-fetch.js`) tries the bundled file fi
 
    | zip                          | before  | after   |
    |------------------------------|---------|---------|
-   | `mephisto-<v>.zip` (full)    | 689.7 MB | 11.4 MB |
+   | `mephisto-<v>.zip` (full)    | 689.7 MB | 11.9 MB |
    | `mephisto-<v>-update.zip`    | 6.8 MB  | 6.8 MB (unchanged) |
 
 3. Upload both zips to the version's release as before.
@@ -66,6 +66,7 @@ Without it, or offline, that engine does not start and the panel says why.
 | Stockfish 19 small          | 1.2 MB |
 | Stockfish 18                | 112.4 MB (both of its nets) |
 | Fairy-Stockfish, per variant | 1.0 to 80.2 MB (47.7 MB for standard chess) |
+| Shogi / Xiangqi (large board) | 159.5 / 11.3 MB |
 | Maia, per rating band       | 3.5 MB |
 | Maia-2 / Maia-3             | 93.2 / 92.2 MB |
 | Elite Leela                 | 19.2 MB |
