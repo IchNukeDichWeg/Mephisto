@@ -6548,38 +6548,40 @@ function category_for_roll(r, rates) {
 }
 
 // ---- TARGET ACCURACY (humanize_target_acc, 0 = off) ---------------------------------------------
-// The mix alone fixes the ODDS of each band, not the result: a quiet game hands every band a pool of
-// harmless moves and lands at 97%, a sharp one at 80%, from the same sliders. With a target set, the
-// mix is re-weighted every move by how far THIS game's running accuracy (our side, the same Lichess
-// formula Live Stats and Session Stats show) sits from it. The control rule, a clamped proportional
-// controller on the SHARES -- never on the thresholds:
+// Aims the game's accuracy at a number by choosing each move for the accuracy it will ITSELF score:
+// the win% it gives away against the best line, through the same Lichess formula Live Stats and the
+// Game Review grade with. The need for this move is what brings the running mean to the target over
+// HORIZON moves; the candidate nearest that need is played (a random one among near-equals).
 //
-//   err = accuracy - target (percentage points); exactly on target nothing changes.
-//   k   = MAX_SHIFT * min(1, |err| / SPAN)                 -- 0 on target, MAX_SHIFT from SPAN out.
-//   above target: the Top share gives up k of itself to the non-top bands, split by share x depth
-//                 (second line = 1 ... blunder = 6), so it leans to the WEAKER bands you allowed.
-//   below target: every non-top band gives up k of itself to Top.
+// WHY NOT THE MIX. 3.1.316 re-weighted the band shares instead, and in six real games against
+// Lichess level 4 it moved nothing (off 96.5, target 75 -> 93.8). Shares are odds on a centipawn
+// band, not on accuracy: most of the shifted weight went to "second line" moves that cost ~0, and a
+// 300cp mistake in a +8 position is a 1-point accuracy loss. Scoring the candidates directly removes
+// both problems.
 //
-// The error is on the game's CUMULATIVE average, which already integrates every move, so a gentle
-// gain just settles off target (the equilibrium is where the steered mix's own average equals the
-// running one). Measured on a toy model -- fixed accuracy per band (100/90/80/70/60/45/30), the
-// default mix, 2,000 seeded games of 40 moves, readings rounded like live_stats -- final accuracy
-// mean / rms error vs target 85 / 88 / 95:
-//   deadband 1, SPAN 10:  88.7/4.0  90.2/2.6  92.7/2.8
-//   SPAN 4:               86.8/2.1  88.9/1.4  93.7/1.7
-//   SPAN 1 (this):        85.8/1.2  88.2/0.7  94.4/0.9
-// A toy, not a game: real band accuracies depend on the position, so this proves the direction and
-// the settling, not the exact number a real game lands on.
+// THE FLOOR. Accuracy is win% given away, and a lost position has none left to give: once a low
+// target had thrown the game, every later move graded ~100 and the result climbed back (target 60
+// vs SF 1500: 11 of 12 lost, accuracy 88.6). So while the game is alive (best > -600) no move may
+// leave us below FLOOR_CP; in a lost game the floor lifts and only the band cap holds. Screened vs
+// SF 1500 / 2200, target 75, 12 games each: floor -100 -> 80.3, -250 -> 77.7 / 83.3, -400 -> 76.7 /
+// 85.7 (2 lost), none -> 85.9 (8 lost). -250 is the lowest with no losses against either.
 //
-// It only moves weight between bands that already have a share: a band at 0 stays at 0, so it can
-// never play a kind of move the mix forbids, and the cp bands, the blunder-in-a-decided-game rule,
-// recaptures, forced moves and mates are all decided in humanize_pick exactly as before. MAX_SHIFT
-// < 1 keeps every allowed band alive, so the set of bands in play (and the MultiPV it needs) never
-// changes. Until MIN_MOVES of ours are graded the reading is noise (book moves score 100%), so the
-// mix is left alone.
+// MEASURED (sim, 2026-09-24): our side through these functions, native SF19 for the lines (MultiPV
+// 20, depth 12) and the opponent (UCI_LimitStrength), 12 games per cell, graded by the Game Review's
+// own accuracyFor. Target -> result vs SF 1500 | vs SF 2200 (sd), 1 loss in 144 games:
+//   off 95.0 | 92.8   95 -> 95.4 (0.5) | 95.3 (0.6)   90 -> 90.0 (0.5) | 89.8 (0.4)
+//   85 -> 86.3 (1.8) | 86.2 (1.5)   80 -> 83.5 (4.5) | 85.5 (2.7)   75 -> 75.5 (3.2) | 83.7 (4.6)
+// 85 and up lands within ~1 point. Below that the floor decides: a target needs win% to give away,
+// and only an opponent's mistakes hand it back, so against strong play ~84 is as low as it goes.
+//
+// The sliders still set the limits: no move past the upper edge of the deepest band with a share
+// (humanize_max_loss), no blunder band in a decided game, and recaptures, forced moves and our own
+// mates are decided in humanize_pick before any of this. Until MIN_MOVES of ours are graded the
+// reading is noise (book moves score 100%), so the mix plays as usual.
 const HUMANIZE_TARGET_MIN = 50, HUMANIZE_TARGET_MAX = 99;
-const HUMANIZE_TARGET_SPAN = 1;          // points off target for the full push (see the table above)
-const HUMANIZE_TARGET_MAX_SHIFT = 0.75;  // most of a donor share that can move in one pick
+const HUMANIZE_TARGET_HORIZON = 10;      // close the gap to target over this many of our moves
+const HUMANIZE_TARGET_TOL = 3;           // candidates this close (accuracy points) to the need are equals
+const HUMANIZE_TARGET_FLOOR_CP = -250;   // never choose a move that leaves us worse than this
 const HUMANIZE_TARGET_MIN_MOVES = 4;
 
 function humanize_target() {
@@ -6587,46 +6589,58 @@ function humanize_target() {
     return (t >= HUMANIZE_TARGET_MIN && t <= HUMANIZE_TARGET_MAX) ? t : 0;
 }
 
-// Pure: rates (the normalized mix), acc (running accuracy or null), target (0 = off) -> new rates,
-// still summing to 100. Returns the input object untouched whenever there is nothing to do.
-function humanize_steer(rates, acc, target) {
-    if (!target || acc == null || !Number.isFinite(acc)) return rates;
-    const err = acc - target;
-    if (!err) return rates;
-    const k = HUMANIZE_TARGET_MAX_SHIFT * Math.min(1, Math.abs(err) / HUMANIZE_TARGET_SPAN);
-    const lower = HUMANIZE_ORDER.slice(1);
-    const out = {...rates};
-    if (err > 0) {
-        const w = {};
-        let W = 0;
-        lower.forEach((c, i) => { w[c] = (rates[c] || 0) * (i + 1); W += w[c]; });
-        if (!W) return rates;                 // no weaker band allowed: nothing to lean on
-        const moved = (rates.top || 0) * k;
-        out.top = (rates.top || 0) - moved;
-        for (const c of lower) out[c] = (rates[c] || 0) + moved * w[c] / W;
-    } else {
-        let moved = 0;
-        for (const c of lower) { const m = (rates[c] || 0) * k; out[c] = (rates[c] || 0) - m; moved += m; }
-        out.top = (rates.top || 0) + moved;
-    }
-    return out;
+// The accuracy THIS move should score so the running mean reaches the target over HORIZON moves:
+// after H moves at `a`, (n*acc + H*a) / (n + H) = target.
+function humanize_target_need(run, target) {
+    return Math.max(0, Math.min(100, target + (target - run.acc) * run.n / HUMANIZE_TARGET_HORIZON));
 }
 
-// Our side's running accuracy in the game on the board, or null while too few moves are graded.
-function humanize_game_accuracy() {
+// Pure. cands [{move, cp}] (our view, the best included), bestCp, run {acc, n}, target, maxLoss (cp,
+// from the bands you allowed) -> the candidate to play, or null (play the best move). Each
+// candidate is scored by the accuracy it would itself be graded -- the win% it gives away, the
+// Lichess formula Live Stats and the Game Review use -- and the one nearest the need is played; a
+// random one among several equally near, so the same position does not always get the same move.
+function humanize_target_pick(cands, bestCp, run, target, maxLoss, rnd = Math.random) {
+    if (!target || !run || !Number.isFinite(run.acc)) return null;
+    const need = humanize_target_need(run, target);
+    const wpBest = win_percent(bestCp);
+    const floor = bestCp <= -600 ? -Infinity : Math.min(bestCp, HUMANIZE_TARGET_FLOOR_CP);
+    const scored = cands.filter(c => Number.isFinite(c.cp) && bestCp - c.cp <= maxLoss && c.cp >= floor)
+        .map(c => ({c, gap: Math.abs(accuracy_from_drop(wpBest - win_percent(c.cp)) - need)}));
+    if (!scored.length) return null;
+    const nearest = Math.min(...scored.map(x => x.gap));
+    const pool = scored.filter(x => x.gap <= nearest + HUMANIZE_TARGET_TOL);
+    return pool[Math.floor(rnd() * pool.length)].c;
+}
+
+// The worst move the target may choose, in cp lost: the upper edge of the deepest band you gave a
+// share, so a band at 0 is never played. A decided game (|best| >= 600) never takes the blunder
+// band, the same rule the mix follows.
+function humanize_max_loss(rates, decided) {
+    const t = humanize_thresholds();
+    let max = 0;
+    for (const cat of ['second', 'third', 'fourth', 'inaccuracy', 'mistake', 'blunder']) {
+        if (!((rates[cat] || 0) > 0) || (decided && cat === 'blunder')) continue;
+        max = Math.max(max, t[cat]);
+    }
+    return max;
+}
+
+// The band a cp loss falls in, for the countdown's label.
+function humanize_band_of(loss) {
+    if (loss <= 0) return 'top';
+    const b = humanize_band_bounds();
+    return Object.keys(b).find(k => loss > b[k][0] && loss <= b[k][1]) || 'blunder';
+}
+
+// Our side's running accuracy {acc, n} in the game on the board, or null while too few moves are
+// graded (book moves score 100%, so the first few say nothing).
+function humanize_game_run() {
     try {
         const s = live_stats(eval_history)[our_side()];
-        return (s && s.moves >= HUMANIZE_TARGET_MIN_MOVES && Number.isFinite(s.accuracy)) ? s.accuracy : null;
+        return (s && s.moves >= HUMANIZE_TARGET_MIN_MOVES && Number.isFinite(s.accuracy))
+            ? {acc: s.accuracy, n: s.moves} : null;
     } catch (e) { return null; }
-}
-
-// The mix a roll is made against: the sliders, steered toward the target when one is set. The
-// pre-roll and the pick both read it, and our accuracy cannot change between the two (no move of
-// ours is graded in between), so the countdown's label and the move played still agree.
-function humanize_mix() {
-    const rates = humanize_rates();
-    const target = humanize_target();
-    return target ? humanize_steer(rates, humanize_game_accuracy(), target) : rates;
 }
 
 // Pre-rolled humanize outcome for the current move, decided at SEARCH START so the countdown can
@@ -6642,7 +6656,9 @@ function roll_humanize_category(fen) {
         if (new Chess(config.variant, fen).moves().length === 1) return {r: 0, category: 'instant response'};
     } catch (e) { /* variant fen chess.js can't parse -- fall through to the mix roll */ }
     const r = Math.random() * 100;
-    return {r, category: HUMANIZE_LABEL[category_for_roll(r, humanize_mix())]};
+    // a steering target chooses the move from the search's lines, so there is no slice to show yet
+    if (humanize_target() && humanize_game_run()) return {r, category: null};
+    return {r, category: HUMANIZE_LABEL[category_for_roll(r, humanize_rates())]};
 }
 
 // our-perspective centipawns for a line whose score/mate are stored white-relative;
@@ -7198,24 +7214,37 @@ function humanize_pick(best) {
         const playable = (m) => premove_reply_playable(fen, m); // moves OUR piece + legal here
         const loss = (l) => bestCp - line_cp_ours(l);
         const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000); // never move INTO mate
-        const rates = humanize_mix(); // move mix percents (target-steered when set); live-tunable
-        // reuse the roll made at search start (so the countdown's shown move matches what's played)
-        const r = (humanize_roll != null) ? humanize_roll.r : Math.random() * 100;
-        // Each non-top category is a (lo, hi] centipawn band whose edges the user sets in the options
-        // page (Move-Quality Thresholds); pick a random alternative whose loss falls in the rolled
-        // band. A move worse than the top of the blunder band is never played -- that's a hanging
-        // queen, not a human error -- so an out-of-band roll falls back to the best move.
-        const bands = humanize_band_bounds();
-        const fromBand = ([lo, hi]) => {
-            const pool = alts.filter(l => loss(l) > lo && loss(l) <= hi);
-            return pool[Math.floor(Math.random() * pool.length)];
-        };
-        const cat = category_for_roll(r, rates);
+        const rates = humanize_rates(); // move mix percents; live-tunable
+        const run = humanize_target() ? humanize_game_run() : null;
         let cand = null;
-        // blunders never in an already-decided game (we're the ones winning/losing big)
-        if (cat !== 'top' && !(cat === 'blunder' && Math.abs(bestCp) >= 600)) {
-            cand = fromBand(bands[cat]);
-            if (cand) category = HUMANIZE_LABEL[cat];
+        if (run) {
+            // TARGET ACCURACY: the move whose own accuracy lands the game on target, from every line
+            // inside the bands you allowed (humanize_target_pick). The roll is not used.
+            const cands = [bestLine, ...alts].map(l => ({move: l.move, cp: line_cp_ours(l)}));
+            const pick = humanize_target_pick(cands, bestCp, run, humanize_target(),
+                                              humanize_max_loss(rates, Math.abs(bestCp) >= 600));
+            if (pick && pick.move !== best) {
+                cand = pick;
+                category = HUMANIZE_LABEL[humanize_band_of(bestCp - pick.cp)];
+            }
+        } else {
+            // reuse the roll made at search start (so the countdown's shown move matches what's played)
+            const r = (humanize_roll != null) ? humanize_roll.r : Math.random() * 100;
+            // Each non-top category is a (lo, hi] centipawn band whose edges the user sets in the options
+            // page (Move-Quality Thresholds); pick a random alternative whose loss falls in the rolled
+            // band. A move worse than the top of the blunder band is never played -- that's a hanging
+            // queen, not a human error -- so an out-of-band roll falls back to the best move.
+            const bands = humanize_band_bounds();
+            const fromBand = ([lo, hi]) => {
+                const pool = alts.filter(l => loss(l) > lo && loss(l) <= hi);
+                return pool[Math.floor(Math.random() * pool.length)];
+            };
+            const cat = category_for_roll(r, rates);
+            // blunders never in an already-decided game (we're the ones winning/losing big)
+            if (cat !== 'top' && !(cat === 'blunder' && Math.abs(bestCp) >= 600)) {
+                cand = fromBand(bands[cat]);
+                if (cand) category = HUMANIZE_LABEL[cat];
+            }
         }
         if (cand && playable(cand.move)) move = cand.move;
         else category = 'top engine'; // top slice / pool empty / not playable -> best move after all

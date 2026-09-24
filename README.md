@@ -341,10 +341,13 @@ per-category centipawn thresholds and a live [Lichess accuracy](https://lichess.
 win-chance drop. Defaults sit on Lichess's own boundaries (110 / 230 / 377cp). Nothing past the blunder threshold is
 played, and blunders never fire in a decided game.
 
-**Target accuracy (optional)** steers the mix toward a game accuracy you set: above the target it leans on the weaker
-bands you allowed, below it back toward the top move, never outside your thresholds. It needs a few graded moves before
-it acts. Its gain was tuned on a model, and a first check in play did not show it working: six games against
-Lichess's level-4 computer ended between 89.6% and 97.8% whatever the target (off, 75 or 95). Treat it as experimental.
+**Target accuracy (optional)** aims the game's accuracy at a number you set. Each move is picked by the accuracy it
+will itself score (the win chance it gives away, graded the way Live Stats and the Game Review grade it), so the game
+closes on the target. Your thresholds still set the limits, and while the game is alive it never plays into a position
+worse than -2.5. Measured over 144 simulated games against Stockfish at 1500 and 2200 Elo, scored by the Game Review:
+targets of 85 to 95 land within about a point (90 -> 90.0 and 89.8). Lower targets need an opponent who gives chances
+back: 75 reached 75.5 against the 1500 but only 83.7 against the 2200. Live on Lichess, targets 90 and 80 came out at
+91.4% and 78.8%.
 
 Timing follows: quick on obvious moves, long thinks in critical positions, an instant reflex *only* for true
 recaptures and forced moves. **Clock Mode** budgets each move off the page clock (~time/30 + 60% of the increment);

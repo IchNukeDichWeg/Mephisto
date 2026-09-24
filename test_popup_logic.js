@@ -1500,70 +1500,53 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     // ---- C: the controller, executed
     const hs2 = psrc.indexOf('const HUMANIZE_ORDER');
     const he2 = psrc.indexOf("// Our side's running accuracy");
-    if (hs2 < 0 || he2 < hs2) { fails++; console.log('FAIL could not slice the humanize target block'); }
-    else {
+    const fnSrc = (name) => { const i = psrc.indexOf(`function ${name}(`); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    if (hs2 < 0 || he2 < hs2 || !fnSrc('win_percent') || !fnSrc('accuracy_from_drop')) {
+        fails++; console.log('FAIL could not slice the humanize target block');
+    } else {
         const hctx = vm.createContext({console});
         vm.runInContext('var store = {}; var MephistoConfig = {get: (k) => store[k]};', hctx);
-        vm.runInContext(psrc.slice(hs2, he2), hctx);
+        vm.runInContext(fnSrc('win_percent') + fnSrc('accuracy_from_drop') + psrc.slice(hs2, he2), hctx);
         const H = (code) => vm.runInContext(code, hctx);
-        const target = (v) => { H(`store.humanize_target_acc = ${JSON.stringify(JSON.stringify(v))}`); return H('humanize_target()'); };
+        const set = (k, v) => H(`store[${JSON.stringify(k)}] = ${JSON.stringify(JSON.stringify(v))}`);
+        const target = (v) => { set('humanize_target_acc', v); return H('humanize_target()'); };
         ok('target: 0 / 49 / 100 / junk are off, 50 and 99 are kept',
            target(0) === 0 && target(49) === 0 && target(100) === 0 && target('x') === 0
            && target(50) === 50 && target(99) === 99);
-        const MIX = {top: 50, second: 40, third: 4, fourth: 0, inaccuracy: 0, mistake: 5, blunder: 1};
-        const steer = (acc, t, mix = MIX) =>
-            H(`humanize_steer(${JSON.stringify(mix)}, ${acc === null ? 'null' : acc}, ${t})`);
-        const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
-        const same = (o) => JSON.stringify(o) === JSON.stringify(MIX);
-        ok('steer: off, no reading, or exactly on target -> the mix untouched',
-           same(steer(95, 0)) && same(steer(null, 80)) && same(steer(80, 80)));
-        const up = steer(95, 80), down = steer(60, 80);
-        ok('above target: Top gives weight away, the total stays 100',
-           up.top < MIX.top && Math.abs(sum(up) - 100) < 1e-9, JSON.stringify(up));
-        ok('above target: it leans WEAKER -- blunder gains more per share than second line',
-           up.blunder / MIX.blunder > up.second / MIX.second);
-        ok('below target: every allowed band gives to Top, none reaches 0',
-           down.top > MIX.top && Math.abs(sum(down) - 100) < 1e-9
-           && ['second', 'third', 'mistake', 'blunder'].every(k => down[k] > 0 && down[k] < MIX[k]));
-        ok('a band at 0 stays at 0 both ways (never outside the mix)',
-           up.fourth === 0 && up.inaccuracy === 0 && down.fourth === 0 && down.inaccuracy === 0);
-        ok('the push grows with the error and saturates at MAX_SHIFT',
-           steer(80.25, 80).top > steer(80.5, 80).top && steer(80.5, 80).top > up.top
-           && Math.abs(up.top - MIX.top * 0.25) < 1e-9 && Math.abs(steer(99, 50).top - MIX.top * 0.25) < 1e-9);
-        ok('a Top-only mix above target has nothing to lean on and is left alone',
-           JSON.stringify(steer(99, 70, {top: 100, second: 0, third: 0, fourth: 0, inaccuracy: 0, mistake: 0, blunder: 0}))
-           === JSON.stringify({top: 100, second: 0, third: 0, fourth: 0, inaccuracy: 0, mistake: 0, blunder: 0}));
-
-        // Closed loop on a TOY model (not the engine): each band is scored a fixed accuracy, a game
-        // is 40 of our moves rolled through the real category_for_roll + humanize_steer, seeded.
-        // What it proves: the rule moves the result toward the target and holds it there; what it
-        // does not: the real per-band accuracies, which depend on the position.
-        const toy = H(`(() => {
-            const ACC = {top: 100, second: 90, third: 80, fourth: 70, inaccuracy: 60, mistake: 45, blunder: 30};
-            const MIXX = ${JSON.stringify(MIX)};
-            let seed = 12345; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
-            const play = (t) => {
-                let err = 0;
-                for (let g = 0; g < 200; g++) {
-                    const a = [];
-                    for (let m = 0; m < 40; m++) {
-                        // rounded, as live_stats reports it
-                        const run = a.length >= 4 ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : null;
-                        a.push(ACC[category_for_roll(rnd() * 100, humanize_steer(MIXX, run, t))]);
-                    }
-                    err += a.reduce((x, y) => x + y, 0) / a.length;
-                }
-                return err / 200;
-            };
-            return {free: play(0), at85: play(85), at95: play(95)};
-        })()`);
-        ok(`toy loop: the mix alone lands ~92, target 85 -> ${toy.at85.toFixed(1)}, target 95 -> ${toy.at95.toFixed(1)}`,
-           Math.abs(toy.free - 91.75) < 1.5 && Math.abs(toy.at85 - 85) < 1.5 && Math.abs(toy.at95 - 95) < 1.5,
-           JSON.stringify(toy));
+        const need = (acc, n, t) => H(`humanize_target_need({acc: ${acc}, n: ${n}}, ${t})`);
+        ok('need: on target asks for the target; above it asks for less, more so the longer the game',
+           need(85, 10, 85) === 85 && need(95, 10, 85) === 75 && need(95, 20, 85) === 65 && need(75, 10, 85) === 95);
+        ok('need: clamped to 0..100', need(100, 40, 60) === 0 && need(50, 40, 99) === 100);
+        // an equal position: best 0, then 30 / 100 / 200 / 350 / 550 cp worse
+        const C = [0, -30, -100, -200, -350, -550].map((cp, i) => ({move: 'm' + i, cp}));
+        const accOf = (cp, best = 0) => H(`accuracy_from_drop(win_percent(${best}) - win_percent(${cp}))`);
+        const pick = (run, t, maxLoss = 600, cands = C, best = 0) =>
+            H(`humanize_target_pick(${JSON.stringify(cands)}, ${best}, ${JSON.stringify(run)}, ${t}, ${maxLoss}, () => 0)`);
+        ok('pick: no target or no reading -> null (the mix decides)',
+           pick({acc: 95, n: 10}, 0) === null && pick(null, 85) === null);
+        const p75 = pick({acc: 75, n: 10}, 75);
+        const nearest = C.reduce((a, c) => Math.abs(accOf(c.cp) - 75) < Math.abs(accOf(a.cp) - 75) ? c : a);
+        ok(`pick: plays the move whose OWN accuracy is nearest the need (75 -> ${p75?.move}, ${accOf(p75?.cp).toFixed(0)}%)`,
+           p75 && Math.abs(accOf(p75.cp) - accOf(nearest.cp)) <= 3);
+        ok('pick: well under target it plays the best move', pick({acc: 70, n: 20}, 90).cp === 0);
+        ok('pick: never past the band cap -- a need of 0 with a 120cp cap takes the 100cp move',
+           pick({acc: 100, n: 40}, 60, 120).cp === -100);
+        ok('pick: never below the floor while the game is alive -- the 350/550 moves are out',
+           pick({acc: 100, n: 40}, 50).cp >= H('HUMANIZE_TARGET_FLOOR_CP'));
+        const lost = [-700, -800, -1000, -1300].map((cp, i) => ({move: 'l' + i, cp}));
+        ok('pick: in a lost game (best <= -600) the floor lifts, the cap still holds',
+           pick({acc: 100, n: 40}, 50, 377, lost, -700).cp === -1000);
+        ok('max loss: the deepest band with a share; a decided game drops the blunder band; a band at 0 is out',
+           H('humanize_max_loss(humanize_rates(), false)') === 600 && H('humanize_max_loss(humanize_rates(), true)') === 377
+           && (set('humanize_mistake', 0), set('humanize_blunder', 0), H('humanize_max_loss(humanize_rates(), false)')) === 75
+           && (set('humanize_second', 0), set('humanize_third', 0), H('humanize_max_loss(humanize_rates(), false)')) === 0);
+        ok('band of a loss: 0 -> top, 20 -> second, 300 -> mistake, 900 -> blunder',
+           H('humanize_band_of(0)') === 'top' && H('humanize_band_of(20)') === 'second'
+           && H('humanize_band_of(300)') === 'mistake' && H('humanize_band_of(900)') === 'blunder');
     }
-    ok('the roll and the pick both use the steered mix; the MultiPV sizing keeps the raw one',
-       /category_for_roll\(r, humanize_mix\(\)\)/.test(psrc) && /const rates = humanize_mix\(\);/.test(psrc)
-       && /function effective_multipv\(\)[\s\S]*?const rates = humanize_rates\(\);/.test(psrc));
+    ok('with a target reading the pick aims by accuracy; without one the roll uses the raw sliders',
+       /humanize_target_pick\(cands, bestCp, run, humanize_target\(\)/.test(psrc)
+       && /category_for_roll\(r, humanize_rates\(\)\)/.test(psrc) && !/humanize_mix|humanize_steer/.test(psrc));
     ok('the eval history records while a target is set (the controller reads it)',
        /!\(config\.humanize && humanize_target\(\)\)\)/.test(psrc));
 

@@ -671,7 +671,7 @@
   "set.square_heatmap": "Square Control Heatmap",
   "set.tip.square_heatmap": "Tint every square of the panel board by who controls it: blue where White has more pieces attacking it, red where Black does, darker the bigger the lead (up to three). Squares both sides hit equally stay untinted. Redrawn when the position changes, under the pieces and the arrows.",
   "set.humanize_target_acc": "Target Accuracy",
-  "set.tip.humanize_target_acc": "Steer the mix toward a game accuracy, 50 to 99 (0 = off). While the game's running accuracy is above the target, the Top share leans toward the weaker bands you gave a share; below it, toward the top move. It only re-weights the shares above: a band at 0 is never played, no threshold moves, and recaptures, forced moves and the no-blunders-when-decided rule are unchanged. Measured with the same formula Live Stats shows, once four of your moves are graded.",
+  "set.tip.humanize_target_acc": "Aim the game's accuracy at this number, 50 to 99 (0 = off). Each move is picked by the accuracy it will itself score (the win chance it gives away, the Lichess formula Live Stats and the Game Review use), so the game closes on the target. The sliders above still set the limits: no move past the worst band you gave a share, no blunders in a decided game, and never a move that leaves you worse than -2.5 while the game is still alive. Because of that limit, very low targets are only reachable against an opponent who gives chances back. Starts once four of your moves are graded.",
   "an.game": "Game",
   "an.tip.game": "Chess uses the board below. Shogi and xiangqi get their own board, analysed by the large-board build of Fairy-Stockfish.",
   "an.game_chess": "Chess",
