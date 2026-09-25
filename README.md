@@ -623,7 +623,19 @@ No schedule - added whenever I feel like it. **Shipped work lives in the
 - [ ] **A command palette** - one key and a search box over the actions the hotkey system already names.
 - [ ] **Grind Mode, the rest of it** - stop after N games or a losing streak, respect a daily limit, pick the time
   control, and know whether you are still at the keyboard.
-- [ ] **Talking Mode** - a running commentary in plain language instead of a number and an arrow.
+- [ ] **Talking Mode - why this move and not that one.** A running explanation of the live board instead of a number
+  and an arrow, built in three layers that each stand on their own:
+  - **The facts, from our own engine.** Walk the best line and the move you are looking at side by side, find where
+    they part - the reply that refutes the worse move, what it wins, what the better one threatens instead. No AI,
+    and testable.
+  - **chess.com's explanation engine, live.** The one the Game Review already runs offline, fed the game so far plus
+    each line as if it had been played, so its coach sentence covers the refutation too. First job: check that it
+    says something useful about a line nobody played.
+  - **A language model as the voice, never the judge.** Chrome's built-in model where the machine has one (nothing
+    to download, nothing leaves the machine), your own API key as an opt-in. It only rewords the facts above; a
+    sentence naming a move or square that is not in them is dropped. Without a model, the first two layers still
+    read as plain sentences.
+  Only once the search settles, never per engine frame.
 - [ ] **Drill mode** - the puzzle database, the explorer's statistics and Maia at a rating band, pointed at a
   repertoire.
 - [ ] **Your history across games** - accuracy over time, which openings actually lose.
@@ -652,7 +664,7 @@ No schedule - added whenever I feel like it. **Shipped work lives in the
 - [ ] **Short videos and more screenshots** · [ ] **Translate the README**.
 
 **Speculative.** Mirroring another bot (doubles the footprint, and the shape of the moves is what catches people
-anyway); an LLM at the board (bad at moves, interesting as the voice behind Talking Mode).
+anyway).
 
 **Always open.** Bug fixes - several of the sharpest so far were invisible rather than loud, so *"it did nothing"* is
 worth more than it sounds. And whatever you want it to do; most of what is here arrived because something was
