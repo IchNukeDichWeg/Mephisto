@@ -74,11 +74,16 @@ Every [release](https://github.com/IchNukeDichWeg/Mephisto/releases) carries two
 
 | Archive | Size | Use it when |
 |---|---|---|
-| `mephisto-<version>.zip` | **~690 MB** | **First install, always.** Everything, engines included. |
-| `mephisto-<version>-update.zip` | **~6 MB** | **Already have it.** Code only - extract *over* your existing folder. |
+| `mephisto-<version>.zip` | **~12 MB** | **First install.** Everything except the engine nets, which download on first use. |
+| `mephisto-<version>-update.zip` | **~7 MB** | **Already have it.** Code only - extract *over* your existing folder. |
 
-Almost all of the full archive is bundled engines and nets, which change on very few releases; the update archive
-leaves them alone.
+The engine nets and models (about 1 GB) are not in either archive. They live on two fixed releases,
+[`engines-v1`](https://github.com/IchNukeDichWeg/Mephisto/releases/tag/engines-v1) and
+[`models-v1`](https://github.com/IchNukeDichWeg/Mephisto/releases/tag/models-v1), because they change on very few
+releases. On a fresh install each engine downloads its net the first time it runs (Stockfish 19: 98.5 MB), checks it
+against a SHA-256 and keeps it in the browser's cache. That needs the download permission Chrome asks for when you switch on
+**Automatic Updates** (Settings → General → Updates). An install that started from an older full zip, and a git checkout, already
+have the nets and never download them.
 
 > ⚠️ **Extract the update over your existing install, never into an empty folder** - both archives unpack into a
 > `Mephisto-<version>/` folder, so copy that folder's *contents* over the folder Chrome already loaded. Extracting in
@@ -91,7 +96,7 @@ at most once every 12 hours, from the service worker, so the chess page never ma
 
 Chrome never updates an extension you loaded yourself, so Mephisto can - **Settings → General → Updates**, **off by
 default**. Switch it on (Chrome asks for permission to download from this repository's releases), choose your
-extension folder once, and updating is one button: it fetches the ~6 MB archive, writes it over that folder and
+extension folder once, and updating is one button: it fetches the ~7 MB archive, writes it over that folder and
 reloads the extension. The panel's update notice becomes that button.
 
 It never installs by itself, never touches the bundled engines, refuses any folder that isn't this extension, and
