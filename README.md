@@ -629,8 +629,12 @@ No schedule - added whenever I feel like it. **Shipped work lives in the
     they part - the reply that refutes the worse move, what it wins, what the better one threatens instead. No AI,
     and testable.
   - **chess.com's explanation engine, live.** The one the Game Review already runs offline, fed the game so far plus
-    each line as if it had been played, so its coach sentence covers the refutation too. First job: check that it
-    says something useful about a line nobody played.
+    each line as if it had been played. **Tested on lines nobody played, and it does:** one run over "the game so far
+    + the move you are looking at" returns why that move fails ("This removes protection from the knight, allowing
+    Black a free capture"), what to play instead with its own sentence, and the refutation walked move by move with
+    arrows and squares ("sets up a skewer, winning material"), plus tags like Fork or HangsPiece. About 0.4 s a run
+    on an M5 Pro, nearly all of it booting the engine. Still owed: running it from the offscreen page, and dropping
+    its filler lines ("A strong choice!").
   - **A language model as the voice, never the judge.** Chrome's built-in model where the machine has one (nothing
     to download, nothing leaves the machine), your own API key as an opt-in. It only rewords the facts above; a
     sentence naming a move or square that is not in them is dropped. Without a model, the first two layers still
