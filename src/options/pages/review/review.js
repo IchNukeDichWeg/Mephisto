@@ -205,9 +205,9 @@ function buildPositions(game, variant = 'chess') {
             mv = null;
         }
         if (!mv) {
-            const num = Math.floor(i / 2) + 1;
+            const {num, white} = Core.plyMove(positions[0].fen, i);
             const rules = variant === 'chess' ? 'standard chess' : variant;
-            throw new Error(`Move ${num}${i % 2 ? '...' : '.'} ${san} is not legal in this position `
+            throw new Error(`Move ${num}${white ? '.' : '...'} ${san} is not legal in this position `
                 + `(ply ${i + 1}) under ${rules}. Check the Game type at the top of Analysis.`);
         }
         if (variant === 'crazyhouse') {
@@ -1276,15 +1276,19 @@ function setGraphCursor() {
     line.setAttribute('x1', x); line.setAttribute('x2', x);
 }
 
+// Numbered from the game's start FEN (Core.plyMove), not from ply 0 = 1. White: a game set up with
+// Black to move, or from move 30, used to put Black's first move in the White column.
 function moveLabel(m) {
-    return `${Math.floor(m.ply / 2) + 1}${m.color === 'w' ? '.' : '...'} ${m.san}`;
+    const {num, white} = Core.plyMove(report.positions[0]?.fen, m.ply);
+    return `${num}${white ? '.' : '...'} ${m.san}`;
 }
 
 function renderMoves() {
     const rows = [];
-    for (let i = 0; i < report.moves.length; i += 2) {
-        const num = i / 2 + 1;
-        rows.push(`<div class="rv-mrow"><div class="rv-mnum">${num}</div>`
+    const fen = report.positions[0]?.fen;
+    // a Black-first game opens on a row with an empty White cell (moves[-1] is undefined)
+    for (let i = Core.plyMove(fen, 0).white ? 0 : -1; i < report.moves.length; i += 2) {
+        rows.push(`<div class="rv-mrow"><div class="rv-mnum">${Core.plyMove(fen, i + 1).num}</div>`
             + moveCell(report.moves[i]) + moveCell(report.moves[i + 1]) + '</div>');
     }
     const el = $('rv_moves');
@@ -2805,20 +2809,11 @@ function buildCcrGame(pgnText) {
     };
 }
 
+// A parsed game back to PGN text. The export's writer, so numbering follows the start FEN and tag
+// values are escaped; this used to number from 1. with White and write a `"` in a name raw.
 function gameText(game) {
-    const tags = Object.entries(game.tags).map(([k, v]) => `[${k} "${v}"]`).join('\n');
-    const body = [];
-    for (let i = 0; i < game.moves.length; i++) {
-        if (i % 2 === 0) body.push(`${i / 2 + 1}.`);
-        body.push(game.moves[i].san);
-        if (game.moves[i].clk != null) {
-            const t = game.moves[i].clk;
-            const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = (t % 60).toFixed(1);
-            body.push(`{[%clk ${h}:${String(m).padStart(2, '0')}:${sec.padStart(4, '0')}]}`);
-        }
-    }
-    body.push(game.result);
-    return `${tags}\n\n${body.join(' ')}`;
+    return Core.annotatedPgn({tags: game.tags, result: game.result, startFen: game.startFen,
+                              moves: game.moves.map(m => ({san: m.san, clk: m.clk}))});
 }
 
 // The budget is a -/+ BOX (user call 2026-08-16: the slider "is done terrible"). The box shows the

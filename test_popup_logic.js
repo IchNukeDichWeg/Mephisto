@@ -2197,6 +2197,59 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     eq('[%clk] keeps its meaning: the clock left, differenced per side', clk, [[180, null], [180, null], [170, 10]]);
 }
 
+{
+    // Games that start with Black to move, or from a later move number: the move list put Black's
+    // first move in the White column, labels / the illegal-move error / the PGN writers all counted
+    // from "1." with White, and gameText wrote a `"` in a tag value raw. Everything numbers through
+    // Core.plyMove now, the export's own logic; the REAL functions run here.
+    console.log('\nmove numbering from a Black-to-move start:');
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (src, a, b) => { const i = src.indexOf(a), j = src.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return src.slice(i, j); };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const el = {innerHTML: '', dataset: {bound: '1'}};
+    c.el = el;
+    vm.runInContext('const Core = self.MephistoReviewCore; const RV_FAIRY_ONLY = []; let report = null;'
+        + 'const $ = () => el; function moveCell(m) { return m ? `[${m.san}]` : "[]"; }\n'
+        + cut(rj, 'function buildPositions', '// Seconds spent') + cut(rj, 'function moveLabel', '// chess.com\'s coach grade')
+        + cut(rj, 'function gameText', '// The budget is a -/+ BOX'), c);
+    const FEN = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 30';
+    const pgn = `[White "A \\"Q\\" B"]\n[Black "C\\\\D"]\n[SetUp "1"]\n[FEN "${FEN}"]\n\n30... e5 31. Nf3 Nc6 *`;
+    c.pgn = pgn;
+    const r = vm.runInContext(`(() => { const g = Core.parsePgn(pgn)[0]; const b = buildPositions(g);
+        report = {positions: b.positions, moves: b.moves}; renderMoves();
+        return {labels: b.moves.map(moveLabel), rows: el.innerHTML, text: gameText(g), tags: g.tags}; })()`, c);
+    eq('Core.plyMove: start position, a Black-to-move start, and the move after it',
+       [c.MephistoReviewCore.plyMove('', 0), c.MephistoReviewCore.plyMove(FEN, 0), c.MephistoReviewCore.plyMove(FEN, 1)],
+       [{num: 1, white: true}, {num: 30, white: false}, {num: 31, white: true}]);
+    eq('move labels follow the start FEN', r.labels, ['30... e5', '31. Nf3', '31... Nc6']);
+    const okRows = /^<div class="rv-mrow"><div class="rv-mnum">30<\/div>\[\]\[e5\]<\/div><div class="rv-mrow"><div class="rv-mnum">31<\/div>\[Nf3\]\[Nc6\]<\/div>$/.test(r.rows);
+    if (!okRows) fails++;
+    console.log(`${okRows ? 'ok  ' : 'FAIL'} the move list opens with an empty White cell on row 30 (got ${r.rows})`);
+    const back = c.MephistoReviewCore.parsePgn(r.text)[0];
+    const okText = /\n30\.\.\. e5 31\. Nf3 Nc6 \*/.test(r.text) && r.text.includes('[White "A \\"Q\\" B"]')
+        && back.tags.White === 'A "Q" B' && back.tags.Black === 'C\\D' && back.moves.map(m => m.san).join(' ') === 'e5 Nf3 Nc6';
+    if (!okText) fails++;
+    console.log(`${okText ? 'ok  ' : 'FAIL'} gameText numbers from the FEN, escapes quotes and backslashes, and round-trips`);
+    let err = '';
+    try { vm.runInContext(`buildPositions(Core.parsePgn(${JSON.stringify(`[SetUp "1"]\n[FEN "${FEN}"]\n\n30... Ke7 *`)})[0])`, c); }
+    catch (e) { err = String(e.message); }
+    const okErr = /^Move 30\.\.\. Ke7 is not legal/.test(err);
+    if (!okErr) fails++;
+    console.log(`${okErr ? 'ok  ' : 'FAIL'} the illegal-move error names the real move number (got ${err.slice(0, 30)})`);
+    // the analysis page's copy-PGN
+    const a = vm.createContext({Core: c.MephistoReviewCore, anVariant: () => 'chess', AN_VARIANTS: [],
+        newChess: () => ({fen: () => 'startpos'}),
+        positions: [{fen: FEN}, {san: 'e5'}, {san: 'Nf3'}, {san: 'Nc6'}]});
+    vm.runInContext(cut(aj, 'function pgnText', 'async function copyOut'), a);
+    eq('analysis pgnText numbers a Black-to-move line from the FEN', vm.runInContext('pgnText()', a).split('\n\n')[1], '30... e5 31. Nf3 Nc6');
+}
+
 // ==== AGENT ANALYSIS CHECKS (engine vs engine, shogi / xiangqi) ====
 {
     // The match's rules, executed: the REAL block sliced out of analysis.js, the real chess.js, and

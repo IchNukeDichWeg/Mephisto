@@ -636,21 +636,32 @@ function pgnClock(sec) {
     return `${h}:${String(m).padStart(2, '0')}:${s.padStart(4, '0')}`;
 }
 
+// Move number and colour of ply `i` (0-based) of a game that starts at `fen`. Numbering comes from
+// the start FEN: a set-up position can start on move 30, with black to move. The export, the review's
+// move list and labels, and the analysis page's PGN all number through this one function.
+function plyMove(fen, i) {
+    const f = String(fen || '').split(' ');
+    const k = i + (f[1] === 'b' ? 1 : 0);          // plies since white's move of the first number
+    return {num: (parseInt(f[5], 10) || 1) + Math.floor(k / 2), white: k % 2 === 0};
+}
+
+// A PGN tag pair. `"` and `\` inside a value are escaped, or the tag ends early on a quote.
+function pgnTag(k, v) {
+    return `[${k} "${String(v ?? '').replace(/[\\"]/g, c => '\\' + c)}"]`;
+}
+
 // {tags, result, startFen, moves: [{san, klass, cp (white-positive, AFTER the move), clk, commentary}]}
 // -> one PGN game. Comment text cannot hold `}` (it ends the comment), so braces become parentheses.
 function annotatedPgn(game) {
     const tags = {...(game.tags || {})};
     const result = game.result || tags.Result || '*';
     tags.Result = result;
-    const tagText = Object.entries(tags)
-        .map(([k, v]) => `[${k} "${String(v ?? '').replace(/[\\"]/g, c => '\\' + c)}"]`).join('\n');
-    // Numbering comes from the start FEN: a set-up position can start on move 30, with black to move.
-    const fen = (game.startFen || tags.FEN || '').split(' ');
-    let num = parseInt(fen[5], 10) || 1;
-    let white = fen[1] !== 'b';
+    const tagText = Object.entries(tags).map(([k, v]) => pgnTag(k, v)).join('\n');
+    const fen = game.startFen || tags.FEN || '';
     const out = [];
     let needNum = true;
-    for (const m of game.moves || []) {
+    for (const [i, m] of (game.moves || []).entries()) {
+        const {num, white} = plyMove(fen, i);
         if (white) out.push(`${num}.`);
         else if (needNum) out.push(`${num}...`);
         out.push(m.san);
@@ -664,8 +675,6 @@ function annotatedPgn(game) {
         if (say) bits.push(say);
         needNum = !!bits.length;          // after a comment, black's move carries its own number again
         if (bits.length) out.push(`{ ${bits.join(' ')} }`);
-        if (!white) num++;
-        white = !white;
     }
     out.push(result);
     // 80-column lines, the export format's limit; a token is never split.
@@ -776,7 +785,7 @@ root.MephistoReviewCore = {
     parsePgn, clockToSeconds, formatDate, gamePhases, phaseOf, LEVELS,
     toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
     accuracyFor, indicators, evidence, estimate, parseInfo, clamp,
-    NAG_FOR_CLASS, annotatedPgn, lichessStudyId, lichessRequest, lichessResultUrl, lichessError,
+    NAG_FOR_CLASS, annotatedPgn, plyMove, lichessStudyId, lichessRequest, lichessResultUrl, lichessError,
 };
 
 })(typeof self !== 'undefined' ? self : globalThis);

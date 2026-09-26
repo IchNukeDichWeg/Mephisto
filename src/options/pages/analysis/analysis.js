@@ -596,7 +596,10 @@ function pgnText() {
     const start = positions[0]?.fen;
     const body = [];
     for (let i = 1; i < positions.length; i++) {
-        if (i % 2 === 1) body.push(`${Math.ceil(i / 2)}.`);
+        // numbered from the start FEN (Core.plyMove): a line from a Black-to-move position is 1... e5
+        const {num, white} = Core.plyMove(start, i - 1);
+        if (white) body.push(`${num}.`);
+        else if (i === 1) body.push(`${num}...`);
         body.push(positions[i].san || '');
     }
     const varTag = anVariant() !== 'chess'
