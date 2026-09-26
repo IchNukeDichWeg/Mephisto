@@ -3799,16 +3799,24 @@ function request_puzzle_solution(fen) {
             release_deferred_search(fen);
             return;
         }
-        // A HIT ends the wait too. Without this the deferral stays armed and its watchdog re-enters
+        // A HIT ends the wait too -- but only a wait for THIS position; a deferral armed for a newer
+        // one is left alone. Without this the deferral stays armed and its watchdog re-enters
         // on_new_pos 1.5s later for a position that has already been answered and played.
-        puzzle_deferred = null;
-        clearTimeout(puzzle_defer_timer);
+        const w = puzzle_deferred;
+        const ours = w && puzzle_key(w.fen) === puzzle_key(fen);
+        if (ours) { puzzle_deferred = null; clearTimeout(puzzle_defer_timer); }
         puzzle_solutions = puzzle_expand(fen, res.solution);
         puzzle_rating = res.rating ?? null;
         puzzle_from_page = false;
         console.log(`Puzzle DB: solution known -- ${res.solution}` +
                     (puzzle_rating ? ` (rated ${puzzle_rating})` : ''));
         update_best_move_suffix();
+        // A DEFERRED position has not reached last_eval yet (on_new_pos returned before that line),
+        // so playing it from here failed maybe_play_puzzle_move's "has the board moved on" check
+        // against the previous position, and the move waited for the next fallback poll (>= 1 s).
+        // Re-entering on_new_pos is the path a miss already takes: it records the position, draws
+        // the answer and plays it.
+        if (ours) { on_new_pos(w.fen, w.startFen, w.moves); return; }
         // The answer landed after on_new_pos ran: draw it and play it now.
         // The panel already ran on_new_pos for this position and found nothing, so it has to be
         // told the answer as well as shown it -- with Autoplay off nothing below will do it.

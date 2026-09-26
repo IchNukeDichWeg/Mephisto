@@ -2451,4 +2451,13 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /request_remote_configure\(cap/.test(elo)
        && m2.indexOf('abandon_search()') >= 0 && m2.indexOf('abandon_search()') < m2.indexOf('setoption name'));
 }
+{
+    const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const r = psrc.slice(psrc.indexOf('function request_puzzle_solution('), psrc.indexOf('let puzzle_answered = null;'));
+    ok('a puzzle-database hit for a deferred position re-enters on_new_pos, and never clears a newer deferral',
+       /const ours = w && puzzle_key\(w\.fen\) === puzzle_key\(fen\);\s*if \(ours\) \{ puzzle_deferred = null;/.test(r)
+       && /if \(ours\) \{ on_new_pos\(w\.fen, w\.startFen, w\.moves\); return; \}/.test(r)
+       && !/\n\s*puzzle_deferred = null;\n\s*clearTimeout\(puzzle_defer_timer\);\n\s*puzzle_solutions/.test(r));
+}
 // ==== END FIX CHECKS ====
