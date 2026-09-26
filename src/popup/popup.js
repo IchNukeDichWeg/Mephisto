@@ -1500,30 +1500,10 @@ function init_quick_settings() {
     // Elo slider: index-mapped so its stops follow the selected engine's real UCI_Elo range
     // (position 0 = Off / full strength). Saves the mapped Elo and reloads to re-init the engine.
     const eloSlider = PANEL_ROOT.getElementById('qs_elo');
-    const eloLabel = PANEL_ROOT.getElementById('qs_elo_val');
-    if (eloSlider && eloLabel) {
-        const stops = elo_stops(config.engine);
-        const idxOf = (elo) => { // nearest stop to the stored Elo
-            if (!(elo > 0)) return 0;                              // Off (far left)
-            if (elo >= FULL_STRENGTH_ELO) return stops.length - 1; // 3200+ (far right)
-            let best = 1, bestD = Infinity;
-            stops.forEach((e, i) => { // nearest real stop; skip the full-strength sentinel
-                if (i && e < FULL_STRENGTH_ELO && Math.abs(e - elo) < bestD) { bestD = Math.abs(e - elo); best = i; }
-            });
-            return best;
-        };
-        eloSlider.max = String(stops.length - 1);
-        eloSlider.value = String(idxOf(config.elo));
-        const paint = () => {
-            const v = stops[+eloSlider.value];
-            // the right-hand full-strength stop shows the engine's OWN ceiling (SF dev 3190,
-            // SF 11 / Fairy 2850), not the internal 3200 sentinel -- stops[len-2] is that max.
-            eloLabel.textContent = v === 0 ? 'Off / Full Strength'
-                : v >= FULL_STRENGTH_ELO ? `${stops[stops.length - 2]}+ / Full Strength` : v;
-        };
-        paint();
-        eloSlider.addEventListener('input', paint);
-        eloSlider.addEventListener('change', () => { save('elo', stops[+eloSlider.value]); panel_reload(); });
+    if (eloSlider && PANEL_ROOT.getElementById('qs_elo_val')) {
+        sync_elo_slider();
+        eloSlider.addEventListener('input', paint_elo_slider);
+        eloSlider.addEventListener('change', () => { save('elo', elo_stops(config.engine)[+eloSlider.value]); panel_reload(); });
     }
     // range sliders show their value in the label while dragging ('change' above still does the
     // save+reload when the thumb is released). Only Memory is still a slider -- Threads and Multi
@@ -1874,6 +1854,36 @@ function flush_engine_options() {
         if (name === 'MultiPV') search_multipv_set = value;
     }
     return opts;
+}
+
+// The quick-settings Elo slider, from config.elo. A function, not setup code, because an Elo set on
+// the settings page reaches the open panel's engine live now, and the slider has to say so too.
+function sync_elo_slider() {
+    const eloSlider = PANEL_ROOT.getElementById('qs_elo');
+    if (!eloSlider) return;
+    const stops = elo_stops(config.engine);
+    const idxOf = (elo) => { // nearest stop to the stored Elo
+        if (!(elo > 0)) return 0;                              // Off (far left)
+        if (elo >= FULL_STRENGTH_ELO) return stops.length - 1; // 3200+ (far right)
+        let best = 1, bestD = Infinity;
+        stops.forEach((e, i) => { // nearest real stop; skip the full-strength sentinel
+            if (i && e < FULL_STRENGTH_ELO && Math.abs(e - elo) < bestD) { bestD = Math.abs(e - elo); best = i; }
+        });
+        return best;
+    };
+    eloSlider.max = String(stops.length - 1);
+    eloSlider.value = String(idxOf(config.elo));
+    paint_elo_slider();
+}
+function paint_elo_slider() {
+    const eloSlider = PANEL_ROOT.getElementById('qs_elo'), eloLabel = PANEL_ROOT.getElementById('qs_elo_val');
+    if (!eloSlider || !eloLabel) return;
+    const stops = elo_stops(config.engine);
+    const v = stops[+eloSlider.value];
+    // the right-hand full-strength stop shows the engine's OWN ceiling (SF dev 3190,
+    // SF 11 / Fairy 2850), not the internal 3200 sentinel -- stops[len-2] is that max.
+    eloLabel.textContent = v === 0 ? 'Off / Full Strength'
+        : v >= FULL_STRENGTH_ELO ? `${stops[stops.length - 2]}+ / Full Strength` : v;
 }
 
 function abandon_search() {
@@ -9192,6 +9202,7 @@ function watch_config_changes() {
                 // so the open panel kept playing at the old strength until it was reopened (the panel's
                 // own slider works because it reloads). Stop FIRST: a setoption under `go infinite`
                 // wedges the WASM engine's command thread for good.
+                if (key === 'elo') sync_elo_slider();   // the panel's own slider shows the new value too
                 if (key === 'elo' && !NO_ELO_ENGINES.includes(config.engine)) {
                     abandon_search();
                     const cap = config.elo > 0 && config.elo <= (ELO_RANGE[config.engine] || [1320, 3190])[1];

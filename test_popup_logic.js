@@ -2940,4 +2940,9 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('Settings: the tablebase mini selects are browser-default, so Materialize does not draw a second dropdown over them',
        /id="tb_download_men" class="set-mini-select browser-default"/.test(gh) && /id="tb_download_kind" class="set-mini-select browser-default"/.test(gh));
 }
+{
+    const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('an Elo change from the settings page moves the panel\'s own slider too', /if \(key === 'elo'\) sync_elo_slider\(\);/.test(psrc) && /function sync_elo_slider\(\) \{/.test(psrc));
+}
 // ==== END FIX CHECKS ====
