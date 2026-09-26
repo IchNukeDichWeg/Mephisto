@@ -2048,7 +2048,7 @@ function scrapePositionFen(moves = getMoveRecords()) {
             // shorter prefix would silently analyse a stale position and play a move for it.
             if (!move) continue;
             if (move.lastElementChild?.classList.contains('icon-font-chess')) {
-                res += move.lastElementChild.getAttribute('data-figurine') + move.innerText + '*****';
+                res += figurineSan(move.lastElementChild.getAttribute('data-figurine'), move.innerText) + '*****';
             } else {
                 res += move.innerText + '*****';
             }
@@ -2241,6 +2241,15 @@ function boardShowsBlack(board) {
     }
     if (!lo || lo.rank === hi.rank) return false;
     return lo.p.getBoundingClientRect().top < hi.p.getBoundingClientRect().top;
+}
+
+// chess.com's figurine notation draws the piece as an icon, so the text alone is "e5" for a knight
+// move -- the piece letter goes back in FRONT. Except on a promotion, where the icon is the piece
+// promoted TO: "e8=" + Q is e8=Q, and prefixing it made "Qe8=", which the SAN replay rejects -- and
+// with it every later scrape of that game. (Only the prefix case was seen on a live page.)
+function figurineSan(figurine, text) {
+    const t = String(text || '');
+    return t.includes('=') ? t.replace('=', '=' + (figurine || '')) : (figurine || '') + t;
 }
 
 function getOrientation() {

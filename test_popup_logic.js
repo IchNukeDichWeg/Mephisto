@@ -2535,4 +2535,14 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /pendingInstall\(\) \{[\s\S]{0,300}readFileAt\(staging, STAGED_MARKER\)/.test(u)
        && /finishStaged\([\s\S]{0,500}readFileAt\(staging, STAGED_MARKER\)[\s\S]{0,200}const \{version, paths\} = JSON\.parse/.test(u));
 }
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = csrc.indexOf('function figurineSan(');
+    const c = vm.createContext({}); vm.runInContext(csrc.slice(i, csrc.indexOf('\n}\n', i) + 3), c);
+    const f = (a, b) => vm.runInContext('figurineSan', c)(a, b);
+    const got = [f('N', 'f3'), f('Q', 'e8='), f('Q', 'e8=+'), f('N', 'exd8=#'), f('B', 'xe5+')];
+    ok('figurine notation: the piece goes in front, except a promotion where it follows the "="',
+       got.join(' ') === 'Nf3 e8=Q e8=Q+ exd8=N# Bxe5+', got);
+}
 // ==== END FIX CHECKS ====
