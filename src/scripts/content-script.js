@@ -4518,18 +4518,27 @@ function promiseTimeout(time) {
     });
 }
 
-function getOffsetCorrectionXY() {
-    if (config.python_autoplay_backend) {
-        return getBrowserOffsetXY();
-    }
-    return [0, 0];
+// CSS pixels -> the coordinates a click needs. The CDP path clicks in CSS pixels (identity). The
+// Python backend moves the OS cursor, which lives in SCREEN pixels: board bounds are CSS, window
+// position and size are screen, and at any zoom but 100% the two differ by the zoom factor -- which
+// is why it missed at 125% or 80%. The factor is Chrome's own (tabs.getZoom via the worker), not a
+// ratio of window sizes, which a docked DevTools panel would throw off. Refreshed on every resize,
+// which a zoom change also fires.
+let page_zoom = 1;
+function refreshPageZoom() {
+    try {
+        chrome.runtime.sendMessage({getZoom: true}, (z) => {
+            if (!chrome.runtime.lastError && z > 0) page_zoom = z;
+        });
+    } catch (e) { /* extension reloaded -- keep the last value */ }
 }
-
-function getBrowserOffsetXY() {
-    const topBarHeight = window.outerHeight - window.innerHeight;
-    const offsetX = window.screenX;
-    const offsetY = window.screenY + topBarHeight;
-    return [offsetX, offsetY];
+refreshPageZoom();   // once per page; after that only while the backend that needs it is on
+window.addEventListener('resize', () => { if (config?.python_autoplay_backend) refreshPageZoom(); });
+function toClickXY(x, y) {
+    if (!config.python_autoplay_backend) return [x, y];
+    refreshPageZoom();   // for the next click: a zoom set before the backend was switched on
+    const topBarHeight = window.outerHeight - window.innerHeight * page_zoom;   // both in screen pixels
+    return [window.screenX + x * page_zoom, window.screenY + topBarHeight + y * page_zoom];
 }
 
 function getRandomSampledXY(bounds, range = 0.8) {
@@ -4541,8 +4550,7 @@ function getRandomSampledXY(bounds, range = 0.8) {
     const centered = () => (Math.random() + Math.random()) / 2; // triangular in [0,1], peak at 0.5
     const x = bounds.x + (range * centered() + margin) * bounds.width;
     const y = bounds.y + (range * centered() + margin) * bounds.height;
-    const [correctX, correctY] = getOffsetCorrectionXY();
-    return [x + correctX, y + correctY];
+    return toClickXY(x, y);
 }
 
 // -------------------------------------------------------------------------------------------

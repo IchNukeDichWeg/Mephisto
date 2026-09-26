@@ -166,6 +166,13 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg.getTabId) {
     sendResponse({tabId: sender.tab?.id});
   }
+  // The tab's page zoom, for the Python click backend (content-script toClickXY): a page cannot read
+  // its own zoom reliably, and Chrome's value is exact whatever DevTools is docked beside it.
+  if (msg.getZoom) {
+    try { chrome.tabs.getZoom(sender.tab?.id, (z) => sendResponse(chrome.runtime.lastError ? 1 : (z || 1))); }
+    catch (e) { sendResponse(1); }
+    return true;
+  }
   // A panel is about to init its engine -- make sure the offscreen host exists first (it may not,
   // if the SW just spun up). Reply when ready so the popup only sends 'init' to a live listener.
   if (msg.ensureOffscreen) {

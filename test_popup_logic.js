@@ -2545,4 +2545,19 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('figurine notation: the piece goes in front, except a promotion where it follows the "="',
        got.join(' ') === 'Nf3 e8=Q e8=Q+ exd8=N# Bxe5+', got);
 }
+{
+    // the Python backend at 125% zoom: a CSS point scales by Chrome's zoom before the screen offset
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = csrc.indexOf('function toClickXY('), j = csrc.indexOf('\n}\n', i) + 3;
+    const c = vm.createContext({window: {screenX: 100, screenY: 50, outerHeight: 1000, innerHeight: 720},
+        config: {python_autoplay_backend: true}, page_zoom: 1.25, refreshPageZoom() {}});
+    vm.runInContext('var page_zoom = 1.25;' + csrc.slice(i, j), c);
+    const got = vm.runInContext('toClickXY(400, 200)', c);
+    // toolbar = 1000 - 720 * 1.25 = 100 screen px; x = 100 + 400*1.25, y = 50 + 100 + 200*1.25
+    ok('Python backend: CSS coordinates scale by the page zoom before the window offset', got[0] === 600 && got[1] === 400, got);
+    c.config.python_autoplay_backend = false;
+    const cdp = vm.runInContext('toClickXY(400, 200)', c);
+    ok('...and the CDP path stays in CSS pixels', cdp[0] === 400 && cdp[1] === 200, cdp);
+}
 // ==== END FIX CHECKS ====
