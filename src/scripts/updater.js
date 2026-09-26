@@ -245,6 +245,12 @@ const MephistoUpdater = (function () {
     // ignores when it loads an unpacked extension.
     const STAGING = '.mephisto-staging';
     const BACKUP = '.mephisto-backup';
+    // WRITTEN LAST, AFTER EVERY STAGED FILE. It is what makes the staging folder mean "a complete copy
+    // of the new version": the archive is in git-archive order (lib/, then manifest.json, then res/,
+    // then src/), so a staging cut short after the manifest still looked finishable, and "finish" put
+    // a new manifest and lib over the OLD src/ -- or named a file that was not there, which Chrome
+    // refuses to load at all. No marker, no finish: download it again.
+    const STAGED_MARKER = '.mephisto-staged.json';
 
     async function dirAt(root, path, create) {
         let d = root;
@@ -348,23 +354,12 @@ const MephistoUpdater = (function () {
         if (!dir) return null;
         try {
             const staging = await dir.getDirectoryHandle(STAGING);
-            const raw = await readFileAt(staging, 'manifest.json');
+            const raw = await readFileAt(staging, STAGED_MARKER);   // incomplete staging is not finishable
             if (!raw) return null;
             return {version: JSON.parse(new TextDecoder().decode(raw)).version};
         } catch (e) {
             return null;
         }
-    }
-
-    // Every file under a directory handle, depth first, as paths relative to it.
-    async function walkFiles(root, prefix = '') {
-        const out = [];
-        for await (const [name, h] of root.entries()) {
-            const p = prefix ? `${prefix}/${name}` : name;
-            if (h.kind === 'directory') out.push(...await walkFiles(h, p));
-            else out.push(p);
-        }
-        return out;
     }
 
     // Finish an install whose move step was interrupted. The bytes are already on disk and already
@@ -376,12 +371,11 @@ const MephistoUpdater = (function () {
         if (!dir) throw new Error('Choose the extension folder first.');
         const staging = await dir.getDirectoryHandle(STAGING).catch(() => null);
         if (!staging) throw new Error('There is no interrupted update to finish.');
-        const raw = await readFileAt(staging, 'manifest.json');
-        if (!raw) throw new Error('The staged update has no manifest - download it again.');
-        const version = JSON.parse(new TextDecoder().decode(raw)).version;
+        const raw = await readFileAt(staging, STAGED_MARKER);
+        if (!raw) throw new Error('The staged update is incomplete - download it again.');
+        const {version, paths} = JSON.parse(new TextDecoder().decode(raw));
 
         onStatus(`Reading the staged v${version}…`);
-        const paths = await walkFiles(staging);
         const files = [];
         for (const p of paths) {
             const bytes = await readFileAt(staging, p);
@@ -460,6 +454,8 @@ const MephistoUpdater = (function () {
             await writeFile(staging, f.path, f.bytes);
             if (++n % 40 === 0 || n === files.length) onStatus(`Staging… ${n}/${files.length}`);
         }
+        await writeFile(staging, STAGED_MARKER, new TextEncoder().encode(
+            JSON.stringify({version: rel.latest, paths: files.map(f => f.path)})));
 
         // 2. BACK UP what is about to be replaced, so this is undoable.
         onStatus(`Backing up v${installed.version}…`);
@@ -492,8 +488,7 @@ const MephistoUpdater = (function () {
         _readZip: readZip, _extract: extract, _readUpdateArchive: readUpdateArchive,
         _writeFile: writeFile, _carryKey: carryKey,
         _readFileAt: readFileAt, _removeFileAt: removeFileAt, _backupCurrent: backupCurrent,
-        _walkFiles: walkFiles,
-        _STAGING: STAGING, _BACKUP: BACKUP,
+        _STAGING: STAGING, _BACKUP: BACKUP, _STAGED_MARKER: STAGED_MARKER,
     };
 })();
 

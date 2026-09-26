@@ -2524,4 +2524,15 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const stillAttached = await run(chromeStub, (f, ms) => setTimeout(f, ms), clearTimeout);
     ok('a stale "attached" tab re-attaches and the click goes through', really && sent === 1 && stillAttached, {really, sent});
 })().catch(e => { fails++; console.log('FAIL cdp reattach check threw: ' + (e && e.stack || e)); });
+{
+    const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
+    const u = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const inst = u.slice(u.indexOf('async function install('));
+    const stagedLoop = inst.indexOf('await writeFile(staging, f.path, f.bytes);'), marker = inst.indexOf('await writeFile(staging, STAGED_MARKER');
+    ok('updater: the staging marker is written after every staged file and before the backup',
+       stagedLoop > 0 && marker > stagedLoop && marker < inst.indexOf('backupCurrent('));
+    ok('updater: finishing and "interrupted update" both require the marker, and install exactly the files it lists',
+       /pendingInstall\(\) \{[\s\S]{0,300}readFileAt\(staging, STAGED_MARKER\)/.test(u)
+       && /finishStaged\([\s\S]{0,500}readFileAt\(staging, STAGED_MARKER\)[\s\S]{0,200}const \{version, paths\} = JSON\.parse/.test(u));
+}
 // ==== END FIX CHECKS ====
