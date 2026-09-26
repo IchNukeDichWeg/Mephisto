@@ -3084,6 +3084,10 @@ class ReviewPage {
                         multipv: EE_MULTIPV,
                         uciMoves: moves.map(m => m.uci),
                         onProgress: (frac, i, n) => progress(frac * 0.9, `position ${i} of ${n}`)});
+                    // A cancelled sfSearch resolves like a finished one (ee-host.js), so without this
+                    // Stop fed the half-searched positions to the classifier and rendered a fake
+                    // complete report. Throwing lands in the catch below, which says "Stopped.".
+                    if (cancel) throw new Error('stopped');
                     const book = cfg('rv_book') ? await lookupOpening(positions) : {name: null, plies: 0};
                     built = assemble(game, positions, moves, book, {variant: 'chess', multipv: EE_MULTIPV,
                         limitKind: tier.movetime ? 'movetime' : 'depth',

@@ -2004,6 +2004,19 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     console.log(`${okW ? 'ok  ' : 'FAIL'} wire() attaches once per DOM and again to a re-injected one (got ${first}, ${second})`);
 }
 
+{
+    // Stop during the chess.com-classifier run with their Stockfish: a cancelled sfSearch resolves
+    // normally, so the run must check `cancel` itself before assemble / eeRun, or the half-searched
+    // game is classified and shown as a complete report. Pinned from the source (DOM + sandbox).
+    console.log('\nchess.com classifier run honours Stop:');
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const s0 = rj.indexOf('await sfSearch(sf, positions'), s1 = rj.indexOf('built = assemble(', s0);
+    const okS = s0 > 0 && s1 > s0 && /if \(cancel\) throw new Error\('stopped'\);/.test(rj.slice(s0, s1))
+        && /eeSay\(cancel \? 'Stopped\.'/.test(rj.slice(s1));
+    if (!okS) fails++;
+    console.log(`${okS ? 'ok  ' : 'FAIL'} a cancelled search throws before assemble, and the catch reports "Stopped."`);
+}
+
 // ==== AGENT ANALYSIS CHECKS (engine vs engine, shogi / xiangqi) ====
 {
     // The match's rules, executed: the REAL block sliced out of analysis.js, the real chess.js, and
