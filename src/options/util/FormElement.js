@@ -69,7 +69,13 @@ export class FormElement {
             // Materialize replaces a select with a wrapper holding a text input, and that is what
             // the user actually sees. A select it skipped (or has not initialised yet) has no such
             // input -- writing to it blind is the other way this file could take out a whole page.
-            const shown = this.elem.parentElement?.querySelector('input');
+            // ONLY Materialize's own wrapper input. `parentElement.querySelector('input')` took the
+            // first input beside ANY select, and a browser-default select sits in a row with other
+            // controls: on the Analysis page it wrote "Time per move" into the time slider, which a
+            // range input sanitises to its midpoint -- so a fresh profile showed "31s" over a search
+            // that was running with no limit (found by the pre-release UI check).
+            const wrap = this.elem.parentElement;
+            const shown = wrap?.classList.contains('select-wrapper') ? wrap.querySelector('input.select-dropdown') : null;
             if (shown) shown.value = opt.innerText;
             this.elem.dispatchEvent(new Event('change'));
         }

@@ -2917,4 +2917,21 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /#setup-fen-row \{\s*display: flex;/.test(css) && /#setup_fen_flip, #snap_follow \{\s*order: 1;/.test(css)
        && /#setup_fen_msg \{ order: 2; flex-basis: 100%; \}/.test(css) && !/#alt-lines:has\(~ #setup-fen-row/.test(css));
 }
+{
+    // FormElement.setValue on a select writes ONLY Materialize's own display input, never a neighbour
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/util/FormElement.js', 'utf8').replace(/^export /m, '');
+    const mk = (wrapper) => {
+        const neighbour = {value: '61'}, shown = {value: ''};
+        const parent = {classList: {contains: (k) => wrapper && k === 'select-wrapper'},
+                        querySelector: (q) => q === 'input.select-dropdown' ? (wrapper ? shown : null) : neighbour};
+        const sel = {options: [{value: 'time', innerText: 'Time per move'}], value: '', parentElement: parent, dispatchEvent() {}};
+        const c = vm.createContext({console, Event: class {}, document: {getElementById: () => sel}});
+        vm.runInContext(src + '; var fe = new FormElement("an_limit_kind", "", "select", "time"); fe.setValue("time");', c);
+        return {neighbour: neighbour.value, shown: shown.value};
+    };
+    const bare = mk(false), styled = mk(true);
+    ok('a browser-default select leaves the slider beside it alone; a styled one shows its option text',
+       bare.neighbour === '61' && styled.shown === 'Time per move' && styled.neighbour === '61', {bare, styled});
+}
 // ==== END FIX CHECKS ====
