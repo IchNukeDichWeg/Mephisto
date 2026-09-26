@@ -9225,6 +9225,7 @@ function watch_config_changes() {
                 if (key === 'threat_human' || key === 'threat_human_elo') {
                     last_eval.humanReply = null;
                     threat_human_cache.clear();
+                    human_inflight.clear();   // a question asked at the old rating is not this one
                     if (config.threat_human && last_eval.fen && last_eval.bestmove) {
                         request_threat_human(last_eval.fen, last_eval.bestmove);
                     } else {
@@ -9651,6 +9652,7 @@ function ensure_threat_human() {
         threat_human_elo_loaded = elo;
         threat_human_cache.clear();
         safety_human_cache.clear();
+        human_inflight.clear();
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci',
                                     line: `setoption name SelfElo value ${elo}`});
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci',
@@ -9694,11 +9696,29 @@ function dispose_threat_human() {
     threat_human_elo_loaded = null;
     threat_human_cache.clear();
     safety_human_cache.clear();
+    human_inflight.clear();
 }
 
 // one forward pass for the position after `fen` -- resolves {uci, prob} or null
+// ONE QUESTION PER POSITION IN FLIGHT. The cache below fills only when Maia ANSWERS, and this is
+// asked on every multipv-1 info line of our turn -- so each engine frame before the answer sent
+// another `position` + `go nodes 1` (a full forward pass of the net, on the same cores the engine is
+// using) and added another listener. Callers asking about a position already being asked about now
+// share that one answer. It also narrows the shared ':hr' client's cross-talk window.
+const human_inflight = new Map();   // 'reply|fen' / 'choices|fen' -> the promise of its answer
+function human_once(key, ask) {
+    if (human_inflight.has(key)) return human_inflight.get(key);
+    const p = ask().finally(() => { if (human_inflight.get(key) === p) human_inflight.delete(key); });
+    human_inflight.set(key, p);
+    return p;
+}
+
 async function threat_human_reply(fenAfter) {
     if (threat_human_cache.has(fenAfter)) return threat_human_cache.get(fenAfter);
+    return human_once(`reply|${fenAfter}`, () => threat_human_ask(fenAfter));
+}
+
+async function threat_human_ask(fenAfter) {
     await ensure_threat_human();
     const answer = await new Promise((resolve) => {
         const timer = setTimeout(() => { cleanup(); resolve(null); }, 15000);
@@ -9755,6 +9775,10 @@ function draw_human_reply() {
 const safety_human_cache = new Map();   // fen -> [{uci, prob}] in Maia's own order
 async function safety_human_choices(fen) {
     if (safety_human_cache.has(fen)) return safety_human_cache.get(fen);
+    return human_once(`choices|${fen}`, () => safety_human_ask(fen));   // see human_once
+}
+
+async function safety_human_ask(fen) {
     await ensure_threat_human();
     const answer = await new Promise((resolve) => {
         const timer = setTimeout(() => { cleanup(); resolve(null); }, 15000);

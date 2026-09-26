@@ -2577,4 +2577,20 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     c.move_possible_here(START, 'e2e4');
     ok('...and the variant is part of the key (a new variant is a new board)', vm.runInContext('BUILT', c) === 3);
 }
+(async () => {
+    // one Maia question per position in flight: ten frames asking the same thing send it once
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = psrc.indexOf('const human_inflight'), b = psrc.indexOf('async function threat_human_ask(');
+    const c = vm.createContext({});
+    vm.runInContext('var threat_human_cache = new Map(); var ASKED = 0; var release;'
+        + 'function threat_human_ask(f) { ASKED++; return new Promise(r => { release = () => r({uci: "e7e5", prob: 0.5}); }); }'
+        + psrc.slice(a, b), c);
+    const ps = Array.from({length: 10}, () => c.threat_human_reply('F'));
+    vm.runInContext('release()', c);
+    const answers = await Promise.all(ps);
+    ok('ten engine frames asking Maia about one position send ONE question and all get its answer',
+       vm.runInContext('ASKED', c) === 1 && answers.every(x => x && x.uci === 'e7e5') && vm.runInContext('human_inflight.size', c) === 0,
+       {asked: vm.runInContext('ASKED', c)});
+})().catch(e => { fails++; console.log('FAIL human in-flight check threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
