@@ -1980,6 +1980,30 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     console.log(`${Number.isFinite(acc2) ? 'ok  ' : 'FAIL'} ...and an unanalysed position in the window is skipped, not NaN`);
 }
 
+{
+    // Shogi / xiangqi board after a route change: the router re-injects the page HTML on every visit
+    // but require.js caches the module, so a module-level `wired = true` left the second visit's
+    // board with no click listeners. The REAL wire() runs against two fresh DOMs here.
+    console.log('\nlarge board rewires a re-injected page:');
+    const lj = fs.readFileSync(ROOT + '/src/options/pages/analysis/large-board.js', 'utf8');
+    const w0 = lj.indexOf('function wire()'), w1 = lj.indexOf('// Show the large board');
+    const dom = () => {
+        const els = {};
+        return {els, getElementById: (id) => els[id] || (els[id] = {n: 0, addEventListener() { this.n++; }})};
+    };
+    const wctx = vm.createContext({document: dom()});
+    vm.runInContext('let wiredTo = null; const $ = (id) => document.getElementById(id);'
+                    + 'function onBoardClick() {} function onHandClick() {}\n' + lj.slice(w0, w1), wctx);
+    vm.runInContext('wire(); wire();', wctx);
+    const first = wctx.document.els.an_lg_board.n;
+    wctx.document = dom();                         // the route came back: a brand new copy of the page
+    vm.runInContext('wire();', wctx);
+    const second = wctx.document.els.an_lg_board?.n;
+    const okW = w0 > 0 && w1 > w0 && first === 1 && second === 1;
+    if (!okW) fails++;
+    console.log(`${okW ? 'ok  ' : 'FAIL'} wire() attaches once per DOM and again to a re-injected one (got ${first}, ${second})`);
+}
+
 // ==== AGENT ANALYSIS CHECKS (engine vs engine, shogi / xiangqi) ====
 {
     // The match's rules, executed: the REAL block sliced out of analysis.js, the real chess.js, and

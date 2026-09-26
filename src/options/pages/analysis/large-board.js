@@ -124,7 +124,10 @@ let flipped = false;
 let lastLines = [];
 let engine = null, engineGame = null, live = null, budgetTimer = null;
 let chain = Promise.resolve();
-let wired = false;
+// The board element the listeners were attached to. The router re-injects the page's HTML on every
+// visit while this module stays cached, so a module-level boolean left a revisited board with no
+// listeners at all; keying on the element rewires each fresh copy of the DOM exactly once.
+let wiredTo = null;
 
 function status(text, kind) {
     const el = $('an_lg_status');
@@ -413,8 +416,9 @@ function loadFen(text) {
 }
 
 function wire() {
-    if (wired) return;
-    wired = true;
+    const board = $('an_lg_board');
+    if (board === wiredTo) return;
+    wiredTo = board;
     $('an_lg_board')?.addEventListener('click', onBoardClick);
     $('an_lg_hand_top')?.addEventListener('click', onHandClick);
     $('an_lg_hand_bottom')?.addEventListener('click', onHandClick);
