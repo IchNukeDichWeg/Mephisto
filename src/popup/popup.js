@@ -8411,7 +8411,8 @@ function on_new_pos_4pc(payload) {
             render_alt_lines_4pc(res.lines, flip);
             if (config.help_mode) request_draw_hint(arrows);
             else request_clear_hint();
-            if (ours && config.autoplay && !config.help_mode) request_automove_4pc(best);
+            // Manual Mode holds the move for a keypress on two-player boards; four-player ignored it
+            if (ours && config.autoplay && !config.help_mode && !config.manual_mode) request_automove_4pc(best);
             else if (config.autoplay) {
                 // "Autoplay does nothing in four-player chess" has been reported more than once, and
                 // all three gates above are silent -- a skipped move looks exactly like a move that
@@ -8419,7 +8420,7 @@ function on_new_pos_4pc(payload) {
                 // `ourSeat` is '?' whenever the seat could not be read off the page, which makes
                 // `ours` false for every position and autoplay dead for the whole game.
                 request_console_log(`4PC autoplay skipped: yourSeat=${ourSeat} turnSeat=${turn} ` +
-                    `yourTurn=${ours} helpMode=${!!config.help_mode}`);
+                    `yourTurn=${ours} helpMode=${!!config.help_mode} manualMode=${!!config.manual_mode}`);
             }
         })
         .catch((e) => {

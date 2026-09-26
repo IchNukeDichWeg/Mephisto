@@ -2500,4 +2500,9 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('session: the finished game is folded and its history cleared, and the live game always counts (no start-FEN "folded" check)',
        /session_note_game\(eval_history, eval_history_game\);[\s\S]{0,400}eval_history = \[\];/.test(psrc) && !/session\.folded/.test(psrc));
 }
+{
+    const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('four-player autoplay respects Manual Mode', /if \(ours && config\.autoplay && !config\.help_mode && !config\.manual_mode\) request_automove_4pc\(best\);/.test(psrc));
+}
 // ==== END FIX CHECKS ====
