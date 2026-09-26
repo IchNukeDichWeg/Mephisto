@@ -7693,7 +7693,12 @@ let net_last_full = null;   // {fen, set}
 
 function safety_net_set() {
     if (!config.safety_net) return null;
-    const lines = (last_eval.lines || []).filter(l => l && l.move && typeof l.score === 'number');
+    // MATE LINES COUNT. They carry `mate`, not `score`, and filtering on `score` dropped them: with
+    // line 1 at +0.5 and every other line getting us mated, the set shrank to one line and read as
+    // "forced" (or held a stale verdict) exactly when only one move holds -- and our own mating move
+    // was never in the "holds" set either.
+    const lines = (last_eval.lines || []).filter(l => l && l.move
+        && (typeof l.score === 'number' || typeof l.mate === 'number'));
     if (!lines.length) return null;
     if (lines.length < 2) {
         if (Number(config.multiple_lines) > 1) {
@@ -7705,9 +7710,9 @@ function safety_net_set() {
         }
         return {needMoreLines: true, moves: [], total: 0};
     }
-    // scores are white-relative; the side to move is the one choosing, so flip for black
-    const sign = (turn === 'w') ? 1 : -1;
-    const wp = (l) => win_percent(sign * l.score);
+    // scores are white-relative and the side to move is the one choosing: line_cp_ours flips for
+    // black and maps a mate to a huge score (closer = bigger), which win_percent takes to 100 / 0
+    const wp = (l) => win_percent(line_cp_ours(l));
     const best = Math.max(...lines.map(wp));
     const drop = Math.max(1, Math.min(50, Number(config.safety_net_drop) || 10));
     const moves = lines.filter(l => best - wp(l) <= drop).map(l => l.move);

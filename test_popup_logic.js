@@ -2460,4 +2460,20 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /if \(ours\) \{ on_new_pos\(w\.fen, w\.startFen, w\.moves\); return; \}/.test(r)
        && !/\n\s*puzzle_deferred = null;\n\s*clearTimeout\(puzzle_defer_timer\);\n\s*puzzle_solutions/.test(r));
 }
+{
+    // the Safety Net with mate lines: +0.5 on line 1, every other line gets us mated
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fnS = (n) => { const i = psrc.indexOf(`function ${n}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({});
+    vm.runInContext('var config = {safety_net: true, multiple_lines: 3, safety_net_drop: 10}; var turn = "w"; var net_last_full = null; var last_eval = {};'
+        + fnS('win_percent') + fnS('line_cp_ours') + fnS('safety_net_set'), c);
+    c.last_eval = {fen: 'F', lines: [{move: 'a1a2', score: 50}, {move: 'b1b2', mate: -3}, {move: 'c1c2', mate: -2}]};
+    const set = vm.runInContext('safety_net_set()', c);
+    ok('Safety Net: mated-in-N lines are counted, so one holding move among three is a real verdict, not "forced"',
+       set && !set.forced && set.total === 3 && set.moves.join() === 'a1a2', set);
+    c.last_eval = {fen: 'G', lines: [{move: 'd1d8', mate: 2}, {move: 'e1e2', score: 300}]};
+    const win = vm.runInContext('safety_net_set()', c);
+    ok('Safety Net: our own mating move is in the "holds" set', win && win.moves.includes('d1d8'), win);
+}
 // ==== END FIX CHECKS ====
