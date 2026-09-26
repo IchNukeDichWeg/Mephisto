@@ -765,8 +765,10 @@ function ensureEngine() {
 }
 async function buildEngine() {
     if (engine) return engine;
+    const gen = pageGen;
     const e = makeEngine(cfg('an_engine'), engineOpts(), 'analysis');
     await e.start();
+    if (leftDuringLoad(gen, e)) return null;
     if (cfg('an_wdl')) e.send?.('setoption name UCI_ShowWDL value true');
     engine = e;
     return engine;
@@ -788,8 +790,10 @@ function ensureEngine2() {
 async function buildEngine2() {
     if (!cfg('an_engine2')) return null;
     if (engine2) return engine2;
+    const gen = pageGen;
     const e = makeEngine(cfg('an_engine2'), engineOpts(), 'analysis-b');
     await e.start();
+    if (leftDuringLoad(gen, e)) return null;
     if (cfg('an_wdl')) e.send?.('setoption name UCI_ShowWDL value true');
     engine2 = e;
     return engine2;
@@ -818,8 +822,10 @@ async function buildHuman() {
     const key = `${kind}|${band}`;
     if (human && humanKey === key) return human;
     if (human) { try { human.dispose?.(); } catch (e) { /* */ } human = null; }
+    const gen = pageGen;
     const h = makeEngine(kind, {...engineOpts(), multipv: 5, maiaLevel: band}, 'analysis-human');
     await h.start();
+    if (leftDuringLoad(gen, h)) return null;
     human = h;
     humanKey = key;
     return human;
@@ -877,7 +883,19 @@ async function reloadHuman() {
     } catch (e) { status(`Human model unavailable (${e.message || e})`, 'err'); }
 }
 
+// teardown() bumps this. An engine whose start() was still loading when the page was left used to be
+// assigned afterwards, past the dispose, and the queued analyseNow then ran `go infinite` on it
+// behind a page nobody was looking at. A build that finishes in a later generation is disposed on
+// arrival and hands back null.
+let pageGen = 0;
+function leftDuringLoad(gen, e) {
+    if (gen === pageGen) return false;
+    try { e.dispose?.(); } catch (err) { /* */ }
+    return true;
+}
+
 function teardown() {
+    pageGen++;
     hideLargeGame();
     stopMatch();
     stopSearch();
@@ -955,6 +973,7 @@ async function analyseNow() {
     await stopSearch();                 // the previous search must be finished, not merely told to stop
     let e;
     try { e = await ensureEngine(); } catch (err) { return status(String(err.message || err), 'err'); }
+    if (!e) return;                      // the page was left while it loaded; it has been disposed
     // The POSITION, not just the index: playing a move truncates the line, so the same cursor value
     // can mean a different board a moment later and an index check would let the old search's lines
     // through as if they described this one.

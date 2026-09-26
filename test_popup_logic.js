@@ -2138,6 +2138,43 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     console.log(`${okH ? 'ok  ' : 'FAIL'} a rebind after Import keeps the imported hotkeys and macros (got ${store.hotkeys})`);
 }
 
+{
+    // Leaving Analysis while its engine is still loading: teardown() only disposed `engine` if it was
+    // already set, and the in-flight build assigned it afterwards (then analyseNow ran go infinite on
+    // it). The REAL builders and teardown run here with a start() that finishes after the page left.
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a), j = aj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return aj.slice(i, j); };
+    const made = [];
+    const ac = vm.createContext({made, Promise,
+        makeEngine: () => { const e = {disposed: false, dispose() { this.disposed = true; }, send() {}};
+                            e.start = () => new Promise(r => { e.finish = r; }); made.push(e); return e; },
+        cfg: (k) => k === 'an_engine2' || k === 'an_human' ? 'x' : (k === 'an_wdl' ? false : 'y'),
+        engineOpts: () => ({}), CFG: {an_band: 1500},
+        hideLargeGame() {}, stopMatch() {}, stopSearch() {}, $: () => null});
+    (async () => {
+        vm.runInContext('let engine = null, human = null, humanKey = null, boardResizeObs = null;\n'
+            + cut('let engineChain', '// Reload ONLY the analysis engine') + cut('// teardown() bumps this', '// Returns a promise'), ac);
+        const got = vm.runInContext('[ensureEngine(), ensureEngine2(), ensureHuman()]', ac);
+        await new Promise(r => setImmediate(r));                  // the builders are now awaiting start()
+        vm.runInContext('teardown()', ac);                         // the route changed
+        for (const e of made) e.finish();                          // ...and only now did the engines load
+        const res = await Promise.all(got);
+        const left = vm.runInContext('[engine, engine2, human]', ac);
+        console.log('\nanalysis engine loaded after the page was left (async, prints late):');
+        const okE = made.length === 3 && made.every(e => e.disposed) && res.every(r => r === null) && left.every(x => x === null);
+        if (!okE) fails++;
+        console.log(`${okE ? 'ok  ' : 'FAIL'} an engine, second engine or human model that finishes loading after teardown is disposed, not kept (${made.filter(e => e.disposed).length}/${made.length} disposed)`);
+        // a build in the SAME generation still lands
+        const p = vm.runInContext('ensureEngine()', ac);
+        await new Promise(r => setImmediate(r));
+        made[made.length - 1].finish();
+        const e = await p;
+        const okF = e && !e.disposed && vm.runInContext('engine', ac) === e;
+        if (!okF) fails++;
+        console.log(`${okF ? 'ok  ' : 'FAIL'} ...while a build that finishes on the live page is kept`);
+    })().catch(e => { fails++; console.log('FAIL analysis engine teardown check threw: ' + (e && e.stack || e)); });
+}
+
 // ==== AGENT ANALYSIS CHECKS (engine vs engine, shogi / xiangqi) ====
 {
     // The match's rules, executed: the REAL block sliced out of analysis.js, the real chess.js, and
