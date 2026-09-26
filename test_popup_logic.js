@@ -2593,4 +2593,14 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        vm.runInContext('ASKED', c) === 1 && answers.every(x => x && x.uci === 'e7e5') && vm.runInContext('human_inflight.size', c) === 0,
        {asked: vm.runInContext('ASKED', c)});
 })().catch(e => { fails++; console.log('FAIL human in-flight check threw: ' + (e && e.stack || e)); });
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function arrow_piece_src('), fn = psrc.slice(i, psrc.indexOf('\n}\n', i) + 3);
+    const run = (inPage, assets) => { const c = vm.createContext({}); vm.runInContext(`var IS_CONTENT_SCRIPT = ${inPage}; var PANEL_ASSETS = ${JSON.stringify(assets)}; var config = {pieces: 'neo.png'};` + fn, c); return vm.runInContext('arrow_piece_src("wQ")', c); };
+    const got = [run(true, {pieces: {wQ: 'data:image/png;base64,AA'}}), run(true, null), run(false, null)];
+    ok('arrow piece images: in the page an inlined data URI or nothing, never a path the site would serve; the popup page keeps its path',
+       got[0] === 'data:image/png;base64,AA' && got[1] === '' && got[2] === '/res/chesspieces/neo/wQ.png', got);
+    ok('...and no drop/promotion arrow builds a /res/ path itself any more', !/const piecePath = `\/res\/chesspieces/.test(psrc));
+}
 // ==== END FIX CHECKS ====

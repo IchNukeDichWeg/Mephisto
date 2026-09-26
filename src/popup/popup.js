@@ -10391,6 +10391,19 @@ function arrow_label(line) {
     return (cp > 0 ? '+' : '') + cp.toFixed(2);
 }
 
+// The piece image a drop or promotion arrow shows. IN THE PAGE a root-relative path resolves against
+// the SITE, so "/res/chesspieces/..." became a request to chess.com or lichess itself -- in their
+// server logs and the page's Resource Timing -- for a file only this extension has. The board already
+// uses the inlined data: URIs the worker ships (PANEL_ASSETS); arrows now use them too, and draw no
+// image rather than fall back to a path in the page. The toolbar popup is our own page, so its path
+// is fine.
+function arrow_piece_src(id) {
+    if (PANEL_ASSETS?.pieces?.[id]) return PANEL_ASSETS.pieces[id];
+    if (IS_CONTENT_SCRIPT) return '';
+    const [pieceSet, ext] = config.pieces.split('.');
+    return `/res/chesspieces/${pieceSet}/${id}.${ext}`;
+}
+
 function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label = '') {
     if (!move || move === '(none)') {
         overlay.lastElementChild?.remove();
@@ -10424,11 +10437,10 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
         console.log("STROKE_DIFF:", MAX_STROKE, "-", stroke_width, "=", stroke_diff);
 
         const pieceIdentifier = turn + move[0];
-        const [pieceSet, ext] = config.pieces.split('.');
-        const piecePath = `/res/chesspieces/${pieceSet}/${pieceIdentifier}.${ext}`
+        const piecePath = arrow_piece_src(pieceIdentifier);
         overlay.insertAdjacentHTML('beforeend', `
-            <img style='position: absolute; z-index: -1; left: ${imgX}px; top: ${imgY}px; opacity: 0.4;' width='43px'
-                height='43px' src='${piecePath}' alt='${pieceIdentifier}'>
+            ${piecePath ? `<img style='position: absolute; z-index: -1; left: ${imgX}px; top: ${imgY}px; opacity: 0.4;' width='43px'
+                height='43px' src='${piecePath}' alt='${pieceIdentifier}'>` : ''}
             <svg style='position: absolute; z-index: -1; left: 0; top: 0;' width='344px' height='344px' viewBox='0, 0, 8, 8'>
                 <circle cx='${x}' cy='${y}' r='${0.45 + stroke_diff}' fill='transparent' opacity='0.4' stroke='${color}' stroke-width='${stroke_width}' />
             </svg>
@@ -10465,10 +10477,9 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
         if (move.length === 5) {
             const imgX = 43 * (coords.x1 - 1);
             const imgY = 43 * (8 - coords.y1);
-            const pieceIdentifier = turn + move[4];
-            const [pieceSet, ext] = config.pieces.split('.');
-            const piecePath = `/res/chesspieces/${pieceSet}/${pieceIdentifier}.${ext}`;
-            overlay.insertAdjacentHTML('beforeend', `
+            const pieceIdentifier = turn + move[4].toUpperCase();   // 'q' -> wQ, the file / asset name
+            const piecePath = arrow_piece_src(pieceIdentifier);
+            if (piecePath) overlay.insertAdjacentHTML('beforeend', `
                 <img style='position: absolute; z-index: -1; left: ${imgX}px; top: ${imgY}px; opacity: 0.4;' width='43px'
                     height='43px' src='${piecePath}' alt='${pieceIdentifier}'>
             `);
