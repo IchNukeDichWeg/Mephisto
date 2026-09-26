@@ -1017,12 +1017,16 @@ function fitHumanize(moves, colour) {
 
 function renderReport() {
     if (!report) return;
+    // A chess.com online review comes back through here when the page is revisited; drawn as an
+    // engine report it re-enabled Export and Fit and showed the engine-only blocks over stub data.
+    if (report.ccr) return renderCcrReport(report.ccrStrength);
     $('rv-report').classList.remove('hidden');
     $('rv-indicators').classList.remove('hidden');
     // a preceding chess.com review hides these engine-only blocks; restore them for an engine run.
     document.querySelector('.rv-graph-wrap')?.classList.remove('hidden');
     $('rv_export').disabled = false;
-    $('rv_fit').disabled = false;
+    // Fit reads cp losses; a report with none would write a 100%-best mix into the panel
+    $('rv_fit').disabled = !report.moves.some(m => m.cpLoss != null);
     renderHeader();
     renderCards();
     renderGraph();
@@ -2598,7 +2602,9 @@ function buildCcrReport(review, pgnText) {
             uci: mv.from + mv.to + (mv.promotion || ''),
             klass: CCR_CLASS[rm.classification] || 'good',
             commentary: rm.commentary || '',
-            cpLoss: 0,
+            // chess.com's answer carries no cp loss. It used to be written as 0, which Fit Humanize
+            // read as "found the best move" on every move; null is "not measured".
+            cpLoss: null,
         });
         // chess.com's score for the move it just played IS the evaluation of the position that move
         // leads to, white-relative, so it lands on the position we are about to push. That gives the
@@ -2624,6 +2630,7 @@ function buildCcrReport(review, pgnText) {
         counts: {w: counts('w'), b: counts('b')},
         indicators: {w: stub('w'), b: stub('b')},
         ccr: true, ccrStrength: null,
+        pgnText,   // so a revisit refills the PGN box instead of emptying it
         at: new Date().toISOString(),
     };
 }
@@ -2732,6 +2739,7 @@ function renderCcrReport(strengthLabel) {
     report.ccrStrength = strengthLabel || null;
     $('rv-report').classList.remove('hidden');
     $('rv_export').disabled = true;                                    // no engine export
+    $('rv_fit').disabled = true;                                       // no cp losses to fit
     $('rv-indicators')?.classList.add('hidden');                       // engine-only readings
     $('rv-strength')?.classList.add('hidden');
     $('rv-human')?.classList.add('hidden');
@@ -2743,7 +2751,6 @@ function renderCcrReport(strengthLabel) {
     renderMoves();
     ensureBoard();
     showPly(report.moves.length);
-    $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
 function buildCcrGame(pgnText) {
@@ -3179,6 +3186,7 @@ class ReviewPage {
                 if (built) {
                     report = built;
                     renderCcrReport($('rv_ccr_strength').value);
+                    $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});
                     out.classList.add('hidden');
                 } else {
                     out.textContent = renderCcrReview(review, pgn);

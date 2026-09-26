@@ -2029,6 +2029,51 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     console.log(`${okR ? 'ok  ' : 'FAIL'} onInit re-enables Stop and disables Analyse while a run is live`);
 }
 
+{
+    // A chess.com online review (ccr) has no cp losses. buildCcrReport wrote cpLoss 0 on every move,
+    // so Fit Humanize read the player as 100% best; and a route change re-drew the report through
+    // renderReport, which re-enabled Export/Fit and emptied the PGN box. The REAL buildCcrReport,
+    // fitHumanize and renderReport run here with the DOM stubbed.
+    console.log('\nchess.com online review report:');
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const cut = (a, b) => { const i = rj.indexOf(a), j = rj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return rj.slice(i, j); };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const els = {};
+    c.els = els;
+    vm.runInContext('const Core = self.MephistoReviewCore; const MephistoConfig = {get: () => null};'
+        + 'let report = null; const calls = [];'
+        + 'const $ = (id) => els[id] || (els[id] = {disabled: false, classList: {add() {}, remove() {}}, scrollIntoView() {}});'
+        + 'const document = {querySelector: () => null};'
+        + 'for (const f of ["renderHeader", "renderCards", "renderGraph", "renderTurning", "renderTimeCards", "renderMoves",'
+        + ' "renderIndicators", "renderHumanReport", "renderStrength", "ensureBoard", "showPly"]) this[f] = () => calls.push(f);\n'
+        + cut('const FIT_ORDER', 'function renderReport') + cut('function renderReport', '// "GM Carlsen')
+        + cut('const CCR_CLASS', '// ---- chess.com\'s classifier, run locally') + cut('function renderCcrReport', 'function buildCcrGame'), c);
+    const pgn = '[White "A"]\n[Black "B"]\n\n1. e4 e5 2. Nf3 Nc6 *';
+    const review = {moves: [{classification: 1, cp: 30}, {classification: 1, cp: 25}, {classification: 1, cp: 30}, {classification: 1, cp: 20}]};
+    c.review = review; c.pgn = pgn;
+    const r = vm.runInContext('report = buildCcrReport(review, pgn); report', c);
+    const okA = r && r.moves.length === 4 && r.moves.every(m => m.cpLoss == null) && r.pgnText === pgn
+        && vm.runInContext('fitHumanize(report.moves, "w")', c) === null;
+    if (!okA) fails++;
+    console.log(`${okA ? 'ok  ' : 'FAIL'} a ccr report carries no fake cp losses (Fit finds nothing to fit) and keeps its PGN`);
+    vm.runInContext('renderReport()', c);
+    const drawn = vm.runInContext('calls.slice()', c);
+    const okB = els.rv_fit.disabled === true && els.rv_export.disabled === true
+        && !drawn.includes('renderIndicators') && drawn.includes('renderMoves');
+    if (!okB) fails++;
+    console.log(`${okB ? 'ok  ' : 'FAIL'} re-rendering a ccr report keeps it a ccr report: Export and Fit stay disabled`);
+    // and an engine report with real cp losses still gets Fit
+    vm.runInContext('report = {moves: [{color: "w", cpLoss: 12}], opts: {}}; renderReport();', c);
+    const okC = els.rv_fit.disabled === false && els.rv_export.disabled === false;
+    if (!okC) fails++;
+    console.log(`${okC ? 'ok  ' : 'FAIL'} ...while an engine report with cp losses still enables Fit and Export`);
+}
+
 // ==== AGENT ANALYSIS CHECKS (engine vs engine, shogi / xiangqi) ====
 {
     // The match's rules, executed: the REAL block sliced out of analysis.js, the real chess.js, and
