@@ -1951,10 +1951,12 @@ function renderDetail(pos, played) {
     $('rv_lines').innerHTML = lines.map((l, i) => {
         // White's perspective, always (user call 2026-08-24), matching the eval bar and the graph.
         // It used to flip to the side to move "like every engine UI", which meant the same position
-        // read +0.4 on the bar and -0.39 in the line list. `mate` still arrives raw from UCI, so it
-        // needs the flip that cp already had applied when engines.js parsed it.
-        const mate = l.mate == null ? null : (pos.turn === 'w' ? l.mate : -l.mate);
-        return `<div class="rv-line"><span class="rv-score">${esc(scoreText(l.cp, mate))}</span>
+        // read +0.4 on the bar and -0.39 in the line list. The score comes from cp alone: `mate`
+        // arrives side-to-move relative from WASM but already white-relative from a native host
+        // (python-chess `.white()`), so flipping it by turn printed native mates backwards with
+        // Black to move. cp is white-relative on every path with the distance encoded in it
+        // (toWhiteCp / NativeEngine.toLine / ccrLines), and scoreText reads "#-3" out of it.
+        return `<div class="rv-line"><span class="rv-score">${esc(scoreText(l.cp))}</span>
             <span class="rv-pv">${esc(pvToSan(pos.fen, l.pv).join(' '))}</span></div>`;
     }).join('');
 }

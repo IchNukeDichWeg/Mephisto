@@ -2074,6 +2074,33 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     console.log(`${okC ? 'ok  ' : 'FAIL'} ...while an engine report with cp losses still enables Fit and Export`);
 }
 
+{
+    // Review PV list mate sign. WASM lines carry `mate` side-to-move relative, native-host lines
+    // white-relative (python-chess .white()); both carry a white-relative cp with the distance in it.
+    // The list flipped `mate` by turn, so a native "Black mates in 3" printed #3. Black to move and
+    // mating in 3, through each engine's REAL line mapper, must print #-3 in the list.
+    console.log('\nreview PV list mate sign:');
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const ej = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const t0 = ej.indexOf('    toLine(l, turn) {'), t1 = ej.indexOf('\n    }\n', t0);
+    vm.runInContext('const Core = self.MephistoReviewCore;\n'
+        + rj.slice(rj.indexOf('function scoreText'), rj.indexOf('// The same eight colours'))
+        + 'function ' + ej.slice(t0, t1).trim() + '\n}', c);
+    const wasmCp = vm.runInContext('Core.toWhiteCp(undefined, 3, "b")', c);             // UCI: score mate 3
+    const nativeCp = vm.runInContext('toLine({mate: -3, pv: []}, "b").cp', c);           // host: .white() -> -3
+    const lineCall = /rv-score">\$\{esc\(scoreText\(l\.cp\)\)\}/.test(rj);
+    const got = [vm.runInContext(`scoreText(${wasmCp})`, c), vm.runInContext(`scoreText(${nativeCp})`, c)];
+    const okM = t0 > 0 && lineCall && got[0] === '#-3' && got[1] === '#-3';
+    if (!okM) fails++;
+    console.log(`${okM ? 'ok  ' : 'FAIL'} a Black mate-in-3 prints #-3 from both WASM and native lines (got ${got}, list reads cp: ${lineCall})`);
+}
+
 // ==== AGENT ANALYSIS CHECKS (engine vs engine, shogi / xiangqi) ====
 {
     // The match's rules, executed: the REAL block sliced out of analysis.js, the real chess.js, and
