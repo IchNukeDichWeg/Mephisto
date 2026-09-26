@@ -2330,4 +2330,20 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('a held position never sends a move to the page: request_automove returns on setup_fen before anything else',
        /\{\s*(\/\/[^\n]*\n\s*)*if \(setup_fen\) \{[^}]*return;\s*\}\s*if \(config\.puzzle_mode/.test(ra));
 }
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = csrc.indexOf('function boardShowsBlack(');
+    const c = vm.createContext({});
+    vm.runInContext(csrc.slice(i, csrc.indexOf('\n}\n', i) + 3), c);
+    // a fake chess.com board: pieces with square-FR classes at a screen y
+    const board = (flipped, pieces) => ({classList: {contains: (k) => k === 'flipped' && flipped},
+        querySelectorAll: () => pieces.map(([sq, top]) => ({className: `piece wp square-${sq}`, getBoundingClientRect: () => ({top})}))});
+    const f = (b) => vm.runInContext('boardShowsBlack', c)(b);
+    ok('coordinates hidden: White at the bottom reads white, Black at the bottom reads black, the flip class wins, one rank is unknown',
+       f(board(false, [['52', 600], ['57', 100]])) === false && f(board(false, [['52', 100], ['57', 600]])) === true
+       && f(board(true, [])) === true && f(board(false, [['11', 700], ['81', 700]])) === false && f(null) === false);
+    ok('lichess without coordinates falls back to the board wrapper orientation-black class',
+       /: !!getBoard\(\)\?\.querySelector\?\.\('\.cg-wrap'\)\?\.classList\.contains\('orientation-black'\)/.test(csrc));
+}
 // ==== END FIX CHECKS ====

@@ -2224,6 +2224,25 @@ function scrapePositionPuz() {
     return (res) ? getTurn() + '*****' + res : null;
 }
 
+// Is this chess.com board drawn from Black's side, read off the board itself: the `flipped` class
+// when it carries one, otherwise the pieces -- a piece on a low rank drawn ABOVE one on a higher
+// rank means the board is upside down. Pieces carry `square-FR` (file, rank) classes. False when it
+// cannot tell (no board, or every piece on one rank), which is the old answer.
+function boardShowsBlack(board) {
+    if (!board) return false;
+    if (board.classList?.contains('flipped')) return true;
+    let lo = null, hi = null;
+    for (const p of board.querySelectorAll?.('.piece') || []) {
+        const m = /square-(\d)(\d)/.exec(p.className || '');
+        if (!m) continue;
+        const rank = +m[2];
+        if (!lo || rank < lo.rank) lo = {rank, p};
+        if (!hi || rank > hi.rank) hi = {rank, p};
+    }
+    if (!lo || lo.rank === hi.rank) return false;
+    return lo.p.getBoundingClientRect().top < hi.p.getBoundingClientRect().top;
+}
+
 function getOrientation() {
     let orientedBlack = true;
     if (site === 'taketaketake') {
@@ -2249,10 +2268,15 @@ function getOrientation() {
     } else if (site === 'chesscom') {
         const topLeftCoord = document.querySelector('.coordinate-light')
             || document.querySelector('.coords-light');
-        orientedBlack = topLeftCoord && topLeftCoord.innerHTML === '1';
+        // The labels exist only while the player shows coordinates; without them this used to fall
+        // through to 'white' and a Black player got every move mirrored. The board itself says it.
+        orientedBlack = topLeftCoord ? topLeftCoord.innerHTML === '1' : boardShowsBlack(getBoard());
     } else if (site === 'lichess') {
         const topLeftCoord = document.querySelector('.files');
-        orientedBlack = topLeftCoord && topLeftCoord.classList.contains('black');
+        // same trap: .files is the coordinate strip. chessground always sets orientation-* on the
+        // board's own wrapper, coordinates or not.
+        orientedBlack = topLeftCoord ? topLeftCoord.classList.contains('black')
+            : !!getBoard()?.querySelector?.('.cg-wrap')?.classList.contains('orientation-black');
     } else if (site === 'blitztactics') {
         const topLeftCoord = document.querySelector('.files');
         orientedBlack = topLeftCoord && topLeftCoord.classList.contains('black');
