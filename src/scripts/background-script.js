@@ -1728,7 +1728,7 @@ async function buildPieces(pieceSet, pieceExt) {
 const attached = new Set();
 const lastPos = new Map(); // tabId -> {x, y}: where the synthetic cursor was left after the last click
 const cdpSleep = (ms) => new Promise(r => setTimeout(r, ms));
-const cdpDispatch = (target, params, paced = false) => new Promise((resolve, reject) => {
+const cdpDispatch = (target, params, paced = false, retried = false) => new Promise((resolve, reject) => {
   const t0 = Date.now();
   cdpPending++;
   const hungAt = setTimeout(() => { cdpHung++; }, CDP_HUNG_MS);
@@ -1743,7 +1743,16 @@ const cdpDispatch = (target, params, paced = false) => new Promise((resolve, rej
     // feedback loop: snaps inflated the estimate, the estimate shortened paths into snaps, and the
     // worker ratcheted itself into never drawing a cursor path again.
     if (paced) { pacedCalls++; pacedTotalMs += dt; }
-    return chrome.runtime.lastError ? reject(new Error(chrome.runtime.lastError.message)) : resolve();
+    const err = chrome.runtime.lastError;
+    // OUR SET SAID ATTACHED, CHROME SAYS NOT. After a worker restart the reconciliation below counts
+    // every tab with ANY debugger on it -- DevTools included -- as ours, so cdpAttach skipped the
+    // attach and every click of the session failed with "Debugger is not attached". Believe Chrome:
+    // attach for real and send this event again, once.
+    if (err && !retried && target.tabId && /not attached/i.test(err.message || '')) {
+      attached.delete(target.tabId);
+      return cdpAttach(target.tabId).then(() => cdpDispatch(target, params, paced, true)).then(resolve, reject);
+    }
+    return err ? reject(new Error(err.message)) : resolve();
   });
 });
 

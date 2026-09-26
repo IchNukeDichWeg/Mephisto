@@ -2505,4 +2505,23 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('four-player autoplay respects Manual Mode', /if \(ours && config\.autoplay && !config\.help_mode && !config\.manual_mode\) request_automove_4pc\(best\);/.test(psrc));
 }
+(async () => {
+    // A tab our set believes attached (the post-restart reconciliation counts DevTools too) but Chrome
+    // does not: the click attaches for real and goes through instead of failing for the session.
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const disp = b.slice(b.indexOf('const cdpDispatch = '), b.indexOf('\n});\n', b.indexOf('const cdpDispatch = ')) + 5);
+    const att = b.slice(b.indexOf('function cdpAttach('), b.indexOf('\n}\n', b.indexOf('function cdpAttach(')) + 3);
+    let really = false, sent = 0;
+    const chromeStub = {runtime: {lastError: null}, debugger: {
+        // lastError is scoped to each callback in Chrome, so the nested attach callback sees none
+        attach: (t, v, cb) => { const prev = chromeStub.runtime.lastError; chromeStub.runtime.lastError = null; really = true; cb(); chromeStub.runtime.lastError = prev; },
+        sendCommand: (t, m, p, cb) => { chromeStub.runtime.lastError = really ? null : {message: 'Debugger is not attached to the tab with id: 5.'}; if (really) sent++; cb(); chromeStub.runtime.lastError = null; }}};
+    const run = new Function('chrome', 'setTimeout', 'clearTimeout',
+        'let cdpPending = 0, cdpHung = 0, cdpCalls = 0, cdpTotalMs = 0, cdpWorstMs = 0, pacedCalls = 0, pacedTotalMs = 0;'
+        + 'const CDP_HUNG_MS = 1e9, ATTACH_SETTLE_MS = 0; const attached = new Set([5]);' + att + disp
+        + 'return cdpDispatch({tabId: 5}, {type: "mousePressed"}).then(() => attached.has(5));');
+    const stillAttached = await run(chromeStub, (f, ms) => setTimeout(f, ms), clearTimeout);
+    ok('a stale "attached" tab re-attaches and the click goes through', really && sent === 1 && stillAttached, {really, sent});
+})().catch(e => { fails++; console.log('FAIL cdp reattach check threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
