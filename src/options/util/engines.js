@@ -184,6 +184,15 @@ class WasmEngine {
     async start() {
         await chrome.runtime.sendMessage({ensureOffscreen: true});
         chrome.runtime.onMessage.addListener(this.onMessage);
+        // THE LEASE. The host stops any search whose client has said nothing for 60 s and throws the
+        // engine away after 5 minutes of silence (offscreen.js, LEASE_MS / ABANDON_MS). Only the
+        // panel ever renewed it, so the Analysis page's "No limit" search ended itself at 60-80 s,
+        // a Review time budget over a minute was cut short, and a page left open for 5 minutes lost
+        // its engine. A page that holds an engine is alive, so it says so for as long as it holds it.
+        this.keepAlive = setInterval(() => {
+            try { chrome.runtime.sendMessage({toOffscreen: true, clientId: this.clientId, cmd: 'ping'}); }
+            catch (e) { /* the worker or the offscreen doc is gone */ }
+        }, 15000);
         const ready = this.once(m => m.kind === 'ready' || m.kind === 'error', 120000);
         chrome.runtime.sendMessage({
             toOffscreen: true, clientId: this.clientId, cmd: 'init',
@@ -384,6 +393,7 @@ class WasmEngine {
     }
 
     dispose() {
+        clearInterval(this.keepAlive);
         try { chrome.runtime.onMessage.removeListener(this.onMessage); } catch (e) { /* gone */ }
         try {
             chrome.runtime.sendMessage({toOffscreen: true, clientId: this.clientId, cmd: 'dispose'});

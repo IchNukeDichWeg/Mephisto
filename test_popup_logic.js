@@ -2346,4 +2346,50 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('lichess without coordinates falls back to the board wrapper orientation-black class',
        /: !!getBoard\(\)\?\.querySelector\?\.\('\.cg-wrap'\)\?\.classList\.contains\('orientation-black'\)/.test(csrc));
 }
+(async () => {
+    // THE OFFSCREEN HOST, executed on a simulated clock (the whole file, chrome stubbed): an engine
+    // thrown away by the 5-minute abandon sweep comes back on its next command with its setoptions
+    // replayed first; a client that pings keeps its search; one disposed on purpose stays gone.
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8').replace(/await import\(/g, 'await __imp(');
+    let now = 0; const timers = [];
+    const tick = () => new Promise(r => setImmediate(r));
+    const mk = (fn, ms, iv) => { const t = {at: now + ms, fn, iv}; timers.push(t); return t; };
+    const advance = async (ms) => { await tick(); const end = now + ms;
+        for (;;) { timers.sort((a, b) => a.at - b.at); const t = timers[0]; if (!t || t.at > end) break;
+            now = t.at; if (t.iv) t.at += t.iv; else timers.shift(); t.fn(); await tick(); } now = end; };
+    let listener, inits = 0; const got = [];
+    const c = {console: {log() {}}, Date: {now: () => now},
+        setTimeout: (f, ms) => mk(f, ms, 0), setInterval: (f, ms) => mk(f, ms, ms),
+        clearTimeout: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
+        window: {close() {}},
+        __imp: async () => ({default: async () => { inits++; const n = inits; const e = {uci: (l) => { got.push([n, l]); if (l === 'stop') e.listen('bestmove e2e4'); },
+                                                         getRecommendedNnue: () => null, setNnueBuffer() {}}; return e; }}),
+        chrome: {runtime: {sendMessage: () => {}, onMessage: {addListener: (f) => listener = f}}}};
+    vm.createContext(c); vm.runInContext(src, c);
+    const msg = (id, o) => listener({toOffscreen: true, clientId: id, ...o}, {}, () => {});
+    msg('7', {cmd: 'init', engine: 'stockfish-11-hce'}); await advance(10);
+    msg('7', {cmd: 'uci', line: 'setoption name MultiPV value 3'});
+    msg('7', {cmd: 'uci', line: 'setoption name Threads value 2'});
+    await advance(330000);                                    // silent for 5.5 minutes: abandoned
+    msg('7', {cmd: 'uci', line: 'position startpos'}); msg('7', {cmd: 'uci', line: 'go depth 5'});
+    await advance(50);
+    const second = got.filter(([n]) => n === 2).map(([, l]) => l);
+    ok('an abandoned engine respawns on its next command, setoptions replayed before the position',
+       inits === 2 && second.join('|') === 'setoption name MultiPV value 3|setoption name Threads value 2|position startpos|go depth 5', second);
+    // a pinging client keeps an infinite search past the 60 s lease
+    msg('8', {cmd: 'init', engine: 'stockfish-11-hce'}); await advance(10);
+    msg('8', {cmd: 'uci', line: 'go infinite'});
+    for (let i = 0; i < 8; i++) { await advance(15000); msg('8', {cmd: 'ping'}); }
+    ok('a client that pings keeps its search for 2 minutes (no stop from the host)',
+       !got.some(([n, l]) => n === 3 && l === 'stop'));
+    // disposed on purpose: a late command does not bring it back
+    msg('7', {cmd: 'dispose'}); await advance(10);
+    const before = inits;
+    msg('7', {cmd: 'uci', line: 'go depth 5'}); await advance(50);
+    ok('a client disposed on purpose is never respawned', inits === before);
+    const esrc = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    ok('options-page engines ping for as long as they hold an engine, and stop on dispose',
+       /this\.keepAlive = setInterval\([\s\S]{0,200}cmd: 'ping'/.test(esrc) && /dispose\(\) \{\s*clearInterval\(this\.keepAlive\)/.test(esrc));
+})().catch(e => { fails++; console.log('FAIL offscreen lease checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====

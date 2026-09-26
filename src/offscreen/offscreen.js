@@ -45,6 +45,13 @@ const variantNnueMap = {
 
 const clients = {}; // clientId -> engine instance
 const pending = {}; // clientId -> uci lines sent before the engine finished loading (see below)
+// WHAT A CLIENT ASKED FOR, so one this host threw away can come back. The abandon sweep below
+// disposes any client silent for 5 minutes, and nothing ever re-initialised it: the panel between
+// games, its Human Reply (':hr') and Maia (':m2') clients, and an options page left open all kept
+// sending `uci` into a queue for an engine that no longer existed. Now the next such line respawns
+// it with the same init and the same setoptions (Threads, Hash, MultiPV...) replayed first.
+const initArgs = {}; // clientId -> [engine, variant, maiaLevel, elos]
+const sticky = {};   // clientId -> {option name: its last `setoption` line}
 // clientId -> load generation. A Fairy net takes seconds to fetch, so a second `init` (switching
 // engine or variant twice in a row) can start while the first is still awaiting -- and the two
 // publish in COMPLETION order, not request order. The loser overwrote clients[] with the engine the
@@ -96,6 +103,7 @@ function stopOrphanedSearches(now = Date.now()) {
         if (now - (lastSeen[id] || 0) <= ABANDON_MS) continue;
         console.log(`[Mephisto] offscreen: ${id} abandoned -- disposing its engine`);
         disposeClient(id);
+        delete pending[id];   // lines meant for the engine just thrown away; a respawn starts clean
     }
 }
 setInterval(stopOrphanedSearches, LEASE_SWEEP_MS);
@@ -179,6 +187,7 @@ async function initEngine(clientId, engineName, variant, maiaLevel, elos) {
         return await loadEngine(clientId, engineName, variant, maiaLevel, elos);
     } finally {
         loading.delete(clientId);
+        maybeGoIdle();   // a FAILED load leaves nothing behind, and this document must still be able to close
     }
 }
 
@@ -317,18 +326,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     clearTimeout(idleTimer);           // ...and a panel that is talking is not an idle document
     if (cmd === 'ping') return;        // nothing else to do: the line above WAS the point
     if (cmd === 'init') {
+        initArgs[clientId] = [msg.engine, msg.variant, msg.maiaLevel, msg.elos];
+        sticky[clientId] = {};
         initEngine(clientId, msg.engine, msg.variant, msg.maiaLevel, msg.elos).catch(e => send(clientId, {kind: 'error', error: String(e)}));
     } else if (cmd === 'uci') {
         const engine = clients[clientId];
-        if (/^go\b/.test(msg.line || '')) searching[clientId] = true;
-        if (/^(stop|quit)\b/.test(msg.line || '')) searching[clientId] = false;
+        const line = msg.line || '';
+        if (/^go\b/.test(line)) searching[clientId] = true;
+        if (/^(stop|quit)\b/.test(line)) searching[clientId] = false;
+        const opt = /^setoption name (.+?) value /.exec(line);
+        if (opt && sticky[clientId]) sticky[clientId][opt[1]] = line;
         if (engine) {
-            try { engine.uci(msg.line); } catch (e) { send(clientId, {kind: 'error', error: String(e)}); }
+            try { engine.uci(line); } catch (e) { send(clientId, {kind: 'error', error: String(e)}); }
+        } else if (!loading.has(clientId) && initArgs[clientId] && !/^(stop|quit)\b/.test(line)) {
+            // thrown away by the abandon sweep, and wanted again: respawn it (see initArgs)
+            console.log(`[Mephisto] offscreen: ${clientId} is back -- respawning its engine`);
+            pending[clientId] = [...Object.values(sticky[clientId] || {}).filter(l => l !== line), line];
+            initEngine(clientId, ...initArgs[clientId]).catch(e => send(clientId, {kind: 'error', error: String(e)}));
         } else {
-            (pending[clientId] = pending[clientId] || []).push(msg.line); // still loading -> queue
+            (pending[clientId] = pending[clientId] || []).push(line); // still loading -> queue
         }
     } else if (cmd === 'dispose') {
         disposeClient(clientId);
         delete pending[clientId];
+        delete initArgs[clientId];   // disposed on purpose: never respawn it
+        delete sticky[clientId];
     }
 });
