@@ -9144,6 +9144,30 @@ function watch_config_changes() {
                     maybe_player_book();
                     update_best_move(null);
                 }
+                // THE STRENGTH CAP, from the settings page. UCI_Elo was only ever sent at engine init,
+                // so the open panel kept playing at the old strength until it was reopened (the panel's
+                // own slider works because it reloads). Stop FIRST: a setoption under `go infinite`
+                // wedges the WASM engine's command thread for good.
+                if (key === 'elo' && !NO_ELO_ENGINES.includes(config.engine)) {
+                    abandon_search();
+                    const cap = config.elo > 0 && config.elo <= (ELO_RANGE[config.engine] || [1320, 3190])[1];
+                    if (is_remote()) {
+                        request_remote_configure(cap ? {UCI_LimitStrength: true, UCI_Elo: config.elo}
+                                                     : {UCI_LimitStrength: false}).catch(() => {});
+                    } else {
+                        send_engine_uci(`setoption name UCI_LimitStrength value ${cap}`);
+                        if (cap) send_engine_uci(`setoption name UCI_Elo value ${config.elo}`);
+                    }
+                    last_eval.fen = '';
+                    resync_after_config_change = true;
+                }
+                // Maia-2's matchup, same shape as its panel steppers: tell the net, drop the old answer.
+                if ((key === 'maia2_self_elo' || key === 'maia2_oppo_elo') && config.engine === 'maia2') {
+                    abandon_search();
+                    send_engine_uci(`setoption name ${key === 'maia2_self_elo' ? 'SelfElo' : 'OppoElo'} value ${config[key]}`);
+                    last_eval.fen = '';
+                    resync_after_config_change = true;
+                }
                 // Rodent's personality: same path -- the answer under the old style is dropped.
                 if (key === 'rodent_personality' && RODENT_ENGINES.includes(config.engine)) {
                     config.rodent_personality = value || '---';

@@ -2440,4 +2440,15 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const turns = [at('Y w', 'a b c d'), at('Z w', 'a b c d e f')];
     ok('one position searched three times is one turn; the third DIFFERENT turn resigns', same.every(v => v === null) && turns[0] === null && turns[1] === 'resign', {same, turns});
 }
+{
+    const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const w = psrc.slice(psrc.indexOf('function watch_config_changes()'), psrc.indexOf('function watch_config_changes()') + 12000);
+    const br = (k) => { const i = w.indexOf(`if (key === '${k}'`); return i < 0 ? '' : w.slice(i, w.indexOf('resync_after_config_change = true;', i)); };
+    const elo = br('elo'), m2 = w.slice(w.indexOf("if ((key === 'maia2_self_elo'"), w.indexOf("if ((key === 'maia2_self_elo'") + 600);
+    ok('an Elo change from the settings page reaches the open engine, stop sent BEFORE any setoption',
+       elo && elo.indexOf('abandon_search()') >= 0 && elo.indexOf('abandon_search()') < elo.indexOf('setoption name UCI_LimitStrength')
+       && /request_remote_configure\(cap/.test(elo)
+       && m2.indexOf('abandon_search()') >= 0 && m2.indexOf('abandon_search()') < m2.indexOf('setoption name'));
+}
 // ==== END FIX CHECKS ====
