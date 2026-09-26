@@ -2399,4 +2399,22 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        !/\.innerHTML \+= /.test(psrc) && !/while \(\w+\??\.childElementCount\) \w+\.lastElementChild\.remove\(\)/.test(psrc)
        && /function clear_annotations\(\) \{\s*PANEL_ROOT\.getElementById\('move-annotations'\)\.replaceChildren\(\)/.test(psrc));
 }
+(async () => {
+    // ensureOffscreen called twice while the document is still loading (the worker's own wake-up call
+    // and the panel's request): the second caller must not resolve before the page has loaded.
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bsrc = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const body = bsrc.slice(bsrc.indexOf('async function hasOffscreen()'), bsrc.indexOf('// Every cold start pays for this'));
+    let doc = null;
+    const chromeStub = {runtime: {getContexts: async () => (doc ? [{}] : [])},
+        offscreen: {createDocument: async () => { if (doc) throw new Error('Only a single offscreen document may be created.');
+            doc = 'loading'; await new Promise(r => setTimeout(r, 60)); doc = 'loaded'; }}};
+    const ensure = new Function('chrome', 'console', body + '; return ensureOffscreen;')(chromeStub, {log() {}});
+    const seen = [];
+    const a = ensure().then(() => seen.push(doc));
+    await new Promise(r => setTimeout(r, 10));
+    const b = ensure().then(() => seen.push(doc));
+    await Promise.all([a, b]);
+    ok('two overlapping ensureOffscreen calls both resolve only once the document has loaded', seen.join(',') === 'loaded,loaded', seen);
+})().catch(e => { fails++; console.log('FAIL ensureOffscreen race check threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====

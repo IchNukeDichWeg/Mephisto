@@ -2133,18 +2133,29 @@ async function hasOffscreen() {
   const ctx = await chrome.runtime.getContexts({contextTypes: ['OFFSCREEN_DOCUMENT']});
   return ctx.length > 0;
 }
+// ONE CREATE IN FLIGHT, SHARED. The worker calls this at top level on every wake, and the panel
+// asks for it too; two overlapping calls used to see "a document exists" (it is still loading) or
+// hit "Only a single offscreen document may be created", and resolve AT ONCE -- 21 ms against the
+// real 251 ms load in simulation. The panel then sent `init` before offscreen.js had a listener and
+// the engine never started, until the silence watchdog rebuilt it. Everyone now waits on the one
+// create, which is Chrome's own documented pattern for offscreen documents.
+let offscreenCreating = null;
 async function ensureOffscreen() {
-  try {
-    if (await hasOffscreen()) return;
-    await chrome.offscreen.createDocument({
-      url: 'src/offscreen/offscreen.html',
-      reasons: ['WORKERS'], // the engine spawns pthread web workers
-      justification: 'Runs the WASM chess engine off the page so the panel needs no in-page iframe.',
-    });
-  } catch (e) {
-    // a concurrent create (race) throws "Only a single offscreen document may be created" -- benign
-    console.log('[Mephisto] ensureOffscreen:', String(e));
-  }
+  if (offscreenCreating) return offscreenCreating;
+  offscreenCreating = (async () => {
+    try {
+      if (await hasOffscreen()) return;
+      await chrome.offscreen.createDocument({
+        url: 'src/offscreen/offscreen.html',
+        reasons: ['WORKERS'], // the engine spawns pthread web workers
+        justification: 'Runs the WASM chess engine off the page so the panel needs no in-page iframe.',
+      });
+    } catch (e) {
+      // a create racing one from before this worker woke still throws "Only a single..." -- benign
+      console.log('[Mephisto] ensureOffscreen:', String(e));
+    }
+  })().finally(() => { offscreenCreating = null; });
+  return offscreenCreating;
 }
 // Every cold start pays for this, so it is worth knowing what it costs before assuming it is free.
 ensureOffscreen().then(() => mark('offscreen')).finally(saveStartup);
