@@ -5230,7 +5230,7 @@ function on_new_pos(fen, startFen, moves) {
         game_max_clock_s = 0; opp_prep_for = ''; opp_prep_book = null; opp_prep_games = 0;
         // A NEW GAME IS NOT PAST ANY LINE. Without this a resignation streak carried into the next
         // game and could end it three moves in, and a draw already offered would never be offered.
-        resign_streak = draw_streak = 0; end_game_sent = '';
+        resign_streak = draw_streak = 0; end_game_sent = ''; end_game_key = ''; end_game_last = null;
         // The game that just finished, folded into the session totals before anything is cleared.
         session_note_game(eval_history, eval_history_game);
     }
@@ -9966,6 +9966,11 @@ function session_stats_label() {
 const END_GAME_STREAK = 3;            // consecutive turns of ours past the line
 const AUTO_DRAW_MIN_FULLMOVE = 20;    // nobody offers a draw on move six; that is just rude
 let resign_streak = 0, draw_streak = 0, end_game_sent = '';
+// The position the streaks last counted, and what it decided. The streak is "three of OUR TURNS",
+// but this runs on every terminal bestmove, and one turn can be searched several times -- a resume
+// re-push, a config resync, the silent-engine revive. Counted per search, one bad position searched
+// three times resigned the game (measured: end_game_action(-950) x3 -> null, null, 'resign').
+let end_game_key = '', end_game_last = null;
 
 function auto_resign_cp() {
     const n = parseInt(config.auto_resign_cp);
@@ -10043,7 +10048,10 @@ function maybe_end_game() {
     const cp = line ? line_cp_ours(line) : null;
     const proved = (tablebase_data && tablebase_data.fen === last_eval.fen)
         ? tablebase_category_for_us(tablebase_data.category, tablebase_data.fen) : null;
-    const action = end_game_action(Number.isFinite(cp) ? cp : NaN, game_fullmove(), proved);
+    const key = `${last_eval.fen}|${String(last_pos.moves || '').trim().split(/\s+/).filter(Boolean).length}`;
+    if (key === end_game_key) return end_game_last;   // the same turn, searched again: counted already
+    end_game_key = key;
+    const action = end_game_last = end_game_action(Number.isFinite(cp) ? cp : NaN, game_fullmove(), proved);
     if (!action) return null;
     if (action !== end_game_sent) {
         end_game_sent = action;

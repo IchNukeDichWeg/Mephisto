@@ -2425,4 +2425,19 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /if \(in_time_trouble\(\)\) think = 0;\s*return \{move, think: Math\.round\(think\)/.test(hp)
        && /function humanize_presearch_ms\(fen\) \{[\s\S]{0,200}in_time_trouble\(\)\) return null;/.test(psrc));
 }
+{
+    // Auto Resign counts TURNS: the same position searched three times is one turn, not three.
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fnS = (n) => { const i = psrc.indexOf(`function ${n}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const i0 = psrc.indexOf('const END_GAME_STREAK'), i1 = psrc.indexOf('function auto_resign_cp()');
+    const c = vm.createContext({console: {log() {}}, send_to_active_tab() {}, line_cp_ours: () => -950, game_fullmove: () => 30,
+        tablebase_data: null, tablebase_category_for_us: () => null, TB_NOT_LOST: new Set()});
+    vm.runInContext('var config = {auto_resign: true, auto_resign_cp: 900}; var last_eval = {}; var last_pos = {};'
+        + psrc.slice(i0, i1).replace(/\blet (resign_streak|end_game_key)/g, 'var $1') + fnS('auto_resign_cp') + fnS('auto_draw_cp') + fnS('end_game_action') + fnS('maybe_end_game'), c);
+    const at = (fen, moves) => { c.last_eval = {fen, lines: [{move: 'e2e4'}]}; c.last_pos = {moves}; return vm.runInContext('maybe_end_game()', c); };
+    const same = [at('X w', 'e2e4 e7e5'), at('X w', 'e2e4 e7e5'), at('X w', 'e2e4 e7e5')];
+    const turns = [at('Y w', 'a b c d'), at('Z w', 'a b c d e f')];
+    ok('one position searched three times is one turn; the third DIFFERENT turn resigns', same.every(v => v === null) && turns[0] === null && turns[1] === 'resign', {same, turns});
+}
 // ==== END FIX CHECKS ====
