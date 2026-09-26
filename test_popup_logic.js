@@ -2417,4 +2417,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     await Promise.all([a, b]);
     ok('two overlapping ensureOffscreen calls both resolve only once the document has loaded', seen.join(',') === 'loaded,loaded', seen);
 })().catch(e => { fails++; console.log('FAIL ensureOffscreen race check threw: ' + (e && e.stack || e)); });
+{
+    const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const hp = psrc.slice(psrc.indexOf('function humanize_pick('), psrc.indexOf('\n}\n', psrc.indexOf('function humanize_pick(')));
+    ok('Time Trouble zeroes Humanize\'s think (the override the page uses first), after every pacing rail',
+       /if \(in_time_trouble\(\)\) think = 0;\s*return \{move, think: Math\.round\(think\)/.test(hp)
+       && /function humanize_presearch_ms\(fen\) \{[\s\S]{0,200}in_time_trouble\(\)\) return null;/.test(psrc));
+}
 // ==== END FIX CHECKS ====

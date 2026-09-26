@@ -6871,7 +6871,7 @@ function paced_move_target_ms() {
 // humanize_pick still decides the actual think from the results, and any shortfall is waited out.
 function humanize_presearch_ms(fen) {
     if (!config.humanize || clock_aware() || !config.autoplay
-        || config.help_mode || config.puzzle_mode) return null;
+        || config.help_mode || config.puzzle_mode || in_time_trouble()) return null;
     let fullmove = 999;
     try { fullmove = parseInt(fen.split(' ')[5]) || 999; } catch (e) { /* variant fen */ }
     if (fullmove < 8) return 500;                                   // opening: reel it off
@@ -7300,6 +7300,11 @@ function humanize_pick(best) {
         if (T < 20) think = Math.min(think, 250);
         if (T < 8) think = 0;
     }
+    // TIME TROUBLE outranks every pacing mode, as it does in clock_pace_timing. This think is sent as
+    // the move's own override, which the page uses FIRST -- so without this line Humanize kept its
+    // full think in a scramble whenever Clock Mode and Mirror Time were off (measured: up to 6.5 s at
+    // 10 s left, ~17 s with Human Move Times).
+    if (in_time_trouble()) think = 0;
     return {move, think: Math.round(think), source, category: config.humanize ? category : null};
 }
 
