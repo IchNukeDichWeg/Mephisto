@@ -2560,4 +2560,21 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const cdp = vm.runInContext('toClickXY(400, 200)', c);
     ok('...and the CDP path stays in CSS pixels', cdp[0] === 400 && cdp[1] === 200, cdp);
 }
+{
+    // the chess.js cache: same answers, one board per distinct input, a cached FALSE is still a hit
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const c = {console}; c.self = c; vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/lru.min.js', 'utf8') + ';self.LRU = LRU;', c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext('var config = {variant: "chess", move_notation: "san"}; var REAL = Chess; var BUILT = 0; Chess = function (v, f) { BUILT++; return new REAL(v, f); };'
+        + psrc.slice(psrc.indexOf('// ONE REPLAY PER POSITION'), psrc.indexOf('let last_resync_at')), c);
+    const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const a = [c.move_possible_here(START, 'e2e4'), c.move_possible_here(START, 'e2e5'), c.move_possible_here(START, 'e2e4'), c.move_possible_here(START, 'e2e5')];
+    ok('chess cache: same answers (true, false), and a repeat of either builds no new board',
+       a.join() === 'true,false,true,false' && vm.runInContext('BUILT', c) === 2, {a, built: vm.runInContext('BUILT', c)});
+    vm.runInContext('config.variant = "atomic"', c);
+    c.move_possible_here(START, 'e2e4');
+    ok('...and the variant is part of the key (a new variant is a new board)', vm.runInContext('BUILT', c) === 3);
+}
 // ==== END FIX CHECKS ====
