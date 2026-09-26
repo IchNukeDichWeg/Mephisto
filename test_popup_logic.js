@@ -2904,4 +2904,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        got[0] === 'data:image/png;base64,AA' && got[1] === '' && got[2] === '/res/chesspieces/neo/wQ.png', got);
     ok('...and no drop/promotion arrow builds a /res/ path itself any more', !/const piecePath = `\/res\/chesspieces/.test(psrc));
 }
+{
+    const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('a settings change on a held position re-drives that position instead of asking the page (which ignores it)',
+       /if \(resync_after_config_change\) \{[\s\S]{0,700}if \(setup_fen\) on_new_pos\(setup_fen, setup_fen, ''\);\s*else request_fen\(\);/.test(psrc));
+}
 // ==== END FIX CHECKS ====

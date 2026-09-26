@@ -9255,7 +9255,12 @@ function watch_config_changes() {
             if (resync_after_config_change) {
                 resync_after_config_change = false;
                 fen_request_inflight = false;   // don't let an in-flight poll's guard swallow this
-                request_fen();
+                // A HELD POSITION is not the page's to answer: request_fen goes to a page whose
+                // scrapes are ignored while one is held, so the search stopped above never came back
+                // and the panel froze on the stale line. Re-drive the position the panel owns, the
+                // same way the silent-engine revive does.
+                if (setup_fen) on_new_pos(setup_fen, setup_fen, '');
+                else request_fen();
             }
         });
     } catch (e) { /* no chrome.storage here -> options changes need a panel reload, as before */ }
