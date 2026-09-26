@@ -1060,7 +1060,7 @@ body.mephisto-dark #alt-lines::-webkit-scrollbar-thumb { background: #34353d; bo
 /* Set-up-position row: shown under the lines while a manual FEN is being entered/held. */
 #setup-fen-row {
     width: 368px;
-    margin: 4px 0 0 5px;
+    margin: 1px 0 0 5px;
     padding: 0 4px;
     text-align: left;
     white-space: nowrap;
@@ -1106,14 +1106,34 @@ body.mephisto-dark #alt-lines::-webkit-scrollbar-thumb { background: #34353d; bo
 .mephisto-fix-chip-dead { cursor: default; opacity: 0.65; }
 .mephisto-fix-chip-dead:hover { border-color: var(--mp-line); }
 
+/* Flip board / Follow screen sit on the FEN box's own line, the message under all three. Stacked,
+   they were the last thing in a fixed-height column: with three engine lines and the walked-line
+   strip above, Flip board's lower half sat under the absolute bottom button row (found by the
+   pre-release UI check). One line saved, and no engine line has to give way for it. */
+#setup-fen-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 4px;
+}
+#setup_fen_input { flex: 1 1 0; min-width: 0; }
+#setup_fen_flip, #snap_follow {
+    order: 1;
+    flex: none;
+    height: 26px;        /* the FEN box's height, on its line */
+    line-height: 26px;
+    padding: 0 8px;
+}
+#setup_fen_msg { order: 2; flex-basis: 100%; }
+
 #setup_fen_msg {
     /* block, not inline: after a 100%-width input an inline span sits on the SAME line and, with the
        row's white-space:nowrap, runs straight off the 368px column into the quick settings. Its own
        line + wrapping keeps it inside the panel however long the message is. */
     display: block;
     max-width: 100%;
-    font: 13px 'Roboto', sans-serif;
-    line-height: 18px;
+    font: 12px 'Roboto', sans-serif;
+    line-height: 15px;   /* 13/18 left the last line touching the bottom button row */
     opacity: 0.75;
     white-space: normal;
     overflow-wrap: anywhere;

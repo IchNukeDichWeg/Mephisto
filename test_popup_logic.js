@@ -2910,4 +2910,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('a settings change on a held position re-drives that position instead of asking the page (which ignores it)',
        /if \(resync_after_config_change\) \{[\s\S]{0,700}if \(setup_fen\) on_new_pos\(setup_fen, setup_fen, ''\);\s*else request_fen\(\);/.test(psrc));
 }
+{
+    const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
+    const css = fs.readFileSync(ROOT + '/src/popup/popup.css', 'utf8');
+    ok('set-up row: Flip board / Follow screen share the FEN box line, the message goes under them (no engine line hidden for it)',
+       /#setup-fen-row \{\s*display: flex;/.test(css) && /#setup_fen_flip, #snap_follow \{\s*order: 1;/.test(css)
+       && /#setup_fen_msg \{ order: 2; flex-basis: 100%; \}/.test(css) && !/#alt-lines:has\(~ #setup-fen-row/.test(css));
+}
 // ==== END FIX CHECKS ====
