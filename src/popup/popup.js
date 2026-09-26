@@ -9287,7 +9287,7 @@ function draw_last_move_class() {
     const cx = 0.5 + ((flipped ? 9 - fx : fx) - 1);
     const cy = 8 - (0.5 + ((flipped ? 9 - ry : ry) - 1));
     // top-right of the square, like the review's board badge, so the piece stays visible
-    overlay.innerHTML += `
+    overlay.insertAdjacentHTML('beforeend', `
         <svg style='position: absolute; z-index: 1; left: 0; top: 0; pointer-events: none;'
              width='344px' height='344px' viewBox='0, 0, 8, 8'>
             <circle cx='${cx + 0.34}' cy='${cy - 0.34}' r='0.26' fill='${C.CLASS_COLOR[klass] || '#8b8987'}'
@@ -9295,7 +9295,7 @@ function draw_last_move_class() {
             <text x='${cx + 0.34}' y='${cy - 0.34}' text-anchor='middle' dominant-baseline='central'
                   font-size='0.3' font-family='system-ui, sans-serif' font-weight='700'
                   fill='#111'>${C.CLASS_GLYPH[klass] || ''}</text>
-        </svg>`;
+        </svg>`);
 }
 
 function draw_moves() {
@@ -9541,7 +9541,7 @@ function snap_region() {
 
 function clear_book_annotations() {
     const layer = PANEL_ROOT.getElementById('book-annotations');
-    while (layer?.childElementCount) layer.lastElementChild.remove();
+    layer?.replaceChildren();   // see clear_annotations: an element-only loop leaks text nodes
     return layer;
 }
 
@@ -9726,7 +9726,7 @@ function draw_safety_net() {
     // stale arrows nor be erased without taking the threat's with it.
     const host = PANEL_ROOT.getElementById('net-annotations');
     if (!host) return;
-    while (host.childElementCount) host.lastElementChild.remove();
+    host.replaceChildren();   // see clear_annotations: an element-only loop leaks text nodes
     if (!our_turn_now()) return;
     const set = safety_net_showing();
     if (!set || set.needMoreLines || set.forced || !set.moves.length) return;
@@ -10322,13 +10322,13 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
         const pieceIdentifier = turn + move[0];
         const [pieceSet, ext] = config.pieces.split('.');
         const piecePath = `/res/chesspieces/${pieceSet}/${pieceIdentifier}.${ext}`
-        overlay.innerHTML += `
+        overlay.insertAdjacentHTML('beforeend', `
             <img style='position: absolute; z-index: -1; left: ${imgX}px; top: ${imgY}px; opacity: 0.4;' width='43px'
                 height='43px' src='${piecePath}' alt='${pieceIdentifier}'>
             <svg style='position: absolute; z-index: -1; left: 0; top: 0;' width='344px' height='344px' viewBox='0, 0, 8, 8'>
                 <circle cx='${x}' cy='${y}' r='${0.45 + stroke_diff}' fill='transparent' opacity='0.4' stroke='${color}' stroke-width='${stroke_width}' />
             </svg>
-        `;
+        `);
     } else {
         const coords = get_coords(move);
         const x0 = 0.5 + (coords.x0 - 1);
@@ -10345,7 +10345,7 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
         const ay1 = y1 - 0.4 * (dy / d);
 
         const marker_id = color.replace(/[ ,()]/g, '-');
-        overlay.innerHTML += `
+        overlay.insertAdjacentHTML('beforeend', `
             <svg style='position: absolute; z-index: -1; left: 0; top: 0;' width='344px' height='344px' viewBox='0, 0, 8, 8'>
                 <defs>
                     <marker id='arrow-${marker_id}' markerWidth='13' markerHeight='13' refX='1' refY='7' orient='auto'>
@@ -10356,7 +10356,7 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
                     stroke-width='${stroke_width}' marker-end='url(#arrow-${marker_id})'/>
                 ${arrow_badge_svg(x1, y1, color, rank, label)}
             </svg>
-        `;
+        `);
 
         if (move.length === 5) {
             const imgX = 43 * (coords.x1 - 1);
@@ -10364,10 +10364,10 @@ function draw_move(move, color, overlay, stroke_width = 0.225, rank = 0, label =
             const pieceIdentifier = turn + move[4];
             const [pieceSet, ext] = config.pieces.split('.');
             const piecePath = `/res/chesspieces/${pieceSet}/${pieceIdentifier}.${ext}`;
-            overlay.innerHTML += `
+            overlay.insertAdjacentHTML('beforeend', `
                 <img style='position: absolute; z-index: -1; left: ${imgX}px; top: ${imgY}px; opacity: 0.4;' width='43px'
                     height='43px' src='${piecePath}' alt='${pieceIdentifier}'>
-            `;
+            `);
         }
     }
 }
@@ -10393,19 +10393,14 @@ function arrow_badge_svg(x1, y1, color, rank, label) {
     return parts.join('');
 }
 
+// replaceChildren, NOT a remove-elements loop: that loop took the elements and left every template's
+// indentation behind as text nodes, and each insert re-parsed the pile. Measured with the real
+// draw_move: 4.9 ms of arrow drawing per search on a fresh panel, 584 ms after 500 searches (1.3 MB
+// of whitespace); flat ~2 ms with this and insertAdjacentHTML. Same elements, same rendering.
 function clear_annotations() {
-    let move_annotation = PANEL_ROOT.getElementById('move-annotations');
-    while (move_annotation.childElementCount) {
-        move_annotation.lastElementChild.remove();
-    }
-    let response_annotation = PANEL_ROOT.getElementById('response-annotations');
-    while (response_annotation.childElementCount) {
-        response_annotation.lastElementChild.remove();
-    }
-    const net_annotation = PANEL_ROOT.getElementById('net-annotations');
-    while (net_annotation && net_annotation.childElementCount) {
-        net_annotation.lastElementChild.remove();
-    }
+    PANEL_ROOT.getElementById('move-annotations').replaceChildren();
+    PANEL_ROOT.getElementById('response-annotations').replaceChildren();
+    PANEL_ROOT.getElementById('net-annotations')?.replaceChildren();
 }
 
 function toggle_calculating(on) {

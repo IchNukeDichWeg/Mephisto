@@ -2392,4 +2392,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('options-page engines ping for as long as they hold an engine, and stop on dispose',
        /this\.keepAlive = setInterval\([\s\S]{0,200}cmd: 'ping'/.test(esrc) && /dispose\(\) \{\s*clearInterval\(this\.keepAlive\)/.test(esrc));
 })().catch(e => { fails++; console.log('FAIL offscreen lease checks threw: ' + (e && e.stack || e)); });
+{
+    const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('arrow layers: no innerHTML += (re-parses the layer) and no element-only clear loop (leaks text nodes)',
+       !/\.innerHTML \+= /.test(psrc) && !/while \(\w+\??\.childElementCount\) \w+\.lastElementChild\.remove\(\)/.test(psrc)
+       && /function clear_annotations\(\) \{\s*PANEL_ROOT\.getElementById\('move-annotations'\)\.replaceChildren\(\)/.test(psrc));
+}
 // ==== END FIX CHECKS ====
