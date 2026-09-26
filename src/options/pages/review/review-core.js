@@ -304,10 +304,15 @@ function stdev(xs) {
 // correction term can remove it. Do not re-run that calibration; a fitted "chess.com mode" here would
 // be false precision. Anyone who wants their number can have the exact one -- the local chess.com
 // classifier (rv_ee_run) returns their own CAPS and overwrites report.accuracy with it.
+// That calibration predates the white-view volatility window below (it was measured with the old
+// mover-relative window), so the numbers above are for the old weighting.
 function accuracyFor(moves, color) {
     const mine = moves.filter(m => m.color === color && m.acc != null);
     if (!mine.length) return null;
-    const wins = moves.map(m => m.winBefore);
+    // The window is over WHITE's win%, as lichess does it. winBefore is mover-relative, so reading it
+    // raw flipped perspective every ply: a steady +3 game alternated 78/22 and every move got the
+    // maximum weight, while a real swing that stayed good for each mover in turn got the minimum.
+    const wins = moves.map(m => m.winBefore == null ? NaN : m.color === 'w' ? m.winBefore : 100 - m.winBefore);
     const weights = mine.map(m => {
         const i = m.ply;
         const w = Math.max(2, Math.round(moves.length / 10));

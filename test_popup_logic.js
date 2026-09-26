@@ -1948,6 +1948,37 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        keys.length >= 9 && fs.readdirSync(locDir).filter(f => f.endsWith('.json')).length === 14 && !missing.length, missing);
 }
 // ==== END AGENT REVIEW CHECKS ====
+{
+    // Game accuracy: the volatility window is over WHITE's win%, not the mover's. Plies 0-19 are a
+    // steady +3 (white 78%) where white plays perfectly; plies 20-39 swing 90/10 from white's view
+    // every ply (so each MOVER sits at a steady 90) and white plays at 40. Lichess weights the
+    // swinging half heavily; the old mover-relative window saw the steady half as volatile (78/22)
+    // and the swinging half as calm, and scored 72.9. Weighted toward the 40s it lands under the
+    // harmonic mean (57.1): 52.9 measured.
+    console.log('\ngame accuracy volatility window:');
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const moves = [];
+    for (let i = 0; i < 40; i++) {
+        const color = i % 2 ? 'b' : 'w';
+        const white = i < 20 ? 78 : (i % 2 ? 10 : 90);
+        moves.push({ply: i, color, winBefore: color === 'w' ? white : 100 - white,
+                    acc: color === 'w' ? (i < 20 ? 100 : 40) : 90});
+    }
+    const acc = c.MephistoReviewCore.accuracyFor(moves, 'w');
+    const okW = acc > 45 && acc < 57;
+    if (!okW) fails++;
+    console.log(`${okW ? 'ok  ' : 'FAIL'} accuracy weights the white-view swings, not the mover-view flips (got ${acc && acc.toFixed(1)})`);
+    // an unanalysed move (winBefore undefined) still drops out of the window instead of NaN-ing it
+    moves[25].winBefore = undefined;
+    const acc2 = c.MephistoReviewCore.accuracyFor(moves, 'w');
+    if (!Number.isFinite(acc2)) fails++;
+    console.log(`${Number.isFinite(acc2) ? 'ok  ' : 'FAIL'} ...and an unanalysed position in the window is skipped, not NaN`);
+}
 
 // ==== AGENT ANALYSIS CHECKS (engine vs engine, shogi / xiangqi) ====
 {
