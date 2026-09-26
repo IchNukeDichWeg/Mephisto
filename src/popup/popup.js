@@ -5241,6 +5241,10 @@ function on_new_pos(fen, startFen, moves) {
         resign_streak = draw_streak = 0; end_game_sent = ''; end_game_key = ''; end_game_last = null;
         // The game that just finished, folded into the session totals before anything is cleared.
         session_note_game(eval_history, eval_history_game);
+        // ...and then cleared, as a change of start position already clears it (record_eval). A
+        // new game from the SAME start (every normal game) kept the finished game's history, which
+        // the live session reading then had to be kept from counting twice.
+        eval_history = [];
     }
     // fire the book lookup NOW so the answer has the whole search to arrive; never awaited
     request_explorer(fen);
@@ -9919,7 +9923,7 @@ function session_day() {
 }
 
 function session_fresh() {
-    return {day: session_day(), games: 0, moves: 0, think_ms: 0, acc: [], folded: null};
+    return {day: session_day(), games: 0, moves: 0, think_ms: 0, acc: []};
 }
 
 let session = session_fresh();
@@ -9931,7 +9935,7 @@ function session_restore() {
         const rec = JSON.parse(MephistoConfig.get(SESSION_KEY) || 'null');
         if (rec && rec.day === session_day() && Array.isArray(rec.acc)) {
             session = {day: rec.day, games: rec.games | 0, moves: rec.moves | 0,
-                       think_ms: rec.think_ms | 0, acc: rec.acc.filter(Number.isFinite), folded: null};
+                       think_ms: rec.think_ms | 0, acc: rec.acc.filter(Number.isFinite)};
         }
     } catch (e) { /* unreadable totals are simply today's first move */ }
 }
@@ -9955,12 +9959,10 @@ function session_note_move(think_ms) {
 
 // A game just ended (the ply count dropped back to the start). Its accuracy is folded in HERE, once,
 // rather than recomputed on every render: live_stats runs the classifier over the whole history.
-// `gameKey` is the history's own game (eval_history_game), remembered so the live reading below does
-// not count this same game a second time in the window before the next game clears the history.
+// `gameKey` is the game's start FEN (eval_history_game), which says who moved first.
 function session_note_game(history, gameKey) {
     if (session.day !== session_day()) session = session_fresh();
     session.games++;
-    session.folded = gameKey ?? null;
     try {
         const side = our_side();
         const acc = live_stats(history, gameKey)[side]?.accuracy;
@@ -9976,7 +9978,8 @@ function session_note_game(history, gameKey) {
 // by session_note_game the moment it ends.
 function session_live_accuracy() {
     try {
-        if (eval_history_game != null && eval_history_game === session.folded) return null;
+        // No "already folded" check: it compared start FENs, which every normal game shares, so
+        // after the first game the live game never counted again. The history is cleared at the fold.
         const acc = live_stats(eval_history)[our_side()]?.accuracy;
         return Number.isFinite(acc) ? acc : null;
     } catch (e) { return null; }

@@ -991,7 +991,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     s2.self = s2;
     vm.createContext(s2);
     vm.runInContext('var config = {session_stats: true};\nfunction our_side() { return "white"; }\n'
-        + 'var STATS = {white: {accuracy: 90}, black: {accuracy: 10}};\nfunction live_stats() { return STATS; }\n'
+        + 'var STATS = {white: {accuracy: 90}, black: {accuracy: 10}};\n'
+        + 'function live_stats(h) { return (h && h.length) ? STATS : {white: {accuracy: null}, black: {accuracy: null}}; }\n'
         + 'var STORE = {};\n'
         + 'var MephistoConfig = {get: (k) => (k in STORE) ? STORE[k] : null, set: (k, v) => { STORE[k] = v; }};\n'
         + 'var eval_history = [0.5, 0.5]; var eval_history_game = "game-1";\n'
@@ -1006,10 +1007,13 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /0 games · 2 moves · 2\.0s avg · 90% accuracy/.test(s2.session_stats_label()));
     s2.session_note_game([0.5, 0.5], 'game-1');
     ok('a finished game brings its accuracy', /1 games · 2 moves · 2\.0s avg · 90% accuracy/.test(s2.session_stats_label()));
-    ok('...counted once, not twice while the history still holds it',
+    // on_new_pos clears the history right after the fold (a new game from the SAME start FEN is
+    // the normal case), so the finished game is counted once and the live reading starts empty
+    vm.runInContext('eval_history = [];', s2);
+    ok('...counted once, not twice: the history is cleared at the fold',
        vm.runInContext('session.acc.length', s2) === 1 && s2.session_live_accuracy() === null);
-    vm.runInContext('eval_history_game = "game-2"; STATS.white.accuracy = 50;', s2);
-    ok('...and the next game averages in alongside it',
+    vm.runInContext('eval_history = [0.5, 0.5]; STATS.white.accuracy = 50;', s2);   // same start FEN, "game-1"
+    ok('...and the next game from the same start averages in alongside it',
        /1 games · 2 moves · 2\.0s avg · 70% accuracy/.test(s2.session_stats_label()));
     s2.session_note_move(undefined);
     ok('...and a delay nobody measured is not counted as zero', /3 moves/.test(s2.session_stats_label()) === false);
@@ -2489,5 +2493,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        blackFirst.black.moves === 1 && blackFirst.black.blunder === 1 && blackFirst.white.moves === 0 && blackFirst.black.accuracy < 50, blackFirst.black);
     ok('live stats: a normal game is unchanged (White owns ply 0)', whiteFirst.white.moves === 1 && whiteFirst.white.blunder === 1, whiteFirst.white);
     ok('classify_history reads the mover from the board, not the ply parity', /const white = board\.turn\(\) === 'w';/.test(psrc));
+}
+{
+    const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('session: the finished game is folded and its history cleared, and the live game always counts (no start-FEN "folded" check)',
+       /session_note_game\(eval_history, eval_history_game\);[\s\S]{0,400}eval_history = \[\];/.test(psrc) && !/session\.folded/.test(psrc));
 }
 // ==== END FIX CHECKS ====
