@@ -3443,6 +3443,12 @@ class ReviewPage {
             parsePgnBox();
             renderReport();
         }
+        // ...and a run the module is still driving. review.html ships rv_stop disabled, so a page
+        // revisited mid-run showed an enabled Analyse and a dead Stop with the engines still going.
+        if (running) {
+            $('rv_run').disabled = true;
+            $('rv_stop').disabled = false;
+        }
     }
 }
 

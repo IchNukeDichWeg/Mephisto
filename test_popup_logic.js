@@ -2017,6 +2017,18 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     console.log(`${okS ? 'ok  ' : 'FAIL'} a cancelled search throws before assemble, and the catch reports "Stopped."`);
 }
 
+{
+    // A review page revisited mid-run: the router re-injects review.html (rv_stop disabled, rv_run
+    // enabled) while the module keeps running, so onInit has to reflect the live run or it cannot
+    // be stopped. Pinned from the source (onInit needs the whole page).
+    console.log('\nreview page revisited mid-run:');
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const init = rj.slice(rj.indexOf('class ReviewPage'), rj.indexOf('function stopOnUnload'));
+    const okR = /if \(running\) \{\s*\$\('rv_run'\)\.disabled = true;\s*\$\('rv_stop'\)\.disabled = false;/.test(init);
+    if (!okR) fails++;
+    console.log(`${okR ? 'ok  ' : 'FAIL'} onInit re-enables Stop and disables Analyse while a run is live`);
+}
+
 // ==== AGENT ANALYSIS CHECKS (engine vs engine, shogi / xiangqi) ====
 {
     // The match's rules, executed: the REAL block sliced out of analysis.js, the real chess.js, and
