@@ -104,8 +104,12 @@ function parseGame(text) {
 }
 
 function applyComment(move, body) {
-    const clk = /\[%(?:clk|emt)\s+([0-9:.]+)]/.exec(body);
+    // [%clk] is the clock LEFT after the move; [%emt] is the time SPENT on it. Reading emt as clk
+    // made the think-time pass subtract one move's spend from the previous one's.
+    const clk = /\[%clk\s+([0-9:.]+)]/.exec(body);
     if (clk) move.clk = clockToSeconds(clk[1]);
+    const emt = /\[%emt\s+([0-9:.]+)]/.exec(body);
+    if (emt) move.emt = clockToSeconds(emt[1]);
     const ev = /\[%eval\s+(#?-?[\d.]+)]/.exec(body);
     if (ev) move.eval = ev[1];
     const text = body.replace(/\[%[^\]]*]/g, '').trim();

@@ -2175,6 +2175,28 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     })().catch(e => { fails++; console.log('FAIL analysis engine teardown check threw: ' + (e && e.stack || e)); });
 }
 
+{
+    // [%emt] is time SPENT on a move, [%clk] the clock LEFT. Both were read into `clk`, so an emt
+    // game's think times came out as differences of spends (5s, 3s, 12s -> null, null, 0). The REAL
+    // parser, buildPositions and fillThinkTime run here.
+    console.log('\nPGN [%emt] vs [%clk]:');
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    vm.runInContext('const Core = self.MephistoReviewCore; const RV_FAIRY_ONLY = [];\n'
+        + rj.slice(rj.indexOf('function buildPositions'), rj.indexOf('function incrementFromTimeControl')), c);
+    const secs = (pgn) => vm.runInContext(`(() => { const {moves} = buildPositions(Core.parsePgn(${JSON.stringify(pgn)})[0]);
+        fillThinkTime(moves, 0); return moves.map(m => [m.clk, m.seconds]); })()`, c);
+    const emt = secs('1. e4 {[%emt 0:00:05]} e5 {[%emt 0:00:03]} 2. Nf3 {[%emt 0:00:12]} *');
+    const clk = secs('1. e4 {[%clk 0:03:00]} e5 {[%clk 0:03:00]} 2. Nf3 {[%clk 0:02:50]} *');
+    eq('[%emt] is the think time itself, never a clock', emt, [[null, 5], [null, 3], [null, 12]]);
+    eq('[%clk] keeps its meaning: the clock left, differenced per side', clk, [[180, null], [180, null], [170, 10]]);
+}
+
 // ==== AGENT ANALYSIS CHECKS (engine vs engine, shogi / xiangqi) ====
 {
     // The match's rules, executed: the REAL block sliced out of analysis.js, the real chess.js, and

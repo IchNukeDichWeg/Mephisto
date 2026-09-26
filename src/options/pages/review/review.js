@@ -241,6 +241,7 @@ function buildPositions(game, variant = 'chess') {
             color: mv.color,
             ply: i,
             clk: game.moves[i].clk,
+            emt: game.moves[i].emt,
             to: mv.to,
             // A recapture on the square the opponent just took on. Excluded from the engine-match
             // numbers: finding it is not a result, and counting it is what makes a naive match rate
@@ -267,14 +268,16 @@ function buildPositions(game, variant = 'chess') {
 
 // Seconds spent on each move, from the clock left after it. The first move of each side has no
 // previous clock to subtract from, so it is unknown rather than guessed; an increment is added back
-// because the clock shown after a move already includes it.
+// because the clock shown after a move already includes it. A move with [%emt] needs none of this:
+// that tag IS the time spent, first move included.
 function fillThinkTime(moves, incrementSec) {
     const prev = {w: null, b: null};
     for (const m of moves) {
-        if (m.clk == null) { m.seconds = null; continue; }
         const before = prev[m.color];
+        if (m.clk != null) prev[m.color] = m.clk;
+        if (m.emt != null) { m.seconds = m.emt; continue; }
+        if (m.clk == null) { m.seconds = null; continue; }
         m.seconds = (before == null) ? null : Math.max(0, before - m.clk + (incrementSec || 0));
-        prev[m.color] = m.clk;
     }
 }
 
