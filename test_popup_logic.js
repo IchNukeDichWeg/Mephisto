@@ -2101,6 +2101,43 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     console.log(`${okM ? 'ok  ' : 'FAIL'} a Black mate-in-3 prints #-3 from both WASM and native lines (got ${got}, list reads cp: ${lineCall})`);
 }
 
+{
+    // Settings Import vs the hotkey / macro editor: initHotkeys read `bindings` and `macros` once,
+    // Import refreshed the form elements only, so the next rebind saved the pre-import objects back
+    // over the import. The REAL initHotkeys + pullConfigValues run here against a stub DOM and store.
+    console.log('\nhotkey editor after a settings import:');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const g0 = gj.indexOf('    initHotkeys() {'), g1 = gj.indexOf('    initUiMode() {');
+    const el = () => ({kids: [], on: {}, className: '', textContent: '', set innerHTML(v) { this.kids = []; },
+        appendChild(c) { this.kids.push(c); }, append(...c) { this.kids.push(...c); },
+        addEventListener(t, f) { this.on[t] = f; }, add() {}});
+    const store = {hotkeys: JSON.stringify({autoplay: 'a'}), hotkey_macros: JSON.stringify([{key: 'x', steps: ['autoplay']}])};
+    const els = {};
+    const hc = vm.createContext({store, keydown: [],
+        Option: function () {},
+        MephistoI18n: {t: (k, d) => d},
+        MephistoConfig: {HOTKEY_LABELS: {}, HOTKEY_MACRO_MAX_STEPS: 8,
+            get: (k) => store[k], set: (k, v) => { store[k] = v; }, remove: (k) => { delete store[k]; },
+            hotkeys: () => JSON.parse(store.hotkeys || '{}'), hotkeyMacros: () => JSON.parse(store.hotkey_macros || '[]'),
+            hotkeyString: (e) => e.key, hotkeyOwner: () => null},
+        document: {getElementById: (id) => els[id] || (els[id] = el()), createElement: el,
+                   addEventListener(t, f) { if (t === 'keydown') hc.keydown.push(f); }}});
+    vm.runInContext('class Base { pullConfigValues() {} }\nclass Page extends Base {\n' + gj.slice(g0, g1) + '}\n'
+                    + 'var page = new Page(); page.initHotkeys();', hc);
+    // Import: the file's hotkeys land in storage, then the page re-reads the form
+    store.hotkeys = JSON.stringify({autoplay: 'z', copy_fen: 'q'});
+    store.hotkey_macros = JSON.stringify([{key: 'y', steps: ['copy_fen']}]);
+    vm.runInContext('page.pullConfigValues()', hc);
+    // then rebind the first action (manual_play) to "m"
+    els.hotkey_rows.kids[0].kids[1].on.click();
+    hc.keydown[0]({key: 'm', preventDefault() {}, stopPropagation() {}});
+    const saved = JSON.parse(store.hotkeys);
+    const okH = g0 > 0 && g1 > g0 && saved.autoplay === 'z' && saved.copy_fen === 'q' && saved.manual_play === 'm'
+        && JSON.parse(store.hotkey_macros)[0].key === 'y';
+    if (!okH) fails++;
+    console.log(`${okH ? 'ok  ' : 'FAIL'} a rebind after Import keeps the imported hotkeys and macros (got ${store.hotkeys})`);
+}
+
 // ==== AGENT ANALYSIS CHECKS (engine vs engine, shogi / xiangqi) ====
 {
     // The match's rules, executed: the REAL block sliced out of analysis.js, the real chess.js, and

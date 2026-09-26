@@ -938,7 +938,23 @@ class GeneralSettings extends SettingsPage {
                 {n: cleared}) : '');
             render();
         });
+        // Settings Import writes storage and then refreshes the form elements only; the two objects
+        // above were read once at init, so the next rebind saved them back over the import. The
+        // page's pullConfigValues (below) calls this to re-read them from the store.
+        this.refreshHotkeys = () => {
+            bindings = MephistoConfig.hotkeys();
+            macros = MephistoConfig.hotkeyMacros();
+            capturing = null;
+            render();
+        };
         render();
+    }
+
+    // Everything that re-reads the form from storage (page open, Import) re-reads the hotkey and
+    // macro editor too: it is not a FormElement, so the base class does not know it exists.
+    pullConfigValues() {
+        super.pullConfigValues();
+        this.refreshHotkeys?.();
     }
 
     initUiMode() {
