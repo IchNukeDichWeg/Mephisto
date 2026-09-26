@@ -2321,3 +2321,13 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         render(releases, '').split('\n').filter(l => l.startsWith('## ')).length === 2);
 })().catch(e => { fails++; console.log('FAIL infra checks threw: ' + (e && e.stack || e)); });
 // ==== END AGENT INFRA CHECKS ====
+
+// ==== FIX CHECKS (3.1.318) ====
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const ra = psrc.slice(psrc.indexOf('function request_automove('), psrc.indexOf('function request_automove(') + 1200);
+    ok('a held position never sends a move to the page: request_automove returns on setup_fen before anything else',
+       /\{\s*(\/\/[^\n]*\n\s*)*if \(setup_fen\) \{[^}]*return;\s*\}\s*if \(config\.puzzle_mode/.test(ra));
+}
+// ==== END FIX CHECKS ====

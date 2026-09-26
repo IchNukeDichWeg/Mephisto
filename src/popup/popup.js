@@ -8436,6 +8436,15 @@ function native_host_missing(e) {
 let puzzle_last_sent = {key: null, at: 0};
 
 function request_automove(move, think = null, manual = false, opts = {}) {
+    // A HELD POSITION IS NOT THE GAME. While a pasted FEN, a panel-board move or a walked line owns
+    // the panel, the move being asked for belongs to THAT position, and the page would click it onto
+    // the live board anyway: the content script only checks the live board against its own last
+    // push, which still matches. Seen as g2g3 played in place of Nf3 after walking two plies of the
+    // engine line with autoplay on. This is the one funnel every move goes through, so one guard.
+    if (setup_fen) {
+        console.log('Mephisto: not sending', move, '-- the panel is on a held position, not the game');
+        return;
+    }
     if (config.puzzle_mode && !manual) {
         if (!opts.checked) {
             const key = puzzle_key(last_eval.fen || '');
