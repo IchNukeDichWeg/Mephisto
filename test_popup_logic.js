@@ -1039,7 +1039,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     vm.createContext(c);
     vm.runInContext('var TABLEBASE_MAX_MEN = 7;\n'
         + pj.slice(pj.indexOf('// THE WAYS THE PANEL CAN BE WORKING AND STILL DOING NOTHING'),
-                   pj.indexOf('function live_stats(history)')), c);
+                   pj.indexOf('function live_stats(')), c);
     const of = (st) => Object.fromEntries(c.feature_rows(st).map(r => [r.label, r.ok]));
     eq('nothing switched on is nothing to report',
        of({lines: 1, needsLines: [], playerBook: null, tablebase: null}),
@@ -2475,5 +2475,19 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     c.last_eval = {fen: 'G', lines: [{move: 'd1d8', mate: 2}, {move: 'e1e2', score: 300}]};
     const win = vm.runInContext('safety_net_set()', c);
     ok('Safety Net: our own mating move is in the "holds" set', win && win.moves.includes('d1d8'), win);
+}
+{
+    // a game whose first move is Black's: the blunder belongs to Black
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fnS = (n) => { const i = psrc.indexOf(`function ${n}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({classify_history: () => []});
+    vm.runInContext('var eval_history_game = null;' + fnS('accuracy_from_drop') + fnS('win_drop_label') + fnS('live_stats'), c);
+    const blackFirst = vm.runInContext('live_stats([0.5, 0.9], "8/8/8/8/8/8/8/K1k5 b - - 0 1")', c);
+    const whiteFirst = vm.runInContext('live_stats([0.5, 0.1], "startpos-ish w")', c);
+    ok('live stats: Black moving first owns ply 0 (its blunder is Black\'s, White has no moves)',
+       blackFirst.black.moves === 1 && blackFirst.black.blunder === 1 && blackFirst.white.moves === 0 && blackFirst.black.accuracy < 50, blackFirst.black);
+    ok('live stats: a normal game is unchanged (White owns ply 0)', whiteFirst.white.moves === 1 && whiteFirst.white.blunder === 1, whiteFirst.white);
+    ok('classify_history reads the mover from the board, not the ply parity', /const white = board\.turn\(\) === 'w';/.test(psrc));
 }
 // ==== END FIX CHECKS ====

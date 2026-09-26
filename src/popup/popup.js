@@ -7631,7 +7631,11 @@ function health_rows(state) {
     return rows.concat(feature_rows(st));
 }
 
-function live_stats(history) {
+// `startFen` says who made ply 0. It is White only in a game from the start position: a set-up
+// position or a puzzle with Black to move made every move land on the wrong side (measured: Black
+// blunders 0.5 -> 0.9 and BOTH sides read 100% with no blunders), and Target Accuracy steered on it.
+function live_stats(history, startFen = eval_history_game) {
+    const firstBlack = String(startFen || '').split(' ')[1] === 'b';
     // counts carries the FULL published scheme (brilliant .. blunder), so the strip says the same
     // words the Game Review will afterwards; the four coarse keys stay for anything still reading
     // them, and are now derived from the classifier rather than from a second set of bands.
@@ -7644,8 +7648,8 @@ function live_stats(history) {
     for (let i = 0; i + 1 < history.length; i++) {
         const before = history[i], after = history[i + 1];
         if (typeof before !== 'number' || typeof after !== 'number') continue;
-        // ply i is played BY the side to move at ply i: white on even plies.
-        const side = (i % 2 === 0) ? 'white' : 'black';
+        // ply i is played BY the side to move at ply i: white on even plies, unless Black moved first
+        const side = ((i % 2 === 0) !== firstBlack) ? 'white' : 'black';
         // a drop is always measured in the mover's own favour, so both sides read the same way
         const drop = (side === 'white' ? 1 : -1) * (before - after) * 100;
         const s = out[side];
@@ -8800,7 +8804,7 @@ function classify_history() {
         for (let i = 0; i < moves.length; i++) {
             const uci = moves[i];
             const fen = board.fen();
-            const white = (i % 2) === 0;
+            const white = board.turn() === 'w';   // not i % 2: a set-up position can start with Black
             // win% is stored white-relative; every input below is from the MOVER's side, exactly
             // as the review computes it -- get this backwards and every black move is a blunder
             const wpAt = (ply) => {
@@ -9959,7 +9963,7 @@ function session_note_game(history, gameKey) {
     session.folded = gameKey ?? null;
     try {
         const side = our_side();
-        const acc = live_stats(history)[side]?.accuracy;
+        const acc = live_stats(history, gameKey)[side]?.accuracy;
         if (Number.isFinite(acc)) session.acc.push(acc);
     } catch (e) { /* an ungradeable game still counts as a game */ }
     session_save();
