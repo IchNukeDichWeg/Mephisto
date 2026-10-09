@@ -3347,4 +3347,9 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('245 engine lines in one frame paint once; a bestmove paints what is pending first and only once; a paint for a position that is gone is dropped',
        during === 0 && burst === 1 && flushed === 2 && noDouble === 2 && stale === 2, {during, burst, flushed, noDouble, stale});
     ok('...and the bestmove branch flushes before deciding the move', /flush_line_paint\(\);[^\n]*\n\s*on_engine_best_move\(best, threat, true\);/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const man = JSON.parse(fs.readFileSync(ROOT + '/manifest.json', 'utf8'));
+    const pages = ['about/about.html', 'getting-started/getting-started.html'].map(p => fs.readFileSync(ROOT + '/src/options/pages/' + p, 'utf8')).join('');
+    ok('the extension\'s own links (toolbar menu, About, Getting Started) open this repository, not the one it was forked from',
+       man.homepage_url === 'https://github.com/IchNukeDichWeg/Mephisto' && !/github\.com\/AlexPetrusca/.test(pages)); }
 // ==== END FIX CHECKS ====

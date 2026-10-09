@@ -4,7 +4,7 @@
   "name": "Mephisto Chess Extension",
   "description": "Next best move analysis for your favorite chess websites",
   "version": "3.1.321",
-  "homepage_url": "https://github.com/AlexPetrusca/Mephisto",
+  "homepage_url": "https://github.com/IchNukeDichWeg/Mephisto",
   "author": "Alex Petrusca",
   "icons": {
     "16": "res/icons/icon16.png",

@@ -1,4 +1,4 @@
-![Mephisto](https://raw.githubusercontent.com/AlexPetrusca/Mephisto/master/res/mephisto_banner_lowercase.png)
+![Mephisto](https://raw.githubusercontent.com/IchNukeDichWeg/Mephisto/master/res/mephisto_banner_lowercase.png)
 
 <div align="center">
 
