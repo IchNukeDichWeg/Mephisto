@@ -1284,6 +1284,17 @@ function init_quick_settings() {
                 // analyse, so there is nothing to defer
                 request_remote_configure({Threads: config.threads, Hash: config.memory}).catch(() => {});
             }
+            // QUEUED OPTIONS ONLY GO OUT BEFORE THE NEXT `go`, and an analysis is `go infinite`: there
+            // is no next one until the position changes. Lines 3 -> 5 left three rows on screen for
+            // as long as you watched, and Threads / Memory sat unsent the same way. Restart the
+            // search on the same position so the change applies now (stop first, as always: a
+            // setoption under a running search wedges the WASM engine).
+            if (!is_remote() && (key === 'threads' || key === 'memory' || key === 'multiple_lines')) {
+                abandon_search();
+                last_eval.fen = '';
+                fen_request_inflight = false;
+                if (setup_fen) on_new_pos(setup_fen, setup_fen, ''); else request_fen();
+            }
             push_config();
         });
     }

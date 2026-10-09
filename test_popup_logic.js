@@ -3168,4 +3168,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         ok('Import restores: a setting the file does not name goes back to default, records and the token stay; a value that is not JSON refuses the whole file',
            JSON.stringify(a) === JSON.stringify({removed: ['help_mode'], set: ['elo'], alerts: 1}) && b.set.length === 0 && b.removed.length === 0 && b.alerts === 1, {a, b});
     })(); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('changing Lines, Threads or Memory in the panel restarts the search so it applies now, stop first',
+       /if \(!is_remote\(\) && \(key === 'threads' \|\| key === 'memory' \|\| key === 'multiple_lines'\)\) \{\s*abandon_search\(\);\s*last_eval\.fen = '';/.test(psrc)); }
 // ==== END FIX CHECKS ====
