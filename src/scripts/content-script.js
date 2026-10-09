@@ -780,6 +780,14 @@ function removeOverlay() {
 window.addEventListener('pagehide', () => {
     try { self.MephistoPanel?.suspend?.(); } catch (e) { /* */ }
 });
+// ...and a page that comes BACK (the browser's Back button restoring it from its cache) comes back
+// with that suspended panel still on screen: visible, no engine, deaf to hotkeys, and the first
+// toolbar click only closed it. Build it again.
+window.addEventListener('pageshow', (e) => {
+    if (!e.persisted || !overlayEl(PANEL_OVERLAY_ID)) return;
+    removeOverlay();
+    toggleOverlay();
+});
 
 // Minimize = HIDE the panel without tearing it down, so the engine + autoplay/premove/help keep
 // running exactly as if it were open (closing with X, which removes the panel, is what STOPS
