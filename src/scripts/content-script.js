@@ -2065,7 +2065,9 @@ function scrapePositionFen(moves = getMoveRecords()) {
         // move there to keep history review working.
         const isLiveGame = !!getLichessMovesApp();
         for (const move of moves) {
-            res += move.innerText.replace(/\n.*/, '') + '*****';
+            // a sideline's first move carries its number INSIDE the node ("1...c5"); the SAN is the <san>
+            const san = move.querySelector?.('san');
+            res += (san ? san.textContent : move.innerText.replace(/\n.*/, '')) + '*****';
             if (!config.simon_says_mode && !isLiveGame && move === selectedMove) {
                 break;
             }
@@ -3623,6 +3625,30 @@ function hasSanText(el) {
     return /[a-h][1-8]/.test(t) || /^O-O(-O)?[+#]?$/.test(t);
 }
 
+// THE ANALYSIS TREE IS A TREE, and `.tview2 move` in document order is not a game: with one sideline
+// it reads "e4 e5 c5 Nf3", which either fails to replay ("Invalid move: 1c5", on every poll, with
+// Re-detect no help) or replays into a position that is not on the board. Lichess stamps every
+// node with its path -- `p`, two characters per ply -- so the moves that lead to the ACTIVE node are
+// exactly the nodes whose path is a prefix of its path. Returns them in order, [] at the root of an
+// analysis board (no active move: the start position, which used to read as the END of the line),
+// or null when the page has no such tree and the caller should scrape as before.
+function lichessTreePath() {
+    const tree = document.querySelector('.tview2');
+    if (!tree) return null;
+    const nodes = Array.from(tree.querySelectorAll('move[p]')).filter(hasSanText);
+    if (!nodes.length) return null;
+    const active = tree.querySelector('move.active[p]');
+    if (!active) return /^\/analysis(\/|$)/.test(location.pathname) ? [] : null;
+    const byPath = new Map(nodes.map(m => [m.getAttribute('p'), m]));
+    const path = active.getAttribute('p'), out = [];
+    for (let i = 2; i <= path.length; i += 2) {
+        const m = byPath.get(path.slice(0, i));
+        if (!m) return null;   // a collapsed or unrendered ancestor: not a path we can replay
+        out.push(m);
+    }
+    return out;
+}
+
 function getMoveRecords() {
     let moves;
     if (site === 'taketaketake') {
@@ -3658,7 +3684,7 @@ function getMoveRecords() {
                 // as a move with an empty SAN -- the panel replayed "" and said "Invalid move: " on
                 // every poll, i.e. board not detected. It also made getMoveRecords() non-empty at
                 // move 0, which skips onPositionLoad's custom-start capture entirely.
-                moves = Array.from(document.querySelectorAll('.tview2 move')).filter(hasSanText);
+                moves = lichessTreePath() || Array.from(document.querySelectorAll('.tview2 move')).filter(hasSanText);
             }
         }
     }

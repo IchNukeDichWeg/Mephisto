@@ -3034,4 +3034,22 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('the Daily Puzzle takes the side to move from the orientation, before the rated-puzzle rule',
        /\/\^\\\/daily\(-chess-puzzle\)\?\(\\\/\|\$\)\/\.test\(location\.pathname\)\) \{\s*return \(getOrientation\(\) === 'black'\) \? 'b' : 'w';/.test(csrc));
 }
+{
+    // audit 3.1.319: lichess analysis tree with a sideline (real markup: <move p="..."> with two path characters per ply)
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const fnSrc = (name) => { const i = csrc.indexOf(`function ${name}(`); return csrc.slice(i, csrc.indexOf('\n}\n', i) + 3); };
+    const run = (active, pathname = '/analysis') => {
+        const mk = (san, p) => ({textContent: san, p, getAttribute: () => p});
+        const nodes = [mk('e4', '/?'), mk('e5', '/?WG'), mk('1...c5', '/?UE'), mk('Nf3', '/?WG)8')];
+        const tree = {querySelectorAll: () => nodes, querySelector: () => nodes.find(n => n.p === active) || null};
+        const c = vm.createContext({document: {querySelector: () => tree}, location: {pathname}});
+        vm.runInContext(fnSrc('hasSanText') + fnSrc('lichessTreePath'), c);
+        const r = vm.runInContext('lichessTreePath()', c); return r && r.map(n => n.textContent).join(' ');
+    };
+    ok('lichess analysis: the moves scraped are the path to the active node (mainline, sideline, root), never document order',
+       run('/?WG)8') === 'e4 e5 Nf3' && run('/?UE') === 'e4 1...c5' && run(null) === '' && run(null, '/training/123') === null,
+       [run('/?WG)8'), run('/?UE'), run(null), run(null, '/training/123')]);
+    ok('...and a sideline move is read from its <san>, not with its "1..." number', /const san = move\.querySelector\?\.\('san'\);/.test(csrc));
+}
 // ==== END FIX CHECKS ====
