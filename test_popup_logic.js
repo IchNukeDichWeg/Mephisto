@@ -3182,4 +3182,6 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('the Elo sent to the engine is the stored cap inside that engine\'s own range: 1500 stays 1500, 100 becomes the floor, 3000 on a 2850 engine becomes 2850',
        at('stockfish-19-nnue', 1500) === 1500 && at('stockfish-19-nnue', 100) === 1320 && at('old', 3000) === 2850, [at('stockfish-19-nnue', 1500), at('stockfish-19-nnue', 100), at('old', 3000)]);
     ok('...and it is what every UCI_Elo send uses', !/UCI_Elo(": | value \$\{|: )config\.elo/.test(psrc) && (psrc.match(/engine_elo\(\)/g) || []).length >= 5); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('panel tooltips flip above the control, or are clamped, instead of running off the bottom', /const below = r\.bottom \+ 6;\s*tip\.style\.top = \(\(below \+ h > vh - 4 && r\.top - 6 - h >= 4\) \? r\.top - 6 - h/.test(psrc)); }
 // ==== END FIX CHECKS ====

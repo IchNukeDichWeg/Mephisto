@@ -1061,7 +1061,11 @@ function init_tooltips(queryRoot, appendTo) {
         // place below by default; nudge left so a wide tip stays on-screen
         const left = Math.min(Math.max(4, r.left), (window.innerWidth || 1200) - 250);
         tip.style.left = left + 'px';
-        tip.style.top = (r.bottom + 6) + 'px';
+        // ...and flip ABOVE the control when it would run off the bottom: in a 560px-high window
+        // half the panel's tooltips (45 of 91) were cut, the bottom toolbar's down to one line.
+        const h = tip.offsetHeight, vh = window.innerHeight || 800;
+        const below = r.bottom + 6;
+        tip.style.top = ((below + h > vh - 4 && r.top - 6 - h >= 4) ? r.top - 6 - h : Math.max(4, Math.min(below, vh - 4 - h))) + 'px';
         requestAnimationFrame(() => { tip.style.opacity = '1'; });
     };
     const hide = () => { tip.style.opacity = '0'; hideTimer = setTimeout(() => { tip.style.display = 'none'; }, 150); };
