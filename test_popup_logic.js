@@ -3246,4 +3246,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const res = (pgn) => { const g = c.MephistoReviewCore.parsePgn(pgn); return (Array.isArray(g) ? g[0] : g).result; };
     ok('a PGN with no tags keeps the result written after its moves; a Result tag still wins', res('1. e4 e5 2. Nf3 1-0') === '1-0' && res('[Result "0-1"]\n\n1. e4 e5 1-0') === '0-1' && res('1. e4 e5') === '*',
        [res('1. e4 e5 2. Nf3 1-0'), res('1. e4 e5')]); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('a standard-only engine never keeps a variant: at boot, and when it is selected',
+       /if \(NO_CHESS960_ENGINES\.includes\(config\.engine\) && config\.variant !== 'chess'\) \{\s*config\.variant = 'chess';/.test(psrc)
+       && (/NO_CHESS960_ENGINES\.includes\(eng\)\) save\('variant', 'chess'\);/.test(psrc) || /const keeps960 = !FAIRY_ENGINES\.includes\(eng\) && !NO_CHESS960_ENGINES\.includes\(eng\);/.test(psrc))); }
 // ==== END FIX CHECKS ====

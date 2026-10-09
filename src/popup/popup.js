@@ -577,6 +577,11 @@ async function initPanel(root, tabId) {
     // board with no moves yet never calls for a verdict either, so nothing would ever ask (both
     // seen in the rig: absent when off, and still absent when on).
     ensure_classifier();
+    // stale-storage guard: a variant saved under another engine must not reach a standard-only one
+    if (NO_CHESS960_ENGINES.includes(config.engine) && config.variant !== 'chess') {
+        config.variant = 'chess';
+        MephistoConfig.set('variant', JSON.stringify('chess'));
+    }
     Object.assign(config, {
         // appearance settings
         pieces: JSON.parse(MephistoConfig.get('pieces')) || 'wikipedia.svg',
@@ -1347,7 +1352,9 @@ function init_quick_settings() {
             // standard-chess only (its nets have no 960), so switching to it always forces chess.
             if (key === 'engine') {
                 const eng = parse(elem.value);
-                if (eng === 'maia' || eng === 'maia3') save('variant', 'chess');
+                // ...and so are Maia-2 and Elite Leela (NO_CHESS960_ENGINES): left out here, Chess960 stayed
+                // selected under them with the Variant row hidden and no way to change it
+                if (eng === 'maia' || eng === 'maia3' || NO_CHESS960_ENGINES.includes(eng)) save('variant', 'chess');
                 else if (!FAIRY_ENGINES.includes(eng) && !['chess', 'fischerandom'].includes(config.variant)) save('variant', 'chess');
             }
             if (key === 'engine') stop_current_engine(); // free the old process before switching
