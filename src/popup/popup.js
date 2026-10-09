@@ -8044,6 +8044,9 @@ function annotate_hotkey_labels() {
             hk = document.createElement('span');
             hk.className = 'mephisto-bar-hk';
             hk.style.cssText = HOTKEY_HINT_CSS;
+            // a fixed size here: the two title-bar glyphs are different sizes, so the shared
+            // 0.82em came out as 10.7px on one hint and 14.8px on the other
+            hk.style.fontSize = '10.5px';
             el.appendChild(hk);
         }
         hk.textContent = `(${key})`;

@@ -3224,4 +3224,6 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const rh = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8'), rc = fs.readFileSync(ROOT + '/src/options/pages/review/review.css', 'utf8');
     ok('Game Review: the study URL field is styled like its neighbours and "Review with" is as wide as its text',
        /id="rv_li_study" class="rv-input rv-study-url browser-default"/.test(rh) && /#rv_mode \{ width: 290px; max-width: none; \}/.test(rc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('the two title-bar hotkey hints are one size', /hk\.style\.cssText = HOTKEY_HINT_CSS;[\s\S]{0,260}hk\.style\.fontSize = '10\.5px';/.test(psrc)); }
 // ==== END FIX CHECKS ====
