@@ -2945,4 +2945,30 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('an Elo change from the settings page moves the panel\'s own slider too', /if \(key === 'elo'\) sync_elo_slider\(\);/.test(psrc) && /function sync_elo_slider\(\) \{/.test(psrc));
 }
+{
+    // issue 1: move 1 took over 5 s in 1+0 (Clock Mode budget + Humanize calling the start position tense)
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fnSrc = (name) => { const i = psrc.indexOf(`function ${name}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const c = vm.createContext({Date, Math});
+    vm.runInContext(`var config = {clock_mode: true, mirror_mode: true}, opp_spend = null, premove_tracker = {moves: ''},
+        last_eval = {fen: ''}, last_clocks = {mine: 60, theirs: 60, increment: 0, at: Date.now()};
+        const INITIAL_PLACEMENT = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR', OPENING_MOVES = 8, OPENING_PACE_MS = 750;
+        function mirror_ratio() { return 0.9; }
+        ${['clock_aware', 'clock_budget_ms', 'clock_move_budget_ms', 'in_opening', 'paced_move_target_ms'].map(fnSrc).join('\n')}`, c);
+    const run = (js) => vm.runInContext(js, c);
+    const move1 = run(`paced_move_target_ms(${JSON.stringify(START)}).ms`);
+    const mid = run(`premove_tracker.moves = 'e2e4 e7e5'; paced_move_target_ms('r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 4 12').ms`);
+    const noList = run(`premove_tracker.moves = ''; in_opening('r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w - - 0 1')`);
+    const mirrored = run(`opp_spend = 3; paced_move_target_ms(${JSON.stringify(START)}).ms`);
+    ok('1+0, move 1: the search is sized to the opening pace, not the 2 s clock budget; move 12 still gets the budget',
+       move1 === 750 && mid > 1900, {move1, mid});
+    ok('a scrape with no move list is not "the opening" just because its FEN says move 1', noList === false);
+    ok('a measured opponent spend still decides the pace in the opening (Mirror Time)', mirrored === 2700, mirrored);
+    ok('Humanize reels the opening off before it can call the start position tense',
+       /kind = 'instant';\s*else if \(in_opening\(fen\)\) kind = 'quick';[\s\S]{0,400}kind = 'long'/.test(psrc));
+    ok('Mirror Time marks the opponent clock on our turn too, so it does not need a scrape during theirs',
+       /if \(turn === ourColor\) \{[\s\S]{0,900}if \(last_clocks\?\.theirs != null\) opp_clock_mark = last_clocks\.theirs;\s*\} else if \(opp_clock_mark == null/.test(psrc));
+}
 // ==== END FIX CHECKS ====

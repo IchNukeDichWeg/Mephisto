@@ -768,7 +768,13 @@ async function initPanel(root, tabId) {
                     opp_spend = (opp_clock_mark != null && last_clocks?.theirs != null)
                         ? Math.max(0, opp_clock_mark - last_clocks.theirs + (last_clocks.increment || 0))
                         : null;
-                } else if (last_clocks?.theirs != null) {
+                    // THEIR CLOCK IS FROZEN WHILE WE ARE TO MOVE, so this reading is also where it
+                    // starts their next turn. Marking it here means Mirror Time no longer depends on
+                    // a scrape landing during THEIR turn -- without a move list (chess.com with the
+                    // sidebar off the Moves tab) that push is not reliable, the mark stayed null and
+                    // every move fell back to the clock budget (issue 1).
+                    if (last_clocks?.theirs != null) opp_clock_mark = last_clocks.theirs;
+                } else if (opp_clock_mark == null && last_clocks?.theirs != null) {
                     opp_clock_mark = last_clocks.theirs;
                 }
                 // check BEFORE on_new_pos: the tracker belongs to the position we were analysing
@@ -5312,7 +5318,7 @@ function on_new_pos(fen, startFen, moves) {
     // unless it's genuinely time to hurry (low clock, or a forced move). Pure Humanize (no clock)
     // keeps the default search: its long thinks key off the position's criticality, which isn't
     // known until after the search, so that time stays a post-search wait.
-    const pace = paced_move_target_ms();
+    const pace = paced_move_target_ms(fen);
     let movetime = config.compute_time;
     if (pace != null) {
         const filled = Math.round(pace.ms - MOVE_MARGIN);
@@ -6884,13 +6890,27 @@ function clock_pace_timing(t) {
 const MOVE_MARGIN = 150;
 let search_start = 0; // when the current autoplay search was issued (for the residual think below)
 
+// THE OPENING IS REELED OFF, NOT THOUGHT ABOUT. Move 1 has the whole clock in hand, so a budget of
+// T/30 said "spend 2 s" in 1+0 and 10 s in 5+0 on a move everybody knows, and Humanize called the
+// start position tense (level, top lines close) and sat its 'long' think on top: over 5 s on move 1
+// of a bullet game (issue 1). A scrape with no move list always says "move 1", so the move number
+// only counts when there is a move list or the board is the start array.
+const OPENING_MOVES = 8;       // fullmoves; the reel-off Humanize already used for its 'quick' kind
+const OPENING_PACE_MS = 750;   // top of the 'quick' band (250-750 ms)
+function in_opening(fen) {
+    let fullmove = 999;
+    try { fullmove = parseInt(fen.split(' ')[5]) || 999; } catch (e) { /* variant fen */ }
+    if (fullmove >= OPENING_MOVES) return false;
+    return !!premove_tracker.moves || String(fen).split(' ')[0] === INITIAL_PLACEMENT;
+}
+
 // The intended TOTAL time (ms) for the current move from the clock-aware modes, computed WITHOUT
 // the search results (Mirror = opponent's spend x0.9, Clock = the T/30 budget). Used to SIZE the
 // search in on_new_pos so the engine thinks the whole time instead of finding a shallow move fast
 // and then idling. null when no clock-aware mode is active or the clock is unreadable. This is an
 // estimate that omits humanize's kind-based caps (which need the results) -- humanize_pick stays
 // the authoritative think, and on_engine_best_move only waits out whatever the search didn't cover.
-function paced_move_target_ms() {
+function paced_move_target_ms(fen = last_eval.fen) {
     if (!clock_aware() || !last_clocks || last_clocks.mine == null) return null;
     const T = last_clocks.mine - (Date.now() - last_clocks.at) / 1000; // seconds remaining
     let ms;
@@ -6900,6 +6920,7 @@ function paced_move_target_ms() {
     } else {
         ms = clock_budget_ms();
         if (ms == null) return null;
+        if (in_opening(fen)) ms = Math.min(ms, OPENING_PACE_MS);
     }
     ms = Math.min(ms, T * 1000 / 8);   // never sink an eighth of the clock into one move
     if (T < 20) ms = Math.min(ms, 250);
@@ -6916,9 +6937,7 @@ function paced_move_target_ms() {
 function humanize_presearch_ms(fen) {
     if (!config.humanize || clock_aware() || !config.autoplay
         || config.help_mode || config.puzzle_mode || in_time_trouble()) return null;
-    let fullmove = 999;
-    try { fullmove = parseInt(fen.split(' ')[5]) || 999; } catch (e) { /* variant fen */ }
-    if (fullmove < 8) return 500;                                   // opening: reel it off
+    if (in_opening(fen)) return 500;                                // opening: reel it off
     const evalCp = (last_our_eval != null) ? Math.abs(last_our_eval) : 0;
     if (evalCp > 600) return 500;                                  // game decided: moves matter less
     if (evalCp < 150) return 2500;                                 // balanced & tense: think
@@ -7243,11 +7262,10 @@ function humanize_pick(best) {
     let halfmove = 1;
     try { halfmove = parseInt(fen.split(' ')[4]); } catch (e) { /* variant fen: leave >0, no false reflex */ }
     const recapture = lastOpp && halfmove === 0 && best.slice(2, 4) === lastOpp.slice(2, 4);
-    let forced = false, fullmove = 999;
+    let forced = false;
     try {
         const chess = new Chess(config.variant, fen);
         forced = chess.moves().length === 1;
-        fullmove = parseInt(fen.split(' ')[5]) || 999;
     } catch (e) { /* variant fen chess.js can't parse -- classification just loses two signals */ }
 
     // ---- WHAT to play: mostly the best move; sometimes a close second; rarely a real mistake.
@@ -7302,9 +7320,12 @@ function humanize_pick(best) {
 
     let kind;
     if (recapture || forced) kind = 'instant';
+    else if (in_opening(fen)) kind = 'quick';                      // opening reel-off -- BEFORE 'long':
+                                                                   // the start position is level with close
+                                                                   // choices, i.e. "tense" by the next line
     else if (gap < 35 && Math.abs(bestCp) < 150) kind = 'long';   // tense: close choices, level game
     else if (swing < -120) kind = 'long';                          // something went wrong -- "sit up"
-    else if (gap > 250 || fullmove < 8) kind = 'quick';            // obvious move / opening reel-off
+    else if (gap > 250) kind = 'quick';                            // obvious move
     else kind = 'normal';
 
     const r = Math.random();
@@ -7391,7 +7412,7 @@ function clear_next_move_eta() {
 // the clock (Mirror/Clock) or the humanize criticality estimate. null when nothing changes the
 // base time (plain autoplay), so no countdown is shown then.
 function estimated_move_total_ms(fen) {
-    const pace = paced_move_target_ms();
+    const pace = paced_move_target_ms(fen);
     if (pace != null) {
         if (pace.ms <= 0) return null; // low clock -> effectively instant, nothing to count down
         return {ms: pace.ms, source: (config.mirror_mode && opp_spend != null) ? 'Mirror Time' : 'Clock Mode'};
