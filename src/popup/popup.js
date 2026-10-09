@@ -2253,6 +2253,12 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         if (isTerminal && config.autoplay && !config.help_mode && !config.manual_mode
                 && !premove_reply_playable(last_eval.fen, best)) {
             const f = String(last_eval.fen || '');
+            // A DROP (Q@b5) is a move the page side cannot make: it clicks from a square to a square.
+            // Say so -- the panel used to show the drop as its best move and then sit there while
+            // the clock ran, with the only explanation in the console.
+            if (/^[PNBRQ]@/i.test(best)) {
+                set_idle_reason(i18n('panel.msg.drop_by_hand', 'The best move is a drop ({move}). Autoplay cannot place pieces from the pocket: play it yourself.', {move: best}));
+            }
             console.warn('Mephisto: NOT autoplaying', best, '-- premove_reply_playable said no.',
                 {fen: f, sideToMove: f.split(' ')[1], ourSide: our_side(),
                  pieceOnFrom: (() => { try { return new Chess(config.variant, f).get(best.slice(0, 2)); }

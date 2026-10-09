@@ -3079,5 +3079,6 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         ok('choosing a variant loads the variant engine, and going back to standard chess restores the engine that was loaded',
            JSON.stringify(out) === JSON.stringify(['fairy-stockfish-14-nnue', 'stockfish-19-nnue', 'chess']), out); }, 20);
     ok('the Variant select goes through the same path as Detect', /if \(key === 'variant'\) return apply_detected_variant\(parse\(elem\.value\)\);/.test(psrc));
+    ok('a drop the page cannot play is said on screen, not only in the console', /if \(\/\^\[PNBRQ\]@\/i\.test\(best\)\) \{\s*set_idle_reason\(/.test(psrc));
 }
 // ==== END FIX CHECKS ====
