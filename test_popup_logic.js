@@ -3201,4 +3201,6 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const ocss = fs.readFileSync(ROOT + '/src/options/options.css', 'utf8'), pcss = fs.readFileSync(ROOT + '/src/popup/popup.css', 'utf8');
     ok('keyboard focus is drawn on the options pages and the panel controls that had none',
        /main input:focus-visible,[\s\S]{0,200}outline: 2px solid var\(--mp-on\) !important;/.test(ocss) && /#quick-settings \.qs-tab:focus-visible,/.test(pcss)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('an Appearance change (pieces, board, coordinates, dark mode) rebuilds an open panel', /if \(\['pieces', 'board', 'coordinates', 'dark_mode'\]\.some\(k => k in changes[\s\S]{0,90}\{\s*return panel_reload\(\);/.test(psrc)); }
 // ==== END FIX CHECKS ====

@@ -9284,6 +9284,14 @@ function watch_config_changes() {
     try {
         chrome.storage.onChanged.addListener((changes, area) => {
             if (area !== 'local' || !PANEL_BOOTED) return;
+            // THE LOOK IS BUILT ONCE, when the panel opens: the piece set and board are baked into
+            // the board it constructs, and the dark class is set at init. A change on the Appearance
+            // page did nothing to an open panel until it was closed and reopened by hand. Rebuild it
+            // -- the position is re-read from the page, exactly as after an engine change.
+            if (['pieces', 'board', 'coordinates', 'dark_mode'].some(k => k in changes
+                    && changes[k].newValue !== changes[k].oldValue)) {
+                return panel_reload();
+            }
             let touched = false;
             for (const key of LIVE_CONFIG_KEYS) {
                 if (!(key in changes)) continue;
