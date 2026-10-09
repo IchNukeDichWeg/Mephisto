@@ -162,7 +162,7 @@ function handleExtensionMessage(response, sender, sendResponse) {
         return;
     }
     if (response.detectVariant) {
-        sendResponse({variant: detectVariant(), href: location.href});
+        sendResponse({variant: detectVariant(), href: location.href, stated: variantIsStated()});
         return;
     }
     if (response.queryfen) {
@@ -412,7 +412,7 @@ self.MephistoContent = {
         `overlay=${overlayDraws}/${overlayMsgs} drawn/asked`,
         `scrape=${scrapeCount} avg ${scrapeCount ? (scrapeMs / scrapeCount).toFixed(1) : 0}ms`,
     ].filter(Boolean).join('  '),
-    detectVariant: () => ({variant: detectVariant(), href: location.href}),
+    detectVariant: () => ({variant: detectVariant(), href: location.href, stated: variantIsStated()}),
     // popup.js's apply_compact calls this: the panel is a fixed-size scaled box, so hiding its
     // contents can't shrink it -- see setPanelCompact. Also keeps the title-bar icon in sync when
     // the panel boots with a compact state remembered from last time.
@@ -1693,14 +1693,25 @@ function detectVariant() {
 
 function detectLichessVariant() {
     if (site !== 'lichess') return null;
-    const href = document.querySelector('a[href*="/variant/"]')?.getAttribute('href') || '';
+    // the game's own header first: a link anywhere else on the page can name some other variant
+    const meta = document.querySelector('.game__meta');
+    const href = (meta || document).querySelector('a[href*="/variant/"]')?.getAttribute('href') || '';
     const key = (href.match(/\/variant\/(\w+)/) || [])[1];
     const map = {
         threeCheck: '3check', kingOfTheHill: 'kingofthehill', racingKings: 'racingkings',
         chess960: 'fischerandom', crazyhouse: 'crazyhouse', atomic: 'atomic',
-        antichess: 'antichess', horde: 'horde', standard: 'chess',
+        antichess: 'antichess', horde: 'horde', standard: 'chess', fromPosition: 'chess',
     };
-    return map[key] || null;
+    // a game header with no variant link at all is a standard game
+    return map[key] || ((meta && !key) ? 'chess' : null);
+}
+
+// Is detectVariant()'s answer read from something that states the variant outright? chess.com says it
+// in the URL; a lichess GAME page says it in its header. Anywhere else it is a guess, and a guess is
+// for the Detect button, never applied by itself.
+function variantIsStated() {
+    if (site === 'lichess') return !!document.querySelector('.game__meta');
+    return /\/variants\//.test(location.pathname);
 }
 
 // read the Fairy-Stockfish variant key straight out of the chess.com variants URL slug.

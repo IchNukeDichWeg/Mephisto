@@ -1312,6 +1312,10 @@ function init_quick_settings() {
         if (!elem) continue;
         elem.value = config[key];
         elem.addEventListener('change', () => {
+            // Picking a variant by hand does what Detect does: it also moves to a Fairy engine when
+            // the variant needs one. It used to save the variant and leave Stockfish loaded, which
+            // went on playing standard-chess moves into an Atomic game.
+            if (key === 'variant') return apply_detected_variant(parse(elem.value));
             // only Fairy-Stockfish plays fairy variants; other engines force standard chess so the
             // net + legality checks stay correct -- EXCEPT Chess960, which every mainline Stockfish
             // plays via UCI_Chess960 (sent at engine init), so it survives an engine switch. Maia is
@@ -9013,12 +9017,12 @@ function request_detect_variant(cb) {
     if (IS_CONTENT_SCRIPT) { // same realm -> ask content-script.js straight out
         try {
             const r = self.MephistoContent?.detectVariant();
-            return cb((r && r.variant) || null, (r && r.href) || null);
+            return cb((r && r.variant) || null, (r && r.href) || null, !!(r && r.stated));
         } catch (e) { return cb(null, null); }
     }
     const ask = tabId => chrome.tabs.sendMessage(tabId, {detectVariant: true}, resp => {
         if (chrome.runtime.lastError) return cb(null, null);
-        cb((resp && resp.variant) || null, (resp && resp.href) || null);
+        cb((resp && resp.variant) || null, (resp && resp.href) || null, !!(resp && resp.stated));
     });
     if (MY_TAB_ID) return ask(MY_TAB_ID);
     chrome.tabs.query({active: true, currentWindow: true}, tabs => (tabs[0] && tabs[0].id) && ask(tabs[0].id));
@@ -9058,7 +9062,17 @@ async function apply_detected_variant(v) {
     MephistoConfig.set('variant', JSON.stringify(v));
     // switch to Fairy only if not already on one (native or WASM) -- don't downgrade native->WASM
     if (needs_fairy_engine(v) && !FAIRY_ENGINES.includes(config.engine)) {
+        // ...and remember what was loaded, so the next standard game gets it back instead of
+        // being played by the (much weaker at standard chess) variant engine
+        MephistoConfig.set('variant_prev_engine', JSON.stringify(config.engine));
         MephistoConfig.set('engine', JSON.stringify(await preferred_fairy_engine()));
+    } else if (!needs_fairy_engine(v) && FAIRY_ENGINES.includes(config.engine)) {
+        let prev = null;
+        try { prev = JSON.parse(MephistoConfig.get('variant_prev_engine')); } catch (e) { /* never set */ }
+        if (prev) {
+            MephistoConfig.set('engine', JSON.stringify(prev));
+            MephistoConfig.set('variant_prev_engine', JSON.stringify(''));
+        }
     }
     panel_reload();
 }
@@ -9068,19 +9082,24 @@ async function apply_detected_variant(v) {
 // hand. Runs at most once per game URL (sessionStorage guard) so a manual change afterwards is
 // respected and there's no reload loop.
 function maybe_autodetect_variant() {
-    request_detect_variant((v, href) => {
+    request_detect_variant((v, href, stated) => {
         if (!v || !href) return;
-        // only AUTO-apply where detection is URL-definitive: chess.com /variants/ game pages. The
-        // lichess detector is DOM-heuristic and could false-positive on a standard game, so lichess
-        // stays on the explicit Detect button (which now switches to Fairy too).
-        if (!/\/variants\//.test(href)) return;
+        // only AUTO-apply where the page STATES its variant: chess.com /variants/ URLs and a lichess
+        // game's own header. Lichess used to be left to the Detect button entirely, so an Atomic or
+        // Racing Kings game was analysed -- and autoplayed -- as standard chess with nothing on
+        // screen to say so (six of eight variants, 3.1.319 audit). Any other lichess page is still a
+        // guess and still waits for the button.
+        if (!stated && !/\/variants\//.test(href)) return;
         // already correct: right variant AND (no Fairy needed, or already on some Fairy engine).
         // (Which Fairy engine - native vs WASM - is resolved by an async probe inside apply.)
         if (config.variant === v && (!needs_fairy_engine(v) || FAIRY_ENGINES.includes(config.engine))) return;
         const key = 'mephisto.autodetected:' + href;
         try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) { /* */ }
         console.log('Mephisto: auto-detected variant', v, '-> applying (was', config.variant + '/' + config.engine + ')');
-        apply_detected_variant(v);
+        // after start-up has finished: applying rebuilds the panel, and doing that from inside the
+        // panel's own (async) init tore the board out from under the lines that follow this call.
+        // ponytail: a fixed 500 ms, init has no "done" signal to wait on; add one if this ever races
+        setTimeout(() => apply_detected_variant(v), 500);
     });
 }
 

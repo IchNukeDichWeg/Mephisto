@@ -3052,4 +3052,32 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        [run('/?WG)8'), run('/?UE'), run(null), run(null, '/training/123')]);
     ok('...and a sideline move is read from its <san>, not with its "1..." number', /const san = move\.querySelector\?\.\('san'\);/.test(csrc));
 }
+{
+    // audit 3.1.319: lichess variants ran as standard chess; the Variant select left Stockfish loaded
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8'), psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cfn = (name) => { const i = csrc.indexOf(`function ${name}(`); return csrc.slice(i, csrc.indexOf('\n}\n', i) + 3); };
+    const pfn = (name) => { const i = psrc.indexOf(`function ${name}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const page = (metaHref, otherHref) => { const link = (h) => h ? {getAttribute: () => h} : null;
+        const meta = metaHref === undefined ? null : {querySelector: () => link(metaHref)};
+        const c = vm.createContext({site: 'lichess', location: {pathname: '/abc'}, document: {querySelector: (q) => q === '.game__meta' ? meta : link(otherHref)}});
+        vm.runInContext(cfn('detectLichessVariant') + cfn('variantIsStated'), c);
+        return [vm.runInContext('detectLichessVariant()', c), vm.runInContext('variantIsStated()', c)]; };
+    ok('a lichess game header states its variant: Atomic, From Position and a plain standard game; a lobby link is only a guess',
+       JSON.stringify([page('/variant/atomic'), page('/variant/fromPosition'), page(null), page(undefined, '/variant/horde')])
+       === JSON.stringify([['atomic', true], ['chess', true], ['chess', true], ['horde', false]]),
+       [page('/variant/atomic'), page('/variant/fromPosition'), page(null), page(undefined, '/variant/horde')]);
+    // apply_detected_variant, executed: to a variant and back restores the engine that was loaded
+    const c = vm.createContext({});
+    vm.runInContext(`var store = {}, reloads = 0, config = {engine: 'stockfish-19-nnue'};
+        const FAIRY_ENGINES = ['fairy-stockfish-14-nnue', 'fairy-native'];
+        const MephistoConfig = {set: (k, v) => { store[k] = v; if (k === 'engine') config.engine = JSON.parse(v); }, get: (k) => store[k] ?? null};
+        function panel_reload() { reloads++; } async function preferred_fairy_engine() { return 'fairy-stockfish-14-nnue'; }
+        ${pfn('needs_fairy_engine')} ${psrc.slice(psrc.indexOf('async function apply_detected_variant('), psrc.indexOf('\n}\n', psrc.indexOf('async function apply_detected_variant(')) + 3)}`, c);
+    vm.runInContext(`var out = []; (async () => { await apply_detected_variant('atomic'); out.push(config.engine); await apply_detected_variant('chess'); out.push(config.engine, JSON.parse(store.variant)); })()`, c);
+    setTimeout(() => { const out = vm.runInContext('out', c);
+        ok('choosing a variant loads the variant engine, and going back to standard chess restores the engine that was loaded',
+           JSON.stringify(out) === JSON.stringify(['fairy-stockfish-14-nnue', 'stockfish-19-nnue', 'chess']), out); }, 20);
+    ok('the Variant select goes through the same path as Detect', /if \(key === 'variant'\) return apply_detected_variant\(parse\(elem\.value\)\);/.test(psrc));
+}
 // ==== END FIX CHECKS ====
