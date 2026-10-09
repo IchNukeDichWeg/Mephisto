@@ -3240,4 +3240,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     vm.runInContext(`var eta_target, eta_source, eta_category; function fresh_timing() { return {move_time: 400, move_variance: 400}; } ${head} }`, c);
     vm.runInContext('set_move_countdown(10000, "Clock Mode")', c);
     ok('the move countdown runs to when the move lands: the click time plus the average cursor travel (400 + 400/2 ms)', c.eta_target === 10600, c.eta_target); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const c = vm.createContext({console}); c.self = c; c.window = c; c.globalThis = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c); vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const res = (pgn) => { const g = c.MephistoReviewCore.parsePgn(pgn); return (Array.isArray(g) ? g[0] : g).result; };
+    ok('a PGN with no tags keeps the result written after its moves; a Result tag still wins', res('1. e4 e5 2. Nf3 1-0') === '1-0' && res('[Result "0-1"]\n\n1. e4 e5 1-0') === '0-1' && res('1. e4 e5') === '*',
+       [res('1. e4 e5 2. Nf3 1-0'), res('1. e4 e5')]); }
 // ==== END FIX CHECKS ====

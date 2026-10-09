@@ -82,6 +82,7 @@ function parseGame(text) {
     movetext = movetext.replace(/\d+\s*\.(\s*\.\.)?/g, ' ');  // move numbers, incl. black's "12..." and "12. ..."
 
     const moves = [];
+    let movetextResult = null;   // a game with no tag block still ends in "1-0": that is its result
     for (const tok of movetext.split(/\s+/)) {
         if (!tok) continue;
         const cm = /^(\d+)$/.exec(tok);
@@ -91,7 +92,7 @@ function parseGame(text) {
             continue; // a comment before the first move is the game's, not a move's -- dropped
 
         }
-        if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(tok)) continue;
+        if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(tok)) { movetextResult = tok; continue; }
         if (/^\.+$/.test(tok) || /^e\.?p\.?$/i.test(tok)) continue;   // stray dots, an "e.p." suffix
         // castling written with zeros is the FIDE spelling and common in hand-typed PGNs
         const san = tok.replace(/[?!]+$/, '').replace(/^0-0-0/, 'O-O-O').replace(/^0-0/, 'O-O');
@@ -101,7 +102,7 @@ function parseGame(text) {
         tags,
         // Chess960 and set-up positions: SetUp/FEN is the game's real start
         startFen: tags.FEN || null,
-        result: tags.Result || '*',
+        result: tags.Result || movetextResult || '*',
         moves,
     };
 }
