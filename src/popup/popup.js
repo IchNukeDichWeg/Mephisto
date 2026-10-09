@@ -7468,7 +7468,12 @@ let eta_timer = null, eta_target = 0, eta_source = '', eta_category = null;
 // down while the engine thinks, not just the ~150ms tail left after the search fills the time --
 // and updated when the move is picked (on_engine_best_move) to add which humanize slice is coming.
 function set_move_countdown(target, source, category = null) {
-    eta_target = target; eta_source = source; eta_category = category;
+    // THE MOVE LANDS AFTER THE CURSOR HAS TRAVELLED, and the countdown stopped at the click being
+    // SENT: "Playing now" showed 0.4-1.1 s before the piece moved (median 0.55 s), which is the
+    // simulated move time it left out. Add what that will cost on average.
+    let travel = 0;
+    try { const t = fresh_timing(); travel = (Number(t.move_time) || 0) + (Number(t.move_variance) || 0) / 2; } catch (e) { /* no timing: count to the click */ }
+    eta_target = target + travel; eta_source = source; eta_category = category;
     clearInterval(eta_timer);
     const tick = () => {
         const el = PANEL_ROOT.getElementById('next-move');

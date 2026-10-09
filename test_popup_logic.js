@@ -3234,4 +3234,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const ocss = fs.readFileSync(ROOT + '/src/options/options.css', 'utf8');
     ok('Settings: the Local Tablebases label keeps its width and its controls wrap', /\.set-row:has\(#tb_choose\) > \.set-lbl \{ flex: 1 0 170px; \}/.test(ocss)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = psrc.indexOf('function set_move_countdown('), head = psrc.slice(i, psrc.indexOf('clearInterval(eta_timer);', i));
+    const c = vm.createContext({});
+    vm.runInContext(`var eta_target, eta_source, eta_category; function fresh_timing() { return {move_time: 400, move_variance: 400}; } ${head} }`, c);
+    vm.runInContext('set_move_countdown(10000, "Clock Mode")', c);
+    ok('the move countdown runs to when the move lands: the click time plus the average cursor travel (400 + 400/2 ms)', c.eta_target === 10600, c.eta_target); }
 // ==== END FIX CHECKS ====
