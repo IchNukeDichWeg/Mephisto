@@ -8,8 +8,11 @@ html.toolbar-popup {
 /* --------------------------------------------------------------------------------------------
    Panel palette. Monochrome except ONE colour: green means "on / acting for you right now".
    Both themes define the same names, so nothing below needs a `body.mephisto-dark` twin.
+   :host as well as :root -- the in-page panel lives in a shadow root, where :root matches nothing.
+   Without it every variable was empty in the light theme: toggles drew no switch and the sliders
+   were invisible (the dark theme worked because its rule is rehomed onto the panel body).
    -------------------------------------------------------------------------------------------- */
-:root {
+:root, :host {
     --mp-bg:      #ffffff;
     --mp-hair:    #f0f1f2;
     --mp-line:    #cfd2d5;
