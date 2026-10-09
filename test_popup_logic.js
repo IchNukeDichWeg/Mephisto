@@ -3114,4 +3114,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const ocss = fs.readFileSync(ROOT + '/src/options/options.css', 'utf8');
     ok('options pages: the pinned sidebar keeps its 210px inset at narrow widths', !/@media \(max-width: 992px\) \{\s*header, main, footer \{ padding-left: 0; \}/.test(ocss) && /header, main, footer \{ padding-left: 210px; \}/.test(ocss)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = psrc.indexOf("let mated = 'mate' in pvLine;"), blk = psrc.slice(i, psrc.indexOf('if (mated) {', i));
+    const c = vm.createContext({}); vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    const run = (fen, pvLine) => { c.fen = fen; c.pvLine = pvLine; return vm.runInContext(`(() => { const config = {variant: 'chess'}, last_eval = {fen}; ${blk} return mated; })()`, c); };
+    ok('a checkmate is a checkmate even when the engine sent no mate score; a stalemate is still a stalemate',
+       run('rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3', {}) === true && run('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1', {}) === false); }
 // ==== END FIX CHECKS ====

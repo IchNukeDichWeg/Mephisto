@@ -2161,7 +2161,16 @@ function on_engine_best_move(best, threat, isTerminal=false) {
     }
     if (!best || best === '(none)') { // game over (or crashed search) - there is no move to draw or play
         const pvLine = last_eval.lines[0] || {};
-        if ('mate' in pvLine) {
+        // THE BOARD KNOWS WHETHER IT IS MATE; the engine's last line often does not. A mated
+        // position is answered with `bestmove (none)` and, depending on the engine and the moment,
+        // no `score mate` line at all -- and every checkmate was then announced as "Stalemate! /
+        // Draw" beside a WDL line reading 100% (three separate reports, both sites).
+        let mated = 'mate' in pvLine;
+        try {
+            const end = new Chess(config.variant, last_eval.fen);
+            if (typeof end.isCheckmate === 'function') mated = end.isCheckmate();
+        } catch (e) { /* a variant position chess.js cannot read: the engine's word stands */ }
+        if (mated) {
             update_evaluation(i18n('panel.msg.checkmate', 'Checkmate!'));
             if (config.variant === 'antichess') {
                 update_best_move(i18n('panel.msg.wins', '{side} Wins', {side: toplay}));
