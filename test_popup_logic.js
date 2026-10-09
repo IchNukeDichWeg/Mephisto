@@ -3259,4 +3259,6 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...and a client init keeps the lines queued for it', !/sticky\[clientId\] = \{\};[\s\S]{0,420}delete pending\[clientId\];\s*initEngine\(clientId/.test(osrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('the header turn switch follows every position, including one from the FEN box', /update_turn_badge\(fen\);\s*console\.log\("on_new_pos", fen, startFen, moves\);/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('a click on the panel title bar is not a drag: it neither moves nor undocks the panel', /if \(!dragMoved\) return;\s*\/\/ Dragging a docked panel is a request to undock it/.test(csrc) && /dragMoved = true;\s*wrap\.style\.left/.test(csrc)); }
 // ==== END FIX CHECKS ====

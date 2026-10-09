@@ -1139,11 +1139,11 @@ async function toggleOverlay() {
     }, {signal});
 
     // drag by the title bar; the iframe must not eat mousemove while dragging
-    let dragFromX, dragFromY, startLeft, startTop, dragging = false;
+    let dragFromX, dragFromY, startLeft, startTop, dragging = false, dragMoved = false;
     bar.addEventListener('mousedown', e => {
         if (e.target.classList.contains('mephisto-overlay-close')) return;
         if (e.target.classList.contains('mephisto-overlay-min')) return;
-        dragging = true;
+        dragging = true; dragMoved = false;
         frame.style.pointerEvents = 'none';
         const rect = wrap.getBoundingClientRect();
         [dragFromX, dragFromY, startLeft, startTop] = [e.clientX, e.clientY, rect.left, rect.top];
@@ -1151,6 +1151,9 @@ async function toggleOverlay() {
     });
     window.addEventListener('mousemove', e => {
         if (!dragging) return;
+        // a click is not a drag: a few pixels of hand tremor on a press must not move the panel
+        if (!dragMoved && Math.abs(e.clientX - dragFromX) < 4 && Math.abs(e.clientY - dragFromY) < 4) return;
+        dragMoved = true;
         wrap.style.left = `${startLeft + e.clientX - dragFromX}px`;
         wrap.style.top = `${Math.max(0, startTop + e.clientY - dragFromY)}px`;
         wrap.style.right = 'auto';
@@ -1163,6 +1166,11 @@ async function toggleOverlay() {
         if (!dragging) return;
         dragging = false;
         frame.style.pointerEvents = 'auto';
+        // A CLICK ON THE BAR (the Compact button, or the bar itself) IS NOT A DRAG. It used to run the
+        // lines below anyway, and a panel docked Right never has left === 0, so one click stored it as
+        // undocked: it stopped following window resizes and reopened floating, while its own Dock
+        // control still said Right.
+        if (!dragMoved) return;
         // Dragging a docked panel is a request to undock it: the alternative is a panel that snaps
         // back to the edge and looks broken. The dock control is how you get it back.
         if (panelDock !== 'free' && (wrap.getBoundingClientRect().left !== 0)) panelDock = 'free';
