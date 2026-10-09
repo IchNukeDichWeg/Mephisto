@@ -3111,4 +3111,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /if \(msg\.panelState\) \{/.test(bsrc) && /if \(msg\.panelWasOpen\) \{/.test(bsrc)
        && /sendMessage\(\{panelWasOpen: true\}, \(r\) => \{\s*if \(chrome\.runtime\.lastError \|\| !r\?\.open \|\| overlayEl\(PANEL_OVERLAY_ID\)\) return;\s*toggleOverlay\(\);/.test(csrc));
     ok('closing the panel (toolbar, its own X, or popup mode) is recorded, so it stays closed', (csrc.match(/notePanelState\('closed'\)/g) || []).length === 3); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const ocss = fs.readFileSync(ROOT + '/src/options/options.css', 'utf8');
+    ok('options pages: the pinned sidebar keeps its 210px inset at narrow widths', !/@media \(max-width: 992px\) \{\s*header, main, footer \{ padding-left: 0; \}/.test(ocss) && /header, main, footer \{ padding-left: 210px; \}/.test(ocss)); }
 // ==== END FIX CHECKS ====

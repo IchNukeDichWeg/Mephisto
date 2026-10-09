@@ -738,10 +738,11 @@ html.dark .limit-warn { color: #d8a628; }
    The layout is three bands -- sidebar, content, section nav -- and each one gives way in turn as
    the window shrinks, rather than everything staying put and something falling off the edge.  */
 
-/* Materialize un-pins the sidenav below 992, so the inset that reserved space for it has to go too;
-   otherwise the content keeps a 210px margin against nothing. */
+/* The sidebar stays pinned at every width (see .sidenav-fixed above, which overrides Materialize
+   un-pinning it below 992), so the 210px inset that makes room for it stays too. It used to be
+   zeroed here, and the sidebar then covered the left 104-120px of every page -- labels and the page
+   title -- with no horizontal scroll to reach them. Only the inner gutters tighten. */
 @media (max-width: 992px) {
-    header, main, footer { padding-left: 0; }
     header .container, main .container, footer .container, nav .container {
         padding-left: 14px;
         padding-right: 4px;
