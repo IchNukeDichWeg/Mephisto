@@ -773,3 +773,20 @@ html.dark .limit-warn { color: #d8a628; }
 .set-chip i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; opacity: .35; }
 .set-chip.on { color: var(--mp-text); border-color: var(--mp-on); }
 .set-chip.on i { opacity: 1; }
+
+/* ------------------------------------------------------------------- keyboard focus
+   Tabbing through a page showed no focus on the sidebar links, the plain buttons, the Review
+   selects, the sliders or the colour fields: Materialize resets the outline and nothing put one
+   back. One ring, the same green as "on", only for keyboard focus. */
+a.menu-item:focus-visible,
+.sidenav a:focus-visible,
+.set-btn:focus-visible,
+main button:focus-visible,
+main select:focus-visible,
+main textarea:focus-visible,
+main input:focus-visible,
+.table-of-contents a:focus-visible {
+    /* !important: Materialize's own input and select rules reset the outline at higher specificity */
+    outline: 2px solid var(--mp-on) !important;
+    outline-offset: 2px;
+}

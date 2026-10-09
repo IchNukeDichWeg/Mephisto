@@ -3197,4 +3197,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /if \(owner && owner !== capturing\) \{\s*say\(/.test(g) && /addEventListener\?\.\('hashchange', \(\) => \{ capturing = null; \}\);/.test(g)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('Help Mode arrows are redrawn when the board moves, resizes or flips', /const key = JSON\.stringify\(\[arrows, region \|\| null, where\]\);/.test(csrc) && /where = \[Math\.round\(r\.left\), Math\.round\(r\.top\), Math\.round\(r\.width\), getOrientation\(\)\];/.test(csrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const ocss = fs.readFileSync(ROOT + '/src/options/options.css', 'utf8'), pcss = fs.readFileSync(ROOT + '/src/popup/popup.css', 'utf8');
+    ok('keyboard focus is drawn on the options pages and the panel controls that had none',
+       /main input:focus-visible,[\s\S]{0,200}outline: 2px solid var\(--mp-on\) !important;/.test(ocss) && /#quick-settings \.qs-tab:focus-visible,/.test(pcss)); }
 // ==== END FIX CHECKS ====
