@@ -3195,4 +3195,6 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     ok('a hotkey that already belongs to another action or macro is refused, and leaving the page ends a capture',
        /if \(owner && owner !== capturing\) \{\s*say\(/.test(g) && /addEventListener\?\.\('hashchange', \(\) => \{ capturing = null; \}\);/.test(g)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('Help Mode arrows are redrawn when the board moves, resizes or flips', /const key = JSON\.stringify\(\[arrows, region \|\| null, where\]\);/.test(csrc) && /where = \[Math\.round\(r\.left\), Math\.round\(r\.top\), Math\.round\(r\.width\), getOrientation\(\)\];/.test(csrc)); }
 // ==== END FIX CHECKS ====

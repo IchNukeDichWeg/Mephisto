@@ -1281,7 +1281,15 @@ function drawHintArrows(arrows, region) {
     const moveRe = fourpc ? new RegExp(`^${SQ4}${SQ4}[qrbnQRBN]?$`) : /^[a-h][1-8][a-h][1-8][qrbn]?$/;
     arrows = (arrows || []).filter(a => a && moveRe.test(a.move ?? ''));
     // help mode redraws on every engine update; skip the DOM churn while the arrows are unchanged
-    const key = JSON.stringify([arrows, region || null]);
+    // ...and where the board is: the same arrows on a board that has since been resized, moved or
+    // flipped are not the same drawing. Left out of the key, the arrows stayed where the old board
+    // was (after a flip they pointed at the mirrored squares) until the engine changed its mind.
+    let where = null;
+    try {
+        const r = region ? null : getBoard()?.getBoundingClientRect?.();
+        if (r) where = [Math.round(r.left), Math.round(r.top), Math.round(r.width), getOrientation()];
+    } catch (e) { /* no board to measure: the arrows alone decide */ }
+    const key = JSON.stringify([arrows, region || null, where]);
     if (key === lastHintKey && overlayEl(HINT_OVERLAY_ID)) return;
     clearHintArrow();
     if (!arrows.length) return;
