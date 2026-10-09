@@ -759,6 +759,10 @@ async function initPanel(root, tabId) {
             // froze. Fall through on a resume instead. Note this deliberately does NOT clear
             // last_eval.fen: premove_instant_reply matches its tracker against it, so leaving it
             // intact lets an already-certified reply fire immediately rather than re-searching.
+            // A RESUME MEANS THE LAST MOVE WAS NEVER CLICKED (tab unfocused, board mismatch, a rejected
+            // click). Puzzle Mode records a move when it is SENT, and that record refused to send it
+            // again -- "already moved from this position" -- so the puzzle sat until you moved by hand.
+            if (response.resume) puzzle_last_sent = {key: null, at: 0};
             if (last_eval.fen !== fen || (response.resume && config.autoplay)) {
                 // Clock Mode mirroring: bookkeep the opponent's clock at turn boundaries. When a
                 // position lands on OUR turn, they just moved -- their spend = their clock at the

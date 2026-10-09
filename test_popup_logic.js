@@ -3084,4 +3084,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('Manual Mode: neither premove path plays a move without the keypress',
        (psrc.match(/config\.help_mode \|\| config\.puzzle_mode \|\| config\.simon_says_mode \|\| config\.manual_mode\) return/g) || []).length === 2); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('Puzzle Mode: a resume (the move was never clicked) clears the sent-move record so it can be sent again',
+       /if \(response\.resume\) puzzle_last_sent = \{key: null, at: 0\};\s*if \(last_eval\.fen !== fen/.test(psrc)); }
 // ==== END FIX CHECKS ====
