@@ -3206,4 +3206,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const r = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
     ok('Game Review: starting a run takes the previous game\'s report off the screen', /\$\('rv_stop'\)\.disabled = false;[\s\S]{0,420}\$\('rv-report'\)\?\.classList\.add\('hidden'\);\s*\$\('rv-indicators'\)\?\.classList\.add\('hidden'\);/.test(r)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = psrc.indexOf('function on_remote_error('), fn = psrc.slice(i, psrc.indexOf('\n}\n', i) + 3);
+    const run = (err, native) => { const c = vm.createContext({console: {error() {}}, TypeError}); c.err = err;
+        vm.runInContext(`var shown; function update_best_move(t) { shown = t; } function toggle_calculating() {} function uses_native() { return ${native}; } function uses_cloud() { return false; } function i18n(k, d) { return d; } ${fn}; on_remote_error(err)`, c); return c.shown; };
+    ok('a Remote Engine that is not running says so; any other error is shown as it is',
+       /localhost:9090/.test(run(new TypeError('Failed to fetch'), false)) && run(new Error('boom'), false) === 'boom' && run(new TypeError('x'), true) === 'x'); }
 // ==== END FIX CHECKS ====

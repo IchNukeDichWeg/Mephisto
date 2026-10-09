@@ -11402,7 +11402,12 @@ async function parse_backend_json(res) {
 
 function on_remote_error(err) {
     console.error(err);
-    update_best_move(err.message);
+    // "Failed to fetch" is the browser's whole description of a server that is not there, and it was
+    // all the panel said: no hint that the Remote Engine is a program you run yourself.
+    const unreachable = err instanceof TypeError && !uses_native() && !uses_cloud();
+    update_best_move(unreachable
+        ? i18n('panel.msg.remote_unreachable', 'Remote Engine: nothing is answering on localhost:9090. Start remote-engine.py, or pick another engine.')
+        : err.message);
     toggle_calculating(false);
 }
 
