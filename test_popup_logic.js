@@ -3309,4 +3309,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const ocss = fs.readFileSync(ROOT + '/src/options/options.css', 'utf8');
     ok('the styled dropdowns on Settings show their arrow (in front of the filled box, and click-through)', /\.set-ctl \.select-wrapper \.caret \{ fill: var\(--mp-mute\); right: 8px; z-index: 1; pointer-events: none; \}/.test(ocss)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const ocss = fs.readFileSync(ROOT + '/src/options/options.css', 'utf8');
+    ok('Analysis number fields use the same monospace figures as the other stepper fields', /\.an-f input\[type=number\] \{ font-family: ui-monospace, Menlo, monospace !important; \}/.test(ocss)); }
 // ==== END FIX CHECKS ====

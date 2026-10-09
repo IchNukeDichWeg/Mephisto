@@ -798,3 +798,7 @@ main input:focus-visible,
 .set-row:has(#tb_choose) { flex-wrap: wrap; row-gap: 6px; }
 .set-row:has(#tb_choose) > .set-lbl { flex: 1 0 170px; }
 .set-row:has(#tb_choose) > .set-ctl { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; }
+
+/* Number fields on the Analysis toolbar take the same monospace figures as every other stepper
+   field (the toolbar's own input rule is declared later and had replaced the font). */
+.an-f input[type=number] { font-family: ui-monospace, Menlo, monospace !important; }
