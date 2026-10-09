@@ -168,6 +168,21 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   }
   // The tab's page zoom, for the Python click backend (content-script toClickXY): a page cannot read
   // its own zoom reliably, and Chrome's value is exact whatever DevTools is docked beside it.
+  // WHICH TABS HAVE THE PANEL OPEN, so a full page load in the same tab (lichess starts every new
+  // game and rematch with one) can put it back. Kept in session storage: this worker sleeps, and a
+  // Map would forget. Keyed by tab, cleared with the tab and with the browser.
+  if (msg.panelState) {
+    const id = sender.tab?.id;
+    if (id != null) chrome.storage.session.get('panelTabs', ({panelTabs = {}}) => {
+      if (msg.panelState === 'open') panelTabs[id] = 1; else delete panelTabs[id];
+      chrome.storage.session.set({panelTabs});
+    });
+    return;
+  }
+  if (msg.panelWasOpen) {
+    chrome.storage.session.get('panelTabs', ({panelTabs = {}}) => sendResponse({open: !!panelTabs[sender.tab?.id]}));
+    return true;
+  }
   if (msg.getZoom) {
     try { chrome.tabs.getZoom(sender.tab?.id, (z) => sendResponse(chrome.runtime.lastError ? 1 : (z || 1))); }
     catch (e) { sendResponse(1); }
@@ -2128,6 +2143,9 @@ chrome.debugger.onEvent?.addListener((src, method, params) => {
 // Free a panel's offscreen engine when its tab closes (the popup iframe is gone with it). Tab events
 // don't need the "tabs" permission. clientId == String(tabId), matching ENGINE_CLIENT in popup.js.
 chrome.tabs.onRemoved.addListener((tabId) => {
+  chrome.storage.session.get('panelTabs', ({panelTabs = {}}) => {
+    if (panelTabs[tabId]) { delete panelTabs[tabId]; chrome.storage.session.set({panelTabs}); }
+  });
   chrome.runtime.sendMessage({toOffscreen: true, clientId: String(tabId), cmd: 'dispose'},
     () => void chrome.runtime.lastError);
   // the panel's Maia second-inference client shares the tab's lifetime under its own id

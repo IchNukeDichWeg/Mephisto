@@ -3105,4 +3105,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const seq = (js) => vm.runInContext(js, c);
     seq('push({clocks: {mine: 60}})'); c.t = 1000; seq('push({})'); const brief = seq('!!last_clocks'); c.t = 5000; seq('push({})'); const gone = seq('last_clocks');
     ok('a clock that is gone stops pacing the next game: one clock-less push keeps it, a stale one drops it', brief === true && gone === null, {brief, gone}); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const bsrc = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    ok('the worker remembers which tabs have the panel open, and the page asks at boot and reopens it',
+       /if \(msg\.panelState\) \{/.test(bsrc) && /if \(msg\.panelWasOpen\) \{/.test(bsrc)
+       && /sendMessage\(\{panelWasOpen: true\}, \(r\) => \{\s*if \(chrome\.runtime\.lastError \|\| !r\?\.open \|\| overlayEl\(PANEL_OVERLAY_ID\)\) return;\s*toggleOverlay\(\);/.test(csrc));
+    ok('closing the panel (toolbar, its own X, or popup mode) is recorded, so it stays closed', (csrc.match(/notePanelState\('closed'\)/g) || []).length === 3); }
 // ==== END FIX CHECKS ====

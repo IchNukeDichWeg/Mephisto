@@ -126,6 +126,16 @@ const bootContentScript = () => {
     // panel board, or capture one from the screen. Everything below this line is scraper-only.
     if (!site) return;
     determineStartPosition();
+    // THE PANEL SURVIVES A PAGE LOAD IN ITS OWN TAB. Lichess loads a new page for every new game and
+    // every rematch, and the panel went with the old one: it had to be reopened from the toolbar
+    // each game. If this tab had it open, open it again. Chess sites only -- on any other site the
+    // panel is something you opened for one page.
+    try {
+        chrome.runtime.sendMessage({panelWasOpen: true}, (r) => {
+            if (chrome.runtime.lastError || !r?.open || overlayEl(PANEL_OVERLAY_ID)) return;
+            toggleOverlay();
+        });
+    } catch (e) { /* worker asleep: the toolbar click still works */ }
 };
 
 // Already loaded (injected into an open tab) -> the load event is never coming, so boot ourselves.
@@ -145,6 +155,7 @@ function handleExtensionMessage(response, sender, sendResponse) {
     }
     if (response.closeOverlay) { // sent to every tab when the user switches to toolbar-popup mode
         removeOverlay();
+        notePanelState('closed');
         return;
     }
     if (response.hideOpponent !== undefined) {
@@ -434,7 +445,7 @@ self.MephistoContent = {
     // engine, same effect. See panel_reload() in popup.js.
     reopenPanel: async () => { removeOverlay(); await toggleOverlay(); },
     // the panic key's landing: suspend + remove + clear the eval bar and every arrow, in one call
-    closePanel: () => removeOverlay(),
+    closePanel: () => { removeOverlay(); notePanelState('closed'); },   // the panel's own X
 };
 
 // ------------------------------------------------------------------------------------------
@@ -896,11 +907,18 @@ function minimizeOverlay(wrap) {
     getOverlayRoot().appendChild(badge);
 }
 
+// Tell the worker whether this tab has the panel open (see panelTabs there). Best-effort.
+function notePanelState(state) {
+    try { chrome.runtime.sendMessage({panelState: state}, () => void chrome.runtime.lastError); } catch (e) { /* worker asleep */ }
+}
+
 async function toggleOverlay() {
     if (overlayEl(PANEL_OVERLAY_ID)) {
         removeOverlay();
+        notePanelState('closed');
         return;
     }
+    notePanelState('open');
     // The panel's markup + CSS arrive from the background as BYTES. They are deliberately NOT loaded
     // by URL: a <link>/<iframe> pointing at chrome-extension://<id>/... would both hand the page our
     // id and land in its Resource Timing (issue #35 §3.1/§3.4). getOverlayRoot() first -- the style
