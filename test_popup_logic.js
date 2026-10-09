@@ -3220,4 +3220,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         const mutes = [...css.matchAll(/--mp-mute:\s*(#[0-9a-f]{6})/g)].map(m => m[1]);
         if (mutes.length !== 2 || ratio(mutes[0], '#ffffff') < 4.5 || ratio(mutes[1], '#16171b') < 4.5) bad.push(f + ' ' + mutes.join(',')); }
     ok('the muted text colour meets 4.5:1 on its background in both themes, in the panel and on the options pages', bad.length === 0, bad); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const rh = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8'), rc = fs.readFileSync(ROOT + '/src/options/pages/review/review.css', 'utf8');
+    ok('Game Review: the study URL field is styled like its neighbours and "Review with" is as wide as its text',
+       /id="rv_li_study" class="rv-input rv-study-url browser-default"/.test(rh) && /#rv_mode \{ width: 290px; max-width: none; \}/.test(rc)); }
 // ==== END FIX CHECKS ====
