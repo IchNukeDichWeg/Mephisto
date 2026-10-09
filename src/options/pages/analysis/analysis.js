@@ -501,6 +501,16 @@ function loadFromInput() {
             if ((parts[0] || '').split('/').length !== 8 || parts.length < 4) {
                 throw new Error('that does not look like a FEN');
             }
+            // ...and for standard chess the position has to be one a game can reach: an impossible
+            // one was accepted with "Position loaded." and handed to the engine, which either sat on
+            // "thinking…" (an empty board) or can be wedged by it (more than 32 pieces).
+            if (['chess', 'fischerandom'].includes(anVariant())) {
+                const n = (re) => (parts[0].match(re) || []).length;
+                const ranks = parts[0].split('/');
+                if (n(/K/g) !== 1 || n(/k/g) !== 1) throw new Error('each side needs exactly one king');
+                if (n(/[PNBRQK]/g) > 16 || n(/[pnbrqk]/g) > 16 || n(/P/g) > 8 || n(/p/g) > 8) throw new Error('too many pieces for a chess position');
+                if (/[Pp]/.test(ranks[0] + ranks[7])) throw new Error('a pawn cannot stand on the first or last rank');
+            }
             const c = newChess(fenText);
             treeRoot = mkNode(c.fen(), c.turn(), null, null, null,
                               {holdings, promoted: '', checksLeft: {w: 3, b: 3}});

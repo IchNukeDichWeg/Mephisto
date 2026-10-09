@@ -3184,4 +3184,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...and it is what every UCI_Elo send uses', !/UCI_Elo(": | value \$\{|: )config\.elo/.test(psrc) && (psrc.match(/engine_elo\(\)/g) || []).length >= 5); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('panel tooltips flip above the control, or are clamped, instead of running off the bottom', /const below = r\.bottom \+ 6;\s*tip\.style\.top = \(\(below \+ h > vh - 4 && r\.top - 6 - h >= 4\) \? r\.top - 6 - h/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const i = a.indexOf("if (['chess', 'fischerandom'].includes(anVariant())) {"), blk = a.slice(i, a.indexOf('const c = newChess(fenText);', i));
+    const why = (fen) => { try { vm.runInNewContext(`const parts = ${JSON.stringify(fen.split(' '))}; const anVariant = () => 'chess'; ${blk}`); return ''; } catch (e) { return e.message; } };
+    ok('Analysis: an impossible standard position is refused with a reason, a normal one loads',
+       why('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') === '' && /king/.test(why('8/8/8/8/8/8/8/8 w - - 0 1'))
+       && /pawn/.test(why('P3k3/8/8/8/8/8/8/4K3 w - - 0 1')) && /too many/.test(why('qqqqkqqq/qqqqqqqq/qq6/8/8/8/8/4K3 w - - 0 1'))); }
 // ==== END FIX CHECKS ====
