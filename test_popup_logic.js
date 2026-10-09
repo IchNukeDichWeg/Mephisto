@@ -3154,4 +3154,18 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     ok('Panel Style: the styled dropdown is rebuilt once the stored value has arrived', /sel\.value = ui_mode \|\| 'floating';[\s\S]{0,260}M\.FormSelect\.init\(sel\)/.test(g)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const src = fs.readFileSync(ROOT + '/src/options/util/SettingsPage.js', 'utf8').replace(/^import .*$/m, '').replace('export class', 'class');
+    const run = async (file, have) => { const removed = [], set = {}, alerts = [];
+        const c = vm.createContext({console, alert: (m) => alerts.push(m), chrome: {storage: {local: {get: async () => have}}},
+            MephistoConfig: {set: (k, v) => { set[k] = v; }, remove: (k) => removed.push(k)}});
+        vm.runInContext(src + '; class P extends SettingsPage { init() {} pullConfigValues() {} }; var page = new P();', c);
+        c.file = {text: async () => JSON.stringify(file)}; await vm.runInContext('page.onImportConfigValues(file)', c);
+        return {removed: removed.sort(), set: Object.keys(set).sort(), alerts: alerts.length}; };
+    (async () => {
+        const a = await run({elo: '1800'}, {elo: '2000', help_mode: 'true', lichess_token: '"t"', session_totals: '{}', timings: [1, 2]});
+        const b = await run({elo: 'abc'}, {help_mode: 'true'});
+        ok('Import restores: a setting the file does not name goes back to default, records and the token stay; a value that is not JSON refuses the whole file',
+           JSON.stringify(a) === JSON.stringify({removed: ['help_mode'], set: ['elo'], alerts: 1}) && b.set.length === 0 && b.removed.length === 0 && b.alerts === 1, {a, b});
+    })(); }
 // ==== END FIX CHECKS ====

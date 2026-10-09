@@ -217,11 +217,32 @@ export class SettingsPage {
             alert('Import failed: that does not look like a Mephisto settings file.');
             return;
         }
+        // ...and every one of those strings has to BE JSON, or the panel's JSON.parse throws on it at
+        // boot and takes more than that one setting down with it.
+        const broken = Object.entries(obj).find(([, v]) => { try { JSON.parse(v); return false; } catch (e) { return true; } });
+        if (broken) {
+            alert(`Import failed: the value of "${broken[0]}" is not valid. Nothing was changed.`);
+            return;
+        }
         delete obj.__cfg_migrated;
+        // IMPORT RESTORES, IT DOES NOT MERGE. A setting at its default is not stored, so it is not in
+        // the file -- and merging left whatever this machine had in its place (Help Mode or Autoplay
+        // stayed on after importing a file from a setup where they were off). Settings the file does
+        // not name go back to their defaults. The same things the export leaves out stay put: they
+        // are a credential and this machine's own records, not settings.
+        const KEEP = ['__cfg_migrated', 'lichess_token', 'session_totals', 'player_book_cache'];
+        let have = {};
+        try { have = await chrome.storage.local.get(null); } catch (e) { /* nothing to clear */ }
+        for (const [k, v] of Object.entries(have)) {
+            if (typeof v === 'string' && !(k in obj) && !KEEP.includes(k)) MephistoConfig.remove(k);
+        }
         // Set through MephistoConfig, not chrome.storage directly: it updates the SYNC cache now,
         // rather than waiting on the async onChanged that pullConfigValues would otherwise race.
         for (const [k, v] of Object.entries(obj)) MephistoConfig.set(k, v);
         this.pullConfigValues();
         alert(`Imported ${Object.keys(obj).length} settings. Open panels pick them up on their next move; reload the game tab to apply an engine change now.`);
+        // the parts of this page drawn by hand (Humanize mix, thresholds, hotkeys) only read storage
+        // when the page is built, and showed their old values until a manual reload
+        if (typeof location !== 'undefined') location.reload();
     }
 }
