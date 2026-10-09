@@ -6908,14 +6908,17 @@ let search_start = 0; // when the current autoplay search was issued (for the re
 // T/30 said "spend 2 s" in 1+0 and 10 s in 5+0 on a move everybody knows, and Humanize called the
 // start position tense (level, top lines close) and sat its 'long' think on top: over 5 s on move 1
 // of a bullet game (issue 1). A scrape with no move list always says "move 1", so the move number
-// only counts when there is a move list or the board is the start array.
+// only counts when the game is known to have started from the start array.
 const OPENING_MOVES = 8;       // fullmoves; the reel-off Humanize already used for its 'quick' kind
 const OPENING_PACE_MS = 750;   // top of the 'quick' band (250-750 ms)
 function in_opening(fen) {
     let fullmove = 999;
     try { fullmove = parseInt(fen.split(' ')[5]) || 999; } catch (e) { /* variant fen */ }
     if (fullmove >= OPENING_MOVES) return false;
-    return !!premove_tracker.moves || String(fen).split(' ')[0] === INITIAL_PLACEMENT;
+    // ...and only for a game that STARTED from the start array: the first moves of a "From Position"
+    // endgame are not an opening.
+    const start = premove_tracker.moves ? (premove_tracker.startFen || '') : fen;
+    return String(start).split(' ')[0] === INITIAL_PLACEMENT;
 }
 
 // The intended TOTAL time (ms) for the current move from the clock-aware modes, computed WITHOUT
