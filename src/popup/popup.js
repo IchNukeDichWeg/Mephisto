@@ -1660,7 +1660,11 @@ function maia2_kick(line) {
     if (config.variant && config.variant !== 'chess') return;
     const fen = premove_tracker.fen;
     if (!fen || !line || !line.pred || line.reply) return;
-    const level = (config.engine === 'maia3') ? config.maia3_elo : config.maia_level;
+    // What the second client must be rebuilt for. Maia-2 has no band: its strength is the two
+    // ratings, and it was keyed on maia_level (which it does not use) and initialised without them,
+    // so its premove replies were always computed at the net's default 1500 vs 1500.
+    const level = (config.engine === 'maia3') ? config.maia3_elo
+        : (config.engine === 'maia2') ? `${config.maia2_self_elo}/${config.maia2_oppo_elo}` : config.maia_level;
     if (maia2 && maia2.level !== level) maia2_dispose(); // band switched -> the old client runs a stale net
     if (maia2 && maia2.doneFen === fen) return;          // one inference per position
     let fen2;
@@ -1673,7 +1677,8 @@ function maia2_kick(line) {
         maia2 = {level};
         // no ensureOffscreen needed: the MAIN engine is Maia right now, so the document exists
         try { chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'init',
-                                          engine: config.engine, variant: config.variant, maiaLevel: level}); } catch (e) { maia2 = null; return; }
+                                          engine: config.engine, variant: config.variant, maiaLevel: level,
+                                          elos: [config.maia2_self_elo, config.maia2_oppo_elo]}); } catch (e) { maia2 = null; return; }
     }
     if (maia2.pending) clearTimeout(maia2.pending.timer);
     maia2.doneFen = fen;

@@ -3262,4 +3262,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('a click on the panel title bar is not a drag: it neither moves nor undocks the panel', /if \(!dragMoved\) return;\s*\/\/ Dragging a docked panel is a request to undock it/.test(csrc) && /dragMoved = true;\s*wrap\.style\.left/.test(csrc));
     ok('a page restored from the back/forward cache rebuilds its panel', /addEventListener\('pageshow', \(e\) => \{\s*if \(!e\.persisted \|\| !overlayEl\(PANEL_OVERLAY_ID\)\) return;\s*removeOverlay\(\);\s*toggleOverlay\(\);/.test(csrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('Maia-2 premove: the second client is initialised with the two ratings and rebuilt when either changes',
+       /maiaLevel: level,\s*elos: \[config\.maia2_self_elo, config\.maia2_oppo_elo\]\}\); \} catch \(e\) \{ maia2 = null; return; \}/.test(psrc)
+       && /\(config\.engine === 'maia2'\) \? `\$\{config\.maia2_self_elo\}\/\$\{config\.maia2_oppo_elo\}` : config\.maia_level/.test(psrc)); }
 // ==== END FIX CHECKS ====
