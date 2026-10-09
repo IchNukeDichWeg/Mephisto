@@ -2878,12 +2878,6 @@ function on_engine_response(message) {
     if (typeof message === 'string' && message.startsWith('info string mephisto-unsupported-variant')) {
         return note_unsupported_variant(message.split(' ').pop());
     }
-    const download = download_progress_text(message);
-    if (download) {
-        last_info_at = Date.now();   // a download in progress is not a silent engine (revive_if_engine_silent)
-        return update_best_move(download);
-    }
-    if (is_remote()) {
     // AN ENGINE THAT IS STILL STARTING HAS NOT FAILED TO FLUSH. The flush clock below (STOP_FLUSH_MS)
     // exists for an engine that will never answer a stop. A cold one answers late instead: on a fresh
     // install the 98.5 MB net downloads for seconds, the clock ran out, the owed stops were written
@@ -2892,6 +2886,12 @@ function on_engine_response(message) {
     // 3.1.319). Download progress and the engine's start-up chatter are all `info string`, so each
     // one restarts the clock while stops are owed.
     if (pending_stops > 0 && typeof message === 'string' && message.startsWith('info string')) stop_charged_at = Date.now();
+    const download = download_progress_text(message);
+    if (download) {
+        last_info_at = Date.now();   // a download in progress is not a silent engine (revive_if_engine_silent)
+        return update_best_move(download);
+    }
+    if (is_remote()) {
         last_eval = Object.assign(last_eval, message);
         on_engine_evaluation(last_eval);
         on_engine_best_move(last_eval.bestmove, last_eval.threat, true);
