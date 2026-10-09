@@ -3290,7 +3290,7 @@ function maybe_premove_forced_reply(line) {
     // system (ctx.premove in the board actor), so the same contract as chess.com/lichess should
     // hold. The earlier queen blunder predates the optimistic-state probe (v3); if it recurs,
     // gate this on `detected_prefix === 'tt'` again.
-    if (config.help_mode || config.puzzle_mode || config.simon_says_mode) return;
+    if (config.help_mode || config.puzzle_mode || config.simon_says_mode || config.manual_mode) return;
     if (!premove_certified(line)) return;
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(line.reply ?? '')) return;
     const mover = (premove_tracker.fen.split(' ')[1] === 'w') ? 'white' : 'black';
@@ -3445,7 +3445,8 @@ function pv_walk_moves(fen, pv, maxPlies) {
 
 function premove_instant_reply(new_fen, new_moves) {
     if (!config.premove || !config.autoplay) return null;
-    if (config.help_mode || config.puzzle_mode || config.simon_says_mode) return null;
+    // Manual Mode plays on your keypress and nothing else -- a certified reply is still a move
+    if (config.help_mode || config.puzzle_mode || config.simon_says_mode || config.manual_mode) return null;
     if (premove_tracker.premoved) return null; // already queued as a real site premove
     if (!premove_tracker.fen || premove_tracker.fen !== last_eval.fen) return null;
     const mover = (new_fen.split(' ')[1] === 'w') ? 'white' : 'black';

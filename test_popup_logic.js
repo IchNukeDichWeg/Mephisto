@@ -3081,4 +3081,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('the Variant select goes through the same path as Detect', /if \(key === 'variant'\) return apply_detected_variant\(parse\(elem\.value\)\);/.test(psrc));
     ok('a drop the page cannot play is said on screen, not only in the console', /if \(\/\^\[PNBRQ\]@\/i\.test\(best\)\) \{\s*set_idle_reason\(/.test(psrc));
 }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('Manual Mode: neither premove path plays a move without the keypress',
+       (psrc.match(/config\.help_mode \|\| config\.puzzle_mode \|\| config\.simon_says_mode \|\| config\.manual_mode\) return/g) || []).length === 2); }
 // ==== END FIX CHECKS ====
