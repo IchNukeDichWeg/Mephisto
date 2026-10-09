@@ -460,7 +460,8 @@ input.set-secret:focus, input.set-path:focus { outline: none; border-color: var(
     box-shadow: none !important;
 }
 .set-ctl .select-wrapper input.select-dropdown:focus { border-color: var(--mp-on) !important; }
-.set-ctl .select-wrapper .caret { fill: var(--mp-mute); right: 8px; }
+/* z-index: the arrow sat BEHIND the dropdown's own filled text box, so these read as text fields */
+.set-ctl .select-wrapper .caret { fill: var(--mp-mute); right: 8px; z-index: 1; pointer-events: none; }
 
 /* --------------------------------------------------------------------- buttons */
 .set-btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
