@@ -18,7 +18,7 @@ html.toolbar-popup {
     --mp-line:    #cfd2d5;
     --mp-text:    #14171a;
     --mp-dim:     #4a5058;
-    --mp-mute:    #8b9198;
+    --mp-mute:    #676d75;   /* 5.2:1 on white; #8b9198 was 3.2:1, under the 4.5:1 text needs */
     --mp-on:      #2f7d41;
     --mp-on-soft: #e4f2e7;
     --mp-track:   #ccd0d5; /* slider remainder -- must read against --mp-bg on its own */
@@ -29,7 +29,7 @@ body.mephisto-dark {
     --mp-line:    #34353d;
     --mp-text:    #e8eaec;
     --mp-dim:     #b7bbc0;
-    --mp-mute:    #6b7079;
+    --mp-mute:    #8a909a;   /* 5.5:1 on the dark panel; #6b7079 was 3.6:1 */
     --mp-on:      #3f9d54;
     --mp-on-soft: #16311e;
     --mp-track:   #464a54; /* --mp-line (#34353d) was a near-invisible shade on #16171b */

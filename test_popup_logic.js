@@ -3212,4 +3212,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         vm.runInContext(`var shown; function update_best_move(t) { shown = t; } function toggle_calculating() {} function uses_native() { return ${native}; } function uses_cloud() { return false; } function i18n(k, d) { return d; } ${fn}; on_remote_error(err)`, c); return c.shown; };
     ok('a Remote Engine that is not running says so; any other error is shown as it is',
        /localhost:9090/.test(run(new TypeError('Failed to fetch'), false)) && run(new Error('boom'), false) === 'boom' && run(new TypeError('x'), true) === 'x'); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const lum = (h) => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+    const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+    const bad = [];
+    for (const f of ['/src/popup/popup.css', '/src/options/options.css']) { const css = fs.readFileSync(ROOT + f, 'utf8');
+        const mutes = [...css.matchAll(/--mp-mute:\s*(#[0-9a-f]{6})/g)].map(m => m[1]);
+        if (mutes.length !== 2 || ratio(mutes[0], '#ffffff') < 4.5 || ratio(mutes[1], '#16171b') < 4.5) bad.push(f + ' ' + mutes.join(',')); }
+    ok('the muted text colour meets 4.5:1 on its background in both themes, in the panel and on the options pages', bad.length === 0, bad); }
 // ==== END FIX CHECKS ====
