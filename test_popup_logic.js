@@ -3304,4 +3304,6 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
     ok('Settings: the Engine dropdown is an ordinary row under an ordinary heading, in the wide column',
        /<h3 data-i18n="panel\.engine" class="set-h">Engine<\/h3>/.test(gh) && /<div class="set-ctl">\s*<select name="engine" id="engine_select">/.test(gh) && /<div class="col s12 m9 xl9">/.test(gh)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('the click path is warmed on the first position of a panel with Autoplay on, once', /if \(!clicker_warmed && config\.autoplay && !config\.help_mode && !config\.manual_mode && !config\.python_autoplay_backend\) \{\s*clicker_warmed = true;\s*try \{ chrome\.runtime\.sendMessage\(\{cdpWarm: true\}/.test(psrc)); }
 // ==== END FIX CHECKS ====

@@ -181,6 +181,7 @@ let last_clocks = null;   // {mine, theirs, increment, at} scraped off the page 
 let last_our_eval = null; // our-perspective cp after our previous move (humanize criticality)
 let opp_clock_mark = null; // opponent's clock when their turn started...
 let opp_turn_at = 0;        // ...and the wall-clock time it started, for when the increment is unknown
+let clicker_warmed = false; // the click path has been warmed for this panel (see on_new_pos)
 let opp_spend = null;      // ...so their spend on their LAST move = mark - now (Clock Mode mirroring)
 let prev_ply_count = 0;    // plies in the last-seen position; a drop back to the start = a NEW GAME
 
@@ -5329,6 +5330,14 @@ function on_new_pos(fen, startFen, moves) {
     // the content script compared the new board against the new key, matched, and clicked a stale
     // answer into a live board. Observed as e6g8, correct for the position it was found in.
     clear_idle_reason();   // a new position: whatever stopped the last move no longer applies
+    // WARM THE CLICK PATH ON THE FIRST POSITION, not at the first click. Attaching the debugger the
+    // clicks go through cost 588 ms on the first move of a game against a 150 ms median afterwards
+    // (measured over 31 moves): the page asked for it only once a move was already waiting. Autoplay
+    // will need it within moments anyway, so ask now, while the engine is still searching.
+    if (!clicker_warmed && config.autoplay && !config.help_mode && !config.manual_mode && !config.python_autoplay_backend) {
+        clicker_warmed = true;
+        try { chrome.runtime.sendMessage({cdpWarm: true}, () => void chrome.runtime.lastError); } catch (e) { /* worker asleep: the first click still warms it */ }
+    }
     // the header's side-to-move switch follows EVERY position, including one typed into the FEN box
     // (only the page-scrape path used to set it, so a pasted Black-to-move FEN still showed White)
     update_turn_badge(fen);
