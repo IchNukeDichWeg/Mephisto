@@ -3093,4 +3093,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const live = psrc.slice(psrc.indexOf('const LIVE_CONFIG_KEYS = ['), psrc.indexOf('];', psrc.indexOf('const LIVE_CONFIG_KEYS = [')));
     const missing = ['grind_mode', 'grind_delay', 'streamer_alert', 'puzzle_capture', 'puzzle_capture_cdp'].filter(k => !live.includes(`'${k}'`));
     ok('Grind Mode, its delay, the streaming notice and page-solution capture reach an open panel from the Settings page', missing.length === 0, missing); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const msrc = fs.readFileSync(ROOT + '/src/offscreen/maia.js', 'utf8');
+    ok('Maia / Leela: a game that starts from a position gets its history filled with that position (lc0 fen fill), a normal game does not',
+       /if \(fens\[0\]\.split\(' '\)\[0\] !== START\) while \(fens\.length < 8\) fens\.unshift\(fens\[0\]\);\s*history = fens\.reverse\(\)\.map\(parseFen\);/.test(msrc)); }
 // ==== END FIX CHECKS ====

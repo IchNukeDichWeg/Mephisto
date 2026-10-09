@@ -129,6 +129,14 @@ export async function createMaiaEngine(level, listen, net = null) {
             chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
             fens.push(chess.fen());
         }
+        // A GAME THAT STARTS FROM A POSITION HAS NO PAST, and an lc0-format net reads an empty past as
+        // "this is the first move of a game": seven of the eight history slots stayed zero, and a
+        // quiet middlegame came out as g4 at -6.31 (Maia-1 2200) where the same position reached by
+        // moves gave Bf4 at +0.03. lc0's own answer is to fill the missing past with the oldest
+        // position it has, so do that -- but only for a game that did not begin at the start array,
+        // because real games DO begin with an empty past and the nets were trained on that.
+        const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+        if (fens[0].split(' ')[0] !== START) while (fens.length < 8) fens.unshift(fens[0]);
         history = fens.reverse().map(parseFen);
         black = history[0].stm === 'b';
         legalUcis = chess.moves({ verbose: true }).map(m => m.from + m.to + (m.promotion || ''));
