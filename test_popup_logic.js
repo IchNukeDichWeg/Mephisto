@@ -3312,4 +3312,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const ocss = fs.readFileSync(ROOT + '/src/options/options.css', 'utf8');
     ok('Analysis number fields use the same monospace figures as the other stepper fields', /\.an-f input\[type=number\] \{ font-family: ui-monospace, Menlo, monospace !important; \}/.test(ocss)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const dir = ROOT + '/src/i18n/locales/', bad = [];
+    const same = {'set.multiple_lines': 'panel.multi_lines', 'an.lines': 'panel.multi_lines', 'rv.lines': 'panel.multi_lines',
+        'set.opening_explorer': 'panel.explorer', 'set.play_book_moves': 'panel.book_moves', 'set.endgame_tablebase': 'panel.tablebase'};
+    for (const f of fs.readdirSync(dir)) { const j = JSON.parse(fs.readFileSync(dir + f, 'utf8'));
+        for (const k in same) if (j[k] !== j[same[k]]) bad.push(f + ' ' + k);
+        for (const k of ['an.hash', 'rv.hash']) if (j[k] !== j['panel.memory'] + ' (MB)') bad.push(f + ' ' + k); }
+    ok('the same setting has the same name in the panel, on Settings, on Analysis and in Game Review, in every language', bad.length === 0, bad.slice(0, 6)); }
 // ==== END FIX CHECKS ====
