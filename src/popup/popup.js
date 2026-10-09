@@ -763,8 +763,14 @@ async function initPanel(root, tabId) {
                 // position lands on OUR turn, they just moved -- their spend = their clock at the
                 // start of their turn minus now (they get the increment back after moving). When it
                 // lands on THEIR turn, our move went through -- mark where their clock starts.
+                // ONLY WHEN THE POSITION CHANGED. This block also runs for a `resume` of the SAME
+                // position, and since the mark is taken on our turn (below) a second pass measured
+                // "their clock minus their clock": the spend became the increment, i.e. zero, and the
+                // reply to a long think was played instantly (3.1.319 regression).
                 const ourColor = (our_side() === 'white') ? 'w' : 'b';
-                if (turn === ourColor) {
+                if (last_eval.fen === fen) {
+                    // same position again: the spend already measured stands
+                } else if (turn === ourColor) {
                     opp_spend = (opp_clock_mark != null && last_clocks?.theirs != null)
                         ? Math.max(0, opp_clock_mark - last_clocks.theirs + (last_clocks.increment || 0))
                         : null;
