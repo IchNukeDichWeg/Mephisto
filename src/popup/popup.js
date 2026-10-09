@@ -1760,7 +1760,7 @@ async function initialize_engine(reuseWarm = false) {
             // boots with UCI_LimitStrength on. Engines with no Elo option get neither key.
             ...(NO_ELO_ENGINES.includes(config.engine) ? {}
                 : config.elo > 0 && config.elo <= (ELO_RANGE[config.engine] || [1320, 3190])[1]
-                    ? {"UCI_LimitStrength": true, "UCI_Elo": config.elo} : {"UCI_LimitStrength": false}),
+                    ? {"UCI_LimitStrength": true, "UCI_Elo": engine_elo()} : {"UCI_LimitStrength": false}),
             // Always sent for Rodent, '---' included: the host keeps the last configure it was given.
             ...(RODENT_ENGINES.includes(config.engine) ? {"Personality": config.rodent_personality} : {}),
         }).catch(on_remote_error);
@@ -1804,7 +1804,7 @@ async function initialize_engine(reuseWarm = false) {
             const eloMax = (ELO_RANGE[config.engine] || [1320, 3190])[1];
             if (config.elo > 0 && config.elo <= eloMax) {
                 send_engine_uci('setoption name UCI_LimitStrength value true');
-                send_engine_uci(`setoption name UCI_Elo value ${config.elo}`);
+                send_engine_uci(`setoption name UCI_Elo value ${engine_elo()}`);
             } else {
                 send_engine_uci('setoption name UCI_LimitStrength value false');
             }
@@ -1905,6 +1905,16 @@ function flush_engine_options() {
 
 // The quick-settings Elo slider, from config.elo. A function, not setup code, because an Elo set on
 // the settings page reaches the open panel's engine live now, and the slider has to say so too.
+// The Elo actually sent: the stored cap brought inside the selected engine's own range. The Settings
+// field accepts 100..3190 for every engine, and a value outside an engine's range (100 on Stockfish,
+// whose floor is 1320) was sent raw while the panel's label showed the nearest slider stop.
+function engine_elo() {
+    const stops = elo_stops(config.engine);
+    const lo = stops[1], hi = stops[stops.length - 2];
+    const n = Number(config.elo);
+    return (Number.isFinite(lo) && Number.isFinite(hi) && Number.isFinite(n)) ? Math.max(lo, Math.min(hi, Math.round(n))) : config.elo;
+}
+
 function sync_elo_slider() {
     const eloSlider = PANEL_ROOT.getElementById('qs_elo');
     if (!eloSlider) return;
@@ -1921,6 +1931,10 @@ function sync_elo_slider() {
     eloSlider.max = String(stops.length - 1);
     eloSlider.value = String(idxOf(config.elo));
     paint_elo_slider();
+    // a cap typed on the Settings page need not sit on a slider stop (1500 is between 1470 and
+    // 1520): the label says the number in force, not the stop the thumb snapped to
+    const eloLabel = PANEL_ROOT.getElementById('qs_elo_val');
+    if (eloLabel && config.elo > 0 && config.elo < FULL_STRENGTH_ELO) eloLabel.textContent = engine_elo();
 }
 function paint_elo_slider() {
     const eloSlider = PANEL_ROOT.getElementById('qs_elo'), eloLabel = PANEL_ROOT.getElementById('qs_elo_val');
@@ -9320,11 +9334,11 @@ function watch_config_changes() {
                     abandon_search();
                     const cap = config.elo > 0 && config.elo <= (ELO_RANGE[config.engine] || [1320, 3190])[1];
                     if (is_remote()) {
-                        request_remote_configure(cap ? {UCI_LimitStrength: true, UCI_Elo: config.elo}
+                        request_remote_configure(cap ? {UCI_LimitStrength: true, UCI_Elo: engine_elo()}
                                                      : {UCI_LimitStrength: false}).catch(() => {});
                     } else {
                         send_engine_uci(`setoption name UCI_LimitStrength value ${cap}`);
-                        if (cap) send_engine_uci(`setoption name UCI_Elo value ${config.elo}`);
+                        if (cap) send_engine_uci(`setoption name UCI_Elo value ${engine_elo()}`);
                     }
                     last_eval.fen = '';
                     resync_after_config_change = true;

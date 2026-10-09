@@ -2450,7 +2450,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
                   cut('const RODENT_ENGINES', ';'), cut('const ELO_RANGE = {', '\n};')].join('\n');
     ok('the configure spreads and their tables slice out', eloSpread && persSpread && defs.split('\n').length > 4);
     const cc = vm.createContext({});
-    vm.runInContext(defs + '\nvar build = (config) => ({' + eloSpread + '\n' + persSpread + '\n});', cc);
+    // the cap goes through engine_elo() (the stored value inside the engine's own range), which reads the global config
+    const pjFn = (name) => { const i = pj.indexOf(`function ${name}(`); return pj.slice(i, pj.indexOf('\n}\n', i) + 3); };
+    vm.runInContext(defs + '\nconst FULL_STRENGTH_ELO = 3200;\n' + pjFn('elo_stops') + pjFn('engine_elo')
+        + '\nvar config; var build = (c) => { config = c; return ({' + eloSpread + '\n' + persSpread + '\n}); };', cc);
     const opts = (c) => JSON.parse(JSON.stringify(cc.build(c)));
     const eq = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringify(want), got);
     eq('rodent, default: the engine default personality and no cap',
@@ -3171,4 +3174,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('changing Lines, Threads or Memory in the panel restarts the search so it applies now, stop first',
        /if \(!is_remote\(\) && \(key === 'threads' \|\| key === 'memory' \|\| key === 'multiple_lines'\)\) \{\s*abandon_search\(\);\s*last_eval\.fen = '';/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const pf = (name) => { const i = psrc.indexOf(`function ${name}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({});
+    vm.runInContext(`var config = {engine: 'stockfish-19-nnue', elo: 0}; const FULL_STRENGTH_ELO = 3200, ELO_RANGE = {'stockfish-19-nnue': [1320, 3190], 'old': [1350, 2850]}; ${pf('elo_stops')} ${pf('engine_elo')}`, c);
+    const at = (engine, elo) => vm.runInContext(`config.engine = '${engine}'; config.elo = ${elo}; engine_elo()`, c);
+    ok('the Elo sent to the engine is the stored cap inside that engine\'s own range: 1500 stays 1500, 100 becomes the floor, 3000 on a 2850 engine becomes 2850',
+       at('stockfish-19-nnue', 1500) === 1500 && at('stockfish-19-nnue', 100) === 1320 && at('old', 3000) === 2850, [at('stockfish-19-nnue', 1500), at('stockfish-19-nnue', 100), at('old', 3000)]);
+    ok('...and it is what every UCI_Elo send uses', !/UCI_Elo(": | value \$\{|: )config\.elo/.test(psrc) && (psrc.match(/engine_elo\(\)/g) || []).length >= 5); }
 // ==== END FIX CHECKS ====
