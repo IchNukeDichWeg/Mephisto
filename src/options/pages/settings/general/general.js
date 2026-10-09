@@ -974,7 +974,12 @@ class GeneralSettings extends SettingsPage {
     initUiMode() {
         const sel = document.getElementById('ui_mode_select');
         if (!sel) return; // stale cached page html
-        chrome.storage.local.get('ui_mode', ({ui_mode}) => { sel.value = ui_mode || 'floating'; });
+        chrome.storage.local.get('ui_mode', ({ui_mode}) => {
+            sel.value = ui_mode || 'floating';
+            // the styled dropdown shows its own text box, built before this answer arrived: rebuild
+            // it, or the page says "Floating panel" over a stored "Toolbar popup"
+            try { M.FormSelect.init(sel); } catch (e) { /* a browser-default select needs nothing */ }
+        });
         sel.addEventListener('change', () => chrome.storage.local.set({ui_mode: sel.value}));
     }
 

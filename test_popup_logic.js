@@ -3151,4 +3151,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const i = g.indexOf('    onResetConfigValues() {'), fn = g.slice(i, g.indexOf('\n    }\n', i));
     const missing = ['humanize_top', 'humanize_blunder', 'humanize_cp_second', 'humanize_cp_blunder', 'live_classify_which', 'hotkeys', 'hotkey_macros', 'ui_mode'].filter(k => !fn.includes(`'${k}'`));
     ok('Restore Defaults on General also clears what the page draws by hand: the Humanize mix and thresholds, chips, hotkeys, macros, Panel Style', i > 0 && missing.length === 0, missing); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    ok('Panel Style: the styled dropdown is rebuilt once the stored value has arrived', /sel\.value = ui_mode \|\| 'floating';[\s\S]{0,260}M\.FormSelect\.init\(sel\)/.test(g)); }
 // ==== END FIX CHECKS ====
