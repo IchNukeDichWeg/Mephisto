@@ -3296,4 +3296,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('a failed Human Reply load is forgotten so the next ask retries, and its timeout is reset by download progress',
        /mine\.catch\(\(\) => \{ if \(threat_human_ready === mine\) \{ threat_human_ready = null; threat_human_elo_loaded = null; \} \}\);/.test(psrc)
        && /mephisto-download\/\.test\(m\.line \|\| ''\)\) \{ clearTimeout\(timer\); timer = arm\(\); \}/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const u = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    ok('Install finishes an interrupted update from its staged copy instead of starting over (which replaced the good backup)',
+       /if \(staged && await readFileAt\(staged, STAGED_MARKER\)\) return finishStaged\(onStatus\);\s*const installed = await verifyFolder\(dir\);/.test(u)); }
 // ==== END FIX CHECKS ====

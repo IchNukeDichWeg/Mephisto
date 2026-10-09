@@ -424,6 +424,14 @@ const MephistoUpdater = (function () {
         if (!(await hasPermission())) throw new Error('Chrome is not holding the download permission.');
         const dir = await folder({prompt: true});
         if (!dir) throw new Error('Choose the extension folder first.');
+        // AN INTERRUPTED UPDATE IS FINISHED, NEVER STARTED OVER. If the last run died while putting
+        // files in place, this folder is a mix of two versions and its manifest may already be the
+        // new one. Starting again from here read that manifest as "installed", deleted the good
+        // backup and replaced it with a backup of the mixed folder, so Roll back restored a broken
+        // build. A fully staged update is completed from its staging copy instead, which keeps the
+        // existing backup.
+        const staged = await dir.getDirectoryHandle(STAGING).catch(() => null);
+        if (staged && await readFileAt(staged, STAGED_MARKER)) return finishStaged(onStatus);
         const installed = await verifyFolder(dir); // re-checked every run, not only when it was picked
 
         onStatus('Checking for a newer release…');
