@@ -31,7 +31,7 @@ if (location.protocol === 'chrome-extension:' && window.top === window.self) {
 const IS_CONTENT_SCRIPT = (location.protocol !== 'chrome-extension:');
 let PANEL_MSG_HANDLER = null; // content-script -> panel, invoked directly when in-page
 let PANEL_ROOT = document;
-const BOARD_THEMES = ['brown','red','orange','tan','green','sky','blue','purple','grey','wood','marble','newspaper'];
+const BOARD_THEMES = ['brown','red','orange','tan','green','sky','blue','purple','grey','wood','marble','newspaper','_8-bit'];
 let PANEL_ASSETS = null; // {pieces:{wP:dataURI,...}} when the panel is in-page
 let PANEL_TIP_HOST = document.body || document.documentElement;
 

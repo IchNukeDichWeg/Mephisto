@@ -3131,4 +3131,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('Bot Move Delay, Draw Within and Contempt keep a value of 0 instead of falling back to the default',
        ['auto_draw_cp', 'bot_trick_delay', 'contempt_cp'].every(k => new RegExp(k + ": JSON\\.parse\\(MephistoConfig\\.get\\('" + k + "'\\)\\) \\?\\? ").test(psrc))); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const ah = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.html', 'utf8');
+    const themes = eval(psrc.match(/const BOARD_THEMES = (\[[^\]]*\]);/)[1]);
+    const at = ah.indexOf('value="brown"'), sel = ah.slice(ah.lastIndexOf('<select', at), ah.indexOf('</select>', at));
+    const offered = [...sel.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
+    ok('every board theme the Appearance page offers is one the panel applies', offered.length > 5 && offered.every(v => themes.includes(v)), offered.filter(v => !themes.includes(v))); }
 // ==== END FIX CHECKS ====
