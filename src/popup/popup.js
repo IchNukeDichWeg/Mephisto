@@ -180,6 +180,7 @@ let detected_prefix = null; // which site the last scrape came from ('li'/'cc'/'
 let last_clocks = null;   // {mine, theirs, increment, at} scraped off the page (Clock Mode)
 let last_our_eval = null; // our-perspective cp after our previous move (humanize criticality)
 let opp_clock_mark = null; // opponent's clock when their turn started...
+let opp_turn_at = 0;        // ...and the wall-clock time it started, for when the increment is unknown
 let opp_spend = null;      // ...so their spend on their LAST move = mark - now (Clock Mode mirroring)
 let prev_ply_count = 0;    // plies in the last-seen position; a drop back to the start = a NEW GAME
 
@@ -774,14 +775,23 @@ async function initPanel(root, tabId) {
                     opp_spend = (opp_clock_mark != null && last_clocks?.theirs != null)
                         ? Math.max(0, opp_clock_mark - last_clocks.theirs + (last_clocks.increment || 0))
                         : null;
+                    // WITH AN UNKNOWN INCREMENT THE CLOCK CANNOT SAY WHAT THEY SPENT: the increment they
+                    // were handed back is subtracted from it, so in a "3 + 2" chess.com bot game (whose
+                    // page shows no time control this can read) every think under 2 s measured as 0 and
+                    // every reply was instant. The time between their turn starting and ending on OUR
+                    // side of the screen needs no increment, so it is used whenever the increment is
+                    // not known and that turn was seen starting.
+                    if (last_clocks?.increment == null && opp_turn_at) opp_spend = (Date.now() - opp_turn_at) / 1000;
+                    opp_turn_at = 0;
                     // THEIR CLOCK IS FROZEN WHILE WE ARE TO MOVE, so this reading is also where it
                     // starts their next turn. Marking it here means Mirror Time no longer depends on
                     // a scrape landing during THEIR turn -- without a move list (chess.com with the
                     // sidebar off the Moves tab) that push is not reliable, the mark stayed null and
                     // every move fell back to the clock budget (issue 1).
                     if (last_clocks?.theirs != null) opp_clock_mark = last_clocks.theirs;
-                } else if (opp_clock_mark == null && last_clocks?.theirs != null) {
-                    opp_clock_mark = last_clocks.theirs;
+                } else {
+                    opp_turn_at = Date.now();
+                    if (opp_clock_mark == null && last_clocks?.theirs != null) opp_clock_mark = last_clocks.theirs;
                 }
                 // check BEFORE on_new_pos: the tracker belongs to the position we were analysing
                 const instant = premove_instant_reply(fen, moves);
@@ -911,7 +921,7 @@ async function initPanel(root, tabId) {
         if (setupRow) setupRow.style.display = 'none';
         last_eval.fen = '';   // treat whatever comes back as a brand-new position
         prev_ply_count = 0;   // treat it as a fresh game...
-        opp_spend = opp_clock_mark = last_our_eval = null; // ...and clear stale clock/mirror/humanize pacing
+        opp_spend = opp_clock_mark = last_our_eval = null; opp_turn_at = 0; // ...and clear stale clock/mirror/humanize pacing
         abandon_search(); // L1: the stopped search still flushes a bestmove -- for the position we're discarding
         fen_request_inflight = false; // don't let an in-flight poll's 500ms guard swallow the re-query
         push_config();        // resets the content-script's push dedupe + triggers an immediate push
@@ -4400,7 +4410,7 @@ function play_on_panel_board(from, to, promotion) {
     if (input) input.value = next;
     setup_fen_msg(i18n('panel.fen.panel_board', 'Playing on the panel board - Re-detect to follow the page again'));
     last_eval.fen = ''; prev_ply_count = 0;
-    opp_spend = opp_clock_mark = last_our_eval = null;
+    opp_spend = opp_clock_mark = last_our_eval = null; opp_turn_at = 0;
     explorer_out_of_book = false; explorer_data = null; explorer_empty_streak = 0;
     abandon_search();
     turn = next.split(' ')[1];
@@ -5015,7 +5025,7 @@ async function snap_position(crop) {
     if (auto_flipped) setup_fen_msg(i18n('panel.fen.auto_flipped',
         'Read from screen - Black was at the bottom, so the board was turned round. Flip board undoes it.'));
     last_eval.fen = ''; prev_ply_count = 0;
-    opp_spend = opp_clock_mark = last_our_eval = null;
+    opp_spend = opp_clock_mark = last_our_eval = null; opp_turn_at = 0;
     explorer_out_of_book = false; explorer_data = null; explorer_empty_streak = 0;
     abandon_search();
     turn = 'w';
@@ -5076,7 +5086,7 @@ function apply_setup_fen() {
     setup_fen_msg(i18n('panel.fen.set', 'Set - the panel is no longer following the page'));
     // treat it as a brand-new game so no stale pacing/premove/book state carries over
     last_eval.fen = ''; prev_ply_count = 0;
-    opp_spend = opp_clock_mark = last_our_eval = null;
+    opp_spend = opp_clock_mark = last_our_eval = null; opp_turn_at = 0;
     explorer_out_of_book = false; explorer_data = null;
     abandon_search();
     turn = parsed.split(' ')[1];
@@ -5280,7 +5290,7 @@ function on_new_pos(fen, startFen, moves) {
     // `<= 4` keeps it to real restarts (catches fast bullet where a couple plies land before the
     // first scrape) while a transient mid-game mis-scrape can't trip it from a deep position.
     if (ply_count < prev_ply_count && ply_count <= 4) {
-        opp_spend = null; opp_clock_mark = null; last_our_eval = null;
+        opp_spend = null; opp_clock_mark = null; last_our_eval = null; opp_turn_at = 0;
         explorer_out_of_book = false; explorer_data = null; explorer_empty_streak = 0; // new game = back in book
         // A NEW GAME IS A NEW OPPONENT AND A NEW CLOCK. Without this the prep book stayed keyed to
         // the last person and the "longest clock seen" carried a 15+10 game's base time into the

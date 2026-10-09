@@ -2953,7 +2953,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
     const c = vm.createContext({Date, Math});
     vm.runInContext(`var config = {clock_mode: true, mirror_mode: true}, opp_spend = null, premove_tracker = {moves: '', startFen: ''},
-        last_eval = {fen: ''}, last_clocks = {mine: 60, theirs: 60, increment: 0, at: Date.now()};
+        last_eval = {fen: ''}, last_clocks = {mine: 60, theirs: 50, increment: 0, at: Date.now()};   // theirs lower: no catch-up cut
         const INITIAL_PLACEMENT = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR', OPENING_MOVES = 8, OPENING_PACE_MS = 750;
         function mirror_ratio() { return 0.9; }
         ${['clock_aware', 'clock_budget_ms', 'clock_move_budget_ms', 'in_opening', 'paced_move_target_ms'].map(fnSrc).join('\n')}`, c);
@@ -2971,14 +2971,23 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('Humanize reels the opening off before it can call the start position tense',
        /kind = 'instant';\s*else if \(in_opening\(fen\)\) kind = 'quick';[\s\S]{0,400}kind = 'long'/.test(psrc));
     ok('Mirror Time marks the opponent clock on our turn too, so it does not need a scrape during theirs',
-       /if \(turn === ourColor\) \{[\s\S]{0,900}if \(last_clocks\?\.theirs != null\) opp_clock_mark = last_clocks\.theirs;\s*\} else if \(opp_clock_mark == null/.test(psrc));
+       /if \(turn === ourColor\) \{[\s\S]{0,1800}if \(last_clocks\?\.theirs != null\) opp_clock_mark = last_clocks\.theirs;\s*\} else \{\s*opp_turn_at = Date\.now\(\);\s*if \(opp_clock_mark == null/.test(psrc));
     {
         // the bookkeeping block itself, executed: a second pass over the same position keeps the spend
         const i = psrc.indexOf("const ourColor = (our_side() === 'white') ? 'w' : 'b';\n                if (last_eval.fen === fen)");
         const blk = psrc.slice(i, psrc.indexOf('// check BEFORE on_new_pos', i));
         const c2 = vm.createContext({});
-        vm.runInContext(`var opp_spend = null, opp_clock_mark = 60, last_clocks = {theirs: 50, increment: 0}, last_eval = {fen: 'A'}, turn = 'w';
+        vm.runInContext(`var opp_spend = null, opp_clock_mark = 60, opp_turn_at = 0, last_clocks = {theirs: 50, increment: 0}, last_eval = {fen: 'A'}, turn = 'w';
             function our_side() { return 'white'; } function pass(fen) { ${blk} }`, c2);
+        // increment unknown ("3 + 2" bot game): their 1.2 s think reads as 0 on the clock; the wall clock says 1.2
+        const c4 = vm.createContext({Date: {now: () => c4.t}}); c4.t = 1000;
+        vm.runInContext(`var opp_spend = null, opp_clock_mark = null, opp_turn_at = 0, last_clocks = {theirs: 180, increment: null}, last_eval = {fen: 'A'}, turn = 'b';
+            function our_side() { return 'white'; } function pass(fen) { ${blk} }`, c4);
+        vm.runInContext(`pass('B')`, c4);                                   // their turn starts
+        c4.t = 2200; const wall = vm.runInContext(`turn = 'w'; last_clocks.theirs = 180.8; pass('C'); opp_spend`, c4);
+        const known = vm.runInContext(`turn = 'b'; pass('D'); turn = 'w'; last_clocks = {theirs: 179.6, increment: 2}; pass('E'); opp_spend`, c4);
+        ok('Mirror Time with an unknown increment measures their think on the wall clock (1.2 s, not 0); a known increment still uses the clock',
+           Math.abs(wall - 1.2) < 1e-9 && Math.abs(known - 3.2) < 1e-9, {wall, known});
         const first = vm.runInContext(`pass('B'); opp_spend`, c2);
         const again = vm.runInContext(`last_eval.fen = 'B'; pass('B'); opp_spend`, c2);
         ok('Mirror Time: a resume of the same position keeps the measured spend (10 s stays 10 s, not 0)', first === 10 && again === 10, {first, again});

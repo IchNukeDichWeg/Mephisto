@@ -3259,7 +3259,7 @@ function scrapeClocks() {
     // increment from the time-control text; null when unknown. lichess writes "3+2" / "½+0 • Rated";
     // chess.com writes "3 | 2" -- PIPE, not plus -- so the plus-only regex never matched there and
     // Clock Mode budgeted every incremental chess.com game as sudden death (audit finding, 2026-08-26).
-    const inc = tcText.match(/[\d½¼]+\s*[+|]\s*(\d+)/);
+    const inc = tcText.match(/[\d½¼¾]+\s*[+|]\s*(\d+)/);   // ¾+N is a real lichess time control
     return {mine, theirs, increment: inc ? parseInt(inc[1]) : null};
 }
 
