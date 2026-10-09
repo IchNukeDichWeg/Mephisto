@@ -9902,9 +9902,20 @@ async function threat_human_reply(fenAfter) {
     return human_once(`reply|${fenAfter}`, () => threat_human_ask(fenAfter));
 }
 
+// ONE CLIENT, ONE QUESTION AT A TIME. Human Reply and the Safety Net both ask this client, back to
+// back on every bestmove, and each listened for "the next bestmove from it": the first answer
+// resolved BOTH, so the Safety Net's list for our position was filled with the opponent's replies to
+// our best move and cached under our position for the session. Questions now wait their turn.
+let human_serial = Promise.resolve();
+function human_in_turn(ask) {
+    const p = human_serial.then(ask, ask);
+    human_serial = p.catch(() => {});
+    return p;
+}
+
 async function threat_human_ask(fenAfter) {
     await ensure_threat_human();
-    const answer = await new Promise((resolve) => {
+    const answer = await human_in_turn(() => new Promise((resolve) => {
         const timer = setTimeout(() => { cleanup(); resolve(null); }, 15000);
         let top = null;
         const onMsg = (m) => {
@@ -9917,7 +9928,7 @@ async function threat_human_ask(fenAfter) {
         chrome.runtime.onMessage.addListener(onMsg);
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: `position fen ${fenAfter}`});
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: 'go nodes 1'});
-    });
+    }));
     if (answer) threat_human_cache.set(fenAfter, answer);
     return answer;
 }
@@ -9964,7 +9975,7 @@ async function safety_human_choices(fen) {
 
 async function safety_human_ask(fen) {
     await ensure_threat_human();
-    const answer = await new Promise((resolve) => {
+    const answer = await human_in_turn(() => new Promise((resolve) => {
         const timer = setTimeout(() => { cleanup(); resolve(null); }, 15000);
         const list = [];
         const onMsg = (m) => {
@@ -9977,7 +9988,7 @@ async function safety_human_ask(fen) {
         chrome.runtime.onMessage.addListener(onMsg);
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: `position fen ${fen}`});
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line: 'go nodes 1'});
-    });
+    }));
     if (answer && answer.length) safety_human_cache.set(fen, answer);
     return answer || [];
 }

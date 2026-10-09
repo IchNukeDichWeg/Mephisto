@@ -3266,4 +3266,20 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('Maia-2 premove: the second client is initialised with the two ratings and rebuilt when either changes',
        /maiaLevel: level,\s*elos: \[config\.maia2_self_elo, config\.maia2_oppo_elo\]\}\); \} catch \(e\) \{ maia2 = null; return; \}/.test(psrc)
        && /\(config\.engine === 'maia2'\) \? `\$\{config\.maia2_self_elo\}\/\$\{config\.maia2_oppo_elo\}` : config\.maia_level/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // Human Reply and the Safety Net on their one shared client, executed: each gets the answer to ITS position
+    const cut = (from, to) => { const a = psrc.indexOf(from); return psrc.slice(a, psrc.indexOf(to, a)); };
+    const code = cut('let human_serial = Promise.resolve();', '// asked from the same branch that arms the threat arrow') + cut('async function safety_human_ask(fen) {', '// asked whenever the net is watching our turn');
+    const c = vm.createContext({setTimeout, clearTimeout, Promise, Number});
+    vm.runInContext(`var listeners = [], lastPos = '', threat_human_id = 'hr', threat_human_cache = new Map(), safety_human_cache = new Map();
+        async function ensure_threat_human() {}
+        const moveFor = {A: 'a2a3', B: 'b2b3'};
+        const chrome = {runtime: {onMessage: {addListener: (f) => listeners.push(f), removeListener: (f) => { listeners = listeners.filter(x => x !== f); }},
+            sendMessage: (m) => { if (m.line.startsWith('position fen ')) lastPos = m.line.slice(13);
+                else { const pos = lastPos; setTimeout(() => { for (const l of [\`info depth 1 multipv 1 score cp 0 maiaprob 5000 pv \${moveFor[pos]}\`, \`bestmove \${moveFor[pos]}\`]) for (const f of [...listeners]) f({fromOffscreen: true, clientId: 'hr', kind: 'line', line: l}); }, 5); } }}};
+        ${code}`, c);
+    vm.runInContext('var got; Promise.all([threat_human_ask("A"), safety_human_ask("B")]).then(r => { got = r; })', c);
+    setTimeout(() => { const g = c.got;
+        ok('Human Reply and the Safety Net each get the answer to their own position on the shared client',
+           !!g && g[0] && g[0].uci === 'a2a3' && g[1].length === 1 && g[1][0].uci === 'b2b3', g); }, 120); }
 // ==== END FIX CHECKS ====
