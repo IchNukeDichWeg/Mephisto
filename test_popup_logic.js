@@ -2952,15 +2952,17 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const fnSrc = (name) => { const i = psrc.indexOf(`function ${name}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
     const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
     const c = vm.createContext({Date, Math});
-    vm.runInContext(`var config = {clock_mode: true, mirror_mode: true}, opp_spend = null, premove_tracker = {moves: ''},
+    vm.runInContext(`var config = {clock_mode: true, mirror_mode: true}, opp_spend = null, premove_tracker = {moves: '', startFen: ''},
         last_eval = {fen: ''}, last_clocks = {mine: 60, theirs: 60, increment: 0, at: Date.now()};
         const INITIAL_PLACEMENT = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR', OPENING_MOVES = 8, OPENING_PACE_MS = 750;
         function mirror_ratio() { return 0.9; }
         ${['clock_aware', 'clock_budget_ms', 'clock_move_budget_ms', 'in_opening', 'paced_move_target_ms'].map(fnSrc).join('\n')}`, c);
     const run = (js) => vm.runInContext(js, c);
     const move1 = run(`paced_move_target_ms(${JSON.stringify(START)}).ms`);
-    const mid = run(`premove_tracker.moves = 'e2e4 e7e5'; paced_move_target_ms('r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 4 12').ms`);
+    const mid = run(`premove_tracker.moves = 'e2e4 e7e5'; premove_tracker.startFen = ${JSON.stringify(START)}; paced_move_target_ms('r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 4 12').ms`);
     const noList = run(`premove_tracker.moves = ''; in_opening('r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w - - 0 1')`);
+    const fromPos = run(`premove_tracker.moves = 'e1e2'; premove_tracker.startFen = '8/8/8/4k3/8/8/4P3/4K3 w - - 0 1'; in_opening('8/8/8/4k3/8/8/4K3/8 b - - 1 1')`);
+    ok('the first moves of a From Position endgame are not an opening', fromPos === false);
     const mirrored = run(`opp_spend = 3; paced_move_target_ms(${JSON.stringify(START)}).ms`);
     ok('1+0, move 1: the search is sized to the opening pace, not the 2 s clock budget; move 12 still gets the budget',
        move1 === 750 && mid > 1900, {move1, mid});
@@ -2970,5 +2972,43 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /kind = 'instant';\s*else if \(in_opening\(fen\)\) kind = 'quick';[\s\S]{0,400}kind = 'long'/.test(psrc));
     ok('Mirror Time marks the opponent clock on our turn too, so it does not need a scrape during theirs',
        /if \(turn === ourColor\) \{[\s\S]{0,900}if \(last_clocks\?\.theirs != null\) opp_clock_mark = last_clocks\.theirs;\s*\} else if \(opp_clock_mark == null/.test(psrc));
+    {
+        // the bookkeeping block itself, executed: a second pass over the same position keeps the spend
+        const i = psrc.indexOf("const ourColor = (our_side() === 'white') ? 'w' : 'b';\n                if (last_eval.fen === fen)");
+        const blk = psrc.slice(i, psrc.indexOf('// check BEFORE on_new_pos', i));
+        const c2 = vm.createContext({});
+        vm.runInContext(`var opp_spend = null, opp_clock_mark = 60, last_clocks = {theirs: 50, increment: 0}, last_eval = {fen: 'A'}, turn = 'w';
+            function our_side() { return 'white'; } function pass(fen) { ${blk} }`, c2);
+        const first = vm.runInContext(`pass('B'); opp_spend`, c2);
+        const again = vm.runInContext(`last_eval.fen = 'B'; pass('B'); opp_spend`, c2);
+        ok('Mirror Time: a resume of the same position keeps the measured spend (10 s stays 10 s, not 0)', first === 10 && again === 10, {first, again});
+    }
+    {
+        // a cold engine: start-up chatter restarts the flush clock, so the owed stops still eat their zero-node bestmoves
+        const i = psrc.indexOf('function on_engine_response(message) {');
+        const head = psrc.slice(i, psrc.indexOf('last_info_at = Date.now();   // the panel is HEARING', i));
+        const c3 = vm.createContext({console: {log() {}, warn() {}}, Date});
+        vm.runInContext(`var pending_stops = 2, stop_charged_at = Date.now() - 5000, search_active = true, last_info_at = 0, passed = [];
+            const STOP_FLUSH_MS = 1500; function is_remote() { return false; } function note_unsupported_variant() {}
+            function download_progress_text() { return null; } function update_best_move() {}
+            ${head} passed.push(message); }`, c3);
+        const got = vm.runInContext(`for (const m of ['info string nn.nnue downloaded', 'info depth 1 nodes 0', 'bestmove a2a3', 'info depth 1 nodes 0', 'bestmove a2a3', 'info depth 1 nodes 20', 'bestmove e2e4']) on_engine_response(m); passed`, c3);
+        ok('a cold engine: the two zero-node bestmoves owed to abandoned searches are dropped, the real one gets through',
+           JSON.stringify(got) === JSON.stringify(['info depth 1 nodes 20', 'bestmove e2e4']), got);
+    }
+}
+{
+    // 3.1.320: found by the fresh-install audit of the published zip
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const ids = (gh.match(/\bid="[^"]+"/g) || []), dup = ids.filter((v, i) => ids.indexOf(v) !== i);
+    ok('Settings > General: no id appears twice (the page once shipped its last six sections two times)', dup.length === 0, dup.slice(0, 5));
+    ok('Settings > General: each section heading appears once', (gh.match(/class="set-h"[^>]*>Puzzles</g) || gh.match(/>Puzzles<\/h3>/g) || []).length === 1);
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('async function request_remote_analysis('), fn = psrc.slice(i, psrc.indexOf('\n}\n', i) + 3);
+    ok('the native analyse call declares everything it uses (nodes is a parameter; ourTurn is declared or absent)',
+       /request_remote_analysis\(fen, time, moves = null, depth = null, nodes = null\)/.test(fn) && (!/\bourTurn\b/.test(fn) || /const ourTurn\b/.test(fn)));
+    const css = fs.readFileSync(ROOT + '/src/popup/popup.css', 'utf8');
+    ok('the panel palette is declared on :host too, so it exists inside the shadow root', /:root, :host \{\s*--mp-bg:/.test(css));
 }
 // ==== END FIX CHECKS ====
