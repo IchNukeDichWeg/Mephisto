@@ -2098,7 +2098,8 @@ const PUZ_TEAR_RETRIES = 3; // a real tear closes in a frame or two; anything th
 function isPuzzlePage() {
     const path = location.pathname;
     if (site === 'lichess') return /^\/(training|storm|racer|streak)(\/|$)/.test(path);
-    if (site === 'chesscom') return /^\/(puzzles|lessons\/practice)(\/|$)/.test(path);
+    // /daily is the Daily Puzzle (/daily-chess-puzzle redirects there); daily GAMES live under /game/daily
+    if (site === 'chesscom') return /^\/(puzzles|lessons\/practice|daily|daily-chess-puzzle)(\/|$)/.test(path);
     if (site === 'blitztactics') return true; // the whole site is puzzles
     return false;
 }
@@ -3834,6 +3835,8 @@ function getTurn() {
             if (site === 'lichess') {
                 const startPos = startPosCache?.get?.(location.href)?.position;
                 if (startPos && startPos[0] === 'b') firstTurn = 'b';
+            } else if (site === 'chesscom') {
+                firstTurn = chesscomUrlFenTurn() || 'w';
             }
             const secondTurn = (firstTurn === 'w') ? 'b' : 'w';
             return (getMoveRecords().length % 2 === 0) ? firstTurn : secondTurn;
@@ -3851,8 +3854,17 @@ function getTurn() {
         // wrong side, and never played move 1. Reported on Play Computer 2026-09-12, where it is the
         // whole game: that page ships no move list at all, so this branch decides the opening turn.
         // White moves first whichever colour you are, which is why this does not consult orientation.
+        // ...unless the page was opened ON a position: chess.com's analysis board takes `?fen=`, and
+        // a Black-to-move one read as White to move -- the panel recommended a White move under a
+        // board whose own engine line began "3... Bc5". The FEN states the side to move.
         if (site === 'chesscom' && !isPuzzlePage()) {
-            return 'w';
+            return chesscomUrlFenTurn() || 'w';
+        }
+        // The Daily Puzzle starts on the SOLVER's move: nothing is played for the opponent first, so
+        // the rule below (a rated puzzle opens with the opponent's move still to come) is backwards
+        // there. Black-to-move days read as White to move and Puzzle Mode never started.
+        if (site === 'chesscom' && /^\/daily(-chess-puzzle)?(\/|$)/.test(location.pathname)) {
+            return (getOrientation() === 'black') ? 'b' : 'w';
         }
         return (getOrientation() === 'black') ? 'w' : 'b'; // chess.com / blitztactics puzzle
     }
@@ -3897,6 +3909,14 @@ function getTurn() {
         turn = toPiece ? (toPiece.classList.contains('white') ? 'b' : 'w') : null;
     }
     return turn || turnFromContext();
+}
+
+// The side to move of the `?fen=` a chess.com page was opened with ('w' / 'b'), or null without one.
+function chesscomUrlFenTurn() {
+    try {
+        const t = (new URLSearchParams(location.search).get('fen') || '').trim().split(/\s+/)[1];
+        return (t === 'w' || t === 'b') ? t : null;
+    } catch (e) { return null; }
 }
 
 function getRanksFiles() {

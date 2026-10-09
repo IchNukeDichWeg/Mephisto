@@ -1111,7 +1111,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     // starts and we are white -- it evaluated for black and never moved".
     ok('lichess says White at the start', /if \(site === 'lichess'\) \{\s*\n\s*return 'w';/.test(fn));
     ok('...and so does chess.com, outside a puzzle',
-       /if \(site === 'chesscom' && !isPuzzlePage\(\)\) \{\s*\n\s*return 'w';/.test(fn));
+       /if \(site === 'chesscom' && !isPuzzlePage\(\)\) \{\s*\n\s*return chesscomUrlFenTurn\(\) \|\| 'w';/.test(fn));   // White, unless the page's ?fen= says otherwise
     ok('...and neither consults the orientation to decide it',
        fn.indexOf("site === 'chesscom' && !isPuzzlePage()") < fn.lastIndexOf('getOrientation()'));
     ok('a puzzle still reads its own orientation', /getOrientation\(\) === 'black'\) \? 'w' : 'b'/.test(fn));
@@ -3019,5 +3019,19 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /request_remote_analysis\(fen, time, moves = null, depth = null, nodes = null\)/.test(fn) && (!/\bourTurn\b/.test(fn) || /const ourTurn\b/.test(fn)));
     const css = fs.readFileSync(ROOT + '/src/popup/popup.css', 'utf8');
     ok('the panel palette is declared on :host too, so it exists inside the shadow root', /:root, :host \{\s*--mp-bg:/.test(css));
+}
+{
+    // audit 3.1.319: chess.com positions with no last-move highlight
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const fnSrc = (name) => { const i = csrc.indexOf(`function ${name}(`); return csrc.slice(i, csrc.indexOf('\n}\n', i) + 3); };
+    const at = (href) => { const u = new URL(href); const c = vm.createContext({URLSearchParams, location: {search: u.search, pathname: u.pathname}, site: 'chesscom'});
+        vm.runInContext(fnSrc('chesscomUrlFenTurn') + fnSrc('isPuzzlePage'), c); return [vm.runInContext('chesscomUrlFenTurn()', c), vm.runInContext('isPuzzlePage()', c)]; };
+    const b = at('https://www.chess.com/analysis?fen=r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R%20b%20KQkq%20-%203%203&tab=analysis');
+    const none = at('https://www.chess.com/play/computer'), daily = at('https://www.chess.com/daily'), dg = at('https://www.chess.com/game/daily/123');
+    ok('chess.com ?fen= with Black to move reads b; no fen reads null; /daily is a puzzle page and a daily GAME is not',
+       b[0] === 'b' && none[0] === null && daily[1] === true && dg[1] === false && none[1] === false, {b, none, daily, dg});
+    ok('the Daily Puzzle takes the side to move from the orientation, before the rated-puzzle rule',
+       /\/\^\\\/daily\(-chess-puzzle\)\?\(\\\/\|\$\)\/\.test\(location\.pathname\)\) \{\s*return \(getOrientation\(\) === 'black'\) \? 'b' : 'w';/.test(csrc));
 }
 // ==== END FIX CHECKS ====
