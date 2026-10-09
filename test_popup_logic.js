@@ -3250,4 +3250,9 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('a standard-only engine never keeps a variant: at boot, and when it is selected',
        /if \(NO_CHESS960_ENGINES\.includes\(config\.engine\) && config\.variant !== 'chess'\) \{\s*config\.variant = 'chess';/.test(psrc)
        && (/NO_CHESS960_ENGINES\.includes\(eng\)\) save\('variant', 'chess'\);/.test(psrc) || /const keeps960 = !FAIRY_ENGINES\.includes\(eng\) && !NO_CHESS960_ENGINES\.includes\(eng\);/.test(psrc))); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const osrc = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8');
+    ok('an open panel keeps its engine lease between moves, and a client init drops lines queued before it',
+       /setInterval\(\(\) => \{\s*if \(!PANEL_BOOTED\) return;\s*try \{ chrome\.runtime\.sendMessage\(\{toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'ping'\}\)/.test(psrc)
+       && /sticky\[clientId\] = \{\};[\s\S]{0,420}delete pending\[clientId\];\s*initEngine\(clientId/.test(osrc)); }
 // ==== END FIX CHECKS ====

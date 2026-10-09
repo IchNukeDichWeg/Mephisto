@@ -328,6 +328,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (cmd === 'init') {
         initArgs[clientId] = [msg.engine, msg.variant, msg.maiaLevel, msg.elos];
         sticky[clientId] = {};
+        // An init starts this client from nothing. Lines that reached a freshly created document
+        // BEFORE its init (a panel still talking to the document that was closed) were kept and
+        // flushed once the engine loaded: a `go` cut short by the new preamble's `stop` answers
+        // with a zero-node bestmove, the first legal move.
+        delete pending[clientId];
         initEngine(clientId, msg.engine, msg.variant, msg.maiaLevel, msg.elos).catch(e => send(clientId, {kind: 'error', error: String(e)}));
     } else if (cmd === 'uci') {
         const engine = clients[clientId];

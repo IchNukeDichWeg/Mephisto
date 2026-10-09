@@ -1622,9 +1622,15 @@ let maia2 = null; // {level, doneFen, pending: {fen, line, timer}} -- lazily cre
 // Renew this panel's lease on the offscreen engine while a search is running. The engine host
 // cannot see whether this panel still exists -- a navigation or a crashed tab takes the panel with
 // no teardown -- so without this a `go infinite` keeps every core busy for the life of the browser.
-// Only while searching: an idle engine burns nothing, so there is nothing to keep alive.
+// FOR AS LONG AS THE PANEL IS OPEN, not only while searching. With Autoplay every search is a
+// `go movetime`, so between moves nothing was sent at all: after five quiet minutes (a long think
+// by the opponent, the gap between two games) the host threw the engine away as abandoned and then
+// closed itself, and the next position went to a host that was not there -- a stall of many
+// seconds while the panel's watchdog rebuilt it. A closed panel stops pinging (PANEL_BOOTED goes
+// false in suspend), and a page that is gone takes this timer with it, so the lease still expires
+// exactly when it should.
 setInterval(() => {
-    if (!search_active) return;
+    if (!PANEL_BOOTED) return;
     try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'ping'}); }
     catch (e) { /* SW/offscreen gone -- the lease expiring is exactly the right outcome */ }
 }, 15000);
