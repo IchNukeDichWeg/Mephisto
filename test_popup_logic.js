@@ -3320,4 +3320,18 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         for (const k in same) if (j[k] !== j[same[k]]) bad.push(f + ' ' + k);
         for (const k of ['an.hash', 'rv.hash']) if (j[k] !== j['panel.memory'] + ' (MB)') bad.push(f + ' ' + k); }
     ok('the same setting has the same name in the panel, on Settings, on Analysis and in Game Review, in every language', bad.length === 0, bad.slice(0, 6)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // the two cached helpers, executed against the real chess.js: same answers as uncached, and computed once
+    const fn = (name) => { const i = psrc.indexOf(`function ${name}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/lru.min.js', 'utf8') + ';' + fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(`var config = {variant: 'chess'}, made = 0; const RealChess = Chess; Chess = function (...a) { made++; return new RealChess(...a); };
+        const REASON_PIECE_CP = {p: 100, n: 320, b: 330, r: 500, q: 900, k: 0}, REASON_FORK_MIN = 320; const chess_memo = new LRU(512);
+        ${fn('chess_memoized')} ${fn('pv_moves')} ${fn('biggest_hanging')} ${fn('biggest_hanging_now')} ${fn('forced_chain')} ${fn('forced_chain_now')}`, c);
+    const cases = [['r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3', 'b'], ['rnb1kbnr/pppp1ppp/8/4p1q1/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3', 'b'], ['8/8/8/4k3/8/8/4P3/4K3 w - - 0 1', 'w']];
+    const same = cases.every(([fen, col]) => JSON.stringify(vm.runInContext(`biggest_hanging(${JSON.stringify(fen)}, '${col}')`, c)) === JSON.stringify(vm.runInContext(`biggest_hanging_now(${JSON.stringify(fen)}, '${col}')`, c)));
+    const fcFen = '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1', pv = 'a1a8 g8h7';
+    const sameFc = JSON.stringify(vm.runInContext(`forced_chain(${JSON.stringify(fcFen)}, '${pv}', 3)`, c)) === JSON.stringify(vm.runInContext(`forced_chain_now(${JSON.stringify(fcFen)}, '${pv}', 3)`, c));
+    const cost = vm.runInContext(`made = 0; for (let i = 0; i < 50; i++) { biggest_hanging(${JSON.stringify(cases[0][0])}, 'b'); biggest_hanging(${JSON.stringify(cases[2][0])}, 'w'); forced_chain(${JSON.stringify(fcFen)}, '${pv}', 3); } made`, c);
+    ok('the hanging-piece and forced-line helpers give the same answers cached as uncached, and 150 repeat calls build no board at all', same && sameFc && cost === 0, {same, sameFc, cost}); }
 // ==== END FIX CHECKS ====

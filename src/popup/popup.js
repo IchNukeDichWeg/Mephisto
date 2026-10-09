@@ -3414,7 +3414,15 @@ function maybe_premove_forced_reply(line) {
 let forced_chain_key = null, forced_chain_memo = [];
 let pv_walk_key = null, pv_walk_memo = [];
 
+// Kept per (position, line, depth) for the same reason as biggest_hanging: redrawn on every engine
+// line, and the same line arrives many times as the search deepens (320 ms of a 45 s game with
+// Forced Lines on). Callers only read the result.
 function forced_chain(fen, pv, maxPlies) {
+    return chess_memoized(`fc|${config.variant}|${fen}|${Array.isArray(pv) ? pv.join(' ') : pv}|${maxPlies}`,
+                          () => forced_chain_now(fen, pv, maxPlies));
+}
+
+function forced_chain_now(fen, pv, maxPlies) {
     const out = [];
     if (!Number.isFinite(maxPlies) || maxPlies <= 0) return out;
     // STANDARD CHESS ONLY, like forced_second_premove and for a harder reason: in drop variants the
@@ -6010,7 +6018,17 @@ const REASON_FORK_MIN = 320; // only a knight or better counts as a forked targe
 // the whole point: a defended piece is a trade, not a threat, and calling every capture a threat
 // would make the explanation noise. Undefended is checked by asking whether the CAPTURED square is
 // covered by the other side once the capture has happened.
+// KEPT PER POSITION. This is called up to four times for every engine line whose PV changed, and
+// each call makes chess.js build every legal move in full (a made move, two FENs and a SAN apiece)
+// and then again after every capture. Its answer depends on nothing but the position and the
+// colour, so it is computed once. Measured in the lag investigation with Explain Moves on: 344 ms of
+// a 45 s game, a quarter of everything the extension did on the page's main thread.
 function biggest_hanging(fen, victimColor) {
+    // boxed: the usual answer is null (nothing hangs), and the cache cannot hold a bare null
+    return chess_memoized(`hang|${config.variant}|${fen}|${victimColor}`, () => ({v: biggest_hanging_now(fen, victimColor)})).v;
+}
+
+function biggest_hanging_now(fen, victimColor) {
     try {
         const c = new Chess(config.variant, fen);
         if (c.turn() === victimColor) c.setTurn(victimColor === 'w' ? 'b' : 'w');
