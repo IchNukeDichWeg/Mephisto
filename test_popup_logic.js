@@ -3146,4 +3146,9 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('a typed number is read inside its field\'s min/max; empty reads as the default; a decimal step keeps decimals',
        read('4190') === '3190' && read('5') === '100' && read('') === '1500' && read('abc') === '1500' && read('1500.6') === '1501' && (el.step = '0.1', read('150.25') === '150.25'),
        [read('4190'), read('5'), read(''), read('1500.6')]); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const i = g.indexOf('    onResetConfigValues() {'), fn = g.slice(i, g.indexOf('\n    }\n', i));
+    const missing = ['humanize_top', 'humanize_blunder', 'humanize_cp_second', 'humanize_cp_blunder', 'live_classify_which', 'hotkeys', 'hotkey_macros', 'ui_mode'].filter(k => !fn.includes(`'${k}'`));
+    ok('Restore Defaults on General also clears what the page draws by hand: the Humanize mix and thresholds, chips, hotkeys, macros, Panel Style', i > 0 && missing.length === 0, missing); }
 // ==== END FIX CHECKS ====

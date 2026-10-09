@@ -957,6 +957,20 @@ class GeneralSettings extends SettingsPage {
         this.refreshHotkeys?.();
     }
 
+    // RESTORE DEFAULTS MEANS ALL OF THIS PAGE. The base class only clears registered form controls,
+    // which left everything the page draws by hand at its changed value: the Humanize move mix and
+    // its thresholds (so the panel kept playing the custom mix), the classification chips, the
+    // hotkeys and macros, and Panel Style. Remove those too and reload, since each has its own
+    // renderer and a fresh page is the one path that redraws them all.
+    onResetConfigValues() {
+        this.clearConfigValues();
+        for (const k of ['humanize_top', 'humanize_second', 'humanize_third', 'humanize_fourth', 'humanize_inaccuracy',
+            'humanize_mistake', 'humanize_blunder', 'humanize_cp_second', 'humanize_cp_third', 'humanize_cp_fourth',
+            'humanize_cp_inaccuracy', 'humanize_cp_mistake', 'humanize_cp_blunder',
+            'live_classify_which', 'hotkeys', 'hotkey_macros']) MephistoConfig.remove(k);
+        chrome.storage.local.remove('ui_mode', () => location.reload());
+    }
+
     initUiMode() {
         const sel = document.getElementById('ui_mode_select');
         if (!sel) return; // stale cached page html
