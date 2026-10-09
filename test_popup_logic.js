@@ -3120,4 +3120,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const run = (fen, pvLine) => { c.fen = fen; c.pvLine = pvLine; return vm.runInContext(`(() => { const config = {variant: 'chess'}, last_eval = {fen}; ${blk} return mated; })()`, c); };
     ok('a checkmate is a checkmate even when the engine sent no mate score; a stalemate is still a stalemate',
        run('rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3', {}) === true && run('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1', {}) === false); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const c = vm.createContext({console}); c.self = c; c.window = c; c.globalThis = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const sans = (pgn) => { const g = c.MephistoReviewCore.parsePgn(pgn); const one = Array.isArray(g) ? g[0] : (g.games ? g.games[0] : g); return one.moves.map(m => m.san).join(' '); };
+    const z = sans('1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. 0-0 Nf6 5. d3 0-0-0 *');
+    const d = sans('[FEN "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"]\n\n1. ... e5 2. Nf3 1-0');
+    ok('PGN reader: castling written with zeros and "1. ... e5" both load', z === 'e4 e5 Nf3 Nc6 Bc4 Bc5 O-O Nf6 d3 O-O-O' && d === 'e5 Nf3', {z, d}); }
 // ==== END FIX CHECKS ====

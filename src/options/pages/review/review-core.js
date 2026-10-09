@@ -79,7 +79,7 @@ function parseGame(text) {
     movetext = stripVariations(movetext);
     movetext = movetext.replace(/;[^\n]*/g, ' ');          // rest-of-line comment
     movetext = movetext.replace(/\$\d+/g, ' ');            // NAGs
-    movetext = movetext.replace(/\d+\s*\.(\.\.)?/g, ' ');  // move numbers, incl. black's "12..."
+    movetext = movetext.replace(/\d+\s*\.(\s*\.\.)?/g, ' ');  // move numbers, incl. black's "12..." and "12. ..."
 
     const moves = [];
     for (const tok of movetext.split(/\s+/)) {
@@ -92,7 +92,10 @@ function parseGame(text) {
 
         }
         if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(tok)) continue;
-        moves.push({san: tok.replace(/[?!]+$/, ''), clk: null, eval: null, comment: ''});
+        if (/^\.+$/.test(tok) || /^e\.?p\.?$/i.test(tok)) continue;   // stray dots, an "e.p." suffix
+        // castling written with zeros is the FIDE spelling and common in hand-typed PGNs
+        const san = tok.replace(/[?!]+$/, '').replace(/^0-0-0/, 'O-O-O').replace(/^0-0/, 'O-O');
+        moves.push({san, clk: null, eval: null, comment: ''});
     }
     return {
         tags,
