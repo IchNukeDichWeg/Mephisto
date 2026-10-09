@@ -3089,4 +3089,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /if \(response\.resume\) puzzle_last_sent = \{key: null, at: 0\};\s*if \(last_eval\.fen !== fen/.test(psrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('Puzzle Mode follows the page only from the visible tab', /if \(typeof document !== 'undefined' && document\.hidden\) return;\s*if \(onPuzzlePage === !!config\.puzzle_mode\)/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const live = psrc.slice(psrc.indexOf('const LIVE_CONFIG_KEYS = ['), psrc.indexOf('];', psrc.indexOf('const LIVE_CONFIG_KEYS = [')));
+    const missing = ['grind_mode', 'grind_delay', 'streamer_alert', 'puzzle_capture', 'puzzle_capture_cdp'].filter(k => !live.includes(`'${k}'`));
+    ok('Grind Mode, its delay, the streaming notice and page-solution capture reach an open panel from the Settings page', missing.length === 0, missing); }
 // ==== END FIX CHECKS ====

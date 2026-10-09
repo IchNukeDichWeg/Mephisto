@@ -9133,6 +9133,9 @@ function maybe_autodetect_variant() {
 // reload path rather than half-applied under a running search.
 const LIVE_CONFIG_KEYS = [
     'autoplay', 'premove', 'ponder', 'tablebase', 'background_play', 'hide_opponent',
+    // read by the content script from the snapshot this panel pushes, and by nothing else: left out
+    // of this list, switching Grind Mode OFF on the Settings page did not stop the next game
+    'grind_mode', 'grind_delay', 'streamer_alert', 'puzzle_capture', 'puzzle_capture_cdp',
     'explorer', 'book_play', 'explorer_db', 'help_mode', 'humanize', 'clock_mode', 'mirror_mode',
     'manual_mode', 'eval_bar', 'eval_history', 'live_stats', 'puzzle_mode', 'simon_says_mode', 'threat_analysis',
     'threat_human', 'threat_human_elo',
@@ -9254,6 +9257,7 @@ function watch_config_changes() {
                 // The boot path clamps this; without the same clamp HERE, a typed 50 on the
                 // options page ran an open panel at maxPlies 51 while a reloaded one ran at 5.
                 if (key === 'forced_lines') config.forced_lines = Math.max(0, Math.min(5, parseInt(value) || 0));
+                if (key === 'grind_delay') config.grind_delay = Math.max(0, Math.min(600, Number(value) || 0));   // as at boot
                 if (key === 'pv_walk_limit') config.pv_walk_limit = Math.max(1, Math.min(50, parseInt(value) || 5));
                 if (key === 'help_mode' && !value) request_clear_hint();
                 if (key === 'class_on_board' && !value) send_to_active_tab({clearMoveClass: true});
