@@ -3231,4 +3231,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     for (const f of fs.readdirSync(dir)) { const j = JSON.parse(fs.readFileSync(dir + f, 'utf8'));
         for (const k of ['set.pieces', 'set.board', 'set.coordinates', 'set.dark_mode']) if (/[:：]\s*$/.test(j[k] || '')) bad.push(f + ' ' + k); }
     ok('Appearance labels carry no trailing colon in any language, like every other label', bad.length === 0, bad); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const ocss = fs.readFileSync(ROOT + '/src/options/options.css', 'utf8');
+    ok('Settings: the Local Tablebases label keeps its width and its controls wrap', /\.set-row:has\(#tb_choose\) > \.set-lbl \{ flex: 1 0 170px; \}/.test(ocss)); }
 // ==== END FIX CHECKS ====

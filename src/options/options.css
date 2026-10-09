@@ -790,3 +790,10 @@ main input:focus-visible,
     outline: 2px solid var(--mp-on) !important;
     outline-offset: 2px;
 }
+
+/* Local Tablebases carries five controls in one row. They took the whole line, the label was
+   squeezed to zero width, and its second word and info icon ended up under the first button. The
+   label keeps its room and the controls wrap onto a second line when they have to. */
+.set-row:has(#tb_choose) { flex-wrap: wrap; row-gap: 6px; }
+.set-row:has(#tb_choose) > .set-lbl { flex: 1 0 170px; }
+.set-row:has(#tb_choose) > .set-ctl { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; }
