@@ -3203,4 +3203,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /main input:focus-visible,[\s\S]{0,200}outline: 2px solid var\(--mp-on\) !important;/.test(ocss) && /#quick-settings \.qs-tab:focus-visible,/.test(pcss)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('an Appearance change (pieces, board, coordinates, dark mode) rebuilds an open panel', /if \(\['pieces', 'board', 'coordinates', 'dark_mode'\]\.some\(k => k in changes[\s\S]{0,90}\{\s*return panel_reload\(\);/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const r = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    ok('Game Review: starting a run takes the previous game\'s report off the screen', /\$\('rv_stop'\)\.disabled = false;[\s\S]{0,420}\$\('rv-report'\)\?\.classList\.add\('hidden'\);\s*\$\('rv-indicators'\)\?\.classList\.add\('hidden'\);/.test(r)); }
 // ==== END FIX CHECKS ====

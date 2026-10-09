@@ -2481,6 +2481,11 @@ async function onRun() {
     cancel = false;
     $('rv_run').disabled = true;
     $('rv_stop').disabled = false;
+    // A NEW RUN IS A NEW GAME'S REPORT. The last one stayed on screen under it, so pressing Stop on
+    // game B left game A's header, accuracy cards, move list and graph below a PGN box holding B,
+    // with nothing to say they belonged to a different game.
+    $('rv-report')?.classList.add('hidden');
+    $('rv-indicators')?.classList.add('hidden');
     note('');
     let rig = null;
     try {
