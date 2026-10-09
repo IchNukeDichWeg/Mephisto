@@ -3137,4 +3137,13 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const at = ah.indexOf('value="brown"'), sel = ah.slice(ah.lastIndexOf('<select', at), ah.indexOf('</select>', at));
     const offered = [...sel.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
     ok('every board theme the Appearance page offers is one the panel applies', offered.length > 5 && offered.every(v => themes.includes(v)), offered.filter(v => !themes.includes(v))); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const src = fs.readFileSync(ROOT + '/src/options/util/FormElement.js', 'utf8').replace('export class', 'class');
+    const el = {type: 'number', min: '100', max: '3190', step: '10', value: '', addEventListener() {}, dispatchEvent() {}};
+    const c = vm.createContext({console, Event: class {}, document: {getElementById: () => el}});
+    vm.runInContext(src + '; var fe = new FormElement("elo", "", "input", 1500);', c);
+    const read = (v) => { el.value = v; return vm.runInContext('fe.getValue()', c); };
+    ok('a typed number is read inside its field\'s min/max; empty reads as the default; a decimal step keeps decimals',
+       read('4190') === '3190' && read('5') === '100' && read('') === '1500' && read('abc') === '1500' && read('1500.6') === '1501' && (el.step = '0.1', read('150.25') === '150.25'),
+       [read('4190'), read('5'), read(''), read('1500.6')]); }
 // ==== END FIX CHECKS ====
