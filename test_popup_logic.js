@@ -3128,4 +3128,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const z = sans('1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. 0-0 Nf6 5. d3 0-0-0 *');
     const d = sans('[FEN "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"]\n\n1. ... e5 2. Nf3 1-0');
     ok('PGN reader: castling written with zeros and "1. ... e5" both load', z === 'e4 e5 Nf3 Nc6 Bc4 Bc5 O-O Nf6 d3 O-O-O' && d === 'e5 Nf3', {z, d}); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('Bot Move Delay, Draw Within and Contempt keep a value of 0 instead of falling back to the default',
+       ['auto_draw_cp', 'bot_trick_delay', 'contempt_cp'].every(k => new RegExp(k + ": JSON\\.parse\\(MephistoConfig\\.get\\('" + k + "'\\)\\) \\?\\? ").test(psrc))); }
 // ==== END FIX CHECKS ====

@@ -496,7 +496,7 @@ async function initPanel(root, tabId) {
         auto_resign: JSON.parse(MephistoConfig.get('auto_resign')) || false,
         auto_resign_cp: JSON.parse(MephistoConfig.get('auto_resign_cp')) || 900,
         auto_draw: JSON.parse(MephistoConfig.get('auto_draw')) || false,
-        auto_draw_cp: JSON.parse(MephistoConfig.get('auto_draw_cp')) || 20,
+        auto_draw_cp: JSON.parse(MephistoConfig.get('auto_draw_cp')) ?? 20,   // ?? not ||: 0 is a value the page offers
         // The complexity clock: think by how hard the position is. See complexity_k.
         complexity_clock: JSON.parse(MephistoConfig.get('complexity_clock')) || false,
         time_trouble: JSON.parse(MephistoConfig.get('time_trouble')) || false,
@@ -521,7 +521,7 @@ async function initPanel(root, tabId) {
         // Bot tricks: off until asked for, and the panel row does not exist while it is off.
         bot_tricks: JSON.parse(MephistoConfig.get('bot_tricks')) || false,
         bot_trick_game: JSON.parse(MephistoConfig.get('bot_trick_game')) || 'auto',
-        bot_trick_delay: JSON.parse(MephistoConfig.get('bot_trick_delay')) || 500,
+        bot_trick_delay: JSON.parse(MephistoConfig.get('bot_trick_delay')) ?? 500,
         bot_trick_pgn: JSON.parse(MephistoConfig.get('bot_trick_pgn')) || '',
         threat_human_elo: JSON.parse(MephistoConfig.get('threat_human_elo')) || 1500,
         simon_says_mode: JSON.parse(MephistoConfig.get('simon_says_mode')) || false,
@@ -556,7 +556,7 @@ async function initPanel(root, tabId) {
         })(),
         // CONTEMPT: how many centipawns a game you have to WIN is worth. See contempt_pick.
         contempt: JSON.parse(MephistoConfig.get('contempt')) || false,
-        contempt_cp: JSON.parse(MephistoConfig.get('contempt_cp')) || 30,
+        contempt_cp: JSON.parse(MephistoConfig.get('contempt_cp')) ?? 30,
         puzzle_mode: JSON.parse(MephistoConfig.get('puzzle_mode')) || false,
         // The panel builds its OWN config from named keys, so a setting the content script has is
         // still undefined here unless it is listed. Missing these two meant try_puzzle_capture read
@@ -4661,7 +4661,7 @@ function run_bot_trick(what, retried) {
     }
     if (row) row.dataset.playing = game.id;
     send({what: 'mate', moves: game.moves, winner: game.winner, endWith: game.endWith || null,
-          delay: Math.max(0, Math.min(5000, Number(config.bot_trick_delay) || 500))});
+          delay: Math.max(0, Math.min(5000, Number.isFinite(Number(config.bot_trick_delay)) ? Number(config.bot_trick_delay) : 500))});
 }
 
 // Every failure here is something the user can act on, so each one is named. The default branch
