@@ -3097,4 +3097,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const msrc = fs.readFileSync(ROOT + '/src/offscreen/maia.js', 'utf8');
     ok('Maia / Leela: a game that starts from a position gets its history filled with that position (lc0 fen fill), a normal game does not',
        /if \(fens\[0\]\.split\(' '\)\[0\] !== START\) while \(fens\.length < 8\) fens\.unshift\(fens\[0\]\);\s*history = fens\.reverse\(\)\.map\(parseFen\);/.test(msrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = psrc.indexOf('if (response.clocks) last_clocks = {...response.clocks, at: Date.now()};');
+    const two = psrc.slice(i, psrc.indexOf('last_clocks = null;', i) + 19);
+    const c = vm.createContext({Date: {now: () => c.t}}); c.t = 0;
+    vm.runInContext(`var last_clocks = null; function push(response) { ${two} }`, c);
+    const seq = (js) => vm.runInContext(js, c);
+    seq('push({clocks: {mine: 60}})'); c.t = 1000; seq('push({})'); const brief = seq('!!last_clocks'); c.t = 5000; seq('push({})'); const gone = seq('last_clocks');
+    ok('a clock that is gone stops pacing the next game: one clock-less push keeps it, a stale one drops it', brief === true && gone === null, {brief, gone}); }
 // ==== END FIX CHECKS ====

@@ -674,6 +674,12 @@ async function initPanel(root, tabId) {
             sync_fourpc_engine_to_page(response.fourPCPage);
             clearTimeout(fen_request_timer);
             if (response.clocks) last_clocks = {...response.clocks, at: Date.now()}; // for Clock Mode budgeting
+            // A PAGE WITH NO CLOCK MUST NOT KEEP THE LAST GAME'S. Everything that reads last_clocks
+            // subtracts the time since it was read, so a reading left over from a timed game ran
+            // down to zero under the clock-less game after it (a bot game, a puzzle): 50 ms searches
+            // and permanent time trouble. One clock-less push can be a bad read, so the old value is
+            // only dropped once it is more than a few seconds stale.
+            else if (last_clocks && Date.now() - last_clocks.at > 3000) last_clocks = null;
             // The longest clock reading this game is the closest thing to a base time the panel
             // can see, and it is what Opponent Prep gates on: a 3+0 blitz never reaches five
             // minutes, a 15+10 does on move one. Robust to joining a game late, which a scraped
