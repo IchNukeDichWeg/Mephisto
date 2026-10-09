@@ -8180,6 +8180,11 @@ function set_auto_puzzle_flag(on) {
 // on. The panel deliberately holds no list of its own to drift from that one.
 function sync_puzzle_mode_to_page(onPuzzlePage) {
     if (onPuzzlePage == null) return;              // site the content-script does not classify
+    // ONE SETTING, POSSIBLY TWO PANELS. With a puzzle tab and a game tab both open, each panel kept
+    // switching the shared setting to suit its own page, about once a second, for ever. Only the
+    // tab you are looking at gets a say. (Seen in the 3.1.319 audit as Puzzle Mode "flapping"; the
+    // two-tab cause is inferred, it did not reproduce with one tab.)
+    if (typeof document !== 'undefined' && document.hidden) return;
     if (onPuzzlePage === !!config.puzzle_mode) {   // already where it should be
         // On a puzzle page with it already on, this is either our own doing carried across a reload
         // or your manual choice -- and the stored flag is the only thing that can still tell them
