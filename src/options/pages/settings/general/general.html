@@ -1,5 +1,5 @@
 <div class="row">
-    <div class="col s12 m7 offset-m1 xl6 offset-xl1 offset-right-m1">
+    <div class="col s12 m9 xl9">
         <div id="form_container" class="big-section">
 
             <div class="set-filter">
@@ -8,9 +8,10 @@
                        placeholder="Search these settings…" spellcheck="false" autocomplete="off">
             </div>
             <section id="engine" class="set-sec scrollspy">
-                <h3 data-i18n="panel.engine" class="header">Engine</h3>
-                <div class="section">
-                    <label>
+                <h3 data-i18n="panel.engine" class="set-h">Engine</h3>
+
+                <div class="set-row">
+                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.mephisto_communicates_with_a_chess" id="engine-label-tooltiped" class="hidden tooltipped" data-position="right"
                               data-tooltip="Which engine evaluates positions. WASM engines run inside this browser;
                                             the local ones need their native host installed; Remote Engine needs
@@ -23,9 +24,9 @@
                                             chess-api.com and 15 on stockfish.online) and returns one line.">
                             Engine <i class="material-icons info-tooltip">info</i>
                         </span>
-                        <span data-i18n="panel.engine" id="engine-label-untooltiped">
-                            Engine
-                        </span>
+                        <span data-i18n="panel.engine" id="engine-label-untooltiped">Engine</span>
+                    </div>
+                    <div class="set-ctl">
                         <select name="engine" id="engine_select">
                             <option value="stockfish-19-nnue">Stockfish 19 WASM - 99MB</option>
                             <option value="sf-native">Stockfish (local, full power - setup required)</option>
@@ -44,7 +45,7 @@
                             <option value="cloud-stockfish-online">Stockfish 17.1 (online - stockfish.online, position leaves your machine)</option>
                             <option value="remote">Remote Engine</option>
                         </select>
-                    </label>
+                    </div>
                 </div>
                 <!-- Rodent IV only. The values are the engine's own `Personality` combo entries, copied
                      from its `uci` output (Bosboom's alias really is "Bosboom.txt" upstream); a value the
@@ -2026,7 +2027,7 @@
             </div>
         </div>
     </div>
-    <div class="col hide-on-small-only m2 xl3 sticky-top">
+    <div class="col hide-on-small-only m3 xl3 sticky-top">
         <div class="toc-wrapper pin-top">
             <ul id="toc" class="section table-of-contents">
                 <li><a data-i18n="panel.engine" href="#engine">Engine</a></li>

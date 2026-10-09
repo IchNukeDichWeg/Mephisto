@@ -3300,4 +3300,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const u = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
     ok('Install finishes an interrupted update from its staged copy instead of starting over (which replaced the good backup)',
        /if \(staged && await readFileAt\(staged, STAGED_MARKER\)\) return finishStaged\(onStatus\);\s*const installed = await verifyFolder\(dir\);/.test(u)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    ok('Settings: the Engine dropdown is an ordinary row under an ordinary heading, in the wide column',
+       /<h3 data-i18n="panel\.engine" class="set-h">Engine<\/h3>/.test(gh) && /<div class="set-ctl">\s*<select name="engine" id="engine_select">/.test(gh) && /<div class="col s12 m9 xl9">/.test(gh)); }
 // ==== END FIX CHECKS ====
