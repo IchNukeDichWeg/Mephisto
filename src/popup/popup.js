@@ -11247,7 +11247,7 @@ async function request_remote_configure(options) {
     return call_backend('http://localhost:9090/configure', options).then(parse_backend_json);
 }
 
-async function request_remote_analysis(fen, time, moves = null, depth = null) {
+async function request_remote_analysis(fen, time, moves = null, depth = null, nodes = null) {
     if (uses_native()) {
         // guard streamed frames by the ACTUAL position (moves-mode passes startFen here, but
         // premove_tracker.fen holds the real current fen), so late frames don't leak across moves
@@ -11260,7 +11260,7 @@ async function request_remote_analysis(fen, time, moves = null, depth = null) {
         // searches to the time it was given, which is the same search one notch less precise --
         // never a wrong one.
         return native_send('analyse', {fen, time, moves, depth, nodes},
-            info => on_native_info(info, posFen), ourTurn);
+            info => on_native_info(info, posFen));
     }
     if (uses_cloud()) {
         // MOVES MODE. On a real game this is called with the game's START position and the moves
