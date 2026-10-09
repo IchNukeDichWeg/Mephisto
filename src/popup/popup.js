@@ -5324,6 +5324,9 @@ function on_new_pos(fen, startFen, moves) {
     // the content script compared the new board against the new key, matched, and clicked a stale
     // answer into a live board. Observed as e6g8, correct for the position it was found in.
     clear_idle_reason();   // a new position: whatever stopped the last move no longer applies
+    // the header's side-to-move switch follows EVERY position, including one typed into the FEN box
+    // (only the page-scrape path used to set it, so a pasted Black-to-move FEN still showed White)
+    update_turn_badge(fen);
 
     console.log("on_new_pos", fen, startFen, moves);
     // PAINT FIRST. Showing the position we were just handed needs none of the ~200 lines below it --
