@@ -2960,6 +2960,53 @@ function download_progress_text(message) {
         {file: m[1], pct: total ? Math.floor(100 * got / total) : 0, mb: (total / 1e6).toFixed(1)});
 }
 
+// PAINT ONCE PER FRAME, NOT ONCE PER LINE. Every `info` line used to repaint the move text, the
+// score, the WDL bar, the line list and the arrows the moment it arrived: 23 times a second over a
+// game, and a mate-in-one position sends 245 lines inside 50 ms, each its own repaint. The line is
+// still PARSED on arrival -- last_eval, the premove tracker and everything that decides a move see
+// every line, in order -- and only the drawing waits, for at most one frame. A `bestmove` paints
+// whatever is pending first, so the decision that follows reads the same screen state as before.
+const LINE_PAINT_MS = 16;
+let line_paint_timer = null, line_paint_fen = null;
+function schedule_line_paint() {
+    line_paint_fen = last_eval.fen;
+    if (line_paint_timer == null) line_paint_timer = setTimeout(flush_line_paint, LINE_PAINT_MS);
+}
+function flush_line_paint() {
+    if (line_paint_timer == null) return;
+    clearTimeout(line_paint_timer);
+    line_paint_timer = null;
+    // the position moved on while this was waiting: those lines describe a board that is gone
+    if (line_paint_fen !== last_eval.fen) return;
+    paint_lines();
+}
+// What the two branches of the `info depth` handler used to do inline, in the same order.
+function paint_lines() {
+    const first = last_eval.lines && last_eval.lines[0];
+    if (first && first.pv) {
+        // Show THIS depth's best move right away. It used to show the PREVIOUS depth's line 0
+        // instead, so on the first depth (no previous line) the move text stayed "Calculating..."
+        // while the score and NPS had already updated -- a visible one-depth lag. The native path
+        // (on_native_info) already shows the current move; this makes WASM match it, so the panel
+        // streams the move from the very first depth.
+        const arr = first.pv.split(' ');
+        on_engine_best_move(arr[0], arr[1]);
+        on_engine_evaluation(last_eval);
+    }
+    if ((last_eval.lines || []).some((l, i) => i > 0 && l)) {
+        render_alt_lines(); // alternative lines land AFTER the pv-1 reset; keep the panel current
+        // ...and REDRAW THE ARROWS. draw_moves only ran from the pv-1 branch, which clears the
+        // line array first -- so it always drew with exactly one line in hand and Multi Lines
+        // showed a single arrow no matter how many lines the panel listed. Help Mode mirrors the
+        // same set onto the site board, so it was one arrow there too.
+        if (!config.simon_says_mode) draw_moves();
+        // The safety net has the same blind spot from the other side: its verdict was computed
+        // in the pv-1 branch, when this depth's OTHER lines did not exist yet. Re-judge as they
+        // land -- this is where the set first becomes computable at all.
+        if (config.safety_net) { draw_safety_net(); update_best_move_suffix(); }
+    }
+}
+
 function on_engine_response(message) {
     console.log('on_engine_response', message);
     if (typeof message === 'string' && message.startsWith('info string mephisto-unsupported-variant')) {
@@ -3021,6 +3068,7 @@ function on_engine_response(message) {
         const arr = message.split(' ');
         const best = arr[1];
         const threat = arr[3];
+        flush_line_paint();   // the move decision sees exactly what it always saw: every line painted
         on_engine_best_move(best, threat, true);
     } else if (message.startsWith('info depth')) {
         const lineInfo = {};
@@ -3080,26 +3128,11 @@ function on_engine_response(message) {
             // fresh depth: clear last depth's lines, then set line 0
             last_eval.lines = new Array(config.multiple_lines);
             last_eval.lines[pvIdx] = lineInfo;
-            // Show THIS depth's best move right away. It used to show the PREVIOUS depth's line 0
-            // instead, so on the first depth (no previous line) the move text stayed "Calculating..."
-            // while the score and NPS had already updated -- a visible one-depth lag. The native path
-            // (on_native_info) already shows the current move; this makes WASM match it, so the panel
-            // streams the move from the very first depth.
-            const arr = lineInfo.pv.split(' ');
-            on_engine_best_move(arr[0], arr[1]);
-            on_engine_evaluation(last_eval);
+            // (painted by paint_lines, at most once per frame -- see schedule_line_paint)
+            schedule_line_paint();
         } else {
             last_eval.lines[pvIdx] = lineInfo;
-            render_alt_lines(); // alternative lines land AFTER the pv-1 reset; keep the panel current
-            // ...and REDRAW THE ARROWS. draw_moves only ran from the pv-1 branch, which clears the
-            // line array first -- so it always drew with exactly one line in hand and Multi Lines
-            // showed a single arrow no matter how many lines the panel listed. Help Mode mirrors the
-            // same set onto the site board, so it was one arrow there too.
-            if (!config.simon_says_mode) draw_moves();
-            // The safety net has the same blind spot from the other side: its verdict was computed
-            // in the pv-1 branch, when this depth's OTHER lines did not exist yet. Re-judge as they
-            // land -- this is where the set first becomes computable at all.
-            if (config.safety_net) { draw_safety_net(); update_best_move_suffix(); }
+            schedule_line_paint();
         }
     }
 

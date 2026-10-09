@@ -3334,4 +3334,17 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const sameFc = JSON.stringify(vm.runInContext(`forced_chain(${JSON.stringify(fcFen)}, '${pv}', 3)`, c)) === JSON.stringify(vm.runInContext(`forced_chain_now(${JSON.stringify(fcFen)}, '${pv}', 3)`, c));
     const cost = vm.runInContext(`made = 0; for (let i = 0; i < 50; i++) { biggest_hanging(${JSON.stringify(cases[0][0])}, 'b'); biggest_hanging(${JSON.stringify(cases[2][0])}, 'w'); forced_chain(${JSON.stringify(fcFen)}, '${pv}', 3); } made`, c);
     ok('the hanging-piece and forced-line helpers give the same answers cached as uncached, and 150 repeat calls build no board at all', same && sameFc && cost === 0, {same, sameFc, cost}); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // the once-per-frame painter, executed on a fake clock: a burst paints once, a bestmove flushes first, a new position drops the stale paint
+    const a = psrc.indexOf('const LINE_PAINT_MS = 16;'), code = psrc.slice(a, psrc.indexOf('// What the two branches of the', a));
+    const timers = []; const c = vm.createContext({setTimeout: (f) => { const t = {f, on: true}; timers.push(t); return t; }, clearTimeout: (t) => { if (t) t.on = false; }});
+    vm.runInContext(`var last_eval = {fen: 'A', lines: []}, paints = 0; function paint_lines() { paints++; } ${code}`, c);
+    const fire = () => { for (const t of timers.splice(0)) if (t.on) { t.on = false; t.f(); } };
+    const run = (js) => vm.runInContext(js, c);
+    run('for (let i = 0; i < 245; i++) schedule_line_paint()'); const during = run('paints'); fire(); const burst = run('paints');
+    run('schedule_line_paint(); flush_line_paint()'); const flushed = run('paints'); fire(); const noDouble = run('paints');
+    run('schedule_line_paint(); last_eval.fen = "B"'); fire(); const stale = run('paints');
+    ok('245 engine lines in one frame paint once; a bestmove paints what is pending first and only once; a paint for a position that is gone is dropped',
+       during === 0 && burst === 1 && flushed === 2 && noDouble === 2 && stale === 2, {during, burst, flushed, noDouble, stale});
+    ok('...and the bestmove branch flushes before deciding the move', /flush_line_paint\(\);[^\n]*\n\s*on_engine_best_move\(best, threat, true\);/.test(psrc)); }
 // ==== END FIX CHECKS ====
