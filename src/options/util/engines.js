@@ -193,7 +193,12 @@ class WasmEngine {
             try { chrome.runtime.sendMessage({toOffscreen: true, clientId: this.clientId, cmd: 'ping'}); }
             catch (e) { /* the worker or the offscreen doc is gone */ }
         }, 15000);
-        const ready = this.once(m => m.kind === 'ready' || m.kind === 'error', 120000);
+        // 120 s of SILENCE, not 120 s in total: Review and Analysis default to Stockfish 18, whose
+        // nets are a separate 112 MB download from the panel's, and on a connection under about
+        // 7.5 Mbit/s the first run failed with "the engine stopped answering after 120s" while the
+        // download was still coming in.
+        const ready = this.once(m => m.kind === 'ready' || m.kind === 'error', 120000,
+                                m => m.kind === 'line' && /mephisto-download/.test(m.line || ''));
         chrome.runtime.sendMessage({
             toOffscreen: true, clientId: this.clientId, cmd: 'init',
             engine: this.name, variant: this.opts.variant || 'chess', maiaLevel: this.opts.maiaLevel,
@@ -236,15 +241,22 @@ class WasmEngine {
     // Resolve on the first message matching `pred`. Every wait here is bounded: a WASM engine that
     // dies mid-load emits nothing at all, and an unbounded await would leave the page at 0% with a
     // progress bar and no explanation -- the exact failure the floating panel had.
-    once(pred, timeoutMs) {
+    // `alive`, when given, names messages that prove the engine is still working towards the answer
+    // (a net download reporting progress): each one restarts the clock, so the timeout measures
+    // SILENCE rather than total time.
+    once(pred, timeoutMs, alive = null) {
         return new Promise((resolve, reject) => {
             // Infinity = wait for ever. setTimeout would fire IMMEDIATELY on a non-finite delay
             // (it coerces to 0), so an unbounded search would end the instant it began.
-            const timer = Number.isFinite(timeoutMs) ? setTimeout(() => {
+            const arm = () => Number.isFinite(timeoutMs) ? setTimeout(() => {
                 off();
                 reject(new Error(`the engine stopped answering after ${Math.round(timeoutMs / 1000)}s`));
             }, timeoutMs) : null;
-            const fn = (msg) => { if (pred(msg)) { off(); resolve(msg); } };
+            let timer = arm();
+            const fn = (msg) => {
+                if (pred(msg)) { off(); resolve(msg); return; }
+                if (alive && timer && alive(msg)) { clearTimeout(timer); timer = arm(); }
+            };
             const off = () => {
                 if (timer) clearTimeout(timer);
                 this.waiters.delete(bail);

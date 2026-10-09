@@ -9850,9 +9850,12 @@ function ensure_threat_human() {
     threat_human_ready = (async () => {
         await chrome.runtime.sendMessage({ensureOffscreen: true});
         const ready = new Promise((resolve, reject) => {
-            const timer = setTimeout(() => { cleanup(); reject(new Error('maia load timed out')); }, 60000);
+            // 60 s of silence, not 60 s in total: the model is a 92 MB download on first use
+            const arm = () => setTimeout(() => { cleanup(); reject(new Error('maia load timed out')); }, 60000);
+            let timer = arm();
             const onMsg = (m) => {
                 if (!m || !m.fromOffscreen || m.clientId !== threat_human_id) return;
+                if (m.kind === 'line' && /mephisto-download/.test(m.line || '')) { clearTimeout(timer); timer = arm(); }
                 if (m.kind === 'ready') { cleanup(); resolve(); }
                 if (m.kind === 'error') { cleanup(); reject(new Error(m.error)); }
             };
@@ -9868,6 +9871,11 @@ function ensure_threat_human() {
         chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci',
                                     line: 'setoption name MultiPV value 5'});
     })();
+    // A FAILED LOAD MUST NOT BE REMEMBERED AS THE ANSWER. The rejected promise was kept and handed
+    // back on every later ask, so one timeout left Human Reply and the Safety Net's human read dead
+    // until the panel was reopened, even after the host had finished loading the net.
+    const mine = threat_human_ready;
+    mine.catch(() => { if (threat_human_ready === mine) { threat_human_ready = null; threat_human_elo_loaded = null; } });
     return threat_human_ready;
 }
 

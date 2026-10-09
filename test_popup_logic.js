@@ -3282,4 +3282,18 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     setTimeout(() => { const g = c.got;
         ok('Human Reply and the Safety Net each get the answer to their own position on the shared client',
            !!g && g[0] && g[0].uci === 'a2a3' && g[1].length === 1 && g[1][0].uci === 'b2b3', g); }, 120); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const src = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const i = src.indexOf('    once(pred, timeoutMs, alive = null) {'), fn = src.slice(i, src.indexOf('\n    }\n', i) + 6).replace('    once(', 'function once(');
+    let now = 0; const timers = []; const c = vm.createContext({Number, Promise, Math, Error,
+        setTimeout: (f, ms) => { const t = {f, at: now + ms, on: true}; timers.push(t); return t; }, clearTimeout: (t) => { if (t) t.on = false; }});
+    vm.runInContext(`var self = {waiters: new Set(), listeners: []}; ${fn}; var out = 'pending';
+        once.call(self, m => m.kind === 'ready', 120000, m => /mephisto-download/.test(m.line || '')).then(() => { out = 'ready'; }, (e) => { out = e.message; });`, c);
+    const tick = (to) => { now = to; for (const t of timers) if (t.on && t.at <= now) { t.on = false; t.f(); } };
+    const say = (m) => { for (const f of c.self.listeners.slice()) f(m); };
+    tick(100000); say({kind: 'line', line: 'info string mephisto-download nn.nnue 1 2'}); tick(200000); say({kind: 'line', line: 'info string mephisto-download nn.nnue 2 2'}); tick(250000); say({kind: 'ready'});
+    setTimeout(() => ok('an options-page engine load times out on 120 s of silence, not 120 s of downloading', c.out === 'ready', c.out), 20);
+    ok('a failed Human Reply load is forgotten so the next ask retries, and its timeout is reset by download progress',
+       /mine\.catch\(\(\) => \{ if \(threat_human_ready === mine\) \{ threat_human_ready = null; threat_human_elo_loaded = null; \} \}\);/.test(psrc)
+       && /mephisto-download\/\.test\(m\.line \|\| ''\)\) \{ clearTimeout\(timer\); timer = arm\(\); \}/.test(psrc)); }
 // ==== END FIX CHECKS ====
