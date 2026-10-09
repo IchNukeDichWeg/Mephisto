@@ -895,6 +895,9 @@ class GeneralSettings extends SettingsPage {
             }
             renderMacros();
         };
+        // Leaving the page ends a capture: the listener below is on the document and outlives this
+        // page, so a capture left open rebound the action to the next key pressed anywhere in Options.
+        document.defaultView?.addEventListener?.('hashchange', () => { capturing = null; });
         // one document-level capture listener; only acts while rebinding
         document.addEventListener('keydown', (e) => {
             if (!capturing) return;
@@ -907,12 +910,12 @@ class GeneralSettings extends SettingsPage {
             }
             if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return; // wait for the real key
             const k = keyString(e);
-            // REFUSED, visibly, and still listening for another key. The listener runs single keys
-            // before macros, so a macro on a bound key would simply never fire -- and an action moved
-            // onto a macro's key would silently disable the macro. Action-onto-action duplicates are
-            // left as they always were: that is the existing contract, not this feature's to change.
+            // REFUSED, visibly, and still listening for another key. Any key that already belongs to
+            // something else: the listener acts on the first owner it finds, so a second action on
+            // the same key simply never fired, with nothing on the page to say why. (Action-onto-action
+            // used to be allowed; only macro clashes were refused.)
             const owner = MephistoConfig.hotkeyOwner(k, mi);
-            if (owner && owner !== capturing && (mi >= 0 || owner.startsWith('macro:'))) {
+            if (owner && owner !== capturing) {
                 say(t('set.macro_key_clash', '{key} is already used by "{owner}" - pick another key, or Esc to cancel.',
                     {key: pretty(k), owner: ownerName(owner)}));
                 return;

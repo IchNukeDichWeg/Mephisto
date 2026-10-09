@@ -3191,4 +3191,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('Analysis: an impossible standard position is refused with a reason, a normal one loads',
        why('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') === '' && /king/.test(why('8/8/8/8/8/8/8/8 w - - 0 1'))
        && /pawn/.test(why('P3k3/8/8/8/8/8/8/4K3 w - - 0 1')) && /too many/.test(why('qqqqkqqq/qqqqqqqq/qq6/8/8/8/8/4K3 w - - 0 1'))); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    ok('a hotkey that already belongs to another action or macro is refused, and leaving the page ends a capture',
+       /if \(owner && owner !== capturing\) \{\s*say\(/.test(g) && /addEventListener\?\.\('hashchange', \(\) => \{ capturing = null; \}\);/.test(g)); }
 // ==== END FIX CHECKS ====
