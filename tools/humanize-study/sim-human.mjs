@@ -136,7 +136,7 @@ async function playGame(idx) {
     const us = new Engine(), opp = new Engine({UCI_LimitStrength: 'true', UCI_Elo: Math.max(1320, ELO)});
     await us.ready(); await opp.ready();
     const chess = new H.Chess(undefined);
-    const evals = [], mineAt = [], forcedAt = [];
+    const evals = [], mineAt = [], forcedAt = [], ucis = [];
     let lastOurEval = null;
     const st = {debt: null};   // match mode's owed errors, one game
     try {
@@ -170,6 +170,7 @@ async function playGame(idx) {
             }
             if (!move || move === '(none)') break;
             mineAt[ply] = mine;
+            ucis.push(move);
             if (!chess.move({from: move.slice(0, 2), to: move.slice(2, 4), promotion: move[4]})) throw new Error(`illegal ${move} in ${fen}`);
         }
         const fen = chess.fen();
@@ -182,7 +183,10 @@ async function playGame(idx) {
             drops.push(Math.max(0, wp(before) - wp(after)));
         }
         const result = chess.isCheckmate() ? (chess.turn() === ourColor ? 'L' : 'W') : chess.isGameOver() ? 'D' : 'cap';
-        return {idx, drops, result};
+        // white-view evals per position on the study's mate scale (MATE_CP - plies), for sim_types.py
+        const evw = evals.map((l, i) => { const v = l.mate != null ? (l.mate === 0 ? -100000 : Math.sign(l.mate) * (100000 - Math.abs(l.mate))) : l.cp;
+                                          return i % 2 === 0 ? v : -v; });
+        return {idx, drops, result, ourColor, moves: ucis, evw, graded: mineAt.map((m, i) => !!m && i >= 4 && !forcedAt[i])};
     } finally { us.quit(); opp.quit(); }
 }
 
