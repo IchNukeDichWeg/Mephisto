@@ -52,7 +52,7 @@ Chess.com and Lichess redesigns. Everything the original did still works. New he
 - **Engines** - Stockfish 19 / 18, the human-trained **Maia** (one rating, 600-2600) and **Elite Leela**, **Rodent IV**
   and its personalities, an Elo cap and ten **playstyles**.
 - **Playing like a person** - Humanize, Clock Mode, Mirror Time.
-- **Automation** - Safe Premove, Pondering, Help Mode, Manual Mode, rebindable hotkeys, hotkey macros (one key runs several actions) and a `?` shortcut cheat sheet.
+- **Automation** - Premove, Pondering, Help Mode, Manual Mode, rebindable hotkeys, hotkey macros (one key runs several actions) and a `?` shortcut cheat sheet.
 - **Beyond the engine** - Opening Explorer, endgame tablebase, puzzle database.
 - **On screen** - eval bar, eval history graph, screen reading, screenshot-to-FEN, a playable panel board.
 - **Coverage** - chess.com variants, four-player chess, TakeTakeTake, Chess960, **Shogi and Xiangqi** on the Analysis
@@ -82,7 +82,7 @@ The engine nets and models (about 1 GB) are not in either archive. They live on 
 [`models-v1`](https://github.com/IchNukeDichWeg/Mephisto/releases/tag/models-v1), because they change on very few
 releases. On a fresh install each engine downloads its net the first time it runs (Stockfish 19: 98.5 MB), checks it
 against a SHA-256 and keeps it in the browser's cache. That needs the download permission Chrome asks for when you switch on
-**Automatic Updates** (Settings → General → Updates). An install that started from an older full zip, and a git checkout, already
+**Automatic Updates** (Settings → Updates). An install that started from an older full zip, and a git checkout, already
 have the nets and never download them.
 
 > ⚠️ **Extract the update over your existing install, never into an empty folder** - both archives unpack into a
@@ -94,7 +94,7 @@ at most once every 12 hours, from the service worker, so the chess page never ma
 
 ### Automatic updates (opt-in)
 
-Chrome never updates an extension you loaded yourself, so Mephisto can - **Settings → General → Updates**, **off by
+Chrome never updates an extension you loaded yourself, so Mephisto can - **Settings → Updates**, **off by
 default**. Switch it on (Chrome asks for permission to download from this repository's releases), choose your
 extension folder once, and updating is one button: it fetches the ~7 MB archive, writes it over that folder and
 reloads the extension. The panel's update notice becomes that button.
@@ -136,8 +136,9 @@ real `UCI_Elo` range.
 
 **Chess960** works on every mainline Stockfish. Fairy-Stockfish adds all of Lichess's variants (Crazyhouse, King of
 the Hill, Three-Check, Antichess, Atomic, Horde, Racing Kings) plus Chess.com's **Duck, Minihouse, Seirawan and
-Chaturanga**. The ↻ button beside the variant selector detects the variant and switches engine for you. The last four
-have nets but the bundled chess.js can't replay them, so the panel says so rather than analysing the wrong position.
+Chaturanga**. The ↻ button beside the variant selector detects the variant and switches engine for you. The bundled
+chess.js can't replay the last four, so the panel says so rather than analysing the wrong position, and this Fairy
+build has no Duck at all (see the [roadmap](#roadmap)).
 
 ---
 
@@ -220,12 +221,12 @@ API. **Nothing leaves your machine** during the review - the search runs in the 
   self-contained file.
 - **Share** - an **annotated PGN** (a !! ! ?! ? ?? glyph per graded move, the eval and clock on every move, the coach's
   sentence where there is one) to copy or download; a **share card**, one 1200x630 image with both accuracies, the
-  class counts and the eval strip; and **Send to lichess**. That one publishes the game and asks first. Lichess keeps
+  class counts and the eval strip; and **Import to lichess**. That one publishes the game and asks first. Lichess keeps
   the *moves only* on an anonymous import (measured: every glyph, eval and comment is dropped), so **Add to my
   study** - a token with the `study:write` scope - is the way to keep the annotations there.
 - **Fit Humanize to a player** - every move in the review already carries its centipawn loss, and the Humanize move
   mix is defined in exactly those bands, so counting them gives the mix that reproduces that player. Measured, rather
-  than guessed at with sliders.
+  than guessed at with sliders. It sets those sliders, which play only with **Err Like Your Rating** off.
 
 <img src="docs/game-review.png" alt="The game review page" width="70%">
 
@@ -237,8 +238,7 @@ named opening, plus the centipawn score behind the eval bar and graph.
 
 It runs on **your own chess.com account** the way their site does - Diamond reviews without limit, a free account
 gets the free-tier allowance - with no token or password to hand over; being signed in to chess.com in the browser is
-the whole requirement. This is the one path that sends anything anywhere: the PGN goes to chess.com. The
-[offline review](#game-review-offline) uploads nothing.
+the whole requirement. The PGN goes to chess.com; the [offline review](#game-review-offline) uploads nothing.
 
 The strength tier is sent as chess.com's own ordinal 1-4 (Mephisto used to hardcode Standard). **Measured caveat:**
 on a Diamond account with the cache defeated, their endpoint returns a byte-identical review for all four tiers, so
@@ -288,7 +288,7 @@ free. Nothing about the software changed, the measurement did.
 ### Automated play
 
 - **Autoplay** plays the engine's move; **Help Mode** draws the arrows instead and overrides it.
-- **Safe Premove** - certifies a reply to the opponent's *predicted* move: the same move at depth 13, depth 14 and
+- **Premove** (safe) - certifies a reply to the opponent's *predicted* move: the same move at depth 13, depth 14 and
   the latest depth. An exact match fires instantly, anything else searches normally, so a wrong guess costs nothing. Forced moves and true recaptures queue
   as a real site premove; on chess.com a line forced two moves deep queues both.
 - **Pondering** - the opponent's whole think at full threads over their top 5 replies. Off, their turn is capped at
@@ -339,10 +339,11 @@ free. Nothing about the software changed, the measurement did.
 
 <img src="docs/humanize.png" alt="The move mix and move-quality thresholds, with live accuracy estimates" width="70%">
 
-Seven shares set how often it plays the top move, a 2nd/3rd/4th line, an inaccuracy, a mistake or a blunder, with
+With Humanize on, seven shares set how often it plays the top move, a 2nd/3rd/4th line, an inaccuracy, a mistake or a blunder, with
 per-category centipawn thresholds and a live [Lichess accuracy](https://lichess.org/page/accuracy) estimate of the
 win-chance drop. Defaults sit on Lichess's own boundaries (110 / 230 / 377cp). Nothing past the blunder threshold is
-played, and blunders never fire in a decided game.
+played, and blunders never fire in a decided game. With **Err Like Your Rating** on (the default) the shares are not
+played; see below.
 
 **Target accuracy (optional)** aims the game's accuracy at a number you set. Each move is picked by the accuracy it
 will itself score (the win chance it gives away, graded the way Live Stats and the Game Review grade it), so the game
@@ -382,8 +383,8 @@ with a Maia option on, natural hangs take ours to 2.5. Human-Like Mistakes moves
 (quiet blunders 26% to 46%, players 45%; hung pawns 52% to 37%, players 26%) at 1.7% blunders. The default sliders,
 for comparison, measure 1.0 / 0.0 / 0.4; they still apply with this option off, and an install whose mix was tuned
 before 3.1.323 keeps it off. **Think Like Your Time
-Control (optional)** draws each think from how long players spent per move at that time control, phase and clock left
-- about 2% of the game per blitz move, much less with the clock running out - with a person's spread. A move it is
+Control (optional)** draws each think from how long players spent per move at that time control, phase and clock
+left, about 2% of the game per blitz move, much less with the clock running out - with a person's spread. A move it is
 about to get wrong takes longer, as people's do: in blitz a blunder about 1.4x an average move, a good move 0.9x. And
 the thinks run in streaks, a fast stretch then a slow one (lag-1 correlation 0.17 in blitz, as measured). No think
 takes more than half the clock left (players' p99 above 5% of the clock).
@@ -423,7 +424,7 @@ which a second opt-in catches through Chrome's debugger at the cost of the yello
 
 Not bundled. Download `lichess_db_puzzle.csv.zst` from [database.lichess.org](https://database.lichess.org/#puzzles),
 decompress it (`unzstd lichess_db_puzzle.csv.zst` - browsers have no zstd decoder), then pick the `.csv` under
-**Settings → General → Puzzle Database**. About six million positions, live count as it goes, nothing sent anywhere.
+**Settings → Puzzles → Puzzle Database**. About six million positions, live count as it goes, nothing sent anywhere.
 An interrupted import loses nothing - run it again and it fills in the rest.
 </details>
 
@@ -450,7 +451,7 @@ and branch on `id` before choosing an encoding. Unreadable rows are skipped, not
 ### The panel
 
 Drag by the title bar, close with ✕. **Compact (▣)** collapses it to the status line; **minimize (–)** hides it behind
-a badge while autoplay keeps running. Quick Settings edits every setting inline. **Re-detect (↻)** rescans the page.
+a badge while autoplay keeps running. Quick Settings edits the common settings inline. **Re-detect (↻)** rescans the page.
 **Copy FEN / PGN** (a custom start exports with `SetUp`/`FEN` tags; switch on **Evals In Copied PGN** and every ply
 carries the panel's own `{[%eval] [%depth]}` from the game itself), a **grid button** takes a pasted FEN, **⧉** opens
 the position on Lichess, and an **engine health dot** shows whether a native host answered.
@@ -511,7 +512,8 @@ hyphens) pointing at a `.bat` that runs the host script with
 `"allowed_origins": ["chrome-extension://YOUR_EXTENSION_ID/"]`, and add registry key
 `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.sf_native.host` = the manifest path.
 
-The installer registers the host for **Chrome, Brave, Edge, Chromium and Vivaldi**. Firefox isn't supported for
+The installer registers the host for every Chromium-family browser it knows: **Chrome, Brave, Edge, Chromium,
+Vivaldi, Arc, Opera and Opera GX**, with their beta, dev and canary channels. Firefox isn't supported for
 native engines. Any native build unlocks full speed - the gap between native builds is small, the jump from WASM to
 any of them is huge.
 </details>
@@ -619,7 +621,7 @@ Four are worth knowing before you go looking:
 ## Page footprint
 
 **Toolbar popup** leaves **zero page footprint** - it renders in the browser's own chrome. It closes when you click
-the board, so it is analysis only; Autoplay and Premove need the floating panel (**Settings → General → Panel
+the board, so it is analysis only; Autoplay and Premove need the floating panel (**Settings → Panel → Panel
 Style**). While the floating panel is in use:
 
 - **No iframe.** An iframe is a browsing context, counted by `window.length` and impossible for a closed shadow root
@@ -696,8 +698,8 @@ No schedule - added whenever I feel like it. **Shipped work lives in the
 - [ ] **A speed and polish pass on the panel** - every control compared against the one beside it, the way the
   settings page was swept.
 - [ ] **Shrink the footprint further** - the client side is nearly exhausted, and it was never what catches people.
-- [ ] **More engines** - variety of character rather than more strength. Ten playstyles (v3.1.303) and the human trio
-  (Maia-1 band, Maia-2 matchup, Maia-3 dial) plus Elite Leela cover a lot of it; what is open is a net that is not an
+- [ ] **More engines** - variety of character rather than more strength. Ten playstyles (v3.1.303), the one rating-driven
+  Maia (Maia-2 for a matchup) and Elite Leela cover a lot of it; what is open is a net that is not an
   lc0 net. **lc0 (Leela)** in WASM would be for comparing styles.
 - [ ] **Short videos and more screenshots** · [ ] **Translate the README**.
 
