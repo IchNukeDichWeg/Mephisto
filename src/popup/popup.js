@@ -6800,6 +6800,15 @@ function humanize_get(key, dflt) {
     } catch (e) { return dflt; }
 }
 
+// A Humanize on/off switch read fresh on every pick, like the shares: the settings page writes the
+// store directly, so an edit applies to the very next move. Unset = the default.
+function humanize_flag(key, dflt) {
+    try {
+        const v = JSON.parse(MephistoConfig.get(key));
+        return (typeof v === 'boolean') ? v : dflt;
+    } catch (e) { return dflt; }
+}
+
 // Humanize move mix in PERCENT (the seven HUMANIZE_ORDER categories, normalized to sum 100). Tuned
 // by the sliders in the options page and read fresh on EVERY pick -- the options page and this popup
 // share the extension's storage, so edits apply to the very next move, no reload. fourth/inaccuracy
@@ -7508,6 +7517,102 @@ function contempt_pick(best) {
     return pick;
 }
 
+// ==== HUMANIZE GUARDS ====
+// The mix and the target decide HOW OFTEN to leave the engine's move; nothing looked at WHAT the
+// alternative did to the board. A 320cp loss fits the mistake band whether it is a quiet slip or the
+// queen left en prise, so the uniform pick played 15.Qd2, a queen for a rook (3.1.319 audit), and in
+// a +15 position Target Accuracy kept choosing the biggest giveaway because win% is saturated there.
+// These rules sit on top of both modes, ON by default (humanize_guards), and can only REMOVE a
+// deviation, never add one -- with one exception the owner asked for, the long mate below.
+// Everything in this block is pure (Chess and the variant are passed in) so the suite runs it as is.
+const HZ_PIECE = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
+const HZ_HANG_MIN = 3;          // a minor piece: hanging one is the error a person rarely makes
+                                // twice, a pawn is the error they make all the time (Stage C: hung
+                                // 1-2 is 20% of all errors, hung 3+ is 10%)
+const HZ_WIN_CP = 300;          // +3.00, win% ~75: from here on a mistake gives a won game back
+const HZ_WIN_KEEP = 0.6;        // a deviation keeps at least 60% of a winning eval (and +3.00)
+const HZ_PUNISH_CP = 200;       // the opponent's last move handed us 2+ pawns
+const HZ_PUNISH_BLATANT_CP = 500;
+// How much of the usual deviation rate survives right after the opponent erred. NOT FROM THE DATA,
+// on purpose: Stage C (lichess 2025-10, 1600 blitz) shows people find a best-ish reply LESS often
+// after an opponent's big error (70% -> 55% at a 20%+ win swing), because those positions are sharp.
+// The issue asked for a bot that punishes, so this guard is deliberately stricter than a human.
+const HZ_PUNISH_KEEP = 0.2, HZ_PUNISH_BLATANT_KEEP = 0.05;
+const HZ_LONG_MATE = 7;         // mate in 7+: the "7+" bucket of the Stage C mate table
+// Given a roll that would have left the engine's move anyway, how often a long mate is traded for
+// a line that still wins. Stage C: people keep a forced mate of 7+ on only 56-72% of moves, but stay
+// above 80% win on 97%; the owner asked for "sometimes", so a fraction of the non-top share.
+const HZ_LONG_MATE_SKIP = 0.2;
+const HZ_LONG_MATE_KEEP_CP = 1000;   // the replacement still wins by ten pawns, or is still mate
+
+// What the side to move nets by starting the exchange on `sq`, cheapest attacker first, stopping
+// whenever going on would cost them: a static exchange evaluation. `c` is left as it was found.
+function hz_swap(c, sq) {
+    const first = c.get(sq);
+    if (!first) return 0;
+    let onSquare = HZ_PIECE[first.type] || 0;
+    const gains = [];
+    for (let ply = 0; ply < 10; ply++) {
+        const caps = c.moves({verbose: true}).filter(m => m.to === sq && m.captured);
+        if (!caps.length) break;
+        caps.sort((a, b) => (HZ_PIECE[a.piece] || 0) - (HZ_PIECE[b.piece] || 0));
+        const m = caps[0];
+        gains.push(onSquare);
+        c.move({from: m.from, to: m.to, promotion: m.promotion});
+        onSquare = HZ_PIECE[m.promotion || m.piece] || 0;
+    }
+    for (let i = 0; i < gains.length; i++) c.undo();
+    let v = 0;
+    for (let i = gains.length - 1; i >= 0; i--) v = Math.max(0, gains[i] - v);
+    return v;
+}
+
+// What a move wins outright and the most the opponent can then win back off any one square:
+// {gain, risk} in pawns, or null when chess.js cannot play it here.
+function hz_exposure(Chess, variant, fen, uci) {
+    try {
+        const c = new Chess(variant || 'chess', fen);
+        const mv = c.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]});
+        if (!mv) return null;
+        const gain = (mv.captured ? HZ_PIECE[mv.captured] || 0 : 0)
+            + (mv.promotion ? (HZ_PIECE[mv.promotion] || 0) - 1 : 0);
+        let risk = 0;
+        const squares = new Set(c.moves({verbose: true}).filter(m => m.captured).map(m => m.to));
+        for (const sq of squares) risk = Math.max(risk, hz_swap(c, sq));
+        return {gain, risk};
+    } catch (e) { return null; }
+}
+
+// Material a move leaves for the taking, net of what it took: 0 for a safe move or a fair trade.
+function hz_loss(x) { return x ? Math.max(0, x.risk - x.gain) : 0; }
+
+// Does `cand` hang a minor piece or more that the engine's own move does not? Measured against the
+// best move so a position where something is already lost (or a real sacrifice the engine plays)
+// does not veto every alternative. Unknown either way is not a veto.
+function hz_hangs(Chess, variant, fen, cand, bestExposure) {
+    const x = hz_exposure(Chess, variant, fen, cand);
+    if (!x) return false;
+    return hz_loss(x) - hz_loss(bestExposure) >= HZ_HANG_MIN;
+}
+
+// The lowest eval a deviation may leave while winning, or -Infinity when we are not winning.
+function hz_win_floor(bestCp) {
+    return bestCp >= HZ_WIN_CP ? Math.max(HZ_WIN_CP, HZ_WIN_KEEP * bestCp) : -Infinity;
+}
+
+// How much of the deviation rate survives this move: 1 normally, less right after the opponent
+// handed us material that the engine's move takes. swing = our eval now minus after our last move.
+function hz_punish_keep(swing, bestTakes) {
+    if (!bestTakes || !(swing >= HZ_PUNISH_CP)) return 1;
+    return swing >= HZ_PUNISH_BLATANT_CP ? HZ_PUNISH_BLATANT_KEEP : HZ_PUNISH_KEEP;
+}
+
+// Mate in N for an our-view score from line_cp_ours, or null when it is not our mate.
+function hz_mate_in(cp) {
+    return cp >= 90000 ? Math.round((100000 - cp) / 1000) : null;
+}
+// ==== END HUMANIZE GUARDS ====
+
 function humanize_pick(best) {
     const fen = last_eval.fen;
     const lines = (last_eval.lines || []).filter(l => l && l.move && l.pv);
@@ -7534,52 +7639,98 @@ function humanize_pick(best) {
 
     // ---- WHAT to play: mostly the best move; sometimes a close second; rarely a real mistake.
     // (only Humanize deviates -- with Clock Mode alone this function only shapes the timing)
+    // What the opponent's last move did to our eval, read BEFORE last_our_eval moves on below: the
+    // punish guard needs it, and so does the think time.
+    const swing = (last_our_eval != null) ? bestCp - last_our_eval : 0;
     let move = best;
-    if (config.humanize && !recapture && !forced
-        && lines.length >= 2 && bestLine && bestCp < 90000 /* never toy with our own mate */) {
+    if (config.humanize && !recapture && !forced && lines.length >= 2 && bestLine) {
         const playable = (m) => premove_reply_playable(fen, m); // moves OUR piece + legal here
         const loss = (l) => bestCp - line_cp_ours(l);
         const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000); // never move INTO mate
         const rates = humanize_rates(); // move mix percents; live-tunable
-        const run = humanize_target() ? humanize_game_run() : null;
+        const guards = humanize_flag('humanize_guards', true);
+        // THE GUARDS (see HUMANIZE GUARDS above). Lazy: the exchange walk only runs for the moves a
+        // roll actually wants to play.
+        let bestX;
+        const bestExposure = () => (bestX !== undefined) ? bestX : (bestX = hz_exposure(Chess, config.variant, fen, best));
+        const hangs = (l) => hz_hangs(Chess, config.variant, fen, l.move, bestExposure());
+        const winning = guards && bestCp >= HZ_WIN_CP && bestCp < 90000;
+        const winFloor = guards ? hz_win_floor(bestCp) : -Infinity;
+        const safe = (l) => !guards || (line_cp_ours(l) >= winFloor && !hangs(l));
+        const mate = hz_mate_in(bestCp);
+        // reuse the roll made at search start (so the countdown's shown move matches what's played)
+        const r = (humanize_roll != null) ? humanize_roll.r : Math.random() * 100;
+        // A policy net as the main engine already plays at a rating and prints one score for every
+        // line, so steering it by accuracy humanizes twice and picks uniformly over its list (the
+        // redesign's 1.3 finding). The target stands down there; the rating sets the strength.
+        const run = (humanize_target() && !ONE_PASS_ENGINES.includes(config.engine)) ? humanize_game_run() : null;
         let cand = null;
-        if (run) {
+        if (mate !== null) {
+            // Our own mate. Short ones are always played. A LONG one is sometimes traded for a line
+            // that still wins clearly -- the owner's call on the issue's "rarely miss a mate in 24" --
+            // and only when the roll would have left the engine's move anyway, so a 100% top mix
+            // never does it. Never for a line that hangs material.
+            if (guards && mate >= HZ_LONG_MATE && category_for_roll(r, rates) !== 'top'
+                && Math.random() < HZ_LONG_MATE_SKIP) {
+                const pool = alts.filter(l => line_cp_ours(l) >= HZ_LONG_MATE_KEEP_CP && !hangs(l));
+                cand = pool[Math.floor(Math.random() * pool.length)] || null;
+                if (cand) category = 'still winning';
+            }
+        } else if (run) {
             // TARGET ACCURACY: the move whose own accuracy lands the game on target, from every line
-            // inside the bands you allowed (humanize_target_pick). The roll is not used.
-            const cands = [bestLine, ...alts].map(l => ({move: l.move, cp: line_cp_ours(l)}));
-            const pick = humanize_target_pick(cands, bestCp, run, humanize_target(),
-                                              humanize_max_loss(rates, Math.abs(bestCp) >= 600));
+            // inside the bands you allowed (humanize_target_pick). The roll is not used. The guards
+            // win over the target (owner's call): a target that throws a won game is the exact
+            // unnatural pattern the issue reports, so the target is best effort around them.
+            const decided = Math.abs(bestCp) >= 600;
+            const maxLoss = winning ? Math.min(humanize_max_loss(rates, decided), humanize_thresholds().inaccuracy)
+                                    : humanize_max_loss(rates, decided);
+            const all = [bestLine, ...alts].map(l => ({move: l.move, cp: line_cp_ours(l), line: l}));
+            const pick = humanize_target_pick(all.filter(c => c.line === bestLine || safe(c.line)),
+                                              bestCp, run, humanize_target(), maxLoss);
             if (pick && pick.move !== best) {
                 cand = pick;
                 category = HUMANIZE_LABEL[humanize_band_of(bestCp - pick.cp)];
+            } else if (guards) {
+                // would the target have played something the guards took away? Arithmetic only.
+                const free = humanize_target_pick(all, bestCp, run, humanize_target(),
+                                                  humanize_max_loss(rates, decided));
+                if (free && free.move !== best && !safe(free.line)) category = 'guard held';
             }
         } else {
-            // reuse the roll made at search start (so the countdown's shown move matches what's played)
-            const r = (humanize_roll != null) ? humanize_roll.r : Math.random() * 100;
             // Each non-top category is a (lo, hi] centipawn band whose edges the user sets in the options
             // page (Move-Quality Thresholds); pick a random alternative whose loss falls in the rolled
             // band. A move worse than the top of the blunder band is never played -- that's a hanging
             // queen, not a human error -- so an out-of-band roll falls back to the best move.
             const bands = humanize_band_bounds();
-            const fromBand = ([lo, hi]) => {
-                const pool = alts.filter(l => loss(l) > lo && loss(l) <= hi);
-                return pool[Math.floor(Math.random() * pool.length)];
-            };
             const cat = category_for_roll(r, rates);
-            // blunders never in an already-decided game (we're the ones winning/losing big)
-            if (cat !== 'top' && !(cat === 'blunder' && Math.abs(bestCp) >= 600)) {
-                cand = fromBand(bands[cat]);
+            // the engine's move takes material the opponent just gave away: usually take it, and a
+            // deviation must still take something (a smaller gain, not a pass)
+            const bx = guards && swing >= HZ_PUNISH_CP ? bestExposure() : null;
+            const bestTakes = !!bx && bx.gain > 0 && bx.gain > bx.risk;
+            const keep = guards ? hz_punish_keep(swing, bestTakes) : 1;
+            const takes = (l) => { const x = hz_exposure(Chess, config.variant, fen, l.move); return !!x && x.gain > x.risk; };
+            // blunders never in an already-decided game (we're the ones winning/losing big), and
+            // while winning neither mistakes nor blunders
+            const barred = (cat === 'blunder' && Math.abs(bestCp) >= 600)
+                || (winning && (cat === 'mistake' || cat === 'blunder'));
+            if (cat !== 'top' && !barred && Math.random() < keep) {
+                const pool = alts.filter(l => loss(l) > bands[cat][0] && loss(l) <= bands[cat][1]);
+                const ok = pool.filter(l => safe(l) && (keep === 1 || takes(l)));
+                cand = ok[Math.floor(Math.random() * ok.length)] || null;
                 if (cand) category = HUMANIZE_LABEL[cat];
+                else if (pool.length && guards) category = 'guard held';
+            } else if (cat !== 'top' && guards && (barred || keep < 1)) {
+                category = 'guard held';
             }
         }
         if (cand && playable(cand.move)) move = cand.move;
-        else category = 'top engine'; // top slice / pool empty / not playable -> best move after all
+        else if (category !== 'guard held') category = 'top engine'; // top slice / pool empty / not playable
+        if (category === 'guard held') console.log(`Humanize: a guard kept ${best} (deviation would hang material, throw a win or skip a punish)`);
     }
 
     // ---- HOW LONG to think: classify the position, then sample a duration.
     const second = lines.find(l => l !== bestLine);
     const gap = second ? bestCp - line_cp_ours(second) : Infinity;
-    const swing = (last_our_eval != null) ? bestCp - last_our_eval : 0;
     last_our_eval = bestCp;
 
     let kind;

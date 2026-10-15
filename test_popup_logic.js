@@ -1566,7 +1566,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
            && H('humanize_band_of(300)') === 'mistake' && H('humanize_band_of(900)') === 'blunder');
     }
     ok('with a target reading the pick aims by accuracy; without one the roll uses the raw sliders',
-       /humanize_target_pick\(cands, bestCp, run, humanize_target\(\)/.test(psrc)
+       /humanize_target_pick\(all\.filter\(c => c\.line === bestLine \|\| safe\(c\.line\)\),\s*bestCp, run, humanize_target\(\), maxLoss\)/.test(psrc)
        && /category_for_roll\(r, humanize_rates\(\)\)/.test(psrc) && !/humanize_mix|humanize_steer/.test(psrc));
     ok('the eval history records while a target is set (the controller reads it)',
        /!\(config\.humanize && humanize_target\(\)\)\)/.test(psrc));
@@ -3631,4 +3631,48 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
            clicks.length === 1 && clicks[0].width === 80 && polls >= 4, {clicks, polls}); });
     ok('...and BlitzTactics reads its pieces from the promotion modal, without throwing when there is none',
        /promotions = document\.querySelector\('\.piece-promotion-modal \.pieces'\)\?\.children;/.test(csrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // the Humanize guards: run the real block against the real chess.js
+    const a = psrc.indexOf('// ==== HUMANIZE GUARDS ===='), b = psrc.indexOf('// ==== END HUMANIZE GUARDS ====');
+    const g = vm.createContext({}); g.self = g;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), g);
+    vm.runInContext(psrc.slice(a, b), g);
+    const X = (fen, uci) => vm.runInContext(`hz_exposure(Chess, 'chess', ${JSON.stringify(fen)}, ${JSON.stringify(uci)})`, g);
+    const H = (fen, cand, best) => vm.runInContext(`hz_hangs(Chess, 'chess', ${JSON.stringify(fen)}, ${JSON.stringify(cand)}, hz_exposure(Chess, 'chess', ${JSON.stringify(fen)}, ${JSON.stringify(best)}))`, g);
+    const qd = '4k3/8/8/2p5/8/8/8/3QK3 w - - 0 1';
+    ok('a queen moved onto a pawn-guarded square is vetoed, the safe queen move is not',
+       H(qd, 'd1d4', 'd1a4') === true && H(qd, 'd1a4', 'd1a4') === false, X(qd, 'd1d4'));
+    const qxp = '4k3/8/4p3/3p4/8/8/8/3QK3 w - - 0 1';
+    ok('a queen that grabs a defended pawn is vetoed (wins 1, loses 9)', H(qxp, 'd1d5', 'd1d2') === true, X(qxp, 'd1d5'));
+    const trade = '4k3/8/4p3/3n4/8/2N5/8/4K3 w - - 0 1';
+    ok('a fair knight trade is not a hang', H(trade, 'c3d5', 'c3e4') === false, X(trade, 'c3d5'));
+    const pawn = '4k3/8/8/8/2b5/8/3P4/4K3 w - - 0 1';
+    ok('leaving a pawn en prise is allowed (the error people make all the time)', H(pawn, 'e1f1', 'd2d3') === false, X(pawn, 'e1f1'));
+    ok('a piece the engine move also leaves hanging is not held against the alternative',
+       H('3rk3/8/8/8/3N4/8/8/4K2R w - - 0 1', 'h1g1', 'h1h2') === false
+       && H('3rk3/8/8/8/3N4/8/8/4K2R w - - 0 1', 'h1g1', 'd4f5') === true);
+    ok('the defended-twice square: a rook taking a pawn guarded by a knight hangs the exchange (net 4)',
+       H('4k3/2n5/8/3p4/8/8/8/3RK3 w - - 0 1', 'd1d5', 'e1e2') === true, X('4k3/2n5/8/3p4/8/8/8/3RK3 w - - 0 1', 'd1d5'));
+    const v = (e) => vm.runInContext(e, g);
+    ok('winning floor: none below +3.00, +3.00 at +3.00, 60% of a +15 eval',
+       v('hz_win_floor(299)') === -Infinity && v('hz_win_floor(300)') === 300 && v('hz_win_floor(1500)') === 900);
+    ok('punish: full rate normally, a fifth after a 2-pawn gift the engine takes, a twentieth after a blatant one',
+       v('hz_punish_keep(150, true)') === 1 && v('hz_punish_keep(250, true)') === 0.2
+       && v('hz_punish_keep(600, true)') === 0.05 && v('hz_punish_keep(600, false)') === 1);
+    ok('mate in N from an our-view score, null for an ordinary eval',
+       v('hz_mate_in(97000)') === 3 && v('hz_mate_in(500)') === null && v('hz_mate_in(-97000)') === null);
+    // wiring: both modes go through the guards, the target stands down for a policy-net engine
+    ok('...the mix pool and the target candidates both pass safe(), the long mate needs a still-winning non-hanging line, and Maia/Leela skip the target',
+       /const ok = pool\.filter\(l => safe\(l\) && \(keep === 1 \|\| takes\(l\)\)\);/.test(psrc)
+       && /humanize_target_pick\(all\.filter\(c => c\.line === bestLine \|\| safe\(c\.line\)\),/.test(psrc)
+       && /alts\.filter\(l => line_cp_ours\(l\) >= HZ_LONG_MATE_KEEP_CP && !hangs\(l\)\)/.test(psrc)
+       && /humanize_target\(\) && !ONE_PASS_ENGINES\.includes\(config\.engine\)\) \? humanize_game_run\(\)/.test(psrc)
+       && /const guards = humanize_flag\('humanize_guards', true\);/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('Humanize Guards: a settings row, registered ON by default, label and tip in all 14 locales',
+       /id="humanize_guards_checkbox"/.test(gh) && /registerFormElement\('humanize_guards', 'Humanize Guards:', 'checkbox', true\)/.test(gj)
+       && locs.length === 14 && locs.every(l => l['set.humanize_guards'] && l['set.tip.humanize_guards'])); }
 // ==== END FIX CHECKS ====
