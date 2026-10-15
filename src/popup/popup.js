@@ -1364,6 +1364,15 @@ function init_quick_settings() {
                 if (eng === 'maia' || eng === 'maia3' || NO_CHESS960_ENGINES.includes(eng)) save('variant', 'chess');
                 else if (!FAIRY_ENGINES.includes(eng) && !['chess', 'fischerandom'].includes(config.variant)) save('variant', 'chess');
             }
+            // Picking the 4-player engine BY HAND remembers what it replaced, the way the page-follow
+            // does when it switches for you -- so leaving (or never being on) a 4-player board goes
+            // back to that engine, not to the fallback. Seen with SF 19 selected: Tetrarch picked on
+            // a 2-player page came back as SF 18. (The in-page panel keeps this across its reload;
+            // the toolbar popup reloads its page, and there the fallback still applies.)
+            if (key === 'engine' && FOURPC_ENGINES.includes(parse(elem.value))
+                    && !FOURPC_ENGINES.includes(config.engine) && !fourpc_prev_engine) {
+                fourpc_prev_engine = config.engine;
+            }
             if (key === 'engine') stop_current_engine(); // free the old process before switching
             save(key, parse(elem.value));
             if (key === 'engine') {

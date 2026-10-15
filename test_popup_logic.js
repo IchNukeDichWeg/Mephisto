@@ -3615,4 +3615,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const stray = csrc.split('\n').filter(l => /pointer-events: none/.test(l) && /z-index: 214748364\d/.test(l));
     ok('board overlays (arrows, eval bar, history, stats, badge, banner) are drawn below the panel, none at a fixed top z-index',
        z < panelZ && stray.length === 0 && (csrc.match(/z-index: \$\{BOARD_OVERLAY_Z\}; pointer-events: none/g) || []).length === 6, {z, panelZ, stray}); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('picking the 4-player engine by hand remembers the engine it replaced, so the switch back restores it',
+       /if \(key === 'engine' && FOURPC_ENGINES\.includes\(parse\(elem\.value\)\)\s*&& !FOURPC_ENGINES\.includes\(config\.engine\) && !fourpc_prev_engine\) \{\s*fourpc_prev_engine = config\.engine;\s*\}\s*if \(key === 'engine'\) stop_current_engine\(\);/.test(psrc)); }
 // ==== END FIX CHECKS ====
