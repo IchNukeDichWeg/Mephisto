@@ -1734,6 +1734,9 @@ async function ensure_offscreen_engine(engineName) {
                                 elos: [config.maia2_self_elo, config.maia2_oppo_elo]});
 }
 
+let wasm_engine_loading = false;   // initialize_engine is awaiting the WASM engine's load
+let wasm_search_held = false;      // on_new_pos skipped a search meanwhile; initialize_engine drives it
+
 async function initialize_engine(reuseWarm = false) {
     pending_stops = 0; // a crashed/replaced engine never flushes what it owed; don't eat the new engine's first result
     // Options queued for the PREVIOUS engine are not this engine's. flush_engine_options only runs
@@ -1767,7 +1770,12 @@ async function initialize_engine(reuseWarm = false) {
         // the `else` below then forward to it in order. Cross-origin isolation / SharedArrayBuffer is
         // guaranteed there (it's an extension page), so the old in-popup SAB check is gone.
         engine = offscreen_engine;
-        if (!warm) await ensure_offscreen_engine(config.engine); // else keep the already-loaded engine
+        if (!warm) {   // else keep the already-loaded engine
+            wasm_engine_loading = true;
+            try { await ensure_offscreen_engine(config.engine); }
+            catch (e) { wasm_search_held = false; throw e; }
+            finally { wasm_engine_loading = false; }
+        }
     }
 
     if (is_remote()) {
@@ -1844,7 +1852,10 @@ async function initialize_engine(reuseWarm = false) {
         // re-issues it (the scrape path dedupes on last_eval.fen), so re-drive it here, behind the
         // preamble in the same ordered queue. Skipped when nothing was searching (fresh boot before
         // the first scrape, Maia band switch -- that path abandons first and re-detects itself).
-        if (search_was_live && last_eval.fen) {
+        // A search HELD while the engine loaded (see on_new_pos) is driven here for the same reason.
+        const held = wasm_search_held;
+        wasm_search_held = false;
+        if ((search_was_live || held) && last_eval.fen) {
             on_new_pos(last_eval.fen, last_pos.startFen || last_eval.fen, last_pos.moves || '');
         }
     }
@@ -5681,6 +5692,12 @@ function on_new_pos(fen, startFen, moves) {
             request_remote_configure({MultiPV: want_multipv}).catch(() => { remote_multipv_set = null; });
         }
         send_analysis();
+    } else if (wasm_engine_loading) {
+        // THE ENGINE IS STILL LOADING. A search sent now only queues behind the load, and the init
+        // that follows stops it before its preamble (see initialize_engine) -- so each one came back
+        // as a zero-node `bestmove a2a3`, two per fresh panel, searched for nothing (3.1.321 audit).
+        // Held instead: initialize_engine drives this position once the preamble is in.
+        wasm_search_held = true;
     } else {
         // discards the flushed bestmove of the search we're superseding -- `turn` already belongs to
         // the NEW position, so if the old search was for the opponent's side (they replied mid-search)

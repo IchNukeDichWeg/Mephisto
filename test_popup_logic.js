@@ -3558,4 +3558,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('a detected variant holds the search until the panel reopens on the right engine, and the reopen releases it',
        /variant_switch_pending = true;\s*abandon_search\(\);\s*setTimeout\(\(\) => apply_detected_variant\(v\), 500\);/.test(psrc)
        && /if \(variant_switch_pending\) \{ abandon_search\(\); return; \}/.test(onp) && /variant_switch_pending = false;/.test(init)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // no search is sent into a WASM engine that is still loading; initialize_engine drives it after the preamble
+    const init = psrc.slice(psrc.indexOf('async function initialize_engine('), psrc.indexOf('engine_ready = true;', psrc.indexOf('async function initialize_engine(')));
+    ok('a position that arrives while the WASM engine loads is held, not searched, and the init drives it after ucinewgame/isready',
+       /\} else if \(wasm_engine_loading\) \{[\s\S]{0,600}?wasm_search_held = true;\s*\} else \{/.test(psrc)
+       && /wasm_engine_loading = true;\s*try \{ await ensure_offscreen_engine\(config\.engine\); \}\s*catch \(e\) \{ wasm_search_held = false; throw e; \}\s*finally \{ wasm_engine_loading = false; \}/.test(init)
+       && /send_engine_uci\('isready'\);[\s\S]*const held = wasm_search_held;\s*wasm_search_held = false;\s*if \(\(search_was_live \|\| held\) && last_eval\.fen\)/.test(init)); }
 // ==== END FIX CHECKS ====
