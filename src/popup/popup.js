@@ -5814,6 +5814,25 @@ function on_new_pos(fen, startFen, moves) {
 //
 // Standard chess only: chess960 home squares are not e1/a1/h1, and this path already handles a real
 // game's move-0 position separately (isStartPos), where the rights are a fact rather than a guess.
+// THE PAGE'S OWN WORD, where it gave one (a lichess start FEN: From Position, the analysis board).
+// The inference above is a guess from the board; the page states the rights outright, so a right
+// the page does not list is dropped. Only ever NARROWS: a right the board cannot back stays out too.
+// Standard chess only, like the inference -- chess960 rights are file letters this does not map.
+function apply_page_rights(fen, pageRights) {
+    if (pageRights == null || (config.variant && config.variant !== 'chess')) return fen;
+    try {
+        const fields = fen.split(' ');
+        const kept = [...(fields[2] === '-' ? '' : fields[2])].filter(c => pageRights.includes(c)).join('') || '-';
+        if (kept === fields[2]) return fen;
+        fields[2] = kept;
+        const patched = fields.join(' ');
+        new Chess(config.variant, patched);
+        return patched;
+    } catch (e) {
+        return fen;
+    }
+}
+
 function apply_castling_rights(fen) {
     if (config.variant && config.variant !== 'chess') return fen;
     try {
@@ -5950,9 +5969,10 @@ function parse_position_from_response(txt) {
         const [playerTurn, ...tokens] = txt.split('*****').slice(0, -1);
         // `lm-<from><to>` is the page's last-move highlight, shipped by the chess.com puzzle scrape
         // purely so the en-passant square can be recovered (see below). Everything else is a piece.
-        let lastMove = null;
+        let lastMove = null, pageRights = null;
         for (const token of tokens) {
             if (token.startsWith('lm-')) { lastMove = token.slice(3); continue; }
+            if (token.startsWith('cr-')) { pageRights = token.slice(3); continue; }   // see fenToPuzString
             const attributes = token.split('-');
             chess.put({type: attributes[1], color: attributes[0]}, attributes[2]);
         }
@@ -5990,7 +6010,7 @@ function parse_position_from_response(txt) {
 
         // Both patches restore information the piece scrape cannot carry. Castling first: it only
         // reads piece placement, so it is independent of the ep field it is followed by.
-        const record =  {fen: apply_ep_square(apply_castling_rights(chess.fen()), lastMove)};
+        const record =  {fen: apply_ep_square(apply_page_rights(apply_castling_rights(chess.fen()), pageRights), lastMove)};
         fen_cache.set(txt, record);
         return record;
     }

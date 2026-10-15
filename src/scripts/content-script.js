@@ -4435,7 +4435,7 @@ function determineStartPosition() {
 const FEN_RE = /^([rnbqkpRNBQKP1-8]+\/){7}[rnbqkpRNBQKP1-8]+ [wb] /;
 
 function fenToPuzString(fen) {
-    const [placement, turn] = fen.trim().split(/\s+/);
+    const [placement, turn, castle] = fen.trim().split(/\s+/);
     let out = `${turn}*****`;
     const rows = placement.split('/');
     if (rows.length !== 8) return null;
@@ -4449,6 +4449,12 @@ function fenToPuzString(fen) {
         }
         if (file !== 8) return null;
     }
+    // THE PAGE'S CASTLING RIGHTS ride along as a `cr-` token (the `lm-` token's convention). A piece
+    // string cannot carry them, so the panel used to grant every right the board could back -- a
+    // set-up "R3K3 ... w - -" came out with Q, which the tablebase refuses outright, and the DTZ
+    // read 0 (3.1.321 audit F7/F8). The standard start keeps its plain form, which callers compare
+    // against DEFAULT_POSITION.
+    if (castle && /^(-|[KQkqA-Ha-h]{1,4})$/.test(castle) && out !== DEFAULT_POSITION) out += `cr-${castle}*****`;
     return out;
 }
 

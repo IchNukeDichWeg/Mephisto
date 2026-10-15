@@ -3441,6 +3441,23 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
     ok('an Analysis engine that fails to start stops saying "thinking…" in its column and its lines, and says why on the status line',
        /try \{ e = await ensureEngine\(\); \} catch \(err\) \{[\s\S]{0,500}?meta\.textContent = 'not running';[\s\S]{0,300}?an_engine_lines[\s\S]{0,300}?return status\(String\(err\.message \|\| err\), 'err'\);/.test(an)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // a set-up start keeps the PAGE's castling rights instead of every right the board could back (F7)
+    const d0 = csrc.indexOf('const DEFAULT_POSITION ='), dEnd = csrc.indexOf(';', d0) + 1, f0 = csrc.indexOf('function fenToPuzString(fen)');
+    const cc = vm.createContext({}); vm.runInContext(csrc.slice(d0, dEnd) + '\n' + csrc.slice(f0, csrc.indexOf('\n}\n', f0) + 3), cc);
+    const puz = (fen) => vm.runInContext(`fenToPuzString(${JSON.stringify(fen)})`, cc);
+    ok('the page\'s castling field rides along with a set-up start, and the standard start keeps its plain form',
+       puz('4k3/8/8/8/8/8/8/R3K3 w - - 0 1').endsWith('cr--*****') && puz('r3k3/8/8/8/8/8/8/R3K3 w Qq - 0 1').endsWith('cr-Qq*****')
+       && puz('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') === vm.runInContext('DEFAULT_POSITION', cc));
+    const c = vm.createContext({console}); c.self = c; vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    const a = psrc.indexOf('function apply_page_rights('), b = psrc.indexOf('\n}\n', psrc.indexOf('function apply_castling_rights(')) + 3;
+    vm.runInContext("var config = {variant: 'chess'};" + psrc.slice(a, b), c);
+    const pr = (fen, rights) => vm.runInContext(`apply_page_rights(apply_castling_rights(${JSON.stringify(fen)}), ${JSON.stringify(rights)})`, c);
+    ok('...and the panel narrows the board\'s guess to it: "R3K3 w - -" stays without Q, "Qq" keeps only what the page lists, no token keeps the guess',
+       pr('4k3/8/8/8/8/8/8/R3K3 w - - 0 1', '-').split(' ')[2] === '-' && pr('r3k2r/8/8/8/8/8/8/R3K2R w - - 0 1', 'Qq').split(' ')[2] === 'Qq'
+       && pr('4k3/8/8/8/8/8/8/R3K3 w - - 0 1', null).split(' ')[2] === 'Q', [pr('4k3/8/8/8/8/8/8/R3K3 w - - 0 1', '-'), pr('r3k2r/8/8/8/8/8/8/R3K2R w - - 0 1', 'Qq')]);
+    ok('...the piece parse reads the cr- token', /if \(token\.startsWith\('cr-'\)\) \{ pageRights = token\.slice\(3\); continue; \}/.test(psrc) && /apply_page_rights\(apply_castling_rights\(chess\.fen\(\)\), pageRights\)/.test(psrc));
+}
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('Session Stats times a move from the start of our turn, plus the delay still to come, not the configured think alone',
        /our_turn_at = Date\.now\(\);\s*\/\/ THEIR CLOCK IS FROZEN/.test(psrc) && /const searched = our_turn_at \? Math\.max\(0, Date\.now\(\) - our_turn_at\) : 0;\s*if \(verify\) session_note_move\(Number\.isFinite\(delay\) \? searched \+ delay : \(searched \|\| delay\)\);/.test(psrc)); }
