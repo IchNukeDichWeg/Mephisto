@@ -18,6 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import {fileURLToPath} from 'node:url';
+import {createRequire} from 'node:module';
 
 const A = Object.fromEntries(process.argv.slice(2).join(' ').split('--').filter(Boolean)
     .map(s => { const [k, ...v] = s.trim().split(/\s+/); return [k, v.join(' ') || 'true']; }));
@@ -54,6 +55,35 @@ vm.runInContext([
     ...['win_percent', 'humanize_get', 'humanize_rates', 'humanize_thresholds', 'humanize_band_bounds', 'category_for_roll'].map(fn),
 ].join('\n').replace(/^const /gm, 'var '), ctx);
 const H = ctx;
+if (A.natural) vm.runInContext(`HZ_NATURAL_HANG = ${+A.natural}`, ctx);   // calibration only
+
+// ---- Maia-3 (optional, --maia): the real encoder from src/offscreen/maia3.js on onnxruntime-node,
+// so the natural-hang rule sees the probabilities the panel would. Needs onnxruntime-node on NODE_PATH.
+let maia = null;
+if (A.maia) {
+    const ort = createRequire(import.meta.url)('onnxruntime-node');
+    const m3 = fs.readFileSync(ROOT + '/src/offscreen/maia3.js', 'utf8');
+    const enc = m3.slice(m3.indexOf('// ---- encoding'), m3.indexOf('// ---- adapter'));
+    const mctx = {Math}; vm.createContext(mctx);
+    vm.runInContext(enc.replace(/^const /gm, 'var ').replace(/^function /gm, 'function '), mctx);
+    const model = A.maia === 'true' ? ROOT + '/lib/engine/maia3/maia3-23m.onnx' : A.maia;
+    const session = await ort.InferenceSession.create(model, {intraOpNumThreads: 1});
+    maia = async (fen, elo) => {
+        const c = new H.Chess(undefined, fen);
+        const black = c.turn() === 'b';
+        const legal = c.moves({verbose: true}).map(mv => mv.from + mv.to + (mv.promotion || ''));
+        const out = await session.run({
+            tokens: new ort.Tensor('float32', Float32Array.from(mctx.encode(fen)), [1, 64, mctx.TOKEN_DIM]),
+            self_elo: new ort.Tensor('int64', BigInt64Array.from([BigInt(elo)]), [1]),
+            oppo_elo: new ort.Tensor('int64', BigInt64Array.from([BigInt(elo)]), [1]),
+        });
+        const logits = out.move_logits.data, sc = [];
+        for (const u of legal) { const i = mctx.MOVE_TO_IDX.get(black ? mctx.mirrorMove(u) : u); if (i !== undefined) sc.push([u, logits[i]]); }
+        const mx = Math.max(...sc.map(x => x[1])); let sum = 0;
+        for (const x of sc) { x[2] = Math.exp(x[1] - mx); sum += x[2]; }
+        return new Map(sc.map(x => [x[0], x[2] / sum]));
+    };
+}
 
 // ---- a tiny UCI client -----------------------------------------------------------------------
 class Engine {
@@ -94,13 +124,13 @@ function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0
     t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
 // One of our moves, as humanize_pick decides it (minus timing, reflexes handled by the caller).
-function pick(fen, lines, swing, rnd, st) {
+function pick(fen, lines, swing, rnd, st, probs = null) {
     const bestLine = lines[0], best = bestLine.move, bestCp = ours(bestLine);
     const alts = lines.slice(1).filter(l => ours(l) > -90000);
     const loss = (l) => bestCp - ours(l);
     let bestX;
     const bestExposure = () => (bestX !== undefined) ? bestX : (bestX = H.hz_exposure(H.Chess, 'chess', fen, best));
-    const hangs = (l) => H.hz_hangs(H.Chess, 'chess', fen, l.move, bestExposure());
+    const hangs = (l) => !H.hz_natural_hang(probs, l.move) && H.hz_hangs(H.Chess, 'chess', fen, l.move, bestExposure());
     const winning = GUARDS && bestCp >= H.HZ_WIN_CP && bestCp < 90000;
     const winFloor = GUARDS ? H.hz_win_floor(bestCp) : -Infinity;
     const safe = (l) => !GUARDS || (ours(l) >= winFloor && !hangs(l));
@@ -162,7 +192,7 @@ async function playGame(idx) {
                     const full = +fen.split(' ')[5];
                     KINDS[full < 8 ? 'normal' : (gap < 35 && Math.abs(bestCp) < 150) || swing < -120 ? 'long' : gap > 250 ? 'quick' : 'normal']++;
                 }
-                move = (recapture || forced || lines.length < 2) ? lines[0].move : pick(fen, lines, swing, rnd, st);
+                move = (recapture || forced || lines.length < 2) ? lines[0].move : pick(fen, lines, swing, rnd, st, maia ? await maia(fen, Math.max(600, Math.min(2600, ELO))) : null);
                 lastOurEval = bestCp;
             } else {
                 evals.push((await us.analyse(fen, DEPTH, 1))[0]);
@@ -197,7 +227,7 @@ const fmt = (s) => s >= 3600 ? `${Math.floor(s / 3600)}h${String(Math.floor(s % 
 const tick = () => { const el = (Date.now() - t0) / 1000, rate = done / Math.max(el, 1e-3);
     const msg = `games ${done}/${GAMES} ${(100 * done / GAMES).toFixed(0)}%  ${(rate * 60).toFixed(1)}/min  elapsed ${fmt(el)}  ETA ${done ? fmt((GAMES - done) / rate) : '?'}`;
     if (TTY) process.stdout.write('\r' + msg); else if (done % 5 === 0 || done === GAMES) console.log(msg); };
-console.log(`mode ${MODE}${mixKeys.length ? ' ' + mixKeys.join('/') : ''} at ${ELO}, guards ${GUARDS ? 'on' : 'off'}${MODE === 'match' && NO_DEBT ? ', no debt' : ''}${MODE === 'match' && NO_CAP ? ', no ceiling' : ''}, ${GAMES} games vs SF ${Math.max(1320, ELO)}, depth ${DEPTH}, ${WORKERS} workers`);
+console.log(`mode ${MODE}${mixKeys.length ? ' ' + mixKeys.join('/') : ''} at ${ELO}, guards ${GUARDS ? 'on' : 'off'}${maia ? `, Maia natural hangs at ${vm.runInContext('HZ_NATURAL_HANG', ctx)}` : ''}${MODE === 'match' && NO_DEBT ? ', no debt' : ''}${MODE === 'match' && NO_CAP ? ', no ceiling' : ''}, ${GAMES} games vs SF ${Math.max(1320, ELO)}, depth ${DEPTH}, ${WORKERS} workers`);
 await Promise.all(Array.from({length: Math.min(WORKERS, GAMES)}, async () => {
     while (next < GAMES) { const g = next++;
         try { results.push(await playGame(g)); } catch (e) { console.log(`\ngame ${g} failed: ${e.message}`); }

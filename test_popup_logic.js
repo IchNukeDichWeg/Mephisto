@@ -3664,6 +3664,13 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('the defended-twice square: a rook taking a pawn guarded by a knight hangs the exchange (net 4)',
        H('4k3/2n5/8/3p4/8/8/8/3RK3 w - - 0 1', 'd1d5', 'e1e2') === true, X('4k3/2n5/8/3p4/8/8/8/3RK3 w - - 0 1', 'd1d5'));
     const v = (e) => vm.runInContext(e, g);
+    ok('natural hangs: a hang Maia gives at least HZ_NATURAL_HANG passes, a rarer one or no Maia read stays vetoed',
+       v("hz_natural_hang(new Map([['d1d4', HZ_NATURAL_HANG]]), 'd1d4')") === true
+       && v("hz_natural_hang(new Map([['d1d4', HZ_NATURAL_HANG / 2]]), 'd1d4')") === false
+       && v("hz_natural_hang(new Map([['d1a4', 0.9]]), 'd1d4')") === false && v("hz_natural_hang(null, 'd1d4')") === false);
+    ok('...wired into the hang guard, with the Maia read the Maia options already ask for (no download of its own)',
+       /const hangs = \(l\) => !hz_natural_hang\(probs, l\.move\) && hz_hangs\(/.test(psrc)
+       && /if \(!humanize_flag\('humanize_maia', false\) && !humanize_flag\('humanize_maia_where', false\)\) return;/.test(psrc));
     ok('winning floor: none below +3.00, +3.00 at +3.00, 60% of a +15 eval',
        v('hz_win_floor(299)') === -Infinity && v('hz_win_floor(300)') === 300 && v('hz_win_floor(1500)') === 900);
     ok('punish: full rate normally, a fifth after a 2-pawn gift the engine takes, a twentieth after a blatant one',

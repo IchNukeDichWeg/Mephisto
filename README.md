@@ -357,7 +357,9 @@ more by exchange count (a pawn en prise stays allowed - that is the error people
 (from +3.00 no mistakes or blunders, and nothing below 60% of the eval), or skipping the punishment of a blunder (after
 a two-pawn gift the deviation rate drops to a fifth, after a five-pawn one to a twentieth, and a deviation must still
 win something). Short mates are always played; a mate in 7 or more is sometimes swapped for a line still at +10. The
-guards win over Target Accuracy, and the panel says "guard held" when one kept the engine's move.
+guards win over Target Accuracy, and the panel says "guard held" when one kept the engine's move. With a Maia option
+on, a hang that Maia-3 says players of the Play-like rating really make there (2% or more) is let through: most human
+blunders are hung pieces, and these are the natural ones.
 
 **Play like rating** is the one rating for Maia and for the options below. **Scale Errors to the Clock (optional)**
 scales the error shares move by move from error rates measured over 2.1 million moves of Lichess games (October 2025,
@@ -374,7 +376,7 @@ move's quality is drawn from their measured spread, graded the way the Game Revi
 mistake the position cannot offer is owed and played later where one exists. Measured with
 `tools/humanize-study/sim-human.mjs` at 1500: 10.0% inaccuracies, 5.4% mistakes, 1.9% blunders per move against the
 players' 10.0 / 6.4 / 4.6 - the guards hold blunders back, because a person's blunder is usually a hung piece (with
-them off: 9.8 / 7.3 / 3.4). The default sliders, for comparison, measure 1.0 / 0.0 / 0.4. **Think Like Your Time
+them off: 9.8 / 7.3 / 3.4; with a Maia option on, natural hangs bring blunders to 2.5). The default sliders, for comparison, measure 1.0 / 0.0 / 0.4. **Think Like Your Time
 Control (optional)** draws each think from how long players spent per move at that time control, phase and clock left
 - about 2% of the game per blitz move, much less with the clock running out - with a person's spread.
 

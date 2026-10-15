@@ -7509,6 +7509,16 @@ const HZ_PIECE = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
 const HZ_HANG_MIN = 3;          // a minor piece: hanging one is the error a person rarely makes
                                 // twice, a pawn is the error they make all the time (Stage C: hung
                                 // 1-2 is 20% of all errors, hung 3+ is 10%)
+// NATURAL HANGS. A person's blunder is usually a hung piece, so a guard that refuses every hang
+// also refuses most human blunders (Err Like Your Rating measured 1.9% blunders against the
+// players' 4.6%, 3.4% with the guards off). What issue 1 objected to is the UNNATURAL hang, the
+// queen dropped for nothing in a quiet position. When Maia-3 at the Play-like rating gives the move
+// at least this probability, players of that rating really do play it there, and the guard lets it
+// through. Without a Maia read (no Maia option on) the guard stays as strict as before. Measured
+// with sim-human.mjs, Err Like Your Rating at 1500, 72 games each, blunders per move: 1.9% strict,
+// 1.9% at 0.05, 2.5% at 0.02, 2.5% at 0.01. Of the guard's vetoes Maia gives half under 0.1%; at
+// 0.01 hung pawns grow to 62% of the blunders against the players' 22%, at 0.02 to 52%.
+const HZ_NATURAL_HANG = 0.02;
 const HZ_WIN_CP = 300;          // +3.00, win% ~75: from here on a mistake gives a won game back
 const HZ_WIN_KEEP = 0.6;        // a deviation keeps at least 60% of a winning eval (and +3.00)
 const HZ_PUNISH_CP = 200;       // the opponent's last move handed us 2+ pawns
@@ -7606,6 +7616,11 @@ const HZ_MAIA_MIN = 0.01;
 // like the clock tables, and the mean never drops under 0.02 so one quiet stretch cannot make the
 // next sharp move a certain error.
 const HZ_WHERE_PRIOR = 0.22, HZ_WHERE_EMA = 0.15, HZ_WHERE_MAX = 3, HZ_WHERE_MEAN_MIN = 0.02;
+
+// Pure. Whether a hanging move is one players of the rating make here (see HZ_NATURAL_HANG).
+function hz_natural_hang(probs, move) {
+    return !!probs && (probs.get(move) || 0) >= HZ_NATURAL_HANG;
+}
 
 // Pure. One of pool ({move}) drawn by its Maia probability; null when none reaches HZ_MAIA_MIN.
 function hz_maia_weighted(pool, probs, rnd = Math.random) {
@@ -7975,7 +7990,7 @@ function humanize_pick(best) {
         // roll actually wants to play.
         let bestX;
         const bestExposure = () => (bestX !== undefined) ? bestX : (bestX = hz_exposure(Chess, config.variant, fen, best));
-        const hangs = (l) => hz_hangs(Chess, config.variant, fen, l.move, bestExposure());
+        const hangs = (l) => !hz_natural_hang(probs, l.move) && hz_hangs(Chess, config.variant, fen, l.move, bestExposure());
         const winning = guards && bestCp >= HZ_WIN_CP && bestCp < 90000;
         const winFloor = guards ? hz_win_floor(bestCp) : -Infinity;
         const safe = (l) => !guards || (line_cp_ours(l) >= winFloor && !hangs(l));
@@ -10745,6 +10760,7 @@ let hz_match_state = null;          // Err Like Your Rating's owed errors this g
 function hz_maia_probs(fen) { return hz_maia_cache.get(fen) || null; }
 function request_humanize_maia(fen) {
     if (!config.humanize) return;
+    // the natural-hang rule reads it too, but never asks for the 88 MB download on its own
     if (!humanize_flag('humanize_maia', false) && !humanize_flag('humanize_maia_where', false)) return;
     if (config.variant && config.variant !== 'chess') return;    // the nets know one game
     if (hz_maia_cache.has(fen)) return;
