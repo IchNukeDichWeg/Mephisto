@@ -3306,9 +3306,14 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
                 else { const pos = lastPos; setTimeout(() => { for (const l of [\`info depth 1 multipv 1 score cp 0 maiaprob 5000 pv \${moveFor[pos]}\`, \`bestmove \${moveFor[pos]}\`]) for (const f of [...listeners]) f({fromOffscreen: true, clientId: 'hr', kind: 'line', line: l}); }, 5); } }}};
         ${code}`, c);
     vm.runInContext('var got; Promise.all([threat_human_ask("A"), safety_human_ask("B")]).then(r => { got = r; })', c);
-    setTimeout(() => { const g = c.got;
+    // polled, not read once at 120 ms: the replies ride 5 ms timers that only start once the rest of the
+    // suite's synchronous code is done, so a fixed wait failed whenever that took longer (a loaded box)
+    const t0 = Date.now();
+    const check = () => { const g = c.got;
+        if (!g && Date.now() - t0 < 10000) { setTimeout(check, 20); return; }
         ok('Human Reply and the Safety Net each get the answer to their own position on the shared client',
-           !!g && g[0] && g[0].uci === 'a2a3' && g[1].length === 1 && g[1][0].uci === 'b2b3', g); }, 120); }
+           !!g && g[0] && g[0].uci === 'a2a3' && g[1].length === 1 && g[1][0].uci === 'b2b3', g); };
+    setTimeout(check, 120); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const src = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
     const i = src.indexOf('    once(pred, timeoutMs, alive = null) {'), fn = src.slice(i, src.indexOf('\n    }\n', i) + 6).replace('    once(', 'function once(');
