@@ -8420,9 +8420,10 @@ function is_fourpc_engine() {
 // panel, which is why every path here returns unless something actually has to change: a switch that
 // re-fires on each poll would reload the panel once a second.
 let fourpc_prev_engine = null;
+let fourpc_switch_pending = false;   // a deferred switch is queued; a second poll must not queue another
 
 function sync_fourpc_engine_to_page(onFourPCPage) {
-    if (onFourPCPage == null) return;                 // a site the content-script does not classify
+    if (onFourPCPage == null || fourpc_switch_pending) return;   // unclassified site / switch already queued
     const sel = PANEL_ROOT.getElementById('qs_engine');
     if (!sel) return;
     const isFourPC = is_fourpc_engine();
@@ -8438,7 +8439,8 @@ function sync_fourpc_engine_to_page(onFourPCPage) {
         }
         fourpc_prev_engine = config.engine;            // remember what to restore
         sel.value = FOURPC_ENGINES[0];
-        sel.dispatchEvent(new Event('change'));        // the one path that saves, pushes and reloads
+        fourpc_switch_pending = true;
+        setTimeout(() => { fourpc_switch_pending = false; sel.dispatchEvent(new Event('change')); }, 0);   // saves, pushes, reloads; deferred, see below
         console.log(`Engine -> ${FOURPC_ENGINES[0]} - following the page (was ${fourpc_prev_engine})`);
         return;
     }
@@ -8451,7 +8453,12 @@ function sync_fourpc_engine_to_page(onFourPCPage) {
         ? fourpc_prev_engine : FOURPC_FALLBACK_ENGINE;
     fourpc_prev_engine = null;
     sel.value = back;
-    sel.dispatchEvent(new Event('change'));
+    // OUT OF THE CALLER'S STACK. In the in-page panel the content script answers initPanel's first
+    // request_fen() synchronously, so this used to run INSIDE initPanel: the change reloads the panel
+    // there and then, and initPanel carried on wiring buttons into an emptied root -- a TypeError on
+    // every Tetrarch-on-a-2-player-page open (3.1.321 audit F6). Both switches defer for that reason.
+    fourpc_switch_pending = true;
+    setTimeout(() => { fourpc_switch_pending = false; sel.dispatchEvent(new Event('change')); }, 0);
     console.log(`Engine -> ${back} - restored on leaving 4-player chess`);
 }
 

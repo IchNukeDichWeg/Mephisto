@@ -3507,4 +3507,16 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && pc('8/8/8/4k3/8/8/8/4K2R w - - 0 1', null) === '8/8/8/4k3/8/8/8/4K2R w - - 0 1' && pc('8/8/8/4k3/8/8/8/4K2R w - - 0 1', ['x', '0']) === '8/8/8/4k3/8/8/8/4K2R w - - 0 1');
     ok('...the piece parse reads the mc- token last, after the ep square', /if \(token\.startsWith\('mc-'\)\) \{ pageCounters = token\.slice\(3\)\.split\('-'\); continue; \}/.test(psrc)
        && /apply_page_counters\(apply_ep_square\(apply_page_rights\(apply_castling_rights\(chess\.fen\(\)\), pageRights\), lastMove\), pageCounters\)/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // the 4PC engine follow switches OUTSIDE the caller's stack, once (F6)
+    const a = psrc.indexOf('let fourpc_prev_engine = null;'), b = psrc.indexOf('\n}\n', psrc.indexOf('function sync_fourpc_engine_to_page(')) + 3;
+    const timers = [], c = vm.createContext({console: {log() {}}, Event: class {}, setTimeout: (f) => timers.push(f)});
+    vm.runInContext(`var FOURPC_ENGINES = ['tetrarch-native'], FOURPC_FALLBACK_ENGINE = 'stockfish-18-nnue', config = {engine: 'tetrarch-native'}, fired = 0;
+        function is_fourpc_engine() { return FOURPC_ENGINES.includes(config.engine); }
+        var sel = {value: 'tetrarch-native', dispatchEvent() { fired++; config.engine = sel.value; }};
+        var PANEL_ROOT = {getElementById: () => sel}; ${psrc.slice(a, b)}`, c);
+    vm.runInContext('sync_fourpc_engine_to_page(false); sync_fourpc_engine_to_page(false);', c);
+    const sync = vm.runInContext('fired', c), queued = timers.length; timers.forEach(f => f());
+    ok('leaving 4-player chess switches the engine after the caller returns, and two polls queue one switch',
+       sync === 0 && queued === 1 && vm.runInContext('fired', c) === 1 && vm.runInContext('config.engine', c) === 'stockfish-18-nnue', {sync, queued, fired: vm.runInContext('fired', c)}); }
 // ==== END FIX CHECKS ====
