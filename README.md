@@ -49,7 +49,7 @@ Chess.com and Lichess redesigns. Everything the original did still works. New he
 
 - **Game Review** - a full offline review (accuracy, move quality, eval graph, fair-play indicators), **and
   chess.com's own Game Review** on the same board, run from your own account.
-- **Engines** - Stockfish 19 / 18, the human-trained **Maia-1 / Maia-2 / Maia-3** and **Elite Leela**, **Rodent IV**
+- **Engines** - Stockfish 19 / 18, the human-trained **Maia** (one rating, 600-2600) and **Elite Leela**, **Rodent IV**
   and its personalities, an Elo cap and ten **playstyles**.
 - **Playing like a person** - Humanize, Clock Mode, Mirror Time.
 - **Automation** - Safe Premove, Pondering, Help Mode, Manual Mode, rebindable hotkeys, hotkey macros (one key runs several actions) and a `?` shortcut cheat sheet.
@@ -117,18 +117,16 @@ entries are the exception, and they are opt-in.
 | **Stockfish 18 NNUE** | The previous mainline, kept so a review can be repeated against the engine that produced it. |
 | **Stockfish 11 HCE** | Classical eval, no NNUE - light and fast. |
 | **Fairy-Stockfish 14 NNUE** | Required for [variants](#variants); each has its own bundled net. |
-| **Maia-1** | The original Maia nets, one per rating band (**1100-1900**, plus **2200**). |
-| **Maia-2** | One model taking **both** ratings, yours and your opponent's - a 1200 facing a 2000 does not play what a 1200 facing a 1200 plays. Two live steppers. |
-| **Maia-3** | A transformer conditioned on a rating you set live, **600-2600**. |
+| **Maia** | Plays like a person of the rating you set in **Play like**, **600-2600**, changed live (Maia-3, a transformer conditioned on the rating). **Use opponent's rating** switches to Maia-2, which also takes the opponent's rating, read off the page on Lichess or typed in - a 1200 facing a 2000 does not play what a 1200 facing a 1200 plays. A saved Maia-1 or Maia-2 pick moves across at its rating. Maia-1's per-band nets are still in the Analysis page's **Compare nets**. |
 | **Elite Leela** | A Leela net trained on the **Lichess Elite Database** (human games at 2200+). One forward pass: policy for the move, its own WDL head for the score. |
 | **Tetrarch (4-player)** | Four-player chess only - see [four-player chess](#four-player-chess). One-time install. |
 | **Remote / native** | A real engine binary outside the browser - see [full-power engines](#full-power-native-engines-optional). |
 | **Rodent IV (native)** | A character engine: pick one of 36 personalities (Tal, Petrosian, Pawnsacker...) in Settings, each with its own piece values and style. Build once with `native-host/build-rodent.sh`, then run the installer. |
 | **Stockfish 18 / 17.1 (online)** | Server-side Stockfish over HTTPS for a machine that cannot run one locally. **The position leaves your machine on every move**, one line only, so a local engine is both faster and private. Repeats inside 15s are answered from memory; stockfish.online takes only a depth, so selecting it switches the budget to Depth and back. |
 
-<img src="docs/maia3.png" alt="Maia-3 with the 600-2600 rating slider" width="49%"> <img src="docs/variants.png" alt="Atomic on Lichess, analysed by Fairy-Stockfish" width="49%">
+<img src="docs/maia3.png" alt="Maia with the 600-2600 rating slider" width="49%"> <img src="docs/variants.png" alt="Atomic on Lichess, analysed by Fairy-Stockfish" width="49%">
 
-*Maia-3's live rating slider · Atomic analysed by Fairy-Stockfish*
+*Maia's live rating slider · Atomic analysed by Fairy-Stockfish*
 
 Illegal scraped positions are blocked before they can crash the engine, and a crashed engine auto-restarts (3
 attempts). **Strength cap** - limit any Stockfish/Fairy engine to a target Elo on a slider following that engine's
@@ -353,6 +351,23 @@ worse than -2.5. Measured over 144 simulated games against Stockfish at 1500 and
 targets of 85 to 95 land within about a point (90 -> 90.0 and 89.8). Lower targets need an opponent who gives chances
 back: 75 reached 75.5 against the 1500 but only 83.7 against the 2200. Live on Lichess, targets 90 and 80 came out at
 91.4% and 78.8%.
+
+**Guards (on by default)** keep a planned deviation from doing what nobody plays on purpose: hanging a minor piece or
+more by exchange count (a pawn en prise stays allowed - that is the error people make), giving back a winning position
+(from +3.00 no mistakes or blunders, and nothing below 60% of the eval), or skipping the punishment of a blunder (after
+a two-pawn gift the deviation rate drops to a fifth, after a five-pawn one to a twentieth, and a deviation must still
+win something). Short mates are always played; a mate in 7 or more is sometimes swapped for a line still at +10. The
+guards win over Target Accuracy, and the panel says "guard held" when one kept the engine's move.
+
+**Play like rating** is the one rating for Maia and for the options below. **Scale Errors to the Clock (optional)**
+scales the error shares move by move from error rates measured over 2.1 million moves of Lichess games (October 2025,
+closed and banned accounts removed): at the same rating, rapid and classical err about as often per move as blitz,
+bullet up to 1.9x, ultrabullet up to 2.7x; under 5% of the clock about 1.4x the inaccuracies and 2x the blunders, far
+fewer at a full clock. **Human-Like Mistakes (optional)** draws the deviation by how likely Maia-3 thinks a player of
+that rating is to play it, and never a move it gives under 1%. **Mistakes Where People Make Them (optional)** moves
+the error shares to the positions where Maia sees that rating going wrong, relative to its average this game - not yet
+calibrated against real error rates. Both Maia options use the 88 MB Maia-3 net (downloaded the first time) and
+standard chess only; until it has answered, the plain pick stands in.
 
 Timing follows: quick on obvious moves, long thinks in critical positions, an instant reflex *only* for true
 recaptures and forced moves. **Clock Mode** budgets each move off the page clock (~time/30 + 60% of the increment);
