@@ -3422,4 +3422,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        ply('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') === 0 && ply('x b - - 0 1') === 1 && ply('x w - - 1 6') === 10 && ply('x b - - 0 5') === 9 && vm.runInContext('MAIA2_FIRST_PLY', c) === 10);
     ok('...and Maia-2 hands every ply below that to Maia-3 with both ratings, and frees it on terminate',
        /if \(plyOfFen\(board\.fen\(\)\) < MAIA2_FIRST_PLY\) \{[\s\S]*?createMaia3Engine\(listen, selfElo\)[\s\S]*?OppoElo value \$\{oppoElo\}[\s\S]*?opening\.uci\('go'\);\s*return;/.test(m2) && /opening && opening\.terminate\(\)/.test(m2)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    ok('an Analysis engine that fails to start stops saying "thinking…" in its column and its lines, and says why on the status line',
+       /try \{ e = await ensureEngine\(\); \} catch \(err\) \{[\s\S]{0,500}?meta\.textContent = 'not running';[\s\S]{0,300}?an_engine_lines[\s\S]{0,300}?return status\(String\(err\.message \|\| err\), 'err'\);/.test(an)); }
 // ==== END FIX CHECKS ====

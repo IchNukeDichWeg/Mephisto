@@ -1001,7 +1001,15 @@ async function analyseNow() {
     if (meta) meta.textContent = 'thinking…';
     await stopSearch();                 // the previous search must be finished, not merely told to stop
     let e;
-    try { e = await ensureEngine(); } catch (err) { return status(String(err.message || err), 'err'); }
+    try { e = await ensureEngine(); } catch (err) {
+        // The reason goes to the status line, and the column must stop claiming a search: an engine
+        // that never started (a native host that is not installed) left "thinking…" up for good
+        // while the status line already said why (3.1.321 audit F1).
+        if (meta) meta.textContent = 'not running';
+        const lines = $('an_engine_lines');
+        if (lines) lines.innerHTML = '<div class="an-lrow"><span></span><span class="an-lval">not running</span><span></span></div>';
+        return status(String(err.message || err), 'err');
+    }
     if (!e) return;                      // the page was left while it loaded; it has been disposed
     // The POSITION, not just the index: playing a move truncates the line, so the same cursor value
     // can mean a different board a moment later and an index check would let the old search's lines
