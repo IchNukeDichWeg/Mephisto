@@ -7639,6 +7639,37 @@ function hz_mate_in(cp) {
     return cp >= 90000 ? Math.round((100000 - cp) / 1000) : null;
 }
 
+// SIMPLIFY WHEN WINNING. Ahead by +3 to +10, people take the trade: where the engine's own move is
+// an even exchange of a knight or more, players at 1400-1599 played a trade 75% of the time and the
+// match pick only 57% -- its errors there are the quiet moves that keep the pieces on. Measured with
+// tools/humanize-study/simplify_study.py: 1,722 players' positions (lichess blitz October 2025, strict
+// accounts) against 1,750 from sim-human.mjs at 1500; a trade was on the board in 20.6% / 16.6% of
+// them, and the engine's best was a trade in 47% of those for both. So in that spot the engine's
+// move is held on HZ_SIMPLIFY_HOLD of the moves: 43% deviations x 0.6 is the players' 25%. A held
+// error is owed like any other the position could not offer, so the game's error rate stays put.
+const HZ_SIMPLIFY_HI = 1000;     // +10.00: past it the study did not look, and the game is decided
+const HZ_SIMPLIFY_HOLD = 0.4;    // 0 turns it off
+
+// Does `uci` trade pieces off: a capture of a knight or more that does not lose material on the
+// exchange (static exchange 0 or better) and that the opponent can take back. Unknown is false.
+function hz_simplifies(Chess, variant, fen, uci) {
+    try {
+        const c = new Chess(variant || 'chess', fen);
+        const mv = c.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]});
+        if (!mv || !mv.captured) return false;
+        const v = HZ_PIECE[mv.captured] || 0;
+        if (v < 3) return false;
+        if (!c.moves({verbose: true}).some(m => m.to === mv.to && m.captured)) return false;
+        return v - hz_swap(c, mv.to) >= 0;
+    } catch (e) { return false; }
+}
+
+// Hold the engine's move for the simplify rule? r is a uniform roll in [0,1); trades() is only asked
+// inside the winning window, since it walks the exchange.
+function hz_simplify_hold(bestCp, trades, r) {
+    return bestCp >= HZ_WIN_CP && bestCp <= HZ_SIMPLIFY_HI && r < HZ_SIMPLIFY_HOLD && trades();
+}
+
 // MAIA-GUIDED CHOICE (redesign Stage B, 3.1.322). probs = Maia-3's move probabilities at the
 // Play-like rating for this position, a Map uci -> p over every legal move.
 // B1, Human-Like Mistakes: a deviation is drawn in proportion to how often a player of that rating
@@ -8259,6 +8290,8 @@ function humanize_pick(best) {
         const winFloor = guards ? hz_win_floor(bestCp) : -Infinity;
         const safe = (l) => !guards || (line_cp_ours(l) >= winFloor && !hangs(l));
         const mate = hz_mate_in(bestCp);
+        const simplifyHold = guards && hz_simplify_hold(bestCp, () => hz_simplifies(Chess, config.variant, fen, best), Math.random());
+        if (simplifyHold) console.log(`Humanize: winning, and ${best} trades pieces off: kept`);
         // reuse the roll made at search start (so the countdown's shown move matches what's played)
         const r = (humanize_roll != null) ? humanize_roll.r : Math.random() * 100;
         // A policy net as the main engine already plays at a rating and prints one score for every
@@ -8320,7 +8353,7 @@ function humanize_pick(best) {
             const cands = [bestLine, ...allowed].map(l => ({move: l.move, drop: Math.max(0, wpBest - win_percent(line_cp_ours(l))), line: l}));
             const typeOf = hz_type_classifier(Chess, config.variant, fen);
             const shallow = last_eval.shallow;
-            const res = (Math.random() < keep) ? hz_match_pick(cands, shares, r / 100, Math.random, maiaWhich ? probs : null,
+            const res = (!simplifyHold && Math.random() < keep) ? hz_match_pick(cands, shares, r / 100, Math.random, maiaWhich ? probs : null,
                                                                typeOf, hz_type_mix(elo), (u) => hz_hidden_of(shallow, u))
                                                : {cand: null, rolled: 0, played: 0};
             hz_match_state = {debt: hz_match_settle(hz_match_state.debt, base, res.played), fullmove};
@@ -8350,7 +8383,7 @@ function humanize_pick(best) {
             // while winning neither mistakes nor blunders
             const barred = (cat === 'blunder' && Math.abs(bestCp) >= 600)
                 || (winning && (cat === 'mistake' || cat === 'blunder'));
-            if (cat !== 'top' && !barred && Math.random() < keep) {
+            if (cat !== 'top' && !barred && !simplifyHold && Math.random() < keep) {
                 const pool = alts.filter(l => loss(l) > bands[cat][0] && loss(l) <= bands[cat][1]);
                 const ok = pool.filter(l => safe(l) && (keep === 1 || takes(l)));
                 const row = hz_type_mix(config.maia3_elo)[['inaccuracy', 'mistake', 'blunder'].indexOf(cat)];
@@ -8361,13 +8394,13 @@ function humanize_pick(best) {
                     + (cand ? `${cand.move} (${((probs.get(cand.move) || 0) * 100).toFixed(1)}%)` : 'none at 1%+, best move kept'));
                 if (cand) category = HUMANIZE_LABEL[cat];
                 else if (pool.length && guards) category = 'guard held';
-            } else if (cat !== 'top' && guards && (barred || keep < 1)) {
+            } else if (cat !== 'top' && guards && (barred || keep < 1 || simplifyHold)) {
                 category = 'guard held';
             }
         }
         if (cand && playable(cand.move)) move = cand.move;
         else if (category !== 'guard held') category = 'top engine'; // top slice / pool empty / not playable
-        if (category === 'guard held') console.log(`Humanize: a guard kept ${best} (deviation would hang material, throw a win or skip a punish)`);
+        if (category === 'guard held') console.log(`Humanize: a guard kept ${best} (deviation would hang material, throw a win, skip a punish or a winning trade)`);
     }
 
     // ---- HOW LONG to think: classify the position, then sample a duration.

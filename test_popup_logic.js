@@ -3803,6 +3803,24 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && v('hz_punish_keep(600, true)') === 0.05 && v('hz_punish_keep(600, false)') === 1);
     ok('mate in N from an our-view score, null for an ordinary eval',
        v('hz_mate_in(97000)') === 3 && v('hz_mate_in(500)') === null && v('hz_mate_in(-97000)') === null);
+    const T = (fen, uci) => v(`hz_simplifies(Chess, 'chess', ${JSON.stringify(fen)}, ${JSON.stringify(uci)})`);
+    ok('simplify: an even knight trade the opponent can take back trades pieces off',
+       T('4k3/8/4p3/3n4/8/2N5/8/4K3 w - - 0 1', 'c3d5') === true);
+    ok('...a free knight (nothing takes back), a pawn capture, a queen into a pawn guard, a quiet or illegal move do not',
+       T('4k3/8/8/3n4/8/2N5/8/4K3 w - - 0 1', 'c3d5') === false && T('4k3/8/4p3/3p4/8/2N5/8/4K3 w - - 0 1', 'c3d5') === false
+       && T('4k3/8/4p3/3n4/8/8/8/3QK3 w - - 0 1', 'd1d5') === false && T('4k3/8/4p3/3n4/8/2N5/8/4K3 w - - 0 1', 'c3b5') === false
+       && T('4k3/8/4p3/3n4/8/2N5/8/4K3 w - - 0 1', 'c3c8') === false);
+    ok('simplify hold: winning by +3 to +10, the best trades and the roll is under HZ_SIMPLIFY_HOLD, nowhere else',
+       v('hz_simplify_hold(500, () => true, 0.1)') === true && v('hz_simplify_hold(500, () => true, HZ_SIMPLIFY_HOLD)') === false
+       && v('hz_simplify_hold(500, () => false, 0.1)') === false && v('hz_simplify_hold(299, () => true, 0.1)') === false
+       && v('hz_simplify_hold(1001, () => true, 0.1)') === false);
+    ok('...the exchange walk is never run outside the window or past the roll',
+       v("hz_simplify_hold(250, () => { throw new Error('walked'); }, 0.1)") === false
+       && v("hz_simplify_hold(500, () => { throw new Error('walked'); }, 0.9)") === false);
+    ok('...wired: guards only, it stops the match pick and the slider pick from deviating',
+       /const simplifyHold = guards && hz_simplify_hold\(bestCp, \(\) => hz_simplifies\(Chess, config\.variant, fen, best\), Math\.random\(\)\);/.test(psrc)
+       && /const res = \(!simplifyHold && Math\.random\(\) < keep\) \? hz_match_pick\(/.test(psrc)
+       && /if \(cat !== 'top' && !barred && !simplifyHold && Math\.random\(\) < keep\) \{/.test(psrc));
     // wiring: both modes go through the guards, the target stands down for a policy-net engine
     ok('...the mix pool and the target candidates both pass safe(), the long mate needs a still-winning non-hanging line, and Maia/Leela skip the target',
        /const ok = pool\.filter\(l => safe\(l\) && \(keep === 1 \|\| takes\(l\)\)\);/.test(psrc)
