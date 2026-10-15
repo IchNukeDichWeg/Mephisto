@@ -5844,6 +5844,18 @@ function apply_page_rights(fen, pageRights) {
     }
 }
 
+// The page's move counters, where it gave them (the `mc-` token, see fenToPuzString): the piece
+// string has no counters, so a set-up position always serialized as "0 1".
+function apply_page_counters(fen, pageCounters) {
+    if (!pageCounters) return fen;
+    const [half, full] = pageCounters;
+    const fields = fen.split(' ');
+    if (fields.length !== 6 || !/^\d+$/.test(half) || !/^[1-9]\d*$/.test(full)) return fen;
+    // an en-passant square means a pawn just moved, which zeroes the halfmove clock whatever was sent
+    fields[4] = fields[3] !== '-' ? '0' : half; fields[5] = full;
+    return fields.join(' ');
+}
+
 function apply_castling_rights(fen) {
     if (config.variant && config.variant !== 'chess') return fen;
     try {
@@ -5980,10 +5992,11 @@ function parse_position_from_response(txt) {
         const [playerTurn, ...tokens] = txt.split('*****').slice(0, -1);
         // `lm-<from><to>` is the page's last-move highlight, shipped by the chess.com puzzle scrape
         // purely so the en-passant square can be recovered (see below). Everything else is a piece.
-        let lastMove = null, pageRights = null;
+        let lastMove = null, pageRights = null, pageCounters = null;
         for (const token of tokens) {
             if (token.startsWith('lm-')) { lastMove = token.slice(3); continue; }
             if (token.startsWith('cr-')) { pageRights = token.slice(3); continue; }   // see fenToPuzString
+            if (token.startsWith('mc-')) { pageCounters = token.slice(3).split('-'); continue; }   // ditto
             const attributes = token.split('-');
             chess.put({type: attributes[1], color: attributes[0]}, attributes[2]);
         }
@@ -6021,7 +6034,7 @@ function parse_position_from_response(txt) {
 
         // Both patches restore information the piece scrape cannot carry. Castling first: it only
         // reads piece placement, so it is independent of the ep field it is followed by.
-        const record =  {fen: apply_ep_square(apply_page_rights(apply_castling_rights(chess.fen()), pageRights), lastMove)};
+        const record =  {fen: apply_page_counters(apply_ep_square(apply_page_rights(apply_castling_rights(chess.fen()), pageRights), lastMove), pageCounters)};
         fen_cache.set(txt, record);
         return record;
     }

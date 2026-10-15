@@ -3489,4 +3489,22 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const got = JSON.parse(r);
     ok('the PV walk steps back to the position it started from on the page, and a further step back is left to the site',
        got.b1 && got.b2 && got.b3 === false && got.idx === -1 && got.at === START, got); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // a set-up position keeps the page's move counters (F4)
+    const d0 = csrc.indexOf('const DEFAULT_POSITION ='), dEnd = csrc.indexOf(';', d0) + 1, f0 = csrc.indexOf('function fenToPuzString(fen)');
+    const cc = vm.createContext({}); vm.runInContext(csrc.slice(d0, dEnd) + '\n' + csrc.slice(f0, csrc.indexOf('\n}\n', f0) + 3), cc);
+    const puz = (fen) => vm.runInContext(`fenToPuzString(${JSON.stringify(fen)})`, cc);
+    ok('the page\'s move counters ride along with a set-up start; "0 1" and the standard start add nothing',
+       puz('r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P4/2PBPN2/PP1N1PPP/R1BQ1RK1 w - - 0 8').endsWith('mc-0-8*****')
+       && !puz('4k3/8/8/8/8/8/8/R3K3 w - - 0 1').includes('mc-') && !puz('4k3/8/8/8/8/8/8/R3K3 w -').includes('mc-')
+       && puz('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') === vm.runInContext('DEFAULT_POSITION', cc));
+    const a = psrc.indexOf('function apply_page_counters('), b = psrc.indexOf('\n}\n', a) + 3;
+    const c = vm.createContext({}); vm.runInContext(psrc.slice(a, b), c);
+    const pc = (fen, mc) => vm.runInContext(`apply_page_counters(${JSON.stringify(fen)}, ${JSON.stringify(mc)})`, c);
+    ok('...and the panel writes them back: "0 8" restored, ep square forces halfmove 0, no token or junk leaves the FEN alone',
+       pc('8/8/8/4k3/8/8/8/4K2R w - - 0 1', ['12', '40']) === '8/8/8/4k3/8/8/8/4K2R w - - 12 40'
+       && pc('4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1', ['5', '30']) === '4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 30'
+       && pc('8/8/8/4k3/8/8/8/4K2R w - - 0 1', null) === '8/8/8/4k3/8/8/8/4K2R w - - 0 1' && pc('8/8/8/4k3/8/8/8/4K2R w - - 0 1', ['x', '0']) === '8/8/8/4k3/8/8/8/4K2R w - - 0 1');
+    ok('...the piece parse reads the mc- token last, after the ep square', /if \(token\.startsWith\('mc-'\)\) \{ pageCounters = token\.slice\(3\)\.split\('-'\); continue; \}/.test(psrc)
+       && /apply_page_counters\(apply_ep_square\(apply_page_rights\(apply_castling_rights\(chess\.fen\(\)\), pageRights\), lastMove\), pageCounters\)/.test(psrc)); }
 // ==== END FIX CHECKS ====
