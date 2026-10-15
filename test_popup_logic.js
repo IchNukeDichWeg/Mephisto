@@ -393,6 +393,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         ['a quiet developing move is not a sacrifice', 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'g1f3', false],
         // an even trade is not a sacrifice: we take a knight, they take our knight back
         ['an even trade is not a sacrifice', '4k3/8/4n3/8/8/4N3/8/4K3 w - - 0 1', 'e3d5', false],
+        // en passant takes a pawn that never stood on d6; retaken by c7 it is pawn for pawn (F14)
+        ['an en-passant pawn trade is not a sacrifice', '4k3/2p5/8/3pP3/8/8/8/4K3 w - d6 0 1', 'e5d6', false],
         ['junk input never claims brilliance', 'not a fen', 'e2e4', false],
     ];
     for (const [name, fen, uci, want] of sacCases) {

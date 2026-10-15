@@ -37,13 +37,15 @@ function sacrificesMaterial(Chess, variant, fenBefore, uci) {
         const c = new Chess(variant || 'chess', fenBefore);
         const from = uci.slice(0, 2), to = uci.slice(2, 4);
         const mover = c.get(from);
-        const captured = c.get(to);
         const mv = c.move({from, to, promotion: uci[4]});
         if (!mv) return false;
-        // en passant and promotions confuse a naive swap; treat the promoted piece as what stands there
+        // promotions confuse a naive swap; treat the promoted piece as what stands there
         const standing = c.get(to);
         if (!standing || !mover) return false;
-        let gain = captured ? PIECE_VAL[captured.type] : 0;   // what the move won outright
+        // What the move won outright, from the MOVE, not the destination square: en passant takes a
+        // pawn that never stood on it, so an ep pawn trade read as a pawn given away and could be
+        // graded Brilliant (3.1.321 audit F14).
+        let gain = mv.captured ? PIECE_VAL[mv.captured] : 0;
         let onSquare = PIECE_VAL[standing.type];              // what is now exposed there
         // cheapest opponent capture of that square, then our cheapest recapture, alternating
         let side = 'them';
