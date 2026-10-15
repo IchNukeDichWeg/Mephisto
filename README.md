@@ -367,7 +367,9 @@ back: 75 reached 75.5 against the 1500 but only 83.7 against the 2200. Live on L
 more by exchange count (a pawn en prise stays allowed - that is the error people make), giving back a winning position
 (from +3.00 no mistakes or blunders, and nothing below 60% of the eval), or skipping the punishment of a blunder (after
 a two-pawn gift the deviation rate drops to a fifth, after a five-pawn one to a twentieth, and a deviation must still
-win something). Short mates are always played; a mate in 7 or more is sometimes swapped for a line still at +10. The
+win something). Short mates are always played; a mate in 7 or more is sometimes swapped for a line still at +10.
+Winning by +3 to +10, it simplifies like people do: when the engine's move is an even trade, it is kept on 40% of the
+moves a deviation was due, so the trade is taken 75% of the time, as players at 1400-1599 take it (it was 57%). The
 guards win over Target Accuracy, and the panel says "guard held" when one kept the engine's move. With a Maia option
 on, a hang that Maia-3 says players of the Play-like rating really make there (2% or more) is let through: most human
 blunders are hung pieces, and these are the natural ones.
