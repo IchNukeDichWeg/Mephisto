@@ -4145,7 +4145,7 @@ function getPromotionSelection(promotion) {
         const promotionModal = document.querySelector('#promotion-choice');
         if (promotionModal) promotions = promotionModal.children;
     } else if (site === 'blitztactics') {
-        promotions = document.querySelector('.pieces').children;
+        promotions = document.querySelector('.piece-promotion-modal .pieces')?.children;
     }
 
     const promoteMap = (site === 'chesscom')
@@ -5281,10 +5281,15 @@ async function simulatePromotionClicks(promotion, travelMs = 250) {
     // isn't in the DOM when we first look. Checking once (the old behaviour) meant we'd skip the
     // promo click on those, leaving the pawn stuck on the 8th rank with the dialog open -- the
     // intermittent "promotion sometimes fails" on lichess. Poll up to ~1.5s for the picker instead.
-    let promotionChoice = getPromotionSelection(promotion);
+    // ON SCREEN, not merely in the DOM. BlitzTactics mounts its picker at page load at 0x0 and only
+    // fills it in when a promotion is due, so the first look found its (sizeless) queen at once and
+    // clicked the page's top-left corner: every speedrun stopped at its first promotion, f8=Q, in
+    // 3.1.321 and before. A choice counts once it has a size.
+    const onScreen = (el) => { const r = el?.getBoundingClientRect?.(); return r && r.width > 0 && r.height > 0 ? el : undefined; };
+    let promotionChoice = onScreen(getPromotionSelection(promotion));
     for (const deadline = Date.now() + 1500; !promotionChoice && Date.now() < deadline; ) {
         await promiseTimeout(40);
-        promotionChoice = getPromotionSelection(promotion);
+        promotionChoice = onScreen(getPromotionSelection(promotion));
     }
     if (promotionChoice) {
         // The picker click never snaps: it gets a real cursor path over at least PROMO_MIN_MS,

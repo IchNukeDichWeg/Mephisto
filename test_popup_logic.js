@@ -3618,4 +3618,17 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('picking the 4-player engine by hand remembers the engine it replaced, so the switch back restores it',
        /if \(key === 'engine' && FOURPC_ENGINES\.includes\(parse\(elem\.value\)\)\s*&& !FOURPC_ENGINES\.includes\(config\.engine\) && !fourpc_prev_engine\) \{\s*fourpc_prev_engine = config\.engine;\s*\}\s*if \(key === 'engine'\) stop_current_engine\(\);/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // a promotion choice is clicked only once it is on screen (BlitzTactics mounts its picker at 0x0)
+    const a = csrc.indexOf('async function simulatePromotionClicks('), b = csrc.indexOf('\n}\n', a) + 3;
+    const clicks = [], c = vm.createContext({site: 'blitztactics', PROMO_MIN_MS: 0, console: {warn() {}}});
+    let polls = 0;
+    c.getPromotionSelection = () => ({getBoundingClientRect: () => (++polls < 4 ? {x: 0, y: 0, width: 0, height: 0} : {x: 575, y: 57, width: 80, height: 80})});
+    c.promiseTimeout = () => Promise.resolve(); c.simulateClickSquare = (r) => { clicks.push(r); return Promise.resolve(); };
+    vm.runInContext(csrc.slice(a, b), c);
+    vm.runInContext("simulatePromotionClicks('q', 0)", c).then(() => {
+        ok('the promotion click waits for a picker with a size and never clicks a 0x0 one',
+           clicks.length === 1 && clicks[0].width === 80 && polls >= 4, {clicks, polls}); });
+    ok('...and BlitzTactics reads its pieces from the promotion modal, without throwing when there is none',
+       /promotions = document\.querySelector\('\.piece-promotion-modal \.pieces'\)\?\.children;/.test(csrc)); }
 // ==== END FIX CHECKS ====
