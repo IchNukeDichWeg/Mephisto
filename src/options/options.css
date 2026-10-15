@@ -589,6 +589,22 @@ tr.set-mix-total td { border-bottom: 0; font-weight: 600; padding-top: 8px; }
     cursor: pointer;
 }
 .set-macro-steps > button { color: var(--mp-dim); }
+/* custom toggles: a key AND a setting picker, so a whole line each */
+.set-keys .set-key.set-custom { grid-column: 1 / -1; }
+.set-keys .set-key.set-custom > span { flex: none; }
+.set-keys .set-key > select.set-custom-pick {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    height: 26px;
+    padding: 0 6px;
+    border: 1px solid var(--mp-line);
+    border-radius: 3px;
+    background: var(--mp-bg);
+    color: var(--mp-text);
+    font-size: 12.5px;
+    cursor: pointer;
+}
 .set-macro-steps > button:hover { border-color: var(--mp-on); color: var(--mp-on); }
 
 @media (max-width: 992px) {

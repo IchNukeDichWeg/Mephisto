@@ -9169,7 +9169,12 @@ function toggle_shortcut_sheet() {
     title.textContent = i18n('panel.shortcuts_title', 'Keyboard shortcuts');
     const grid = document.createElement('div');
     grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:0 18px';
-    for (const [label, key] of shortcut_sheet_rows(keys, MephistoConfig.hotkeyMacros(), MephistoConfig.HOTKEY_LABELS)) {
+    // a custom toggle is listed under the setting it flips, not as "Custom 1"
+    const labels = {...MephistoConfig.HOTKEY_LABELS};
+    MephistoConfig.hotkeyCustom().forEach((c, i) => {
+        if (c.setting) labels[MephistoConfig.HOTKEY_CUSTOM[i]] = i18n('panel.shortcuts_custom', 'Toggle {name}', {name: c.label});
+    });
+    for (const [label, key] of shortcut_sheet_rows(keys, MephistoConfig.hotkeyMacros(), labels)) {
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;gap:8px;border-bottom:1px solid var(--mp-hair,#f0f1f2)';
         const l = document.createElement('span');
@@ -9241,10 +9246,46 @@ function do_hotkey(action) {
         try { return !!self.MephistoContent?.toggleMinimize?.(); }
         catch (e) { return false; }   // toolbar-popup mode has no overlay to minimize
     }
+    if (MephistoConfig.HOTKEY_CUSTOM.includes(action)) return custom_hotkey(MephistoConfig.HOTKEY_CUSTOM.indexOf(action));
     const box = HOTKEY_TOGGLES[action] && PANEL_ROOT.getElementById(HOTKEY_TOGGLES[action]);
     if (!box) return false;
     box.checked = !box.checked;
     box.dispatchEvent(new Event('change'));
+    return true;
+}
+
+// CUSTOM TOGGLES (Settings > Hotkeys, Custom 1 and 2): flip the on/off setting the key was given.
+// A setting with a quick-settings checkbox goes through that checkbox, the same path as its own key.
+// Any other is written to storage, which an open panel adopts on its own for the LIVE_CONFIG_KEYS
+// and for the humanize_* flags (read fresh on every pick); for the rest -- the ones only read when
+// the panel opens -- the panel is reopened so the change is real, not just saved. Unassigned: the
+// key does nothing and stays the site's (false).
+function custom_hotkey_live(setting) {
+    return LIVE_CONFIG_KEYS.includes(setting) || setting.startsWith('humanize_');
+}
+function custom_hotkey(i) {
+    const c = MephistoConfig.hotkeyCustom()[i];
+    if (!c || !c.setting) return false;
+    const box = HOTKEY_TOGGLES[c.setting] && PANEL_ROOT.getElementById(HOTKEY_TOGGLES[c.setting]);
+    let on;
+    if (box) {
+        box.checked = !box.checked;
+        box.dispatchEvent(new Event('change'));
+        on = box.checked;
+    } else {
+        let cur = c.def;
+        try { const v = JSON.parse(MephistoConfig.get(c.setting)); if (typeof v === 'boolean') cur = v; } catch (e) { /* unset */ }
+        on = !cur;
+        MephistoConfig.set(c.setting, JSON.stringify(on));
+    }
+    const state = on ? i18n('ui.on', 'On') : i18n('ui.off', 'Off');
+    if (box || custom_hotkey_live(c.setting)) {
+        set_idle_reason(i18n('panel.msg.custom_hotkey', '{name}: {state}', {name: c.label, state}));
+    } else {
+        set_idle_reason(i18n('panel.msg.custom_hotkey_reload', '{name}: {state} - reopening the panel to apply it', {name: c.label, state}));
+        setTimeout(panel_reload, 600);   // long enough to read the line, and for the write to land
+    }
+    console.log(`Mephisto: custom hotkey ${i + 1} -> ${c.setting} ${on}`);
     return true;
 }
 

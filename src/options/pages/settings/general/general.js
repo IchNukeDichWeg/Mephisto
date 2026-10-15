@@ -822,7 +822,7 @@ class GeneralSettings extends SettingsPage {
             // whose binding did nothing (live_classify and streamer_alert did exactly that).
             'help_mode', 'humanize', 'clock_mode', 'clock_pace', 'mirror_mode', 'eval_bar', 'eval_history', 'live_stats', 'tablebase', 'puzzle_mode',
             'copy_fen', 'copy_pgn', 'copy_diagnostics', 'redetect', 'compact', 'minimize', 'bot_trick', 'panic',
-            'pv_back', 'pv_forward', 'shortcuts'];
+            'pv_back', 'pv_forward', 'shortcuts', ...MephistoConfig.HOTKEY_CUSTOM];
         // the content-script listener's own normalization (config-store.js), so what we store is
         // exactly what it compares
         const keyString = (e) => MephistoConfig.hotkeyString(e);
@@ -900,6 +900,36 @@ class GeneralSettings extends SettingsPage {
             render();
         });
 
+        // ---- Custom toggles: each HOTKEY_CUSTOM row also picks the on/off setting its key flips, from
+        // every checkbox setting on this page, named the way the page shows it (translated).
+        let customs = MephistoConfig.hotkeyCustom();
+        const saveCustoms = () => MephistoConfig.set('hotkey_custom', JSON.stringify(customs));
+        const rowName = (fe) => {
+            const lbl = fe.elem?.closest?.('.set-row')?.querySelector('.set-lbl');
+            if (lbl) {
+                const c = lbl.cloneNode(true);
+                c.querySelectorAll('.material-icons').forEach(i => i.remove());
+                const text = c.textContent.replace(/\s+/g, ' ').trim();
+                if (text) return text;
+            }
+            return String(fe.desc || fe.name).replace(/:\s*$/, '');
+        };
+        const choices = () => this.formElements.filter(fe => fe.type === 'checkbox' && fe.elem)
+            .map(fe => ({setting: fe.name, label: rowName(fe), def: fe.default === true}))
+            .sort((a, b) => a.label.localeCompare(b.label));
+        const customPicker = (i) => {
+            const sel = document.createElement('select');
+            sel.className = 'browser-default set-custom-pick';
+            sel.add(new Option(t('set.custom_pick', 'Choose a setting…'), '', false, !customs[i].setting));
+            for (const c of choices()) sel.add(new Option(c.label, c.setting, false, c.setting === customs[i].setting));
+            sel.addEventListener('change', () => {
+                const c = choices().find(x => x.setting === sel.value);
+                customs[i] = c || {setting: '', label: '', def: false};
+                saveCustoms();
+            });
+            return sel;
+        };
+
         const render = () => {
             container.innerHTML = '';
             for (const action of ORDER) {
@@ -913,6 +943,8 @@ class GeneralSettings extends SettingsPage {
                 btn.textContent = (capturing === action) ? 'press a key…' : pretty(bindings[action]);
                 btn.addEventListener('click', () => { capturing = (capturing === action) ? null : action; render(); });
                 row.append(label, btn);
+                const ci = MephistoConfig.HOTKEY_CUSTOM.indexOf(action);
+                if (ci >= 0) { row.classList.add('set-custom'); row.appendChild(customPicker(ci)); }
                 container.appendChild(row);
             }
             renderMacros();
@@ -969,10 +1001,12 @@ class GeneralSettings extends SettingsPage {
         this.refreshHotkeys = () => {
             bindings = MephistoConfig.hotkeys();
             macros = MephistoConfig.hotkeyMacros();
+            customs = MephistoConfig.hotkeyCustom();
             capturing = null;
             render();
         };
-        render();
+        // after the constructor: settings registered below initHotkeys() belong in the custom pickers too
+        queueMicrotask(render);
     }
 
     // Everything that re-reads the form from storage (page open, Import) re-reads the hotkey and
@@ -992,7 +1026,7 @@ class GeneralSettings extends SettingsPage {
         for (const k of ['humanize_top', 'humanize_second', 'humanize_third', 'humanize_fourth', 'humanize_inaccuracy',
             'humanize_mistake', 'humanize_blunder', 'humanize_cp_second', 'humanize_cp_third', 'humanize_cp_fourth',
             'humanize_cp_inaccuracy', 'humanize_cp_mistake', 'humanize_cp_blunder',
-            'live_classify_which', 'hotkeys', 'hotkey_macros']) MephistoConfig.remove(k);
+            'live_classify_which', 'hotkeys', 'hotkey_macros', 'hotkey_custom']) MephistoConfig.remove(k);
         chrome.storage.local.remove('ui_mode', () => location.reload());
     }
 

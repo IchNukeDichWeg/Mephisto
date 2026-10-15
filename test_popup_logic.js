@@ -1661,6 +1661,58 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('a macro re-pressing its own key is not a clash', C.hotkeyOwner('j', 0) === null);
     ok('a free key has no owner', C.hotkeyOwner('Alt+j') === null);
 
+    // --- config-store: custom toggles (Custom 1/2 flip one on/off setting each)
+    ok('the two custom toggles exist, unbound, and an empty key has no owner',
+       C.HOTKEY_CUSTOM.length === 2 && C.HOTKEY_CUSTOM.every(a => C.HOTKEY_DEFAULTS[a] === '') && C.hotkeyOwner('') === null);
+    C.remove('hotkey_custom');
+    ok('no saved custom toggles read as two unassigned slots', JSON.stringify(C.hotkeyCustom().map(c => c.setting)) === '["",""]');
+    C.set('hotkey_custom', JSON.stringify([{setting: 'background_play', label: 'Background Play', def: false},
+                                           {setting: 'hotkeys', label: 'x'}, {setting: 'extra'}]));
+    const cu = C.hotkeyCustom();
+    ok('custom toggles are sanitized on read: a real setting kept, the hotkey stores themselves refused, extras dropped',
+       cu.length === 2 && cu[0].setting === 'background_play' && cu[0].label === 'Background Play' && cu[0].def === false
+       && cu[1].setting === '', JSON.stringify(cu));
+    C.set('hotkey_custom', JSON.stringify([{setting: 'Bad Key!'}, {setting: 'humanize_guards', def: true}]));
+    ok('...a malformed setting id is refused, a default of true is kept', C.hotkeyCustom()[0].setting === ''
+       && C.hotkeyCustom()[1].def === true && C.hotkeyCustom()[1].label === 'humanize_guards');
+    C.set('hotkey_custom', 'not json');
+    ok('corrupt custom-toggle storage reads as unassigned', C.hotkeyCustom().every(c => c.setting === ''));
+    C.remove('hotkey_custom');
+
+    // --- the panel's custom_hotkey, executed against stubs
+    {
+        const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+        const fnSrc = (name) => { const i = psrc.indexOf(`function ${name}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+        const st = {}, said = [], reloads = [];
+        const box = {checked: false, fired: 0, dispatchEvent() { this.fired++; }};
+        const pc = vm.createContext({console: {log() {}}, Event: function () {}, said, reloads, st,
+            MephistoConfig: {get: (k) => st[k] ?? null, set: (k, v) => { st[k] = v; }, hotkeyCustom: () => pc.slots},
+            HOTKEY_TOGGLES: {autoplay: 'qs_autoplay'}, LIVE_CONFIG_KEYS: ['autoplay', 'background_play'],
+            PANEL_ROOT: {getElementById: (id) => id === 'qs_autoplay' ? box : null},
+            i18n: (k, d, v) => v ? d.replace('{name}', v.name).replace('{state}', v.state) : d,
+            set_idle_reason: (t) => said.push(t), panel_reload: () => reloads.push(1), setTimeout: (f) => f()});
+        vm.runInContext(fnSrc('custom_hotkey_live') + fnSrc('custom_hotkey'), pc);
+        const run = (slots, i) => { pc.slots = slots; return vm.runInContext(`custom_hotkey(${i})`, pc); };
+        ok('custom hotkey: an unassigned slot does nothing and leaves the key to the site', run([{setting: ''}], 0) === false);
+        ok('...a setting with a quick-settings checkbox flips that checkbox through its change event',
+           run([{setting: 'autoplay', label: 'Autoplay', def: false}], 0) === true && box.checked === true && box.fired === 1
+           && !('autoplay' in st) && /Autoplay: On/.test(said.at(-1)));
+        ok('...a live setting never saved flips from its default and is written, no reopen',
+           run([{setting: 'background_play', label: 'Background Play', def: false}], 0) === true
+           && st.background_play === 'true' && reloads.length === 0);
+        ok('...a humanize_* flag defaulting on goes off on the first press (read fresh, no reopen)',
+           run([{setting: 'humanize_guards', label: 'Guards', def: true}], 0) === true && st.humanize_guards === 'false' && reloads.length === 0);
+        st.background_play = 'true';
+        ok('...a saved value wins over the default', run([{setting: 'background_play', label: 'B', def: false}], 0) === true
+           && st.background_play === 'false');
+        ok('...a setting the panel only reads at open is written AND the panel reopens to apply it',
+           run([{setting: 'coordinates', label: 'Coordinates', def: false}], 0) === true && st.coordinates === 'true'
+           && reloads.length === 1 && /reopening/.test(said.at(-1)));
+        ok('...wired: do_hotkey routes Custom 1/2 here, and the cheat sheet names the setting',
+           /if \(MephistoConfig\.HOTKEY_CUSTOM\.includes\(action\)\) return custom_hotkey\(MephistoConfig\.HOTKEY_CUSTOM\.indexOf\(action\)\);/.test(psrc)
+           && /labels\[MephistoConfig\.HOTKEY_CUSTOM\[i\]\] = i18n\('panel\.shortcuts_custom'/.test(psrc));
+    }
+
     // --- content-script listener: macros through the same MephistoPanel.hotkey as single keys
     const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const hs = cs.indexOf('function hotkeyString(e) {');
@@ -2147,20 +2199,25 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const g0 = gj.indexOf('    initHotkeys() {'), g1 = gj.indexOf('    initUiMode() {');
     const el = () => ({kids: [], on: {}, className: '', textContent: '', set innerHTML(v) { this.kids = []; },
+        classList: {add() {}}, value: '',
         appendChild(c) { this.kids.push(c); }, append(...c) { this.kids.push(...c); },
         addEventListener(t, f) { this.on[t] = f; }, add() {}});
     const store = {hotkeys: JSON.stringify({autoplay: 'a'}), hotkey_macros: JSON.stringify([{key: 'x', steps: ['autoplay']}])};
     const els = {};
-    const hc = vm.createContext({store, keydown: [],
+    const hc = vm.createContext({store, keydown: [], queueMicrotask,
         Option: function () {},
         MephistoI18n: {t: (k, d) => d},
-        MephistoConfig: {HOTKEY_LABELS: {}, HOTKEY_MACRO_MAX_STEPS: 8,
+        MephistoConfig: {HOTKEY_LABELS: {}, HOTKEY_MACRO_MAX_STEPS: 8, HOTKEY_CUSTOM: ['custom_1', 'custom_2'],
+            hotkeyCustom: () => JSON.parse(store.hotkey_custom || '[{"setting":""},{"setting":""}]'),
             get: (k) => store[k], set: (k, v) => { store[k] = v; }, remove: (k) => { delete store[k]; },
             hotkeys: () => JSON.parse(store.hotkeys || '{}'), hotkeyMacros: () => JSON.parse(store.hotkey_macros || '[]'),
             hotkeyString: (e) => e.key, hotkeyOwner: () => null},
         document: {getElementById: (id) => els[id] || (els[id] = el()), createElement: el,
                    addEventListener(t, f) { if (t === 'keydown') hc.keydown.push(f); }}});
-    vm.runInContext('class Base { pullConfigValues() {} }\nclass Page extends Base {\n' + gj.slice(g0, g1) + '}\n'
+    vm.runInContext('class Base { formElements = [{name: "background_play", desc: "Background Play:", type: "checkbox", default: false, elem: {}},'
+                    + ' {name: "humanize_guards", desc: "Guards:", type: "checkbox", default: true, elem: {}},'
+                    + ' {name: "move_time", desc: "Move Time:", type: "input", default: 400, elem: {}}]; pullConfigValues() {} }\n'
+                    + 'class Page extends Base {\n' + gj.slice(g0, g1) + '}\n'
                     + 'var page = new Page(); page.initHotkeys();', hc);
     // Import: the file's hotkeys land in storage, then the page re-reads the form
     store.hotkeys = JSON.stringify({autoplay: 'z', copy_fen: 'q'});
@@ -2174,6 +2231,19 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         && JSON.parse(store.hotkey_macros)[0].key === 'y';
     if (!okH) fails++;
     console.log(`${okH ? 'ok  ' : 'FAIL'} a rebind after Import keeps the imported hotkeys and macros (got ${store.hotkeys})`);
+    // the custom toggles: their rows carry a setting picker (last child) that saves {setting, label, def}
+    const rows = els.hotkey_rows.kids;
+    const pickers = rows.map(r => r.kids[2]).filter(Boolean);
+    let okC = pickers.length === 2;
+    if (okC) {
+        pickers[1].value = 'humanize_guards'; pickers[1].on.change();
+        const sv = JSON.parse(store.hotkey_custom || '[]');
+        okC = sv[1] && sv[1].setting === 'humanize_guards' && sv[1].label === 'Guards' && sv[1].def === true && sv[0].setting === '';
+        pickers[0].value = 'move_time'; pickers[0].on.change();     // not a checkbox setting: never offered, so it clears
+        okC = okC && JSON.parse(store.hotkey_custom)[0].setting === '';
+    }
+    if (!okC) fails++;
+    console.log(`${okC ? 'ok  ' : 'FAIL'} Custom 1/2 rows pick an on/off setting and save it with its label and default, never an input setting (got ${store.hotkey_custom})`);
 }
 
 {

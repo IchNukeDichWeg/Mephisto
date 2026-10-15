@@ -103,6 +103,10 @@
             // itself) puts its list, so it is the first key anyone tries. It is typed with Shift on
             // every layout, which is why hotkeyString drops Shift for symbols (see canonHotkey).
             shortcuts: '?',
+            // CUSTOM TOGGLES: two keys that each flip ONE on/off setting of your choosing (which one
+            // lives in config `hotkey_custom`, see hotkeyCustom). Unbound by default -- no letter is
+            // taken from anyone until you pick one.
+            custom_1: '', custom_2: '',
         },
         // What each action is called, wherever a person reads the list: the Hotkeys settings rows,
         // the macro step pickers and the panel's cheat sheet. Here, beside the defaults, because
@@ -120,6 +124,7 @@
             panic: 'Panic - hide the panel, stop the engine',
             pv_back: 'Walk the line back', pv_forward: 'Walk the line forward',
             shortcuts: 'Show shortcuts',
+            custom_1: 'Custom 1 - toggle a setting', custom_2: 'Custom 2 - toggle a setting',
         },
         // "Shift+?" -> "?". A symbol already says whether Shift was down ('?' vs '/', '!' vs '1'), and
         // WHICH key needs Shift differs by layout ('?' is Shift+/ on US, Shift+ß on German), so a
@@ -165,6 +170,24 @@
                 steps: m.steps.filter(s => Object.hasOwn(this.HOTKEY_DEFAULTS, s))
                     .slice(0, this.HOTKEY_MACRO_MAX_STEPS),
             }));
+        },
+        // CUSTOM TOGGLES. Config `hotkey_custom` = [{setting, label, def}, ...], one per HOTKEY_CUSTOM
+        // action: the on/off setting the key flips, its name as the Settings page showed it (so the
+        // panel can say what it did without a copy of every label), and the setting's default (so the
+        // first press of a setting never saved flips it from what it really is). Sanitized on every
+        // read like the macros; an unassigned slot is {setting: ''} and its key does nothing.
+        HOTKEY_CUSTOM: ['custom_1', 'custom_2'],
+        hotkeyCustom() {
+            let saved;
+            try { saved = JSON.parse(this.get('hotkey_custom')); } catch (e) { /* unset/corrupt */ }
+            const arr = Array.isArray(saved) ? saved : [];
+            return this.HOTKEY_CUSTOM.map((_, i) => {
+                const c = arr[i];
+                const ok = c && typeof c.setting === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(c.setting)
+                    && c.setting !== 'hotkeys' && c.setting !== 'hotkey_macros' && c.setting !== 'hotkey_custom';
+                return ok ? {setting: c.setting, label: String(c.label || c.setting).slice(0, 80), def: c.def === true}
+                          : {setting: '', label: '', def: false};
+            });
         },
         // Who already owns `key`: an action id, 'macro:<index>', or null. `skipMacro` is the macro
         // being rebound, so pressing its own key again is not a clash with itself.
