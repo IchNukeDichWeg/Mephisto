@@ -3795,16 +3795,23 @@ function tablebase_label() {
     // mate distance the label counts MATE IN MOVES -- what a chess player reads -- and without
     // one it says DTZ instead of pretending.
     const hasDtm = tablebase_data.dtm != null;
+    // NO COUNT AT ALL is not a count of zero. The tablebase can answer a position with no distance
+    // (a castling right in the FEN, or a source that carries none), and "DTZ 0" read as a capture or
+    // pawn move due this ply (3.1.321 audit F8) -- the verdict is shown without a number instead.
+    const hasDtz = tablebase_data.dtz != null;
     const n = Math.abs((hasDtm ? tablebase_data.dtm : tablebase_data.dtz) ?? 0);
     const m = Math.ceil(n / 2);   // plies -> moves for the mate count
     // name the source: "(local)" means the user's own files answered and nothing left this machine
     const s = tablebase_data.source === 'local' ? ' ' + i18n('panel.tb.local', '(local)') : '';
     if (c === 'win') return (hasDtm ? i18n('panel.tb.mate', 'Tablebase: mate in {m}', {m})
-                                    : i18n('panel.tb.win_dtz', 'Tablebase: winning, DTZ {n}', {n})) + s;
+                           : hasDtz ? i18n('panel.tb.win_dtz', 'Tablebase: winning, DTZ {n}', {n})
+                                    : i18n('panel.tb.win', 'Tablebase: winning')) + s;
     if (c === 'loss') return (hasDtm ? i18n('panel.tb.mated', 'Tablebase: mated in {m}', {m})
-                                     : i18n('panel.tb.loss_dtz', 'Tablebase: losing, DTZ {n}', {n})) + s;
+                            : hasDtz ? i18n('panel.tb.loss_dtz', 'Tablebase: losing, DTZ {n}', {n})
+                                     : i18n('panel.tb.loss', 'Tablebase: losing')) + s;
     if (c === 'draw') return i18n('panel.tb.draw', 'Tablebase: draw') + s;
-    if (c === 'cursed-win') return i18n('panel.tb.cursed', 'Tablebase: winning, DTZ {n} (50-move drawn)', {n}) + s;
+    if (c === 'cursed-win') return (hasDtz ? i18n('panel.tb.cursed', 'Tablebase: winning, DTZ {n} (50-move drawn)', {n})
+                                           : i18n('panel.tb.cursed_nodtz', 'Tablebase: winning (50-move drawn)')) + s;
     if (c === 'blessed-loss') return i18n('panel.tb.blessed', 'Tablebase: loss (50-move drawn)') + s;
     return '';
 }

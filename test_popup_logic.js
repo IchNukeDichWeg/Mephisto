@@ -3458,6 +3458,17 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && pr('4k3/8/8/8/8/8/8/R3K3 w - - 0 1', null).split(' ')[2] === 'Q', [pr('4k3/8/8/8/8/8/8/R3K3 w - - 0 1', '-'), pr('r3k2r/8/8/8/8/8/8/R3K2R w - - 0 1', 'Qq')]);
     ok('...the piece parse reads the cr- token', /if \(token\.startsWith\('cr-'\)\) \{ pageRights = token\.slice\(3\); continue; \}/.test(psrc) && /apply_page_rights\(apply_castling_rights\(chess\.fen\(\)\), pageRights\)/.test(psrc));
 }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // a tablebase answer with no distance is not "DTZ 0" (F8)
+    const t0 = psrc.indexOf('const TB_FLIP ='), t1 = psrc.indexOf('\n}\n', psrc.indexOf('function tablebase_label()')) + 3;
+    const tc = vm.createContext({}); vm.runInContext(`var tablebase_data = null, last_eval = {fen: 'F w - - 0 1'}; function our_side() { return 'white'; } function i18n(k, d, v) { return String(d).replace(/\\{(\\w+)\\}/g, (m, x) => v && x in v ? v[x] : m); } ${psrc.slice(t0, t1)}`, tc);
+    const lab = (o) => vm.runInContext(`tablebase_data = Object.assign({fen: 'F w - - 0 1'}, ${JSON.stringify(o)}); tablebase_label()`, tc);
+    ok('a tablebase answer with no distance reads "winning" / "losing", never "DTZ 0"; a real DTZ still shows',
+       lab({category: 'win', dtz: null, dtm: null}) === 'Tablebase: winning' && lab({category: 'loss', dtz: null}) === 'Tablebase: losing'
+       && lab({category: 'win', dtz: 13}) === 'Tablebase: winning, DTZ 13' && lab({category: 'cursed-win', dtz: null}) === 'Tablebase: winning (50-move drawn)',
+       [lab({category: 'win', dtz: null}), lab({category: 'cursed-win', dtz: null})]);
+    const loc = (l) => JSON.parse(fs.readFileSync(ROOT + `/src/i18n/locales/${l}.json`, 'utf8'));
+    ok('...in all 14 languages', fs.readdirSync(ROOT + '/src/i18n/locales').every(f => { const d = loc(f.replace('.json', '')); return ['panel.tb.win', 'panel.tb.loss', 'panel.tb.cursed_nodtz'].every(k => typeof d[k] === 'string' && !/DTZ|\{n\}/.test(d[k])); })); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('Session Stats times a move from the start of our turn, plus the delay still to come, not the configured think alone',
        /our_turn_at = Date\.now\(\);\s*\/\/ THEIR CLOCK IS FROZEN/.test(psrc) && /const searched = our_turn_at \? Math\.max\(0, Date\.now\(\) - our_turn_at\) : 0;\s*if \(verify\) session_note_move\(Number\.isFinite\(delay\) \? searched \+ delay : \(searched \|\| delay\)\);/.test(psrc)); }
