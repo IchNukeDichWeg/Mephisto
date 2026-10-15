@@ -11585,6 +11585,12 @@ async function request_remote_analysis(fen, time, moves = null, depth = null, no
         // STARTING position -- "best move is d2d4" beside a game that had left the opening.
         const target = cloud_fen_after(fen, moves);
         if (!target) throw new Error('could not work out the current position for the cloud engine');
+        // A FINISHED POSITION IS NOT A QUESTION. chess-api.com answers a mate or a stalemate with
+        // INVALID_INPUT "extendMoveInfo: move must not be undefined", which landed as a red console
+        // error at the end of every game it won (3.1.321 audit F5). No legal move is answered here
+        // the way a local engine does, and the panel's own game-over branch names the result.
+        try { if (!new Chess(config.variant, target).moves().length) return {bestmove: '(none)', threat: '(none)', lines: []}; }
+        catch (e) { /* a position chess.js cannot read: let the provider judge it */ }
         // Time where the provider has somewhere to put it (chess-api's maxThinkingTime), depth
         // otherwise; the worker clamps depth to each provider's own ceiling.
         const res = await chrome.runtime.sendMessage({cloudAnalyse: {

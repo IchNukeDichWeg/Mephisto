@@ -3535,4 +3535,9 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        asrc.match(/const MAIA2_FIRST_PLY = (\d+);/)[1] === fs.readFileSync(ROOT + '/src/offscreen/maia2.js', 'utf8').match(/export const MAIA2_FIRST_PLY = (\d+);/)[1]
        && /net\.id === 'maia2' && fenPly\(pos\.fen\) < MAIA2_FIRST_PLY\) \? `\$\{net\.label\} \(Maia-3 in the opening\)`/.test(asrc));
     ok('...and the column is labelled with the band it actually played', /const netBand = net\.id === 'maia' \? nearestMaia1Band\(band\) : band;/.test(asrc) && /maiaLevel: netBand,\s*elos: \[netBand, netBand\]/.test(asrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // a finished position is never sent to a cloud engine (F5: chess-api.com errors on it)
+    const a = psrc.indexOf('    if (uses_cloud()) {', psrc.indexOf('async function request_remote_analysis(')), seg = psrc.slice(a, psrc.indexOf('cloudAnalyse', a));
+    ok('the cloud path answers a position with no legal move itself, as bestmove (none), before asking the provider',
+       /if \(!new Chess\(config\.variant, target\)\.moves\(\)\.length\) return \{bestmove: '\(none\)', threat: '\(none\)', lines: \[\]\};/.test(seg)); }
 // ==== END FIX CHECKS ====
