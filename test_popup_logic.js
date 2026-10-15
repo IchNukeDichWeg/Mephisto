@@ -3412,4 +3412,14 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...a ChessBase move is dragged, and Puzzle Mode aims through the board geometry rather than a board element',
        /const mustDrag = isChesscomVariants\(\) \|\| \(site === 'chessbase' && !!cbGeometry\(\)\?\.dragOnly\);/.test(csrc)
        && /function simulatePvMoves\(pv, sessionGen = undefined\) \{[\s\S]{0,600}?if \(!clickableBoardBounds\(\)\)/.test(csrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // Maia-2 never trained on the first 10 plies (upstream first_n_moves: 10, counted in plies): those go to Maia-3
+    const m2 = fs.readFileSync(ROOT + '/src/offscreen/maia2.js', 'utf8');
+    const a = m2.indexOf('export const MAIA2_FIRST_PLY'), code = m2.slice(a, m2.indexOf('\n}\n', a) + 3).replace(/export /g, '');
+    const c = vm.createContext({}); vm.runInContext(code, c);
+    const ply = (f) => vm.runInContext(`plyOfFen(${JSON.stringify(f)})`, c);
+    ok('the ply of a position is read from its FEN: start 0, after 1.e4 1, white at move 6 = 10, black at move 5 = 9',
+       ply('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') === 0 && ply('x b - - 0 1') === 1 && ply('x w - - 1 6') === 10 && ply('x b - - 0 5') === 9 && vm.runInContext('MAIA2_FIRST_PLY', c) === 10);
+    ok('...and Maia-2 hands every ply below that to Maia-3 with both ratings, and frees it on terminate',
+       /if \(plyOfFen\(board\.fen\(\)\) < MAIA2_FIRST_PLY\) \{[\s\S]*?createMaia3Engine\(listen, selfElo\)[\s\S]*?OppoElo value \$\{oppoElo\}[\s\S]*?opening\.uci\('go'\);\s*return;/.test(m2) && /opening && opening\.terminate\(\)/.test(m2)); }
 // ==== END FIX CHECKS ====

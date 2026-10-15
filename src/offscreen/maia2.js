@@ -68,6 +68,18 @@ export function mirrorUci(uci) {
     return flip(uci.slice(0, 2)) + flip(uci.slice(2, 4)) + (uci[4] || '');
 }
 
+// THE OPENING IS NOT MAIA-2'S. Its training skipped every position before ply 10 (maia2/main.py
+// process_per_game: `if i >= cfg.first_n_moves`, i = the ply index, first_n_moves: 10 in every
+// shipped config), so from the start position it answered 1.Nf3/Nc3/Na3/Nh3 -- a net asked about
+// positions it never saw (3.1.321 audit F2). Those plies go to Maia-3 at the same two ratings: one
+// continuous 600-2600 scale, trained on openings, and it takes the opponent's rating too.
+export const MAIA2_FIRST_PLY = 10;
+export function plyOfFen(fen) {
+    const [, stm, , , , full] = String(fen).split(' ');
+    const n = Math.max(1, parseInt(full, 10) || 1);
+    return 2 * (n - 1) + (stm === 'b' ? 1 : 0);
+}
+
 export async function createMaia2Engine(listen, initialSelf, initialOppo) {
     const note = (msg) => { try { listen(`info string ${msg}`); } catch (e) { /* no listener yet */ } };
     const tables = await loadTables(note);
@@ -87,8 +99,18 @@ export async function createMaia2Engine(listen, initialSelf, initialOppo) {
         return chess;
     }
 
+    let opening = null;   // Maia-3, built the first time an opening position is asked about
     async function go() {
         const board = position(fen, moves);
+        if (plyOfFen(board.fen()) < MAIA2_FIRST_PLY) {
+            if (!opening) opening = await (await import('/src/offscreen/maia3.js')).createMaia3Engine(listen, selfElo);
+            opening.uci(`setoption name SelfElo value ${selfElo}`);
+            opening.uci(`setoption name OppoElo value ${oppoElo}`);
+            opening.uci(`setoption name MultiPV value ${multipv}`);
+            opening.uci(`position fen ${board.fen()}`);
+            opening.uci('go');
+            return;
+        }
         const black = board.turn() === 'b';
         // the net only ever sees white to move: mirror the position, and mirror the answer back
         const view = black ? new Chess('chess', mirrorFen(board.fen())) : board;
@@ -176,6 +198,9 @@ export async function createMaia2Engine(listen, initialSelf, initialOppo) {
         // disposeClient/abandon in offscreen.js both call this behind `engine.terminate &&`, so its
         // absence here was a SILENT no-op: the ONNX session (and its wasm arena) leaked on every
         // switch away from Maia-2. Same body as maia.js/maia3.js.
-        terminate() { try { session.release && session.release(); } catch (e) { /* */ } },
+        terminate() {
+            try { session.release && session.release(); } catch (e) { /* */ }
+            try { opening && opening.terminate(); } catch (e) { /* */ }
+        },
     };
 }
