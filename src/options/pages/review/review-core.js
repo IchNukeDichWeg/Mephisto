@@ -736,18 +736,19 @@ function lichessResultUrl(kind, body, studyId) {
     return url.startsWith(LICHESS + '/') ? url : null;
 }
 
-// A failed answer -> the sentence that tells the user what to change. lichess answers a token that
-// lacks the scope with 403, an unknown/expired token with 401, and a study that is not yours (or does
-// not exist) with 404 -- the last two read the same from outside, so the text names both.
-function lichessError(status, kind, body) {
-    const said = body && (body.error || body.message);
-    if (status === 429) return 'lichess is rate-limiting this; wait a minute and try again.';
+// A failed answer -> the registry code (src/i18n/i18n.js) of the sentence that tells the user what to
+// change, which the page translates. lichess answers a token that lacks the scope with 403, an
+// unknown/expired token with 401, and a study that is not yours (or does not exist) with 404 -- the
+// last two read the same from outside, so the text for 404 names both.
+function lichessFailure(status, kind, body) {
+    if (status === 429) return {code: 'MPH-R05'};
     if (kind === 'study') {
-        if (status === 401) return 'lichess did not accept the token. Make a new one in Settings > General > Lichess API token, with the study:write scope ticked.';
-        if (status === 403) return 'The token has no study:write scope. Make a new token with study:write ("Create, update, delete studies and broadcasts") ticked and paste it in Settings > General.';
-        if (status === 404) return 'lichess found no study with that id that this token can write to. Check the URL, and that the study is yours or you are a contributor.';
+        if (status === 401) return {code: 'MPH-R06'};
+        if (status === 403) return {code: 'MPH-R07'};
+        if (status === 404) return {code: 'MPH-R08'};
     }
-    return `lichess answered ${status}${said ? ': ' + (typeof said === 'string' ? said : JSON.stringify(said)) : ''}`;
+    const said = body && (body.error || body.message);
+    return {code: 'MPH-R09', vars: {detail: `${status}${said ? ': ' + (typeof said === 'string' ? said : JSON.stringify(said)) : ''}`}};
 }
 
 // ---- UCI line reading ---------------------------------------------------------------------------
@@ -789,7 +790,7 @@ root.MephistoReviewCore = {
     parsePgn, clockToSeconds, formatDate, gamePhases, phaseOf, LEVELS,
     toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
     accuracyFor, indicators, evidence, estimate, parseInfo, clamp,
-    NAG_FOR_CLASS, annotatedPgn, plyMove, lichessStudyId, lichessRequest, lichessResultUrl, lichessError,
+    NAG_FOR_CLASS, annotatedPgn, plyMove, lichessStudyId, lichessRequest, lichessResultUrl, lichessFailure,
 };
 
 })(typeof self !== 'undefined' ? self : globalThis);

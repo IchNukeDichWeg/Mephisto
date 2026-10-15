@@ -76,6 +76,23 @@ const i18n = (key, dflt, vars) => {
     }
 };
 
+// ERROR CODES (registry: MephistoI18n.ERRORS in src/i18n/i18n.js; lookup table: README, "Error codes").
+// A failure the user started is shown as "MPH-U02: <translated message>", with the technical detail
+// left to the console. Never throw from here, for the same reason i18n() above does not.
+//   err_line(code, vars)   the line for a code
+//   err_code_line(err)     the line for an error that carries (or whose text starts with) a code, else null
+//   err_fail(code, ...)    an Error that carries a code, to throw
+const err_line = (code, vars) => { try { return MephistoI18n.errText(code, vars); } catch (e) { return String(code); } };
+const err_code_line = (err) => {
+    try {
+        const line = MephistoI18n.errMsg(err);
+        return /^MPH-[A-Z]\d{2}: /.test(line) ? line : null;
+    } catch (e) { return null; }
+};
+const err_fail = (code, vars, detail) => {
+    try { return MephistoI18n.fail(code, vars, detail); } catch (e) { return new Error(`${code}: ${detail || ''}`); }
+};
+
 // Background-play tracing from the PANEL side, to the service worker's own console -- see bgLog in
 // the content-script for why not this page's. Silent while the tab is active. Without this half, a
 // silent log is ambiguous: "the panel never issued a move" and "the content-script dropped it" look
@@ -2027,7 +2044,9 @@ function on_engine_error(message) {
     // and a failure to LOAD one at all -- a missing net, a model that won't fetch, a bad build. The
     // second kind fell through the regex and was dropped, so the panel just sat on its progress bar
     // with the single most useful sentence already in hand. Say it, whatever kind it is.
-    update_best_move(i18n('panel.msg.engine_error', 'Engine error - {detail}', {detail: String(message).slice(0, 120)}));
+    // A coded message (a model download that failed, MPH-N..) is shown as its registry line; the full
+    // technical text is already in the console above. Anything else keeps the old 120-character detail.
+    update_best_move(err_code_line(String(message)) || err_line('MPH-E05', {detail: String(message).slice(0, 120)}));
     if (!/RuntimeError|Aborted|worker sent an error/.test(String(message))) {
         engine_ready = false; // a load that failed is not a warm engine; make the next open re-init
         toggle_calculating(false); // nothing is coming, so stop pretending a search is running
@@ -2035,7 +2054,7 @@ function on_engine_error(message) {
     }
     if (engine_restarts >= 3) {
         // ponytail: cap restarts - a build that keeps trapping (some wasm builds on some machines) shouldn't loop forever
-        update_best_move(i18n('panel.msg.engine_keeps_crashing', 'Engine keeps crashing - pick a different engine in Settings.'));
+        update_best_move(err_line('MPH-E04'));
         return;
     }
     engine_restarts++;
@@ -5013,7 +5032,7 @@ async function snap_follow_tick() {
     } catch (e) {
         // the tab went away, or the offscreen recogniser is not up -- stop rather than spin
         snap_follow_stop();
-        setup_fen_msg(i18n('panel.fen.follow_failed', 'Stopped following (the capture failed)'));
+        setup_fen_msg(err_line('MPH-V03'));
     } finally {
         snap_follow_busy = false;
     }
@@ -5130,13 +5149,14 @@ async function snap_position(crop) {
             ? await chrome.runtime.sendMessage({captureAndRecognize: {crop}})
             : await with_panel_hidden(() => chrome.runtime.sendMessage({captureAndRecognize: {}}));
     } catch (e) {
-        setup_fen_msg(i18n('panel.fen.capture_failed', 'Capture failed ({detail})', {detail: e}));
+        setup_fen_msg(err_line('MPH-V02', {detail: e}));
         return;
     }
     if (!res || res.error) {
         // No board found -> offer the manual path rather than dead-ending. This is the documented
         // fallback: the detector is the flakiest step on a busy page or a video frame.
-        setup_fen_msg(`${res?.error === 'no board found' ? 'No board found' : `Failed: ${res?.error}`} - drag a box around the board`);
+        setup_fen_msg(res?.error === 'no board found' ? err_line('MPH-V01')
+            : (err_code_line(String(res?.error)) || err_line('MPH-V04', {detail: res?.error})));
         request_drag_select();
         return;
     }
@@ -9481,8 +9501,7 @@ function on_new_pos_4pc(payload) {
             // always means it was never installed, and "Engine error" sent people looking for a bug
             // instead of the installer. Say what to do.
             update_best_move(native_host_missing(e)
-                ? i18n('panel.tetrarch_setup', 'Tetrarch is not installed yet - see the README section '
-                       + '"Four-player chess" for macOS, Linux and Windows setup')
+                ? err_line('MPH-E07')
                 : i18n('panel.engine_error', 'Engine error'));
             console.warn('Mephisto: 4PC analyse failed', e);
         });
@@ -12291,7 +12310,10 @@ function native_bg() {
     native_bg_port = chrome.runtime.connect({name: want});
     native_bg_port.onMessage.addListener(frame => {
         if (frame.fatal) {
-            for (const p of native_pending.values()) p.reject(new Error(frame.fatal));
+            // Only the worker sends `fatal`, and only when the host could not be started or went away,
+            // which in practice means it was never installed. The worker's own text (with the browser's
+            // reason) is kept as the detail.
+            for (const p of native_pending.values()) p.reject(err_fail('MPH-E01', null, frame.fatal));
             native_pending.clear();
             return;
         }
@@ -12445,8 +12467,8 @@ async function request_remote_analysis(fen, time, moves = null, depth = null, no
             engine: config.engine, fen: target, depth: depth || null,
             thinkMs: depth ? null : (time || null),
         }});
-        if (!res) throw new Error('the cloud engine did not answer (is the extension still loaded?)');
-        if (res.error) throw new Error(res.error);
+        if (!res) throw err_fail('MPH-E06', null, 'the cloud engine did not answer (is the extension still loaded?)');
+        if (res.error) throw err_fail('MPH-E06', null, res.error);
         return res;
     }
     return call_backend('http://localhost:9090/analyse', {
@@ -12463,7 +12485,7 @@ async function parse_backend_json(res) {
         return JSON.parse(text);
     } catch (e) {
         // an unrelated server on the port answers with HTML ("<!doctype ...") - surface that instead of a SyntaxError
-        throw new Error(`Remote engine at ${res.url} did not return JSON - is remote-engine.py running on that port?`);
+        throw err_fail('MPH-E03', null, `Remote engine at ${res.url} did not return JSON`);
     }
 }
 
@@ -12475,11 +12497,9 @@ function on_remote_error(err) {
     // are states the panel explains in its own line; logged as errors they put red in the console
     // (and in every bug report) for things working as designed (3.1.321 audit F5). Warnings, then;
     // a real failure of an engine that IS there stays an error.
-    const expected = unreachable || /native host unavailable/.test(String(err?.message || ''));
+    const expected = unreachable || err?.code === 'MPH-E01' || /native host unavailable/.test(String(err?.message || ''));
     (expected ? console.warn : console.error)('Mephisto:', err?.message || err);
-    update_best_move(unreachable
-        ? i18n('panel.msg.remote_unreachable', 'Remote Engine: nothing is answering on localhost:9090. Start remote-engine.py, or pick another engine.')
-        : err.message);
+    update_best_move(unreachable ? err_line('MPH-E02') : (err_code_line(err) || err.message));
     toggle_calculating(false);
 }
 

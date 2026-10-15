@@ -496,7 +496,11 @@ class GeneralSettings extends SettingsPage {
                 try { chrome.runtime.sendMessage({bookChanged: true}); } catch (e2) { /* SW asleep: it re-reads on wake */ }
                 await sync();
             } catch (err) {
-                say(`Refused: ${err.message || err}`, true);
+                console.warn('Mephisto book import:', err);
+                // book-store.js says why in its own words (empty, wrong length, not sorted); that is
+                // the console's, the user is told what a book has to be. A storage failure carries no
+                // code and keeps its own text.
+                say(err && err.code ? MephistoI18n.errMsg(err) : `Refused: ${err.message || err}`, true);
             }
         });
         $('own_book_remove')?.addEventListener('click', async () => {
@@ -570,10 +574,10 @@ class GeneralSettings extends SettingsPage {
             if (perm === 'missing') {
                 say('No folder chosen - the Endgame Tablebase uses the online lookup.');
             } else if (perm === 'prompt') {
-                say('Folder access needs re-allowing for this browser session.', true);
+                say(MephistoI18n.errText('MPH-T02'), true);
             } else {
                 const inv = await self.MephistoTbStore.inventory().catch(() => null);
-                if (!inv || !inv.tables) { say('Chosen folder holds no Syzygy files (.rtbw).', true); return; }
+                if (!inv || !inv.tables) { say(MephistoI18n.errText('MPH-T01'), true); return; }
                 const men = Object.keys(inv.men).sort().map(n => `${n}-man: ${inv.men[n]}`).join(', ');
                 say(`${inv.tables} tables (${men}). Endgame Tablebase answers from this folder first, in-browser.`);
             }
@@ -600,8 +604,8 @@ class GeneralSettings extends SettingsPage {
         $('tb_check')?.addEventListener('click', () => {
             say('Checking…');
             chrome.runtime.sendMessage({tbInfo: true}, (res) => {
-                if (!res || res.error) { say(`Not usable: ${res?.error || 'no answer'}`, true); return; }
-                if (!res.tables) { say('Folder found, but it holds no Syzygy files (.rtbw).', true); return; }
+                if (!res || res.error) { say(MephistoI18n.errText('MPH-T07', {detail: res?.error || 'no answer'}), true); return; }
+                if (!res.tables) { say(MephistoI18n.errText('MPH-T01'), true); return; }
                 const men = Object.keys(res.men).sort().map(n => `${n}-man: ${res.men[n]}`).join(', ');
                 const how = res.route === 'browser' ? 'in-browser' : 'via the native host';
                 say(`${res.tables} tables (${men}). Endgame Tablebase answers from this folder first, ${how}.`);
@@ -671,10 +675,10 @@ class GeneralSettings extends SettingsPage {
             // for it only now means nobody hands over write access for a feature they never used.
             let perm = 'denied';
             try { perm = await handle.requestPermission({mode: 'readwrite'}); } catch (e) { /* */ }
-            if (perm !== 'granted') { say('Writing to that folder was not allowed.', true); return; }
+            if (perm !== 'granted') { say(MephistoI18n.errText('MPH-T03'), true); return; }
             let host = false;
             try { host = await chrome.permissions.request({origins: ['https://tablebase.lichess.ovh/*']}); } catch (e) { /* */ }
-            if (!host) { say('Downloading needs permission to reach tablebase.lichess.ovh.', true); return; }
+            if (!host) { say(MephistoI18n.errText('MPH-T04'), true); return; }
             // try/FINALLY around the whole run: anything that escapes below (a rejected worker,
             // a revoked handle) used to leave tbDownloading true and the button reading "Stop"
             // forever -- the page had to be reloaded to download anything again.
@@ -687,7 +691,7 @@ class GeneralSettings extends SettingsPage {
                     let html = '';
                     try { html = await fetch(`${TB_BASE}/${dir}/`).then(r => r.ok ? r.text() : ''); } catch (e) { /* */ }
                     const files = tbParseIndex(html);
-                    if (!files.length) { say(`Could not read the file list for ${dir}.`, true); tbDownloading = false; btn.textContent = 'Download tables'; return; }
+                    if (!files.length) { console.warn('Mephisto tablebase: no file list for', dir); say(MephistoI18n.errText('MPH-T05'), true); tbDownloading = false; btn.textContent = 'Download tables'; return; }
                     for (const f of files) wanted.push({...f, dir});
                 }
                 // ASKED AFTER THE LIST IS READ, so the number in the question is the real one rather
@@ -750,7 +754,7 @@ class GeneralSettings extends SettingsPage {
                             // either, so stop the whole run instead of failing every one of them in turn.
                             if (e && e.name === 'QuotaExceededError') {
                                 tbDownloading = false;   // the siblings read this in their while()
-                                say('Out of space in that folder - stopped. Free some room, or choose a smaller set.', true);
+                                say(MephistoI18n.errText('MPH-T06'), true);
                             }
                             continue;
                         }
@@ -1183,6 +1187,16 @@ class GeneralSettings extends SettingsPage {
         if (!cb || !checkBtn || !folderBtn || !installBtn || !status) return; // stale cached page html
 
         const say = (t) => { status.textContent = t; };
+        // A failure line. A coded error (MPH-U..) shows its translated message and nothing else of
+        // the technical detail, which goes to the console; anything uncoded (the browser's own text)
+        // keeps `fallback` in front of it, as before. `changed` is the reassurance after a failure
+        // that touched nothing.
+        const oops = (e, fallback, changed) => {
+            console.warn('Mephisto updater:', e);
+            if (!(e && e.code)) return `${fallback}: ${e?.message || e}`;
+            return MephistoI18n.errMsg(e)
+                + (changed ? ' ' + MephistoI18n.t('err.nothing_changed', 'Nothing was changed.') : '');
+        };
         const buttons = [checkBtn, folderBtn, installBtn, rollbackBtn, resumeBtn].filter(Boolean);
         const current = chrome.runtime.getManifest().version;
         let latest = null; // last release seen, so Install can name it
@@ -1261,7 +1275,7 @@ class GeneralSettings extends SettingsPage {
                 report(latest || await MephistoUpdater.check().catch(() => null), {name: picked.name});
             } catch (e) {
                 // AbortError is the user closing the picker, which is not a failure and needs no line
-                if (e?.name !== 'AbortError') say(`Could not use that folder: ${e.message || e}`);
+                if (e?.name !== 'AbortError') say(oops(e, 'Could not use that folder', false));
             }
         });
 
@@ -1292,7 +1306,7 @@ class GeneralSettings extends SettingsPage {
                     return; // leave the buttons disabled: this page is about to go away
                 }
             } catch (e) {
-                say(`Update failed, and nothing was changed: ${e.message || e}`);
+                say(oops(e, 'Update failed, and nothing was changed', true));
             }
             buttons.forEach(b => b.disabled = false);
         };
@@ -1307,7 +1321,7 @@ class GeneralSettings extends SettingsPage {
                 setTimeout(() => chrome.runtime.reload(), 1500);
                 return; // this page is about to go away
             } catch (e) {
-                say(`Roll back failed, and nothing was changed: ${e.message || e}`);
+                say(oops(e, 'Roll back failed, and nothing was changed', true));
             }
             buttons.forEach(b => b.disabled = false);
         });
@@ -1321,7 +1335,7 @@ class GeneralSettings extends SettingsPage {
                 setTimeout(() => chrome.runtime.reload(), 1500);
                 return;
             } catch (e) {
-                say(`Could not finish the update, and nothing was changed: ${e.message || e}`);
+                say(oops(e, 'Could not finish the update, and nothing was changed', true));
             }
             buttons.forEach(b => b.disabled = false);
         });
@@ -1373,7 +1387,8 @@ class GeneralSettings extends SettingsPage {
                     ? `${parts.join(' · ')} puzzle positions loaded. Puzzle Mode plays the known solution.`
                     : 'No puzzle database loaded - Puzzle Mode uses the engine.';
             } catch (e) {
-                status.textContent = `Could not read the database: ${e}`;
+                console.warn('Mephisto puzzle database:', e);
+                status.textContent = MephistoI18n.errText('MPH-P04');
             }
         };
         idle();
@@ -1400,8 +1415,7 @@ class GeneralSettings extends SettingsPage {
             // gzip and deflate only), so say which one is wanted rather than failing at row 1 with a
             // parse error that reads like a corrupt download.
             if (/\.zst$/i.test(f.name)) {
-                status.textContent = 'That is the compressed file. Decompress it first: ' +
-                    'unzstd lichess_db_puzzle.csv.zst - then pick the .csv.';
+                status.textContent = MephistoI18n.errText('MPH-P01');
                 return;
             }
             btn.disabled = clearBtn.disabled = true;
@@ -1436,12 +1450,20 @@ class GeneralSettings extends SettingsPage {
                 // Count the database this file actually went into, not the pair -- otherwise a
                 // chess.com import reports the Lichess total sitting beside it and reads as though
                 // it loaded ten times what it did.
+                // A file that parsed to nothing (the wrong CSV, an empty file) used to end in "Done -
+                // 0 ... loaded", which reads as a success. Nothing was written, so this is the
+                // failure it looks like.
+                if (!res.kept) {
+                    status.textContent = MephistoI18n.errText('MPH-P03');
+                    return;
+                }
                 const stored = await PuzzleDB.count(res.site);
                 const which = res.site === 'cc' ? 'Chess.com' : 'Lichess';
                 status.textContent = `Done - ${n(stored)} ${which} puzzle positions loaded from ` +
                     `${n(res.rows)} puzzles. Puzzle Mode will play the known solution.`;
             } catch (e) {
-                status.textContent = `Import failed: ${e}`;
+                console.warn('Mephisto puzzle import:', e);
+                status.textContent = MephistoI18n.errText('MPH-P02');
             } finally {
                 btn.disabled = clearBtn.disabled = false;
             }

@@ -1428,16 +1428,20 @@ async function chesscomAnalyzeOne({game}) {
   const b64 = toB64(bytes);
 
   const found = await ccrEnsureTab();
-  if (found.error) return {sentBytes: bytes.length, error: `${found.error} - or open chess.com in a tab and log in, then retry`, needChesscomTab: true};
+  if (found.error) return {sentBytes: bytes.length, error: `${found.error} - or open chess.com in a tab and log in, then retry`, needChesscomTab: true, code: 'MPH-R01'};
   const tab = found.tab;
   try {
     let res;
     try {
       const out = await chrome.scripting.executeScript({target: {tabId: tab.id}, world: 'MAIN', func: ccrPageSocket, args: [b64]});
       res = out && out[0] && out[0].result;
-    } catch (e) { return {sentBytes: bytes.length, error: `could not run in the chess.com tab (${e.message}) - reload that tab and retry`}; }
-    if (!res) return {sentBytes: bytes.length, error: 'the chess.com tab returned nothing'};
-    if (res.error) return {sentBytes: bytes.length, sentB64: b64, viaTab: tab.url, spawnedTab: found.spawned, error: res.error};
+    } catch (e) { return {sentBytes: bytes.length, error: `could not run in the chess.com tab (${e.message}) - reload that tab and retry`, code: 'MPH-R04'}; }
+    if (!res) return {sentBytes: bytes.length, error: 'the chess.com tab returned nothing', code: 'MPH-R04'};
+    // `code` is the registry entry the Review page shows (src/i18n/i18n.js); `error` stays the
+    // technical text for the console and the ticket. A socket that would not open or send is the same
+    // thing to the user as one that closed without answering.
+    if (res.error) return {sentBytes: bytes.length, sentB64: b64, viaTab: tab.url, spawnedTab: found.spawned, error: res.error,
+                           code: /^(websocket refused|send failed)/.test(res.error) ? 'MPH-R03' : undefined};
 
     const frames = (res.frames || []).map((f) => ({b64: f, len: b64ToU8(f).length}));
     let decoded = null;

@@ -19,6 +19,12 @@ const MANIFEST_URL = '/src/offscreen/engine-assets.json';
 // silence watchdog); twice a second is enough to look alive without flooding the message channel.
 const NOTE_EVERY_MS = 500;
 
+// These errors reach the user as plain text (offscreen -> worker -> panel, String(error)), so the
+// registry code (MPH-N.., see src/i18n/i18n.js) leads the message and the panel swaps in the
+// translated line for it. The file name and byte counts that follow stay in the console, which is
+// where on_engine_error in popup.js logs the whole message before it shows the short one.
+const coded = (code, detail) => new Error(`${code}: ${detail}`);
+
 // Narrow on purpose: a file NAME and a tag of the form <word>-v<N>, never a path. Nothing a page or
 // a net could say can point this at another host or walk out of the release.
 export function releaseUrl(tag, file) {
@@ -63,17 +69,16 @@ async function download(urls, entry, file, onNote) {
             // The download host is an OPTIONAL permission (the same pair the self-updater asks for),
             // so "no permission" and "no network" arrive identically here. Say what to do rather
             // than leaving a bare TypeError in the console.
-            // Kept under the panel's 120-character error line (on_engine_error in popup.js).
-            throw new Error(`${file} is not bundled and could not be downloaded (offline, or permission off in Settings)`);
+            throw coded('MPH-N01', `${file} is not bundled and could not be downloaded (offline, or permission off in Settings)`);
         }
-        if (!r.ok) throw new Error(`${file} could not be downloaded: HTTP ${r.status}`);
+        if (!r.ok) throw coded('MPH-N01', `${file} could not be downloaded: HTTP ${r.status}`);
         const reader = r.body.getReader();
         for (;;) {
             const {done, value} = await reader.read();
             if (done) break;
             if (got + value.byteLength > entry.size) {
                 reader.cancel().catch(() => {});
-                throw new Error(`${file} is larger than the ${entry.size} bytes the manifest lists - refused`);
+                throw coded('MPH-N02', `${file} is larger than the ${entry.size} bytes the manifest lists - refused`);
             }
             out.set(value, got);
             got += value.byteLength;
@@ -83,7 +88,7 @@ async function download(urls, entry, file, onNote) {
             }
         }
     }
-    if (got !== entry.size) throw new Error(`${file} download stopped at ${got} of ${entry.size} bytes`);
+    if (got !== entry.size) throw coded('MPH-N02', `${file} download stopped at ${got} of ${entry.size} bytes`);
     onNote?.(`mephisto-download ${file} ${got} ${entry.size}`);   // the throttle can swallow 100%
     return out.buffer;
 }
@@ -105,7 +110,7 @@ export async function fetchModel(dir, file, onNote) {
     }
     const entry = await assetEntry(file);
     const url = entry && releaseUrl(entry.tag, file);
-    if (!url) throw new Error(`${file} is not in this build and not in its engine manifest`);
+    if (!url) throw coded('MPH-N04', `${file} is not in this build and not in its engine manifest`);
     const cache = await caches.open(MODEL_CACHE).catch(() => null);
     const hit = cache && await cache.match(url);
     if (hit) {
@@ -119,7 +124,7 @@ export async function fetchModel(dir, file, onNote) {
     const urls = entry.parts ? Array.from({length: entry.parts}, (_, i) => `${url}.part${i}`) : [url];
     const buf = await download(urls, entry, file, onNote);
     if (!await matches(buf, entry)) {
-        throw new Error(`${file} failed its SHA-256 check against the engine manifest - not used, not kept`);
+        throw coded('MPH-N03', `${file} failed its SHA-256 check against the engine manifest - not used, not kept`);
     }
     try { await cache?.put(url, new Response(buf.slice(0))); } catch (e) { /* storage full: still usable now */ }
     onNote?.(`${file} downloaded (${(buf.byteLength / 1e6).toFixed(1)} MB), kept for next time`);

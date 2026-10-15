@@ -915,6 +915,7 @@ function countClasses(moves, color) {
 let eeInstalled = EE_VERSION;
 let ccrJson = '';           // the chess.com review's last raw answer
 let ccrLastError = '';      // the last chess.com error text, for the "copy error & open ticket" button
+let ccrLastDetail = '';     // ...and the technical detail the coded line leaves out, which the ticket needs
 
 // A one-time caution gate before the FIRST chess.com review: the game leaves the machine on the user's
 // own chess.com session, so this spells out the risk and forces a 10s wait before Accept goes live.
@@ -2237,11 +2238,10 @@ async function sendToLichess(kind, btn) {
     let opts = {};
     if (kind === 'study') {
         const studyId = Core.lichessStudyId($('rv_li_study')?.value);
-        if (!studyId) return shareNote('Paste the URL of one of your lichess studies first (lichess.org/study/...).', true);
+        if (!studyId) return shareNote(MephistoI18n.errText('MPH-R11'), true);
         const token = await lichessToken();
         if (!token) {
-            return shareNote('Adding to a study needs a Lichess API token with the study:write scope. Make one at '
-                + 'lichess.org/account/oauth/token/create and paste it in Settings > General > Lichess API token.', true);
+            return shareNote(MephistoI18n.errText('MPH-R12'), true);
         }
         opts = {studyId, token, name: `${playerName('w')} - ${playerName('b')}`};
     }
@@ -2258,14 +2258,19 @@ async function sendToLichess(kind, btn) {
     try {
         const r = await fetch(req.url, req.init);
         const body = await r.json().catch(() => null);
-        if (!r.ok) return shareNote(Core.lichessError(r.status, kind, body), true);
+        if (!r.ok) {
+            const f = Core.lichessFailure(r.status, kind, body);
+            console.warn('Mephisto lichess import:', r.status, body);
+            return shareNote(MephistoI18n.errText(f.code, f.vars), true);
+        }
         const url = Core.lichessResultUrl(kind, body, opts.studyId);
         if (!url) return shareNote('lichess accepted the game but sent back no link to it.', true);
         shareNote(`Sent: ${url}` + (kind === 'study' ? '' : ' - moves only; lichess drops annotations on import')
             + (body?.error ? ` (lichess noted: ${body.error})` : ''));
         openTab(url);
     } catch (e) {
-        shareNote(`Could not reach lichess: ${e.message || e}`, true);
+        console.warn('Mephisto lichess import:', e);
+        shareNote(MephistoI18n.errText('MPH-R10'), true);
     } finally {
         if (btn) btn.disabled = false;
     }
@@ -3171,9 +3176,10 @@ class ReviewPage {
                 || ($('rv_pgn')?.value || '');
             const out = $('rv_ccr_out'), status = $('rv_ccr_status');
             // every error shows the ticket button and remembers its text; a non-error hides it again.
-            const say = (t, bad) => {
+            const say = (t, bad, detail) => {
                 status.textContent = t; status.classList.toggle('rv-bad', !!bad);
                 ccrLastError = bad ? t : '';
+                ccrLastDetail = bad ? (detail || '') : '';
                 $('rv_ccr_ticket')?.classList.toggle('hidden', !bad);
             };
             if (!pgn.trim()) return say('Load a game first - paste a PGN or fetch one above.', true);
@@ -3193,7 +3199,13 @@ class ReviewPage {
             } catch (e) { res = {error: String(e.message || e)}; }
             btn.disabled = false;
             btn.textContent = was;
-            if (!res || res.error) { say(res?.error || 'No answer.', true); if (res?.sentB64) { ccrJson = JSON.stringify(res, null, 2); out.textContent = ccrJson; out.classList.remove('hidden'); $('rv_ccr_save').classList.remove('hidden'); } return; }
+            if (!res || res.error) {
+                // A coded failure shows its translated line; the worker's own text goes to the console
+                // and the ticket. An uncoded one (encode failed, nothing to send) keeps its text.
+                if (res) console.warn('Mephisto chess.com review:', res.error);
+                say(res ? (res.code ? MephistoI18n.errText(res.code) : res.error) : MephistoI18n.errText('MPH-R03'),
+                    true, res?.error);
+                if (res?.sentB64) { ccrJson = JSON.stringify(res, null, 2); out.textContent = ccrJson; out.classList.remove('hidden'); $('rv_ccr_save').classList.remove('hidden'); } return; }
             // v2 answers in PROTOBUF frames, not JSON: dump them as base64 so the shape can be
             // decoded offline. A clean close with no frames is the Origin/auth signal.
             const n = res.frames?.length || 0;
@@ -3222,10 +3234,8 @@ class ReviewPage {
                 return;
             }
             if (!n) {
-                const why = res.closeCode === 1008
-                    ? 'chess.com rejected it (1008) - sign in to chess.com in this browser (open chess.com, log in), then retry.'
-                    : `the socket closed (code ${res.closeCode}${res.closeReason ? ', ' + res.closeReason : ''}).`;
-                say(`Ran in your chess.com tab, no answer - ${why}`, true);
+                say(MephistoI18n.errText(res.closeCode === 1008 ? 'MPH-R02' : 'MPH-R03'), true,
+                    `socket closed with code ${res.closeCode}${res.closeReason ? ', ' + res.closeReason : ''}`);
             } else {
                 say(`Ran in your chess.com tab; ${n} protobuf frame${n === 1 ? '' : 's'} back${res.closeCode ? ` (closed ${res.closeCode})` : ''}. Base64 below - save it.`);
             }
@@ -3249,7 +3259,8 @@ class ReviewPage {
         });
         // copy the error onto the clipboard and open a fresh issue so it can be pasted into a ticket.
         $('rv_ccr_ticket')?.addEventListener('click', (e) => {
-            const body = `Mephisto chess.com review error:\n${ccrLastError || '(no message)'}\n\nWhat I did:\n`;
+            const body = `Mephisto chess.com review error:\n${ccrLastError || '(no message)'}\n`
+                + (ccrLastDetail ? `Detail: ${ccrLastDetail}\n` : '') + `\nWhat I did:\n`;
             navigator.clipboard.writeText(body).catch(() => {});
             e.target.textContent = 'Copied ✓ - opening ticket';
             setTimeout(() => { e.target.textContent = 'Copy error & open ticket'; }, 1500);

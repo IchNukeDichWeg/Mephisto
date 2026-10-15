@@ -39,6 +39,10 @@ const MephistoUpdater = (function () {
     ];
     const DB = 'mephisto-updater', STORE = 'h', KEY = 'root';
     const MAX_ZIP = 64 * 1024 * 1024; // the update archive is ~6 MB; the full one is 585
+    // Every failure the user can see carries an MPH-U.. code (the registry is in i18n/i18n.js, which
+    // the worker and the options page both load). What the user is shown is the translated message;
+    // the file name or status that explains it rides along as `detail`, for the console only.
+    const fail = (code, vars, detail) => MephistoI18n.fail(code, vars, detail);
 
     // --- the picked folder, remembered ----------------------------------------------------------
     // A FileSystemDirectoryHandle is structured-cloneable, so IndexedDB can hold it across restarts.
@@ -104,11 +108,11 @@ const MephistoUpdater = (function () {
             manifest = JSON.parse(await (await handle.getFileHandle('manifest.json')).getFile()
                 .then(f => f.text()));
         } catch (e) {
-            throw new Error('No manifest.json in that folder - pick the folder you loaded as an unpacked extension.');
+            throw fail('MPH-U01', null, e && e.message);
         }
         const want = chrome.runtime.getManifest().name;
         if (manifest.name !== want) {
-            throw new Error(`That folder holds "${manifest.name || 'something else'}", not ${want}.`);
+            throw fail('MPH-U02', null, `holds "${manifest.name || 'something else'}", not ${want}`);
         }
         return manifest;
     }
@@ -139,8 +143,8 @@ const MephistoUpdater = (function () {
     function check({force = false} = {}) {
         return new Promise((res, rej) => {
             chrome.runtime.sendMessage({updateCheck: {force}}, (r) => {
-                if (chrome.runtime.lastError) return rej(new Error(chrome.runtime.lastError.message));
-                if (!r || r.error) return rej(new Error(r?.error || 'no answer from the extension'));
+                if (chrome.runtime.lastError) return rej(fail('MPH-U06', null, chrome.runtime.lastError.message));
+                if (!r || r.error) return rej(fail('MPH-U06', null, r?.error || 'no answer from the extension'));
                 res(r);
             });
         });
@@ -159,15 +163,15 @@ const MephistoUpdater = (function () {
         for (let i = buf.byteLength - 22; i >= 0 && i > buf.byteLength - 22 - 65536; i--) {
             if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
         }
-        if (eocd < 0) throw new Error('Not a zip file (no end-of-central-directory record).');
+        if (eocd < 0) throw fail('MPH-U10', null, 'not a zip file (no end-of-central-directory record)');
         const count = dv.getUint16(eocd + 10, true);
         const cdOff = dv.getUint32(eocd + 16, true);
-        if (count === 0xffff || cdOff === 0xffffffff) throw new Error('Zip64 archives are not supported.');
+        if (count === 0xffff || cdOff === 0xffffffff) throw fail('MPH-U10', null, 'zip64 archives are not supported');
         const dec = new TextDecoder();
         const entries = [];
         let p = cdOff;
         for (let i = 0; i < count; i++) {
-            if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('Corrupt zip central directory.');
+            if (dv.getUint32(p, true) !== 0x02014b50) throw fail('MPH-U10', null, 'corrupt zip central directory');
             entries.push({
                 method: dv.getUint16(p + 10, true),
                 csize: dv.getUint32(p + 20, true),
@@ -182,17 +186,17 @@ const MephistoUpdater = (function () {
 
     async function extract(buf, e) {
         const dv = new DataView(buf);
-        if (dv.getUint32(e.lho, true) !== 0x04034b50) throw new Error(`Corrupt local header for ${e.name}.`);
+        if (dv.getUint32(e.lho, true) !== 0x04034b50) throw fail('MPH-U10', null, `corrupt local header for ${e.name}`);
         // The data offset has to come from the LOCAL header's own name/extra lengths. They are
         // routinely not the central directory's -- writers put different extra fields in each -- and
         // reusing the central values silently reads from the wrong offset.
         const start = e.lho + 30 + dv.getUint16(e.lho + 26, true) + dv.getUint16(e.lho + 28, true);
         const raw = new Uint8Array(buf, start, e.csize);
         if (e.method === 0) return raw;
-        if (e.method !== 8) throw new Error(`${e.name}: unsupported compression method ${e.method}.`);
+        if (e.method !== 8) throw fail('MPH-U10', null, `${e.name}: unsupported compression method ${e.method}`);
         const stream = new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
         const out = new Uint8Array(await new Response(stream).arrayBuffer());
-        if (out.byteLength !== e.usize) throw new Error(`${e.name}: inflated to the wrong size.`);
+        if (out.byteLength !== e.usize) throw fail('MPH-U10', null, `${e.name}: inflated to the wrong size`);
         return out;
     }
 
@@ -204,28 +208,33 @@ const MephistoUpdater = (function () {
         const out = [];
         for (const e of readZip(buf)) {
             if (e.name.endsWith('/')) continue; // directory record; directories are created on demand
-            if (!e.name.startsWith(prefix)) throw new Error(`Unexpected path in the archive: ${e.name}`);
+            if (!e.name.startsWith(prefix)) throw fail('MPH-U11', null, `unexpected path in the archive: ${e.name}`);
             const path = e.name.slice(prefix.length);
             // An archive is untrusted input even from our own release page. getDirectoryHandle('..')
             // does reject on its own, but a backslash or a leading slash is not covered by that, and
             // the right answer to any of them is to refuse the whole archive rather than skip a file.
             if (!path || path.startsWith('/') || path.includes('\\') || path.split('/').includes('..')) {
-                throw new Error(`Unsafe path in the archive: ${e.name}`);
+                throw fail('MPH-U11', null, `unsafe path in the archive: ${e.name}`);
             }
             out.push({path, bytes: await extract(buf, e)});
         }
         const have = new Set(out.map(f => f.path));
         for (const need of ['manifest.json', 'src/popup/popup.js', 'src/scripts/content-script.js', 'lib/chess.js']) {
-            if (!have.has(need)) throw new Error(`The archive is missing ${need}.`);
+            if (!have.has(need)) throw fail('MPH-U11', null, `the archive is missing ${need}`);
         }
         // The full archive would apply perfectly well here and take 585 MB of memory to do it.
         // Refuse it by the one directory that tells the two apart.
         if ([...have].some(p => p.startsWith('lib/engine/'))) {
-            throw new Error('That is the full archive, not the update one.');
+            throw fail('MPH-U09', null, 'the archive holds lib/engine/, so it is the full one');
         }
-        const manifest = JSON.parse(new TextDecoder().decode(out.find(f => f.path === 'manifest.json').bytes));
+        let manifest;
+        try {
+            manifest = JSON.parse(new TextDecoder().decode(out.find(f => f.path === 'manifest.json').bytes));
+        } catch (e) {
+            throw fail('MPH-U10', null, 'manifest.json in the archive is not valid JSON');
+        }
         if (manifest.version !== version) {
-            throw new Error(`The archive says v${manifest.version} but the release says v${version}.`);
+            throw fail('MPH-U11', null, `the archive says v${manifest.version} but the release says v${version}`);
         }
         return out;
     }
@@ -319,20 +328,20 @@ const MephistoUpdater = (function () {
     // from by hand.
     async function rollback(onStatus = () => {}) {
         const dir = await folder({prompt: true});
-        if (!dir) throw new Error('Choose the extension folder first.');
+        if (!dir) throw fail('MPH-U05');
         const backup = await dir.getDirectoryHandle(BACKUP).catch(() => null);
-        if (!backup) throw new Error('There is nothing to roll back to.');
+        if (!backup) throw fail('MPH-U12');
         const raw = await readFileAt(backup, 'manifest.json');
-        if (!raw) throw new Error('The backup is missing its manifest.');
+        if (!raw) throw fail('MPH-U13', null, 'the backup is missing its manifest');
         const m = JSON.parse(new TextDecoder().decode(raw));
         const gen = await backup.getDirectoryHandle(m.version).catch(() => null);
-        if (!gen) throw new Error(`The backup of v${m.version} is missing.`);
+        if (!gen) throw fail('MPH-U13', null, `the backup of v${m.version} is missing`);
 
         onStatus(`Reading the backup of v${m.version}…`);
         const restore = [];
         for (const p of (m.saved || [])) {
             const bytes = await readFileAt(gen, p);
-            if (!bytes) throw new Error(`The backup is missing ${p} - refusing to half-restore.`);
+            if (!bytes) throw fail('MPH-U13', null, `the backup is missing ${p} - refusing to half-restore`);
             restore.push({path: p, bytes});
         }
         let n = 0;
@@ -368,18 +377,18 @@ const MephistoUpdater = (function () {
     // finish would be a third state nobody can reason about.
     async function finishStaged(onStatus = () => {}) {
         const dir = await folder({prompt: true});
-        if (!dir) throw new Error('Choose the extension folder first.');
+        if (!dir) throw fail('MPH-U05');
         const staging = await dir.getDirectoryHandle(STAGING).catch(() => null);
-        if (!staging) throw new Error('There is no interrupted update to finish.');
+        if (!staging) throw fail('MPH-U14');
         const raw = await readFileAt(staging, STAGED_MARKER);
-        if (!raw) throw new Error('The staged update is incomplete - download it again.');
+        if (!raw) throw fail('MPH-U15', null, 'no staging marker');
         const {version, paths} = JSON.parse(new TextDecoder().decode(raw));
 
         onStatus(`Reading the staged v${version}…`);
         const files = [];
         for (const p of paths) {
             const bytes = await readFileAt(staging, p);
-            if (!bytes) throw new Error(`The staged update is missing ${p} - download it again.`);
+            if (!bytes) throw fail('MPH-U15', null, `the staged update is missing ${p}`);
             files.push({path: p, bytes});
         }
         // An interrupted install already took a backup. Only take one if it did not get that far,
@@ -420,10 +429,10 @@ const MephistoUpdater = (function () {
 
     // --- the whole thing ------------------------------------------------------------------------
     async function install(onStatus = () => {}) {
-        if (!(await enabled())) throw new Error('Automatic updates are switched off.');
-        if (!(await hasPermission())) throw new Error('Chrome is not holding the download permission.');
+        if (!(await enabled())) throw fail('MPH-U03');
+        if (!(await hasPermission())) throw fail('MPH-U04');
         const dir = await folder({prompt: true});
-        if (!dir) throw new Error('Choose the extension folder first.');
+        if (!dir) throw fail('MPH-U05');
         // AN INTERRUPTED UPDATE IS FINISHED, NEVER STARTED OVER. If the last run died while putting
         // files in place, this folder is a mix of two versions and its manifest may already be the
         // new one. Starting again from here read that manifest as "installed", deleted the good
@@ -436,17 +445,17 @@ const MephistoUpdater = (function () {
 
         onStatus('Checking for a newer release…');
         const rel = await check({force: true});
-        if (!rel.latest) throw new Error('Could not reach GitHub.');
+        if (!rel.latest) throw fail('MPH-U06', null, 'the release lookup answered without a version');
         if (!rel.newer) return {already: true, version: rel.latest};
-        if (!rel.asset) throw new Error(`Release v${rel.latest} has no update archive - use the full zip.`);
+        if (!rel.asset) throw fail('MPH-U07', null, `release v${rel.latest} has no update archive`);
 
         onStatus(`Downloading v${rel.latest}…`);
         const res = await fetch(rel.asset, {credentials: 'omit'});
-        if (!res.ok) throw new Error(`Download failed (${res.status}).`);
+        if (!res.ok) throw fail('MPH-U08', {status: res.status});
         // Checked before buffering, so a mis-named full archive costs one header rather than 585 MB.
-        if (+res.headers.get('content-length') > MAX_ZIP) throw new Error('That download is far too big to be the update archive.');
+        if (+res.headers.get('content-length') > MAX_ZIP) throw fail('MPH-U09', null, 'far too big to be the update archive');
         const buf = await res.arrayBuffer();
-        if (buf.byteLength > MAX_ZIP) throw new Error('That download is far too big to be the update archive.');
+        if (buf.byteLength > MAX_ZIP) throw fail('MPH-U09', null, 'far too big to be the update archive');
 
         onStatus('Reading the archive…');
         const files = await readUpdateArchive(buf, rel.latest);

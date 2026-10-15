@@ -53,7 +53,13 @@
 
     async function save(name, buffer) {
         const bad = validate(buffer);
-        if (bad) throw new Error(bad);
+        if (bad) {
+            // The reason stays in the message (console); the user is shown the registry's MPH-B01 line.
+            // Set by hand rather than through MephistoI18n so this file loads without it.
+            const err = new Error(bad);
+            err.code = 'MPH-B01';
+            throw err;
+        }
         await idb('readwrite', s => s.put({name, bytes: buffer.byteLength,
                                            entries: buffer.byteLength / 16, buffer}, KEY));
         return {name, bytes: buffer.byteLength, entries: buffer.byteLength / 16};

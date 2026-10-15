@@ -207,21 +207,21 @@ export class SettingsPage {
         try {
             obj = JSON.parse(await file.text());
         } catch (e) {
-            alert('Import failed: that file is not valid JSON.');
+            alert(MephistoI18n.errText('MPH-S01'));
             return;
         }
         // A hand-edited or wrong file shouldn't half-apply and leave the config in a mixed state.
         // The store holds JSON STRINGS for every key, so anything else means it isn't ours.
         if (!obj || typeof obj !== 'object' || Array.isArray(obj)
             || Object.values(obj).some(v => typeof v !== 'string')) {
-            alert('Import failed: that does not look like a Mephisto settings file.');
+            alert(MephistoI18n.errText('MPH-S02'));
             return;
         }
         // ...and every one of those strings has to BE JSON, or the panel's JSON.parse throws on it at
         // boot and takes more than that one setting down with it.
         const broken = Object.entries(obj).find(([, v]) => { try { JSON.parse(v); return false; } catch (e) { return true; } });
         if (broken) {
-            alert(`Import failed: the value of "${broken[0]}" is not valid. Nothing was changed.`);
+            alert(MephistoI18n.errText('MPH-S03', {key: broken[0]}));
             return;
         }
         delete obj.__cfg_migrated;

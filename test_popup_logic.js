@@ -1889,9 +1889,14 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && Core.lichessResultUrl('import', {url: 'https://evil.example/x'}) === null
        && Core.lichessResultUrl('import', {url: 'https://lichess.org.evil.example/x'}) === null
        && Core.lichessResultUrl('study', {chapters: [{id: 'Ch4pter1'}]}, 'AbCd1234') === 'https://lichess.org/study/AbCd1234/Ch4pter1');
-    ok('lichess: a 403 on the study path names the missing study:write scope, a 401 the token',
-       /study:write/.test(Core.lichessError(403, 'study')) && /token/.test(Core.lichessError(401, 'study'))
-       && /429|rate/.test(Core.lichessError(429, 'import')));
+    // the contract moved from an English sentence to a registry code the page translates; the sentences
+    // themselves are pinned by their registry entries below
+    const li = (st, kind, body) => Core.lichessFailure(st, kind, body);
+    const liReg = vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8') + ';self.MephistoI18n.ERRORS', vm.createContext({self: {}}));
+    ok('lichess: a 403 on the study path is the missing study:write scope, a 401 the token, a 429 the rate limit, anything else carries the status',
+       li(403, 'study').code === 'MPH-R07' && /study:write/.test(liReg['MPH-R07'].en) && li(401, 'study').code === 'MPH-R06' && /token/.test(liReg['MPH-R06'].en)
+       && li(429, 'import').code === 'MPH-R05' && li(404, 'study').code === 'MPH-R08' && li(403, 'import').code === 'MPH-R09'
+       && li(500, 'import', {error: 'boom'}).vars.detail === '500: boom' && li(502, 'import').vars.detail === '502');
 
     // both grades: the real moveCell / coachGrade, run with and without Explain the moves
     const mctx = vm.createContext({Math});
@@ -3278,14 +3283,16 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const run = async (file, have) => { const removed = [], set = {}, alerts = [];
         const c = vm.createContext({console, alert: (m) => alerts.push(m), chrome: {storage: {local: {get: async () => have}}},
             MephistoConfig: {set: (k, v) => { set[k] = v; }, remove: (k) => removed.push(k)}});
+        c.self = c; vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);   // the registry the refusals are worded from
         vm.runInContext(src + '; class P extends SettingsPage { init() {} pullConfigValues() {} }; var page = new P();', c);
         c.file = {text: async () => JSON.stringify(file)}; await vm.runInContext('page.onImportConfigValues(file)', c);
-        return {removed: removed.sort(), set: Object.keys(set).sort(), alerts: alerts.length}; };
+        return {removed: removed.sort(), set: Object.keys(set).sort(), alerts: alerts.length, text: alerts[0]}; };
     (async () => {
         const a = await run({elo: '1800'}, {elo: '2000', help_mode: 'true', lichess_token: '"t"', session_totals: '{}', timings: [1, 2]});
         const b = await run({elo: 'abc'}, {help_mode: 'true'});
         ok('Import restores: a setting the file does not name goes back to default, records and the token stay; a value that is not JSON refuses the whole file',
-           JSON.stringify(a) === JSON.stringify({removed: ['help_mode'], set: ['elo'], alerts: 1}) && b.set.length === 0 && b.removed.length === 0 && b.alerts === 1, {a, b});
+           JSON.stringify({...a, text: 0}) === JSON.stringify({removed: ['help_mode'], set: ['elo'], alerts: 1, text: 0}) && b.set.length === 0 && b.removed.length === 0 && b.alerts === 1, {a, b});
+        ok('...and the refusal is the coded one, naming the setting (MPH-S03)', /^MPH-S03: .*"elo"/.test(b.text), b.text);
     })(); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('changing Lines, Threads or Memory in the panel restarts the search so it applies now, stop first',
@@ -3324,10 +3331,13 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('Game Review: starting a run takes the previous game\'s report off the screen', /\$\('rv_stop'\)\.disabled = false;[\s\S]{0,420}\$\('rv-report'\)\?\.classList\.add\('hidden'\);\s*\$\('rv-indicators'\)\?\.classList\.add\('hidden'\);/.test(r)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const i = psrc.indexOf('function on_remote_error('), fn = psrc.slice(i, psrc.indexOf('\n}\n', i) + 3);
-    const run = (err, native) => { const c = vm.createContext({console: {error() {}, warn() {}}, TypeError, String}); c.err = err;
-        vm.runInContext(`var shown; function update_best_move(t) { shown = t; } function toggle_calculating() {} function uses_native() { return ${native}; } function uses_cloud() { return false; } function i18n(k, d) { return d; } ${fn}; on_remote_error(err)`, c); return c.shown; };
-    ok('a Remote Engine that is not running says so; any other error is shown as it is',
-       /localhost:9090/.test(run(new TypeError('Failed to fetch'), false)) && run(new Error('boom'), false) === 'boom' && run(new TypeError('x'), true) === 'x'); }
+    // the real registry and the panel's real err_* helpers, so the line shown is the coded one
+    const hs = psrc.indexOf('const err_line ='), helpers = psrc.slice(hs, psrc.indexOf('// Background-play tracing from the PANEL side', hs));
+    const run = (err, native) => { const c = vm.createContext({console: {error() {}, warn() {}}, TypeError, String, Object, Error, RegExp}); c.self = c; c.err = err;
+        vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+        vm.runInContext(`var shown; function update_best_move(t) { shown = t; } function toggle_calculating() {} function uses_native() { return ${native}; } function uses_cloud() { return false; } function i18n(k, d) { return d; } ${helpers} ${fn}; on_remote_error(err)`, c); return c.shown; };
+    ok('a Remote Engine that is not running says so, coded; any other error is shown as it is',
+       /^MPH-E02: .*localhost:9090/.test(run(new TypeError('Failed to fetch'), false)) && run(new Error('boom'), false) === 'boom' && run(new TypeError('x'), true) === 'x'); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const lum = (h) => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
     const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
@@ -3649,12 +3659,14 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const a = psrc.indexOf('function on_remote_error(err) {'), b = psrc.indexOf('\n}\n', a) + 3;
     const log = [], c = vm.createContext({TypeError, String, console: {warn: (...x) => log.push('warn ' + x.join(' ')), error: (...x) => log.push('error ' + x.join(' '))}});
     vm.runInContext(`var native = false; function uses_native() { return native; } function uses_cloud() { return false; }
-        function i18n(k, d) { return d; } function update_best_move() {} function toggle_calculating() {} ${psrc.slice(a, b)}`, c);
+        function i18n(k, d) { return d; } function err_line(code) { return code; } function err_code_line() { return null; }
+        function update_best_move() {} function toggle_calculating() {} ${psrc.slice(a, b)}`, c);
     vm.runInContext(`on_remote_error(new TypeError('Failed to fetch')); native = true;
         on_remote_error(new Error('Stockfish 19 (native) native host unavailable (Specified native messaging host not found.)'));
-        on_remote_error(new Error('Native engine: engine process died'));`, c);
-    ok('a Remote Engine nobody started and an uninstalled native host log warnings; a native engine that died logs an error',
-       log.length === 3 && log[0].startsWith('warn') && log[1].startsWith('warn') && log[2].startsWith('error'), log); }
+        on_remote_error(new Error('Native engine: engine process died'));
+        on_remote_error(Object.assign(new Error('MPH-E01: x'), {code: 'MPH-E01'}));`, c);
+    ok('a Remote Engine nobody started and an uninstalled native host (also when it arrives as MPH-E01) log warnings; a native engine that died logs an error',
+       log.length === 4 && log[0].startsWith('warn') && log[1].startsWith('warn') && log[2].startsWith('error') && log[3].startsWith('warn'), log); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     // nothing is searched on the old rules while a detected variant waits for its reload, and the reopen clears the hold
     const init = psrc.slice(psrc.indexOf('async function initPanel('), psrc.indexOf('await MephistoConfig.init();'));
@@ -4044,4 +4056,100 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /<p data-i18n="set\.note\.humanize_match_mix" id="humanize_match_mix_note" class="set-note" hidden>/.test(gh)
        && /const show = \(\) => \{ note\.hidden = !cb\.checked; \};\s*cb\.addEventListener\('change', show\);/.test(gj)
        && /this\.initMatchNote\(\);/.test(gj) && locs.every(l => l['set.note.humanize_match_mix'])); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // ---- ERROR CODES: the registry in i18n.js, its 14 locales, the README, and where each code is wired ----
+    const i18nSrc = fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8');
+    const load = () => { const c = vm.createContext({TypeError, Error, Object, String, RegExp}); c.self = c; vm.runInContext(i18nSrc, c); return c; };
+    const I = load().MephistoI18n, reg = Object.values(I.ERRORS);
+    const locDir = ROOT + '/src/i18n/locales/', langs = fs.readdirSync(locDir).map(f => f.replace(/\.json$/, '')).sort();
+    const loc = Object.fromEntries(langs.map(l => [l, JSON.parse(fs.readFileSync(locDir + l + '.json', 'utf8'))]));
+    const ph = (t) => (String(t).match(/\{\w+\}/g) || []).sort().join(',');
+    // a code written twice in the registry would silently collapse in Object.fromEntries, so count the source
+    const regSrc = i18nSrc.slice(i18nSrc.indexOf('const ERRORS = '), i18nSrc.indexOf('const ERROR_CODE_RE'));
+    const literals = regSrc.match(/\['MPH-[A-Z]\d{2}'/g) || [];
+    ok('error codes: every registry entry is written once, is MPH-<letter><2 digits>, and the registry and its entries are frozen',
+       literals.length === reg.length && new Set(literals).size === literals.length && reg.length >= 50
+       && reg.every(e => /^MPH-[A-Z]\d{2}$/.test(e.code) && Object.isFrozen(e)) && Object.isFrozen(I.ERRORS), {literals: literals.length, reg: reg.length});
+    ok('...no two codes share a message key (two codes with one text tell the user nothing apart)', new Set(reg.map(e => e.key)).size === reg.length);
+    const missing = [], phBad = [], same = [];
+    for (const e of reg) for (const l of langs) {
+        const t = loc[l][e.key];
+        if (typeof t !== 'string' || !t) { missing.push(l + ' ' + e.key); continue; }
+        if (ph(t) !== ph(e.en)) phBad.push(l + ' ' + e.key);
+        if (l !== 'en' && t === loc.en[e.key]) same.push(l + ' ' + e.key);
+    }
+    ok('...every message key exists in all 14 locales with the same {placeholders} as the English default', langs.length === 14 && missing.length === 0 && phBad.length === 0, {missing: missing.slice(0, 5), phBad: phBad.slice(0, 5)});
+    ok('...the English default in the registry is the text in en.json (one source, no drift), and no locale left the English in place', reg.every(e => loc.en[e.key] === e.en) && same.length === 0, same.slice(0, 5));
+    ok('...the helper keys are in all 14 locales too (Nothing was changed, the README pointer)', langs.every(l => loc[l]['err.nothing_changed'] && /<a href="https:\/\/github\.com\/IchNukeDichWeg\/Mephisto#error-codes">/.test(loc[l]['err.see_readme'])));
+    // every code token anywhere in the shipped source is a registered one, and every registered one is used outside the registry
+    const walk = (d) => fs.readdirSync(d, {withFileTypes: true}).flatMap(f => f.isDirectory() ? walk(d + '/' + f.name) : [d + '/' + f.name]);
+    const srcFiles = walk(ROOT + '/src').filter(f => /\.(js|html)$/.test(f) && !/i18n\.js$/.test(f));
+    const used = new Set(), unknown = [];
+    for (const f of srcFiles) for (const m of fs.readFileSync(f, 'utf8').matchAll(/\bMPH-[A-Z]\d{2}\b/g)) { used.add(m[0]); if (!I.ERRORS[m[0]]) unknown.push(f.slice(ROOT.length) + ' ' + m[0]); }
+    ok('...every MPH code written in src/ is registered, and every registered code is wired to a failure path', unknown.length === 0 && reg.every(e => used.has(e.code)), {unknown, unwired: reg.filter(e => !used.has(e.code)).map(e => e.code)});
+    const readme = fs.readFileSync(ROOT + '/README.md', 'utf8');
+    ok('...the README lists every code with its own table row', reg.every(e => new RegExp('^\\| `' + e.code + '` \\|', 'm').test(readme)) && /^## Error codes$/m.test(readme));
+    // the lookup itself: the code leads, the translation follows, a missing language falls back to English
+    const c2 = load(); c2.MephistoI18n.setFallback(loc.en); c2.MephistoI18n.setStrings('de', loc.de);
+    const de = c2.MephistoI18n.errText('MPH-U08', {status: 503});
+    ok('...errText is "<code>: <translation>" with the placeholders filled, and an unknown code comes back bare', de === 'MPH-U08: ' + loc.de['err.U08'].replace('{status}', '503') && /503/.test(de) && I.errText('MPH-X99') === 'MPH-X99', de);
+    ok('...fail() makes a throwable carrying code, vars and detail; errMsg shows the translation WITHOUT the detail, and also finds a code at the front of plain text',
+       (() => { const e = c2.MephistoI18n.fail('MPH-U08', {status: 404}, 'secret-detail.zip'); const shown = c2.MephistoI18n.errMsg(e);
+           return e.code === 'MPH-U08' && e.detail === 'secret-detail.zip' && /secret-detail\.zip/.test(e.message) && !/secret-detail/.test(shown) && shown.startsWith('MPH-U08: ')
+               && c2.MephistoI18n.errMsg('Error: MPH-N03: maia3.onnx failed its SHA-256 check').startsWith('MPH-N03: ' + loc.de['err.N03'].slice(0, 10))
+               && c2.MephistoI18n.errMsg(new Error('plain')) === 'plain'; })());
+}
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // ---- the updater: run the REAL verifyFolder / zip reader against a fake directory handle ----
+    const upSrc = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise,
+        chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'})}, storage: {local: {get: async () => ({}), set: async () => {}}}}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+    vm.runInContext(upSrc.replace('const MephistoUpdater =', 'var MephistoUpdater =').replace(/\nif \(typeof module[\s\S]*$/, ''), c);
+    const U = vm.runInContext('MephistoUpdater', c), I = c.MephistoI18n;
+    const dirWith = (manifestText) => ({getFileHandle: async (name) => {
+        if (name !== 'manifest.json' || manifestText === null) throw new Error('NotFoundError');
+        return {getFile: async () => ({text: async () => manifestText})}; }});
+    const caught = async (p) => { try { await p; return null; } catch (e) { return e; } };
+    const wrong = await caught(U.verifyFolder(dirWith(JSON.stringify({name: 'Some Other Extension', version: '9'}))));
+    const empty = await caught(U.verifyFolder(dirWith(null)));
+    const junk = await caught(U.verifyFolder(dirWith('not json')));
+    const right = await U.verifyFolder(dirWith(JSON.stringify({name: 'Mephisto Chess Extension', version: '3.1.0'})));
+    ok('updater: the folder of another extension is MPH-U02, a folder with no (or unreadable) manifest.json is MPH-U01, Mephisto\'s own folder passes',
+       wrong && wrong.code === 'MPH-U02' && empty && empty.code === 'MPH-U01' && junk && junk.code === 'MPH-U01' && right.version === '3.1.0', [wrong && wrong.code, empty && empty.code, junk && junk.code]);
+    const loc = (l) => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + l + '.json', 'utf8'));
+    ok('updater: what the user sees for a wrong folder is "MPH-U02: " plus the translated message, without the name of the other extension; the name stays in the log text',
+       I.errMsg(wrong) === 'MPH-U02: ' + loc('en')['err.U02'] && /^MPH-U02: That isn't Mephisto's folder\./.test(I.errMsg(wrong)) && !/Some Other Extension/.test(I.errMsg(wrong)) && /Some Other Extension/.test(wrong.message),
+       I.errMsg(wrong));
+    I.setFallback(loc('en')); I.setStrings('ja', loc('ja'));
+    ok('...and in another language it is the same code with that language\'s sentence', I.errMsg(wrong) === 'MPH-U02: ' + loc('ja')['err.U02']);
+    let zipErr = null; try { U._readZip(new ArrayBuffer(64)); } catch (e) { zipErr = e; }
+    ok('updater: a buffer that is not a zip is MPH-U10 (damaged), raised before anything is written', zipErr && zipErr.code === 'MPH-U10', zipErr && zipErr.message);
+    let notFull = null; try { await U._readUpdateArchive(new ArrayBuffer(64), '1.0.0'); } catch (e) { notFull = e; }
+    ok('updater: the update archive reader refuses a bad archive with a coded error', notFull && /^MPH-U\d\d$/.test(notFull.code || ''), notFull && notFull.message);
+    ok('updater: no failure path throws a bare English Error any more (every throw carries a code)', !/new Error\(/.test(upSrc.replace(/\/\/.*$/gm, '')));
+    ok('updater: the wiring that shows it: Settings uses errMsg for the coded error and keeps the console detail',
+       (() => { const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+           return /const oops = \(e, fallback, changed\) => \{\s*console\.warn\('Mephisto updater:', e\);[\s\S]{0,300}MephistoI18n\.errMsg\(e\)/.test(g)
+               && /say\(oops\(e, 'Update failed, and nothing was changed', true\)\)/.test(g) && /say\(oops\(e, 'Could not use that folder', false\)\)/.test(g); })());
+    // ---- the panel: a coded engine message (a model download, MPH-N..) is shown as its registry line ----
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const hs = psrc.indexOf('const err_line ='), helpers = psrc.slice(hs, psrc.indexOf('// Background-play tracing from the PANEL side', hs));
+    const ia = psrc.indexOf('function on_engine_error('), onErr = psrc.slice(ia, psrc.indexOf('\n}\n', ia) + 3);
+    const pc = vm.createContext({console: {error() {}, warn() {}, log() {}}, String, Object, Error, RegExp, TypeError}); pc.self = pc;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), pc);
+    vm.runInContext(`var shown = null, engine_restarting = false, engine_ready = true, engine_restarts = 0, engine = {}, last_engine_crash_at = 0;
+        function update_best_move(t) { shown = t; } function toggle_calculating() {} function i18n(k, d) { return d; }
+        function initialize_engine() { return Promise.resolve(); } let last_eval = {}; ${helpers} ${onErr}`, pc);
+    vm.runInContext(`on_engine_error('Error: MPH-N03: maia3-23m.onnx failed its SHA-256 check against the engine manifest - not used, not kept')`, pc);
+    const coded = pc.shown;
+    vm.runInContext(`on_engine_error('Error: something nobody coded')`, pc);
+    ok('panel: a model download that failed shows its MPH-N line (no file name, no 120-character cut); an engine error nobody coded is MPH-E05 with the detail',
+       coded === 'MPH-N03: ' + loc('en')['err.N03'] && /^MPH-E05: Engine error - Error: something nobody coded$/.test(pc.shown), [coded, pc.shown]);
+    const mf = fs.readFileSync(ROOT + '/src/offscreen/model-fetch.js', 'utf8');
+    ok('model downloads: every failure of fetchModel carries an N code at the front of its message (they cross to the panel as text)',
+       !/new Error\(/.test(mf.replace(/const coded = [^\n]*/, '')) && (mf.match(/coded\('MPH-N0[1-4]'/g) || []).length === 6);
+})().catch(e => { fails++; console.log('FAIL error-code checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====

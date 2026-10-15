@@ -21,7 +21,7 @@ Click the toolbar icon for a floating panel that stays open while you play.
 <img src="docs/analysis-lines.png" alt="Analysis with five candidate lines drawn on the board" width="82%">
 
 [Fair play](#fair-play---read-this-first) · [Install](#install) · [Engines](#engines) · [Features](#features) ·
-[Sites](#supported-sites) · [Settings](#settings-reference) · [Footprint](#page-footprint) · [Roadmap](#roadmap)
+[Sites](#supported-sites) · [Settings](#settings-reference) · [Error codes](#error-codes) · [Footprint](#page-footprint) · [Roadmap](#roadmap)
 
 ---
 
@@ -624,6 +624,117 @@ Four are worth knowing before you go looking:
 
 ---
 
+## Error codes
+
+When something you started fails, Mephisto shows a short message with a stable code in front of it, for example
+`MPH-U02: That isn't Mephisto's folder. Pick the folder you loaded in chrome://extensions (Load unpacked).` The message is
+translated into your language; the code never is, so it can be searched for and quoted in a bug report. The technical
+detail (a file name, an HTTP status, the browser's own text) is in the console, and in the text **Copy error & open ticket**
+prepares. A code is never reused: a retired one stays retired.
+
+### Automatic updates (Settings → Updates)
+
+| Code | What happened | What to do |
+|---|---|---|
+| `MPH-U01` | The folder you picked has no `manifest.json`, so it is not an unpacked extension. | Pick the folder you loaded in `chrome://extensions` with **Load unpacked**. |
+| `MPH-U02` | The folder holds a different extension, not Mephisto. | Pick the folder you loaded in `chrome://extensions` with **Load unpacked**. Nothing is written to a folder that fails this check. |
+| `MPH-U03` | Install was pressed while Automatic Updates is switched off. | Switch it on under Settings → Updates. |
+| `MPH-U04` | Chrome no longer holds the download permission the feature asked for. | Switch Automatic Updates off and on again; Chrome asks again. |
+| `MPH-U05` | No extension folder is saved, or Chrome stopped allowing writes to it (it can lapse across restarts). | Press **Choose Extension Folder** and allow access. |
+| `MPH-U06` | GitHub, or the extension's own release lookup, did not answer. | Check your connection and try again. Updating by hand still works. |
+| `MPH-U07` | The newest release has no update archive attached. | Download the full zip from the Releases page. |
+| `MPH-U08` | GitHub answered the download with an HTTP error (the status is in the console). | Wait a minute and try again. |
+| `MPH-U09` | The download is the ~585 MB full archive, not the ~7 MB update one. It is refused before it is read into memory. | Update by hand with the full zip. |
+| `MPH-U10` | The archive is damaged: not a zip, a bad record, an unsupported compression method, or a file that inflated to the wrong size. The folder was not touched. | Try again; if it repeats, install the full zip and report the code with the console line. |
+| `MPH-U11` | The archive is intact but is not the release it was published as: a missing core file, a wrong version, or a path outside the extension. The folder was not touched. | Try again later, or install the full zip. |
+| `MPH-U12` | Roll back was pressed with no backup on disk. | Nothing to do; a backup exists only after an update installed through this feature. |
+| `MPH-U13` | The backup is missing its manifest or a file it lists. Nothing is restored rather than half of it. | Install the version you want from its zip. |
+| `MPH-U14` | Finish Interrupted Update was pressed but no update was interrupted. | Nothing to do. |
+| `MPH-U15` | The staged update is incomplete (it is only finishable once every file and the final marker were written). | Press **Install Update**; it downloads the archive again. |
+
+### Puzzle database (Settings → Puzzle Database)
+
+| Code | What happened | What to do |
+|---|---|---|
+| `MPH-P01` | You picked the `.zst` file; browsers cannot decompress zstd. | Run `unzstd lichess_db_puzzle.csv.zst`, then pick the `.csv`. |
+| `MPH-P02` | The import stopped with an error (details in the console). Positions already written are kept. | Run the import again; it continues over the same keys. |
+| `MPH-P03` | The file was read but no puzzle in it was recognised (wrong CSV, or empty). | Pick `lichess_db_puzzle.csv` or a Chess.com puzzle CSV. |
+| `MPH-P04` | The stored database could not be read. | Reload the page; if it persists press **Remove** and import again. |
+
+### Settings import (Settings → Import Settings)
+
+| Code | What happened | What to do |
+|---|---|---|
+| `MPH-S01` | The file is not valid JSON. | Pick a file made with **Export Settings**. |
+| `MPH-S02` | The file is JSON but not a settings export (it must be an object of JSON strings). | Pick a file made with **Export Settings**. |
+| `MPH-S03` | One value inside is not valid JSON, so nothing was imported. The code line names the setting. | Export again from a working install, or delete that entry from the file. |
+
+### Opening book (Settings → Own Book)
+
+| Code | What happened | What to do |
+|---|---|---|
+| `MPH-B01` | The file is not a Polyglot book: empty, a length that is not a multiple of 16 bytes, or entries out of order. | Pick a `.bin` in the Polyglot format. |
+
+### Endgame tablebase (Settings → Tablebase)
+
+| Code | What happened | What to do |
+|---|---|---|
+| `MPH-T01` | The chosen folder holds no Syzygy `.rtbw` files. | Pick the folder that contains them. |
+| `MPH-T02` | Chrome dropped the folder grant for this session. | Press **Re-allow**. |
+| `MPH-T03` | Write access to the folder was refused when starting a download. | Press **Download tables** again and allow it. |
+| `MPH-T04` | The permission to reach `tablebase.lichess.ovh` was refused. | Press **Download tables** again and allow it. |
+| `MPH-T05` | The server's file list could not be read. | Check your connection and try again. |
+| `MPH-T06` | The disk filled up; the run stopped instead of failing every remaining file. | Free space or pick the smaller 3-4-5 set. |
+| `MPH-T07` | **Check** could not use the folder; the reason is in the brackets. | Choose the folder again; for a native-host reason re-run `native-host/install-native.sh`. |
+
+### Engines (panel)
+
+| Code | What happened | What to do |
+|---|---|---|
+| `MPH-E01` | The native engine host is not installed, was removed, or could not start. | Run `native-host/install-native.sh` once (see [Full-power native engines](#full-power-native-engines-optional)), then reload the page. Hosts are per browser. |
+| `MPH-E02` | The Remote Engine is selected but nothing answers on `localhost:9090`. | Start `remote-engine.py`, or pick another engine. |
+| `MPH-E03` | Something answers on `localhost:9090` that is not `remote-engine.py` (it returned HTML, not JSON). | Stop it or start `remote-engine.py` there. |
+| `MPH-E04` | The in-browser engine crashed three times in a row. | Pick a different engine in Settings. |
+| `MPH-E05` | An engine failed to load or run for a reason with no code of its own. The panel shows the first 120 characters; the console has all of it. | Reload the page; if it repeats, report the code with the console line. |
+| `MPH-E06` | The online (cloud) engine did not answer: offline, rate-limited, or it refused the position. | Check your connection, or pick another engine. |
+| `MPH-E07` | Tetrarch (four-player chess) is not installed. | Follow the [Four-player chess](#four-player-chess) setup. |
+
+### Model and net downloads (first use of an engine)
+
+| Code | What happened | What to do |
+|---|---|---|
+| `MPH-N01` | A net or model file this build does not bundle could not be downloaded (offline, blocked, or an HTTP error; the file name is in the console). | Check your connection and try again. |
+| `MPH-N02` | The download stopped early or ran past the size the manifest lists. | Try again. |
+| `MPH-N03` | The file arrived but failed its SHA-256 check, so it was discarded and not cached. | Try again; if it repeats, install the full zip. |
+| `MPH-N04` | The file is neither bundled nor named in `engine-assets.json`. | Update Mephisto or install the full zip. |
+
+### Game Review (chess.com, lichess)
+
+| Code | What happened | What to do |
+|---|---|---|
+| `MPH-R01` | The chess.com review runs inside a chess.com tab and none could be found or opened. | Open chess.com in this browser and log in. |
+| `MPH-R02` | chess.com closed the review socket with 1008 (not authenticated). | Sign in to chess.com in this browser and try again. |
+| `MPH-R03` | chess.com gave no answer: the socket would not open, failed to send, or closed with nothing. | Try again; if it repeats use **Copy error & open ticket** (the technical detail is in the ticket text). |
+| `MPH-R04` | The review could not run inside the chess.com tab, or the tab returned nothing. | Reload that tab and try again. |
+| `MPH-R05` | lichess answered 429. | Wait a minute. The anonymous import is limited to 100 an hour. |
+| `MPH-R06` | lichess answered 401 to **Add to my study**: the token is unknown or expired. | Make a new token with the `study:write` scope. |
+| `MPH-R07` | lichess answered 403: the token lacks `study:write`. | Make a new token with `study:write` ticked and paste it in Settings → Beyond the engine → Lichess API token. |
+| `MPH-R08` | lichess answered 404: no such study, or not one this token can write to. | Check the URL, and that the study is yours or you are a contributor. |
+| `MPH-R09` | lichess refused the game with another status; the status and its message are in the brackets. | Check the PGN and try later. |
+| `MPH-R10` | lichess could not be reached. | Check your connection and try again. |
+| `MPH-R11` | **Add to my study** was pressed with no study URL. | Paste the URL of one of your studies. |
+| `MPH-R12` | **Add to my study** was pressed with no token saved. | Make a token at `lichess.org/account/oauth/token/create` and paste it in Settings → Beyond the engine → Lichess API token. |
+
+### Screen reading (panel)
+
+| Code | What happened | What to do |
+|---|---|---|
+| `MPH-V01` | No board was found in the screenshot. | Drag a box around the board when asked. |
+| `MPH-V02` | The screenshot itself failed. | Keep the tab visible and try again. |
+| `MPH-V03` | Follow Screen stopped because a capture failed. | Press it again. |
+| `MPH-V04` | The recogniser failed for a reason with no code of its own (in the brackets). | Drag a box around the board, or reload the page. |
+
+---
 ## Page footprint
 
 **Toolbar popup** leaves **zero page footprint** - it renders in the browser's own chrome. It closes when you click
