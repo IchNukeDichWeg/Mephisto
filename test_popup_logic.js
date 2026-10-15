@@ -3706,7 +3706,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /increment: inc \? parseInt\(inc\[1\]\) : null, base: tcBaseSeconds\(tcText\)/.test(csrc));
     ok('...and the panel falls back to the longest clock this game showed, and scales the mix only with the switch on',
        /const base = last_clocks\.base > 0 \? last_clocks\.base : game_max_clock_s;/.test(psrc)
-       && /const rates = humanize_rates_now\(fen, true\); \/\/ the mix, scaled to the clock when that is on/.test(psrc));
+       && /let rates = humanize_rates_now\(fen, true\); \/\/ the mix, scaled to the clock when that is on/.test(psrc));
     const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
     const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
@@ -3765,7 +3765,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /'maia2_self_elo', 'maia2_oppo_elo', 'maia3_elo',/.test(psrc)
        && locs.every(l => l['set.play_like_rating'] && l['panel.maia_use_opp'] && l['panel.tip.maia_use_opp'])); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
-    // Stage B: Maia picks the deviation (B1) -- the real guards block
+    // Stage B: Maia picks the deviation (B1) and where errors land (B2) -- the real guards block
     const a = psrc.indexOf('// ==== HUMANIZE GUARDS ===='), b = psrc.indexOf('// ==== END HUMANIZE GUARDS ====');
     const g = vm.createContext({}); vm.runInContext(psrc.slice(a, b), g);
     const v = (e) => vm.runInContext(e, g);
@@ -3775,16 +3775,24 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        draws.c2c3 === 0 && Math.abs(draws.b2b3 / (draws.b2b3 + draws.d2d3) - 0.30 / 0.395) < 0.01, draws);
     ok('B1: no candidate at 1% or more -> no pick (the best move stays)',
        v("hz_maia_weighted([{move:'c2c3'},{move:'h2h3'}], P, () => 0.5)") === null);
+    ok('B2: P_err counts Maia mass only on engine lines losing more than tau',
+       Math.abs(v("hz_p_err([{move:'a2a3',l:0},{move:'b2b3',l:150},{move:'d2d3',l:400},{move:'h2h3',l:900}], P, (x) => x.l, 110)") - 0.395) < 1e-9);
+    const w = JSON.parse(v("JSON.stringify((() => { const s1 = hz_where_k(null, 0.44, 10); const s2 = hz_where_k(s1.state, 0.0, 11); const s3 = hz_where_k(s2.state, 0.9, 12); const r = hz_where_k(s3.state, 0.1, 1); const lo = (() => { let s = null; for (let i = 1; i < 200; i++) s = hz_where_k(s && s.state, 0, i); return s; })(); return {k1: s1.k, m1: s1.state.mean, k2: s2.k, k3: s3.k, kr: r.k, floor: lo.state.mean}; })())"));
+    ok('B2: twice the running mean doubles the error shares, a dead-easy move gets none, capped at 3x, a new game restarts from 0.22, the mean never under 0.02',
+       Math.abs(w.k1 - 2) < 1e-9 && Math.abs(w.m1 - (0.85 * 0.22 + 0.15 * 0.44)) < 1e-9 && w.k2 === 0 && w.k3 === 3
+       && Math.abs(w.kr - 0.1 / 0.22) < 1e-9 && w.floor === 0.02, w);
     ok('...wired: Maia asked at search start on our turn, its rating and list width set per ask and put back, the pick weighted only with the switch on',
        /if \(our_turn && config\.autoplay\) request_humanize_maia\(fen\);/.test(psrc)
        && /send\('setoption name MultiPV value 256'\);/.test(psrc) && /send\('setoption name MultiPV value 5'\);/.test(psrc)
        && /const maiaWhich = !!probs && humanize_flag\('humanize_maia', false\);/.test(psrc)
-       && /cand = maiaWhich \? hz_maia_weighted\(ok, probs\)/.test(psrc));
+       && /cand = maiaWhich \? hz_maia_weighted\(ok, probs\)/.test(psrc)
+       && /if \(probs && humanize_flag\('humanize_maia_where', false\)\) \{/.test(psrc)
+       && /rates = hz_scale_rates\(rates, \{inaccuracy: w\.k, mistake: w\.k, blunder: w\.k\}\);/.test(psrc));
     const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
     const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
-    ok('Human-Like Mistakes: a settings row, OFF by default, label and tip in all 14 locales',
-       ['humanize_maia'].every(k => new RegExp(`id="${k}_checkbox"`).test(gh)
+    ok('Human-Like Mistakes and Mistakes Where People Make Them: settings rows, OFF by default, label and tip in all 14 locales',
+       ['humanize_maia', 'humanize_maia_where'].every(k => new RegExp(`id="${k}_checkbox"`).test(gh)
            && new RegExp(`registerFormElement\\('${k}', '[^']+:', 'checkbox', false\\)`).test(gj)
            && locs.every(l => l['set.' + k] && l['set.tip.' + k]))); }
 // ==== END FIX CHECKS ====

@@ -7592,6 +7592,13 @@ function hz_mate_in(cp) {
 // however well its cp fits -- the 300cp error becomes the attractive capture that loses to an
 // intermezzo, not a random rank-14 line.
 const HZ_MAIA_MIN = 0.01;
+// B2, Mistakes Where People Make Them: the error shares are scaled by this position's hazard,
+// P_err / its running mean, where P_err is Maia's mass on engine lines losing more than the
+// inaccuracy band's lower edge. The mean starts at the human inaccuracy-or-worse rate (0.22 per move,
+// Stage C 2025-10, every band) and follows the game with weight 0.15; the scale is capped at 3x
+// like the clock tables, and the mean never drops under 0.02 so one quiet stretch cannot make the
+// next sharp move a certain error.
+const HZ_WHERE_PRIOR = 0.22, HZ_WHERE_EMA = 0.15, HZ_WHERE_MAX = 3, HZ_WHERE_MEAN_MIN = 0.02;
 
 // Pure. One of pool ({move}) drawn by its Maia probability; null when none reaches HZ_MAIA_MIN.
 function hz_maia_weighted(pool, probs, rnd = Math.random) {
@@ -7604,6 +7611,20 @@ function hz_maia_weighted(pool, probs, rnd = Math.random) {
     return null;
 }
 
+// Pure. Maia's probability mass on the engine lines that lose more than tau cp.
+function hz_p_err(lines, probs, lossOf, tau) {
+    let sum = 0;
+    for (const l of lines) if (lossOf(l) > tau) sum += probs.get(l.move) || 0;
+    return Math.min(1, sum);
+}
+
+// Pure. The hazard scale for this move and the running mean after it. state = {mean, fullmove} from
+// the last move or null; a move number that went DOWN is a new game, which starts from the prior.
+function hz_where_k(state, pErr, fullmove) {
+    const mean = (!state || !(fullmove >= state.fullmove)) ? HZ_WHERE_PRIOR : state.mean;
+    const k = Math.max(0, Math.min(HZ_WHERE_MAX, pErr / mean));
+    return {k, state: {mean: Math.max(HZ_WHERE_MEAN_MIN, (1 - HZ_WHERE_EMA) * mean + HZ_WHERE_EMA * pErr), fullmove}};
+}
 // ==== END HUMANIZE GUARDS ====
 
 // ==== HUMANIZE TIME CONTROL ====
@@ -7775,11 +7796,20 @@ function humanize_pick(best) {
         const playable = (m) => premove_reply_playable(fen, m); // moves OUR piece + legal here
         const loss = (l) => bestCp - line_cp_ours(l);
         const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000); // never move INTO mate
-        const rates = humanize_rates_now(fen, true); // the mix, scaled to the clock when that is on
+        let rates = humanize_rates_now(fen, true); // the mix, scaled to the clock when that is on
         // Maia's read of this position at the Play-like rating, asked at search start; null when it
         // has not answered yet (first-use download, a slow pass) -- then the plain mix decides.
         const probs = hz_maia_probs(fen);
         const maiaWhich = !!probs && humanize_flag('humanize_maia', false);
+        if (probs && humanize_flag('humanize_maia_where', false)) {
+            const tau = humanize_thresholds().fourth;
+            const pErr = hz_p_err(lines, probs, loss, tau);
+            const fullmove = parseInt(String(fen).split(' ')[5]) || 0;
+            const w = hz_where_k(hz_where_state, pErr, fullmove);
+            hz_where_state = w.state;
+            rates = hz_scale_rates(rates, {inaccuracy: w.k, mistake: w.k, blunder: w.k});
+            console.log(`Humanize where: P_err ${(pErr * 100).toFixed(1)}%, mean ${(w.state.mean * 100).toFixed(1)}%, errors x${w.k.toFixed(2)}`);
+        }
         const guards = humanize_flag('humanize_guards', true);
         // THE GUARDS (see HUMANIZE GUARDS above). Lazy: the exchange walk only runs for the moves a
         // roll actually wants to play.
@@ -10504,10 +10534,11 @@ async function safety_human_ask(fen) {
 // own: set before the pass and put back after it, so the threat reply and the safety net keep
 // reading at theirs. Asked at search start on our turn; humanize_pick reads whatever has arrived.
 const hz_maia_cache = new Map();   // fen -> Map(uci -> p)
+let hz_where_state = null;          // B2's running mean, see hz_where_k
 function hz_maia_probs(fen) { return hz_maia_cache.get(fen) || null; }
 function request_humanize_maia(fen) {
     if (!config.humanize) return;
-    if (!humanize_flag('humanize_maia', false)) return;
+    if (!humanize_flag('humanize_maia', false) && !humanize_flag('humanize_maia_where', false)) return;
     if (config.variant && config.variant !== 'chess') return;    // the nets know one game
     if (hz_maia_cache.has(fen)) return;
     human_once(`hz|${fen}`, () => humanize_maia_ask(fen)).catch(() => {});

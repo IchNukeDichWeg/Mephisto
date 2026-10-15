@@ -685,6 +685,8 @@
   "set.tip.play_like_rating": "The rating Humanize and Maia aim at, 600 to 2600. With Maia as the engine it is the strength it plays; with Human-Like Mistakes it decides which mistakes look natural; with Scale Errors to the Clock it picks the row of the error tables. The same setting as Play like in the panel.",
   "set.humanize_maia": "Human-Like Mistakes",
   "set.tip.humanize_maia": "Off by default. When Humanize plays something other than the best move, it picks the one a person at your Play Like Rating would actually play: each candidate is weighted by how likely Maia-3 thinks that rating is to play it, and a move Maia gives under 1% is never chosen. Uses the bundled Maia-3 net (88 MB, downloaded the first time) as a second engine during autoplay; until it has answered for a position, the plain pick stands in. Standard chess only.",
+  "set.humanize_maia_where": "Mistakes Where People Make Them",
+  "set.tip.humanize_maia_where": "Off by default. Moves the Inaccuracy, Mistake and Blunder shares to the positions where a person at your Play Like Rating is likely to go wrong: Maia-3's chance of a move worse than the Fourth-line threshold, divided by its average so far this game, scales the error shares of each move. The long-run rate stays what you set; easy positions get almost none, tricky ones more. Not calibrated against measured error rates yet. Needs Maia, standard chess only.",
   "an.game": "Game",
   "an.tip.game": "Chess uses the board below. Shogi and xiangqi get their own board, analysed by the large-board build of Fairy-Stockfish.",
   "an.game_chess": "Chess",

@@ -685,6 +685,8 @@
   "set.tip.play_like_rating": "Il rating a cui mirano Humanize e Maia, da 600 a 2600. Con Maia come motore è la forza con cui gioca; con Errori umani decide quali errori sembrano naturali; con Adatta gli errori all'orologio sceglie la riga delle tabelle degli errori. La stessa impostazione di Gioca come nel pannello.",
   "set.humanize_maia": "Errori umani",
   "set.tip.humanize_maia": "Disattivato di default. Quando Humanize gioca qualcosa che non è la mossa migliore, sceglie quella che una persona al tuo Gioca come rating giocherebbe davvero: ogni candidata è pesata dalla probabilità che Maia-3 le dà a quel rating, e una mossa sotto l'1% non è mai scelta. Usa la rete Maia-3 inclusa (88 MB, scaricata la prima volta) come secondo motore durante l'autoplay; finché non ha risposto per una posizione, vale la scelta normale. Solo scacchi standard.",
+  "set.humanize_maia_where": "Errori dove la gente li fa",
+  "set.tip.humanize_maia_where": "Disattivato di default. Sposta le quote di Imprecisione, Errore e Svarione nelle posizioni dove una persona al tuo Gioca come rating rischia di sbagliare: la probabilità Maia-3 di una mossa peggiore della soglia della quarta linea, divisa per la sua media finora nella partita, scala le quote d'errore di ogni mossa. Il tasso nel lungo periodo resta quello scelto; le posizioni facili non ne ricevono quasi, quelle insidiose di più. Non ancora calibrato su tassi misurati. Serve Maia, solo scacchi standard.",
   "an.game": "Gioco",
   "an.tip.game": "Gli scacchi usano la scacchiera qui sotto. Shogi e xiangqi hanno una scacchiera propria, analizzata dalla versione per scacchiere grandi di Fairy-Stockfish.",
   "an.game_chess": "Scacchi",

@@ -685,6 +685,8 @@
   "set.tip.play_like_rating": "De rating waar Humanize en Maia op mikken, 600 tot 2600. Met Maia als engine is het de speelsterkte; met Menselijke fouten bepaalt het welke fouten natuurlijk ogen; met Fouten aanpassen aan de klok kiest het de rij van de fouttabellen. Dezelfde instelling als Speel als in het paneel.",
   "set.humanize_maia": "Menselijke fouten",
   "set.tip.humanize_maia": "Standaard uit. Speelt Humanize iets anders dan de beste zet, dan kiest het de zet die iemand op je Speel-als-rating echt zou spelen: elke kandidaat telt mee naar hoe waarschijnlijk Maia-3 hem op die rating vindt, en een zet onder 1% wordt nooit gekozen. Gebruikt het meegeleverde Maia-3-net (88 MB, de eerste keer gedownload) als tweede engine tijdens autoplay; tot het voor een stelling geantwoord heeft, geldt de gewone keuze. Alleen standaardschaak.",
+  "set.humanize_maia_where": "Fouten waar mensen ze maken",
+  "set.tip.humanize_maia_where": "Standaard uit. Verplaatst de aandelen Onnauwkeurigheid, Fout en Blunder naar de stellingen waar iemand op je Speel-als-rating waarschijnlijk misgrijpt: de kans van Maia-3 op een zet slechter dan de drempel van de vierde lijn, gedeeld door het gemiddelde tot nu toe in deze partij, schaalt de foutaandelen van elke zet. Op lange termijn blijft de rate wat je instelde; makkelijke stellingen krijgen bijna niets, lastige meer. Nog niet gekalibreerd op gemeten foutpercentages. Vereist Maia, alleen standaardschaak.",
   "an.game": "Spel",
   "an.tip.game": "Schaken gebruikt het bord hieronder. Shogi en xiangqi krijgen een eigen bord, geanalyseerd door de grootbordversie van Fairy-Stockfish.",
   "an.game_chess": "Schaken",

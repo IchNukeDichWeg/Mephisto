@@ -685,6 +685,8 @@
   "set.tip.play_like_rating": "Humanize ve Maia'nın hedeflediği reyting, 600 ile 2600 arası. Motor Maia ise oynadığı güçtür; İnsan gibi hatalar ile hangi hataların doğal göründüğüne karar verir; Hataları saate göre ayarla ile hata tablolarının satırını seçer. Paneldeki Böyle oyna ile aynı ayardır.",
   "set.humanize_maia": "İnsan gibi hatalar",
   "set.tip.humanize_maia": "Varsayılan olarak kapalı. Humanize en iyi hamle dışında bir şey oynadığında, Böyle oyna reytinginizdeki bir insanın gerçekten oynayacağı hamleyi seçer: her aday, Maia-3'ün o reytingte oynanma olasılığına göre ağırlıklanır ve %1'in altındaki hamle asla seçilmez. Paketteki Maia-3 ağını (88 MB, ilk seferde indirilir) otomatik oynatma sırasında ikinci motor olarak kullanır; bir konum için yanıt gelene kadar normal seçim geçerlidir. Yalnızca standart satranç.",
+  "set.humanize_maia_where": "İnsanların hata yaptığı yerde hata",
+  "set.tip.humanize_maia_where": "Varsayılan olarak kapalı. Yanlışlık, Hata ve Vahim hata paylarını, Böyle oyna reytinginizdeki birinin yanılması muhtemel konumlara taşır: Maia-3'ün dördüncü hat eşiğinden kötü bir hamle olasılığı, bu oyundaki şimdiye kadarki ortalamasına bölünerek her hamlenin hata paylarını ölçekler. Uzun vadeli oran ayarladığınız gibi kalır; kolay konumlar neredeyse hiç almaz, zorlu olanlar daha çok. Henüz ölçülen hata oranlarına göre kalibre edilmedi. Maia gerekir, yalnızca standart satranç.",
   "an.game": "Oyun",
   "an.tip.game": "Satranç aşağıdaki tahtayı kullanır. Shogi ve xiangqi kendi tahtalarını alır; bunları Fairy-Stockfish'in büyük tahta sürümü analiz eder.",
   "an.game_chess": "Satranç",
