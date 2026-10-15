@@ -812,6 +812,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     m.flags = {humanize_match: false};
     eq('...and with it off, humanize keeps its own deeper list', mpv({multiple_lines: 1, humanize: true, contempt: true}), 6);
     m.flags = {};
+    eq('Suggest a Human Error asks for the wide list on its own, so an inaccuracy has a rank to sit at', mpv({multiple_lines: 1, human_error: true}), 20);
+    m.flags = {humanize_match: false};
+    eq('...but not while Autoplay plays through Humanize: that search stays what it was without the option', mpv({multiple_lines: 1, humanize: true, autoplay: true, human_error: true}), mpv({multiple_lines: 1, humanize: true, autoplay: true}));
+    eq('...and with Autoplay off, Humanize on, it does widen', mpv({multiple_lines: 1, humanize: true, autoplay: false, human_error: true}), 20);
+    m.flags = {};
     // ...and NONE of that reaches the board: the arrows and the list follow the slider, so raising
     // the engine's line count for a feature cannot quietly put five more arrows on a board set to one.
     // The placeholder the engine sends for a second line it has not found yet ("multipv 2 ... pv" with
@@ -3918,7 +3923,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        Math.abs(w.k1 - 2) < 1e-9 && Math.abs(w.m1 - (0.85 * 0.22 + 0.15 * 0.44)) < 1e-9 && w.k2 === 0 && w.k3 === 3
        && Math.abs(w.kr - 0.1 / 0.22) < 1e-9 && w.floor === 0.02, w);
     ok('...wired: Maia asked at search start on our turn, its rating and list width set per ask and put back, the pick weighted only with the switch on',
-       /if \(our_turn && config\.autoplay\) request_humanize_maia\(fen\);/.test(psrc)
+       /if \(our_turn && \(config\.autoplay \|\| config\.human_error\)\) request_humanize_maia\(fen\);/.test(psrc)
        && /send\('setoption name MultiPV value 256'\);/.test(psrc) && /send\('setoption name MultiPV value 5'\);/.test(psrc)
        && /const maiaWhich = !!probs && humanize_flag\('humanize_maia', false\);/.test(psrc)
        && /cand = maiaWhich \? hz_maia_weighted\(ok, probs\)/.test(psrc)
@@ -4153,3 +4158,143 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        !/new Error\(/.test(mf.replace(/const coded = [^\n]*/, '')) && (mf.match(/coded\('MPH-N0[1-4]'/g) || []).length === 6);
 })().catch(e => { fails++; console.log('FAIL error-code checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
+
+// ==== SUGGEST A HUMAN ERROR ====
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const sl = (a, b) => psrc.slice(psrc.indexOf(a), psrc.indexOf(b));
+    const blocks = sl('// ==== HUMANIZE GUARDS ====', '// ==== END HUMANIZE GUARDS ====') + sl('// ==== HUMANIZE MATCH ====', '// ==== END HUMANIZE MATCH ====')
+        + sl('// ==== HUMAN ERROR ====', '// ==== END HUMAN ERROR ====');
+    // ---- the chooser, pure
+    const g = vm.createContext({}); g.self = g;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), g);
+    vm.runInContext(blocks, g);
+    const v = (e) => JSON.parse(vm.runInContext(`JSON.stringify(${e})`, g));
+    vm.runInContext(`var C = [{move:'a', drop:6, cp:-60}, {move:'b', drop:8, cp:-80}, {move:'c', drop:12, cp:-120}, {move:'d', drop:3, cp:-30}, {move:'e', drop:90, cp:-99900}];
+        var P = new Map([['a', 0.004], ['b', 0.3], ['c', 0.1], ['d', 0.9], ['e', 0.5]]);`, g);
+    ok('a Maia-weighted error: only moves Maia gives 1%+, drawn by their probability (0.75 / 0.25 here), never the sub-edge d, the sub-1% a or the mate-losing e',
+       v('hz_human_error_pick(C, {probs: P, rnd: () => 0}).move') === 'b' && v('hz_human_error_pick(C, {probs: P, rnd: () => 0.99}).move') === 'c'
+       && v('hz_human_error_pick(C, {probs: P, rnd: () => 0}).source') === 'maia');
+    const draws = v(`(() => { const r = hz_seeded('x'); const n = {}; for (let i = 0; i < 4000; i++) { const m = hz_human_error_pick(C, {probs: P, rnd: r}).move; n[m] = (n[m] || 0) + 1; } return n; })()`);
+    ok('...over 4000 seeded draws only b and c come up, b three times as often', Object.keys(draws).sort().join() === 'b,c' && Math.abs(draws.b / 4000 - 0.75) < 0.03, draws);
+    ok('...a position where Maia gives every candidate under 1% shows nothing',
+       v(`hz_human_error_pick([{move:'a', drop:6, cp:-60}, {move:'x', drop:9, cp:-90}], {probs: new Map([['a', 0.002]])})`) === null);
+    ok('...a Maia-natural hang (2%+) is allowed through, a hang Maia does not back is refused',
+       v(`hz_human_error_pick([{move:'h', drop:9, cp:-90}], {probs: new Map([['h', 0.05]]), hangsOf: () => true, rnd: () => 0}).move`) === 'h'
+       && v(`hz_human_error_pick([{move:'h', drop:9, cp:-90}], {probs: new Map([['h', 0.015]]), hangsOf: () => true, rnd: () => 0})`) === null);
+    const kind = "(u) => ({a: 'quiet', b: 'hung', c: 'quiet', d: 'quiet'})[u]";
+    ok('without Maia a quiet error beats a hung pawn even when the pawn gives away less; the smallest loss decides inside a kind',
+       v(`hz_human_error_pick([{move:'b', drop:5.5, cp:-55}, {move:'c', drop:12, cp:-120}, {move:'a', drop:6, cp:-60}], {typeOf: ${kind}}).move`) === 'a'
+       && v(`hz_human_error_pick([{move:'b', drop:5.5, cp:-55}, {move:'c', drop:12, cp:-120}], {typeOf: ${kind}}).move`) === 'c'
+       && v(`hz_human_error_pick([{move:'b', drop:5.5, cp:-55}], {typeOf: ${kind}}).source`) === 'engine');
+    ok('...a hidden error (looks fine at the shallow depth) comes before a quiet one, and the shallow read is optional',
+       v(`hz_human_error_pick([{move:'a', drop:6, cp:-60}, {move:'c', drop:12, cp:-120}], {typeOf: ${kind}, hiddenOf: (u) => u === 'c'}).move`) === 'c'
+       && v(`hz_human_error_pick([{move:'a', drop:6, cp:-60}, {move:'c', drop:12, cp:-120}], {typeOf: ${kind}, hiddenOf: null}).move`) === 'a');
+    ok('nothing when no line gives away 5% win (4.99 is not an inaccuracy, 5 is), and never a line that loses to mate, with or without Maia',
+       v(`hz_human_error_pick([{move:'a', drop:4.99, cp:-50}, {move:'d', drop:0, cp:0}])`) === null
+       && v(`hz_human_error_pick([{move:'a', drop:5, cp:-50}]).cls`) === 2
+       && v(`hz_human_error_pick([C[4]])`) === null && v(`hz_human_error_pick([C[4]], {probs: P})`) === null && v('hz_human_error_pick([])') === null);
+    ok('...a hung minor piece is refused without Maia backing (the guards\' rule); the class and its glyph follow the win% given away',
+       v(`hz_human_error_pick([{move:'h', drop:9, cp:-90}], {hangsOf: () => true})`) === null
+       && v('[6, 12, 25].map(d => HZ_ERR_MARK[hz_human_error_pick([{move:"a", drop:d, cp:-60}]).cls]).join()') === '?!,?,??'
+       && v('HZ_ERR_NAME.slice(2).join()') === 'inaccuracy,mistake,blunder');
+    ok('the Maia draw is seeded from the position: the same position always draws the same, another may not',
+       v(`(() => { const a = hz_seeded('p1'), b = hz_seeded('p1'), c = hz_seeded('p2'); return [a(), a(), a()].join() === [b(), b(), b()].join() && a() !== c(); })()`));
+    { // the real classifier on the real chess.js: a king step that still guards the pawn is quiet, one that walks away hangs it
+        const fen = '4k3/8/8/8/1b6/8/3P4/4K3 w - - 0 1';
+        ok('...with the real hz_type_classifier: the quiet king move is suggested over the hung pawn',
+           v(`hz_human_error_pick([{move:'e1f1', drop:5.5, cp:-55}, {move:'e1e2', drop:6, cp:-60}], {typeOf: hz_type_classifier(Chess, 'chess', ${JSON.stringify(fen)})}).move`) === 'e1e2');
+    }
+    // ---- the panel half: once per position, waits for the search and for Maia, display only
+    const FEN = '4k3/8/8/8/1b6/8/3P4/4K3 w - - 0 1';
+    const ec = vm.createContext({}); ec.self = ec;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), ec);
+    const fnSrc = (name) => { const i = psrc.indexOf(`function ${name}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    vm.runInContext(`var config = {human_error: true, variant: 'chess', engine: 'sf'}; var turn = 'w'; var last_eval = {fen: '', lines: [], activeLines: 0};
+        var ONE_PASS_ENGINES = ['maia']; function our_turn_now() { return true; } var maia = null; function hz_maia_probs() { return maia; }
+        var flags = {}; function humanize_flag(k, d) { return k in flags ? flags[k] : d; } function effective_multipv() { return 20; }
+        var updates = 0, draws = 0; function update_best_move() { updates++; } function draw_moves() { draws++; }
+        function user_color(k, d) { return d; } function notate(f, u) { return u; }`, ec);
+    vm.runInContext(fnSrc('win_percent') + fnSrc('line_cp_ours') + blocks
+        + psrc.slice(psrc.indexOf('const HUMAN_ERROR_MIN_DEPTH'), psrc.indexOf('function human_reply_label()')), ec);
+    const e = (x) => vm.runInContext(x, ec);
+    const mk = (fen, depth, scores) => e(`last_eval = {fen: ${JSON.stringify(fen)}, activeLines: ${scores.length}, lines: ${JSON.stringify(['d2d4', 'e1e2', 'e1f1'].slice(0, scores.length).map((m, i) => ({move: m, pv: m, score: scores[i], depth})))}}`);
+    mk(FEN, 8, [20, -60, -90]); e('refresh_human_error(false)');
+    ok('a search still at depth 8 shows nothing and decides nothing', e('human_error_state.done') === false && e('human_error_shown()') === null);
+    mk(FEN, 14, [20, -60]); e('last_eval.activeLines = 3'); e('refresh_human_error(false)');
+    ok('...a depth-14 frame with fewer lines than the search is delivering does not decide on a partial list', e('human_error_state.done') === false);
+    mk(FEN, 14, [20, -60, -90]); e('refresh_human_error(false)');
+    ok('...the first complete depth-12+ frame decides: the quiet king move, repainted once',
+       e('human_error_shown().move') === 'e1e2' && e('updates') === 1 && e('draws') === 1);
+    ok('...labelled as an error with its cost: "Human error: e1e2?! -0.8 (inaccuracy)"',
+       /Human error: e1e2\?! -0\.8 \(inaccuracy\)/.test(e('human_error_label()')) && /color:#a0522d/.test(e('human_error_label()')));
+    mk(FEN, 20, [20, 10, -60]); e('refresh_human_error(false)'); e('refresh_human_error(true)');
+    ok('...and it stays: later frames and the bestmove of the same position do not swap it or repaint', e('human_error_shown().move') === 'e1e2' && e('updates') === 1);
+    e('config.human_error = false');
+    ok('...switched off it is gone from the label and the board', e('human_error_shown()') === null && e('human_error_label()') === '');
+    e('config.human_error = true; last_eval.fen = "4k3/8/8/8/1b6/8/3P4/4K3 w - - 0 2"; flags.humanize_maia = true');
+    mk('4k3/8/8/8/1b6/8/3P4/4K3 w - - 0 2', 16, [20, -60, -90]); e('refresh_human_error(false)');
+    ok('with a Maia option on, a settled search waits for the net rather than locking an engine-only pick', e('human_error_state.done') === false);
+    e('refresh_human_error(true)');
+    ok('...the bestmove decides with what there is (engine only)', e('human_error_state.basis') === 'engine' && e('human_error_shown().move') === 'e1e2');
+    e("maia = new Map([['e1f1', 0.2], ['e1e2', 0.004]])"); e('refresh_human_error(false)');
+    ok('...and when Maia answers late the pick is replaced once by the Maia one, then kept',
+       e('human_error_state.basis') === 'maia' && e('human_error_shown().move') === 'e1f1' && e('human_error_shown().source') === 'maia');
+    e('refresh_human_error(false)'); e('refresh_human_error(true)');
+    ok('...kept', e('human_error_shown().move') === 'e1f1');
+    e('maia = null; flags = {}; function hz_hidden_of(sh, u) { return sh.get(u) === true; }');
+    mk('4k3/8/8/8/1b6/8/3P4/4K3 w - - 0 3', 16, [20, -60, -90]); e("last_eval.shallow = new Map([['e1f1', true]])"); e('refresh_human_error(false)');
+    ok('where the build has the shallow read, a hidden error is preferred without Maia', e('human_error_shown().move') === 'e1f1');
+    mk('4k3/8/8/8/1b6/8/3P4/4K3 w - - 0 4', 16, [20, 15]); e('refresh_human_error(false)');
+    ok('a position whose alternatives lose nothing shows nothing', e('human_error_state.done') === true && e('human_error_shown()') === null);
+
+    // ---- wiring
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const ah = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.html', 'utf8');
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.js', 'utf8');
+    const live = psrc.slice(psrc.indexOf('const LIVE_CONFIG_KEYS = ['), psrc.indexOf('];', psrc.indexOf('const LIVE_CONFIG_KEYS = [')));
+    ok('Suggest a Human Error is OFF by default (page and panel), has its settings row, and applies live to an open panel',
+       /registerFormElement\('human_error', '[^']+:', 'checkbox', false\)/.test(gj) && /id="human_error_checkbox"/.test(gh)
+       && /data-i18n-tip="set\.tip\.human_error"/.test(gh) && /data-i18n="set\.human_error"/.test(gh)
+       && /human_error: JSON\.parse\(MephistoConfig\.get\('human_error'\)\) \|\| false,/.test(psrc) && /'human_error'/.test(live));
+    ok('...its arrow colour is a real family: in ARROW_COLOR_KEYS, with a picker and a default on the Appearance page',
+       /ARROW_COLOR_KEYS = \[[^\]]*'arrow_color_human_error'/.test(psrc) && /id="arrow_color_human_error_picker"/.test(ah)
+       && /\['arrow_color_human_error', '#a0522d'\]/.test(aj) && /HUMAN_ERROR_COLOR = '#a0522d'/.test(psrc));
+    const keys = ['set.human_error', 'set.tip.human_error', 'panel.msg.human_error', 'panel.human_error.inaccuracy', 'panel.human_error.mistake',
+                  'panel.human_error.blunder', 'set.arrow_color_human_error', 'set.tip.arrow_color_human_error'];
+    const dir = ROOT + '/src/i18n/locales/', files = fs.readdirSync(dir);
+    const loc = Object.fromEntries(files.map(f => [f.replace('.json', ''), JSON.parse(fs.readFileSync(dir + f, 'utf8'))]));
+    const ph = (x) => (String(x).match(/\{\w+\}/g) || []).sort().join();
+    const bad = [];
+    for (const [l, d] of Object.entries(loc)) for (const k of keys) {
+        if (typeof d[k] !== 'string' || !d[k].trim()) bad.push(`${l}:${k} missing`);
+        else if (l !== 'en' && d[k] === loc.en[k] && !/^panel\.human_error\.blunder$/.test(k) || ph(d[k]) !== ph(loc.en[k])) bad.push(`${l}:${k}`);
+    }
+    ok(`...${keys.length} strings in all ${files.length} locales, translated, placeholders identical to English`, files.length === 14 && !bad.length, bad.join(' '));
+    const bodyOf = (name) => { const i = psrc.indexOf(`function ${name}(`); return i < 0 ? null : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const DISPLAY = /human_error|HZ_ERR_|hz_human_error|hz_seeded/;
+    const readers = ['on_engine_best_move', 'humanize_pick', 'request_automove', 'maybe_premove_forced_reply', 'premove_certified', 'premove_reply_playable',
+                     'premove_instant_reply', 'playstyle_pick', 'contempt_pick', 'draw_safety_net', 'humanize_target_pick'];
+    ok('DISPLAY ONLY: the move paths (autoplay decision, humanize pick, premove, playstyle, contempt, safety net) never mention the suggestion',
+       readers.every(n => bodyOf(n) !== null && !DISPLAY.test(bodyOf(n))), readers.filter(n => bodyOf(n) === null || DISPLAY.test(bodyOf(n))));
+    const users = new Set();
+    for (const m of psrc.matchAll(/human_error_(?:state|shown|compute|label|hidden_of)|refresh_human_error|hz_human_error_pick/g)) {
+        const at = psrc.lastIndexOf('\nfunction ', m.index);
+        const top = psrc.lastIndexOf('\n}\n', m.index);
+        if (at > top) users.add(/function ([\w$]+)/.exec(psrc.slice(at + 1, at + 80))[1]);
+        else users.add('<top level>');
+    }
+    const USERS = '<top level>,draw_moves,human_error_compute,human_error_hidden_of,human_error_label,human_error_shown,hz_human_error_pick,on_engine_response,on_native_info,paint_lines,readout_extras,refresh_human_error,request_humanize_maia';
+    ok('...the only code that touches it is the chooser, its panel half (and its state), the repaint hooks, the arrow and the label',
+       [...users].sort().join() === USERS, [...users].sort().join());
+    ok('...the bestmove hooks run AFTER the move decision, never before it',
+       /on_engine_best_move\(last_eval\.bestmove, last_eval\.threat, true\);\n\s*refresh_human_error\(true\);/.test(psrc)
+       && /on_engine_best_move\(best, threat, true\);\n\s*refresh_human_error\(true\);/.test(psrc));
+    const rq = bodyOf('request_humanize_maia');
+    ok('...and it never fetches the Maia net by itself: the request still needs a Maia option already on',
+       rq.indexOf("if (!humanize_flag('humanize_maia', false) && !humanize_flag('humanize_maia_where', false)) return;") > 0
+       && rq.indexOf("if (!humanize_flag('humanize_maia', false)") < rq.indexOf('human_once('));
+}
+// ==== END SUGGEST A HUMAN ERROR ====

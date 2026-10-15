@@ -404,6 +404,19 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.human_error" class="tooltipped" data-position="right"
+                              data-tooltip="Off by default. Shows ONE move a player of your Play Like Rating could realistically play here that gives something away, labelled as an error (for example &quot;Human error: Nxe5?! -1.4 (inaccuracy)&quot;, the number being the pawns it costs) and drawn in its own colour, beside the engine&#39;s recommendations. A guide only: Autoplay never plays it, Premove never uses it and it never changes what Humanize plays. Picked once per position from the engine&#39;s other lines, among those that give away at least 5% win without losing to a mate; shown only when such a move exists. With Human-Like Mistakes or Mistakes Where People Make Them on, it is drawn by Maia-3&#39;s probabilities (the net is only fetched if one of those is already on); otherwise the least obvious one, a quiet slip before a hung pawn. Costs depth: the engine searches a 20-line list, as Humanize does, except while Autoplay plays through Humanize, which keeps its own search and so may have no lines to choose from. Standard chess is best."><span data-i18n="set.human_error">Suggest a Human Error</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="human_error_checkbox" type="checkbox" class="set-cb">
+                        <label for="human_error_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.opp_prep" class="tooltipped" data-position="right"
                               data-tooltip="What THIS opponent has played in the position in front of you, from their own recent public games on the site you are on. People repeat their repertoire, and a line they have played eleven times is one they will play again. LONGER GAMES ONLY - it needs a clock reading of five minutes or more, because it costs a fetch and is only worth having while you still have time to use it. The request is made by the extension&#39;s worker, so your game tab never carries a lookup about the person you are playing."><span data-i18n="set.opp_prep">Opponent Prep</span> <i class="material-icons info-tooltip">info</i></span>
                     </div>

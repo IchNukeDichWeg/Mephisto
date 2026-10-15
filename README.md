@@ -161,6 +161,13 @@ build has no Duck at all (see the [roadmap](#roadmap)).
   line with the arrow keys (off by default, so the site keeps them).
 - **Second opinion** - a human-trained net answers the same position beside the engine, and says so when the two come
   apart: when the engine's move is one a player of that rating almost never finds.
+- **Suggest a Human Error** (off by default) - beside the recommendations, one move a player of your Play-like rating
+  could realistically play that gives something away, labelled as an error ("Human error: Nxe5?! -1.4 (inaccuracy)")
+  and drawn in its own brown arrow so it is never mistaken for a recommendation. A training aid, display only:
+  Autoplay, Premove and Humanize never read it. It is chosen once per position from the engine's other lines (at
+  least 5% win given away, never a line that loses to mate), by Maia-3's probabilities when a Maia option is already
+  on and otherwise the least obvious slip, and shown only when such a move exists. It widens the search to 20 lines
+  like Humanize, so it costs depth, except while Autoplay plays through Humanize.
 - **Copy Analysis** - the position, the score with its depth and every candidate line, as text you can paste.
   **Re-analyse** searches the position on screen again from scratch; **Loaded** names the engine build and the net that
   actually answered.

@@ -35,6 +35,7 @@ class AppearanceSettings extends SettingsPage {
             ['arrow_color_threat', '#bf0000'], ['arrow_color_book', '#14b8a6'],
             ['arrow_color_human_reply', '#a8657f'], ['arrow_color_safety_net', '#4c9f70'],
             ['arrow_color_tb', '#f59e0b'], ['arrow_color_refute', '#d1495b'],
+            ['arrow_color_human_error', '#a0522d'],
         ];
         // ONE CLICK FOR A PALETTE THAT SURVIVES COLOUR BLINDNESS. The shipped defaults lean on
         // red/green separation, which is exactly the pair deuteranopia and protanopia collapse --
@@ -42,7 +43,7 @@ class AppearanceSettings extends SettingsPage {
         // answerable. These are Okabe-Ito, the standard eight-hue set chosen to stay distinct under
         // every common form; the families past the eighth take neutrals, since there are more arrow
         // families than there are hues that survive.
-        // ponytail: eight hues, fourteen families -- the four least likely to share a board take grey.
+        // ponytail: eight hues, fifteen families -- the four least likely to share a board take grey.
         const COLORBLIND = {
             arrow_color_line1: '#0072b2', arrow_color_line2: '#009e73', arrow_color_line3: '#e69f00',
             arrow_color_line4: '#56b4e9', arrow_color_line5: '#cc79a7',
@@ -50,7 +51,7 @@ class AppearanceSettings extends SettingsPage {
             arrow_color_pv_walk: '#5a5a5a', arrow_color_threat: '#d55e00',
             arrow_color_book: '#000000', arrow_color_human_reply: '#7f7f7f',
             arrow_color_safety_net: '#004c6d', arrow_color_tb: '#e69f00',
-            arrow_color_refute: '#d55e00',
+            arrow_color_refute: '#d55e00', arrow_color_human_error: '#332288',
         };
         document.getElementById('arrow_colorblind')?.addEventListener('click', () => {
             // JSON.stringify, like every other setting: the panel reads these with JSON.parse, so a

@@ -225,6 +225,7 @@ class GeneralSettings extends SettingsPage {
         const refute = this.registerFormElement('refute', 'Refute My Mistakes:', 'checkbox', false);
         this.registerFormElement('refute_plies', 'Refutation Length:', 'input', 4);
         this.registerFormElement('second_opinion', 'Second Opinion:', 'checkbox', false);
+        this.registerFormElement('human_error', 'Suggest a Human Error:', 'checkbox', false);
         this.registerFormElement('opp_prep', 'Opponent Prep:', 'checkbox', false);
         // The player book: a username and a filter, both meaningless while the book is off, so both
         // rows follow the toggle the way every other dependent control on this page does.

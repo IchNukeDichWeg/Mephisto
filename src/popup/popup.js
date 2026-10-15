@@ -400,6 +400,7 @@ async function initPanel(root, tabId) {
         refute_plies: JSON.parse(MephistoConfig.get('refute_plies')) || 4,
         game_log: JSON.parse(MephistoConfig.get('game_log')) || false, // write evals into the copied PGN
         second_opinion: JSON.parse(MephistoConfig.get('second_opinion')) || false, // a human net beside the engine
+        human_error: JSON.parse(MephistoConfig.get('human_error')) || false, // one plausible human error, shown and never played
         opp_prep: JSON.parse(MephistoConfig.get('opp_prep')) || false, // their own recent games, long games only
         // The player book: somebody's own openings, played as they play them. See player_book_pick.
         player_book: JSON.parse(MephistoConfig.get('player_book')) || false,
@@ -2753,7 +2754,8 @@ const PV_WALK_COLOR = '#8f8f8f';
 const ARROW_COLOR_KEYS = ['arrow_color_line1', 'arrow_color_line2', 'arrow_color_line3',
     'arrow_color_line4', 'arrow_color_line5', 'arrow_color_forced_ours',
     'arrow_color_forced_theirs', 'arrow_color_pv_walk', 'arrow_color_threat', 'arrow_color_book',
-    'arrow_color_human_reply', 'arrow_color_safety_net', 'arrow_color_tb', 'arrow_color_refute'];
+    'arrow_color_human_reply', 'arrow_color_safety_net', 'arrow_color_tb', 'arrow_color_refute',
+    'arrow_color_human_error'];
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 function user_color(key, dflt) { const v = config && config[key]; return HEX_COLOR_RE.test(v || '') ? v : dflt; }
 function shade_hex(hex, f) {
@@ -3011,6 +3013,7 @@ function paint_lines() {
     }
     if ((last_eval.lines || []).some((l, i) => i > 0 && l)) {
         render_alt_lines(); // alternative lines land AFTER the pv-1 reset; keep the panel current
+        refresh_human_error(false);   // display only; before draw_moves so a new pick is drawn in this pass
         // ...and REDRAW THE ARROWS. draw_moves only ran from the pv-1 branch, which clears the
         // line array first -- so it always drew with exactly one line in hand and Multi Lines
         // showed a single arrow no matter how many lines the panel listed. Help Mode mirrors the
@@ -3045,6 +3048,7 @@ function on_engine_response(message) {
         last_eval = Object.assign(last_eval, message);
         on_engine_evaluation(last_eval);
         on_engine_best_move(last_eval.bestmove, last_eval.threat, true);
+        refresh_human_error(true);   // after the move decision, so display work can never delay a move
         return;
     }
 
@@ -3086,6 +3090,7 @@ function on_engine_response(message) {
         const threat = arr[3];
         flush_line_paint();   // the move decision sees exactly what it always saw: every line painted
         on_engine_best_move(best, threat, true);
+        refresh_human_error(true);   // after the move decision, so display work can never delay a move
     } else if (message.startsWith('info depth')) {
         const lineInfo = {};
         const tokens = message.split(' ').slice(1);
@@ -5560,7 +5565,7 @@ function on_new_pos(fen, startFen, moves) {
     // whose move is it -- drives the ponder budget (remote/native) and the per-turn thread cap (WASM)
     const our_turn = ((turn === 'w') ? 'white' : 'black') === our_side();
     // Humanize's Maia read for this move, while the engine searches (it answers in tens of ms)
-    if (our_turn && config.autoplay) request_humanize_maia(fen);
+    if (our_turn && (config.autoplay || config.human_error)) request_humanize_maia(fen);
     // Puzzle Mode never analyses the opponent's turn. In a puzzle their reply is scripted and lands
     // in a couple of hundred ms, and nothing consumes an opponent-turn search here: Premove is
     // disabled in Puzzle Mode (all three entry points bail on it), so there is no certification to
@@ -6360,7 +6365,7 @@ function readout_extras() {
     // engine's own number, where the two readings can be compared -- printing it in both places
     // said the same thing twice and left the eval row still claiming the engine's estimate alone.
     const extra = [puzzle_label(), move_confidence_label(), human_reply_label(),
-                   second_opinion_label(), opp_prep_label(), player_book_label(), safety_net_label(),
+                   second_opinion_label(), human_error_label(), opp_prep_label(), player_book_label(), safety_net_label(),
                    session_stats_label()].filter(Boolean).join(' · ');
     return extra ? `<span class="line1-extra">${extra}</span>` : '';
 }
@@ -6760,8 +6765,17 @@ function multipv_floor() {
     return MULTIPV_FLOOR_MODES.some(k => config[k]) ? 2 : 1;
 }
 
+// SUGGEST A HUMAN ERROR needs the same wide list Humanize's error bands do: an inaccuracy (5% win,
+// about half a pawn level) sits around rank 6-12, so a short list has none to offer and the option
+// would show nothing. EXCEPT while Autoplay plays through Humanize: that search must stay exactly
+// what it was before this option existed, because a wider list is a shallower search and could change
+// the move Humanize plays. There the suggestion only uses the lines the search already has.
+function human_error_lines() {
+    return (config.human_error && !(config.autoplay && config.humanize)) ? HUMANIZE_DEEP_MULTIPV : 1;
+}
+
 function effective_multipv() {
-    const floor = multipv_floor();
+    const floor = Math.max(multipv_floor(), human_error_lines());
     if (!config.humanize) return Math.max(floor, parseInt(config.multiple_lines) || 1);
     const rates = humanize_rates();
     const t = humanize_thresholds();
@@ -7974,6 +7988,71 @@ function hz_match_settle(debt, shares, played) {
     return d;
 }
 // ==== END HUMANIZE MATCH ====
+
+// ==== HUMAN ERROR ====
+// SUGGEST A HUMAN ERROR (human_error, opt-in): for a guide user, one move a player of the Play-like
+// rating could realistically play here that gives something away, labelled as an error and drawn in
+// its own colour. DISPLAY ONLY, by construction: nothing in this block or its callers is read by
+// Autoplay, Premove, the safety net or humanize_pick, and a test pins that.
+//
+// THE CHOICE, among the engine's non-best lines:
+//   keep those that give away at least the inaccuracy edge (5% win, the Game Review's own) and do not
+//   lose to a mate (that is a lost game, not the ordinary slip this is meant to show); drop a move
+//   that hangs a minor piece or more unless Maia gives it HZ_NATURAL_HANG, the same rule the
+//   Humanize guards apply for the same reason.
+//   (a) With Maia's probabilities for this position: only moves Maia gives at least HZ_MAIA_MIN, one
+//       drawn in proportion to its probability, so the error is the one people at that rating make.
+//       Nothing reaches the floor: nothing is shown ("sometimes").
+//   (b) Without them: a "hidden" error first (still looks fine at a shallow search depth, so a natural
+//       miss and not a blunder anyone sees; used when the build has the shallow read), then by kind:
+//       quiet, then missed free material, then a hung pawn last, since a pawn left en prise is the
+//       cheapest way for a 20-line list to lose 5% and players' errors are mostly quiet ones
+//       (HZ_TYPE_MIX); then the smallest loss.
+// It is picked once per position (the caller keeps it), and the Maia draw is seeded from the
+// position, so a repaint can never swap the suggestion.
+const HZ_ERR_MIN_DROP = HZ_DROP_EDGES[1];
+const HZ_ERR_MARK = ['', '', '?!', '?', '??'];            // by hz_drop_class, the Game Review's glyphs
+const HZ_ERR_NAME = ['', '', 'inaccuracy', 'mistake', 'blunder'];
+const HZ_ERR_KIND_RANK = {quiet: 0, mfree: 1, hung: 2};
+
+// Pure. A small seeded generator (mulberry32) over a string, so one position always draws the same.
+function hz_seeded(str) {
+    let h = 1779033703 ^ String(str).length;
+    for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+    let a = h >>> 0;
+    return () => {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+// Pure. cands = [{move, drop, cp}]: every engine line but the best, drop = win% given away against
+// the best line, cp = our-view eval (mate-losing lines are <= -90000). opts: probs (Map uci -> p),
+// typeOf / hiddenOf / hangsOf (uci -> kind / bool / bool), rnd. -> the chosen cand plus
+// {cls, source: 'maia' | 'engine'}, or null when no line is a plausible error.
+function hz_human_error_pick(cands, opts = {}) {
+    const {probs = null, typeOf = null, hiddenOf = null, hangsOf = null, rnd = Math.random} = opts;
+    const pool = cands.filter(c => c && c.drop >= HZ_ERR_MIN_DROP && c.cp > -90000
+        && !(hangsOf && !hz_natural_hang(probs, c.move) && hangsOf(c.move)));
+    if (!pool.length) return null;
+    let pick = null, source = 'engine';
+    if (probs) {
+        pick = hz_maia_weighted(pool, probs, rnd);
+        source = 'maia';
+    } else {
+        const rank = (c) => [hiddenOf && hiddenOf(c.move) ? 0 : 1,
+                             HZ_ERR_KIND_RANK[(typeOf && typeOf(c.move)) || 'quiet'] ?? 0, c.drop];
+        pick = pool.slice().sort((a, b) => {
+            const x = rank(a), y = rank(b);
+            for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i];
+            return 0;
+        })[0];
+    }
+    return pick ? {...pick, cls: hz_drop_class(pick.drop), source} : null;
+}
+// ==== END HUMAN ERROR ====
 
 // ==== HUMANIZE THINK ====
 // THINK LIKE PEOPLE AT THIS TIME CONTROL. How long a person sits on a move, as a share of the game's
@@ -10134,7 +10213,7 @@ const LIVE_CONFIG_KEYS = [
     'auto_resign', 'auto_resign_cp', 'auto_draw', 'auto_draw_cp', 'session_stats',
     // the new panel-side features: all display or pacing decisions the panel makes per move, so a
     // change on the settings page has to reach an open panel rather than waiting for a reopen
-    'pv_keys', 'refute', 'refute_plies', 'second_opinion', 'opp_prep', 'game_log',
+    'pv_keys', 'refute', 'refute_plies', 'second_opinion', 'human_error', 'opp_prep', 'game_log',
     'mirror_ratio', 'time_trouble', 'time_trouble_at',
     'maia2_self_elo', 'maia2_oppo_elo', 'maia3_elo', 'rodent_personality',
     'analysis_limit', 'analysis_limit_mode',
@@ -10268,7 +10347,7 @@ function watch_config_changes() {
                 // are both drawn from what is already in hand and have to be repainted now rather
                 // than at the next engine frame -- with Autoplay off there may not be another one.
                 if (key === 'tablebase' || key === 'tablebase_show') { draw_moves(); update_best_move(null); }
-                if (key === 'refute' || key === 'refute_plies' || key === 'second_opinion') {
+                if (key === 'refute' || key === 'refute_plies' || key === 'second_opinion' || key === 'human_error') {
                     draw_moves(); update_best_move(null);
                 }
                 if (key === 'refute' || key === 'game_log') ensure_classifier();   // both read the graded history
@@ -10340,7 +10419,8 @@ function watch_config_changes() {
                 }
                 if (key === 'language') load_language(value).then(apply_language);
                 // these change the go mode / search budget -- restart under the new setting
-                if (['help_mode', 'autoplay', 'clock_mode', 'mirror_mode', 'manual_mode',
+                // human_error is here for the width: it changes how many lines the engine is asked for
+                if (['help_mode', 'autoplay', 'clock_mode', 'mirror_mode', 'manual_mode', 'human_error',
                      'analysis_limit', 'analysis_limit_mode'].includes(key)) {
                     abandon_search();
                     last_eval.fen = '';
@@ -10679,6 +10759,15 @@ function draw_moves() {
         draw_move(so.uci, hcol, PANEL_ROOT.getElementById('move-annotations'), 0.16, 0, 'H');
         if (page_arrows) hint_arrows.push({move: so.uci, width: 0.16, color: hcol, rank: 0, label: 'H'});
     }
+    // The human error, if asked for: its own colour and a "?!" / "?" / "??" on the arrow, so it can
+    // never pass for one of the recommendations above. Drawn last among them, i.e. on top.
+    const he = human_error_shown();
+    if (he) {
+        const ecol = user_color('arrow_color_human_error', HUMAN_ERROR_COLOR);
+        const emark = HZ_ERR_MARK[he.cls] || '?';
+        draw_move(he.move, ecol, PANEL_ROOT.getElementById('move-annotations'), 0.16, 0, emark);
+        if (page_arrows) hint_arrows.push({move: he.move, width: 0.16, color: ecol, rank: 0, label: emark});
+    }
     draw_refutation(hint_arrows, page_arrows);   // ...and, when it was bad, how it gets punished
     draw_last_move_class();   // on top of the arrows: it grades a move already made
 
@@ -10954,12 +11043,14 @@ let hz_think_rhythm = null;         // Think Like Your Time Control's last resid
 let hz_match_state = null;          // Err Like Your Rating's owed errors this game, see hz_match_settle
 function hz_maia_probs(fen) { return hz_maia_cache.get(fen) || null; }
 function request_humanize_maia(fen) {
-    if (!config.humanize) return;
+    if (!config.humanize && !config.human_error) return;
     // the natural-hang rule reads it too, but never asks for the 88 MB download on its own
     if (!humanize_flag('humanize_maia', false) && !humanize_flag('humanize_maia_where', false)) return;
     if (config.variant && config.variant !== 'chess') return;    // the nets know one game
     if (hz_maia_cache.has(fen)) return;
-    human_once(`hz|${fen}`, () => humanize_maia_ask(fen)).catch(() => {});
+    // Suggest a Human Error waits for this answer, so tell it the moment it lands
+    human_once(`hz|${fen}`, () => humanize_maia_ask(fen))
+        .then(() => { if (last_eval.fen === fen) refresh_human_error(false); }).catch(() => {});
 }
 async function humanize_maia_ask(fen) {
     await ensure_threat_human();
@@ -11564,6 +11655,94 @@ function second_opinion_label() {
                {elo: threat_human_elo(), move, pct})
         : i18n('panel.msg.second_opinion', 'A {elo} plays {move} ({pct}%)',
                {elo: threat_human_elo(), move, pct});
+}
+
+// ---- Suggest a Human Error: the panel half (the choice itself is HUMAN ERROR above) --------------
+// Computed ONCE per position, when the search has settled, and kept: the suggestion must not change
+// under the reader between frames. "Settled" is the first frame at HUMAN_ERROR_MIN_DEPTH with the
+// whole line list in (an open-ended search with Autoplay off never sends a final bestmove until the
+// position changes), or the bestmove if that comes first. Depth 12 is a judgement, not a measurement:
+// deep enough that the 5% edge is not an early-iteration swing, shallow enough to show within a
+// couple of seconds on a 20-line search.
+const HUMAN_ERROR_MIN_DEPTH = 12;
+const HUMAN_ERROR_COLOR = '#a0522d';   // sienna: in no LINE_COLORS, forced, book, threat or refutation family
+let human_error_state = {fen: '', pick: null, done: false, basis: ''};
+
+// A Maia option is already on, so its net is (or is being) loaded. This option never asks for the
+// 88 MB download on its own: without one of these it picks from the engine's lines alone.
+function human_error_maia_expected() {
+    return (!config.variant || config.variant === 'chess')
+        && (humanize_flag('humanize_maia', false) || humanize_flag('humanize_maia_where', false));
+}
+
+// The shallow read for the hidden-error preference (depth-2 scores, HIDDEN ERRORS); null without one.
+function human_error_hidden_of() {
+    return last_eval.shallow ? (uci) => hz_hidden_of(last_eval.shallow, uci) : null;
+}
+
+function human_error_compute(fen, lines, probs) {
+    const usable = lines.filter(l => l && l.move && l.pv);
+    if (usable.length < 2) return null;
+    const best = usable[0];
+    const bestCp = line_cp_ours(best);
+    if (bestCp <= -90000) return null;          // already mated: nothing to add
+    const wpBest = win_percent(bestCp);
+    const cands = usable.slice(1).map(l => {
+        const cp = line_cp_ours(l);
+        return {move: l.move, cp, drop: Math.max(0, wpBest - win_percent(cp)),
+                // pawns only when neither side of the comparison is a mate
+                cpLoss: (Math.abs(bestCp) < 90000 && Math.abs(cp) < 90000) ? bestCp - cp : null};
+    });
+    let bestX;
+    const bestExposure = () => (bestX !== undefined) ? bestX : (bestX = hz_exposure(Chess, config.variant, fen, best.move));
+    return hz_human_error_pick(cands, {
+        probs,
+        typeOf: hz_type_classifier(Chess, config.variant, fen),
+        hiddenOf: human_error_hidden_of(),
+        hangsOf: (uci) => hz_hangs(Chess, config.variant, fen, uci, bestExposure()),
+        rnd: hz_seeded(fen),
+    });
+}
+
+// terminal = the search ended (bestmove): decide now with what there is. Otherwise only once settled.
+function refresh_human_error(terminal) {
+    if (!config.human_error || ONE_PASS_ENGINES.includes(config.engine) || !our_turn_now()) return;
+    const fen = last_eval.fen;
+    if (!fen) return;
+    if (human_error_state.fen !== fen) human_error_state = {fen, pick: null, done: false, basis: ''};
+    const st = human_error_state;
+    const probs = hz_maia_probs(fen);
+    // an engine-only pick made before Maia answered is replaced once by the Maia one
+    if (st.done && !(st.basis === 'engine' && probs)) return;
+    const lines = (last_eval.lines || []).filter(l => l && l.move && l.pv);
+    if (!terminal) {
+        if (!(lines[0] && lines[0].depth >= HUMAN_ERROR_MIN_DEPTH)) return;
+        if (lines.length < Math.min(effective_multipv(), last_eval.activeLines || 1)) return;   // depth still arriving
+        if (human_error_maia_expected() && !probs) return;   // the bestmove settles it if Maia never answers
+    }
+    const before = st.pick ? st.pick.move : null;
+    st.done = true;
+    st.basis = probs ? 'maia' : 'engine';
+    st.pick = human_error_compute(fen, lines, probs);
+    if ((st.pick ? st.pick.move : null) !== before) { update_best_move(null); draw_moves(); }
+}
+
+// The suggestion for the position on screen, or null.
+function human_error_shown() {
+    const st = human_error_state;
+    return (config.human_error && st.pick && st.fen === last_eval.fen) ? st.pick : null;
+}
+
+function human_error_label() {
+    const p = human_error_shown();
+    if (!p) return '';
+    const mark = HZ_ERR_MARK[p.cls] || '';
+    const loss = p.cpLoss != null ? `-${(p.cpLoss / 100).toFixed(1)}` : `-${Math.round(p.drop)}%`;
+    const name = HZ_ERR_NAME[p.cls];
+    const text = i18n('panel.msg.human_error', 'Human error: {move} {loss} ({kind})',
+        {move: notate(last_eval.fen, p.move) + mark, loss,
+         kind: i18n('panel.human_error.' + name, name)});
+    return `<span style="color:${user_color('arrow_color_human_error', HUMAN_ERROR_COLOR)}">${text}</span>`;
 }
 
 function human_reply_label() {
@@ -12220,7 +12399,7 @@ function copy_diagnostics(onDone = () => {}) {
             toggles: ['autoplay', 'premove', 'help_mode', 'manual_mode', 'humanize', 'puzzle_mode',
                       'puzzle_capture', 'puzzle_capture_cdp', 'clock_mode', 'mirror_mode',
                       'background_play', 'verbose_log', 'tablebase', 'refute', 'second_opinion',
-                      'opp_prep', 'game_log', 'pv_keys', 'time_trouble',
+                      'human_error', 'opp_prep', 'game_log', 'pv_keys', 'time_trouble',
                       'contempt', 'complexity_clock', 'human_times', 'player_book',
                       'auto_resign', 'auto_draw', 'session_stats']
                 .filter(k => config[k]).join(' ') || 'none on',
@@ -12385,6 +12564,7 @@ function on_native_info(info, fen) {
     last_eval.lines[pvIdx] = info;
     if (pvIdx > 0 && !config.simon_says_mode) {
         render_alt_lines();
+        refresh_human_error(false);
         draw_moves(); // same as the WASM path: without this only line 1 ever gets an arrow
     }
     if (pvIdx === 0) {
