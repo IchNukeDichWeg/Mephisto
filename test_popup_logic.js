@@ -3882,8 +3882,24 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
            tv(`hz_match_pick([{move:'a', drop:0}, {move:'h', drop:7}, {move:'q', drop:7}], [0, 0, 1, 0, 0], 0.5, () => 0.5, null, ${T}, [[0.0, 0, 1], [0, 0, 1], [0, 0, 1]]).cand.move`) === 'q'
            && tv(`hz_match_pick([{move:'a', drop:0}, {move:'h', drop:7}, {move:'q', drop:7}], [0, 0, 1, 0, 0], 0.5, () => 0.5, null, ${T}, [[1, 0, 0], [0, 0, 1], [0, 0, 1]]).cand.move`) === 'h'
            && tv(`hz_match_pick([{move:'a', drop:0}, {move:'b', drop:3}, {move:'h', drop:7}], [0, 0, 1, 0, 0], 0.5, () => 0.5, null, ${T}, [[0, 0, 1], [0, 0, 1], [0, 0, 1]])`).played === 1);
+        // hidden errors: the real blocks need win_percent from outside them
+        vm.runInContext(psrc.slice(psrc.indexOf('function win_percent('), psrc.indexOf('\n}\n', psrc.indexOf('function win_percent(')) + 3), tg);
+        const sh = "new Map([['a', 50], ['b', 30], ['c', -200]])";
+        ok('hidden: a move within 2% win of the shallow best looked fine, one far below did not, one the shallow list lacks did not, no shallow read is unknown',
+           tv(`hz_hidden_of(${sh}, 'b')`) === true && tv(`hz_hidden_of(${sh}, 'c')`) === false && tv(`hz_hidden_of(${sh}, 'z')`) === false
+           && tv(`hz_hidden_of(new Map(), 'b')`) === null && tv(`hz_hidden_of(null, 'b')`) === null);
+        const HO = "(u) => ({q: true, q2: false})[u] ?? false";
+        ok('...inside the drawn kind a hidden error is preferred whenever there is one; no shallow read leaves the kind as it was',
+           tv(`hz_type_pick([{move:'q'},{move:'q2'}], [0, 0, 1], (u) => 'quiet', () => 0.9, true, ${HO}).move`) === 'q'
+           && tv(`hz_type_pick([{move:'q2'},{move:'q3'}], [0, 0, 1], (u) => 'quiet', () => 0.9, true, ${HO}).move`) === 'q3'
+           && tv(`hz_type_pick([{move:'q'},{move:'q2'}], [0, 0, 1], (u) => 'quiet', () => 0.9, true, (u) => null).move`) === 'q2');
+        ok('...both search paths record the depth-2 scores, and a new position starts an empty map',
+           tv('HZ_SHALLOW_DEPTH') === 2
+           && /if \(lineInfo\.depth === HZ_SHALLOW_DEPTH && last_eval\.shallow && lineInfo\.move\) last_eval\.shallow\.set\(lineInfo\.move, line_cp_ours\(lineInfo\)\);/.test(psrc)
+           && /if \(info\.depth === HZ_SHALLOW_DEPTH && !info\.bound && last_eval\.shallow && info\.pv && info\.pv\[0\] != null\)/.test(psrc)
+           && /last_eval = \{fen, activeLines: 0, lines: new Array\(config\.multiple_lines\), shallow: new Map\(\),/.test(psrc));
         ok('...wired: the match branch (strict, it owes) and the slider mix (not strict, it has no debt) both pick errors by kind, Maia\'s pick still wins when it is on',
-           /hz_match_pick\(cands, shares, r \/ 100, Math\.random, maiaWhich \? probs : null,\s+typeOf, hz_type_mix\(elo\)\)/.test(psrc)
+           /hz_match_pick\(cands, shares, r \/ 100, Math\.random, maiaWhich \? probs : null,\s+typeOf, hz_type_mix\(elo\), \(u\) => hz_hidden_of\(shallow, u\)\)/.test(psrc)
            && /: \(row && ok\.length\) \? hz_type_pick\(ok, row, hz_type_classifier\(Chess, config\.variant, fen\), Math\.random, false\)/.test(psrc));
     }
     const d1 = v(`hz_match_settle(null, ${sh}, 2)`), d2 = v(`hz_match_settle(hz_match_settle(null, ${sh}, 0), ${sh}, 0)`);

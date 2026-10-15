@@ -9,6 +9,7 @@
 // --mode mix   the sliders at their shipped defaults (or --mix top,second,third,fourth,inacc,mistake,blunder)
 // --mode match Err Like Your Rating at --elo
 // --types off  errors uniform inside their class (before the type-aware pick), for comparison
+// --hidden off no hidden-error preference inside the kind, for comparison
 // The opponent is Stockfish UCI_LimitStrength at the same Elo (min 1320). Our lines come from
 // native Stockfish, MultiPV 20 at --depth, which is the panel's wide humanize search. No clock:
 // the comparison is against the blitz spread, the tables' baseline. Fixed depth, so --workers 0
@@ -33,6 +34,7 @@ const NO_DEBT = A.debt === 'off';
 const HUMAN_LIKE = !!A['human-like'];   // Human-Like Mistakes: the error drawn by Maia's probability (needs --maia)
 const NO_CAP = A.cap === 'off';     // match mode without the blunder-threshold ceiling, for comparison
 const NO_TYPES = A.types === 'off'; // errors picked uniformly inside their class, as before the type-aware pick
+const NO_HIDDEN = A.hidden === 'off'; // no hidden-error preference, as before it
 const WORKERS = +(A.workers || 0) || os.cpus().length;
 const MAX_OUR_MOVES = +(A['max-moves'] || 60);
 const SF = A.sf || 'stockfish';
@@ -106,14 +108,18 @@ class Engine {
         // capped: one search in a few hundred thousand ran away (8 min at depth 12); the deepest
         // completed depth stands in then
         const out = await this.run(`go depth ${depth} movetime ${SEARCH_CAP_MS}`, l => l.startsWith('bestmove'));
-        const by = {}, at = {};
+        const by = {}, at = {}, shallow = new Map();
+        const SH = H.HZ_SHALLOW_DEPTH;   // the hidden-error depth, where the build has it
         for (const l of out) {
             const m = l.match(/ depth (\d+) .*?multipv (\d+) score (cp|mate) (-?\d+).*? pv (\S+)/);
+            if (m && SH && +m[1] === SH && !/ (lower|upper)bound /.test(l)) shallow.set(m[5], ours({[m[3] === 'cp' ? 'cp' : 'mate']: +m[4]}));
             if (m && +m[1] <= depth && +m[1] >= (at[m[2]] || 0) && !/ (lower|upper)bound /.test(l)) {
                 at[m[2]] = +m[1]; by[m[2]] = {move: m[5], [m[3] === 'cp' ? 'cp' : 'mate']: +m[4]};
             }
         }
-        return Object.keys(by).sort((a, b) => a - b).map(k => by[k]);
+        const ls = Object.keys(by).sort((a, b) => a - b).map(k => by[k]);
+        ls.shallow = shallow;
+        return ls;
     }
     async best(fen, ms) { this.send(`position fen ${fen}`);
         const out = await this.run(`go movetime ${ms}`, l => l.startsWith('bestmove')); return out.at(-1).split(' ')[1]; }
@@ -151,8 +157,10 @@ function pick(fen, lines, swing, rnd, st, probs = null) {
         const allowed = alts.filter(l => loss(l) <= cap && safe(l) && (keep === 1 || takes(l)));
         const cands = [bestLine, ...allowed].map(l => ({move: l.move, drop: Math.max(0, wp(bestCp) - wp(ours(l)))}));
         const typed = !NO_TYPES && H.hz_type_classifier;   // the type-aware pick, where the build has it
+        const hidden = typed && !NO_HIDDEN && H.hz_hidden_of;   // ...and hidden errors, where it has those
         const res = (rnd() < keep) ? H.hz_match_pick(cands, shares, r / 100, rnd, HUMAN_LIKE ? probs : null,
-            typed ? H.hz_type_classifier(H.Chess, 'chess', fen) : null, typed ? H.hz_type_mix(ELO) : null) : {cand: null, played: 0};
+            typed ? H.hz_type_classifier(H.Chess, 'chess', fen) : null, typed ? H.hz_type_mix(ELO) : null,
+            hidden ? (u) => H.hz_hidden_of(lines.shallow, u) : null) : {cand: null, played: 0};
         if (!NO_DEBT) st.debt = H.hz_match_settle(st.debt, base, res.played);
         return res.cand ? res.cand.move : best;
     }

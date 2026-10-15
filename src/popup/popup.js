@@ -3120,6 +3120,8 @@ function on_engine_response(message) {
             if (pvIdx === 0) maybe_premove_forced_reply(line);
             if (pvIdx === 0) maia2_kick(line); // Maia lines have no reply; ask the net for ours
         }
+        // every line's score at the shallow depth, for Humanize's hidden errors (HIDDEN ERRORS)
+        if (lineInfo.depth === HZ_SHALLOW_DEPTH && last_eval.shallow && lineInfo.move) last_eval.shallow.set(lineInfo.move, line_cp_ours(lineInfo));
         last_eval.activeLines = Math.max(last_eval.activeLines, lineInfo.multipv);
         if (pvIdx === 0) {
             // fresh depth: clear last depth's lines, then set line 0
@@ -5791,7 +5793,7 @@ function on_new_pos(fen, startFen, moves) {
             request_console_log('Best Move: ' + notate(last_eval.fen, last_eval.bestmove));
         }
     }
-    last_eval = {fen, activeLines: 0, lines: new Array(config.multiple_lines),
+    last_eval = {fen, activeLines: 0, lines: new Array(config.multiple_lines), shallow: new Map(),
         lastMove: moves ? moves.trim().split(' ').pop() : null}; // opp's last move (humanize recapture check)
     // IN THE SAME BREATH AS last_eval, and only here. The reference exists to say which board a move
     // was computed for, so it has to describe the position the panel is actually reasoning with --
@@ -7840,6 +7842,31 @@ function hz_type_classifier(Chess, variant, fen) {
     };
 }
 
+// HIDDEN ERRORS. A person's error is often one that still looks fine a move or two deep -- the
+// punishment needs a real search to find -- while the engine's list hands Humanize mostly errors any
+// short look sees. Measured with tools/humanize-study/hidden_study.py, the share of errors whose win%
+// loss against the best move is under 2 at depth 2 (lichess blitz October 2025, strict accounts,
+// inside the guards' envelope): players 23-39% of inaccuracies, 12-27% of mistakes and 4-21% of
+// blunders from 800 to 2400, rising with rating (1400: 28.3 / 15.7 / 9.9%); Humanize at 1500
+// 17.8 / 5.1 / 0.0%. The list carries a hidden error less often than people make one, so inside the
+// drawn kind a hidden error is simply preferred whenever there is one: 18.3 / 8.8 / 4.7% at 1500,
+// still under the players' share at every rating but the lowest. A draw that refused to play a visible
+// error when no hidden one was there only lost errors (mistakes 5.4 -> 4.2%, hidden share unmoved).
+const HZ_SHALLOW_DEPTH = 2;
+
+// Pure. Whether a move still looked fine at the shallow depth: its win% there within the Game Review's
+// "good" edge of that depth's best. shallow = Map(uci -> our-view cp) from the depth-HZ_SHALLOW_DEPTH
+// frame; null when there is none (a remote engine that sends only its last frame), and a move the
+// shallow list did not carry looked worse than all of it.
+function hz_hidden_of(shallow, uci) {
+    if (!shallow || shallow.size < 2) return null;
+    let best = -Infinity;
+    for (const v of shallow.values()) best = Math.max(best, v);
+    const v = shallow.get(uci);
+    if (v === undefined) return false;
+    return win_percent(best) - win_percent(v) < HZ_DROP_EDGES[0];
+}
+
 // STRICT: the kind is drawn from the players' whole mix, and a pool without a move of that kind
 // plays none -- the class counts as empty, a milder move is played and the error is owed. Without it
 // a list whose only error is a hung pawn always played the hung pawn.
@@ -7848,13 +7875,21 @@ const HZ_TYPE_STRICT = true;
 // Pure. One of pool ({move}) for error class row [hung, mfree, quiet]: the kind is drawn by the
 // players' shares (strict: over all three kinds, null when the pool has none of the drawn kind;
 // otherwise among the kinds this pool has), then a move of that kind uniformly.
-function hz_type_pick(pool, row, typeOf, rnd = Math.random, strict = HZ_TYPE_STRICT) {
+function hz_type_pick(pool, row, typeOf, rnd = Math.random, strict = HZ_TYPE_STRICT, hiddenOf = null) {
     const groups = {hung: [], mfree: [], quiet: []};
     for (const x of pool) (groups[typeOf(x.move)] || groups.quiet).push(x);
     if (strict) {
         let x = rnd() * (row[0] + row[1] + row[2]), k = 'quiet';
         for (let i = 0; i < 3; i++) if ((x -= row[i]) < 0) { k = HZ_TYPES[i]; break; }
-        const g = groups[k];
+        let g = groups[k];
+        // ...then a hidden one when the kind has one (HIDDEN ERRORS above)
+        if (g.length > 1 && hiddenOf) {
+            const known = g.map(m => hiddenOf(m.move));
+            if (!known.some(h => h === null)) {
+                const hid = g.filter((m, i) => known[i]);
+                if (hid.length) g = hid;
+            }
+        }
         return g.length ? g[Math.floor(rnd() * g.length)] : null;
     }
     const kinds = HZ_TYPES.filter(k => groups[k].length);
@@ -7873,14 +7908,14 @@ function hz_type_pick(pool, row, typeOf, rnd = Math.random, strict = HZ_TYPE_STR
 // class is picked by kind when typeOf and the rating's type mix are given (hz_type_pick). An empty
 // class falls to the next milder one -- a list without a move that bad cannot play one -- and class 0
 // falls back to the best move. -> {cand: the move to play or null for the best, rolled, played}
-function hz_match_pick(cands, shares, r, rnd = Math.random, probs = null, typeOf = null, mix = null) {
+function hz_match_pick(cands, shares, r, rnd = Math.random, probs = null, typeOf = null, mix = null, hiddenOf = null) {
     let rolled = shares.length - 1, acc = 0;
     for (let i = 0; i < shares.length; i++) { acc += shares[i]; if (r < acc) { rolled = i; break; } }
     for (let c = rolled; c >= 0; c--) {
         const pool = cands.filter(x => hz_drop_class(x.drop) === c);
         if (!pool.length) continue;
         const cand = probs ? hz_maia_weighted(pool, probs, rnd)
-            : (typeOf && mix && c >= 2) ? hz_type_pick(pool, mix[c - 2], typeOf, rnd)
+            : (typeOf && mix && c >= 2) ? hz_type_pick(pool, mix[c - 2], typeOf, rnd, HZ_TYPE_STRICT, hiddenOf)
             : pool[Math.floor(rnd() * pool.length)];
         if (cand) return {cand, rolled, played: c};
     }
@@ -8184,8 +8219,9 @@ function humanize_pick(best) {
             const allowed = alts.filter(l => loss(l) <= cap && safe(l) && (keep === 1 || takes(l)));
             const cands = [bestLine, ...allowed].map(l => ({move: l.move, drop: Math.max(0, wpBest - win_percent(line_cp_ours(l))), line: l}));
             const typeOf = hz_type_classifier(Chess, config.variant, fen);
+            const shallow = last_eval.shallow;
             const res = (Math.random() < keep) ? hz_match_pick(cands, shares, r / 100, Math.random, maiaWhich ? probs : null,
-                                                               typeOf, hz_type_mix(elo))
+                                                               typeOf, hz_type_mix(elo), (u) => hz_hidden_of(shallow, u))
                                                : {cand: null, rolled: 0, played: 0};
             hz_match_state = {debt: hz_match_settle(hz_match_state.debt, base, res.played), fullmove};
             if (res.cand && res.cand.move !== best) {
@@ -12321,6 +12357,8 @@ function on_native_info(info, fen) {
         line.depth = info.depth;
         if (pvIdx === 0) maybe_premove_forced_reply(line);
     }
+    if (info.depth === HZ_SHALLOW_DEPTH && !info.bound && last_eval.shallow && info.pv && info.pv[0] != null)
+        last_eval.shallow.set(String(info.pv[0]), line_cp_ours(info));   // as the WASM parser does
     last_eval.activeLines = Math.max(last_eval.activeLines, info.multipv || 1);
     last_eval.lines[pvIdx] = info;
     if (pvIdx > 0 && !config.simon_says_mode) {
