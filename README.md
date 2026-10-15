@@ -378,7 +378,8 @@ mistake the position cannot offer is owed and played later where one exists. Mea
 players' 10.0 / 6.4 / 4.6 - the guards hold blunders back, because a person's blunder is usually a hung piece (with
 them off: 9.8 / 7.3 / 3.4; with a Maia option on, natural hangs bring blunders to 2.5). The default sliders, for comparison, measure 1.0 / 0.0 / 0.4. **Think Like Your Time
 Control (optional)** draws each think from how long players spent per move at that time control, phase and clock left
-- about 2% of the game per blitz move, much less with the clock running out - with a person's spread.
+- about 2% of the game per blitz move, much less with the clock running out - with a person's spread. A move it is
+about to get wrong takes longer, as people's do: in blitz a blunder about 1.4x an average move, a good move 0.9x.
 
 Timing follows: quick on obvious moves, long thinks in critical positions, an instant reflex *only* for true
 recaptures and forced moves. **Clock Mode** budgets each move off the page clock (~time/30 + 60% of the increment);

@@ -51,6 +51,7 @@ vm.runInContext([
     constLine('HUMANIZE_ORDER'), constLine('HUMANIZE_LABEL'),
     block('// ==== HUMANIZE GUARDS ====', '// ==== END HUMANIZE GUARDS ===='),
     block('// ==== HUMANIZE MATCH ====', '// ==== END HUMANIZE MATCH ===='),
+    block('// ==== HUMANIZE TIME CONTROL ====', '// ==== END HUMANIZE TIME CONTROL ===='),   // hz_clock_bin, for the think
     src.includes('// ==== HUMANIZE THINK ====') ? block('// ==== HUMANIZE THINK ====', '// ==== END HUMANIZE THINK ====') : '',
     ...['win_percent', 'humanize_get', 'humanize_rates', 'humanize_thresholds', 'humanize_band_bounds', 'category_for_roll'].map(fn),
 ].join('\n').replace(/^const /gm, 'var '), ctx);
@@ -169,6 +170,8 @@ async function playGame(idx) {
     const evals = [], mineAt = [], forcedAt = [], ucis = [];
     let lastOurEval = null;
     const st = {debt: null};   // match mode's owed errors, one game
+    const trnd = mulberry(9000 + idx);   // the think draws, apart so they leave the moves as they were
+    let thinkZ = null;
     try {
         for (let ply = 0; ply < 2 * MAX_OUR_MOVES + 1 && !chess.isGameOver(); ply++) {
             const fen = chess.fen(), mine = chess.turn() === ourColor;
@@ -187,12 +190,23 @@ async function playGame(idx) {
                 forcedAt[ply] = forced;
                 const swing = lastOurEval != null ? bestCp - lastOurEval : 0;
                 // humanize_pick's think kind, for the think-time factors (the opening reel-off counts as normal)
+                let kind = null;
                 if (!recapture && !forced) {
                     const gap = lines.length > 1 ? bestCp - ours(lines[1]) : Infinity;
                     const full = +fen.split(' ')[5];
-                    KINDS[full < 8 ? 'normal' : (gap < 35 && Math.abs(bestCp) < 150) || swing < -120 ? 'long' : gap > 250 ? 'quick' : 'normal']++;
+                    kind = full < 8 ? 'normal' : (gap < 35 && Math.abs(bestCp) < 150) || swing < -120 ? 'long' : gap > 250 ? 'quick' : 'normal';
+                    KINDS[kind]++;
                 }
                 move = (recapture || forced || lines.length < 2) ? lines[0].move : pick(fen, lines, swing, rnd, st, maia ? await maia(fen, Math.max(600, Math.min(2600, ELO))) : null);
+                // Think Like Your Time Control, drawn as humanize_pick draws it (blitz 3+0 at 60% clock: the
+                // ratio to the table mean is what the data reports, whatever the bin)
+                if (kind && H.HZ_THINK_CLASS) {
+                    const pl = lines.find(l => l.move === move);
+                    const cls = pl ? H.hz_drop_class(Math.max(0, wp(bestCp) - wp(ours(pl)))) : 0;
+                    thinkZ = H.hz_think_z ? H.hz_think_z(thinkZ, 'blitz', trnd) : null;   // the rhythm, where the build has it
+                    const ms = H.hz_think_ms('blitz', 'm', 0.6, 180, kind, trnd, cls, thinkZ);
+                    THINKS.push({g: idx, ply, cls, lr: Math.log(ms / (180 * 1000 * H.HZ_THINK_MEAN.blitz.m[5] / 100))});
+                } else thinkZ = null;
                 lastOurEval = bestCp;
             } else {
                 evals.push((await us.analyse(fen, DEPTH, 1))[0]);
@@ -222,6 +236,7 @@ async function playGame(idx) {
 
 // ---- run, with progress -------------------------------------------------------------------------
 const KINDS = {quick: 0, normal: 0, long: 0};
+const THINKS = [];
 const results = []; let next = 0, done = 0; const t0 = Date.now(); const TTY = process.stdout.isTTY;
 const fmt = (s) => s >= 3600 ? `${Math.floor(s / 3600)}h${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}m` : `${Math.floor(s / 60)}m${String(Math.floor(s % 60)).padStart(2, '0')}s`;
 const tick = () => { const el = (Date.now() - t0) / 1000, rate = done / Math.max(el, 1e-3);
@@ -249,5 +264,15 @@ const kn = KINDS.quick + KINDS.normal + KINDS.long;
 const kf = vm.runInContext('typeof HZ_THINK_KIND === "undefined" ? null : HZ_THINK_KIND', ctx);
 console.log(`think kinds: quick ${(100 * KINDS.quick / kn).toFixed(1)}%, normal ${(100 * KINDS.normal / kn).toFixed(1)}%, long ${(100 * KINDS.long / kn).toFixed(1)}%`
     + (kf ? `; mean think factor ${((KINDS.quick * kf.quick + KINDS.normal * kf.normal + KINDS.long * kf.long) / kn).toFixed(3)}` : ''));
+if (THINKS.length) {
+    const mr = (c) => { const v = THINKS.filter(t => t.cls === c); return v.length ? (v.reduce((a, t) => a + Math.exp(t.lr), 0) / v.length).toFixed(2) : '-'; };
+    const all = THINKS.reduce((a, t) => a + Math.exp(t.lr), 0) / THINKS.length;
+    THINKS.sort((a, b) => a.g - b.g || a.ply - b.ply);   // the workers interleave games
+    const pr = []; THINKS.forEach((t, i) => { const p = THINKS[i - 1]; if (p && p.g === t.g && t.ply - p.ply === 2) pr.push([p.lr, t.lr]); });
+    const m = (k) => pr.reduce((a, x) => a + x[k], 0) / pr.length;
+    const mx = m(0), my = m(1), cov = pr.reduce((a, x) => a + (x[0] - mx) * (x[1] - my), 0), vx = pr.reduce((a, x) => a + (x[0] - mx) ** 2, 0), vy = pr.reduce((a, x) => a + (x[1] - my) ** 2, 0);
+    console.log(`think vs the table mean: all ${all.toFixed(2)}; good ${mr(0)}, 2-5 ${mr(1)}, inaccuracy ${mr(2)}, mistake ${mr(3)}, blunder ${mr(4)} `
+        + `(players, blitz: 0.90 / 1.14 / 1.28 / 1.39 / 1.41); lag-1 ${(cov / Math.sqrt(vx * vy)).toFixed(3)} over ${pr.length} pairs (players 0.17)`);
+}
 console.log(`results W/D/L/cap ${c('W')}/${c('D')}/${c('L')}/${c('cap')}`);
 if (A.out) fs.writeFileSync(A.out, JSON.stringify({mode: MODE, elo: ELO, guards: GUARDS, depth: DEPTH, mix: mixKeys, results}));

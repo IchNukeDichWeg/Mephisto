@@ -7862,14 +7862,26 @@ const HZ_THINK_KIND = {quick: 0.55, normal: 1.0, long: 1.8};
 const HZ_THINK_KIND_MEAN = 1.163;
 const HZ_THINK_MAX_K = 6;     // the clock caps sit above this anyway
 
+// THE MOVES PEOPLE GET WRONG ARE THE ONES THEY SAT ON. Each move's spend against the table mean for
+// its time control, phase and clock (1 = an average move), by the win% the move gave away in the
+// Game Review classes: under 2, 2-5, inaccuracy, mistake, blunder. Same data. In blitz a good move
+// takes 0.90x and a blunder 1.41x, and the blunder rate climbs from 2.5% on moves made in under a
+// quarter of the average to 8.6% on 4x+: people err where they struggle, not at random. Humanize has
+// picked its move before it thinks, so the think follows the class of the move it is about to play.
+// The class factor's own log spread (about 0.02 of blitz's 0.88 variance) is left inside the total.
+const HZ_THINK_CLASS = {bullet: [1.00, 1.14, 1.24, 1.30, 1.37], blitz: [0.90, 1.14, 1.28, 1.39, 1.41],
+                        rapid: [0.88, 1.14, 1.28, 1.37, 1.33], classical: [0.89, 1.15, 1.26, 1.30, 1.19]};
+
 // Pure. The think for one move in ms, or null when the time control is not one the table has.
 // est = base + 40 x increment in seconds; frac = clock left / base; kind from humanize_pick
-// ('normal' for the opening reel-off, which the phase table already makes quick).
-function hz_think_ms(tc, phase, frac, est, kind, rnd = Math.random) {
-    const t = HZ_THINK_MEAN[tc === 'ultrabullet' ? 'bullet' : tc];
+// ('normal' for the opening reel-off, which the phase table already makes quick); cls = the drop
+// class of the move about to be played (hz_drop_class), null to leave the think uncoupled.
+function hz_think_ms(tc, phase, frac, est, kind, rnd = Math.random, cls = null) {
+    const key = tc === 'ultrabullet' ? 'bullet' : tc;
+    const t = HZ_THINK_MEAN[key];
     if (!t || !(est > 0)) return null;
     const row = t[phase] || t.m;
-    const f = (HZ_THINK_KIND[kind] || 1) / HZ_THINK_KIND_MEAN;
+    const f = (HZ_THINK_KIND[kind] || 1) / HZ_THINK_KIND_MEAN * (cls == null ? 1 : HZ_THINK_CLASS[key][cls] || 1);
     const mean = est * 1000 * row[hz_clock_bin(Number.isFinite(frac) ? frac : 1)] / 100 * f;
     const lf = Object.values(HZ_THINK_KIND).map(Math.log);
     const mu = lf.reduce((a, v) => a + v, 0) / lf.length;
@@ -8130,12 +8142,14 @@ function humanize_pick(best) {
     // a person's clock time includes moving the piece.
     if (kind !== 'instant' && humanize_flag('humanize_think_tc', false)) {
         const x = humanize_tc_inputs(fen);
-        const h = x ? hz_think_ms(x.tc, x.phase, x.frac, x.est, reelOff ? 'normal' : kind) : null;
+        const played = lines.find(l => l.move === move);
+        const cls = played ? hz_drop_class(Math.max(0, win_percent(bestCp) - win_percent(line_cp_ours(played)))) : 0;
+        const h = x ? hz_think_ms(x.tc, x.phase, x.frac, x.est, reelOff ? 'normal' : kind, Math.random, cls) : null;
         if (h != null) {
             let travel = 0;
             try { const tm = fresh_timing(); travel = (Number(tm.move_time) || 0) + (Number(tm.move_variance) || 0) / 2; } catch (e) { /* no timing */ }
             think = Math.max(0, h - travel);
-            console.log(`Humanize think: ${x.tc}, phase ${x.phase}, ${Math.round(x.frac * 100)}% clock, ${reelOff ? 'opening' : kind}: ${Math.round(h)} ms`);
+            console.log(`Humanize think: ${x.tc}, phase ${x.phase}, ${Math.round(x.frac * 100)}% clock, ${reelOff ? 'opening' : kind}, ${['good', '2-5%', 'inaccuracy', 'mistake', 'blunder'][cls]} move: ${Math.round(h)} ms`);
         }
     }
     if (kind !== 'instant') think *= complexity_k();
