@@ -3577,4 +3577,17 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('lichess Training: Continue once a puzzle is over, View the solution after a wrong move, nothing mid-puzzle, never on Storm',
        JSON.stringify(got) === JSON.stringify(['continue', 'solution', null, null, 'continue']), got);
     ok('...and puzzleNextButton routes lichess there', /if \(site === 'lichess'\) return lichessTrainingButton\(\);/.test(csrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // Auto-Next on ChessBase Tactics Solve: Next Position (command id 2) once #tpiPosmsg is PosFinished, never on Sprint
+    const sh = csrc.slice(csrc.indexOf('const shown = (el)'), csrc.indexOf('\n', csrc.indexOf('const shown = (el)')) + 1);
+    const a = csrc.indexOf('const CHESSBASE_SOLVE_RE'), b = csrc.indexOf('\n}\n', csrc.indexOf('function chessbaseSolveButton()')) + 3;
+    const next = {id: '2', disabled: false, offsetWidth: 80, offsetHeight: 30};
+    const run = (path, finished) => { const c = vm.createContext({site: 'chessbase', location: {pathname: path}, document: {
+            querySelector: (sel) => sel === '#tpiPosmsg.PosFinished' ? (finished ? {} : null) : sel === '.ribbonBtnTextR[id="2"]' ? next : null}});
+        vm.runInContext(sh + csrc.slice(a, b), c); return vm.runInContext('chessbaseSolveButton()', c)?.id ?? null; };
+    const got = [run('/en/Solve', true), run('/de/Solve/', true), run('/en/Solve', false), run('/en/Sprint', true)];
+    ok('ChessBase Solve: Next Position once the status box is PosFinished, nothing mid-position, never on Sprint',
+       JSON.stringify(got) === JSON.stringify(['2', '2', null, null]), got);
+    ok('...and the same button is re-armed when the end state goes away (ChessBase keeps one button for every position)',
+       /if \(site === 'chessbase'\) return chessbaseSolveButton\(\);/.test(csrc) && /if \(puzzleNextClicked && \(!document\.contains\(puzzleNextClicked\) \|\| site === 'chessbase'\)\) puzzleNextClicked = null;/.test(csrc)); }
 // ==== END FIX CHECKS ====

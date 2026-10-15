@@ -3523,8 +3523,23 @@ function lichessTrainingButton() {
     return shown(giveUp) ? giveUp : null;
 }
 
+// CHESSBASE TACTICS, Solve only (Sprint plays on by itself). The end of a position is the status
+// box `#tpiPosmsg` turning from `.PosMessage` to `.PosFinished` ("Solved! Click 'Next Position'...");
+// a class, so the site language does not matter. "Next Position" is on screen the whole time, as the
+// ribbon button carrying the site's command id 2 (1 Flip, 3 Take Back, 4 Make Move). Its shake
+// animation looked like the signal but only ran on the first position of a session.
+const CHESSBASE_SOLVE_RE = /^\/[a-z]{2}\/solve$/i;
+
+function chessbaseSolveButton() {
+    if (site !== 'chessbase' || !CHESSBASE_SOLVE_RE.test(location.pathname.replace(/\/+$/, ''))) return null;
+    if (!document.querySelector('#tpiPosmsg.PosFinished')) return null;
+    const next = document.querySelector('.ribbonBtnTextR[id="2"]');
+    return shown(next) ? next : null;
+}
+
 function puzzleNextButton() {
     if (site === 'lichess') return lichessTrainingButton();
+    if (site === 'chessbase') return chessbaseSolveButton();
     if (site !== 'chesscom') return null;
     const path = location.pathname.replace(/\/+$/, '');   // a trailing slash is the same page
     if (!PUZZLE_NEXT_PATHS.includes(path)) return null;
@@ -3541,8 +3556,10 @@ function maybeAdvancePuzzle() {
     if (!config || !config.puzzle_auto_next || !config.puzzle_mode || !config.autoplay) return;
     const btn = puzzleNextButton();
     if (!btn) {
-        // the row is back to its mid-puzzle shape: a new puzzle is live, so arm for the next end
-        if (puzzleNextClicked && !document.contains(puzzleNextClicked)) puzzleNextClicked = null;
+        // the row is back to its mid-puzzle shape: a new puzzle is live, so arm for the next end.
+        // ChessBase keeps the SAME button for every position, so there the end state going away is
+        // the re-arm; elsewhere the button is rebuilt and its removal is.
+        if (puzzleNextClicked && (!document.contains(puzzleNextClicked) || site === 'chessbase')) puzzleNextClicked = null;
         return;
     }
     if (btn === puzzleNextClicked || puzzleNextTimer) return;
