@@ -385,7 +385,8 @@ before 3.1.323 keeps it off. **Think Like Your Time
 Control (optional)** draws each think from how long players spent per move at that time control, phase and clock left
 - about 2% of the game per blitz move, much less with the clock running out - with a person's spread. A move it is
 about to get wrong takes longer, as people's do: in blitz a blunder about 1.4x an average move, a good move 0.9x. And
-the thinks run in streaks, a fast stretch then a slow one (lag-1 correlation 0.17 in blitz, as measured).
+the thinks run in streaks, a fast stretch then a slow one (lag-1 correlation 0.17 in blitz, as measured). No think
+takes more than half the clock left (players' p99 above 5% of the clock).
 
 Timing follows: quick on obvious moves, long thinks in critical positions, an instant reflex *only* for true
 recaptures and forced moves. **Clock Mode** budgets each move off the page clock (~time/30 + 60% of the increment);
