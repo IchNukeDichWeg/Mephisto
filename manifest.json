@@ -111,6 +111,11 @@
     "*://www.chess.com/*",
     "*://chess.com/*"
   ],
+  "optional_host_permissions": [
+    "https://github.com/IchNukeDichWeg/Mephisto/releases/download/*",
+    "https://release-assets.githubusercontent.com/*",
+    "https://tablebase.lichess.ovh/*"
+  ],
   "default_locale": "en",
   "sandbox": {
     "pages": [

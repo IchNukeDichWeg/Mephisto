@@ -31,8 +31,11 @@ const MephistoUpdater = (function () {
     const REPO = 'IchNukeDichWeg/Mephisto';
     // Deliberately narrow: the release-download path of ONE repository, not github.com. The second
     // host is where every asset download is redirected to, and its path is an opaque signed blob, so
-    // that one cannot be narrowed at all. Must stay identical to manifest optional_host_permissions,
-    // or the request is a silent no-op and the toggle can never go on.
+    // that one cannot be narrowed at all. There is no optional_host_permissions entry for them any
+    // more: host_permissions holds <all_urls>, which already covers both, and Chrome dropped the
+    // optional ones as redundant with a warning on every load. Measured in Chrome 152 with and without
+    // the entry, identical: contains and request answer true at once, remove is refused ("You cannot
+    // remove required permissions"). That refusal is why the SETTING is the switch below, not this.
     const ORIGINS = [
         `https://github.com/${REPO}/releases/download/*`,
         'https://release-assets.githubusercontent.com/*',
