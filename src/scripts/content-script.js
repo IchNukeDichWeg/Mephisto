@@ -537,6 +537,13 @@ const OVERLAY_BOX_KEY = 'ui.pnl.box'; // per-site localStorage: {left, top, widt
 let overlayHost = null;
 let overlayRoot = null;
 
+// THE PANEL IS THE TOP LAYER. Everything Mephisto draws on the board (arrows, the eval bar, the eval
+// history and live stats, the move badge, the status banner) sits one level BELOW the panel's
+// 2147483646. They used to share it, or sit above it, and being appended after the panel they
+// painted over it -- the eval bar beside the board showed through a panel docked on that side
+// (3.1.321 audit). Only the screen-select veil, which must cover everything, stays above.
+const BOARD_OVERLAY_Z = 2147483645;
+
 function getOverlayRoot() {
     if (overlayRoot && overlayHost && overlayHost.isConnected) return overlayRoot;
     overlayHost = document.createElement('div'); // no id / class / attributes to grep for
@@ -1369,7 +1376,7 @@ function drawHintArrows(arrows, region) {
     svg.setAttribute('width', bounds.width);
     svg.setAttribute('height', bounds.height);
     svg.style.cssText = `position: absolute; left: ${bounds.left + window.scrollX}px; ` +
-        `top: ${bounds.top + window.scrollY}px; z-index: 2147483647; pointer-events: none;`;
+        `top: ${bounds.top + window.scrollY}px; z-index: ${BOARD_OVERLAY_Z}; pointer-events: none;`;
     svg.innerHTML = `<defs>${defs}</defs>${lines}`;
     getOverlayRoot().appendChild(svg);
     lastHintKey = key;
@@ -1411,7 +1418,7 @@ function drawMoveClass(msg) {
     svg.setAttribute('width', bounds.width);
     svg.setAttribute('height', bounds.height);
     svg.style.cssText = `position: absolute; left: ${bounds.left + window.scrollX}px; ` +
-        `top: ${bounds.top + window.scrollY}px; z-index: 2147483646; pointer-events: none;`;
+        `top: ${bounds.top + window.scrollY}px; z-index: ${BOARD_OVERLAY_Z}; pointer-events: none;`;
     const glyph = String(msg.glyph).replace(/[<>&]/g, '');
     const color = /^#[0-9a-f]{3,8}$/i.test(String(msg.color || '')) ? msg.color : '#8b8987';
     svg.innerHTML =
@@ -1454,7 +1461,7 @@ function showOppAlert(label, drop, san, uci) {
     // centred over the top of the board; fixed so it tracks the viewport, high z-index, no pointer capture
     el.style.cssText =
         `position: fixed; left: ${bounds.left + bounds.width / 2}px; top: ${bounds.top + 10}px; ` +
-        `transform: translateX(-50%); z-index: 2147483647; pointer-events: none; text-align: center; ` +
+        `transform: translateX(-50%); z-index: ${BOARD_OVERLAY_Z}; pointer-events: none; text-align: center; ` +
         `background: ${style.bg}; color: #fff; font: 700 19px Roboto, sans-serif; ` +
         `padding: 9px 18px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); ` +
         `opacity: 0; transition: opacity 0.2s;`;
@@ -1540,7 +1547,7 @@ function drawEvalBar({frac, text, winningWhite, history, phases, stats, bar: wan
     if (!bar) {
         bar = document.createElement('div');
         bar.id = EVALBAR_OVERLAY_ID;
-        bar.style.cssText = 'position: absolute; z-index: 2147483646; pointer-events: none; ' +
+        bar.style.cssText = `position: absolute; z-index: ${BOARD_OVERLAY_Z}; pointer-events: none; ` +
             'background: #403d39; border-radius: 3px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.4);';
         white = document.createElement('div');
         white.className = 'mephisto-evalbar-white';
@@ -1592,7 +1599,7 @@ function drawLiveStats(stats, bounds) {
     if (!box) {
         box = document.createElement('div');
         box.id = LIVESTATS_OVERLAY_ID;
-        box.style.cssText = 'position: absolute; z-index: 2147483646; pointer-events: none; ' +
+        box.style.cssText = `position: absolute; z-index: ${BOARD_OVERLAY_Z}; pointer-events: none; ` +
             'background: #262421; border-radius: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.4); ' +
             'font: 11px system-ui, sans-serif; color: #d8d8d8; padding: 4px 6px; ' +
             'display: flex; justify-content: space-between; gap: 8px;';
@@ -1650,7 +1657,7 @@ function drawEvalHistory(history, bounds, flipped, phases) {
     if (!box) {
         box = document.createElement('div');
         box.id = EVALHIST_OVERLAY_ID;
-        box.style.cssText = 'position: absolute; z-index: 2147483646; pointer-events: none; ' +
+        box.style.cssText = `position: absolute; z-index: ${BOARD_OVERLAY_Z}; pointer-events: none; ` +
             'background: #262421; border-radius: 3px; overflow: hidden; ' +
             'box-shadow: 0 1px 3px rgba(0,0,0,0.4);';
         getOverlayRoot().appendChild(box);

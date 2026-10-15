@@ -3609,4 +3609,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...and the move path drags from the pocket with the drag floor, keeps Fitts out of it, and lets a verified drop through',
        /const pocket = pocketPieceBounds\(move\[0\]\);[\s\S]{0,700}const dragMs = Math\.max\(approachMs \+ travelMs, DRAG_MIN_MS\);\s*await simulateDragSquares\(pocket, getBoundsFromCoords\(move\.substring\(2, 4\)\)/.test(csrc)
        && /getMoveTime\(\) \* \(isDrop \? 1 : fittsScale/.test(csrc) && /if \(!DROP_RE\.test\(move \?\? ''\) && !\/\^\[a-h\]\[1-8\]\[a-h\]\[1-8\]\[qrbn\]\?\$\/\.test\(move \?\? ''\)\) \{\s*return simulateMove\(move, deselect\);/.test(csrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // every board overlay sits below the panel; only the screen-select veil is above it
+    const z = Number(csrc.match(/const BOARD_OVERLAY_Z = (\d+);/)[1]), panelZ = Number(csrc.match(/wrap\.style\.cssText = 'position: fixed; z-index: (\d+);/)[1]);
+    const stray = csrc.split('\n').filter(l => /pointer-events: none/.test(l) && /z-index: 214748364\d/.test(l));
+    ok('board overlays (arrows, eval bar, history, stats, badge, banner) are drawn below the panel, none at a fixed top z-index',
+       z < panelZ && stray.length === 0 && (csrc.match(/z-index: \$\{BOARD_OVERLAY_Z\}; pointer-events: none/g) || []).length === 6, {z, panelZ, stray}); }
 // ==== END FIX CHECKS ====
