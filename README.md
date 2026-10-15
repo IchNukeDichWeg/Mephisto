@@ -371,7 +371,7 @@ the error shares to the positions where Maia sees that rating going wrong, relat
 calibrated against real error rates. Both Maia options use the 88 MB Maia-3 net (downloaded the first time) and
 standard chess only; until it has answered, the plain pick stands in.
 
-**Err Like Your Rating (optional)** replaces the sliders with what players of the Play-like rating actually do: each
+**Err Like Your Rating (on by default)** replaces the sliders with what players of the Play-like rating actually do: each
 move's quality is drawn from their measured spread, graded the way the Game Review grades (win% given away), and a
 mistake the position cannot offer is owed and played later where one exists. Measured with
 `tools/humanize-study/sim-human.mjs` at 1500: 10.0% inaccuracies, 5.4% mistakes, 1.9% blunders per move against the
@@ -380,7 +380,8 @@ players' 10.0 / 6.4 / 4.6 (1100: 10.6 / 4.8 / 1.8 against 10.6 / 7.2 / 5.8; 2300
 (moving into mate, losing over 600cp, or from +3 up), and inside those bounds players at 1400 blunder 2.6% of moves;
 with a Maia option on, natural hangs take ours to 2.5. Human-Like Mistakes moves the kind of error toward the players'
 (quiet blunders 26% to 46%, players 45%; hung pawns 52% to 37%, players 26%) at 1.7% blunders. The default sliders,
-for comparison, measure 1.0 / 0.0 / 0.4. **Think Like Your Time
+for comparison, measure 1.0 / 0.0 / 0.4; they still apply with this option off, and an install whose mix was tuned
+before 3.1.323 keeps it off. **Think Like Your Time
 Control (optional)** draws each think from how long players spent per move at that time control, phase and clock left
 - about 2% of the game per blitz move, much less with the clock running out - with a person's spread. A move it is
 about to get wrong takes longer, as people's do: in blitz a blunder about 1.4x an average move, a good move 0.9x. And

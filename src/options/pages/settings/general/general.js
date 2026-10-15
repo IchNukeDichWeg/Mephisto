@@ -310,8 +310,9 @@ class GeneralSettings extends SettingsPage {
         // opt-in, Stage B: Maia-3 at the Play-like rating picks the deviation (B1) and where (B2)
         this.registerFormElement('humanize_maia', 'Human-Like Mistakes:', 'checkbox', false);
         this.registerFormElement('humanize_maia_where', 'Mistakes Where People Make Them:', 'checkbox', false);
-        // opt-in: each move's quality from the Play-like rating's measured spread (HUMANIZE MATCH)
-        this.registerFormElement('humanize_match', 'Err Like Your Rating:', 'checkbox', false);
+        // ON by default since 3.1.323 (HZ_MATCH_DEFAULT): each move's quality from the Play-like
+        // rating's measured spread (HUMANIZE MATCH); a tuned move mix kept it off (config-store.js)
+        this.registerFormElement('humanize_match', 'Err Like Your Rating:', 'checkbox', true);
         // opt-in: think times from the measured spend per time control, phase and clock (HUMANIZE THINK)
         this.registerFormElement('humanize_think_tc', 'Think Like Your Time Control:', 'checkbox', false);
         this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
@@ -325,6 +326,7 @@ class GeneralSettings extends SettingsPage {
         this.initTablebaseFolder();
         this.initSteppers();
         this.initHumanizeMix();
+        this.initMatchNote();
         this.initHumanizeThresholds();
         this.initUiMode();
         this.initHotkeys();
@@ -998,6 +1000,16 @@ class GeneralSettings extends SettingsPage {
             try { M.FormSelect.init(sel); } catch (e) { /* a browser-default select needs nothing */ }
         });
         sel.addEventListener('change', () => chrome.storage.local.set({ui_mode: sel.value}));
+    }
+
+    // With Err Like Your Rating on, the shares in the move-mix table are not played: say so above it.
+    initMatchNote() {
+        const note = document.getElementById('humanize_match_mix_note');
+        const cb = document.getElementById('humanize_match_checkbox');
+        if (!note || !cb) return; // stale cached page html
+        const show = () => { note.hidden = !cb.checked; };
+        cb.addEventListener('change', show);   // pullConfigValues fires it too when it fills the page
+        show();
     }
 
     initHumanizeMix() {

@@ -6754,7 +6754,7 @@ function effective_multipv() {
     for (const cat of ['second', 'third', 'fourth', 'inaccuracy', 'mistake', 'blunder'])
         if ((rates[cat] || 0) > 0) deepest = Math.max(deepest, t[cat]);
     // Err Like Your Rating draws mistakes and blunders on every move, so it always needs the wide list
-    const wantsDeep = deepest > HUMANIZE_SHALLOW_REACH_CP || humanize_flag('humanize_match', false);
+    const wantsDeep = deepest > HUMANIZE_SHALLOW_REACH_CP || humanize_flag('humanize_match', HZ_MATCH_DEFAULT);
     return Math.max(wantsDeep ? HUMANIZE_DEEP_MULTIPV : 6, parseInt(config.multiple_lines) || 1, floor);
 }
 
@@ -6952,7 +6952,7 @@ function roll_humanize_category(fen) {
     const r = Math.random() * 100;
     // a steering target chooses the move from the search's lines, so there is no slice to show yet
     if (humanize_target() && humanize_game_run()) return {r, category: null};
-    if (humanize_flag('humanize_match', false)) return {r, category: null};   // drawn at pick time
+    if (humanize_flag('humanize_match', HZ_MATCH_DEFAULT)) return {r, category: null};   // drawn at pick time
     return {r, category: HUMANIZE_LABEL[category_for_roll(r, humanize_rates_now(fen))]};
 }
 
@@ -7733,6 +7733,10 @@ function hz_scale_rates(rates, mult) {
 // ==== END HUMANIZE TIME CONTROL ====
 
 // ==== HUMANIZE MATCH ====
+// ON BY DEFAULT since 3.1.323: the players' measured spread is what Humanize should play unless asked
+// otherwise. It replaces the move-mix shares, so whoever had tuned them keeps them: config-store.js
+// sets their humanize_match off once. Target Accuracy, when set, still comes first.
+const HZ_MATCH_DEFAULT = true;
 // ERR LIKE YOUR RATING. Instead of the sliders, each move's quality is drawn from what players of
 // the Play-like rating actually played, graded the way the Game Review grades: by the win% the move
 // gives away, in the lichess bands. The sliders' centipawn bands do not line up with that grading --
@@ -8059,7 +8063,7 @@ function humanize_pick(best) {
                                                   humanize_max_loss(rates, decided));
                 if (free && free.move !== best && !safe(free.line)) category = 'guard held';
             }
-        } else if (humanize_flag('humanize_match', false)) {
+        } else if (humanize_flag('humanize_match', HZ_MATCH_DEFAULT)) {
             // ERR LIKE YOUR RATING (HUMANIZE MATCH above): this move's quality is drawn from the
             // Play-like rating's own spread, scaled to the time control, clock and phase when a
             // clock is read and by Maia's hazard when that is on. The guards still decide what is

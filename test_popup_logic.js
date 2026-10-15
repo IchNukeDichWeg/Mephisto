@@ -801,15 +801,16 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     vm.createContext(m);
     vm.runInContext('var config = {};\nfunction humanize_rates() { return {}; }\n'
         + 'function humanize_thresholds() { return {}; }\nvar flags = {};\nfunction humanize_flag(k, d) { return k in flags ? flags[k] : d; }\n'
+        + pj.match(/const HZ_MATCH_DEFAULT = (true|false);/)[0].replace('const', 'var') + '\n'
         + pj.slice(pj.indexOf('const HUMANIZE_DEEP_MULTIPV'), pj.indexOf('// Ordered worst-to')), m);
     const mpv = (cfg) => { m.config = cfg; return m.effective_multipv(); };
     eq('nothing switched on: the slider is the line count', mpv({multiple_lines: 1}), 1);
     eq('contempt cannot choose without a second line', mpv({multiple_lines: 1, contempt: true}), 2);
     eq('nor can the complexity clock measure a gap', mpv({multiple_lines: 1, complexity_clock: true}), 2);
     eq('...and a slider set higher still wins', mpv({multiple_lines: 5, contempt: true}), 5);
-    eq('humanize keeps its own deeper list', mpv({multiple_lines: 1, humanize: true, contempt: true}), 6);
-    m.flags = {humanize_match: true};
-    eq('Err Like Your Rating draws mistakes on every move, so it always asks for the wide list', mpv({multiple_lines: 1, humanize: true}), 20);
+    eq('Err Like Your Rating draws mistakes on every move, so Humanize, where it is on by default, asks for the wide list', mpv({multiple_lines: 1, humanize: true}), 20);
+    m.flags = {humanize_match: false};
+    eq('...and with it off, humanize keeps its own deeper list', mpv({multiple_lines: 1, humanize: true, contempt: true}), 6);
     m.flags = {};
     // ...and NONE of that reaches the board: the arrows and the list follow the slider, so raising
     // the engine's line count for a feature cannot quietly put five more arrows on a board set to one.
@@ -3751,6 +3752,20 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         ok('an old Maia-1 pick becomes the Maia entry at its band; a Maia-2 pick keeps its own rating as the shared one; once only',
            m1.engine === '"maia3"' && m1.elo === '1300' && m2.engine === '"maia2"' && m2.elo === '1700'
            && done.engine === '"maia"' && sf.engine === '"stockfish-19-nnue"' && sf.marked === '1', {m1, m2, done, sf}); });
+    // ERR LIKE YOUR RATING BECAME THE DEFAULT: a tuned move mix keeps it off, once, never over a choice made
+    const mm = async (stored) => {
+        const c = vm.createContext({console, location: {protocol: 'https:'}, chrome: {storage: {local: {get: async () => ({...stored}), set() {}, remove() {}},
+                                                       onChanged: {addListener() {}}}}});
+        c.self = c; c.window = c;
+        vm.runInContext(cs, c);
+        await c.MephistoConfig.ready;
+        return {match: c.MephistoConfig.get('humanize_match') ?? null, marked: c.MephistoConfig.get('__match_default')};
+    };
+    Promise.all([mm({}), mm({humanize_blunder: '3'}), mm({humanize_blunder: '3', humanize_match: 'true'}),
+                 mm({humanize_top: '60', __match_default: '1'}), mm({humanize_cp_blunder: '500'})]).then(([fresh, tuned, chose, done, cpOnly]) => {
+        ok('a tuned move mix keeps Err Like Your Rating off; a fresh install, a choice already made, a second run and tuned thresholds alone do not',
+           fresh.match === null && fresh.marked === '1' && tuned.match === 'false' && chose.match === 'true'
+           && done.match === null && cpOnly.match === null, {fresh, tuned, chose, done, cpOnly}); });
     const ph = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
     const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
     const opts = (h) => (h.match(/<option value="maia[23]?"[^>]*>/g) || []).join(' ');
@@ -3871,16 +3886,21 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /const cls = played \? hz_drop_class\(Math\.max\(0, win_percent\(bestCp\) - win_percent\(line_cp_ours\(played\)\)\)\) : 0;/.test(psrc)
        && /hz_think_ms\(x\.tc, x\.phase, x\.frac, x\.est, reelOff \? 'normal' : kind, Math\.random, cls, z\)/.test(psrc));
     ok('...wired: the match branch sits ahead of the slider mix, owes and pays errors per game, and asks for the wide list; the think replaces the draw only with a clock read',
-       /\} else if \(humanize_flag\('humanize_match', false\)\) \{/.test(psrc)
+       /\} else if \(humanize_flag\('humanize_match', HZ_MATCH_DEFAULT\)\) \{/.test(psrc)
        && /hz_match_state = \{debt: hz_match_settle\(hz_match_state\.debt, base, res\.played\), fullmove\};/.test(psrc)
-       && /humanize_flag\('humanize_match', false\);\n/.test(psrc.slice(psrc.indexOf('const wantsDeep')))
+       && /humanize_flag\('humanize_match', HZ_MATCH_DEFAULT\);\n/.test(psrc.slice(psrc.indexOf('const wantsDeep')))
        && /if \(kind !== 'instant' && humanize_flag\('humanize_think_tc', false\)\) \{/.test(psrc)
        && /return \{tc: hz_tc_class\(base, inc\), frac, phase: hz_phase_of\(fen\), est: base \+ 40 \* inc\};/.test(psrc));
     const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
     const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
-    ok('Err Like Your Rating and Think Like Your Time Control: settings rows, OFF by default, label and tip in all 14 locales',
-       ['humanize_match', 'humanize_think_tc'].every(k => new RegExp(`id="${k}_checkbox"`).test(gh)
-           && new RegExp(`registerFormElement\\('${k}', '[^']+:', 'checkbox', false\\)`).test(gj)
-           && locs.every(l => l['set.' + k] && l['set.tip.' + k]))); }
+    ok('Err Like Your Rating ON by default (page and panel agree), Think Like Your Time Control OFF: settings rows, label and tip in all 14 locales',
+       [['humanize_match', true], ['humanize_think_tc', false]].every(([k, d]) => new RegExp(`id="${k}_checkbox"`).test(gh)
+           && new RegExp(`registerFormElement\\('${k}', '[^']+:', 'checkbox', ${d}\\)`).test(gj)
+           && locs.every(l => l['set.' + k] && l['set.tip.' + k]))
+       && /const HZ_MATCH_DEFAULT = true;/.test(psrc) && (psrc.match(/humanize_flag\('humanize_match', /g) || []).length === (psrc.match(/humanize_flag\('humanize_match', HZ_MATCH_DEFAULT\)/g) || []).length);
+    ok('...the move-mix table says its shares are not played while it is on, in all 14 locales',
+       /<p data-i18n="set\.note\.humanize_match_mix" id="humanize_match_mix_note" class="set-note" hidden>/.test(gh)
+       && /const show = \(\) => \{ note\.hidden = !cb\.checked; \};\s*cb\.addEventListener\('change', show\);/.test(gj)
+       && /this\.initMatchNote\(\);/.test(gj) && locs.every(l => l['set.note.humanize_match_mix'])); }
 // ==== END FIX CHECKS ====

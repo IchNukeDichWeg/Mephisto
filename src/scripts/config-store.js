@@ -247,6 +247,19 @@
                     api.set('__maia_merged', '1');
                 }
             } catch (e) { /* corrupt -> the panel's defaults decide */ }
+            // ERR LIKE YOUR RATING BECAME THE DEFAULT (3.1.323). It replaces the move-mix shares, so whoever
+            // had tuned them (the options page stores a share only when it is edited) keeps their mix:
+            // their Err Like Your Rating is set off -- once, here, and never over a choice already made.
+            try {
+                if (!CACHE.__match_default) {
+                    const MIX = ['humanize_top', 'humanize_second', 'humanize_third', 'humanize_fourth',
+                        'humanize_inaccuracy', 'humanize_mistake', 'humanize_blunder'];
+                    if (CACHE['humanize_match'] === undefined && MIX.some(k => CACHE[k] !== undefined)) {
+                        api.set('humanize_match', JSON.stringify(false));
+                    }
+                    api.set('__match_default', '1');
+                }
+            } catch (e) { /* corrupt -> the default decides */ }
             ready = true;
         },
     };
