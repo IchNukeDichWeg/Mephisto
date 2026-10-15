@@ -1953,6 +1953,19 @@
                     </div>
                 </div>
 
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.humanize_think_tc" class="tooltipped" data-position="right"
+                              data-tooltip="Off by default. With Humanize on and a readable clock, each think is drawn from how long lichess players spent per move at this time control, game phase and clock left (October 2025): about 2% of the game per blitz move, nearly twice as long in the middlegame as in the endgame, and a quarter of that with under 5% of the clock left. Obvious moves go quicker and tense ones slower, and the spread is a person's: the slow tenth of moves takes over twice the average. The cursor travel is taken off. Without a clock, Humanize's usual times stand."><span data-i18n="set.humanize_think_tc">Think Like Your Time Control</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="humanize_think_tc_checkbox" type="checkbox" class="set-cb">
+                        <label for="humanize_think_tc_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
                 <p data-i18n="set.note.giving_a_share_to_anything" class="set-note">
                     Giving a share to anything below the near-best bands makes the engine search a wider list so a move
                     that bad exists to choose from - that costs search depth. A pure Top + Second mix keeps the cheaper

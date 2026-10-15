@@ -312,6 +312,8 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('humanize_maia_where', 'Mistakes Where People Make Them:', 'checkbox', false);
         // opt-in: each move's quality from the Play-like rating's measured spread (HUMANIZE MATCH)
         this.registerFormElement('humanize_match', 'Err Like Your Rating:', 'checkbox', false);
+        // opt-in: think times from the measured spend per time control, phase and clock (HUMANIZE THINK)
+        this.registerFormElement('humanize_think_tc', 'Think Like Your Time Control:', 'checkbox', false);
         this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
         this.registerFormElement('clock_pace', 'Pace to Clock:', 'checkbox', false);
         this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);

@@ -2993,7 +2993,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('a scrape with no move list is not "the opening" just because its FEN says move 1', noList === false);
     ok('a measured opponent spend still decides the pace in the opening (Mirror Time)', mirrored === 2700, mirrored);
     ok('Humanize reels the opening off before it can call the start position tense',
-       /kind = 'instant';\s*else if \(in_opening\(fen\)\) kind = 'quick';[\s\S]{0,400}kind = 'long'/.test(psrc));
+       /const reelOff = !\(recapture \|\| forced\) && in_opening\(fen\);\s*if \(recapture \|\| forced\) kind = 'instant';\s*else if \(reelOff\) kind = 'quick';[\s\S]{0,400}kind = 'long'/.test(psrc));
     ok('Mirror Time marks the opponent clock on our turn too, so it does not need a scrape during theirs',
        /if \(turn === ourColor\) \{[\s\S]{0,1800}if \(last_clocks\?\.theirs != null\) opp_clock_mark = last_clocks\.theirs;\s*\} else \{\s*opp_turn_at = Date\.now\(\);\s*if \(opp_clock_mark == null/.test(psrc));
     {
@@ -3827,15 +3827,28 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...owed errors raise their class (half the debt, at most 4x its share) and come out of the good moves',
        near(w[3], 0.06 + 0.5) === false && near(w[3], 0.06 + Math.min(0.24, 0.5)) && near(w[4], 0.04 + 0.16) && near(w[2], 0.1)
        && near(w.reduce((a, b) => a + b, 0), 1) && w[0] / w[1] - 3 < 1e-9, w);
-    ok('...wired: the match branch sits ahead of the slider mix, owes and pays errors per game, and asks for the wide list',
+    // Think Like People at This Time Control: the real HUMANIZE THINK block (+ the clock bins)
+    const t = vm.createContext({});
+    vm.runInContext(sl('const HZ_TCS', '// The multiplier on one class') + sl('// ==== HUMANIZE THINK ====', '// ==== END HUMANIZE THINK ===='), t);
+    // seeded, and small enough not to hold up the timer-driven checks around it
+    const mean = vm.runInContext("(() => { let a = 7; const rnd = () => { a = (a * 1103515245 + 12345) % 2147483648; return a / 2147483648; }; let s = 0; const N = 6000; for (let i = 0; i < N; i++) s += hz_think_ms('blitz', 'm', 0.6, 180, 'normal', rnd); return s / N; })()", t);
+    ok('think: a normal blitz middlegame move at 60% clock (the 50-75% bin) averages the measured 3.11% of the game (5.6 s of 3+0) over the kind mix, within 6%',
+       Math.abs(mean * 1.163 / 5598 - 1) < 0.06, Math.round(mean));
+    ok('...speeds up on a low clock, slows on a tense position, and has no table for an unknown time control',
+       vm.runInContext("hz_think_ms('blitz', 'm', 0.03, 180, 'normal', () => 0.5) < hz_think_ms('blitz', 'm', 0.6, 180, 'normal', () => 0.5) / 3", t)
+       && vm.runInContext("hz_think_ms('blitz', 'm', 0.6, 180, 'long', () => 0.5) > hz_think_ms('blitz', 'm', 0.6, 180, 'normal', () => 0.5) * 1.7", t)
+       && vm.runInContext("hz_think_ms('correspondence', 'm', 0.6, 180, 'normal') === null", t));
+    ok('...wired: the match branch sits ahead of the slider mix, owes and pays errors per game, and asks for the wide list; the think replaces the draw only with a clock read',
        /\} else if \(humanize_flag\('humanize_match', false\)\) \{/.test(psrc)
        && /hz_match_state = \{debt: hz_match_settle\(hz_match_state\.debt, base, res\.played\), fullmove\};/.test(psrc)
-       && /humanize_flag\('humanize_match', false\);\n/.test(psrc.slice(psrc.indexOf('const wantsDeep'))));
+       && /humanize_flag\('humanize_match', false\);\n/.test(psrc.slice(psrc.indexOf('const wantsDeep')))
+       && /if \(kind !== 'instant' && humanize_flag\('humanize_think_tc', false\)\) \{/.test(psrc)
+       && /return \{tc: hz_tc_class\(base, inc\), frac, phase: hz_phase_of\(fen\), est: base \+ 40 \* inc\};/.test(psrc));
     const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
     const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
-    ok('Err Like Your Rating: a settings row, OFF by default, label and tip in all 14 locales',
-       ['humanize_match'].every(k => new RegExp(`id="${k}_checkbox"`).test(gh)
+    ok('Err Like Your Rating and Think Like Your Time Control: settings rows, OFF by default, label and tip in all 14 locales',
+       ['humanize_match', 'humanize_think_tc'].every(k => new RegExp(`id="${k}_checkbox"`).test(gh)
            && new RegExp(`registerFormElement\\('${k}', '[^']+:', 'checkbox', false\\)`).test(gj)
            && locs.every(l => l['set.' + k] && l['set.tip.' + k]))); }
 // ==== END FIX CHECKS ====

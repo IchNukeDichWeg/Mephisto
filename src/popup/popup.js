@@ -7808,6 +7808,59 @@ function hz_match_settle(debt, shares, played) {
 }
 // ==== END HUMANIZE MATCH ====
 
+// ==== HUMANIZE THINK ====
+// THINK LIKE PEOPLE AT THIS TIME CONTROL. How long a person sits on a move, as a share of the game's
+// estimated length (base + 40 x increment, lichess's own yardstick: per move it is steady within a
+// time control, 1.9-2.1% in blitz with or without increment, where a share of the base alone runs
+// 1.9% without and 3.0% with). Stage C, lichess October 2025, strict sample, non-forced moves, the
+// MEAN per move in percent, by game phase and by the clock-left bins of the clock tables
+// (HZ_CLOCK_EDGES: under 5, 10, 20, 35, 50, 75, 100% left, then a full clock). People slow down in
+// the middlegame and speed up hard as the clock runs out: at 1-5% left a blitz move takes a quarter
+// of what it takes at half the clock. Cells under 300 moves (the opening on a low clock) take the
+// all-phase value; ultrabullet's 1-second clock resolution cannot be read, so it uses bullet's.
+const HZ_THINK_MEAN = {
+    bullet: {o: [0.67, 1.36, 1.95, 4.89, 5.24, 4.54, 2.28, 1.18], m: [1.06, 2.08, 2.77, 3.62, 3.70, 3.40, 2.62, 1.77],
+             e: [0.61, 1.16, 1.58, 2.18, 2.42, 2.42, 1.97, 1.97]},
+    blitz: {o: [0.52, 0.89, 1.36, 2.10, 4.09, 3.59, 1.71, 0.93], m: [0.86, 1.42, 2.08, 2.91, 3.28, 3.11, 2.39, 1.79],
+            e: [0.48, 0.79, 1.14, 1.67, 1.89, 1.87, 1.56, 1.19]},
+    rapid: {o: [0.36, 0.71, 1.23, 1.72, 2.01, 3.27, 1.32, 0.75], m: [0.72, 1.23, 1.96, 2.67, 2.94, 2.63, 1.81, 1.15],
+            e: [0.32, 0.62, 1.03, 1.35, 1.45, 1.35, 1.04, 0.63]},
+    classical: {o: [0.46, 0.86, 1.20, 1.54, 1.75, 3.20, 1.01, 0.58], m: [0.73, 1.42, 1.99, 2.35, 2.63, 2.28, 1.30, 0.79],
+                e: [0.42, 0.76, 0.98, 1.21, 1.23, 1.05, 0.69, 0.52]},
+};
+// The spread: log-sd of the positive spends, same data (bullet's is read through a 1-second clock
+// and comes out 0.67, an underestimate; 0.9 sits between it and blitz). A person's p90 is about 2.4x
+// their mean move in blitz -- the old Human Move Times spread (0.5) gave 1.6x.
+const HZ_THINK_SD = {ultrabullet: 0.9, bullet: 0.9, blitz: 0.94, rapid: 1.09, classical: 1.27};
+// Humanize's own read of the position moves the think inside that spread, not on top of it: an
+// obvious move shorter, a tense one longer. 1.8 is how much longer people sat on the moves they got
+// wrong (blitz median, errors against the rest), standing in for "a hard position"; the residual
+// spread is cut so the total stays the measured one. Over a game the kinds come out quick 8.6%,
+// normal 66.3%, long 25.2% (sim-human.mjs at 1500, 3,196 moves), a mean factor of 1.163, which is
+// divided back out so the game's average move stays the measured one.
+const HZ_THINK_KIND = {quick: 0.55, normal: 1.0, long: 1.8};
+const HZ_THINK_KIND_MEAN = 1.163;
+const HZ_THINK_MAX_K = 6;     // the clock caps sit above this anyway
+
+// Pure. The think for one move in ms, or null when the time control is not one the table has.
+// est = base + 40 x increment in seconds; frac = clock left / base; kind from humanize_pick
+// ('normal' for the opening reel-off, which the phase table already makes quick).
+function hz_think_ms(tc, phase, frac, est, kind, rnd = Math.random) {
+    const t = HZ_THINK_MEAN[tc === 'ultrabullet' ? 'bullet' : tc];
+    if (!t || !(est > 0)) return null;
+    const row = t[phase] || t.m;
+    const f = (HZ_THINK_KIND[kind] || 1) / HZ_THINK_KIND_MEAN;
+    const mean = est * 1000 * row[hz_clock_bin(Number.isFinite(frac) ? frac : 1)] / 100 * f;
+    const lf = Object.values(HZ_THINK_KIND).map(Math.log);
+    const mu = lf.reduce((a, v) => a + v, 0) / lf.length;
+    const kindVar = lf.reduce((a, v) => a + (v - mu) ** 2, 0) / lf.length;
+    const sd = HZ_THINK_SD[tc] || 1;
+    const s = Math.sqrt(Math.max(0.04, sd * sd - kindVar));
+    const u = rnd() || Number.MIN_VALUE, v = rnd();
+    const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    return Math.min(mean * Math.exp(s * (z - s / 2)), mean * HZ_THINK_MAX_K);
+}
+// ==== END HUMANIZE THINK ====
 
 // The time-control inputs for this move: the class from the page's own time control when it gave
 // one (else the longest clock this game has shown, which is the base on move one), how much of it
@@ -7821,7 +7874,8 @@ function humanize_tc_inputs(fen) {
     // base because it ticked while the panel looked is still that clock.
     let frac = Math.max(0, mine) / base;
     if (frac > 0.985) frac = Math.max(frac, 1);
-    return {tc: hz_tc_class(base, last_clocks.increment || 0), frac, phase: hz_phase_of(fen)};
+    const inc = last_clocks.increment || 0;
+    return {tc: hz_tc_class(base, inc), frac, phase: hz_phase_of(fen), est: base + 40 * inc};
 }
 
 // The phase of the position the move is played from, as the study keyed it: the Divider markers
@@ -8033,8 +8087,9 @@ function humanize_pick(best) {
     last_our_eval = bestCp;
 
     let kind;
+    const reelOff = !(recapture || forced) && in_opening(fen);
     if (recapture || forced) kind = 'instant';
-    else if (in_opening(fen)) kind = 'quick';                      // opening reel-off -- BEFORE 'long':
+    else if (reelOff) kind = 'quick';                      // opening reel-off -- BEFORE 'long':
                                                                    // the start position is level with close
                                                                    // choices, i.e. "tense" by the next line
     else if (gap < 35 && Math.abs(bestCp) < 150) kind = 'long';   // tense: close choices, level game
@@ -8050,6 +8105,19 @@ function humanize_pick(best) {
     // on a reflex -- an instant move is instant because it is forced, not because it is easy.
     // Human Move Times: the same average, drawn from the shape real move times have.
     if (config.human_times) think = lognormal_ms(HUMAN_TIME_MEAN[kind]);
+    // Think Like People at This Time Control: with a clock read, the measured spend for this time
+    // control, phase and clock left (HUMANIZE THINK), less the cursor travel that follows it --
+    // a person's clock time includes moving the piece.
+    if (kind !== 'instant' && humanize_flag('humanize_think_tc', false)) {
+        const x = humanize_tc_inputs(fen);
+        const h = x ? hz_think_ms(x.tc, x.phase, x.frac, x.est, reelOff ? 'normal' : kind) : null;
+        if (h != null) {
+            let travel = 0;
+            try { const tm = fresh_timing(); travel = (Number(tm.move_time) || 0) + (Number(tm.move_variance) || 0) / 2; } catch (e) { /* no timing */ }
+            think = Math.max(0, h - travel);
+            console.log(`Humanize think: ${x.tc}, phase ${x.phase}, ${Math.round(x.frac * 100)}% clock, ${reelOff ? 'opening' : kind}: ${Math.round(h)} ms`);
+        }
+    }
     if (kind !== 'instant') think *= complexity_k();
 
 
