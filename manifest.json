@@ -97,11 +97,6 @@
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
     "sandbox": "sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; child-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' blob: data:;"
   },
-  "optional_host_permissions": [
-    "https://github.com/IchNukeDichWeg/Mephisto/releases/download/*",
-    "https://release-assets.githubusercontent.com/*",
-    "https://tablebase.lichess.ovh/*"
-  ],
   "host_permissions": [
     "<all_urls>",
     "http://localhost:8080/*",
@@ -110,11 +105,6 @@
     "https://explorer.lichess.org/*",
     "*://www.chess.com/*",
     "*://chess.com/*"
-  ],
-  "optional_host_permissions": [
-    "https://github.com/IchNukeDichWeg/Mephisto/releases/download/*",
-    "https://release-assets.githubusercontent.com/*",
-    "https://tablebase.lichess.ovh/*"
   ],
   "default_locale": "en",
   "sandbox": {
