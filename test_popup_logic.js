@@ -3376,4 +3376,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
            && t(S + ' 0 1') === JSON.stringify({left: {w: 3, b: 3}, fen: S + ' 0 1'}), [t(S + ' 2+3 0 1'), t(S + ' 0 1 +1+0')]);
         ok(`${f.split('/').pop()}: the engine FEN carries the counter without a leading plus`, /parts\.splice\(4, 0, `\$\{c?h?e?c?k?s?\.?w\}\+\$\{c?h?e?c?k?s?\.?b\}`\)/.test(s) && !/parts\.splice\(4, 0, `\+/.test(s));
     } }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the move classifier is injected into the page and Read from Screen captures the tab: both need host access to the page itself,
+    // which lichess never had (Refute + class badges dead there) and captureVisibleTab only accepts as <all_urls> or a fresh toolbar click
+    const man = JSON.parse(fs.readFileSync(ROOT + '/manifest.json', 'utf8'));
+    ok('host access covers every page the content script already runs on (<all_urls>), so injection and screen capture need no toolbar click',
+       man.host_permissions.includes('<all_urls>') && man.content_scripts[0].matches.includes('<all_urls>')); }
 // ==== END FIX CHECKS ====

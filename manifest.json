@@ -103,6 +103,7 @@
     "https://tablebase.lichess.ovh/*"
   ],
   "host_permissions": [
+    "<all_urls>",
     "http://localhost:8080/*",
     "http://localhost:9090/*",
     "https://explorer.lichess.ovh/*",
