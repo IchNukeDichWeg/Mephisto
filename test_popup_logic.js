@@ -1000,11 +1000,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     vm.runInContext('session = session_fresh();', s2);
     eq('nothing has happened, so nothing is said', s2.session_stats_label(), '');
     s2.session_note_move(1000); s2.session_note_move(3000);
-    ok('the average is over the MOVES', /0 games · 2 moves · 2\.0s avg/.test(s2.session_stats_label()));
+    // the game being played counts as a game (it used to read "0 games" until the panel saw the next one start)
+    ok('the average is over the MOVES, and the game in progress is counted', /1 games · 2 moves · 2\.0s avg/.test(s2.session_stats_label()));
     // THE GAME IN FRONT OF YOU. Accuracy used to need a FINISHED game, so a session spent on one long
     // game showed moves and seconds and no accuracy at all.
     ok('...and the unfinished game already carries its accuracy',
-       /0 games · 2 moves · 2\.0s avg · 90% accuracy/.test(s2.session_stats_label()));
+       /1 games · 2 moves · 2\.0s avg · 90% accuracy/.test(s2.session_stats_label()));
     s2.session_note_game([0.5, 0.5], 'game-1');
     ok('a finished game brings its accuracy', /1 games · 2 moves · 2\.0s avg · 90% accuracy/.test(s2.session_stats_label()));
     // on_new_pos clears the history right after the fold (a new game from the SAME start FEN is
@@ -1027,6 +1028,20 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...and reading them back restores the count', /1 games · 2 moves · 2\.0s avg/.test(s2.session_stats_label()));
     vm.runInContext('STORE.session_totals = JSON.stringify({day: "1999-1-1", games: 9, moves: 9, think_ms: 9, acc: [9]}); session = session_fresh(); session_restore();', s2);
     eq('...but yesterday\'s totals are not today\'s', s2.session_stats_label(), '');
+    // LICHESS: every game is its own page and its own panel, so no ply-count drop is ever seen. The game is
+    // remembered with the totals and folded when a move comes from a different one.
+    vm.runInContext('session = session_fresh(); eval_history = [0.5, 0.5]; STATS.white.accuracy = 80; var location = {host: "lichess.org", pathname: "/AbCd1234/white"};', s2);
+    s2.session_note_move(1000); s2.session_note_move(1000);
+    vm.runInContext('location = {host: "lichess.org", pathname: "/AbCd1234"};', s2);
+    s2.session_note_move(1000);
+    ok('a lichess game is one game across its /white and /black addresses', /1 games · 3 moves/.test(s2.session_stats_label()), s2.session_stats_label());
+    vm.runInContext('location = {host: "lichess.org", pathname: "/ZzYy9876"}; eval_history = [0.5, 0.5]; STATS.white.accuracy = 60;', s2);
+    s2.session_note_move(1000);
+    ok('...a move in the next game\'s page folds the last one with its accuracy, and both are counted',
+       vm.runInContext('session.games', s2) === 1 && /2 games · 4 moves · 1\.0s avg · 70% accuracy/.test(s2.session_stats_label()), s2.session_stats_label());
+    vm.runInContext('session_restore(); location = {host: "lichess.org", pathname: "/analysis"}; eval_history = [];', s2);
+    ok('...and the game in progress survives a reload and is read back from the store on another page',
+       /2 games · 4 moves · 1\.0s avg · 70% accuracy/.test(s2.session_stats_label()), s2.session_stats_label());
     ok('only on-turn moves are counted, so a blind premove cannot drag the average',
         /if \(verify\) session_note_move/.test(pj));
     ok('...and switching Session Stats on records the history its accuracy needs',
@@ -3426,4 +3441,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
     ok('an Analysis engine that fails to start stops saying "thinking…" in its column and its lines, and says why on the status line',
        /try \{ e = await ensureEngine\(\); \} catch \(err\) \{[\s\S]{0,500}?meta\.textContent = 'not running';[\s\S]{0,300}?an_engine_lines[\s\S]{0,300}?return status\(String\(err\.message \|\| err\), 'err'\);/.test(an)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('Session Stats times a move from the start of our turn, plus the delay still to come, not the configured think alone',
+       /our_turn_at = Date\.now\(\);\s*\/\/ THEIR CLOCK IS FROZEN/.test(psrc) && /const searched = our_turn_at \? Math\.max\(0, Date\.now\(\) - our_turn_at\) : 0;\s*if \(verify\) session_note_move\(Number\.isFinite\(delay\) \? searched \+ delay : \(searched \|\| delay\)\);/.test(psrc)); }
 // ==== END FIX CHECKS ====

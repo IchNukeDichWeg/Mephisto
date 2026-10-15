@@ -181,6 +181,7 @@ let last_clocks = null;   // {mine, theirs, increment, at} scraped off the page 
 let last_our_eval = null; // our-perspective cp after our previous move (humanize criticality)
 let opp_clock_mark = null; // opponent's clock when their turn started...
 let opp_turn_at = 0;        // ...and the wall-clock time it started, for when the increment is unknown
+let our_turn_at = 0;        // when OUR turn began on this screen: Session Stats measures a move from here
 let clicker_warmed = false; // the click path has been warmed for this panel (see on_new_pos)
 let opp_spend = null;      // ...so their spend on their LAST move = mark - now (Clock Mode mirroring)
 let prev_ply_count = 0;    // plies in the last-seen position; a drop back to the start = a NEW GAME
@@ -800,6 +801,7 @@ async function initPanel(root, tabId) {
                     // not known and that turn was seen starting.
                     if (last_clocks?.increment == null && opp_turn_at) opp_spend = (Date.now() - opp_turn_at) / 1000;
                     opp_turn_at = 0;
+                    our_turn_at = Date.now();
                     // THEIR CLOCK IS FROZEN WHILE WE ARE TO MOVE, so this reading is also where it
                     // starts their next turn. Marking it here means Mirror Time no longer depends on
                     // a scrape landing during THEIR turn -- without a move list (chess.com with the
@@ -8744,13 +8746,18 @@ function request_automove(move, think = null, manual = false, opts = {}) {
     // taken when the panel/config first loaded. `?? config.x` keeps the loaded value if unset.
     const timing = fresh_timing(move_situation(last_eval.fen, move));
     // Session stats count the move HERE, at the one funnel every move of ours goes through, and
-    // count the delay it really waited: the pacing modes' explicit think when there was one, the
-    // configured think when there was not.
+    // count the time it really took: the search since our turn began, plus the delay still to come
+    // (the pacing modes' explicit think when there was one, the configured think when there was not).
     //
     // ON-TURN MOVES ONLY (`verify`). A blind premove is queued during the OPPONENT's turn and fires
     // the instant they move, so the think attached to it is not a wait anybody had -- counting it
     // would drag the session average toward a number no move ever took.
-    if (verify) session_note_move((think != null) ? think : timing.think_time);
+    // MEASURED, not configured: the search so far (since our turn showed up) plus the delay still to
+    // come. It used to be the configured think alone, so "0.4s avg" sat beside moves that took 0.9 s
+    // and a think of 0 read "0.0s" (3.1.321 audit F10). With no turn start seen it is the delay alone.
+    const delay = (think != null) ? think : timing.think_time;
+    const searched = our_turn_at ? Math.max(0, Date.now() - our_turn_at) : 0;
+    if (verify) session_note_move(Number.isFinite(delay) ? searched + delay : (searched || delay));
     const message = (config.puzzle_mode)
         // Puzzle Mode ships the move as a one-element `pv` purely because the content-script's
         // puzzle branch takes that shape. It is ONE move: Puzzle Mode used to auto-play the engine's
@@ -10246,7 +10253,28 @@ function session_day() {
 }
 
 function session_fresh() {
-    return {day: session_day(), games: 0, moves: 0, think_ms: 0, acc: []};
+    return {day: session_day(), games: 0, moves: 0, think_ms: 0, acc: [], cur: null};
+}
+
+// WHICH GAME a move belongs to: the page it was played on, plus its start position. A game used to
+// be counted only when the panel watched the NEXT one begin on the same page (the ply count dropping
+// back to the start) -- but on lichess every game is its own page and its own panel, so that never
+// happened there: "0 games · 598 moves" after a whole session (3.1.321 audit F10). The game in
+// progress is now remembered with the totals, and folded when a move comes from a different game.
+// lichess appends /white or /black to a game URL for the same game, so that part is dropped.
+function session_game_id() {
+    let page = '';
+    try { page = location.host + location.pathname.replace(/\/(white|black)\/?$/, ''); } catch (e) { /* no page */ }
+    return `${page}|${eval_history_game || ''}`;
+}
+
+// The remembered game becomes a counted one: once, with the accuracy last read for it.
+function session_fold_cur() {
+    const cur = session.cur;
+    if (!cur) return;
+    session.games++;
+    if (Number.isFinite(cur.acc)) session.acc.push(cur.acc);
+    session.cur = null;
 }
 
 let session = session_fresh();
@@ -10258,7 +10286,9 @@ function session_restore() {
         const rec = JSON.parse(MephistoConfig.get(SESSION_KEY) || 'null');
         if (rec && rec.day === session_day() && Array.isArray(rec.acc)) {
             session = {day: rec.day, games: rec.games | 0, moves: rec.moves | 0,
-                       think_ms: rec.think_ms | 0, acc: rec.acc.filter(Number.isFinite)};
+                       think_ms: rec.think_ms | 0, acc: rec.acc.filter(Number.isFinite),
+                       cur: (rec.cur && typeof rec.cur.id === 'string')
+                           ? {id: rec.cur.id, acc: Number.isFinite(rec.cur.acc) ? rec.cur.acc : null} : null};
         }
     } catch (e) { /* unreadable totals are simply today's first move */ }
 }
@@ -10277,6 +10307,11 @@ function session_note_move(think_ms) {
     if (session.day !== session_day()) session = session_fresh();
     session.moves++;
     session.think_ms += Math.max(0, think_ms);
+    // the game this move belongs to: a different one means the remembered game is over
+    const id = session_game_id();
+    if (session.cur && session.cur.id !== id) session_fold_cur();
+    const acc = session_live_accuracy();
+    session.cur = {id, acc: Number.isFinite(acc) ? acc : (session.cur?.acc ?? null)};
     session_save();
 }
 
@@ -10291,6 +10326,7 @@ function session_note_game(history, gameKey) {
         const acc = live_stats(history, gameKey)[side]?.accuracy;
         if (Number.isFinite(acc)) session.acc.push(acc);
     } catch (e) { /* an ungradeable game still counts as a game */ }
+    session.cur = null;   // that WAS the remembered game: counted here, not again later
     session_save();
 }
 
@@ -10311,13 +10347,18 @@ function session_live_accuracy() {
 function session_stats_label() {
     if (!config.session_stats || !session.moves) return '';
     const avg = (session.think_ms / session.moves / 1000).toFixed(1);
+    // The game in progress counts as a game, with its accuracy read live when it is the one on this
+    // page and as last stored when it was played on another (a finished game's page, a new tab).
+    const cur = session.cur;
     const live = session_live_accuracy();
-    const all = (live != null) ? session.acc.concat(live) : session.acc;
+    const curAcc = (cur && cur.id === session_game_id() && live != null) ? live : (cur ? cur.acc : live);
+    const all = Number.isFinite(curAcc) ? session.acc.concat(curAcc) : session.acc;
+    const games = session.games + (cur ? 1 : 0);
     const acc = all.length ? Math.round(all.reduce((a, b) => a + b, 0) / all.length) : null;
     // Two strings rather than five: a label built by joining four translated fragments is four
     // chances for a language to want a different order.
     return i18n('panel.msg.session', 'Session: {games} games · {moves} moves · {avg}s avg',
-                {games: session.games, moves: session.moves, avg})
+                {games, moves: session.moves, avg})
         + (acc != null ? i18n('panel.msg.session_acc', ' · {n}% accuracy', {n: acc}) : '');
 }
 
