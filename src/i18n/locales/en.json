@@ -436,6 +436,8 @@
   "an.tip.book": "Show book moves for the position from a book you load below.",
   "set.tip.grind_mode": "Lichess and Chess.com, and only while Autoplay is on. When a game finishes, Mephisto clicks the button that starts the next one -- \"New opponent\" on Lichess, \"New 1 min\" (whatever your time control is) on Chess.com -- so a session keeps going without you. The delay below is your window to stop it: close the tab, navigate away or switch this off during it and no new game is searched for. If the button is not where it was expected, nothing happens and the game simply stays finished.",
   "set.tip.grind_delay": "How long to wait after a game ends before the next one is started. This is the window in which you can stop it -- 0 starts immediately, and the maximum is 600 seconds.",
+  "set.accept_rematch": "Accept Rematch",
+  "set.tip.accept_rematch": "Lichess only, and only while Autoplay is on. When your opponent offers a rematch after a game, Mephisto accepts it after a pause of one to three seconds. It wins over Grind Mode: an opponent asking for another game is the next game. Your own rematch offer is never touched. Chess.com is not covered yet. If the button is not where it was expected, nothing happens.",
   "set.threat_human": "Human Reply (Maia)",
   "set.tip.threat_human": "Beside the engine's best answer to your move, show what a HUMAN of the rating below would most likely reply -- Maia-3's prediction about the opponent you are actually facing, not the strongest reply on the board. Standard chess only; needs Show Threat Analysis.",
   "set.threat_human_elo": "Human Reply Rating",

@@ -429,6 +429,7 @@ async function initPanel(root, tabId) {
         // is exactly how the first version of this behaved.
         grind_mode: JSON.parse(MephistoConfig.get('grind_mode')) || false,
         grind_delay: Math.max(0, Math.min(600, JSON.parse(MephistoConfig.get('grind_delay') ?? '5') ?? 5)),
+        accept_rematch: JSON.parse(MephistoConfig.get('accept_rematch')) || false,
         // SAN or UCI, everywhere a move is written. Nf3 and g1f3 are the same move; which one
         // reads faster is a property of the reader, not of the move.
         move_notation: (JSON.parse(MephistoConfig.get('move_notation')) === 'uci') ? 'uci' : 'san',
@@ -10200,7 +10201,7 @@ const LIVE_CONFIG_KEYS = [
     'autoplay', 'premove', 'ponder', 'tablebase', 'background_play', 'hide_opponent',
     // read by the content script from the snapshot this panel pushes, and by nothing else: left out
     // of this list, switching Grind Mode OFF on the Settings page did not stop the next game
-    'grind_mode', 'grind_delay', 'streamer_alert', 'puzzle_capture', 'puzzle_capture_cdp',
+    'grind_mode', 'grind_delay', 'accept_rematch', 'streamer_alert', 'puzzle_capture', 'puzzle_capture_cdp',
     'explorer', 'book_play', 'explorer_db', 'help_mode', 'humanize', 'clock_mode', 'mirror_mode',
     'manual_mode', 'eval_bar', 'eval_history', 'live_stats', 'puzzle_mode', 'simon_says_mode', 'threat_analysis',
     'threat_human', 'threat_human_elo',

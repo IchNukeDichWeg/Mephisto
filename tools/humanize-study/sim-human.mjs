@@ -10,6 +10,7 @@
 // --mode match Err Like Your Rating at --elo
 // --types off  errors uniform inside their class (before the type-aware pick), for comparison
 // --hidden off no hidden-error preference inside the kind, for comparison
+// --simplify off no simplify-when-winning hold, for comparison
 // The opponent is Stockfish UCI_LimitStrength at the same Elo (min 1320). Our lines come from
 // native Stockfish, MultiPV 20 at --depth, which is the panel's wide humanize search. No clock:
 // the comparison is against the blitz spread, the tables' baseline. Fixed depth, so --workers 0
@@ -35,6 +36,7 @@ const HUMAN_LIKE = !!A['human-like'];   // Human-Like Mistakes: the error drawn 
 const NO_CAP = A.cap === 'off';     // match mode without the blunder-threshold ceiling, for comparison
 const NO_TYPES = A.types === 'off'; // errors picked uniformly inside their class, as before the type-aware pick
 const NO_HIDDEN = A.hidden === 'off'; // no hidden-error preference, as before it
+const NO_SIMPLIFY = A.simplify === 'off'; // no simplify-when-winning hold, as before it
 const WORKERS = +(A.workers || 0) || os.cpus().length;
 const MAX_OUR_MOVES = +(A['max-moves'] || 60);
 const SF = A.sf || 'stockfish';
@@ -150,6 +152,9 @@ function pick(fen, lines, swing, rnd, st, probs = null) {
     const bestTakes = !!bx && bx.gain > 0 && bx.gain > bx.risk;
     const keep = GUARDS ? H.hz_punish_keep(swing, bestTakes) : 1;
     const takes = (l) => { const x = H.hz_exposure(H.Chess, 'chess', fen, l.move); return !!x && x.gain > x.risk; };
+    // the simplify-when-winning hold, where the build has it
+    const hold = GUARDS && !NO_SIMPLIFY && !!H.hz_simplify_hold
+        && H.hz_simplify_hold(bestCp, () => H.hz_simplifies(H.Chess, 'chess', fen, best), rnd());
     if (MODE === 'match') {
         const base = H.hz_match_shares(ELO, {});
         const shares = NO_DEBT ? base : H.hz_match_with_debt(base, st.debt);
@@ -158,7 +163,7 @@ function pick(fen, lines, swing, rnd, st, probs = null) {
         const cands = [bestLine, ...allowed].map(l => ({move: l.move, drop: Math.max(0, wp(bestCp) - wp(ours(l)))}));
         const typed = !NO_TYPES && H.hz_type_classifier;   // the type-aware pick, where the build has it
         const hidden = typed && !NO_HIDDEN && H.hz_hidden_of;   // ...and hidden errors, where it has those
-        const res = (rnd() < keep) ? H.hz_match_pick(cands, shares, r / 100, rnd, HUMAN_LIKE ? probs : null,
+        const res = (!hold && rnd() < keep) ? H.hz_match_pick(cands, shares, r / 100, rnd, HUMAN_LIKE ? probs : null,
             typed ? H.hz_type_classifier(H.Chess, 'chess', fen) : null, typed ? H.hz_type_mix(ELO) : null,
             hidden ? (u) => H.hz_hidden_of(lines.shallow, u) : null) : {cand: null, played: 0};
         if (!NO_DEBT) st.debt = H.hz_match_settle(st.debt, base, res.played);
@@ -168,7 +173,7 @@ function pick(fen, lines, swing, rnd, st, probs = null) {
     const bands = H.humanize_band_bounds();
     const cat = H.category_for_roll(r, rates);
     const barred = (cat === 'blunder' && Math.abs(bestCp) >= 600) || (winning && (cat === 'mistake' || cat === 'blunder'));
-    if (cat === 'top' || barred || !(rnd() < keep)) return best;
+    if (cat === 'top' || barred || hold || !(rnd() < keep)) return best;
     const pool = alts.filter(l => loss(l) > bands[cat][0] && loss(l) <= bands[cat][1]);
     const ok = pool.filter(l => safe(l) && (keep === 1 || takes(l)));
     if (HUMAN_LIKE && probs) { const c = H.hz_maia_weighted(ok, probs, rnd); return c ? c.move : best; }

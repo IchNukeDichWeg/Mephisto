@@ -3220,8 +3220,22 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('Puzzle Mode follows the page only from the visible tab', /if \(typeof document !== 'undefined' && document\.hidden\) return;\s*if \(onPuzzlePage === !!config\.puzzle_mode\)/.test(psrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const live = psrc.slice(psrc.indexOf('const LIVE_CONFIG_KEYS = ['), psrc.indexOf('];', psrc.indexOf('const LIVE_CONFIG_KEYS = [')));
-    const missing = ['grind_mode', 'grind_delay', 'streamer_alert', 'puzzle_capture', 'puzzle_capture_cdp'].filter(k => !live.includes(`'${k}'`));
-    ok('Grind Mode, its delay, the streaming notice and page-solution capture reach an open panel from the Settings page', missing.length === 0, missing); }
+    const missing = ['grind_mode', 'grind_delay', 'accept_rematch', 'streamer_alert', 'puzzle_capture', 'puzzle_capture_cdp'].filter(k => !live.includes(`'${k}'`));
+    ok('Grind Mode, its delay, Accept Rematch, the streaming notice and page-solution capture reach an open panel from the Settings page', missing.length === 0, missing);
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const rm = cs.slice(cs.indexOf('// --- ACCEPT A REMATCH'), cs.indexOf('setInterval(rematchTick, GRIND_POLL_MS);'));
+    ok('Accept Rematch: only the opponent\'s glowing offer on lichess, only with the setting AND Autoplay on, re-checked after the pause',
+       /const REMATCH_SITES = \{lichess: \(\) => document\.querySelector\('\.follow-up button\.rematch\.glowing'\)\};/.test(rm)
+       && (rm.match(/!config\.accept_rematch \|\| !config\.autoplay/g) || []).length === 2
+       && /const btn = rematchOffer\(\);\s*if \(!btn\) return;/.test(rm)
+       && !/chesscom/.test(rm.slice(rm.indexOf('const REMATCH_SITES'))));
+    ok('...the fallback click fires only while the offer still glows (a second click on an accepted rematch would be an offer of ours)',
+       /if \(document\.contains\(btn\) && btn\.classList\.contains\('glowing'\)\) try \{ btn\.click\(\); \}/.test(rm));
+    ok('...and Grind Mode stands down for an offered rematch', /if \(config\.accept_rematch && rematchOffer\(\)\) return;[^\n]*\n\s*const btn = grindNewGameButton\(\);/.test(cs)
+       && /grindCancel\('the opponent offered a rematch'\);/.test(rm));
+    ok('...off by default in the panel and on the Settings page',
+       /accept_rematch: JSON\.parse\(MephistoConfig\.get\('accept_rematch'\)\) \|\| false,/.test(psrc)
+       && /registerFormElement\('accept_rematch', 'Accept Rematch:', 'checkbox', false\)/.test(fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8'))); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const msrc = fs.readFileSync(ROOT + '/src/offscreen/maia.js', 'utf8');
     ok('Maia / Leela: a game that starts from a position gets its history filled with that position (lc0 fen fill), a normal game does not',

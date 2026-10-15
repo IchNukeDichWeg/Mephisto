@@ -4462,6 +4462,7 @@ function grindTick() {
     grindTimer = setTimeout(() => {
         grindTimer = null;
         if (!config.grind_mode || !config.autoplay) return;   // switched off while we waited
+        if (config.accept_rematch && rematchOffer()) return;   // the opponent asked first: that is the next game
         const btn = grindNewGameButton();
         if (!btn) return console.debug('Mephisto: grind found nothing to click');
         console.debug('Mephisto: grind clicking', (btn.textContent || '').trim().slice(0, 30));
@@ -4470,6 +4471,59 @@ function grindTick() {
 }
 
 setInterval(grindTick, GRIND_POLL_MS);
+
+// --- ACCEPT A REMATCH ------------------------------------------------------------------------
+// accept_rematch, opt-in, Lichess only, and gated on Autoplay like Grind Mode. When the opponent
+// offers a rematch, take it after a short pause. Captured live (two browsers, a friend game, one
+// side offering): the offer turns the other side's rematch button into
+//   <div class="follow-up"><button class="rematch-decline" title="Decline"></button>
+//     <button class="fbt rematch white glowing" title="Your opponent wants to play a new game with you">
+//       <span>Rematch</span></button><a class="fbt" href="/k2OylijX/white#4">Analysis board</a></div>
+// `glowing` is there only while THEIR offer stands, so our own offer can never be clicked back off.
+// Chess.com is not covered: its rematch prompt has not been seen from a logged-in game. It wins over
+// Grind Mode -- an opponent asking for another game is the next game -- and every failure is silent.
+const REMATCH_SITES = {lichess: () => document.querySelector('.follow-up button.rematch.glowing')};
+const REMATCH_PAUSE_MS = [1200, 2800];   // read the result, then click: never the instant a bot would
+const REMATCH_VERIFY_MS = 1500;          // the new game's redirect comes well inside this
+let rematchTimer = null;
+
+function rematchOffer() {
+    const find = REMATCH_SITES[site];
+    if (!find) return null;
+    try {
+        const b = find();
+        return (b && b.offsetParent !== null && !b.disabled) ? b : null;
+    } catch (e) { return null; }
+}
+
+function rematchTick() {
+    if (!config || !config.accept_rematch || !config.autoplay) {
+        if (rematchTimer) { clearTimeout(rematchTimer); rematchTimer = null; }
+        return;
+    }
+    if (rematchTimer || !rematchOffer()) return;
+    const [lo, hi] = REMATCH_PAUSE_MS;
+    rematchTimer = setTimeout(() => {
+        rematchTimer = null;
+        if (!config.accept_rematch || !config.autoplay) return;   // switched off while we waited
+        const btn = rematchOffer();
+        if (!btn) return;                                          // withdrawn while we waited
+        grindCancel('the opponent offered a rematch');
+        bgLogAlways('rematch: accepting the opponent\'s offer', {site});
+        const r = btn.getBoundingClientRect();
+        try {
+            chrome.runtime.sendMessage({cdpClick: true, x: r.left + r.width / 2, y: r.top + r.height / 2, travelMs: 0},
+                () => void chrome.runtime.lastError);
+        } catch (e) { /* silent by design */ }
+        // Only while the offer still glows: a second click on a rematch already accepted would be
+        // read as an offer of our own, so nothing is clicked twice.
+        setTimeout(() => {
+            if (document.contains(btn) && btn.classList.contains('glowing')) try { btn.click(); } catch (e) { /* silent */ }
+        }, REMATCH_VERIFY_MS);
+    }, lo + Math.random() * (hi - lo));
+}
+
+setInterval(rematchTick, GRIND_POLL_MS);
 
 function determineStartPosition() {
     startPosCache = loadStartPosCache();

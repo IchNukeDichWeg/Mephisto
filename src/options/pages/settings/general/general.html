@@ -1052,6 +1052,19 @@
 
                 <div class="set-row set-toggle">
                     <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.accept_rematch" class="tooltipped" data-position="right"
+                              data-tooltip="Lichess only, and only while Autoplay is on. When your opponent offers a rematch after a game, Mephisto accepts it after a pause of one to three seconds. It wins over Grind Mode: an opponent asking for another game is the next game. Your own rematch offer is never touched. Chess.com is not covered yet. If the button is not where it was expected, nothing happens."><span data-i18n="set.accept_rematch">Accept Rematch</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="accept_rematch_checkbox" type="checkbox" class="set-cb">
+                        <label for="accept_rematch_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row set-toggle">
+                    <div class="set-lbl">
                         <span data-i18n="panel.premove">Premove</span>
                         <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.while_the_opponent_thinks_certify"
                               data-tooltip="While the opponent thinks, certify a reply to their predicted move.

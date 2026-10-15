@@ -437,6 +437,8 @@
   "an.tip.time": "Motorun her konum uzerinde ne kadar calistigi. Sure: o kadar saniye dusunur ve son kademe limitsizdir -- siz devam edene kadar dusunmeye devam eder. Derinlik: tam o kadar derine arar ve durur, her makinede ayni cevap.",
   "set.tip.grind_mode": "Lichess ve Chess.com, ve yalnızca Autoplay açıkken. Bir oyun bittiğinde Mephisto bir sonrakini başlatan düğmeye tıklar - Lichess'te «Yeni rakip», Chess.com'da «Yeni 1 dk» (sizin temponuz) - böylece oturum sizsiz devam eder. Aşağıdaki gecikme durdurma pencerenizdir: bu süre içinde sekmeyi kapatın, sayfadan ayrılın ya da bunu kapatın, yeni oyun aranmaz. Düğme beklenen yerde değilse hiçbir şey olmaz ve oyun bitmiş olarak kalır.",
   "set.tip.grind_delay": "Bir oyun bittikten sonra bir sonrakini başlatmadan önce ne kadar bekleneceği. Bu, durdurma pencerenizdir - 0 hemen başlatır, en fazla 600 saniyedir.",
+  "set.accept_rematch": "Rövanşı kabul et",
+  "set.tip.accept_rematch": "Yalnızca Lichess, ve yalnızca Autoplay açıkken. Rakibiniz oyundan sonra rövanş teklif ettiğinde Mephisto bir ila üç saniyelik bir aradan sonra kabul eder. Grind Modu'ndan önce gelir: bir oyun daha isteyen rakip sıradaki oyundur. Kendi rövanş teklifinize asla dokunulmaz. Chess.com henüz desteklenmiyor. Düğme beklenen yerde değilse hiçbir şey olmaz.",
   "set.threat_human": "İnsan Yanıtı (Maia)",
   "set.tip.threat_human": "Motorun hamlenize en iyi yanıtının yanında, aşağıdaki puandaki bir İNSANIN büyük olasılıkla ne yanıtlayacağını göster -- Maia-3'ün gerçekten karşınızdaki rakip hakkındaki tahmini, tahtadaki en güçlü yanıt değil. Yalnız standart satranç; Tehdit Analizini Göster ister.",
   "set.threat_human_elo": "Yanıt Reytingi",

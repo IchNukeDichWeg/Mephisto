@@ -216,6 +216,7 @@ class GeneralSettings extends SettingsPage {
         // the window in which the next game can still be called off.
         this.registerFormElement('grind_mode', 'Grind Mode:', 'checkbox', false);
         this.registerFormElement('grind_delay', 'Grind Delay (s):', 'input', 5);
+        this.registerFormElement('accept_rematch', 'Accept Rematch:', 'checkbox', false);
         this.registerFormElement('premove', 'Premove:', 'checkbox', false);
         this.registerFormElement('ponder', 'Pondering:', 'checkbox', false);
         const tablebase_cb = this.registerFormElement('tablebase', 'Endgame Tablebase:', 'checkbox', false);
