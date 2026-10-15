@@ -6978,7 +6978,7 @@ function roll_humanize_category(fen) {
     const r = Math.random() * 100;
     // a steering target chooses the move from the search's lines, so there is no slice to show yet
     if (humanize_target() && humanize_game_run()) return {r, category: null};
-    return {r, category: HUMANIZE_LABEL[category_for_roll(r, humanize_rates())]};
+    return {r, category: HUMANIZE_LABEL[category_for_roll(r, humanize_rates_now(fen))]};
 }
 
 // our-perspective centipawns for a line whose score/mate are stored white-relative;
@@ -7613,6 +7613,141 @@ function hz_mate_in(cp) {
 }
 // ==== END HUMANIZE GUARDS ====
 
+// ==== HUMANIZE TIME CONTROL ====
+// ERRORS BY TIME CONTROL, CLOCK AND PHASE, from the Stage C study (lichess 2025-10, 2.1M graded
+// moves of 39,027 games with every closed or TOS-marked account dropped, reweighted to the
+// unanalysed mix; tools/humanize-study/tables.py). Opt-in (humanize_tc_scale): the user's shares
+// stay the rate of an average BLITZ game at the Play-like rating, and these scale the inaccuracy,
+// mistake and blunder shares move by move around it; the top move absorbs the difference.
+// Fitted multiplicatively per class over rating x TC, TC x clock, TC x phase and TC x win% margins
+// (the win% factor de-confounds the others and is not shipped -- the guards own winning positions).
+// Hold-out (2025-09) chi2/dof 2.5-7 against 22-120 for the logistic fit it replaces.
+// What the data says, which is not the heuristic it replaces: at the SAME rating, rapid and
+// classical err about as often per move as blitz (0.8-1.1x); bullet 1.0-1.9x and ultrabullet
+// 1.3-2.7x, rising with rating. The CLOCK is the big lever: under 5% of the base, 1.3-1.5x the
+// inaccuracies and 1.9-2.6x the blunders; at a full clock (the first moves) 0.2-0.8x. Phase:
+// the middlegame 1.1-1.25x, the opening 0.7-0.95x.
+// level[band] = [ultrabullet, bullet, blitz, rapid, classical] relative to blitz at that band;
+// clock[tc] = 8 bins of clock left / base (edges below); phase[tc] = [opening, middlegame, endgame].
+const HZ_TC_TABLES = {
+    inaccuracy: {
+        level: {400:[1.474,0.99,1.0,1.002,0.99],600:[1.015,0.954,1.0,1.019,1.029],800:[1.203,0.971,1.0,1.021,1.107],1000:[1.314,1.029,1.0,0.975,1.075],1200:[1.363,1.059,1.0,0.976,1.041],1400:[1.354,1.099,1.0,0.962,0.982],1600:[1.375,1.112,1.0,0.937,0.88],1800:[1.462,1.229,1.0,0.959,0.834],2000:[1.539,1.295,1.0,0.906,0.99],2200:[1.676,1.383,1.0,0.879,0.99],2400:[1.864,1.39,1.0,0.957,0.99],2600:[1.86,1.48,1.0,0.957,0.99],2800:[1.474,1.585,1.0,0.957,0.99]},
+        clock: {ultrabullet:[1.479,1.435,1.26,1.185,1.1,1.028,0.927,0.671],bullet:[1.455,1.411,1.322,1.177,1.099,1.057,0.92,0.473],blitz:[1.366,1.25,1.15,1.124,1.087,1.052,1.004,0.567],rapid:[1.312,1.145,1.119,1.086,1.083,1.052,1.017,0.683],classical:[1.307,1.424,1.087,1.058,1.1,1.089,1.026,0.847]},
+        phase: {ultrabullet:[0.986,1.064,0.924],bullet:[0.907,1.148,0.889],blitz:[0.891,1.164,0.892],rapid:[0.92,1.149,0.883],classical:[0.947,1.13,0.862]},
+    },
+    mistake: {
+        level: {400:[1.789,0.973,1.0,1.03,0.982],600:[0.962,0.917,1.0,1.042,1.052],800:[1.297,0.944,1.0,1.065,1.174],1000:[1.477,1.021,1.0,1.003,1.106],1200:[1.562,1.057,1.0,0.982,1.03],1400:[1.608,1.135,1.0,0.948,0.952],1600:[1.641,1.117,1.0,0.922,0.824],1800:[1.751,1.286,1.0,0.923,0.74],2000:[1.911,1.417,1.0,0.862,0.982],2200:[2.161,1.51,1.0,0.807,0.982],2400:[2.449,1.551,1.0,0.957,0.982],2600:[2.456,1.757,1.0,0.957,0.982],2800:[1.789,1.855,1.0,0.957,0.982]},
+        clock: {ultrabullet:[1.662,1.598,1.409,1.249,1.134,1.028,0.865,0.571],bullet:[1.832,1.726,1.548,1.286,1.169,1.053,0.796,0.312],blitz:[1.624,1.386,1.279,1.197,1.138,1.077,0.94,0.427],rapid:[1.519,1.349,1.232,1.16,1.107,1.07,0.983,0.596],classical:[1.656,1.687,0.995,1.076,1.16,1.113,1.006,0.808]},
+        phase: {ultrabullet:[0.942,1.088,0.97],bullet:[0.835,1.203,0.937],blitz:[0.798,1.209,0.961],rapid:[0.821,1.192,0.969],classical:[0.855,1.188,0.961]},
+    },
+    blunder: {
+        level: {400:[2.512,0.893,1.0,1.056,0.969],600:[1.003,0.874,1.0,1.057,1.127],800:[1.476,0.909,1.0,1.086,1.205],1000:[1.869,1.006,1.0,1.028,1.184],1200:[2.133,1.036,1.0,1.006,1.022],1400:[2.289,1.182,1.0,0.95,0.891],1600:[2.321,1.183,1.0,0.93,0.77],1800:[2.437,1.395,1.0,0.881,0.645],2000:[2.72,1.581,1.0,0.797,0.969],2200:[3.23,1.678,1.0,0.714,0.969],2400:[3.398,1.723,1.0,0.956,0.969],2600:[4.007,2.292,1.0,0.956,0.969],2800:[2.512,2.358,1.0,0.956,0.969]},
+        clock: {ultrabullet:[1.869,1.858,1.521,1.311,1.186,1.002,0.804,0.494],bullet:[2.573,2.298,1.891,1.494,1.205,0.99,0.601,0.179],blitz:[1.979,1.63,1.438,1.317,1.234,1.088,0.813,0.266],rapid:[1.957,1.565,1.366,1.27,1.144,1.077,0.921,0.526],classical:[2.174,2.004,1.172,1.052,1.168,1.131,0.976,0.77]},
+        phase: {ultrabullet:[0.925,1.086,1.007],bullet:[0.841,1.238,0.981],blitz:[0.697,1.24,1.076],rapid:[0.702,1.231,1.088],classical:[0.719,1.266,1.11]},
+    },
+};
+const HZ_TCS = ['ultrabullet', 'bullet', 'blitz', 'rapid', 'classical'];
+const HZ_CLOCK_EDGES = [0.05, 0.10, 0.20, 0.35, 0.50, 0.75, 1.0];
+const HZ_TC_MULT_MAX = 3;    // a rate never scaled past 3x (2800 ultrabullet blunders measure 2.5x)
+
+// lichess Speed: estimated duration base + 40 * increment (seconds), as the study classified.
+function hz_tc_class(base, inc) {
+    const est = base + 40 * (inc || 0);
+    return est < 30 ? 'ultrabullet' : est < 180 ? 'bullet' : est < 480 ? 'blitz' : est < 1500 ? 'rapid' : 'classical';
+}
+
+function hz_clock_bin(frac) {
+    for (let i = 0; i < HZ_CLOCK_EDGES.length; i++) if (frac < HZ_CLOCK_EDGES[i]) return i;
+    return HZ_CLOCK_EDGES.length;
+}
+
+// 200-point bands as the study cut them: under 600 is one band (400), 2800 and up is one band.
+function hz_band(elo) {
+    const e = Number(elo) || 1500;
+    return e < 600 ? 400 : e >= 2800 ? 2800 : Math.floor(e / 200) * 200;
+}
+
+// The multiplier on one class's share for this move. null inputs (no clock read) count as the
+// blitz average for that dimension, i.e. no change from it.
+function hz_tc_mult(cls, tc, clockFrac, phase, elo) {
+    const t = HZ_TC_TABLES[cls];
+    if (!t || !HZ_TCS.includes(tc)) return 1;
+    const lv = (t.level[hz_band(elo)] || t.level[1400])[HZ_TCS.indexOf(tc)];
+    const ck = Number.isFinite(clockFrac) ? t.clock[tc][hz_clock_bin(clockFrac)] : 1;
+    const ph = {o: 0, m: 1, e: 2}[phase];
+    const pf = ph === undefined ? 1 : t.phase[tc][ph];
+    return Math.min(HZ_TC_MULT_MAX, lv * ck * pf);
+}
+
+// The mix with its error shares scaled for this move; the top share takes up the difference and
+// the result is renormalised to 100, like humanize_rates. Shares for the near-best lines stay.
+function hz_scale_rates(rates, mult) {
+    const r = {...rates};
+    let delta = 0;
+    for (const cat of ['inaccuracy', 'mistake', 'blunder']) {
+        const was = r[cat] || 0;
+        r[cat] = was * (mult[cat] || 1);
+        delta += r[cat] - was;
+    }
+    r.top = Math.max(0, (r.top || 0) - delta);
+    const sum = Object.values(r).reduce((a, v) => a + v, 0);
+    if (sum > 0) for (const k in r) r[k] = r[k] * 100 / sum;
+    return r;
+}
+// ==== END HUMANIZE TIME CONTROL ====
+
+// The time-control inputs for this move: the class from the page's own time control when it gave
+// one (else the longest clock this game has shown, which is the base on move one), how much of it
+// is left, and the Divider phase. null without a readable clock -- then nothing is scaled.
+function humanize_tc_inputs(fen) {
+    if (!last_clocks || last_clocks.mine == null) return null;
+    const base = last_clocks.base > 0 ? last_clocks.base : game_max_clock_s;
+    if (!(base > 0)) return null;
+    const mine = last_clocks.mine - (Date.now() - last_clocks.at) / 1000;
+    // The study's top bin is an UNTOUCHED clock (the first moves): a reading a breath under the
+    // base because it ticked while the panel looked is still that clock.
+    let frac = Math.max(0, mine) / base;
+    if (frac > 0.985) frac = Math.max(frac, 1);
+    return {tc: hz_tc_class(base, last_clocks.increment || 0), frac, phase: hz_phase_of(fen)};
+}
+
+// The phase of the position the move is played from, as the study keyed it: the Divider markers
+// over the game's own move list, or this position alone when there is no list.
+function hz_phase_of(fen) {
+    try {
+        const moves = String(last_pos.moves || '').trim();
+        if (moves) {
+            const {mid, end} = game_phases(last_pos.startFen, moves);
+            const ply = moves.split(/\s+/).length;
+            return (end !== null && ply >= end) ? 'e' : (mid !== null && ply >= mid) ? 'm' : 'o';
+        }
+        const m = phase_metrics(new Chess(config.variant, fen));
+        if (m.majorsMinors <= PHASE_ENDGAME_PIECES) return 'e';
+        return (m.majorsMinors <= PHASE_MIDGAME_PIECES || m.backrankSparse
+                || m.mixedness > PHASE_MIXEDNESS_THRESHOLD) ? 'm' : 'o';
+    } catch (e) { return null; }
+}
+
+// The mix for THIS move: the sliders as set, or with Scale Errors to the Clock on, their error
+// shares scaled for the time control, the clock left and the phase (HUMANIZE TIME CONTROL above).
+// The rating that picks the table row is the Play-like rating.
+function humanize_rates_now(fen, log = false) {
+    const rates = humanize_rates();
+    if (!humanize_flag('humanize_tc_scale', false)) return rates;
+    const x = humanize_tc_inputs(fen);
+    if (!x) return rates;
+    const elo = config.maia3_elo;
+    const mult = {
+        inaccuracy: hz_tc_mult('inaccuracy', x.tc, x.frac, x.phase, elo),
+        mistake: hz_tc_mult('mistake', x.tc, x.frac, x.phase, elo),
+        blunder: hz_tc_mult('blunder', x.tc, x.frac, x.phase, elo),
+    };
+    // one line per move when it is on: the only way to see what the tables did to a given move
+    if (log) console.log(`Humanize clock scale: ${x.tc}, ${Math.round(x.frac * 100)}% clock, phase ${x.phase}:`
+        + ` inaccuracy x${mult.inaccuracy.toFixed(2)}, mistake x${mult.mistake.toFixed(2)}, blunder x${mult.blunder.toFixed(2)}`);
+    return hz_scale_rates(rates, mult);
+}
+
 function humanize_pick(best) {
     const fen = last_eval.fen;
     const lines = (last_eval.lines || []).filter(l => l && l.move && l.pv);
@@ -7647,7 +7782,7 @@ function humanize_pick(best) {
         const playable = (m) => premove_reply_playable(fen, m); // moves OUR piece + legal here
         const loss = (l) => bestCp - line_cp_ours(l);
         const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000); // never move INTO mate
-        const rates = humanize_rates(); // move mix percents; live-tunable
+        const rates = humanize_rates_now(fen, true); // the mix, scaled to the clock when that is on
         const guards = humanize_flag('humanize_guards', true);
         // THE GUARDS (see HUMANIZE GUARDS above). Lazy: the exchange walk only runs for the moves a
         // roll actually wants to play.

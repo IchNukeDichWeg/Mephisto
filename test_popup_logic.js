@@ -1567,7 +1567,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     }
     ok('with a target reading the pick aims by accuracy; without one the roll uses the raw sliders',
        /humanize_target_pick\(all\.filter\(c => c\.line === bestLine \|\| safe\(c\.line\)\),\s*bestCp, run, humanize_target\(\), maxLoss\)/.test(psrc)
-       && /category_for_roll\(r, humanize_rates\(\)\)/.test(psrc) && !/humanize_mix|humanize_steer/.test(psrc));
+       && /category_for_roll\(r, humanize_rates_now\(fen\)\)/.test(psrc)
+       && /const rates = humanize_rates\(\);\s*if \(!humanize_flag\('humanize_tc_scale', false\)\) return rates;/.test(psrc) && !/humanize_mix|humanize_steer/.test(psrc));
     ok('the eval history records while a target is set (the controller reads it)',
        /!\(config\.humanize && humanize_target\(\)\)\)/.test(psrc));
 
@@ -3675,4 +3676,41 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('Humanize Guards: a settings row, registered ON by default, label and tip in all 14 locales',
        /id="humanize_guards_checkbox"/.test(gh) && /registerFormElement\('humanize_guards', 'Humanize Guards:', 'checkbox', true\)/.test(gj)
        && locs.length === 14 && locs.every(l => l['set.humanize_guards'] && l['set.tip.humanize_guards'])); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // Scale Errors to the Clock: the shipped Stage C tables and the scaling, run as they are
+    const a = psrc.indexOf('// ==== HUMANIZE TIME CONTROL ===='), b = psrc.indexOf('// ==== END HUMANIZE TIME CONTROL ====');
+    const t = vm.createContext({}); vm.runInContext(psrc.slice(a, b), t);
+    const v = (e) => vm.runInContext(e, t);
+    ok('TC class from base + 40 x increment, as the study keyed it: 15+0 ultra, 60+0 bullet, 180+2 blitz, 600+0 rapid, 1800+0 classical',
+       v("[hz_tc_class(15,0), hz_tc_class(60,0), hz_tc_class(180,2), hz_tc_class(600,0), hz_tc_class(1800,0)].join()") === 'ultrabullet,bullet,blitz,rapid,classical');
+    ok('clock bins on the study edges: 3% -> 0, 7% -> 1, 99% -> 6, full -> 7, over full (increment) -> 7',
+       v("[hz_clock_bin(0.03), hz_clock_bin(0.07), hz_clock_bin(0.99), hz_clock_bin(1), hz_clock_bin(1.2)].join()") === '0,1,6,7,7');
+    ok('rating bands: 500 -> 400, 1499 -> 1400, 1500 -> 1400, 2950 -> 2800', v("[hz_band(500), hz_band(1499), hz_band(1500), hz_band(2950)].join()") === '400,1400,1400,2800');
+    ok('blitz with no clock or phase is the reference (x1); every table has 13 bands x 5 TCs, 5 x 8 clock bins, 5 x 3 phases',
+       v("hz_tc_mult('mistake', 'blitz', NaN, null, 1500)") === 1
+       && v("['inaccuracy','mistake','blunder'].every(k => Object.keys(HZ_TC_TABLES[k].level).length === 13 && Object.values(HZ_TC_TABLES[k].level).every(r => r.length === 5) && HZ_TCS.every(tc => HZ_TC_TABLES[k].clock[tc].length === 8 && HZ_TC_TABLES[k].phase[tc].length === 3))"));
+    ok('the measured shape: blunders under 5% of the clock outnumber a full clock\'s, bullet over blitz at 2000, middlegame over opening',
+       v("hz_tc_mult('blunder', 'blitz', 0.02, null, 1500)") > 1.5 && v("hz_tc_mult('blunder', 'blitz', 1, null, 1500)") < 0.5
+       && v("hz_tc_mult('mistake', 'bullet', NaN, null, 2000)") > 1.3 && v("hz_tc_mult('inaccuracy', 'rapid', NaN, 'm', 1500)") > v("hz_tc_mult('inaccuracy', 'rapid', NaN, 'o', 1500)"));
+    ok('never past the 3x cap', v("hz_tc_mult('blunder', 'ultrabullet', 0.01, 'm', 2400)") === 3);
+    const r = JSON.parse(v("JSON.stringify(hz_scale_rates({top: 50, second: 40, third: 4, fourth: 0, inaccuracy: 0, mistake: 5, blunder: 1}, {inaccuracy: 2, mistake: 2, blunder: 3}))"));
+    ok('scaling moves the error shares and takes the difference from the top move; the near-best lines and the total stay',
+       Math.abs(r.mistake - 10) < 1e-9 && Math.abs(r.blunder - 3) < 1e-9 && Math.abs(r.top - 43) < 1e-9 && r.second === 40
+       && Math.abs(Object.values(r).reduce((x, y) => x + y, 0) - 100) < 1e-9, r);
+    // the page side: the base time from the time-control text
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const c0 = csrc.indexOf('function tcBaseSeconds('), c1 = csrc.indexOf('\n}\n', c0) + 3;
+    const cc = vm.createContext({}); vm.runInContext(csrc.slice(c0, c1), cc);
+    ok('base time read from lichess and chess.com time-control text: 5+3, ½+0, 1½+1, 3 | 2, 10 min, 30 sec, nothing',
+       vm.runInContext("[tcBaseSeconds('5+3 • Rated • Blitz'), tcBaseSeconds('½+0'), tcBaseSeconds('1½+1'), tcBaseSeconds('3 | 2'), tcBaseSeconds('10 min'), tcBaseSeconds('30 sec'), tcBaseSeconds('')].join()", cc) === '300,30,90,180,600,30,'
+       && /increment: inc \? parseInt\(inc\[1\]\) : null, base: tcBaseSeconds\(tcText\)/.test(csrc));
+    ok('...and the panel falls back to the longest clock this game showed, and scales the mix only with the switch on',
+       /const base = last_clocks\.base > 0 \? last_clocks\.base : game_max_clock_s;/.test(psrc)
+       && /const rates = humanize_rates_now\(fen, true\); \/\/ the mix, scaled to the clock when that is on/.test(psrc));
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('Scale Errors to the Clock: a settings row, registered OFF by default, label and tip in all 14 locales',
+       /id="humanize_tc_scale_checkbox"/.test(gh) && /registerFormElement\('humanize_tc_scale', 'Scale Errors to the Clock:', 'checkbox', false\)/.test(gj)
+       && locs.every(l => l['set.humanize_tc_scale'] && l['set.tip.humanize_tc_scale'])); }
 // ==== END FIX CHECKS ====

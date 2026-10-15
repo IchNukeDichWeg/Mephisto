@@ -302,6 +302,8 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('humanize_target_acc', 'Target Accuracy:', 'input', 0);
         // ON by default (owner's call): the guards can only take a planned mistake away (humanize_pick)
         this.registerFormElement('humanize_guards', 'Humanize Guards:', 'checkbox', true);
+        // opt-in: scales the error shares by time control, clock left and phase (HUMANIZE TIME CONTROL)
+        this.registerFormElement('humanize_tc_scale', 'Scale Errors to the Clock:', 'checkbox', false);
         this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
         this.registerFormElement('clock_pace', 'Pace to Clock:', 'checkbox', false);
         this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);

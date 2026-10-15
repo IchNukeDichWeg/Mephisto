@@ -1891,6 +1891,19 @@
                     </div>
                 </div>
 
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.humanize_tc_scale" class="tooltipped" data-position="right"
+                              data-tooltip="Off by default. Scales the Inaccuracy, Mistake and Blunder shares move by move with the time control, the clock you have left and the game phase, from error rates measured over 2.1 million moves of lichess games (closed and banned accounts removed). Your shares stay the rate of an average blitz game at your Play-like rating. At the same rating, rapid and classical err about as often per move as blitz, bullet up to 1.9x, ultrabullet up to 2.7x. The clock is the big one: under 5% of your time about 1.4x the inaccuracies and 2x the blunders, and far fewer on the first moves at a full clock. The middlegame gets a little more, the opening a little less. Needs a readable clock."><span data-i18n="set.humanize_tc_scale">Scale Errors to the Clock</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="humanize_tc_scale_checkbox" type="checkbox" class="set-cb">
+                        <label for="humanize_tc_scale_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
                 <p data-i18n="set.note.giving_a_share_to_anything" class="set-note">
                     Giving a share to anything below the near-best bands makes the engine search a wider list so a move
                     that bad exists to choose from - that costs search depth. A pure Top + Second mix keeps the cheaper

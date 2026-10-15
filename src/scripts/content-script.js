@@ -3335,7 +3335,20 @@ function scrapeClocks() {
     // chess.com writes "3 | 2" -- PIPE, not plus -- so the plus-only regex never matched there and
     // Clock Mode budgeted every incremental chess.com game as sudden death (audit finding, 2026-08-26).
     const inc = tcText.match(/[\d½¼¾]+\s*[+|]\s*(\d+)/);   // ¾+N is a real lichess time control
-    return {mine, theirs, increment: inc ? parseInt(inc[1]) : null};
+    return {mine, theirs, increment: inc ? parseInt(inc[1]) : null, base: tcBaseSeconds(tcText)};
+}
+
+// The base time in seconds from the same time-control text, or null: lichess "5+3", "½+0", "1½+1";
+// chess.com "3 | 2", "10 min", "30 sec". Humanize's clock tables key on the clock left as a share
+// of it; without it the panel falls back to the longest clock this game has shown.
+function tcBaseSeconds(text) {
+    const t = String(text || '');
+    const sec = t.match(/(\d+)\s*sec/i);
+    if (sec) return parseInt(sec[1]);
+    const m = t.match(/(\d*)([½¼¾]?)\s*(?:[+|]|min\b)/);
+    if (!m || (!m[1] && !m[2])) return null;
+    const v = (m[1] ? parseInt(m[1]) : 0) + ({'½': 0.5, '¼': 0.25, '¾': 0.75}[m[2]] || 0);
+    return v > 0 ? Math.round(v * 60) : null;
 }
 
 let movingWatchdog = null;
