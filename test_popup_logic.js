@@ -3472,4 +3472,21 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('Session Stats times a move from the start of our turn, plus the delay still to come, not the configured think alone',
        /our_turn_at = Date\.now\(\);\s*\/\/ THEIR CLOCK IS FROZEN/.test(psrc) && /const searched = our_turn_at \? Math\.max\(0, Date\.now\(\) - our_turn_at\) : 0;\s*if \(verify\) session_note_move\(Number\.isFinite\(delay\) \? searched \+ delay : \(searched \|\| delay\)\);/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // PV walk: two steps forward from the page's own position, then back twice, must land on the position it started from
+    const a = psrc.indexOf('let panel_line = [];'), code = psrc.slice(a, psrc.indexOf('\n}\n', psrc.indexOf('function pv_walk_forward()')) + 3);
+    const c = vm.createContext({console}); c.self = c; vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    const START = 'r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P4/2PBPN2/PP1N1PPP/R1BQ1RK1 w - - 0 8';
+    vm.runInContext(`var config = {variant: 'chess'}, setup_fen = null, turn = 'w', prev_ply_count = 0, shown = [];
+        var last_eval = {fen: ${JSON.stringify(START)}, lines: [{pv: 'd4c5'}]};
+        var PANEL_ROOT = {getElementById: () => null}; var board = {position() {}};
+        function i18n(k, d) { return d; } function setup_fen_msg() {} function abandon_search() {} function update_turn_badge() {} function render_panel_line() {}
+        function pv_moves(pv) { return String(pv || '').split(' ').filter(Boolean); }
+        function on_new_pos(fen) { shown.push(fen); last_eval = {fen, lines: [{pv: fen.includes(' b ') ? 'e7c5' : 'b2b4'}]}; }
+        ${code}`, c);
+    const r = vm.runInContext(`pv_walk_forward(); pv_walk_forward(); const b1 = pv_walk_back(); const b2 = pv_walk_back(); const b3 = pv_walk_back();
+        JSON.stringify({b1, b2, b3, at: setup_fen, idx: panel_line_idx})`, c);
+    const got = JSON.parse(r);
+    ok('the PV walk steps back to the position it started from on the page, and a further step back is left to the site',
+       got.b1 && got.b2 && got.b3 === false && got.idx === -1 && got.at === START, got); }
 // ==== END FIX CHECKS ====

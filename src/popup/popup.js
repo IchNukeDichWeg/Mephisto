@@ -4464,6 +4464,10 @@ function pv_walk_forward() {
     try {
         const chess = new Chess(config.variant, at);
         if (!chess.move(uci)) return false;
+        // A walk started on the page's own position has no base recorded (only a set-up position or
+        // a move on the panel board sets one), so the last step back -- to where the walk began --
+        // had nowhere to go and did nothing (3.1.321 audit F9). Where it began IS the base.
+        if (panel_line_idx === -1 && !panel_line_base) panel_line_base = at;
         panel_line_push(chess.history().slice(-1)[0], uci, chess.fen());
         panel_line_goto(panel_line.length - 1);
         return true;
