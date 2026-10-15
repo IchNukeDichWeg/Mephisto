@@ -407,8 +407,9 @@ about to get wrong takes longer, as people's do: in blitz a blunder about 1.4x a
 the thinks run in streaks, a fast stretch then a slow one (lag-1 correlation 0.17 in blitz, as measured). No think
 takes more than half the clock left (players' p99 above 5% of the clock).
 
-Timing follows: quick on obvious moves, long thinks in critical positions, an instant reflex *only* for true
-recaptures and forced moves. **Clock Mode** budgets each move off the page clock (~time/30 + 60% of the increment);
+Timing follows: quick on obvious moves and through the opening, long thinks in critical positions, an instant reflex
+for true recaptures, forced moves and your first move (a 100 ms search, the engine's move, no deviation: about 0.7 s
+from their move to yours in 1+0 with the default Move Time, which is most of it). **Clock Mode** budgets each move off the page clock (~time/30 + 60% of the increment);
 **Mirror Time** paces to a share of the opponent's last spend, 50-150% (90 by default), so it can deliberately
 spend more than they do in a long game; being behind on the clock always cuts the target by a further 30%. Both size
 the search to the wait. **Pace to Clock** (off)
