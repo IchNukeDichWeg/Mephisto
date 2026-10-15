@@ -3521,4 +3521,15 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const sync = vm.runInContext('fired', c), queued = timers.length; timers.forEach(f => f());
     ok('leaving 4-player chess switches the engine after the caller returns, and two polls queue one switch',
        sync === 0 && queued === 1 && vm.runInContext('fired', c) === 1 && vm.runInContext('config.engine', c) === 'stockfish-18-nnue', {sync, queued, fired: vm.runInContext('fired', c)}); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // Compare nets asks Maia-1 only for a band it has (F15)
+    const asrc = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8'), esrc = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const bands = esrc.match(/const MAIA_BANDS = (\[[^\]]*\]);/)[1];
+    const a = asrc.indexOf('function nearestMaia1Band('), b = asrc.indexOf('\n}\n', a) + 3;
+    const c = vm.createContext({}); vm.runInContext(`var MAIA_BANDS = ${bands}; ${asrc.slice(a, b)}`, c);
+    const nb = (r) => vm.runInContext(`nearestMaia1Band(${JSON.stringify(r)})`, c);
+    const got = [nb('2600'), nb('2000'), nb('2100'), nb('1500'), nb('600'), nb('x')];
+    ok('Compare nets plays Maia-1 at its nearest shipped band: 2600->2200, 2000->1900, 2100->2200, a band stays itself, 600->1100',
+       JSON.stringify(got) === JSON.stringify(['2200', '1900', '2200', '1500', '1100', '1100']), got);
+    ok('...and the column is labelled with the band it actually played', /const netBand = net\.id === 'maia' \? nearestMaia1Band\(band\) : band;/.test(asrc) && /maiaLevel: netBand,\s*elos: \[netBand, netBand\]/.test(asrc)); }
 // ==== END FIX CHECKS ====

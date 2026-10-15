@@ -1135,6 +1135,13 @@ const CMP_NETS = [
     {id: 'elite-leela', label: 'Elite Leela'},
 ];
 
+// The Maia-1 band closest to a rating (ties go down); a rating that is already a band is itself.
+function nearestMaia1Band(rating) {
+    const r = Number(rating);
+    if (!Number.isFinite(r)) return MAIA_BANDS[0];
+    return MAIA_BANDS.reduce((best, b) => Math.abs(b - r) < Math.abs(best - r) ? b : best, MAIA_BANDS[0]);
+}
+
 async function compareNets() {
     const pos = positions[cursor], atPly = cursor;
     const out = $('an_cmp_out'), meta = $('an_cmp_meta'), btn = $('an_cmp');
@@ -1146,20 +1153,25 @@ async function compareNets() {
     try {
         for (const net of CMP_NETS) {
             meta.textContent = `loading ${net.label}...`;
+            // MAIA-1 HAS ONLY ITS BANDS. The rating comes from a dial that reaches 2600, and a band
+            // with no net behind it came back as a raw "maia-2600.onnx is not in this build" in the
+            // Maia-1 column (3.1.321 audit F15). That column plays the nearest band it has and says so.
+            const netBand = net.id === 'maia' ? nearestMaia1Band(band) : band;
+            const label = netBand === band ? net.label : `${net.label} (${netBand})`;
             // Its own client id per net, or the offscreen host would treat the second init as a
             // replacement for the first and both readers would see the survivor (see WasmEngine).
-            const h = makeEngine(net.id, {...engineOpts(), multipv: 5, maiaLevel: band,
-                                          elos: [band, band]}, `analysis-cmp-${net.id}`);
+            const h = makeEngine(net.id, {...engineOpts(), multipv: 5, maiaLevel: netBand,
+                                          elos: [netBand, netBand]}, `analysis-cmp-${net.id}`);
             try {
                 await h.start();
                 const res = await h.analyse(pos.fen, pos.turn);
                 const raw = (res.lines || []).filter(l => l.pv?.[0]);
-                cols.push({label: net.label, moves: raw.map(l => ({uci: l.pv[0], prob: l.prob}))});
+                cols.push({label, moves: raw.map(l => ({uci: l.pv[0], prob: l.prob}))});
             } catch (e) {
                 // One missing net must not cost the other three: an install that never took the
                 // full archive may not have its weights, and that is worth saying rather than
                 // failing the whole table.
-                cols.push({label: net.label, error: String(e.message || e)});
+                cols.push({label, error: String(e.message || e)});
             } finally {
                 try { h.dispose?.(); } catch (e) { /* */ }
             }
