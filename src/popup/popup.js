@@ -7909,6 +7909,18 @@ function hz_think_ms(tc, phase, frac, est, kind, rnd = Math.random, cls = null, 
     if (z == null) z = hz_think_z(null, tc, rnd);
     return Math.min(mean * Math.exp(s * (z - s / 2)), mean * HZ_THINK_MAX_K);
 }
+
+// THE CLOCK LEFT CAPS ONE THINK. Each move's spend against the clock left before it, same data: with
+// under 5% of the clock a blitz move takes a median 17% of what is left, p90 50%, p99 67%; at 5-20%
+// the p99 is 43-50% (rapid alike). People do burn their clock, but nothing tied the draw to it, and
+// a live 3+0 game drew 2.9 s with 3.6 s left. Half of the clock left is the players' p99 above 5% of
+// the clock and their p90 below it.
+const HZ_THINK_LEFT_MAX = 0.5;
+
+// Pure. The think in ms, capped by the seconds left on our clock (null left: no cap).
+function hz_think_cap(ms, left) {
+    return Number.isFinite(left) ? Math.min(ms, Math.max(0, left) * 1000 * HZ_THINK_LEFT_MAX) : ms;
+}
 // ==== END HUMANIZE THINK ====
 
 // The time-control inputs for this move: the class from the page's own time control when it gave
@@ -7924,7 +7936,7 @@ function humanize_tc_inputs(fen) {
     let frac = Math.max(0, mine) / base;
     if (frac > 0.985) frac = Math.max(frac, 1);
     const inc = last_clocks.increment || 0;
-    return {tc: hz_tc_class(base, inc), frac, phase: hz_phase_of(fen), est: base + 40 * inc};
+    return {tc: hz_tc_class(base, inc), frac, phase: hz_phase_of(fen), est: base + 40 * inc, left: Math.max(0, mine)};
 }
 
 // The phase of the position the move is played from, as the study keyed it: the Divider markers
@@ -8165,7 +8177,7 @@ function humanize_pick(best) {
         const prev = hz_think_rhythm && fullmove > hz_think_rhythm.fullmove ? hz_think_rhythm.z : null;   // a new game starts fresh
         const z = x ? hz_think_z(prev, x.tc) : null;
         if (x) hz_think_rhythm = {z, fullmove};
-        const h = x ? hz_think_ms(x.tc, x.phase, x.frac, x.est, reelOff ? 'normal' : kind, Math.random, cls, z) : null;
+        const h = x ? hz_think_cap(hz_think_ms(x.tc, x.phase, x.frac, x.est, reelOff ? 'normal' : kind, Math.random, cls, z), x.left) : null;
         if (h != null) {
             let travel = 0;
             try { const tm = fresh_timing(); travel = (Number(tm.move_time) || 0) + (Number(tm.move_variance) || 0) / 2; } catch (e) { /* no timing */ }

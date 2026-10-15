@@ -3890,7 +3890,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /hz_match_state = \{debt: hz_match_settle\(hz_match_state\.debt, base, res\.played\), fullmove\};/.test(psrc)
        && /humanize_flag\('humanize_match', HZ_MATCH_DEFAULT\);\n/.test(psrc.slice(psrc.indexOf('const wantsDeep')))
        && /if \(kind !== 'instant' && humanize_flag\('humanize_think_tc', false\)\) \{/.test(psrc)
-       && /return \{tc: hz_tc_class\(base, inc\), frac, phase: hz_phase_of\(fen\), est: base \+ 40 \* inc\};/.test(psrc));
+       && /return \{tc: hz_tc_class\(base, inc\), frac, phase: hz_phase_of\(fen\), est: base \+ 40 \* inc, left: Math\.max\(0, mine\)\};/.test(psrc));
+    ok('...a think never takes more than half the clock left (players\' p99 above 5% of the clock), and the panel caps the drawn think with it',
+       vm.runInContext('hz_think_cap(2894, 3.6)', t) === 1800 && vm.runInContext('hz_think_cap(900, 3.6)', t) === 900
+       && vm.runInContext('hz_think_cap(900, -2)', t) === 0 && vm.runInContext('hz_think_cap(900, undefined)', t) === 900
+       && /const h = x \? hz_think_cap\(hz_think_ms\(x\.tc, x\.phase, x\.frac, x\.est, reelOff \? 'normal' : kind, Math\.random, cls, z\), x\.left\) : null;/.test(psrc));
     const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
     const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
