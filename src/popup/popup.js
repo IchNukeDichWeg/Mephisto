@@ -6753,7 +6753,8 @@ function effective_multipv() {
     let deepest = 0;
     for (const cat of ['second', 'third', 'fourth', 'inaccuracy', 'mistake', 'blunder'])
         if ((rates[cat] || 0) > 0) deepest = Math.max(deepest, t[cat]);
-    const wantsDeep = deepest > HUMANIZE_SHALLOW_REACH_CP;
+    // Err Like Your Rating draws mistakes and blunders on every move, so it always needs the wide list
+    const wantsDeep = deepest > HUMANIZE_SHALLOW_REACH_CP || humanize_flag('humanize_match', false);
     return Math.max(wantsDeep ? HUMANIZE_DEEP_MULTIPV : 6, parseInt(config.multiple_lines) || 1, floor);
 }
 
@@ -6951,6 +6952,7 @@ function roll_humanize_category(fen) {
     const r = Math.random() * 100;
     // a steering target chooses the move from the search's lines, so there is no slice to show yet
     if (humanize_target() && humanize_game_run()) return {r, category: null};
+    if (humanize_flag('humanize_match', false)) return {r, category: null};   // drawn at pick time
     return {r, category: HUMANIZE_LABEL[category_for_roll(r, humanize_rates_now(fen))]};
 }
 
@@ -7710,6 +7712,103 @@ function hz_scale_rates(rates, mult) {
 }
 // ==== END HUMANIZE TIME CONTROL ====
 
+// ==== HUMANIZE MATCH ====
+// ERR LIKE YOUR RATING. Instead of the sliders, each move's quality is drawn from what players of
+// the Play-like rating actually played, graded the way the Game Review grades: by the win% the move
+// gives away, in the lichess bands. The sliders' centipawn bands do not line up with that grading --
+// at level material a 230-377cp "mistake" gives away 20-34% and the Game Review calls it a blunder.
+// Stage C, lichess blitz October 2025, closed and banned accounts removed, non-forced moves, per
+// 200-point band (the band's own players, 37-61k moves each): the share of moves giving away under
+// 2, 2-5, 5-10 (inaccuracy), 10-20 (mistake) and 20 or more (blunder) win%.
+const HZ_HUMAN_DROP = {
+    400: [0.5444, 0.1636, 0.1142, 0.0796, 0.0981], 600: [0.5708, 0.1584, 0.1101, 0.0779, 0.0827],
+    800: [0.5939, 0.1566, 0.1077, 0.0721, 0.0696], 1000: [0.6026, 0.1609, 0.1065, 0.0719, 0.0581],
+    1200: [0.6171, 0.1631, 0.1012, 0.0669, 0.0516], 1400: [0.6274, 0.1623, 0.1002, 0.0638, 0.0463],
+    1600: [0.6344, 0.1602, 0.0976, 0.0634, 0.0444], 1800: [0.6662, 0.1524, 0.0896, 0.0558, 0.0360],
+    2000: [0.6801, 0.1482, 0.0880, 0.0508, 0.0329], 2200: [0.7023, 0.1438, 0.0801, 0.0457, 0.0281],
+    2400: [0.7214, 0.1388, 0.0751, 0.0407, 0.0239], 2600: [0.7359, 0.1335, 0.0723, 0.0376, 0.0207],
+    2800: [0.7634, 0.1271, 0.0599, 0.0321, 0.0175],
+};
+const HZ_DROP_EDGES = [2, 5, 10, 20];   // win% lost: the Game Review's good / inaccuracy / mistake / blunder edges
+const HZ_MATCH_LABEL = ['second line', 'third line', 'inaccuracy', 'mistake', 'blunder'];
+
+// Pure. The five shares (summing to 1) for a rating, interpolated between band centres (a band is
+// 200 points wide, so 1400 means 1400-1599 and sits at 1500). mult scales the error classes the
+// way the clock tables are fitted: inaccuracy on P(>=5), mistake on P(>=10), blunder on P(>=20).
+function hz_match_shares(elo, mult = {}) {
+    const bands = Object.keys(HZ_HUMAN_DROP).map(Number).sort((a, b) => a - b);
+    const e = Math.max(bands[0] + 100, Math.min(bands[bands.length - 1] + 100, Number(elo) || 1500));
+    let lo = bands[0];
+    for (const b of bands) if (b + 100 <= e) lo = b;
+    const hi = bands.find(b => b > lo) ?? lo;
+    const t = hi === lo ? 0 : (e - lo - 100) / (hi - lo);
+    const s = HZ_HUMAN_DROP[lo].map((v, i) => v + t * (HZ_HUMAN_DROP[hi][i] - v));
+    let p1 = (s[2] + s[3] + s[4]) * (mult.inaccuracy || 1);
+    let p2 = (s[3] + s[4]) * (mult.mistake || 1);
+    let p3 = s[4] * (mult.blunder || 1);
+    p1 = Math.min(0.95, p1); p2 = Math.min(p1, p2); p3 = Math.min(p2, p3);
+    const g0 = s[0] / (s[0] + s[1]);
+    return [(1 - p1) * g0, (1 - p1) * (1 - g0), p1 - p2, p2 - p3, p3];
+}
+
+// Pure. The class of a win% drop: 0 under 2, 1 under 5, 2 inaccuracy, 3 mistake, 4 blunder.
+function hz_drop_class(drop) {
+    let c = 0;
+    while (c < HZ_DROP_EDGES.length && drop >= HZ_DROP_EDGES[c]) c++;
+    return c;
+}
+
+// Pure. Roll a class from the shares (r in [0,1)) and pick a candidate in it. cands = [{move, drop}]
+// the guards already allowed, best move included (drop 0). With Maia probabilities the pick is
+// Maia-weighted and a class whose moves Maia gives under 1% counts as empty. An empty class falls to
+// the next milder one -- a list without a move that bad cannot play one -- and class 0 falls back to
+// the best move. -> {cand: the move to play or null for the best, rolled, played}
+function hz_match_pick(cands, shares, r, rnd = Math.random, probs = null) {
+    let rolled = shares.length - 1, acc = 0;
+    for (let i = 0; i < shares.length; i++) { acc += shares[i]; if (r < acc) { rolled = i; break; } }
+    for (let c = rolled; c >= 0; c--) {
+        const pool = cands.filter(x => hz_drop_class(x.drop) === c);
+        if (!pool.length) continue;
+        const cand = probs ? hz_maia_weighted(pool, probs, rnd) : pool[Math.floor(rnd() * pool.length)];
+        if (cand) return {cand, rolled, played: c};
+    }
+    return {cand: null, rolled, played: 0};
+}
+
+// THE ERRORS A POSITION COULD NOT OFFER ARE OWED. A roll for a mistake in a position whose list has
+// no mistake in it (or only ones the guards refuse) plays something milder, so the game comes out
+// cleaner than the rating. The shortfall per error class (expected minus played, this game) is
+// carried and paid back where a move of that class exists: half of it is added to the class's
+// share each move, capped at HZ_DEBT_MAX times the class's own share. Measured without it at 1500:
+// 7.7 / 2.8 / 0.9% inaccuracies / mistakes / blunders against the players' 10.0 / 6.4 / 4.6.
+const HZ_DEBT_PAY = 0.5, HZ_DEBT_MAX = 4;
+
+// Pure. The shares with the debt added to the error classes (the near-best classes give it up).
+function hz_match_with_debt(shares, debt) {
+    if (!debt) return shares;
+    const s = shares.slice();
+    let add = 0;
+    for (let c = 2; c < 5; c++) {
+        const extra = Math.min(HZ_DEBT_MAX * shares[c], Math.max(0, debt[c] || 0) * HZ_DEBT_PAY);
+        s[c] += extra; add += extra;
+    }
+    const good = s[0] + s[1];
+    if (good <= 0) return shares;
+    const k = Math.max(0, good - add) / good;
+    s[0] *= k; s[1] *= k;
+    return s;
+}
+
+// Pure. The debt after a move: each error class owes its share and is paid by playing that class.
+// Only the classes that could not be played are carried; a game without debt starts at null.
+function hz_match_settle(debt, shares, played) {
+    const d = debt ? debt.slice() : [0, 0, 0, 0, 0];
+    for (let c = 2; c < 5; c++) d[c] = Math.max(-1, d[c] + shares[c] - (played === c ? 1 : 0));
+    return d;
+}
+// ==== END HUMANIZE MATCH ====
+
+
 // The time-control inputs for this move: the class from the page's own time control when it gave
 // one (else the longest clock this game has shown, which is the base on move one), how much of it
 // is left, and the Divider phase. null without a readable clock -- then nothing is scaled.
@@ -7801,12 +7900,14 @@ function humanize_pick(best) {
         // has not answered yet (first-use download, a slow pass) -- then the plain mix decides.
         const probs = hz_maia_probs(fen);
         const maiaWhich = !!probs && humanize_flag('humanize_maia', false);
+        let whereK = 1;
         if (probs && humanize_flag('humanize_maia_where', false)) {
             const tau = humanize_thresholds().fourth;
             const pErr = hz_p_err(lines, probs, loss, tau);
             const fullmove = parseInt(String(fen).split(' ')[5]) || 0;
             const w = hz_where_k(hz_where_state, pErr, fullmove);
             hz_where_state = w.state;
+            whereK = w.k;
             rates = hz_scale_rates(rates, {inaccuracy: w.k, mistake: w.k, blunder: w.k});
             console.log(`Humanize where: P_err ${(pErr * 100).toFixed(1)}%, mean ${(w.state.mean * 100).toFixed(1)}%, errors x${w.k.toFixed(2)}`);
         }
@@ -7859,6 +7960,38 @@ function humanize_pick(best) {
                                                   humanize_max_loss(rates, decided));
                 if (free && free.move !== best && !safe(free.line)) category = 'guard held';
             }
+        } else if (humanize_flag('humanize_match', false)) {
+            // ERR LIKE YOUR RATING (HUMANIZE MATCH above): this move's quality is drawn from the
+            // Play-like rating's own spread, scaled to the time control, clock and phase when a
+            // clock is read and by Maia's hazard when that is on. The guards still decide what is
+            // allowed, and nothing past the blunder threshold is played, as in the mix.
+            const elo = config.maia3_elo;
+            const x = humanize_tc_inputs(fen);
+            const m = (cls) => (x ? hz_tc_mult(cls, x.tc, x.frac, x.phase, elo) : 1) * whereK;
+            const base = hz_match_shares(elo, {inaccuracy: m('inaccuracy'), mistake: m('mistake'), blunder: m('blunder')});
+            const fullmove = parseInt(String(fen).split(' ')[5]) || 0;
+            if (!hz_match_state || !(fullmove >= hz_match_state.fullmove)) hz_match_state = {debt: null, fullmove};   // a new game
+            const shares = hz_match_with_debt(base, hz_match_state.debt);
+            const bx = guards && swing >= HZ_PUNISH_CP ? bestExposure() : null;
+            const bestTakes = !!bx && bx.gain > 0 && bx.gain > bx.risk;
+            const keep = guards ? hz_punish_keep(swing, bestTakes) : 1;
+            const takes = (l) => { const t = hz_exposure(Chess, config.variant, fen, l.move); return !!t && t.gain > t.risk; };
+            const wpBest = win_percent(bestCp);
+            const cap = humanize_thresholds().blunder;
+            const allowed = alts.filter(l => loss(l) <= cap && safe(l) && (keep === 1 || takes(l)));
+            const cands = [bestLine, ...allowed].map(l => ({move: l.move, drop: Math.max(0, wpBest - win_percent(line_cp_ours(l))), line: l}));
+            const res = (Math.random() < keep) ? hz_match_pick(cands, shares, r / 100, Math.random, maiaWhich ? probs : null)
+                                               : {cand: null, rolled: 0, played: 0};
+            hz_match_state = {debt: hz_match_settle(hz_match_state.debt, base, res.played), fullmove};
+            if (res.cand && res.cand.move !== best) {
+                cand = res.cand;
+                category = HZ_MATCH_LABEL[res.played];
+            } else if (guards && res.rolled > 1 && res.played < res.rolled && alts.some(l => !allowed.includes(l)
+                       && hz_drop_class(Math.max(0, wpBest - win_percent(line_cp_ours(l)))) === res.rolled)) {
+                category = 'guard held';
+            }
+            console.log(`Humanize match ${elo}: rolled ${HZ_MATCH_LABEL[res.rolled]} (${(shares[res.rolled] * 100).toFixed(1)}%), `
+                + (cand ? `played ${cand.move} at -${cand.drop.toFixed(1)}% win` : `played ${best}`));
         } else {
             // Each non-top category is a (lo, hi] centipawn band whose edges the user sets in the options
             // page (Move-Quality Thresholds); pick a random alternative whose loss falls in the rolled
@@ -10535,6 +10668,7 @@ async function safety_human_ask(fen) {
 // reading at theirs. Asked at search start on our turn; humanize_pick reads whatever has arrived.
 const hz_maia_cache = new Map();   // fen -> Map(uci -> p)
 let hz_where_state = null;          // B2's running mean, see hz_where_k
+let hz_match_state = null;          // Err Like Your Rating's owed errors this game, see hz_match_settle
 function hz_maia_probs(fen) { return hz_maia_cache.get(fen) || null; }
 function request_humanize_maia(fen) {
     if (!config.humanize) return;

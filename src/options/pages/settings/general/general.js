@@ -310,6 +310,8 @@ class GeneralSettings extends SettingsPage {
         // opt-in, Stage B: Maia-3 at the Play-like rating picks the deviation (B1) and where (B2)
         this.registerFormElement('humanize_maia', 'Human-Like Mistakes:', 'checkbox', false);
         this.registerFormElement('humanize_maia_where', 'Mistakes Where People Make Them:', 'checkbox', false);
+        // opt-in: each move's quality from the Play-like rating's measured spread (HUMANIZE MATCH)
+        this.registerFormElement('humanize_match', 'Err Like Your Rating:', 'checkbox', false);
         this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
         this.registerFormElement('clock_pace', 'Pace to Clock:', 'checkbox', false);
         this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);

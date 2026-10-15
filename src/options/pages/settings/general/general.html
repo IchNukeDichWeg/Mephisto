@@ -1940,6 +1940,19 @@
                     </div>
                 </div>
 
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.humanize_match" class="tooltipped" data-position="right"
+                              data-tooltip="Off by default. Replaces the move-mix sliders with what players of your Play Like Rating actually do: each move's quality is drawn from 2.1 million moves of lichess blitz (October 2025), graded the way the Game Review grades (win% given away: inaccuracy 5, mistake 10, blunder 20). With a readable clock it also follows the time control, the clock left and the phase. A mistake the position cannot offer is owed and played later where one exists. The guards still apply and hold back most blunders, because a person's blunder is usually a hung piece. Simulated at 1500: 10.0% inaccuracies, 5.4% mistakes, 1.9% blunders against the players' 10.0 / 6.4 / 4.6; with the guards off 9.8 / 7.3 / 3.4. The engine searches a 20-line list, which costs depth."><span data-i18n="set.humanize_match">Err Like Your Rating</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="humanize_match_checkbox" type="checkbox" class="set-cb">
+                        <label for="humanize_match_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
                 <p data-i18n="set.note.giving_a_share_to_anything" class="set-note">
                     Giving a share to anything below the near-best bands makes the engine search a wider list so a move
                     that bad exists to choose from - that costs search depth. A pure Top + Second mix keeps the cheaper

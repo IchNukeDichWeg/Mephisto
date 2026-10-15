@@ -800,7 +800,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     m.self = m;
     vm.createContext(m);
     vm.runInContext('var config = {};\nfunction humanize_rates() { return {}; }\n'
-        + 'function humanize_thresholds() { return {}; }\n'
+        + 'function humanize_thresholds() { return {}; }\nvar flags = {};\nfunction humanize_flag(k, d) { return k in flags ? flags[k] : d; }\n'
         + pj.slice(pj.indexOf('const HUMANIZE_DEEP_MULTIPV'), pj.indexOf('// Ordered worst-to')), m);
     const mpv = (cfg) => { m.config = cfg; return m.effective_multipv(); };
     eq('nothing switched on: the slider is the line count', mpv({multiple_lines: 1}), 1);
@@ -808,6 +808,9 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     eq('nor can the complexity clock measure a gap', mpv({multiple_lines: 1, complexity_clock: true}), 2);
     eq('...and a slider set higher still wins', mpv({multiple_lines: 5, contempt: true}), 5);
     eq('humanize keeps its own deeper list', mpv({multiple_lines: 1, humanize: true, contempt: true}), 6);
+    m.flags = {humanize_match: true};
+    eq('Err Like Your Rating draws mistakes on every move, so it always asks for the wide list', mpv({multiple_lines: 1, humanize: true}), 20);
+    m.flags = {};
     // ...and NONE of that reaches the board: the arrows and the list follow the slider, so raising
     // the engine's line count for a feature cannot quietly put five more arrows on a board set to one.
     // The placeholder the engine sends for a second line it has not found yet ("multipv 2 ... pv" with
@@ -3793,6 +3796,46 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
     ok('Human-Like Mistakes and Mistakes Where People Make Them: settings rows, OFF by default, label and tip in all 14 locales',
        ['humanize_maia', 'humanize_maia_where'].every(k => new RegExp(`id="${k}_checkbox"`).test(gh)
+           && new RegExp(`registerFormElement\\('${k}', '[^']+:', 'checkbox', false\\)`).test(gj)
+           && locs.every(l => l['set.' + k] && l['set.tip.' + k]))); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // Err Like Your Rating: the real HUMANIZE MATCH block (it calls hz_maia_weighted from the guards block)
+    const sl = (a, b) => psrc.slice(psrc.indexOf(a), psrc.indexOf(b));
+    const g = vm.createContext({});
+    vm.runInContext(sl('// ==== HUMANIZE GUARDS ====', '// ==== END HUMANIZE GUARDS ====') + sl('// ==== HUMANIZE MATCH ====', '// ==== END HUMANIZE MATCH ===='), g);
+    const v = (e) => JSON.parse(vm.runInContext(`JSON.stringify(${e})`, g));
+    const s15 = v('hz_match_shares(1500)'), s16 = v('hz_match_shares(1600)'), h = v('HZ_HUMAN_DROP');
+    const near = (a, b, t = 1e-9) => Math.abs(a - b) < t;
+    ok('match shares: 1500 is the 1400-1599 band as measured, 1600 halfway to the next band, every set sums to 1',
+       s15.every((x, i) => near(x, h[1400][i])) && s16.every((x, i) => near(x, (h[1400][i] + h[1600][i]) / 2))
+       && [s15, s16, v('hz_match_shares(300)'), v('hz_match_shares(3200)')].every(a => near(a.reduce((x, y) => x + y, 0), 1)), {s15, s16});
+    const b2 = v('hz_match_shares(1500, {blunder: 2})');
+    ok('...multipliers act on the cumulative rates the tables are fitted on: doubling P(blunder) leaves P(mistake or worse) and the good moves alone',
+       near(b2[4], 2 * h[1400][4]) && near(b2[3] + b2[4], h[1400][3] + h[1400][4]) && near(b2[0], h[1400][0]) && near(b2[2], h[1400][2]), b2);
+    ok('drop classes on the Game Review edges: 1.99 good, 2 / 5 / 10 / 20 open the next class',
+       v('[1.99, 2, 4.99, 5, 9.99, 10, 19.99, 20, 60].map(hz_drop_class)').join() === '0,1,1,2,2,3,3,4,4');
+    v("(globalThis.C = [{move:'a', drop:0}, {move:'b', drop:3}, {move:'c', drop:7}, {move:'d', drop:30}], 0)");
+    const sh = '[0.2, 0.2, 0.2, 0.2, 0.2]';
+    ok('match pick: the roll picks the class, an empty class (no mistake in the list) falls to the next milder one',
+       v(`hz_match_pick(C, ${sh}, 0.9, () => 0).cand.move`) === 'd' && v(`hz_match_pick(C, ${sh}, 0.5, () => 0).cand.move`) === 'c'
+       && v(`hz_match_pick(C, ${sh}, 0.7, () => 0)`).played === 2 && v(`hz_match_pick(C, ${sh}, 0.7, () => 0)`).rolled === 3
+       && v(`hz_match_pick(C, ${sh}, 0.1, () => 0).cand.move`) === 'a');
+    const d1 = v(`hz_match_settle(null, ${sh}, 2)`), d2 = v(`hz_match_settle(hz_match_settle(null, ${sh}, 0), ${sh}, 0)`);
+    ok('debt: a played inaccuracy pays its class, unplayed errors accumulate their shares',
+       near(d1[2], -0.8) && near(d1[3], 0.2) && near(d2[4], 0.4) && d1[0] === 0, {d1, d2});
+    const w = v(`hz_match_with_debt([0.6, 0.2, 0.1, 0.06, 0.04], [0, 0, 0, 1, 10])`);
+    ok('...owed errors raise their class (half the debt, at most 4x its share) and come out of the good moves',
+       near(w[3], 0.06 + 0.5) === false && near(w[3], 0.06 + Math.min(0.24, 0.5)) && near(w[4], 0.04 + 0.16) && near(w[2], 0.1)
+       && near(w.reduce((a, b) => a + b, 0), 1) && w[0] / w[1] - 3 < 1e-9, w);
+    ok('...wired: the match branch sits ahead of the slider mix, owes and pays errors per game, and asks for the wide list',
+       /\} else if \(humanize_flag\('humanize_match', false\)\) \{/.test(psrc)
+       && /hz_match_state = \{debt: hz_match_settle\(hz_match_state\.debt, base, res\.played\), fullmove\};/.test(psrc)
+       && /humanize_flag\('humanize_match', false\);\n/.test(psrc.slice(psrc.indexOf('const wantsDeep'))));
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('Err Like Your Rating: a settings row, OFF by default, label and tip in all 14 locales',
+       ['humanize_match'].every(k => new RegExp(`id="${k}_checkbox"`).test(gh)
            && new RegExp(`registerFormElement\\('${k}', '[^']+:', 'checkbox', false\\)`).test(gj)
            && locs.every(l => l['set.' + k] && l['set.tip.' + k]))); }
 // ==== END FIX CHECKS ====
