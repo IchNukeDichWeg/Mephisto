@@ -7872,11 +7872,25 @@ const HZ_THINK_MAX_K = 6;     // the clock caps sit above this anyway
 const HZ_THINK_CLASS = {bullet: [1.00, 1.14, 1.24, 1.30, 1.37], blitz: [0.90, 1.14, 1.28, 1.39, 1.41],
                         rapid: [0.88, 1.14, 1.28, 1.37, 1.33], classical: [0.89, 1.15, 1.26, 1.30, 1.19]};
 
+// RHYTHM. A person's thinks run in streaks, a fast stretch, then a slow one: the lag-1 correlation
+// of one player's log spend (table-normalised, consecutive non-forced moves) is 0.20 bullet, 0.17
+// blitz, 0.23 rapid, 0.33 classical. The residual draw carries that much of the last move's.
+const HZ_THINK_RHO = {bullet: 0.20, blitz: 0.17, rapid: 0.23, classical: 0.33};
+
+// Pure. The next residual z: rho of the previous one plus fresh noise, still standard normal.
+function hz_think_z(prev, tc, rnd = Math.random) {
+    const u = rnd() || Number.MIN_VALUE, v = rnd();
+    const e = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    const rho = prev == null ? 0 : (HZ_THINK_RHO[tc === 'ultrabullet' ? 'bullet' : tc] || 0);
+    return rho * prev + Math.sqrt(1 - rho * rho) * e;
+}
+
 // Pure. The think for one move in ms, or null when the time control is not one the table has.
 // est = base + 40 x increment in seconds; frac = clock left / base; kind from humanize_pick
 // ('normal' for the opening reel-off, which the phase table already makes quick); cls = the drop
-// class of the move about to be played (hz_drop_class), null to leave the think uncoupled.
-function hz_think_ms(tc, phase, frac, est, kind, rnd = Math.random, cls = null) {
+// class of the move about to be played (hz_drop_class), null to leave the think uncoupled; z = the
+// residual draw (hz_think_z), null for a fresh one.
+function hz_think_ms(tc, phase, frac, est, kind, rnd = Math.random, cls = null, z = null) {
     const key = tc === 'ultrabullet' ? 'bullet' : tc;
     const t = HZ_THINK_MEAN[key];
     if (!t || !(est > 0)) return null;
@@ -7888,8 +7902,7 @@ function hz_think_ms(tc, phase, frac, est, kind, rnd = Math.random, cls = null) 
     const kindVar = lf.reduce((a, v) => a + (v - mu) ** 2, 0) / lf.length;
     const sd = HZ_THINK_SD[tc] || 1;
     const s = Math.sqrt(Math.max(0.04, sd * sd - kindVar));
-    const u = rnd() || Number.MIN_VALUE, v = rnd();
-    const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    if (z == null) z = hz_think_z(null, tc, rnd);
     return Math.min(mean * Math.exp(s * (z - s / 2)), mean * HZ_THINK_MAX_K);
 }
 // ==== END HUMANIZE THINK ====
@@ -8144,7 +8157,11 @@ function humanize_pick(best) {
         const x = humanize_tc_inputs(fen);
         const played = lines.find(l => l.move === move);
         const cls = played ? hz_drop_class(Math.max(0, win_percent(bestCp) - win_percent(line_cp_ours(played)))) : 0;
-        const h = x ? hz_think_ms(x.tc, x.phase, x.frac, x.est, reelOff ? 'normal' : kind, Math.random, cls) : null;
+        const fullmove = parseInt(String(fen).split(' ')[5]) || 0;
+        const prev = hz_think_rhythm && fullmove > hz_think_rhythm.fullmove ? hz_think_rhythm.z : null;   // a new game starts fresh
+        const z = x ? hz_think_z(prev, x.tc) : null;
+        if (x) hz_think_rhythm = {z, fullmove};
+        const h = x ? hz_think_ms(x.tc, x.phase, x.frac, x.est, reelOff ? 'normal' : kind, Math.random, cls, z) : null;
         if (h != null) {
             let travel = 0;
             try { const tm = fresh_timing(); travel = (Number(tm.move_time) || 0) + (Number(tm.move_variance) || 0) / 2; } catch (e) { /* no timing */ }
@@ -10770,6 +10787,7 @@ async function safety_human_ask(fen) {
 // reading at theirs. Asked at search start on our turn; humanize_pick reads whatever has arrived.
 const hz_maia_cache = new Map();   // fen -> Map(uci -> p)
 let hz_where_state = null;          // B2's running mean, see hz_where_k
+let hz_think_rhythm = null;         // Think Like Your Time Control's last residual draw, see hz_think_z
 let hz_match_state = null;          // Err Like Your Rating's owed errors this game, see hz_match_settle
 function hz_maia_probs(fen) { return hz_maia_cache.get(fen) || null; }
 function request_humanize_maia(fen) {

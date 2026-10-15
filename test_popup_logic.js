@@ -3855,9 +3855,16 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...follows the move it is about to play: a blunder sits 1.41x, a good move 0.90x, an uncoupled call neither, ultrabullet reads bullet',
        Math.abs(th(4) / th('null') - 1.41) < 1e-9 && Math.abs(th(0) / th('null') - 0.90) < 1e-9
        && Math.abs(vm.runInContext("hz_think_ms('ultrabullet', 'm', 0.6, 30, 'normal', () => 0.5, 4) / hz_think_ms('ultrabullet', 'm', 0.6, 30, 'normal', () => 0.5)", t) - 1.37) < 1e-9);
+    const chain = vm.runInContext("(() => { let a = 11; const rnd = () => { a = (a * 1103515245 + 12345) % 2147483648; return a / 2147483648; }; const zs = []; let z = null; for (let i = 0; i < 20000; i++) zs.push(z = hz_think_z(z, 'blitz', rnd)); const m = zs.reduce((x, y) => x + y, 0) / zs.length; let v = 0, c = 0; for (let i = 0; i < zs.length; i++) { v += (zs[i] - m) ** 2; if (i) c += (zs[i] - m) * (zs[i - 1] - m); } return {r: c / v, v: v / zs.length}; })()", t);
+    ok('rhythm: a blitz chain of thinks keeps the measured 0.17 of the last draw and stays standard normal; a fresh game starts with no memory',
+       Math.abs(chain.r - 0.17) < 0.03 && Math.abs(chain.v - 1) < 0.05
+       && vm.runInContext("hz_think_z(null, 'blitz', () => 0.5) === hz_think_z(null, 'classical', () => 0.5)", t), chain);
+    ok('...wired: one residual per move, carried while the fullmove count climbs',
+       /const prev = hz_think_rhythm && fullmove > hz_think_rhythm\.fullmove \? hz_think_rhythm\.z : null;/.test(psrc)
+       && /hz_think_ms\(x\.tc, x\.phase, x\.frac, x\.est, reelOff \? 'normal' : kind, Math\.random, cls, z\)/.test(psrc));
     ok('...wired with the drop class of the move humanize_pick settled on',
        /const cls = played \? hz_drop_class\(Math\.max\(0, win_percent\(bestCp\) - win_percent\(line_cp_ours\(played\)\)\)\) : 0;/.test(psrc)
-       && /hz_think_ms\(x\.tc, x\.phase, x\.frac, x\.est, reelOff \? 'normal' : kind, Math\.random, cls\)/.test(psrc));
+       && /hz_think_ms\(x\.tc, x\.phase, x\.frac, x\.est, reelOff \? 'normal' : kind, Math\.random, cls, z\)/.test(psrc));
     ok('...wired: the match branch sits ahead of the slider mix, owes and pays errors per game, and asks for the wide list; the think replaces the draw only with a clock read',
        /\} else if \(humanize_flag\('humanize_match', false\)\) \{/.test(psrc)
        && /hz_match_state = \{debt: hz_match_settle\(hz_match_state\.debt, base, res\.played\), fullmove\};/.test(psrc)
