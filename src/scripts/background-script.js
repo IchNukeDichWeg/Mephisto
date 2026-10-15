@@ -1750,12 +1750,41 @@ async function buildPieces(pieceSet, pieceExt) {
 const attached = new Set();
 const lastPos = new Map(); // tabId -> {x, y}: where the synthetic cursor was left after the last click
 const cdpSleep = (ms) => new Promise(r => setTimeout(r, ms));
+// A mouseMoved IS NOT ACKED UNTIL THE PAGE PAINTS A FRAME. Blink hands pointer-move events to the
+// page in step with its rendering, so a tab that is not rendering (hidden, minimised, or covered by
+// another window -- the window state a user is in when they are "not on the browser screen") never
+// answers one. Measured on Chrome for Testing 152: against a background tab Input.dispatchMouseEvent
+// mouseMoved sat for the whole 4 s test with no reply, while mousePressed/mouseReleased on the same
+// tab returned in 5-13 ms. Nothing ever rejected it, so an `await` on it parked the click sequence
+// until the tab was shown again -- and then the stale path, press and release all fired into
+// whatever the board looked like by then. Every retry/watchdog cycle of the caller added one more
+// unanswered command to the browser's per-session queue.
+//
+// So a move gets this long to answer and no longer. The click still goes: press and release ack on
+// their own, and the move that was asked for is not worth waiting on a frame for.
+const CDP_MOVE_ACK_MS = 1000;
+// Tabs with a mouseMoved still unanswered. While a tab is in here NO further move is sent to it
+// (cdpMove returns at once), which caps the unanswered commands at ONE per tab instead of one per
+// retry. Cleared when the late answer finally arrives or the debugger detaches.
+const moveStalled = new Set();
+// A click or drag is stale this long after the panel stopped waiting for it (CLICK_TIMEOUT_MS =
+// 3000 in popup.js) plus its own travel. Past that the move has been verified, retried or dropped
+// by the page, and playing the rest of an old sequence would click a board it was never aimed at.
+const CDP_CLICK_GRACE_MS = 3000;
 const cdpDispatch = (target, params, paced = false, retried = false) => new Promise((resolve, reject) => {
   const t0 = Date.now();
+  const isMove = params.type === 'mouseMoved';
+  let gaveUp = false;
   cdpPending++;
   const hungAt = setTimeout(() => { cdpHung++; }, CDP_HUNG_MS);
+  const giveUp = isMove ? setTimeout(() => {
+    gaveUp = true;
+    if (target.tabId) moveStalled.add(target.tabId);
+    resolve('stalled');
+  }, CDP_MOVE_ACK_MS) : null;
   chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', params, () => {
     clearTimeout(hungAt);
+    clearTimeout(giveUp);
     cdpPending--;
     const dt = Date.now() - t0;
     cdpCalls++; cdpTotalMs += dt; if (dt > cdpWorstMs) cdpWorstMs = dt;
@@ -1766,6 +1795,8 @@ const cdpDispatch = (target, params, paced = false, retried = false) => new Prom
     // worker ratcheted itself into never drawing a cursor path again.
     if (paced) { pacedCalls++; pacedTotalMs += dt; }
     const err = chrome.runtime.lastError;
+    if (isMove && target.tabId) moveStalled.delete(target.tabId);   // it answered, late or not
+    if (gaveUp) return;   // the caller moved on a second ago; lastError is read above so Chrome does not log it
     // OUR SET SAID ATTACHED, CHROME SAYS NOT. After a worker restart the reconciliation below counts
     // every tab with ANY debugger on it -- DevTools included -- as ours, so cdpAttach skipped the
     // attach and every click of the session failed with "Debugger is not attached". Believe Chrome:
@@ -1845,14 +1876,18 @@ function bezPoint(u, p0, c1, c2, p3) {
     return v * v * v * p0 + 3 * v * v * u * c1 + 3 * v * u * u * c2 + u * u * u * p3;
 }
 
-async function cdpMove(target, fromX, fromY, x, y, travelMs, held = false) {
+// Returns true when the whole path was drawn, false when it was cut short (the tab stopped
+// answering moves, or `expired()` says the click is stale). The caller presses regardless: a click
+// without its cursor path is the old hidden-tab behaviour, a click that never happens is the bug.
+async function cdpMove(target, fromX, fromY, x, y, travelMs, held = false, expired = () => false) {
   // `held` = the left button is already down and this is the middle of a DRAG. Chrome only treats a
   // move as part of a drag when the event says the button is down (button + the buttons bitmask);
   // sent as a plain hover it reads as the cursor passing over the square and the drop never lands.
   // travelMs 0 means the caller wants no path at all (a hidden tab -- see dispatchSimulateClick).
   // Honour that literally: every step here is an awaited round-trip, and the minimum of three was
   // costing whole seconds in exactly the case the caller is trying to keep cheap.
-  if (travelMs <= 0) return;
+  if (travelMs <= 0) return true;
+  if (moveStalled.has(target.tabId)) return false;   // this tab is not answering moves: send it none
   const dist = Math.hypot(x - fromX, y - fromY);
   // Floor of ONE, not three. Every step is an awaited round trip through this worker, and this
   // worker is not scheduled as user-interactive -- measured under load, a click reported workerMs
@@ -1908,6 +1943,7 @@ async function cdpMove(target, fromX, fromY, x, y, travelMs, held = false) {
   // more -- and when the worker is idle the motion is spread exactly as before.
   const startedAt = Date.now();
   for (let i = 1; i <= steps; i++) {
+    if (expired()) return false;
     const t = i / steps;
     // `u` is the Bezier PARAMETER, not arc length, so the speed along the curve is the ease's
     // speed modulated a little by the curve's own parameterisation. With control points this close
@@ -1931,11 +1967,13 @@ async function cdpMove(target, fromX, fromY, x, y, travelMs, held = false) {
     }
     mx += (Math.random() - 0.5) * 1.5;
     my += (Math.random() - 0.5) * 1.5;
-    await cdpDispatch(target, held ? {type: 'mouseMoved', x: mx, y: my, button: 'left', buttons: 1}
-                                   : {type: 'mouseMoved', x: mx, y: my, button: 'none'}, true);
+    const r = await cdpDispatch(target, held ? {type: 'mouseMoved', x: mx, y: my, button: 'left', buttons: 1}
+                                             : {type: 'mouseMoved', x: mx, y: my, button: 'none'}, true);
+    if (r === 'stalled') return false;   // not rendering: drawing more of the path only queues more
     const behind = (startedAt + travelMs * t) - Date.now();
     if (behind > 0) await cdpSleep(behind);
   }
+  return true;
 }
 
 // How long to let the page settle after the debugger infobar appears. Only ever paid once per tab.
@@ -1960,15 +1998,19 @@ function cdpClick(tabId, x, y, travelMs = 0) {
         // The DevTools protocol keeps command order per session, so a snap click's events can be
         // issued in ONE task and awaited together instead of one at a time. Only when the path is a
         // single step: a real path has to be PACED, and pacing is what the awaits are for.
+        const deadline = Date.now() + Math.max(0, travelMs) + CDP_CLICK_GRACE_MS;
+        const expired = () => Date.now() > deadline;
         if (travelMs <= CDP_SNAP_MS) {
-          const evts = travelMs > 0 ? [{type: 'mouseMoved', x, y, button: 'none'}] : [];
+          const evts = (travelMs > 0 && !moveStalled.has(tabId)) ? [{type: 'mouseMoved', x, y, button: 'none'}] : [];
           evts.push({...opts, type: 'mousePressed'}, {...opts, type: 'mouseReleased'});
           lastPos.set(tabId, {x, y});
           await Promise.all(evts.map(e => cdpDispatch(target, e)));
           return resolve();
         }
-        await cdpMove(target, from.x, from.y, x, y, Math.max(0, travelMs));
+        await cdpMove(target, from.x, from.y, x, y, Math.max(0, travelMs), false, expired);
         lastPos.set(tabId, {x, y});
+        // The path may have been parked on a hidden tab until now; see CDP_CLICK_GRACE_MS.
+        if (expired()) throw new Error('click expired before it was pressed');
         await cdpDispatch(target, {...opts, type: 'mousePressed'});
         await cdpDispatch(target, {...opts, type: 'mouseReleased'});
         resolve();
@@ -1988,20 +2030,41 @@ function cdpDrag(tabId, x1, y1, x2, y2, travelMs = 0) {
     if (!tabId) return reject(new Error('no tabId'));
     const target = {tabId};
     const send = async () => {
+      let pressed = false, released = false;
       try {
         const from = lastPos.get(tabId) || {x: x1 - 40 - Math.random() * 40, y: y1 - 30 - Math.random() * 30};
+        const deadline = Date.now() + Math.max(0, travelMs) + CDP_CLICK_GRACE_MS;
+        const expired = () => Date.now() > deadline;
         // Reach for the piece, then carry it: the budget is split so the whole gesture still costs
         // what the caller's move-time budget says, exactly like the two clicks it replaces.
         const reach = Math.max(0, travelMs) * 0.35, carry = Math.max(0, travelMs) * 0.65;
-        await cdpMove(target, from.x, from.y, x1, y1, reach);
+        await cdpMove(target, from.x, from.y, x1, y1, reach, false, expired);
+        if (expired()) throw new Error('drag expired before it was pressed');
+        pressed = true;
         await cdpDispatch(target, {type: 'mousePressed', x: x1, y: y1, button: 'left', buttons: 1, clickCount: 1});
-        await cdpMove(target, x1, y1, x2, y2, carry, true);
-        // Land ON the destination before releasing: the eased path stops a hair short of it.
-        await cdpDispatch(target, {type: 'mouseMoved', x: x2, y: y2, button: 'left', buttons: 1});
-        await cdpDispatch(target, {type: 'mouseReleased', x: x2, y: y2, button: 'left', buttons: 0, clickCount: 1});
-        lastPos.set(tabId, {x: x2, y: y2});
+        await cdpMove(target, x1, y1, x2, y2, carry, true, expired);
+        // A STALE DRAG LETS GO WHERE IT PICKED UP, never at the destination: dropping a piece on a
+        // square for a move the page has already given up on would play it.
+        const [rx, ry] = expired() ? [x1, y1] : [x2, y2];
+        // Land ON the destination before releasing: the eased path stops a hair short of it. Skipped
+        // for a tab that stopped answering moves -- the release carries the coordinates itself.
+        if (!expired() && !moveStalled.has(tabId)) {
+          await cdpDispatch(target, {type: 'mouseMoved', x: x2, y: y2, button: 'left', buttons: 1});
+        }
+        released = true;
+        await cdpDispatch(target, {type: 'mouseReleased', x: rx, y: ry, button: 'left', buttons: 0, clickCount: 1});
+        lastPos.set(tabId, {x: rx, y: ry});
         resolve();
-      } catch (e) { reject(e); }
+      } catch (e) {
+        // NEVER LEAVE THE BUTTON DOWN. A throw between press and release (debugger detached, a
+        // command rejected) used to strand the page with a held button and a half-finished drag.
+        // Best effort, at the origin so nothing is dropped anywhere.
+        if (pressed && !released) {
+          cdpDispatch(target, {type: 'mouseReleased', x: x1, y: y1, button: 'left', buttons: 0, clickCount: 1})
+            .catch(() => { /* already gone */ });
+        }
+        reject(e);
+      }
     };
     cdpAttach(tabId).then(send, reject);
   });
@@ -2025,7 +2088,7 @@ function cdpAttach(tabId) {
   });
 }
 chrome.debugger.onDetach?.addListener((src) => {
-  if (src.tabId) { attached.delete(src.tabId); lastPos.delete(src.tabId); puzzleNetTabs.delete(src.tabId); }
+  if (src.tabId) { attached.delete(src.tabId); lastPos.delete(src.tabId); puzzleNetTabs.delete(src.tabId); moveStalled.delete(src.tabId); }
 });
 
 // --- reading puzzle payloads over the debugger -----------------------------------------------------

@@ -2851,11 +2851,99 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         sendCommand: (t, m, p, cb) => { chromeStub.runtime.lastError = really ? null : {message: 'Debugger is not attached to the tab with id: 5.'}; if (really) sent++; cb(); chromeStub.runtime.lastError = null; }}};
     const run = new Function('chrome', 'setTimeout', 'clearTimeout',
         'let cdpPending = 0, cdpHung = 0, cdpCalls = 0, cdpTotalMs = 0, cdpWorstMs = 0, pacedCalls = 0, pacedTotalMs = 0;'
-        + 'const CDP_HUNG_MS = 1e9, ATTACH_SETTLE_MS = 0; const attached = new Set([5]);' + att + disp
+        + 'const CDP_HUNG_MS = 1e9, CDP_MOVE_ACK_MS = 1e9, ATTACH_SETTLE_MS = 0; const attached = new Set([5]), moveStalled = new Set();' + att + disp
         + 'return cdpDispatch({tabId: 5}, {type: "mousePressed"}).then(() => attached.has(5));');
     const stillAttached = await run(chromeStub, (f, ms) => setTimeout(f, ms), clearTimeout);
     ok('a stale "attached" tab re-attaches and the click goes through', really && sent === 1 && stillAttached, {really, sent});
 })().catch(e => { fails++; console.log('FAIL cdp reattach check threw: ' + (e && e.stack || e)); });
+(async () => {
+    // A mouseMoved is only answered when the page paints a frame, so a tab that is not rendering (hidden,
+    // minimised, covered) never answers one -- measured against a background tab on Chrome for Testing
+    // 152, where mousePressed/mouseReleased on the same tab returned in 5-13 ms. Nothing rejected it, so
+    // the click sequence parked until the window came back and then played the stale rest of itself.
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const region = b.slice(b.indexOf('const attached = new Set();'), b.indexOf('chrome.debugger.onDetach?.addListener'))
+        .replace('CDP_MOVE_ACK_MS = 1000', 'CDP_MOVE_ACK_MS = ' + 'ACKMS')
+        .replace('CDP_CLICK_GRACE_MS = 3000', 'CDP_CLICK_GRACE_MS = 40')
+        .replace('ATTACH_SETTLE_MS = 450', 'ATTACH_SETTLE_MS = 0');
+    ok('the sliced region really holds the click path (guards against the slice silently emptying)',
+       /function cdpClick\(/.test(region) && /function cdpDrag\(/.test(region) && /function cdpMove\(/.test(region) && /CDP_MOVE_ACK_MS = ACKMS/.test(region));
+    // A fake debugger. `hover` says how a mouseMoved behaves: 'never' (hidden tab: no reply),
+    // 'slow' (answers after 150 ms), or 'fast'. Everything else answers at once. Late replies are real timers.
+    function rig(hover, ackMs = 60) {
+        const sent = [], chromeStub = {runtime: {lastError: null}, debugger: {
+            attach: (t, v, cb) => cb(),
+            sendCommand: (t, m, p, cb) => {
+                sent.push(p.type + (p.type === 'mouseMoved' && p.buttons ? '*' : ''));
+                if (p.type === 'mouseMoved' && hover === 'never') return;
+                setTimeout(cb, p.type === 'mouseMoved' && hover === 'slow' ? 150 : 0);
+            }}};
+        const api = new Function('chrome', 'setTimeout', 'clearTimeout',
+            'let cdpPending = 0, cdpHung = 0, cdpCalls = 0, cdpTotalMs = 0, cdpWorstMs = 0;'
+            + 'const CDP_HUNG_MS = 1e9;' + region.replace('ACKMS', ackMs)
+            + 'return {cdpClick, cdpDrag, moveStalled, pending: () => cdpPending};')(chromeStub, quiet, clearTimeout);
+        return {sent, ...api};
+    }
+    // timers are unref'd: a never-answered command legitimately leaves its 1e9 ms "hung" timer behind
+    const quiet = (f, ms) => { const t = setTimeout(f, ms); t.unref && t.unref(); return t; };
+    const settle = (p) => Promise.race([p.then(() => 'resolved', e => 'rejected: ' + e.message), new Promise(r => setTimeout(() => r('HUNG'), 1500))]);
+
+    let r = rig('never');
+    const out1 = await settle(r.cdpClick(9, 100, 100, 200));
+    ok('a click into a tab that never answers a mouseMoved still settles, and still presses and releases',
+       out1 === 'resolved' && r.sent.includes('mousePressed') && r.sent.includes('mouseReleased'), {out1, sent: r.sent});
+    ok('...only ONE hover went out (the path stopped at the first unanswered move)',
+       r.sent.filter(t => t === 'mouseMoved').length === 1, r.sent);
+    ok('...and the tab is remembered as not answering moves', r.moveStalled.has(9));
+    r.sent.length = 0;
+    const out2 = await settle(r.cdpClick(9, 120, 120, 200));
+    ok('while a tab is not answering, the next click sends it NO hover at all (one unanswered command per tab, not one per retry)',
+       out2 === 'resolved' && r.sent.join() === 'mousePressed,mouseReleased', {out2, sent: r.sent});
+    r.sent.length = 0;
+    await settle(r.cdpClick(9, 120, 120, 5));
+    ok('...nor does the single-step snap click', r.sent.join() === 'mousePressed,mouseReleased', r.sent);
+
+    r = rig('fast');
+    await settle(r.cdpClick(4, 100, 100, 120));
+    ok('a tab that is rendering keeps its full cursor path (the fix does not touch the visible case)',
+       r.sent.filter(t => t === 'mouseMoved').length >= 3 && r.sent.slice(-2).join() === 'mousePressed,mouseReleased' && !r.moveStalled.has(4), r.sent);
+
+    r = rig('slow', 5000);   // answers in 150 ms: inside the ack window, but past the click's 140 ms deadline
+    const out3 = await settle(r.cdpClick(6, 100, 100, 100));
+    ok('a click that was parked past its deadline is NOT pressed afterwards (no stale click on a board that moved on)',
+       out3.startsWith('rejected') && /expired/.test(out3) && !r.sent.includes('mousePressed'), {out3, sent: r.sent});
+
+    r = rig('never');
+    const out4 = await settle(r.cdpDrag(8, 100, 100, 300, 300, 300));
+    ok('a drag into a tab that never answers a move still settles and lets go of the button',
+       out4 === 'resolved' && r.sent.includes('mousePressed') && r.sent[r.sent.length - 1] === 'mouseReleased', {out4, sent: r.sent});
+
+    // a throw between press and release must not strand the held button
+    const sent5 = [];
+    let n = 0;
+    const stub5 = {runtime: {lastError: null}, debugger: {attach: (t, v, cb) => cb(),
+        sendCommand: (t, m, p, cb) => { sent5.push(p.type); n++;
+            // the press succeeds, the next command fails
+            stub5.runtime.lastError = n === 2 ? {message: 'Debugger is not attached to the tab with id: 3.'} : null;
+            // report the failure only once: the re-attach retry in cdpDispatch must not mask it
+            setTimeout(() => { cb(); stub5.runtime.lastError = null; }, 0); }}};
+    const d5 = new Function('chrome', 'setTimeout', 'clearTimeout',
+        'let cdpPending = 0, cdpHung = 0, cdpCalls = 0, cdpTotalMs = 0, cdpWorstMs = 0;'
+        + 'const CDP_HUNG_MS = 1e9;' + region.replace('ACKMS', 60)
+        + 'return cdpDrag;')(stub5, quiet, clearTimeout);
+    // travel 0: press, (no moves), final land-move errors with a non-"not attached" failure
+    stub5.debugger.sendCommand = (t, m, p, cb) => { sent5.push(p.type);
+        stub5.runtime.lastError = p.type === 'mouseMoved' ? {message: 'Target closed.'} : null;
+        setTimeout(() => { cb(); stub5.runtime.lastError = null; }, 0); };
+    const out5 = await settle(d5(3, 100, 100, 300, 300, 0));
+    await new Promise(r2 => setTimeout(r2, 30));
+    ok('a drag that fails after the press sends a release (at the origin) before rejecting',
+       out5.startsWith('rejected') && sent5.join() === 'mousePressed,mouseMoved,mouseReleased', {out5, sent5});
+
+    ok('the unanswered-move bookkeeping is cleared when the debugger detaches',
+       /moveStalled\.delete\(src\.tabId\)/.test(b.slice(b.indexOf('chrome.debugger.onDetach?.addListener'), b.indexOf('chrome.debugger.onDetach?.addListener') + 300)));
+})().catch(e => { fails++; console.log('FAIL cdp hidden-tab check threw: ' + (e && e.stack || e)); });
 {
     const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
     const u = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
