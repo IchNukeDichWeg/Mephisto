@@ -3364,4 +3364,16 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('our_side() takes the page\'s colour over a board that is never turned round, falls back to the orientation, and a held position still answers for the side to move',
        side('black', null) === 'black' && side(null, null) === 'white' && side('black', 'x') === 'white');
     ok('...and every scrape the panel reads carries it', (csrc.match(/sendToPanel\(\{ dom: res, orient[^\n]*mine: playerColor\(\)/g) || []).length === 3 && /page_side = \(response\.mine === 'white'/.test(psrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // three-check: Fairy wants "W+B" checks-left after the en-passant square; "+W+B" there shifted the move counters (start = mate in 6)
+    for (const f of ['/src/options/pages/review/review.js', '/src/options/pages/analysis/analysis.js']) {
+        const s = fs.readFileSync(ROOT + f, 'utf8'), a = s.indexOf('function threeCheckCounts(fen)');
+        const c = vm.createContext({}); vm.runInContext(s.slice(a, s.indexOf('\n}\n', a) + 3), c);
+        const t = (fen) => JSON.stringify(vm.runInContext(`threeCheckCounts(${JSON.stringify(fen)})`, c));
+        const S = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -';
+        ok(`${f.split('/').pop()}: three-check counters read as checks LEFT from both spellings, and stripped for chess.js`,
+           t(S + ' 2+3 0 1') === JSON.stringify({left: {w: 2, b: 3}, fen: S + ' 0 1'}) && t(S + ' 0 1 +1+0') === JSON.stringify({left: {w: 2, b: 3}, fen: S + ' 0 1'})
+           && t(S + ' 0 1') === JSON.stringify({left: {w: 3, b: 3}, fen: S + ' 0 1'}), [t(S + ' 2+3 0 1'), t(S + ' 0 1 +1+0')]);
+        ok(`${f.split('/').pop()}: the engine FEN carries the counter without a leading plus`, /parts\.splice\(4, 0, `\$\{c?h?e?c?k?s?\.?w\}\+\$\{c?h?e?c?k?s?\.?b\}`\)/.test(s) && !/parts\.splice\(4, 0, `\+/.test(s));
+    } }
 // ==== END FIX CHECKS ====

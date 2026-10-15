@@ -86,6 +86,16 @@ const AN_VARIANTS = [
 const FAIRY_ONLY = ['crazyhouse', '3check', 'kingofthehill', 'antichess', 'atomic', 'horde', 'racingkings'];
 const FAIRY_ENGINE = 'fairy-stockfish-14-nnue';
 function anVariant() { return String(cfg('an_variant') || 'chess'); }
+// Three-check counters in a FEN, in either spelling Fairy reads: "3+3" after the en-passant square is
+// the checks each side still NEEDS (X-FEN), "+0+0" at the end is the checks each side has GIVEN
+// (lichess). Returns what is left to give and the FEN without the counter, which chess.js can read.
+function threeCheckCounts(fen) {
+    let m = /^(\S+ \S+ \S+ \S+) ([0-3])\+([0-3])(?=\s|$)/.exec(fen);
+    if (m) return {left: {w: +m[2], b: +m[3]}, fen: fen.replace(` ${m[2]}+${m[3]}`, '')};
+    m = /\s\+([0-3])\+([0-3])\s*$/.exec(fen);
+    if (m) return {left: {w: 3 - m[1], b: 3 - m[2]}, fen: fen.slice(0, m.index)};
+    return {left: {w: 3, b: 3}, fen};
+}
 function newChess(fen) { return fen === undefined ? new Chess(anVariant()) : new Chess(anVariant(), fen); }
 
 // crazyhouse only: what each side holds, tracked HERE because this chess.js plays drops but keeps
@@ -113,8 +123,8 @@ function relinkLine() {
 
 // The position AS THE ENGINE MUST SEE IT. chess.js's fen() is placement-only truth: crazyhouse
 // pockets and three-check counts live on the node, and Fairy reads both from the FEN -- holdings in
-// brackets after the placement, checks as a +W+B field after the en-passant square (both verified
-// against the shipped Fairy build). Every other variant passes through untouched.
+// brackets after the placement, checks left as a W+B field after the en-passant square (both verified
+// against the shipped Fairy build; a W+B field with no leading plus). Every other variant passes through untouched.
 function engineFen(pos) {
     const v = anVariant();
     if (v === 'crazyhouse') {
@@ -126,7 +136,9 @@ function engineFen(pos) {
     if (v === '3check') {
         const parts = pos.fen.split(' ');
         const c = pos.checksLeft || {w: 3, b: 3};
-        parts.splice(4, 0, `+${c.w}+${c.b}`);
+        // "W+B" checks still needed; a leading "+" here made Fairy shift the move counters onto the
+        // check field (start position = mate in 6; v3.1.321 audit F3)
+        parts.splice(4, 0, `${c.w}+${c.b}`);
         return parts.join(' ');
     }
     return pos.fen;
@@ -511,17 +523,21 @@ function loadFromInput() {
                 if (n(/[PNBRQK]/g) > 16 || n(/[pnbrqk]/g) > 16 || n(/P/g) > 8 || n(/p/g) > 8) throw new Error('too many pieces for a chess position');
                 if (/[Pp]/.test(ranks[0] + ranks[7])) throw new Error('a pawn cannot stand on the first or last rank');
             }
+            let checksLeft = {w: 3, b: 3};
+            if (anVariant() === '3check') ({left: checksLeft, fen: fenText} = threeCheckCounts(fenText));
             const c = newChess(fenText);
             treeRoot = mkNode(c.fen(), c.turn(), null, null, null,
-                              {holdings, promoted: '', checksLeft: {w: 3, b: 3}});
+                              {holdings, promoted: '', checksLeft});
             treeNode = treeRoot;
             status('Position loaded.');
         } else {
             const game = Core.parsePgn(text)[0];
             if (!game) throw new Error('no game found in that text');
-            const c = newChess(game.startFen || undefined);
+            let start = game.startFen || undefined, checksLeft = {w: 3, b: 3};
+            if (start && anVariant() === '3check') ({left: checksLeft, fen: start} = threeCheckCounts(start));
+            const c = newChess(start);
             treeRoot = mkNode(c.fen(), c.turn(), null, null, null,
-                              {holdings: {w: '', b: ''}, promoted: '', checksLeft: {w: 3, b: 3}});
+                              {holdings: {w: '', b: ''}, promoted: '', checksLeft});
             let at = treeRoot;
             for (const rec of game.moves) {
                 const san = typeof rec === 'string' ? rec : rec.san;

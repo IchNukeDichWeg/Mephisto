@@ -160,8 +160,18 @@ function detectVariantFrom(game) {
 // equal to the engine's pv when they are the same move.
 // Crazyhouse pockets and three-check counts are tracked here (mirroring the analysis page's
 // nodeExtras) because this chess.js replays drops but keeps neither; `efen` is the position as the
-// ENGINE must see it -- holdings in brackets, checks as a +W+B field -- while `fen` stays the plain
+// ENGINE must see it -- holdings in brackets, checks left as a W+B field -- while `fen` stays the plain
 // board every cache, display and chess.js reconstruction reads.
+// Three-check counters in a FEN, in either spelling Fairy reads: "3+3" after the en-passant square is
+// the checks each side still NEEDS (X-FEN), "+0+0" at the end is the checks each side has GIVEN
+// (lichess). Returns what is left to give and the FEN without the counter, which chess.js can read.
+function threeCheckCounts(fen) {
+    let m = /^(\S+ \S+ \S+ \S+) ([0-3])\+([0-3])(?=\s|$)/.exec(fen);
+    if (m) return {left: {w: +m[2], b: +m[3]}, fen: fen.replace(` ${m[2]}+${m[3]}`, '')};
+    m = /\s\+([0-3])\+([0-3])\s*$/.exec(fen);
+    if (m) return {left: {w: 3 - m[1], b: 3 - m[2]}, fen: fen.slice(0, m.index)};
+    return {left: {w: 3, b: 3}, fen};
+}
 function buildPositions(game, variant = 'chess') {
     let startFen = game.startFen || undefined;
     let hold = {w: '', b: ''};
@@ -176,8 +186,10 @@ function buildPositions(game, variant = 'chess') {
         }
     }
     if (startFen && variant === '3check') {
-        const c = /\s\+(\d)\+(\d)/.exec(startFen);
-        if (c) { checks.w = +c[1]; checks.b = +c[2]; startFen = startFen.replace(/\s\+\d\+\d/, ''); }
+        // the counter is checks LEFT to give; a lichess "+W+B" counts checks GIVEN, which this used to
+        // read as left -- a start with one check given came out as two to go for the other side
+        const t = threeCheckCounts(startFen);
+        checks.w = t.left.w; checks.b = t.left.b; startFen = t.fen;
     }
     const chess = new Chess(variant, startFen);
     const fairy = RV_FAIRY_ONLY.includes(variant);
@@ -188,8 +200,12 @@ function buildPositions(game, variant = 'chess') {
             return parts.join(' ');
         }
         if (variant === '3check') {
+            // "W+B" = checks still needed, after the en-passant square. NOT "+W+B": Fairy reads a
+            // leading plus there as the counter with the halfmove and fullmove fields shifted onto
+            // it -- the start position came out as one check to go each, move 3, mate in 6
+            // (native Fairy-Stockfish 14.0.1; v3.1.321 audit F3).
             const parts = chess.fen().split(' ');
-            parts.splice(4, 0, `+${checks.w}+${checks.b}`);
+            parts.splice(4, 0, `${checks.w}+${checks.b}`);
             return parts.join(' ');
         }
         return undefined;
