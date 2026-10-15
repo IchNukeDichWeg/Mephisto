@@ -706,6 +706,7 @@ async function initPanel(root, tabId) {
             if (board.orientation() !== response.orient) {
                 board.orientation(response.orient);
             }
+            page_side = (response.mine === 'white' || response.mine === 'black') ? response.mine : null;
             let parsed;
             try {
                 parsed = parse_position_from_response(response.dom);
@@ -4571,10 +4572,16 @@ let snap_flipped = false;
 // position there is no "us" -- the answer wanted is always for whoever is to move -- and that is what
 // apply_setup_fen used to encode by forcing the orientation to follow the turn. Splitting the two is
 // what lets Flip board turn the VIEW round without the panel concluding it now plays the other
-// colour and going quiet. For a live game this returns exactly board.orientation(), as before.
+// colour and going quiet. For a live game this is the page's own word for our colour when it gives
+// one (`page_side`), else board.orientation().
+// Racing Kings is why the two can differ: lichess never turns that board round (both sides start on
+// ranks 1-2), so a Black player sees it White-side up and orientation said "white" -- Mephisto then
+// waited for a White turn that was never its own and never made a move (5 of 5, 3.1.321 audit F12).
+// The page's clock layout still puts the player's own clock at the bottom.
+let page_side = null;
 function our_side() {
     if (setup_fen) return (turn === 'w') ? 'white' : 'black';
-    return board.orientation();
+    return page_side || board.orientation();
 }
 
 // ---- bot-game tricks: the panel half ---------------------------------------------------------

@@ -3352,4 +3352,16 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const pages = ['about/about.html', 'getting-started/getting-started.html'].map(p => fs.readFileSync(ROOT + '/src/options/pages/' + p, 'utf8')).join('');
     ok('the extension\'s own links (toolbar menu, About, Getting Started) open this repository, not the one it was forked from',
        man.homepage_url === 'https://github.com/IchNukeDichWeg/Mephisto' && !/github\.com\/AlexPetrusca/.test(pages)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // Racing Kings as Black: lichess keeps that board White-side up, so our colour comes from the player's own (bottom) clock
+    const a = csrc.indexOf('function playerColor()'), pc = csrc.slice(a, csrc.indexOf('function getOrientation()', a));
+    const read = (site, cls) => { const c = vm.createContext({site, document: {querySelector: (q) => q === '.rclock-bottom' && cls ? {classList: {contains: (x) => cls.split(' ').includes(x)}} : null}}); vm.runInContext(pc, c); return vm.runInContext('playerColor()', c); };
+    ok('the player colour is read off lichess\'s bottom clock, and is null off lichess or without a clock',
+       read('lichess', 'rclock rclock-bottom rclock-black') === 'black' && read('lichess', 'rclock rclock-bottom rclock-white') === 'white' && read('lichess', null) === null && read('chesscom', 'rclock-black') === null);
+    const b = psrc.indexOf('let page_side = null;'), os = psrc.slice(b, psrc.indexOf('\n}\n', b) + 3);
+    const c = vm.createContext({}); vm.runInContext(`var setup_fen = null, turn = 'w', board = {orientation: () => 'white'}; ${os}`, c);
+    const side = (ps, sf) => vm.runInContext(`page_side = ${JSON.stringify(ps)}; setup_fen = ${JSON.stringify(sf)}; our_side()`, c);
+    ok('our_side() takes the page\'s colour over a board that is never turned round, falls back to the orientation, and a held position still answers for the side to move',
+       side('black', null) === 'black' && side(null, null) === 'white' && side('black', 'x') === 'white');
+    ok('...and every scrape the panel reads carries it', (csrc.match(/sendToPanel\(\{ dom: res, orient[^\n]*mine: playerColor\(\)/g) || []).length === 3 && /page_side = \(response\.mine === 'white'/.test(psrc)); }
 // ==== END FIX CHECKS ====

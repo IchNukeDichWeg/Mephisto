@@ -187,7 +187,7 @@ function handleExtensionMessage(response, sender, sendResponse) {
             orient = getOrientation();
         }
         try {
-            sendToPanel({ dom: res, orient: orient, clocks: scrapeClocks(), fenresponse: true,
+            sendToPanel({ dom: res, orient: orient, mine: playerColor(), clocks: scrapeClocks(), fenresponse: true,
                           puzzlePage: isPuzzlePage(), fourPCPage: is4PC() });
         } catch (e) {
             // extension was reloaded - this orphaned content-script can't reach it anymore
@@ -2308,6 +2308,18 @@ function figurineSan(figurine, text) {
     return t.includes('=') ? t.replace('=', '=' + (figurine || '')) : (figurine || '') + t;
 }
 
+// The colour WE play, when the page says so apart from its board orientation; null otherwise (the
+// panel then uses the orientation, which is right everywhere else). Lichess never turns a Racing
+// Kings board round, so orientation reads "white" for a Black player there; the clock layout still
+// puts the player's own clock at the bottom, coloured. Spectating, the bottom clock is the
+// orientation's colour, so this agrees with it.
+function playerColor() {
+    if (site !== 'lichess') return null;
+    const c = document.querySelector('.rclock-bottom');
+    if (!c) return null;
+    return c.classList.contains('rclock-black') ? 'black' : c.classList.contains('rclock-white') ? 'white' : null;
+}
+
 function getOrientation() {
     let orientedBlack = true;
     if (site === 'taketaketake') {
@@ -3627,7 +3639,7 @@ function pushPosition() {
             // still set" are indistinguishable from the outside. Say which.
             bgLog('push held back: a move is still in flight', {
                 heldForMs: movingSince ? Date.now() - movingSince : 0, budget: movingBudget});
-            sendToPanel({ dom: res, orient, clocks: scrapeClocks(), fenresponse: true, displayOnly: true });
+            sendToPanel({ dom: res, orient, mine: playerColor(), clocks: scrapeClocks(), fenresponse: true, displayOnly: true });
             return;
         }
         lastPushKey = key;
@@ -3637,7 +3649,7 @@ function pushPosition() {
         // this payload that is about a person rather than a position, and a feature nobody switched
         // on has no business reading it. The lookup it feeds happens in the worker (see
         // oppPrepLookup), never from this tab.
-        sendToPanel({ dom: res, orient: orient, clocks: scrapeClocks(), fenresponse: true, resume,
+        sendToPanel({ dom: res, orient: orient, mine: playerColor(), clocks: scrapeClocks(), fenresponse: true, resume,
                       opponent: config.opp_prep ? opponentUsername() : null });
     } catch (e) {
         // extension was reloaded -- this orphaned content-script can't reach it anymore
