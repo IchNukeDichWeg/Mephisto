@@ -11620,10 +11620,15 @@ async function parse_backend_json(res) {
 }
 
 function on_remote_error(err) {
-    console.error(err);
     // "Failed to fetch" is the browser's whole description of a server that is not there, and it was
     // all the panel said: no hint that the Remote Engine is a program you run yourself.
     const unreachable = err instanceof TypeError && !uses_native() && !uses_cloud();
+    // NOT INSTALLED IS NOT BROKEN. A Remote Engine nobody started and a native host never installed
+    // are states the panel explains in its own line; logged as errors they put red in the console
+    // (and in every bug report) for things working as designed (3.1.321 audit F5). Warnings, then;
+    // a real failure of an engine that IS there stays an error.
+    const expected = unreachable || /native host unavailable/.test(String(err?.message || ''));
+    (expected ? console.warn : console.error)('Mephisto:', err?.message || err);
     update_best_move(unreachable
         ? i18n('panel.msg.remote_unreachable', 'Remote Engine: nothing is answering on localhost:9090. Start remote-engine.py, or pick another engine.')
         : err.message);

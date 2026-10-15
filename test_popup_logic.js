@@ -3225,7 +3225,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('Game Review: starting a run takes the previous game\'s report off the screen', /\$\('rv_stop'\)\.disabled = false;[\s\S]{0,420}\$\('rv-report'\)\?\.classList\.add\('hidden'\);\s*\$\('rv-indicators'\)\?\.classList\.add\('hidden'\);/.test(r)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const i = psrc.indexOf('function on_remote_error('), fn = psrc.slice(i, psrc.indexOf('\n}\n', i) + 3);
-    const run = (err, native) => { const c = vm.createContext({console: {error() {}}, TypeError}); c.err = err;
+    const run = (err, native) => { const c = vm.createContext({console: {error() {}, warn() {}}, TypeError, String}); c.err = err;
         vm.runInContext(`var shown; function update_best_move(t) { shown = t; } function toggle_calculating() {} function uses_native() { return ${native}; } function uses_cloud() { return false; } function i18n(k, d) { return d; } ${fn}; on_remote_error(err)`, c); return c.shown; };
     ok('a Remote Engine that is not running says so; any other error is shown as it is',
        /localhost:9090/.test(run(new TypeError('Failed to fetch'), false)) && run(new Error('boom'), false) === 'boom' && run(new TypeError('x'), true) === 'x'); }
@@ -3540,4 +3540,15 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const a = psrc.indexOf('    if (uses_cloud()) {', psrc.indexOf('async function request_remote_analysis(')), seg = psrc.slice(a, psrc.indexOf('cloudAnalyse', a));
     ok('the cloud path answers a position with no legal move itself, as bestmove (none), before asking the provider',
        /if \(!new Chess\(config\.variant, target\)\.moves\(\)\.length\) return \{bestmove: '\(none\)', threat: '\(none\)', lines: \[\]\};/.test(seg)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // an engine that is not installed / not started is a warning, a real failure stays an error (F5)
+    const a = psrc.indexOf('function on_remote_error(err) {'), b = psrc.indexOf('\n}\n', a) + 3;
+    const log = [], c = vm.createContext({TypeError, String, console: {warn: (...x) => log.push('warn ' + x.join(' ')), error: (...x) => log.push('error ' + x.join(' '))}});
+    vm.runInContext(`var native = false; function uses_native() { return native; } function uses_cloud() { return false; }
+        function i18n(k, d) { return d; } function update_best_move() {} function toggle_calculating() {} ${psrc.slice(a, b)}`, c);
+    vm.runInContext(`on_remote_error(new TypeError('Failed to fetch')); native = true;
+        on_remote_error(new Error('Stockfish 19 (native) native host unavailable (Specified native messaging host not found.)'));
+        on_remote_error(new Error('Native engine: engine process died'));`, c);
+    ok('a Remote Engine nobody started and an uninstalled native host log warnings; a native engine that died logs an error',
+       log.length === 3 && log[0].startsWith('warn') && log[1].startsWith('warn') && log[2].startsWith('error'), log); }
 // ==== END FIX CHECKS ====
