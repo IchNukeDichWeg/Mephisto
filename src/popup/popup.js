@@ -347,6 +347,9 @@ async function initPanel(root, tabId) {
     // saw a non-null renderer, skipped constructing one, and painted 14x14 into a detached element --
     // so the panel detected the game, sized the pieces, drew the arrow, and showed the 8x8 board.
     fourpc_last = ''; fourpc_busy = false; fourpc_pending = null; board4pc = null;
+    // Same trap: a detected variant holds the search until the reload it asked for -- and the reload
+    // IS this reopen, so a flag left set here held every search of the new engine for good.
+    variant_switch_pending = false;
     await MephistoConfig.init(); // load config from chrome.storage.local into the sync cache first
     // load extension configurations from the config store (chrome.storage.local, cached)
     const computeTime = JSON.parse(MephistoConfig.get('compute_time'));
@@ -5547,6 +5550,7 @@ function on_new_pos(fen, startFen, moves) {
     // read; a search is slower, but not always, and the engine finishing first is what produced
     // moves that failed puzzles the database could have solved. Deferred, not skipped: the answer
     // re-enters this function, so a miss searches exactly as it always did.
+    if (variant_switch_pending) { abandon_search(); return; }   // wrong rules until the reload, see maybe_autodetect_variant
     if (puzzle_db_enabled() && !puzzle_have && puzzle_answered !== puzzle_key(fen)) {
         puzzle_deferred = {fen, startFen, moves};
         abandon_search();
@@ -9319,9 +9323,15 @@ function maybe_autodetect_variant() {
         // after start-up has finished: applying rebuilds the panel, and doing that from inside the
         // panel's own (async) init tore the board out from under the lines that follow this call.
         // ponytail: a fixed 500 ms, init has no "done" signal to wait on; add one if this ever races
+        // NO SEARCH ON THE OLD RULES MEANWHILE. Those 500 ms were long enough for the standard engine
+        // to answer a Racing Kings position with a check (illegal there), which the panel refused and
+        // logged as a re-sync (3.1.321 audit). The reload re-reads the position on the right engine.
+        variant_switch_pending = true;
+        abandon_search();
         setTimeout(() => apply_detected_variant(v), 500);
     });
 }
+let variant_switch_pending = false;   // a detected variant is about to reload the panel (see above)
 
 // Options-page changes reaching a LIVE panel.
 //

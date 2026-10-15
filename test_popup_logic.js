@@ -3551,4 +3551,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         on_remote_error(new Error('Native engine: engine process died'));`, c);
     ok('a Remote Engine nobody started and an uninstalled native host log warnings; a native engine that died logs an error',
        log.length === 3 && log[0].startsWith('warn') && log[1].startsWith('warn') && log[2].startsWith('error'), log); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // nothing is searched on the old rules while a detected variant waits for its reload, and the reopen clears the hold
+    const init = psrc.slice(psrc.indexOf('async function initPanel('), psrc.indexOf('await MephistoConfig.init();'));
+    const onp = psrc.slice(psrc.indexOf('function on_new_pos('), psrc.indexOf('if (puzzle_db_enabled() && !puzzle_have', psrc.indexOf('function on_new_pos(')));
+    ok('a detected variant holds the search until the panel reopens on the right engine, and the reopen releases it',
+       /variant_switch_pending = true;\s*abandon_search\(\);\s*setTimeout\(\(\) => apply_detected_variant\(v\), 500\);/.test(psrc)
+       && /if \(variant_switch_pending\) \{ abandon_search\(\); return; \}/.test(onp) && /variant_switch_pending = false;/.test(init)); }
 // ==== END FIX CHECKS ====
