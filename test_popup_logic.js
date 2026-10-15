@@ -3531,5 +3531,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const got = [nb('2600'), nb('2000'), nb('2100'), nb('1500'), nb('600'), nb('x')];
     ok('Compare nets plays Maia-1 at its nearest shipped band: 2600->2200, 2000->1900, 2100->2200, a band stays itself, 600->1100',
        JSON.stringify(got) === JSON.stringify(['2200', '1900', '2200', '1500', '1100', '1100']), got);
+    ok('...the Maia-2 column says when it is Maia-3\'s opening answer, on the same ply limit as offscreen/maia2.js',
+       asrc.match(/const MAIA2_FIRST_PLY = (\d+);/)[1] === fs.readFileSync(ROOT + '/src/offscreen/maia2.js', 'utf8').match(/export const MAIA2_FIRST_PLY = (\d+);/)[1]
+       && /net\.id === 'maia2' && fenPly\(pos\.fen\) < MAIA2_FIRST_PLY\) \? `\$\{net\.label\} \(Maia-3 in the opening\)`/.test(asrc));
     ok('...and the column is labelled with the band it actually played', /const netBand = net\.id === 'maia' \? nearestMaia1Band\(band\) : band;/.test(asrc) && /maiaLevel: netBand,\s*elos: \[netBand, netBand\]/.test(asrc)); }
 // ==== END FIX CHECKS ====

@@ -1135,6 +1135,14 @@ const CMP_NETS = [
     {id: 'elite-leela', label: 'Elite Leela'},
 ];
 
+// Mirrors MAIA2_FIRST_PLY / plyOfFen in offscreen/maia2.js, which cannot be imported here without
+// pulling in onnxruntime; the suite pins the two to each other.
+const MAIA2_FIRST_PLY = 10;
+function fenPly(fen) {
+    const [, stm, , , , full] = String(fen).split(' ');
+    return 2 * (Math.max(1, parseInt(full, 10) || 1) - 1) + (stm === 'b' ? 1 : 0);
+}
+
 // The Maia-1 band closest to a rating (ties go down); a rating that is already a band is itself.
 function nearestMaia1Band(rating) {
     const r = Number(rating);
@@ -1157,7 +1165,10 @@ async function compareNets() {
             // with no net behind it came back as a raw "maia-2600.onnx is not in this build" in the
             // Maia-1 column (3.1.321 audit F15). That column plays the nearest band it has and says so.
             const netBand = net.id === 'maia' ? nearestMaia1Band(band) : band;
-            const label = netBand === band ? net.label : `${net.label} (${netBand})`;
+            // Maia-2 hands its first plies to Maia-3 (offscreen/maia2.js), so there the two columns
+            // are one net's answer twice; the header says so rather than implying an agreement.
+            const label = netBand !== band ? `${net.label} (${netBand})`
+                : (net.id === 'maia2' && fenPly(pos.fen) < MAIA2_FIRST_PLY) ? `${net.label} (Maia-3 in the opening)` : net.label;
             // Its own client id per net, or the offscreen host would treat the second init as a
             // replacement for the first and both readers would see the survivor (see WasmEngine).
             const h = makeEngine(net.id, {...engineOpts(), multipv: 5, maiaLevel: netBand,
