@@ -3565,4 +3565,16 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /\} else if \(wasm_engine_loading\) \{[\s\S]{0,600}?wasm_search_held = true;\s*\} else \{/.test(psrc)
        && /wasm_engine_loading = true;\s*try \{ await ensure_offscreen_engine\(config\.engine\); \}\s*catch \(e\) \{ wasm_search_held = false; throw e; \}\s*finally \{ wasm_engine_loading = false; \}/.test(init)
        && /send_engine_uci\('isready'\);[\s\S]*const held = wasm_search_held;\s*wasm_search_held = false;\s*if \(\(search_was_live \|\| held\) && last_eval\.fen\)/.test(init)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // Auto-Next on lichess Training: Continue after the end, View the solution after a wrong move, nothing mid-puzzle or on Storm
+    const a = csrc.indexOf('const LICHESS_TRAINING_RE'), b = csrc.indexOf('\n}\n', csrc.indexOf('function lichessTrainingButton()')) + 3;
+    const btn = (id) => ({id, disabled: false, offsetWidth: 10, offsetHeight: 10});
+    const run = (path, state) => { const c = vm.createContext({site: 'lichess', location: {pathname: path}, document: {
+            querySelector: (sel) => state === 'after' && sel === '.puzzle__feedback.after button.continue' ? btn('continue') : null,
+            querySelectorAll: (sel) => state === 'fail' && sel === '.puzzle__feedback.fail .view_solution button' ? [btn('hint'), btn('solution')] : []}});
+        vm.runInContext(csrc.slice(a, b), c); return vm.runInContext('lichessTrainingButton()', c)?.id ?? null; };
+    const got = [run('/training', 'after'), run('/training/mix', 'fail'), run('/training/aBc12', 'play'), run('/storm', 'after'), run('/training/', 'after')];
+    ok('lichess Training: Continue once a puzzle is over, View the solution after a wrong move, nothing mid-puzzle, never on Storm',
+       JSON.stringify(got) === JSON.stringify(['continue', 'solution', null, null, 'continue']), got);
+    ok('...and puzzleNextButton routes lichess there', /if \(site === 'lichess'\) return lichessTrainingButton\(\);/.test(csrc)); }
 // ==== END FIX CHECKS ====

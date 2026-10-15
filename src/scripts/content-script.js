@@ -3504,7 +3504,27 @@ function puzzleNextDelayMs() {
 let puzzleNextClicked = null;
 let puzzleNextTimer = null;
 
+// LICHESS TRAINING (/training, a theme, a puzzle id, the daily). The end of a puzzle is the
+// feedback box turning `.after`, with "Continue training" as its button -- classes, not the label,
+// which follows the site language. Storm, Racer and Streak advance on their own and are not matched.
+// A WRONG MOVE does not end a lichess puzzle the way it ends a chess.com one: the box turns `.fail`
+// and waits for a retry the panel will never make (it does not replay a refuted move), so with
+// Auto-Next on that state is ended by its own last button, "View the solution", which turns the box
+// `.after` and lets the press above follow. Before this, Auto-Next covered chess.com only and a
+// lichess run stopped at its first puzzle (3.1.321 audit).
+const LICHESS_TRAINING_RE = /^\/training(\/[\w-]+)?$/;
+const shown = (el) => !!el && !el.disabled && !!(el.offsetWidth || el.offsetHeight);
+
+function lichessTrainingButton() {
+    if (site !== 'lichess' || !LICHESS_TRAINING_RE.test(location.pathname.replace(/\/+$/, ''))) return null;
+    const next = document.querySelector('.puzzle__feedback.after button.continue');
+    if (shown(next)) return next;
+    const giveUp = [...document.querySelectorAll('.puzzle__feedback.fail .view_solution button')].pop();
+    return shown(giveUp) ? giveUp : null;
+}
+
 function puzzleNextButton() {
+    if (site === 'lichess') return lichessTrainingButton();
     if (site !== 'chesscom') return null;
     const path = location.pathname.replace(/\/+$/, '');   // a trailing slash is the same page
     if (!PUZZLE_NEXT_PATHS.includes(path)) return null;
