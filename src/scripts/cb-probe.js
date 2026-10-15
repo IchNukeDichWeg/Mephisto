@@ -37,8 +37,8 @@
     // WHERE THE BOARD IS, from the same model the FEN comes from. ChessBase paints on a canvas, so
     // there is no element to measure and no class to match -- but boardWin carries the numbers
     // outright: x0/y0 (the board's origin inside the canvas), nSqPix (a square), and blackIsBottom
-    // (the orientation). Canvas units are converted to page pixels by the canvas's own scale.
-    // Verified against pixels: markers drawn at a1/h8/e4 landed on those squares.
+    // (the orientation), plus nMarginW, the frame between that origin and the first square. Canvas
+    // units are converted to page pixels by the canvas's own scale.
     function curGeometry() {
         try {
             const gk = window.V35s && window.V35s.gameKernel;
@@ -48,11 +48,17 @@
             const r = cv.getBoundingClientRect();
             if (!(r.width > 0) || !(cv.width > 0) || !(bw.nSqPix > 0)) return null;
             const scale = r.width / cv.width;
+            // x0/y0 is the board's OUTER corner, frame included; the squares start nMarginW (20 px)
+            // further in. Without it every click and arrow landed 20 px up and left -- a fifth of a
+            // square off, a neighbouring square at the jittered edges (3.1.321 audit F16).
+            const margin = Number(bw.nMarginW) || 0;
             return {
-                x: r.left + bw.x0 * scale,
-                y: r.top + bw.y0 * scale,
+                x: r.left + (bw.x0 + margin) * scale,
+                y: r.top + (bw.y0 + margin) * scale,
                 size: bw.nSqPix * 8 * scale,
                 flipped: !!bw.blackIsBottom,
+                // the board ignores click-click input (singleClickDisabled): a move must be dragged
+                dragOnly: !!bw.singleClickDisabled,
             };
         } catch (e) { return null; }
     }

@@ -4929,8 +4929,11 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         const started = Date.now();
         // Gated on the SETTING, not this move's randomized total: with Move Variance a total-based
         // gate would flip a game between drags and clicks move by move.
-        if (isChesscomVariants() || (config.drag_moves && config.move_time >= DRAG_MIN_MS)) {
-            const dragMs = Math.max(approachMs + travelMs, isChesscomVariants() ? DRAG_MIN_MS : 0);
+        // ChessBase demands it too: its board sets singleClickDisabled, so two clicks select the
+        // piece and then do nothing (3.1.321 audit F16). Its model says so (cbGeometry().dragOnly).
+        const mustDrag = isChesscomVariants() || (site === 'chessbase' && !!cbGeometry()?.dragOnly);
+        if (mustDrag || (config.drag_moves && config.move_time >= DRAG_MIN_MS)) {
+            const dragMs = Math.max(approachMs + travelMs, mustDrag ? DRAG_MIN_MS : 0);
             await simulateDragSquares(getBoundsFromCoords(move.substring(0, 2)),
                                       getBoundsFromCoords(move.substring(2)), 0.8, dragMs);
             // The gesture is the budget here; top up only if it came home early.
@@ -5078,7 +5081,14 @@ async function simulatePremoveSequence(moves, sessionGen = undefined) {
 }
 
 function simulatePvMoves(pv, sessionGen = undefined) {
-    if (!getBoard()) return Promise.resolve(); // nothing to click on; the panel's retry re-asks
+    // clickableBoardBounds, not getBoard: ChessBase paints on a canvas and has no board ELEMENT, so
+    // getBoard() is null there and every Puzzle Mode move (sent as a one-move line) was dropped here
+    // without a word -- the board read, the answer found, nothing clicked (3.1.321 audit F16).
+    // simulateMove already aims through clickableBoardBounds, which knows the ChessBase geometry.
+    if (!clickableBoardBounds()) {
+        bgLog('DROPPED: no board to click on', {site});
+        return Promise.resolve(); // nothing to click on; the panel's retry re-asks
+    }
 
     function deriveLastMove() {
         function deriveCoords(square) {

@@ -3399,4 +3399,17 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('2.g4?? into Qh4# is graded a blunder although the mate came in at depth 245 against 26 the ply before', cls[2] === 'blunder', cls);
     vm.runInContext("move_class_key = ''; ply_facts[3] = {fen: 'x', lines: [{move: 'd8h4', score: -900}], depth: 245, ref: {frac: 0.0, depth: 245}};", c);
     ok('...while two ordinary readings that far apart in depth stay ungraded, as before', vm.runInContext('classify_history()', c)[2] === null); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // ChessBase: squares start nMarginW inside the model's origin, the board ignores click-click, and a Puzzle Mode move (a one-move line) must not need a board ELEMENT
+    const probe = fs.readFileSync(ROOT + '/src/scripts/cb-probe.js', 'utf8');
+    const a = probe.indexOf('function curGeometry()'), geoSrc = probe.slice(a, probe.indexOf('\n    }\n', a) + 6);
+    const c = vm.createContext({window: {V35s: {gameKernel: {boardWin: {x0: 34, y0: 94, nMarginW: 20, nSqPix: 82, blackIsBottom: false, singleClickDisabled: true},
+        boardArea: {cbcanvas: {canvas: {width: 777, getBoundingClientRect: () => ({left: 1, top: 65, width: 777})}}}}}}});
+    vm.runInContext(geoSrc, c);
+    const g = vm.runInContext('curGeometry()', c);
+    ok('the ChessBase board rectangle starts at the first square (origin + frame), and says the board takes drags only (measured live: x0 34, y0 94, frame 20)',
+       g && g.x === 55 && g.y === 179 && g.size === 656 && g.dragOnly === true, g);
+    ok('...a ChessBase move is dragged, and Puzzle Mode aims through the board geometry rather than a board element',
+       /const mustDrag = isChesscomVariants\(\) \|\| \(site === 'chessbase' && !!cbGeometry\(\)\?\.dragOnly\);/.test(csrc)
+       && /function simulatePvMoves\(pv, sessionGen = undefined\) \{[\s\S]{0,600}?if \(!clickableBoardBounds\(\)\)/.test(csrc)); }
 // ==== END FIX CHECKS ====
