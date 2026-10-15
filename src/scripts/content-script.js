@@ -4808,6 +4808,21 @@ function dispatchSimulateDrag(x1, y1, x2, y2, travelMs = 0) {
     }
 }
 
+// CRAZYHOUSE DROPS (`N@d5`). A drop has no from-square: the piece is carried from the pocket beside
+// the board, which on lichess is `.pocket-bottom` (always the player's own side) holding one `piece`
+// per role with its count in data-nb. A trusted drag from it onto the square plays the drop (checked
+// live on an analysis board: N@d5 registered). Other sites are not wired, and the move is handed back
+// to you with a reason rather than clicked somewhere (3.1.321 audit: autoplay flagged with a drop owed).
+const DROP_RE = /^[PNBRQ]@[a-h][1-8]$/;
+const POCKET_ROLE = {P: 'pawn', N: 'knight', B: 'bishop', R: 'rook', Q: 'queen'};
+function pocketPieceBounds(letter) {
+    if (site !== 'lichess') return null;
+    const el = document.querySelector(`.pocket-bottom piece[data-role="${POCKET_ROLE[letter]}"]`);
+    if (!el || !(Number(el.dataset.nb) > 0)) return null;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 ? r : null;
+}
+
 function simulateDragSquares(fromBounds, toBounds, range = 0.8, travelMs = 0) {
     const [x1, y1] = getRandomSampledXY(fromBounds, range);
     const [x2, y2] = getRandomSampledXY(toBounds, range);
@@ -4841,8 +4856,14 @@ let lastAimed = null;
 let pendingForPush = null;
 
 function simulateMove(move, deselect, think = null, sessionGen = undefined) {
-    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
-        console.warn(`Mephisto: refusing to play invalid move '${move}'`); // e.g. '(none)' or a crazyhouse drop
+    const isDrop = DROP_RE.test(move ?? '');
+    if (!isDrop && !/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
+        console.warn(`Mephisto: refusing to play invalid move '${move}'`); // e.g. '(none)'
+        return Promise.resolve();
+    }
+    if (isDrop && site !== 'lichess') {
+        dropMove(`The best move is a drop (${move}). Autoplay places pocket pieces on lichess only: play it yourself.`,
+            'DROPPED: a drop on a site without pocket support', {move, site});
         return Promise.resolve();
     }
     let boardBounds = clickableBoardBounds();
@@ -4943,7 +4964,8 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
                     ? String.fromCharCode(97 + col) + (8 - row)
                     : String.fromCharCode(104 - col) + (row + 1);
             };
-            lastAimed = `${move}->${backRead(getBoundsFromCoords(move.substring(0, 2)))}`
+            lastAimed = isDrop ? `${move}->pocket ${backRead(getBoundsFromCoords(move.substring(2, 4)))} (${orientation})`
+                      : `${move}->${backRead(getBoundsFromCoords(move.substring(0, 2)))}`
                       + `${backRead(getBoundsFromCoords(move.substring(2, 4)))}`
                       + ` (${orientation}, board ${Math.round(boardBounds.x)},${Math.round(boardBounds.y)}`
                       + ` ${Math.round(boardBounds.width)}px)`;
@@ -4974,6 +4996,22 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         // back -- a capture is not playable there any other way -- so a short Move Time is FLOORED
         // to DRAG_MIN_MS instead of honoured.
         const started = Date.now();
+        if (isDrop) {
+            // Measured now, like the board: the pocket sits beside it and moves with it.
+            const pocket = pocketPieceBounds(move[0]);
+            if (!pocket) {
+                dropMove(`The best move is a drop (${move}), but that piece is not in your pocket on the page: play it yourself.`,
+                    'DROPPED: pocket piece not found', {move});
+                lastAimed = `${move}->NOT CLICKED (no ${POCKET_ROLE[move[0]]} in the pocket)`;
+                return;
+            }
+            // A drop is a drag by nature, so it takes the drag floor whatever Drag Pieces says.
+            const dragMs = Math.max(approachMs + travelMs, DRAG_MIN_MS);
+            await simulateDragSquares(pocket, getBoundsFromCoords(move.substring(2, 4)), 0.6, dragMs);
+            const dueDrop = dragMs - (Date.now() - started);
+            if (dueDrop > 0) await promiseTimeout(dueDrop);
+            return;
+        }
         // Gated on the SETTING, not this move's randomized total: with Move Variance a total-based
         // gate would flip a game between drags and clicks move by move.
         // ChessBase demands it too: its board sets singleClickDisabled, so two clicks select the
@@ -5049,7 +5087,7 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
     // the pause BEFORE the move; this budget is the physical act of playing it).
     async function performSimulatedMoveSequence() {
         await promiseTimeout(getThinkTime());
-        const total = getMoveTime() * fittsScale(move.substring(0, 2), move.substring(2, 4));
+        const total = getMoveTime() * (isDrop ? 1 : fittsScale(move.substring(0, 2), move.substring(2, 4)));
         if (move[4]) {
             await performSimulatedMoveClicks(total * 0.20, total * 0.55, total);
             await simulatePromotionClicks(move[4], total * 0.25);
@@ -5068,7 +5106,7 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
 // opponent has already replied, so we never re-fire a move into a changed position.
 async function simulateMoveVerified(move, deselect, verify, think = null, retries = 2, before = null,
                                     sessionGen = undefined) {
-    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
+    if (!DROP_RE.test(move ?? '') && !/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
         return simulateMove(move, deselect); // invalid -> simulateMove logs + no-ops
     }
     // Human moves are a bare from->to. The `deselect` lead-click only exists to recover from a stale

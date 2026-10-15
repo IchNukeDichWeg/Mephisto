@@ -3590,4 +3590,23 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        JSON.stringify(got) === JSON.stringify(['2', '2', null, null]), got);
     ok('...and the same button is re-armed when the end state goes away (ChessBase keeps one button for every position)',
        /if \(site === 'chessbase'\) return chessbaseSolveButton\(\);/.test(csrc) && /if \(puzzleNextClicked && \(!document\.contains\(puzzleNextClicked\) \|\| site === 'chessbase'\)\) puzzleNextClicked = null;/.test(csrc)); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // crazyhouse drops: the panel passes a legal drop on our turn, the page carries it from the pocket
+    const a = psrc.indexOf('function premove_reply_playable('), b = psrc.indexOf('\n}\n', a) + 3;
+    const c = vm.createContext({console}); c.self = c; vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(`var config = {variant: 'crazyhouse'}, side = 'white'; function our_side() { return side; } ${psrc.slice(a, b)}`, c);
+    const pl = (fen, uci, variant = 'crazyhouse', side = 'white') => vm.runInContext(`config.variant = ${JSON.stringify(variant)}; side = ${JSON.stringify(side)}; premove_reply_playable(${JSON.stringify(fen)}, ${JSON.stringify(uci)})`, c);
+    const W = 'rnbqkb1r/ppppppp1/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 3', B = W.replace(' w ', ' b ');
+    const got = [pl(W, 'N@d5'), pl(B, 'N@d4', 'crazyhouse', 'black'), pl(W, 'N@e2'), pl(W, 'P@h8'), pl(W, 'P@d1'), pl(B, 'N@d5'), pl(W, 'N@d5', 'chess')];
+    ok('a drop is playable on our turn onto an empty square; never onto a piece, a pawn to the back rank, a premove, or outside crazyhouse',
+       JSON.stringify(got) === JSON.stringify([true, true, false, false, false, false, false]), got);
+    const p0 = csrc.indexOf('const DROP_RE'), p1 = csrc.indexOf('\n}\n', csrc.indexOf('function pocketPieceBounds(')) + 3;
+    const run = (sitename, nb) => { const cc = vm.createContext({site: sitename, document: {querySelector: (sel) =>
+            sel === '.pocket-bottom piece[data-role="knight"]' ? {dataset: {nb: String(nb)}, getBoundingClientRect: () => ({x: 5, y: 5, width: 40, height: 40})} : null}});
+        vm.runInContext(csrc.slice(p0, p1), cc); return !!vm.runInContext("pocketPieceBounds('N')", cc); };
+    ok('...the page finds the piece in its own pocket on lichess, and not when the pocket holds none or on another site',
+       run('lichess', 1) && !run('lichess', 0) && !run('chesscom', 1));
+    ok('...and the move path drags from the pocket with the drag floor, keeps Fitts out of it, and lets a verified drop through',
+       /const pocket = pocketPieceBounds\(move\[0\]\);[\s\S]{0,700}const dragMs = Math\.max\(approachMs \+ travelMs, DRAG_MIN_MS\);\s*await simulateDragSquares\(pocket, getBoundsFromCoords\(move\.substring\(2, 4\)\)/.test(csrc)
+       && /getMoveTime\(\) \* \(isDrop \? 1 : fittsScale/.test(csrc) && /if \(!DROP_RE\.test\(move \?\? ''\) && !\/\^\[a-h\]\[1-8\]\[a-h\]\[1-8\]\[qrbn\]\?\$\/\.test\(move \?\? ''\)\) \{\s*return simulateMove\(move, deselect\);/.test(csrc)); }
 // ==== END FIX CHECKS ====

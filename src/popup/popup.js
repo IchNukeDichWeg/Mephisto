@@ -3338,6 +3338,20 @@ function premove_certified(line) {
 }
 
 function premove_reply_playable(fen, uci) {
+    // A CRAZYHOUSE DROP (N@d5): playable on our own turn only -- a drop is never premoved -- onto an
+    // empty square, and never a pawn onto the first or last rank. Checked here because this chess.js
+    // accepts both (it played N@e2 onto a pawn and P@h8). Whether the piece is in the pocket is the
+    // page's to say; the content script reads it there and hands the move back if it is not.
+    if (/^[PNBRQ]@[a-h][1-8]$/.test(uci ?? '')) {
+        if (config.variant !== 'crazyhouse') return false;
+        try {
+            const our = (our_side() === 'white') ? 'w' : 'b';
+            const to = uci.slice(2, 4), chess = new Chess(config.variant, fen);
+            if (fen.split(' ')[1] !== our || chess.get(to)) return false;
+            if (uci[0] === 'P' && /[18]$/.test(to)) return false;
+            return !!chess.move(uci);
+        } catch (e) { return false; }
+    }
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci ?? '')) return false;
     try {
         const chess = new Chess(config.variant, fen);
