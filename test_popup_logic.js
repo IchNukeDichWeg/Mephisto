@@ -3713,4 +3713,55 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('Scale Errors to the Clock: a settings row, registered OFF by default, label and tip in all 14 locales',
        /id="humanize_tc_scale_checkbox"/.test(gh) && /registerFormElement\('humanize_tc_scale', 'Scale Errors to the Clock:', 'checkbox', false\)/.test(gj)
        && locs.every(l => l['set.humanize_tc_scale'] && l['set.tip.humanize_tc_scale'])); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // ONE MAIA ENTRY: the one-time move of an old Maia-1 / Maia-2 selection onto the Play-like rating
+    const cs = fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8');
+    const migrate = async (stored) => {
+        const writes = {};
+        const c = vm.createContext({console, location: {protocol: 'https:'}, chrome: {storage: {local: {get: async () => ({...stored}), set: (o) => Object.assign(writes, o), remove() {}},
+                                                       onChanged: {addListener() {}}}}});
+        c.self = c; c.window = c;
+        vm.runInContext(cs, c);
+        await c.MephistoConfig.ready;
+        return {engine: c.MephistoConfig.get('engine'), elo: c.MephistoConfig.get('maia3_elo'), marked: c.MephistoConfig.get('__maia_merged')};
+    };
+    Promise.all([migrate({engine: '"maia"', maia_level: '"1300"'}), migrate({engine: '"maia2"', maia2_self_elo: '1700', maia3_elo: '1500'}),
+                 migrate({engine: '"maia"', maia_level: '"1300"', __maia_merged: '1'}), migrate({engine: '"stockfish-19-nnue"'})]).then(([m1, m2, done, sf]) => {
+        ok('an old Maia-1 pick becomes the Maia entry at its band; a Maia-2 pick keeps its own rating as the shared one; once only',
+           m1.engine === '"maia3"' && m1.elo === '1300' && m2.engine === '"maia2"' && m2.elo === '1700'
+           && done.engine === '"maia"' && sf.engine === '"stockfish-19-nnue"' && sf.marked === '1', {m1, m2, done, sf}); });
+    const ph = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const opts = (h) => (h.match(/<option value="maia[23]?"[^>]*>/g) || []).join(' ');
+    ok('panel and settings list one pickable Maia entry; Maia-2 stays as a hidden option so a ticked box still shows its name',
+       [ph, gh].every(h => opts(h) === '<option value="maia3"> <option value="maia2" hidden>'), [opts(ph), opts(gh)]);
+    ok('...the panel has Play like, Use opponent\'s rating and the opponent box, and no Maia-1 level or Maia-2 your-Elo row',
+       /id="qs_maia3_row"/.test(ph) && /id="qs_maia_opp_row"/.test(ph) && /id="qs_maia2_oppo_row"/.test(ph)
+       && !/id="qs_maia_row"/.test(ph) && !/id="qs_maia2_row"/.test(ph));
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('ticking Use opponent\'s rating switches the entry between Maia-3 and Maia-2 with an engine reload; Maia-2\'s own side is the Play-like rating',
+       /const want = maiaOpp\.checked \? 'maia2' : 'maia3';\s*if \(want === config\.engine\) return;\s*stop_current_engine\(\);[^\n]*\n\s*save\('engine', want\);\s*panel_reload\(\);/.test(psrc)
+       && /maia2_self_elo: JSON\.parse\(MephistoConfig\.get\('maia3_elo'\)\) \|\| 1500,/.test(psrc));
+    // the opponent's rating: read off the page only for Maia-2, rounded into the net's range
+    const a = psrc.indexOf('function set_maia2_oppo('), b = psrc.indexOf('\n}\n', a) + 3;
+    const sent = [], saved = {}, c = vm.createContext({config: {engine: 'maia2', maia2_oppo_elo: 1500}, PANEL_ROOT: null, last_eval: {fen: 'x'},
+        save: (k, v) => { saved[k] = v; }, send_engine_uci: (l) => sent.push(l), abandon_search() {}, push_config() {}});
+    vm.runInContext(psrc.slice(a, b), c);
+    vm.runInContext('set_maia2_oppo(1523)', c); vm.runInContext('set_maia2_oppo(1510)', c); vm.runInContext('set_maia2_oppo(3200)', c);
+    ok('the opponent rating is rounded to 50 and clamped to 600-2800, and an unchanged one sends nothing',
+       JSON.stringify(sent) === JSON.stringify(['setoption name OppoElo value 1500', 'setoption name OppoElo value 2800']) || JSON.stringify(sent) === JSON.stringify(['setoption name OppoElo value 2800']), sent);
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const r0 = csrc.indexOf('const OPP_RATING_SELECTORS'), r1 = csrc.indexOf('let streamerAsked');
+    const dc = vm.createContext({document: {querySelector: (sel) => sel === '.ruser-top rating' ? {textContent: '2893'} : null}});
+    vm.runInContext(csrc.slice(r0, r1), dc);
+    ok('...the page reads lichess\'s <rating> off the top player row, and only sends it while Maia-2 is the engine',
+       vm.runInContext('opponentRating()', dc) === 2893
+       && (csrc.match(/oppRating: config\??\.engine === 'maia2' \? opponentRating\(\) : null/g) || []).length === 2
+       && /if \(config\.engine === 'maia2' && response\.oppRating > 0\) set_maia2_oppo\(response\.oppRating\);/.test(psrc));
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('Play Like Rating is a settings row on the maia3_elo key, live in an open panel, worded in all 14 locales',
+       /id="maia3_elo_input"/.test(gh) && /registerFormElement\('maia3_elo', 'Play Like Rating:', 'input', 1500\)/.test(gj)
+       && /'maia2_self_elo', 'maia2_oppo_elo', 'maia3_elo',/.test(psrc)
+       && locs.every(l => l['set.play_like_rating'] && l['panel.maia_use_opp'] && l['panel.tip.maia_use_opp'])); }
 // ==== END FIX CHECKS ====

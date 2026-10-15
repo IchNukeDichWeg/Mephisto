@@ -301,6 +301,9 @@ class GeneralSettings extends SettingsPage {
         // 0 = off; the panel reads it fresh per move (humanize_target), like the rest of the mix
         this.registerFormElement('humanize_target_acc', 'Target Accuracy:', 'input', 0);
         // ON by default (owner's call): the guards can only take a planned mistake away (humanize_pick)
+        // THE one rating: Maia's strength, Humanize's Maia features, the row of the clock tables. The
+        // panel's "Play like" slider is the same key.
+        this.registerFormElement('maia3_elo', 'Play Like Rating:', 'input', 1500);
         this.registerFormElement('humanize_guards', 'Humanize Guards:', 'checkbox', true);
         // opt-in: scales the error shares by time control, clock left and phase (HUMANIZE TIME CONTROL)
         this.registerFormElement('humanize_tc_scale', 'Scale Errors to the Clock:', 'checkbox', false);

@@ -394,8 +394,9 @@ async function initPanel(root, tabId) {
         maia_level: JSON.parse(MephistoConfig.get('maia_level')) || '1500', // which Maia net (rating band) when engine=maia
         maia3_elo: JSON.parse(MephistoConfig.get('maia3_elo')) || 1500, // Maia-3 target Elo (600-2600, live input, not a reload)
         // Maia-2 asks who is playing WHOM: the same position is answered differently by a 1200
-        // against a 2000 than by a 2000 against a 1200. Both live, neither a reload.
-        maia2_self_elo: JSON.parse(MephistoConfig.get('maia2_self_elo')) || 1500,
+        // against a 2000 than by a 2000 against a 1200. Both live, neither a reload. OUR side is the
+        // one Play-like rating (maia3_elo) since 3.1.322; only the opponent's is Maia-2's own.
+        maia2_self_elo: JSON.parse(MephistoConfig.get('maia3_elo')) || 1500,
         maia2_oppo_elo: JSON.parse(MephistoConfig.get('maia2_oppo_elo')) || 1500,
         compute_time: (computeTime != null) ? computeTime : 300,
         // TIME OR DEPTH, and BOTH are kept. A depth is reproducible -- the same depth is the same
@@ -690,6 +691,8 @@ async function initPanel(root, tabId) {
             // and permanent time trouble. One clock-less push can be a bad read, so the old value is
             // only dropped once it is more than a few seconds stale.
             else if (last_clocks && Date.now() - last_clocks.at > 3000) last_clocks = null;
+            // Maia-2 with "use opponent's rating": the page's own number wins over the box
+            if (config.engine === 'maia2' && response.oppRating > 0) set_maia2_oppo(response.oppRating);
             // The longest clock reading this game is the closest thing to a base time the panel
             // can see, and it is what Opponent Prep gates on: a 3+0 blitz never reaches five
             // minutes, a 15+10 does on move one. Robust to joining a game late, which a scraped
@@ -1314,32 +1317,6 @@ function init_quick_settings() {
             push_config();
         });
     }
-    // The Maia rating band loads a different .onnx, but that is an ENGINE re-init, not a panel
-    // teardown -- initialize_engine already treats maia_level as part of the net's identity, so
-    // calling it again swaps the net while the panel, the position and the game state stay put.
-    // This used to sit in the reload group below, which is why nudging the band mid-game blanked
-    // the panel (user report 2026-08-14). Re-detect afterwards re-analyses the current position.
-    const maiaLevelEl = PANEL_ROOT.getElementById('qs_maia_level');
-    if (maiaLevelEl) {
-        maiaLevelEl.value = config.maia_level;
-        maiaLevelEl.addEventListener('change', async () => {
-            const level = maiaLevelEl.value;
-            if (level === config.maia_level) return;
-            maiaLevelEl.disabled = true;              // one swap at a time -- the net load is async
-            try {
-                abandon_search();                     // the running search is for the old band
-                config.maia_level = level;
-                save('maia_level', level);
-                await initialize_engine(false);       // maia_level is in the identity check: real re-init
-                PANEL_ROOT.getElementById('recheck')?.click(); // re-analyse the position on the new band
-            } catch (e) {
-                console.warn('Mephisto: Maia band switch failed -- falling back to a panel reload', e);
-                panel_reload();                       // the old behaviour, now only the failure path
-            } finally {
-                maiaLevelEl.disabled = false;
-            }
-        });
-    }
     // engine settings that genuinely need a full re-init; reload the panel, it re-reads storage
     for (const [id, key, parse] of [
         ['qs_engine', 'engine', v => v],
@@ -1385,20 +1362,16 @@ function init_quick_settings() {
             panel_reload();
         });
     }
-    // Maia: strength is the NET (the Maia Level dropdown), not UCI_Elo, and it's standard-chess only
-    // -> hide the Elo + Variant rows, show the level dropdown.
+    // ONE MAIA ENTRY, ONE RATING (3.1.322). "Play like" is the rating Maia-3 plays at, live via
+    // setoption, no net reload. "Use opponent's rating" turns the same entry into Maia-2, the model
+    // that also takes the opponent's: an engine switch, so a reload. Maia-1's bands are gone from the
+    // panel -- the live rating covers them (config-store moves an old Maia-1 pick across at its band).
+    // Neither uses UCI_Elo, and both are standard chess only.
     const isMaia = config.engine === 'maia';
-    const isMaia3 = config.engine === 'maia3';
-    const maiaRow = PANEL_ROOT.getElementById('qs_maia_row');
-    if (maiaRow) {
-        maiaRow.style.display = isMaia ? '' : 'none';
-        const ml = PANEL_ROOT.getElementById('qs_maia_level');
-        if (ml) ml.value = config.maia_level;
-    }
-    // Maia-3 Elo slider: live-applied via setoption (SelfElo/OppoElo) -- no net reload -- then re-analyse.
+    const isMaiaEntry = config.engine === 'maia3' || config.engine === 'maia2';
     const maia3Row = PANEL_ROOT.getElementById('qs_maia3_row');
     if (maia3Row) {
-        maia3Row.style.display = isMaia3 ? '' : 'none';
+        maia3Row.style.display = isMaiaEntry ? '' : 'none';
         const sl = PANEL_ROOT.getElementById('qs_maia3_elo');
         const lbl = PANEL_ROOT.getElementById('qs_maia3_val');
         if (sl && lbl) {
@@ -1408,41 +1381,39 @@ function init_quick_settings() {
             sl.addEventListener('change', () => {
                 const v = parseInt(sl.value) || 1500;
                 config.maia3_elo = v;
+                config.maia2_self_elo = v;
                 save('maia3_elo', v);
                 send_engine_uci(`setoption name SelfElo value ${v}`);
-                send_engine_uci(`setoption name OppoElo value ${v}`);
+                // Maia-3 plays both sides at the one rating; Maia-2's opponent is the opponent's own
+                if (config.engine !== 'maia2') send_engine_uci(`setoption name OppoElo value ${v}`);
                 abandon_search();
                 last_eval.fen = '';   // re-analyse the current position at the new rating
                 push_config();
             });
         }
     }
-    // MAIA-2 IS A MATCHUP, not a level: two ratings, both live. Same shape as the Maia-3 slider
-    // above -- write the config, tell the engine, drop the stale answer and re-ask.
-    const maia2Row = PANEL_ROOT.getElementById('qs_maia2_row');
+    const maiaOppRow = PANEL_ROOT.getElementById('qs_maia_opp_row');
+    const maiaOpp = PANEL_ROOT.getElementById('qs_maia_opp');
+    if (maiaOppRow) maiaOppRow.style.display = isMaiaEntry ? '' : 'none';
+    if (maiaOpp) {
+        maiaOpp.checked = config.engine === 'maia2';
+        maiaOpp.addEventListener('change', () => {
+            const want = maiaOpp.checked ? 'maia2' : 'maia3';
+            if (want === config.engine) return;
+            stop_current_engine();   // free the old net before the other loads
+            save('engine', want);
+            panel_reload();
+        });
+    }
+    // MAIA-2'S OPPONENT: the page's own rating when the scrape found one (onScrapedOppRating), else
+    // this box. Steps of 50, live.
     const maia2Oppo = PANEL_ROOT.getElementById('qs_maia2_oppo_row');
-    if (maia2Row) {
-        // Two rows, each a -/+ stepper in 50s like every other number here -- a rating is a number
-        // you nudge, not a band you pick from a list. The MODEL buckets by 100; that is its own
-        // resolution and not something to make the reader type in.
-        const shown = (config.engine === 'maia2') ? '' : 'none';
-        maia2Row.style.display = shown;
-        if (maia2Oppo) maia2Oppo.style.display = shown;
-        for (const [id, key, opt] of [['qs_maia2_self', 'maia2_self_elo', 'SelfElo'],
-                                      ['qs_maia2_oppo', 'maia2_oppo_elo', 'OppoElo']]) {
-            const box = PANEL_ROOT.getElementById(id);
-            if (!box) continue;
-            box.value = String(config[key]);
-            box.addEventListener('change', () => {
-                const v = Math.max(600, Math.min(2800, parseInt(box.value) || 1500));
-                box.value = String(v);
-                config[key] = v;
-                save(key, v);
-                send_engine_uci(`setoption name ${opt} value ${v}`);
-                abandon_search();
-                last_eval.fen = '';   // the old answer was for another matchup
-                push_config();
-            });
+    if (maia2Oppo) {
+        maia2Oppo.style.display = (config.engine === 'maia2') ? '' : 'none';
+        const box = PANEL_ROOT.getElementById('qs_maia2_oppo');
+        if (box) {
+            box.value = String(config.maia2_oppo_elo);
+            box.addEventListener('change', () => set_maia2_oppo(parseInt(box.value) || 1500));
         }
     }
     // PLAYSTYLE BELONGS WHERE THE MOVES ARE. It decides which move gets played, so it sits in the
@@ -1495,7 +1466,7 @@ function init_quick_settings() {
         });
     }
     const eloRow = PANEL_ROOT.getElementById('qs_elo_row');
-    if (eloRow) eloRow.style.display = (isMaia || isMaia3 || NO_ELO_ENGINES.includes(config.engine)) ? 'none' : '';
+    if (eloRow) eloRow.style.display = (isMaia || isMaiaEntry || NO_ELO_ENGINES.includes(config.engine)) ? 'none' : '';
     const variantRow = PANEL_ROOT.getElementById('qs_variant_row');
     if (variantRow) {
         if (isMaia || NO_CHESS960_ENGINES.includes(config.engine)) {
@@ -9690,7 +9661,7 @@ const LIVE_CONFIG_KEYS = [
     // change on the settings page has to reach an open panel rather than waiting for a reopen
     'pv_keys', 'refute', 'refute_plies', 'second_opinion', 'opp_prep', 'game_log',
     'mirror_ratio', 'time_trouble', 'time_trouble_at',
-    'maia2_self_elo', 'maia2_oppo_elo', 'rodent_personality',
+    'maia2_self_elo', 'maia2_oppo_elo', 'maia3_elo', 'rodent_personality',
     'analysis_limit', 'analysis_limit_mode',
     'arrow_opacity', 'arrow_rank', 'arrow_labels', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
     'premove_confidence', 'premove_plies', 'move_time', 'move_variance', 'move_reason',
@@ -9851,6 +9822,20 @@ function watch_config_changes() {
                     last_eval.fen = '';
                     resync_after_config_change = true;
                 }
+                // THE PLAY-LIKE RATING from the settings page: the same as moving the panel's slider.
+                if (key === 'maia3_elo') {
+                    config.maia2_self_elo = config.maia3_elo;
+                    const sl = PANEL_ROOT.getElementById('qs_maia3_elo'), lbl = PANEL_ROOT.getElementById('qs_maia3_val');
+                    if (sl) sl.value = String(config.maia3_elo);
+                    if (lbl) lbl.textContent = config.maia3_elo;
+                    if (config.engine === 'maia3' || config.engine === 'maia2') {
+                        abandon_search();
+                        send_engine_uci(`setoption name SelfElo value ${config.maia3_elo}`);
+                        if (config.engine === 'maia3') send_engine_uci(`setoption name OppoElo value ${config.maia3_elo}`);
+                        last_eval.fen = '';
+                        resync_after_config_change = true;
+                    }
+                }
                 // Maia-2's matchup, same shape as its panel steppers: tell the net, drop the old answer.
                 if ((key === 'maia2_self_elo' || key === 'maia2_oppo_elo') && config.engine === 'maia2') {
                     abandon_search();
@@ -9941,6 +9926,22 @@ function mark_autoplay_overridden() {
     row.title = by && config.autoplay
         ? `Autoplay is on but ${by} is playing the move instead - turn ${by} off to autoplay`
         : '';
+}
+
+// Maia-2's opponent rating, from its box or from the page: tell the net, drop the stale answer.
+function set_maia2_oppo(v) {
+    v = Math.max(600, Math.min(2800, Math.round(v / 50) * 50));
+    const box = PANEL_ROOT?.getElementById?.('qs_maia2_oppo');
+    if (box) box.value = String(v);
+    if (v === config.maia2_oppo_elo) return;
+    config.maia2_oppo_elo = v;
+    save('maia2_oppo_elo', v);
+    if (config.engine === 'maia2') {
+        send_engine_uci(`setoption name OppoElo value ${v}`);
+        abandon_search();
+        last_eval.fen = '';   // the old answer was for another matchup
+    }
+    push_config();
 }
 
 function push_config() {

@@ -188,7 +188,8 @@ function handleExtensionMessage(response, sender, sendResponse) {
         }
         try {
             sendToPanel({ dom: res, orient: orient, mine: playerColor(), clocks: scrapeClocks(), fenresponse: true,
-                          puzzlePage: isPuzzlePage(), fourPCPage: is4PC() });
+                          puzzlePage: isPuzzlePage(), fourPCPage: is4PC(),
+                          oppRating: config?.engine === 'maia2' ? opponentRating() : null });
         } catch (e) {
             // extension was reloaded - this orphaned content-script can't reach it anymore
         }
@@ -718,6 +719,22 @@ function opponentUsername() {
         // strip a rating suffix and any title prefix -- "GM Hikaru (3210)" -> "Hikaru"
         const name = raw.replace(/\s*\(\d+\)\s*$/, '').replace(/^(GM|IM|FM|WGM|WIM|WFM|CM|NM|WCM|WNM)\s+/i, '').trim();
         if (/^[\w.-]{2,30}$/.test(name)) return name;
+    }
+    return null;
+}
+// The opponent's rating off the same top player box, for Maia-2's "use opponent's rating". Read
+// only while that engine is selected -- like the name above, it is about a person, not a position.
+// lichess: <rating>2893</rating> (checked on lichess TV); chess.com: the tagline rating (unverified
+// markup -- the panel's own number box is the fallback either way).
+const OPP_RATING_SELECTORS = [
+    '.ruser-top rating',
+    '#board-layout-player-top [data-cy="user-tagline-rating"]', '.board-layout-top [data-cy="user-tagline-rating"]',
+    '#board-layout-player-top .user-tagline-rating', '.player-top .user-tagline-rating',
+];
+function opponentRating() {
+    for (const sel of OPP_RATING_SELECTORS) {
+        const m = /(\d{3,4})/.exec(document.querySelector(sel)?.textContent || '');
+        if (m && +m[1] >= 100 && +m[1] <= 3500) return +m[1];
     }
     return null;
 }
@@ -3707,7 +3724,8 @@ function pushPosition() {
         // on has no business reading it. The lookup it feeds happens in the worker (see
         // oppPrepLookup), never from this tab.
         sendToPanel({ dom: res, orient: orient, mine: playerColor(), clocks: scrapeClocks(), fenresponse: true, resume,
-                      opponent: config.opp_prep ? opponentUsername() : null });
+                      opponent: config.opp_prep ? opponentUsername() : null,
+                      oppRating: config.engine === 'maia2' ? opponentRating() : null });
     } catch (e) {
         // extension was reloaded -- this orphaned content-script can't reach it anymore
     }

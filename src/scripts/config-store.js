@@ -230,6 +230,23 @@
                 try { await chrome.storage.local.set(all); } catch (e) { /* */ }
             }
             Object.assign(CACHE, all);
+            // ONE MAIA ENTRY, ONE RATING (3.1.322). Maia-1's bands are covered by Maia-3's live rating,
+            // and Maia-2 is Maia-3's rating plus the opponent's. A Maia-1 selection moves to Maia-3 at
+            // its band, and a Maia-2 one keeps its own rating as the shared one -- once, here.
+            try {
+                if (!CACHE.__maia_merged) {
+                    const saved = JSON.parse(CACHE['engine'] ?? 'null');
+                    if (saved === 'maia') {
+                        const band = parseInt(JSON.parse(CACHE['maia_level'] ?? '"1500"')) || 1500;
+                        api.set('maia3_elo', JSON.stringify(band));
+                        api.set('engine', JSON.stringify('maia3'));
+                    } else if (saved === 'maia2') {
+                        const self = parseInt(JSON.parse(CACHE['maia2_self_elo'] ?? '1500')) || 1500;
+                        api.set('maia3_elo', JSON.stringify(self));
+                    }
+                    api.set('__maia_merged', '1');
+                }
+            } catch (e) { /* corrupt -> the panel's defaults decide */ }
             ready = true;
         },
     };

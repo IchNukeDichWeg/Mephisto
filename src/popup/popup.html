@@ -107,9 +107,9 @@
             <option value="fairy-stockfish-14-nnue">Fairy WASM</option>
             <option value="fairy-native">Fairy (local)</option>
             <option value="rodent-native">Rodent IV (local)</option>
-            <option value="maia">Maia-1 (rating band)</option>
-            <option value="maia2">Maia-2 (you vs opponent)</option>
-            <option value="maia3">Maia-3 (600-2600)</option>
+            <option value="maia3">Maia (plays like a rating)</option>
+            <!-- not pickable: the Maia entry with "use opponent's rating" ticked, shown while it is on -->
+            <option value="maia2" hidden>Maia (rating vs opponent)</option>
             <option value="elite-leela">Elite Leela (human 2200+)</option>
             <option value="tetrarch-native">Tetrarch (4-player, Teams)</option>
             <option value="cloud-chessapi">SF 18 (online)</option>
@@ -223,17 +223,13 @@
     </div>
 <div class="qs-row" id="qs_maia3_row">
         <span data-i18n-tip="panel.tip.maia_3_target_rating_one" class="qs-label tooltipped" data-position="left"
-              data-tooltip="Maia-3 target rating. One transformer model conditioned on the Elo you set, so it plays like a human of that strength - anywhere from 600 to 2600, in fine steps. Changing it applies instantly (no reload)."><span data-i18n="panel.maia3_elo">Maia-3 Elo</span> (<span id="qs_maia3_val">1500</span>)</span>
+              data-tooltip="The rating Maia plays like, 600 to 2600 in fine steps: one model conditioned on the rating, so a change applies instantly (no reload). Humanize's Maia features and its clock tables use the same rating."><span data-i18n="panel.maia3_elo">Play like</span> (<span id="qs_maia3_val">1500</span>)</span>
         <input id="qs_maia3_elo" class="browser-default" type="range" min="600" max="2600" step="50">
     </div>
-<div class="qs-row qs-nums" id="qs_maia2_row">
-        <span data-i18n="panel.maia2_self" data-i18n-tip="panel.tip.maia2_elos" class="qs-label tooltipped" data-position="left"
-              data-tooltip="Maia-2 plays a MATCHUP, not a level: one model that takes your rating and your opponent's, so the same position is answered differently by a 1200 facing a 2000 than by a 2000 facing a 1200. Steps of 50, and both apply instantly (no reload).">Maia-2 your Elo</span>
-        <div class="qs-stepper">
-            <button class="qs-step" type="button" tabindex="-1" data-for="qs_maia2_self" data-d="-1" aria-label="less">&minus;</button>
-            <input id="qs_maia2_self" class="browser-default" type="number" min="600" max="2800" step="50">
-            <button class="qs-step" type="button" tabindex="-1" data-for="qs_maia2_self" data-d="1" aria-label="more">+</button>
-        </div>
+<div class="qs-row qs-toggle" id="qs_maia_opp_row">
+        <input id="qs_maia_opp" type="checkbox" class="qs-cb">
+        <label for="qs_maia_opp" data-i18n="panel.maia_use_opp" data-i18n-tip="panel.tip.maia_use_opp" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Also condition on your opponent's rating: switches to Maia-2, the model that takes both ratings, so the same position is answered differently against a 1200 than against a 2000. The opponent's rating is read off the page when it shows one, else the number below is used. Maia-3 plays the first ten moves, which Maia-2 was never trained on.">Use opponent's rating</label>
     </div>
 <div class="qs-row qs-nums" id="qs_maia2_oppo_row">
         <span data-i18n="panel.maia2_oppo" data-i18n-tip="panel.tip.maia2_elos" class="qs-label tooltipped" data-position="left"
@@ -281,22 +277,6 @@
                 <option data-i18n="panel.fourpc_mode_ffa" value="ffa">Free-for-all</option>
             </select>
         </div>
-    </div>
-<div class="qs-row" id="qs_maia_row">
-        <span data-i18n="panel.maia_level" data-i18n-tip="panel.tip.which_maia_network_to_use" class="qs-label tooltipped" data-position="left"
-              data-tooltip="Which Maia network to use. Each is trained on human games at that rating, so it plays like a human of that strength - human-like mistakes, not a strong engine told to play badly. Changing this loads a different net.">Maia Level</span>
-        <select id="qs_maia_level" class="browser-default">
-            <option value="1100">1100</option>
-            <option value="1200">1200</option>
-            <option value="1300">1300</option>
-            <option value="1400">1400</option>
-            <option value="1500">1500</option>
-            <option value="1600">1600</option>
-            <option value="1700">1700</option>
-            <option value="1800">1800</option>
-            <option value="1900">1900</option>
-            <option value="2200">2200</option>
-        </select>
     </div>
     <!-- Threads, then lines, then hash: threads is what changes where the search can go, hash is
          what you set once. Threads and lines STEP by one rather than slide -- both are small

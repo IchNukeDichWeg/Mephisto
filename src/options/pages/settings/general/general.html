@@ -36,9 +36,9 @@
                             <option value="fairy-stockfish-14-nnue">Fairy Stockfish 14 WASM</option>
                             <option value="fairy-native">Fairy-Stockfish (local, full power - setup required)</option>
                             <option value="rodent-native">Rodent IV (local, personalities - setup required)</option>
-                            <option value="maia">Maia-1 (rating band)</option>
-                            <option value="maia2">Maia-2 (you vs opponent)</option>
-                            <option value="maia3">Maia-3 (600-2600)</option>
+                            <option value="maia3">Maia (plays like a rating)</option>
+                            <!-- not pickable: set by the panel's "use opponent's rating" -->
+                            <option value="maia2" hidden>Maia (rating vs opponent)</option>
                             <option value="elite-leela">Elite Leela (human 2200+)</option>
                             <option value="tetrarch-native">Tetrarch (4-player chess - Teams mode only)</option>
                             <option value="cloud-chessapi">Stockfish 18 (online - chess-api.com, position leaves your machine)</option>
@@ -1875,6 +1875,16 @@
                     </div>
                     <div class="set-ctl">
                         <input id="humanize_target_acc_input" type="number" min="0" max="99" step="1" class="set-num">
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.play_like_rating" class="tooltipped" data-position="right"
+                              data-tooltip="The rating Humanize and Maia aim at, 600 to 2600. With Maia as the engine it is the strength it plays; with Human-Like Mistakes it decides which mistakes look natural; with Scale Errors to the Clock it picks the row of the error tables. The same setting as Play like in the panel."><span data-i18n="set.play_like_rating">Play Like Rating</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="maia3_elo_input" type="number" min="600" max="2600" step="50" class="set-num">
                     </div>
                 </div>
 
