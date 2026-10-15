@@ -823,7 +823,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...on the 14x14 board too', !/effective_multipv\(\)\)\n?\s*\.map\(\(mv, i\)/.test(pj)
        && /\.slice\(0, Math\.max\(1, parseInt\(config\.multiple_lines\) \|\| 1\)\)/.test(pj));
 
-    const h = {console, Math, Number};
+    // seeded: the measured spread makes a 20,000-draw mean wobble ~0.8%, too close to the 2% band for Math.random
+    let seed = 12345;
+    const M = Object.create(Math);
+    M.random = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    const h = {console, Math: M, Number};
     h.self = h;
     vm.createContext(h);
     vm.runInContext(pj.slice(pj.indexOf('// ---- HOW LONG A PERSON ACTUALLY TAKES'), pj.indexOf('// ---- THE COMPLEXITY CLOCK')), h);
@@ -834,10 +838,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const draws = Array.from({length: N}, () => h.lognormal_ms(WANT)).sort((a, b) => a - b);
     const median = draws[N >> 1], mean = draws.reduce((a, b) => a + b, 0) / N;
     ok(`the MEAN is the number the settings asked for (${Math.round(mean)}ms of ${WANT})`, Math.abs(mean - WANT) < WANT * 0.02);
-    ok(`...and the typical move is quicker than it, which is what a right tail IS (median ${median}ms)`,
-       median < mean * 0.95 && median > WANT * 0.8);
+    ok(`...and the typical move is quicker than it, which is what a right tail IS (median ${median}ms, 0.66 of it at a person's spread)`,
+       median < mean * 0.75 && median > WANT * 0.6);
     ok('...nothing is negative and nothing is instant', draws[0] > 0);
-    ok('...the tail is long but not infinite', draws[N - 1] <= WANT * 4);
+    ok('...the tail is long but not infinite (6x the average, after the clamp correction)', draws[N - 1] <= WANT * 6 / 0.977 + 1);
+    ok('...and the spread is the measured one: the slow tenth at about 2.2x the average (players: 2.4x in blitz)',
+       draws[Math.floor(N * 0.9)] > WANT * 2.0 && draws[Math.floor(N * 0.9)] < WANT * 2.4, draws[Math.floor(N * 0.9)]);
     eq('an average of zero is zero, not NaN', h.lognormal_ms(0), 0);
     ok('humanize uses the same averages as the bands it replaces',
         /instant: 75, quick: 500, normal: 1300, long: 4250/.test(pj));

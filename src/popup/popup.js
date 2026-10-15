@@ -7015,21 +7015,24 @@ function in_time_trouble() {
 // histogram of move times is read as human by.
 //
 // One switch, sampling the same AVERAGE the settings already describe, so the numbers you set still
-// mean what they meant. Sigma is the spread in log space -- 0.5 puts the slow tenth of moves at
-// about 2x the typical one and the fast tenth at about half, which is what a real move-time
-// histogram looks like.
+// mean what they meant. Sigma is the spread in log space, MEASURED: lichess players' move times
+// (Stage C, October 2025, non-forced moves) spread 0.94 in blitz, 1.09 in rapid and 1.27 in
+// classical. It was 0.5 here, a guess that put the slow tenth of moves at 1.6x the average where
+// players put it at 2.4x (blitz) -- half a person's spread. 0.94 puts it at 2.2x.
 //
 // THE MEAN IS THE TARGET, NOT THE MEDIAN. A log-normal's mean sits exp(sigma^2/2) ABOVE its median
 // -- 1.133x at sigma 0.5 -- so feeding the setting straight in as the median made every move take
 // ~13% longer on average than the slider said, for everyone who switched this on (a 3s think really
 // spent 3.4s). The draw is shifted down by that factor, which makes the MEAN the number you set and
-// the typical move a little quicker than it: mean E[x] = target, median = 0.88 * target. The 4x
-// clamp below adds ~0.2% back, which is under the rounding.
+// the typical move quicker than it: mean E[x] = target, median = 0.66 * target. The 6x clamp
+// below cuts the tail's 2.3% of the mean, which HUMAN_TIME_CLAMPED_MEAN puts back.
 //
 // The CURSOR TRAVEL is deliberately left alone: a hand does not move across the board log-normally,
 // and its floor exists for a different reason (a click that lands too fast stops looking like one).
-const HUMAN_TIME_SIGMA = 0.5;
-const HUMAN_TIME_MAX_K = 4;    // the tail is long, not infinite -- never more than 4x the average
+const HUMAN_TIME_SIGMA = 0.94;
+const HUMAN_TIME_MAX_K = 6;    // the tail is long, not infinite -- a person's p99 in blitz is ~6x the average
+// E[min(x, 6)] for the mean-1 log-normal at sigma 0.94, closed form: recompute with either constant.
+const HUMAN_TIME_CLAMPED_MEAN = 0.977;
 // The midpoints of humanize's own uniform bands, so switching this on changes the SHAPE of its
 // think times without changing what they average.
 const HUMAN_TIME_MEAN = {instant: 75, quick: 500, normal: 1300, long: 4250};
@@ -7041,8 +7044,10 @@ function lognormal_ms(mean, sigma = HUMAN_TIME_SIGMA) {
     // log(0) is -Infinity, so the first draw is nudged off that edge.
     const u = Math.random() || Number.MIN_VALUE, v = Math.random();
     const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-    // exp(sigma*(z - sigma/2)) has mean exactly 1: the shift is what keeps the average honest.
-    return Math.round(Math.min(mean * Math.exp(sigma * (z - sigma / 2)), mean * HUMAN_TIME_MAX_K));
+    // exp(sigma*(z - sigma/2)) has mean exactly 1: the shift is what keeps the average honest, and
+    // dividing by the clamped mean keeps it honest after the clamp.
+    const k = sigma === HUMAN_TIME_SIGMA ? HUMAN_TIME_CLAMPED_MEAN : 1;
+    return Math.round(Math.min(Math.exp(sigma * (z - sigma / 2)), HUMAN_TIME_MAX_K) * mean / k);
 }
 
 // ---- THE COMPLEXITY CLOCK ----------------------------------------------------------------------
