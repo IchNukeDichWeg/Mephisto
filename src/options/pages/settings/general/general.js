@@ -61,7 +61,7 @@ class GeneralSettings extends SettingsPage {
         const elo_input = this.registerFormElement('elo', 'Elo:', 'input', 0);
         this.registerFormElement('rodent_personality', 'Rodent Personality:', 'select', '---');
         this.registerFormElement('move_notation', 'Move Notation:', 'select', 'san');
-        this.registerFormElement('arrow_labels', 'Label Arrows:', 'checkbox', false);
+        this.registerFormElement('arrow_labels', 'Evals on Arrows:', 'checkbox', false);
         const arrow_opacity_range = this.registerFormElement('arrow_opacity', 'Arrow Opacity:', 'range', 75);
         this.registerFormElement('arrow_rank', 'Number Arrows:', 'checkbox', true);
         this.registerFormElement('forced_lines', 'Forced Lines Ahead:', 'input', 0);
