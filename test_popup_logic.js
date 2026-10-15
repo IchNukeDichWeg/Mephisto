@@ -3853,6 +3853,39 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        v(`hz_match_pick(C, ${sh}, 0.9, () => 0).cand.move`) === 'd' && v(`hz_match_pick(C, ${sh}, 0.5, () => 0).cand.move`) === 'c'
        && v(`hz_match_pick(C, ${sh}, 0.7, () => 0)`).played === 2 && v(`hz_match_pick(C, ${sh}, 0.7, () => 0)`).rolled === 3
        && v(`hz_match_pick(C, ${sh}, 0.1, () => 0).cand.move`) === 'a');
+    { // what kind of error: the real guards + match + time-control blocks on the real chess.js
+        const tg = vm.createContext({}); tg.self = tg;
+        vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), tg);
+        vm.runInContext(sl('// ==== HUMANIZE GUARDS ====', '// ==== END HUMANIZE GUARDS ====') + sl('// ==== HUMANIZE MATCH ====', '// ==== END HUMANIZE MATCH ====')
+            + sl('// ==== HUMANIZE TIME CONTROL ====', '// ==== END HUMANIZE TIME CONTROL ===='), tg);
+        const tv = (e) => JSON.parse(vm.runInContext(`JSON.stringify(${e})`, tg));
+        const fen = '4k3/8/8/3p4/8/2b5/3P4/R3K3 w - - 0 1';   // d2xc3 wins a loose bishop
+        const ty = (u) => tv(`hz_type_classifier(Chess, 'chess', ${JSON.stringify(fen)})(${JSON.stringify(u)})`);
+        ok('error kind: taking the free bishop is quiet, a rook move that leaves it is missed free material',
+           ty('d2c3') === 'quiet' && ty('a1a7') === 'mfree', {d2c3: ty('d2c3'), a1a7: ty('a1a7')});
+        const hp = '4k3/8/8/8/1b6/8/3P4/4K3 w - - 0 1';   // Bb4 hits d2, Ke1 guards it
+        ok('...a king move that still guards the attacked pawn is quiet, one that walks away from it hangs it',
+           tv(`hz_type_classifier(Chess, 'chess', ${JSON.stringify(hp)})('e1e2')`) === 'quiet'
+           && tv(`hz_type_classifier(Chess, 'chess', ${JSON.stringify('4k3/8/8/8/1b6/8/3P4/4K3 w - - 0 1')})('e1f1')`) === 'hung');
+        const pool = "[{move:'h'},{move:'m'},{move:'q'},{move:'q2'}]", T = "(u) => ({h: 'hung', m: 'mfree', q: 'quiet', q2: 'quiet'})[u]";
+        const draws = tv(`(() => { let a = 5; const rnd = () => { a = (a * 1103515245 + 12345) % 2147483648; return a / 2147483648; }; const n = {hung: 0, mfree: 0, quiet: 0}; const t = ${T}; for (let i = 0; i < 20000; i++) n[t(hz_type_pick(${pool}, [0.3, 0.1, 0.6], t, rnd).move)]++; return n; })()`);
+        ok('type pick: the kind is drawn by the players\' shares, not by how many moves of it the list has',
+           Math.abs(draws.hung / 20000 - 0.3) < 0.015 && Math.abs(draws.mfree / 20000 - 0.1) < 0.01 && Math.abs(draws.quiet / 20000 - 0.6) < 0.015, draws);
+        ok('...strict (the default): a pool without the drawn kind plays nothing; not strict, it plays the kind it has; the band table covers every rating as rows of three shares summing to 1',
+           tv('HZ_TYPE_STRICT') === true
+           && tv(`hz_type_pick([{move:'h'}], [0.3, 0.1, 0.6], ${T}, () => 0.99)`) === null
+           && tv(`hz_type_pick([{move:'h'}], [0.3, 0.1, 0.6], ${T}, () => 0.1).move`) === 'h'
+           && tv(`hz_type_pick([{move:'h'}], [0.3, 0.1, 0.6], ${T}, () => 0.99, false).move`) === 'h'
+           && Object.values(tv('HZ_TYPE_MIX')).every(b => b.length === 3 && b.every(r => Math.abs(r[0] + r[1] + r[2] - 1) < 0.002))
+           && tv('hz_type_mix(1500)')[2][2] === tv('HZ_TYPE_MIX')[1400][2][2] && tv('hz_type_mix(3000)')[0][0] === tv('HZ_TYPE_MIX')[2800][0][0]);
+        ok('...hz_match_pick picks errors by kind when given a classifier and the mix; a class with none of the drawn kind falls to the next milder one (and is owed)',
+           tv(`hz_match_pick([{move:'a', drop:0}, {move:'h', drop:7}, {move:'q', drop:7}], [0, 0, 1, 0, 0], 0.5, () => 0.5, null, ${T}, [[0.0, 0, 1], [0, 0, 1], [0, 0, 1]]).cand.move`) === 'q'
+           && tv(`hz_match_pick([{move:'a', drop:0}, {move:'h', drop:7}, {move:'q', drop:7}], [0, 0, 1, 0, 0], 0.5, () => 0.5, null, ${T}, [[1, 0, 0], [0, 0, 1], [0, 0, 1]]).cand.move`) === 'h'
+           && tv(`hz_match_pick([{move:'a', drop:0}, {move:'b', drop:3}, {move:'h', drop:7}], [0, 0, 1, 0, 0], 0.5, () => 0.5, null, ${T}, [[0, 0, 1], [0, 0, 1], [0, 0, 1]])`).played === 1);
+        ok('...wired: the match branch (strict, it owes) and the slider mix (not strict, it has no debt) both pick errors by kind, Maia\'s pick still wins when it is on',
+           /hz_match_pick\(cands, shares, r \/ 100, Math\.random, maiaWhich \? probs : null,\s+typeOf, hz_type_mix\(elo\)\)/.test(psrc)
+           && /: \(row && ok\.length\) \? hz_type_pick\(ok, row, hz_type_classifier\(Chess, config\.variant, fen\), Math\.random, false\)/.test(psrc));
+    }
     const d1 = v(`hz_match_settle(null, ${sh}, 2)`), d2 = v(`hz_match_settle(hz_match_settle(null, ${sh}, 0), ${sh}, 0)`);
     ok('debt: a played inaccuracy pays its class, unplayed errors accumulate their shares',
        near(d1[2], -0.8) && near(d1[3], 0.2) && near(d2[4], 0.4) && d1[0] === 0, {d1, d2});

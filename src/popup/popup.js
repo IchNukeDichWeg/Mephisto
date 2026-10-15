@@ -7782,18 +7782,106 @@ function hz_drop_class(drop) {
     return c;
 }
 
+// WHAT KIND OF ERROR. Inside one class the pick was uniform, and a list's cheapest way to lose 5-20%
+// is often a pawn left en prise: at 1500 our blunders were 42% hung pawns against the players' 26%,
+// quiet errors 40% against 45%, and the inaccuracies 28% hung pawns against 14% (sim_types.py
+// --envelope). Players' errors by kind, Stage C (lichess blitz October 2025, strict accounts), inside
+// the guards' envelope (no mate, at most 600cp, not from +3) and without the hung minor pieces the
+// hang guard refuses: per band, per class (inaccuracy, mistake, blunder), the shares of
+// [hung pawns, missed free material, quiet] (tools/humanize-study/type_table.py). Quiet takes the
+// study's 'tactic' label too: a motif in the reply, which the pick cannot see.
+const HZ_TYPE_MIX = {
+    400: [[0.232,0.093,0.675],[0.348,0.121,0.531],[0.505,0.143,0.352]],
+    600: [[0.199,0.087,0.714],[0.308,0.134,0.558],[0.431,0.138,0.431]],
+    800: [[0.189,0.079,0.732],[0.260,0.116,0.624],[0.399,0.129,0.472]],
+    1000: [[0.171,0.078,0.751],[0.252,0.102,0.646],[0.351,0.108,0.541]],
+    1200: [[0.168,0.074,0.757],[0.244,0.126,0.630],[0.341,0.110,0.549]],
+    1400: [[0.145,0.072,0.783],[0.230,0.103,0.668],[0.300,0.134,0.566]],
+    1600: [[0.146,0.068,0.786],[0.211,0.098,0.691],[0.291,0.123,0.586]],
+    1800: [[0.146,0.070,0.784],[0.201,0.098,0.701],[0.264,0.104,0.632]],
+    2000: [[0.140,0.068,0.792],[0.205,0.086,0.709],[0.259,0.103,0.638]],
+    2200: [[0.146,0.085,0.769],[0.204,0.095,0.701],[0.266,0.118,0.616]],
+    2400: [[0.148,0.085,0.767],[0.207,0.115,0.678],[0.274,0.131,0.595]],
+    2600: [[0.162,0.079,0.759],[0.229,0.108,0.663],[0.268,0.129,0.603]],
+    2800: [[0.162,0.092,0.746],[0.217,0.134,0.649],[0.252,0.148,0.600]],
+};
+const HZ_TYPES = ['hung', 'mfree', 'quiet'];
+
+// The three shares for a rating band: [inaccuracy, mistake, blunder] rows of [hung, mfree, quiet].
+function hz_type_mix(elo) {
+    return HZ_TYPE_MIX[hz_band(elo)] || HZ_TYPE_MIX[1400];
+}
+
+// A classifier for the moves of one position, labelled like the study (extract.py error_type):
+// 'hung' when the opponent can then win a pawn or more off one square net of what the move took,
+// 'mfree' when the move passes up free material that was there to take, else 'quiet'. A move
+// chess.js cannot read counts as quiet. Pure (Chess and the variant are passed in), cached per move.
+function hz_type_classifier(Chess, variant, fen) {
+    let free;
+    const cache = new Map();
+    const freeBefore = () => {
+        if (free !== undefined) return free;
+        free = 0;
+        try {
+            const c = new Chess(variant || 'chess', fen);
+            const squares = new Set(c.moves({verbose: true}).filter(m => m.captured).map(m => m.to));
+            for (const sq of squares) free = Math.max(free, hz_swap(c, sq));
+        } catch (e) { free = 0; }
+        return free;
+    };
+    return (uci) => {
+        if (cache.has(uci)) return cache.get(uci);
+        const x = hz_exposure(Chess, variant, fen, uci);
+        let t = 'quiet';
+        if (x && hz_loss(x) >= 1) t = 'hung';
+        else if (x && freeBefore() - x.gain >= 1) t = 'mfree';
+        cache.set(uci, t);
+        return t;
+    };
+}
+
+// STRICT: the kind is drawn from the players' whole mix, and a pool without a move of that kind
+// plays none -- the class counts as empty, a milder move is played and the error is owed. Without it
+// a list whose only error is a hung pawn always played the hung pawn.
+const HZ_TYPE_STRICT = true;
+
+// Pure. One of pool ({move}) for error class row [hung, mfree, quiet]: the kind is drawn by the
+// players' shares (strict: over all three kinds, null when the pool has none of the drawn kind;
+// otherwise among the kinds this pool has), then a move of that kind uniformly.
+function hz_type_pick(pool, row, typeOf, rnd = Math.random, strict = HZ_TYPE_STRICT) {
+    const groups = {hung: [], mfree: [], quiet: []};
+    for (const x of pool) (groups[typeOf(x.move)] || groups.quiet).push(x);
+    if (strict) {
+        let x = rnd() * (row[0] + row[1] + row[2]), k = 'quiet';
+        for (let i = 0; i < 3; i++) if ((x -= row[i]) < 0) { k = HZ_TYPES[i]; break; }
+        const g = groups[k];
+        return g.length ? g[Math.floor(rnd() * g.length)] : null;
+    }
+    const kinds = HZ_TYPES.filter(k => groups[k].length);
+    const w = kinds.map(k => row[HZ_TYPES.indexOf(k)]);
+    const sum = w.reduce((a, v) => a + v, 0);
+    let k = kinds[kinds.length - 1];
+    if (sum > 0) { let x = rnd() * sum; for (let i = 0; i < kinds.length; i++) if ((x -= w[i]) < 0) { k = kinds[i]; break; } }
+    else k = kinds[Math.floor(rnd() * kinds.length)];
+    const g = groups[k];
+    return g[Math.floor(rnd() * g.length)];
+}
+
 // Pure. Roll a class from the shares (r in [0,1)) and pick a candidate in it. cands = [{move, drop}]
 // the guards already allowed, best move included (drop 0). With Maia probabilities the pick is
-// Maia-weighted and a class whose moves Maia gives under 1% counts as empty. An empty class falls to
-// the next milder one -- a list without a move that bad cannot play one -- and class 0 falls back to
-// the best move. -> {cand: the move to play or null for the best, rolled, played}
-function hz_match_pick(cands, shares, r, rnd = Math.random, probs = null) {
+// Maia-weighted and a class whose moves Maia gives under 1% counts as empty. Without them, an error
+// class is picked by kind when typeOf and the rating's type mix are given (hz_type_pick). An empty
+// class falls to the next milder one -- a list without a move that bad cannot play one -- and class 0
+// falls back to the best move. -> {cand: the move to play or null for the best, rolled, played}
+function hz_match_pick(cands, shares, r, rnd = Math.random, probs = null, typeOf = null, mix = null) {
     let rolled = shares.length - 1, acc = 0;
     for (let i = 0; i < shares.length; i++) { acc += shares[i]; if (r < acc) { rolled = i; break; } }
     for (let c = rolled; c >= 0; c--) {
         const pool = cands.filter(x => hz_drop_class(x.drop) === c);
         if (!pool.length) continue;
-        const cand = probs ? hz_maia_weighted(pool, probs, rnd) : pool[Math.floor(rnd() * pool.length)];
+        const cand = probs ? hz_maia_weighted(pool, probs, rnd)
+            : (typeOf && mix && c >= 2) ? hz_type_pick(pool, mix[c - 2], typeOf, rnd)
+            : pool[Math.floor(rnd() * pool.length)];
         if (cand) return {cand, rolled, played: c};
     }
     return {cand: null, rolled, played: 0};
@@ -8095,7 +8183,9 @@ function humanize_pick(best) {
             const cap = humanize_thresholds().blunder;
             const allowed = alts.filter(l => loss(l) <= cap && safe(l) && (keep === 1 || takes(l)));
             const cands = [bestLine, ...allowed].map(l => ({move: l.move, drop: Math.max(0, wpBest - win_percent(line_cp_ours(l))), line: l}));
-            const res = (Math.random() < keep) ? hz_match_pick(cands, shares, r / 100, Math.random, maiaWhich ? probs : null)
+            const typeOf = hz_type_classifier(Chess, config.variant, fen);
+            const res = (Math.random() < keep) ? hz_match_pick(cands, shares, r / 100, Math.random, maiaWhich ? probs : null,
+                                                               typeOf, hz_type_mix(elo))
                                                : {cand: null, rolled: 0, played: 0};
             hz_match_state = {debt: hz_match_settle(hz_match_state.debt, base, res.played), fullmove};
             if (res.cand && res.cand.move !== best) {
@@ -8127,8 +8217,10 @@ function humanize_pick(best) {
             if (cat !== 'top' && !barred && Math.random() < keep) {
                 const pool = alts.filter(l => loss(l) > bands[cat][0] && loss(l) <= bands[cat][1]);
                 const ok = pool.filter(l => safe(l) && (keep === 1 || takes(l)));
+                const row = hz_type_mix(config.maia3_elo)[['inaccuracy', 'mistake', 'blunder'].indexOf(cat)];
                 cand = maiaWhich ? hz_maia_weighted(ok, probs)
-                                 : (ok[Math.floor(Math.random() * ok.length)] || null);
+                     : (row && ok.length) ? hz_type_pick(ok, row, hz_type_classifier(Chess, config.variant, fen), Math.random, false)   // no debt here to repay a skipped error
+                     : (ok[Math.floor(Math.random() * ok.length)] || null);
                 if (maiaWhich && ok.length) console.log(`Humanize: Maia-weighted ${cat} from ${ok.length}: `
                     + (cand ? `${cand.move} (${((probs.get(cand.move) || 0) * 100).toFixed(1)}%)` : 'none at 1%+, best move kept'));
                 if (cand) category = HUMANIZE_LABEL[cat];

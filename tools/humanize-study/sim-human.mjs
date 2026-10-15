@@ -8,6 +8,7 @@
 //
 // --mode mix   the sliders at their shipped defaults (or --mix top,second,third,fourth,inacc,mistake,blunder)
 // --mode match Err Like Your Rating at --elo
+// --types off  errors uniform inside their class (before the type-aware pick), for comparison
 // The opponent is Stockfish UCI_LimitStrength at the same Elo (min 1320). Our lines come from
 // native Stockfish, MultiPV 20 at --depth, which is the panel's wide humanize search. No clock:
 // the comparison is against the blitz spread, the tables' baseline. Fixed depth, so --workers 0
@@ -30,7 +31,8 @@ const DEPTH = +(A.depth || 12);
 const GUARDS = A.guards !== 'off';
 const NO_DEBT = A.debt === 'off';
 const HUMAN_LIKE = !!A['human-like'];   // Human-Like Mistakes: the error drawn by Maia's probability (needs --maia)
-const NO_CAP = A.cap === 'off';     // match mode without the blunder-threshold ceiling, for comparison   // match mode without the owed-error carry, for comparison
+const NO_CAP = A.cap === 'off';     // match mode without the blunder-threshold ceiling, for comparison
+const NO_TYPES = A.types === 'off'; // errors picked uniformly inside their class, as before the type-aware pick
 const WORKERS = +(A.workers || 0) || os.cpus().length;
 const MAX_OUR_MOVES = +(A['max-moves'] || 60);
 const SF = A.sf || 'stockfish';
@@ -148,7 +150,9 @@ function pick(fen, lines, swing, rnd, st, probs = null) {
         const cap = NO_CAP ? Infinity : H.humanize_thresholds().blunder;
         const allowed = alts.filter(l => loss(l) <= cap && safe(l) && (keep === 1 || takes(l)));
         const cands = [bestLine, ...allowed].map(l => ({move: l.move, drop: Math.max(0, wp(bestCp) - wp(ours(l)))}));
-        const res = (rnd() < keep) ? H.hz_match_pick(cands, shares, r / 100, rnd, HUMAN_LIKE ? probs : null) : {cand: null, played: 0};
+        const typed = !NO_TYPES && H.hz_type_classifier;   // the type-aware pick, where the build has it
+        const res = (rnd() < keep) ? H.hz_match_pick(cands, shares, r / 100, rnd, HUMAN_LIKE ? probs : null,
+            typed ? H.hz_type_classifier(H.Chess, 'chess', fen) : null, typed ? H.hz_type_mix(ELO) : null) : {cand: null, played: 0};
         if (!NO_DEBT) st.debt = H.hz_match_settle(st.debt, base, res.played);
         return res.cand ? res.cand.move : best;
     }
@@ -160,6 +164,8 @@ function pick(fen, lines, swing, rnd, st, probs = null) {
     const pool = alts.filter(l => loss(l) > bands[cat][0] && loss(l) <= bands[cat][1]);
     const ok = pool.filter(l => safe(l) && (keep === 1 || takes(l)));
     if (HUMAN_LIKE && probs) { const c = H.hz_maia_weighted(ok, probs, rnd); return c ? c.move : best; }
+    const row = H.hz_type_classifier && !NO_TYPES ? H.hz_type_mix(ELO)[['inaccuracy', 'mistake', 'blunder'].indexOf(cat)] : null;
+    if (row && ok.length) return H.hz_type_pick(ok, row, H.hz_type_classifier(H.Chess, 'chess', fen), rnd, false).move;
     return ok.length ? ok[Math.floor(rnd() * ok.length)].move : best;
 }
 

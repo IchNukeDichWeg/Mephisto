@@ -380,7 +380,10 @@ players' 10.0 / 6.4 / 4.6 (1100: 10.6 / 4.8 / 1.8 against 10.6 / 7.2 / 5.8; 2300
 2.8). The blunder gap is the guards, by design: about half of the players' blunders come where a guard forbids one
 (moving into mate, losing over 600cp, or from +3 up), and inside those bounds players at 1400 blunder 2.6% of moves;
 with a Maia option on, natural hangs take ours to 2.5. Human-Like Mistakes moves the kind of error toward the players'
-(quiet blunders 26% to 46%, players 45%; hung pawns 52% to 37%, players 26%) at 1.7% blunders. The default sliders,
+(quiet blunders 26% to 46%, players 45%; hung pawns 52% to 37%, players 26%) at 1.7% blunders. Without it, the kind of
+error is still drawn from the players' mix at the rating (hung pawn, missed free material, quiet), and a list without
+the drawn kind plays a milder move and owes the error: at 1500, hung pawns went from 28% to 22% of the inaccuracies
+(players 14%) and from 39% to 24% of the mistakes (players 22%); blunders are still about half hung pawns (players 26%). The default sliders,
 for comparison, measure 1.0 / 0.0 / 0.4; they still apply with this option off, and an install whose mix was tuned
 before 3.1.323 keeps it off. **Think Like Your Time
 Control (optional)** draws each think from how long players spent per move at that time control, phase and clock
