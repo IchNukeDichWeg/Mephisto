@@ -9069,8 +9069,14 @@ function classify_history() {
             // depths (and the old slack) for a position recorded before the reference existed.
             const dBefore = ply_facts[i]?.ref?.depth || ply_facts[i]?.depth || 0;
             const dAfter = ply_facts[i + 1]?.ref?.depth || ply_facts[i + 1]?.depth || 0;
+            // A FORCED MATE IS NOT A DEPTH-DEPENDENT OPINION. On a mate in one the engine runs
+            // through every depth in a millisecond, so the first frame the panel sees past the floor
+            // is already depth 245 -- and against the 25 plies of the position before, the pair
+            // was refused: 2.g4?? next to Qh4# went ungraded and Refute drew nothing (3.1.321
+            // audit). A mate on either side is the same fact at any depth past the floor.
+            const mateAt = (ply) => typeof ply_facts[ply]?.lines?.[0]?.mate === 'number';
             const comparable = dBefore >= CLASSIFY_MIN_DEPTH && dAfter >= CLASSIFY_MIN_DEPTH
-                && Math.abs(dBefore - dAfter) <= CLASSIFY_DEPTH_SLACK;
+                && (Math.abs(dBefore - dAfter) <= CLASSIFY_DEPTH_SLACK || mateAt(i) || mateAt(i + 1));
             const facts = ply_facts[i];
             let rank = null, secondWin = null;
             if (facts && facts.fen === fen) {

@@ -3382,4 +3382,21 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const man = JSON.parse(fs.readFileSync(ROOT + '/manifest.json', 'utf8'));
     ok('host access covers every page the content script already runs on (<all_urls>), so injection and screen capture need no toolbar click',
        man.host_permissions.includes('<all_urls>') && man.content_scripts[0].matches.includes('<all_urls>')); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // a blunder into a mate in one is graded even though the engine reached the mate at depth 245 in one frame
+    const a = psrc.indexOf('function classify_history()'), fnSrc = psrc.slice(a, psrc.indexOf('\n}\n', a) + 3);
+    const c = vm.createContext({console: {log() {}}}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8') + ';' + fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(`var config = {variant: 'chess'}, premove_tracker = {startFen: '', moves: 'f2f3 e7e5 g2g4'}, move_class_key = '', move_classes = [], last_logged_class = [];
+        const CLASSIFY_MIN_DEPTH = 10, CLASSIFY_DEPTH_SLACK = 4, TB_OVERRIDABLE = new Set(); function tb_held_the_result() { return false; } function ensure_classifier() {}
+        var eval_seen = [true, true, true, true], eval_history = [0.52, 0.42, 0.44, 0.0];
+        var ply_facts = [{fen: new Chess().fen(), lines: [{move: 'e2e4', score: 30}], depth: 25, ref: {frac: 0.52, depth: 25}},
+                         {fen: 'x', lines: [{move: 'e7e5', score: -70}], depth: 25, ref: {frac: 0.42, depth: 25}},
+                         {fen: 'x', lines: [{move: 'b1c3', score: -60}], depth: 26, ref: {frac: 0.44, depth: 26}},
+                         {fen: 'x', lines: [{move: 'd8h4', score: -100000, mate: -1}], depth: 245, ref: {frac: 0.0, depth: 245}}];
+        ${fnSrc}`, c);
+    const cls = vm.runInContext('classify_history()', c);
+    ok('2.g4?? into Qh4# is graded a blunder although the mate came in at depth 245 against 26 the ply before', cls[2] === 'blunder', cls);
+    vm.runInContext("move_class_key = ''; ply_facts[3] = {fen: 'x', lines: [{move: 'd8h4', score: -900}], depth: 245, ref: {frac: 0.0, depth: 245}};", c);
+    ok('...while two ordinary readings that far apart in depth stay ungraded, as before', vm.runInContext('classify_history()', c)[2] === null); }
 // ==== END FIX CHECKS ====
