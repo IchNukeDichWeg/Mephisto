@@ -3084,21 +3084,35 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     vm.runInContext(`var config = {clock_mode: true, mirror_mode: true}, opp_spend = null, premove_tracker = {moves: '', startFen: ''},
         last_eval = {fen: ''}, last_clocks = {mine: 60, theirs: 50, increment: 0, at: Date.now()};   // theirs lower: no catch-up cut
         const INITIAL_PLACEMENT = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR', OPENING_MOVES = 8, OPENING_PACE_MS = 750;
+        const MOVE_MARGIN = 150, FIRST_MOVE_SEARCH_MS = 100, FIRST_MOVE_PACE_MS = FIRST_MOVE_SEARCH_MS + MOVE_MARGIN;
         function mirror_ratio() { return 0.9; }
-        ${['clock_aware', 'clock_budget_ms', 'clock_move_budget_ms', 'in_opening', 'paced_move_target_ms'].map(fnSrc).join('\n')}`, c);
+        ${['clock_aware', 'clock_budget_ms', 'clock_move_budget_ms', 'in_opening', 'first_move', 'paced_move_target_ms'].map(fnSrc).join('\n')}`, c);
     const run = (js) => vm.runInContext(js, c);
     const move1 = run(`paced_move_target_ms(${JSON.stringify(START)}).ms`);
+    const AFTER_E4E5 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2';
+    const move2 = run(`premove_tracker.moves = 'e2e4 e7e5'; premove_tracker.startFen = ${JSON.stringify(START)}; paced_move_target_ms(${JSON.stringify(AFTER_E4E5)}).ms`);
+    const black1 = run(`premove_tracker.moves = 'e2e4'; premove_tracker.startFen = ${JSON.stringify(START)}; first_move('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1')`);
+    run(`premove_tracker.moves = ''; premove_tracker.startFen = ''`);
     const mid = run(`premove_tracker.moves = 'e2e4 e7e5'; premove_tracker.startFen = ${JSON.stringify(START)}; paced_move_target_ms('r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 4 12').ms`);
     const noList = run(`premove_tracker.moves = ''; in_opening('r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w - - 0 1')`);
     const fromPos = run(`premove_tracker.moves = 'e1e2'; premove_tracker.startFen = '8/8/8/4k3/8/8/4P3/4K3 w - - 0 1'; in_opening('8/8/8/4k3/8/8/4K3/8 b - - 1 1')`);
     ok('the first moves of a From Position endgame are not an opening', fromPos === false);
-    const mirrored = run(`opp_spend = 3; paced_move_target_ms(${JSON.stringify(START)}).ms`);
-    ok('1+0, move 1: the search is sized to the opening pace, not the 2 s clock budget; move 12 still gets the budget',
-       move1 === 750 && mid > 1900, {move1, mid});
+    const mirrored = run(`opp_spend = 3; premove_tracker.moves = 'e2e4 e7e5'; premove_tracker.startFen = ${JSON.stringify(START)}; paced_move_target_ms(${JSON.stringify(AFTER_E4E5)}).ms`);
+    const mirrored1 = run(`premove_tracker.moves = ''; paced_move_target_ms(${JSON.stringify(START)}).ms`);
+    ok('1+0: move 1 is paced at FIRST_MOVE_PACE_MS, moves 2-7 at the opening pace, not the 2 s clock budget; move 12 still gets the budget',
+       move1 === 250 && move2 === 750 && mid > 1900, {move1, move2, mid});
+    ok('first_move: White\'s and Black\'s move 1 of a game from the start array, nothing else', black1 === true
+       && run(`first_move(${JSON.stringify(START)})`) === true && run(`first_move('8/8/8/4k3/8/8/4P3/4K3 w - - 0 1')`) === false);
+    ok('...and Mirror Time does not stretch move 1 to the opponent\'s spend', mirrored1 === 250, mirrored1);
     ok('a scrape with no move list is not "the opening" just because its FEN says move 1', noList === false);
-    ok('a measured opponent spend still decides the pace in the opening (Mirror Time)', mirrored === 2700, mirrored);
+    ok('a measured opponent spend still decides the pace in the opening after move 1 (Mirror Time)', mirrored === 2700, mirrored);
+    ok('move 1 with Humanize or a clock mode: a FIRST_MOVE_SEARCH_MS search on our turn, no Humanize deviation, the reflex think',
+       /if \(config\.autoplay && \(config\.humanize \|\| clock_aware\(\)\) && \(\(turn === 'w'\) \? 'white' : 'black'\) === our_side\(\)\s*&& first_move\(fen\)\) movetime = Math\.min\(movetime, FIRST_MOVE_SEARCH_MS\);/.test(psrc)
+       && /const firstMove = !\(recapture \|\| forced\) && first_move\(fen\);\s*if \(config\.humanize && !recapture && !forced && !firstMove && /.test(psrc)
+       && /if \(recapture \|\| forced \|\| firstMove\) kind = 'instant';/.test(psrc)
+       && /if \(first_move\(fen\)\) return FIRST_MOVE_PACE_MS;/.test(psrc));
     ok('Humanize reels the opening off before it can call the start position tense',
-       /const reelOff = !\(recapture \|\| forced\) && in_opening\(fen\);\s*if \(recapture \|\| forced\) kind = 'instant';\s*else if \(reelOff\) kind = 'quick';[\s\S]{0,400}kind = 'long'/.test(psrc));
+       /const reelOff = !\(recapture \|\| forced\) && in_opening\(fen\);\s*if \(recapture \|\| forced \|\| firstMove\) kind = 'instant';\s*else if \(reelOff\) kind = 'quick';[\s\S]{0,400}kind = 'long'/.test(psrc));
     ok('Mirror Time marks the opponent clock on our turn too, so it does not need a scrape during theirs',
        /if \(turn === ourColor\) \{[\s\S]{0,1800}if \(last_clocks\?\.theirs != null\) opp_clock_mark = last_clocks\.theirs;\s*\} else \{\s*opp_turn_at = Date\.now\(\);\s*if \(opp_clock_mark == null/.test(psrc));
     {

@@ -5541,6 +5541,9 @@ function on_new_pos(fen, startFen, moves) {
         const hz = humanize_presearch_ms(fen);
         if (hz != null) movetime = Math.max(config.compute_time, Math.round(hz - MOVE_MARGIN));
     }
+    // our first move, with Humanize or a clock mode on: a short search, never the configured one
+    if (config.autoplay && (config.humanize || clock_aware()) && ((turn === 'w') ? 'white' : 'black') === our_side()
+        && first_move(fen)) movetime = Math.min(movetime, FIRST_MOVE_SEARCH_MS);
     // a forced move (one legal reply) needs no thinking time -- play it fast even mid-pace
     try {
         if (new Chess(config.variant, fen).moves().length === 1) movetime = Math.min(movetime, config.compute_time);
@@ -7194,6 +7197,21 @@ function in_opening(fen) {
     return String(start).split(' ')[0] === INITIAL_PLACEMENT;
 }
 
+// MOVE 1 IS PLAYED, NOT THOUGHT ABOUT (issue 1: "a 0.1 second move, or at least a sub second move").
+// Nobody thinks about their first move and no first move in the engine's list loses, yet with the
+// opening pace above it still searched the configured time and took the 'quick' think: 1.16 s on
+// average as Black in 1+0 (4 live games, Humanize + Clock Mode + Mirror Time). With Humanize or a
+// clock mode on, our first move now searches FIRST_MOVE_SEARCH_MS, plays the engine's move with the
+// reflex think, and Humanize does not deviate on it (a person's first move is their repertoire, not
+// a roll). The cursor travel (Move Time) is left as you set it, as on every other move.
+const FIRST_MOVE_SEARCH_MS = 100;
+const FIRST_MOVE_PACE_MS = FIRST_MOVE_SEARCH_MS + MOVE_MARGIN;
+function first_move(fen) {
+    let fullmove = 0;
+    try { fullmove = parseInt(fen.split(' ')[5]) || 0; } catch (e) { /* variant fen */ }
+    return fullmove === 1 && in_opening(fen);
+}
+
 // The intended TOTAL time (ms) for the current move from the clock-aware modes, computed WITHOUT
 // the search results (Mirror = opponent's spend x0.9, Clock = the T/30 budget). Used to SIZE the
 // search in on_new_pos so the engine thinks the whole time instead of finding a shallow move fast
@@ -7202,6 +7220,7 @@ function in_opening(fen) {
 // the authoritative think, and on_engine_best_move only waits out whatever the search didn't cover.
 function paced_move_target_ms(fen = last_eval.fen) {
     if (!clock_aware() || !last_clocks || last_clocks.mine == null) return null;
+    if (first_move(fen)) return {ms: FIRST_MOVE_PACE_MS, lowClock: false};
     const T = last_clocks.mine - (Date.now() - last_clocks.at) / 1000; // seconds remaining
     let ms;
     if (config.mirror_mode && opp_spend != null) {
@@ -7227,6 +7246,7 @@ function paced_move_target_ms(fen = last_eval.fen) {
 function humanize_presearch_ms(fen) {
     if (!config.humanize || clock_aware() || !config.autoplay
         || config.help_mode || config.puzzle_mode || in_time_trouble()) return null;
+    if (first_move(fen)) return FIRST_MOVE_PACE_MS;                 // move 1: played, not thought about
     if (in_opening(fen)) return 500;                                // opening: reel it off
     const evalCp = (last_our_eval != null) ? Math.abs(last_our_eval) : 0;
     if (evalCp > 600) return 500;                                  // game decided: moves matter less
@@ -8260,7 +8280,8 @@ function humanize_pick(best) {
     // punish guard needs it, and so does the think time.
     const swing = (last_our_eval != null) ? bestCp - last_our_eval : 0;
     let move = best;
-    if (config.humanize && !recapture && !forced && lines.length >= 2 && bestLine) {
+    const firstMove = !(recapture || forced) && first_move(fen);
+    if (config.humanize && !recapture && !forced && !firstMove && lines.length >= 2 && bestLine) {
         const playable = (m) => premove_reply_playable(fen, m); // moves OUR piece + legal here
         const loss = (l) => bestCp - line_cp_ours(l);
         const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000); // never move INTO mate
@@ -8410,7 +8431,7 @@ function humanize_pick(best) {
 
     let kind;
     const reelOff = !(recapture || forced) && in_opening(fen);
-    if (recapture || forced) kind = 'instant';
+    if (recapture || forced || firstMove) kind = 'instant';
     else if (reelOff) kind = 'quick';                      // opening reel-off -- BEFORE 'long':
                                                                    // the start position is level with close
                                                                    // choices, i.e. "tense" by the next line
