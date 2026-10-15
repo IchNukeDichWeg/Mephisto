@@ -29,6 +29,7 @@ const GAMES = +(A.games || 40);
 const DEPTH = +(A.depth || 12);
 const GUARDS = A.guards !== 'off';
 const NO_DEBT = A.debt === 'off';
+const HUMAN_LIKE = !!A['human-like'];   // Human-Like Mistakes: the error drawn by Maia's probability (needs --maia)
 const NO_CAP = A.cap === 'off';     // match mode without the blunder-threshold ceiling, for comparison   // match mode without the owed-error carry, for comparison
 const WORKERS = +(A.workers || 0) || os.cpus().length;
 const MAX_OUR_MOVES = +(A['max-moves'] || 60);
@@ -147,7 +148,7 @@ function pick(fen, lines, swing, rnd, st, probs = null) {
         const cap = NO_CAP ? Infinity : H.humanize_thresholds().blunder;
         const allowed = alts.filter(l => loss(l) <= cap && safe(l) && (keep === 1 || takes(l)));
         const cands = [bestLine, ...allowed].map(l => ({move: l.move, drop: Math.max(0, wp(bestCp) - wp(ours(l)))}));
-        const res = (rnd() < keep) ? H.hz_match_pick(cands, shares, r / 100, rnd, null) : {cand: null, played: 0};
+        const res = (rnd() < keep) ? H.hz_match_pick(cands, shares, r / 100, rnd, HUMAN_LIKE ? probs : null) : {cand: null, played: 0};
         if (!NO_DEBT) st.debt = H.hz_match_settle(st.debt, base, res.played);
         return res.cand ? res.cand.move : best;
     }
@@ -158,6 +159,7 @@ function pick(fen, lines, swing, rnd, st, probs = null) {
     if (cat === 'top' || barred || !(rnd() < keep)) return best;
     const pool = alts.filter(l => loss(l) > bands[cat][0] && loss(l) <= bands[cat][1]);
     const ok = pool.filter(l => safe(l) && (keep === 1 || takes(l)));
+    if (HUMAN_LIKE && probs) { const c = H.hz_maia_weighted(ok, probs, rnd); return c ? c.move : best; }
     return ok.length ? ok[Math.floor(rnd() * ok.length)].move : best;
 }
 
@@ -242,7 +244,7 @@ const fmt = (s) => s >= 3600 ? `${Math.floor(s / 3600)}h${String(Math.floor(s % 
 const tick = () => { const el = (Date.now() - t0) / 1000, rate = done / Math.max(el, 1e-3);
     const msg = `games ${done}/${GAMES} ${(100 * done / GAMES).toFixed(0)}%  ${(rate * 60).toFixed(1)}/min  elapsed ${fmt(el)}  ETA ${done ? fmt((GAMES - done) / rate) : '?'}`;
     if (TTY) process.stdout.write('\r' + msg); else if (done % 5 === 0 || done === GAMES) console.log(msg); };
-console.log(`mode ${MODE}${mixKeys.length ? ' ' + mixKeys.join('/') : ''} at ${ELO}, guards ${GUARDS ? 'on' : 'off'}${maia ? `, Maia natural hangs at ${vm.runInContext('HZ_NATURAL_HANG', ctx)}` : ''}${MODE === 'match' && NO_DEBT ? ', no debt' : ''}${MODE === 'match' && NO_CAP ? ', no ceiling' : ''}, ${GAMES} games vs SF ${Math.max(1320, ELO)}, depth ${DEPTH}, ${WORKERS} workers`);
+console.log(`mode ${MODE}${mixKeys.length ? ' ' + mixKeys.join('/') : ''} at ${ELO}, guards ${GUARDS ? 'on' : 'off'}${maia ? `, Maia natural hangs at ${vm.runInContext('HZ_NATURAL_HANG', ctx)}` : ''}${HUMAN_LIKE ? ', Human-Like Mistakes' : ''}${MODE === 'match' && NO_DEBT ? ', no debt' : ''}${MODE === 'match' && NO_CAP ? ', no ceiling' : ''}, ${GAMES} games vs SF ${Math.max(1320, ELO)}, depth ${DEPTH}, ${WORKERS} workers`);
 await Promise.all(Array.from({length: Math.min(WORKERS, GAMES)}, async () => {
     while (next < GAMES) { const g = next++;
         try { results.push(await playGame(g)); } catch (e) { console.log(`\ngame ${g} failed: ${e.message}`); }
