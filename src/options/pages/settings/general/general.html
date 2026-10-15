@@ -1914,6 +1914,19 @@
                     </div>
                 </div>
 
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.humanize_maia" class="tooltipped" data-position="right"
+                              data-tooltip="Off by default. When Humanize plays something other than the best move, it picks the one a person at your Play Like Rating would actually play: each candidate is weighted by how likely Maia-3 thinks that rating is to play it, and a move Maia gives under 1% is never chosen. Uses the bundled Maia-3 net (88 MB, downloaded the first time) as a second engine during autoplay; until it has answered for a position, the plain pick stands in. Standard chess only."><span data-i18n="set.humanize_maia">Human-Like Mistakes</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="humanize_maia_checkbox" type="checkbox" class="set-cb">
+                        <label for="humanize_maia_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
                 <p data-i18n="set.note.giving_a_share_to_anything" class="set-note">
                     Giving a share to anything below the near-best bands makes the engine search a wider list so a move
                     that bad exists to choose from - that costs search depth. A pure Top + Second mix keeps the cheaper

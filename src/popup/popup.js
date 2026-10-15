@@ -5537,6 +5537,8 @@ function on_new_pos(fen, startFen, moves) {
     }
     // whose move is it -- drives the ponder budget (remote/native) and the per-turn thread cap (WASM)
     const our_turn = ((turn === 'w') ? 'white' : 'black') === our_side();
+    // Humanize's Maia read for this move, while the engine searches (it answers in tens of ms)
+    if (our_turn && config.autoplay) request_humanize_maia(fen);
     // Puzzle Mode never analyses the opponent's turn. In a puzzle their reply is scripted and lands
     // in a couple of hundred ms, and nothing consumes an opponent-turn search here: Premove is
     // disabled in Puzzle Mode (all three entry points bail on it), so there is no certification to
@@ -7582,6 +7584,26 @@ function hz_punish_keep(swing, bestTakes) {
 function hz_mate_in(cp) {
     return cp >= 90000 ? Math.round((100000 - cp) / 1000) : null;
 }
+
+// MAIA-GUIDED CHOICE (redesign Stage B, 3.1.322). probs = Maia-3's move probabilities at the
+// Play-like rating for this position, a Map uci -> p over every legal move.
+// B1, Human-Like Mistakes: a deviation is drawn in proportion to how often a player of that rating
+// plays it (alpha 1, the population's own rate), and a move Maia gives under 1% is never chosen
+// however well its cp fits -- the 300cp error becomes the attractive capture that loses to an
+// intermezzo, not a random rank-14 line.
+const HZ_MAIA_MIN = 0.01;
+
+// Pure. One of pool ({move}) drawn by its Maia probability; null when none reaches HZ_MAIA_MIN.
+function hz_maia_weighted(pool, probs, rnd = Math.random) {
+    const w = pool.map(l => { const p = probs.get(l.move) || 0; return p >= HZ_MAIA_MIN ? p : 0; });
+    const sum = w.reduce((a, v) => a + v, 0);
+    if (!(sum > 0)) return null;
+    let x = rnd() * sum;
+    for (let i = 0; i < pool.length; i++) { if (w[i] > 0 && (x -= w[i]) < 0) return pool[i]; }
+    for (let i = pool.length - 1; i >= 0; i--) if (w[i] > 0) return pool[i];   // rounding at the top end
+    return null;
+}
+
 // ==== END HUMANIZE GUARDS ====
 
 // ==== HUMANIZE TIME CONTROL ====
@@ -7754,6 +7776,10 @@ function humanize_pick(best) {
         const loss = (l) => bestCp - line_cp_ours(l);
         const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000); // never move INTO mate
         const rates = humanize_rates_now(fen, true); // the mix, scaled to the clock when that is on
+        // Maia's read of this position at the Play-like rating, asked at search start; null when it
+        // has not answered yet (first-use download, a slow pass) -- then the plain mix decides.
+        const probs = hz_maia_probs(fen);
+        const maiaWhich = !!probs && humanize_flag('humanize_maia', false);
         const guards = humanize_flag('humanize_guards', true);
         // THE GUARDS (see HUMANIZE GUARDS above). Lazy: the exchange walk only runs for the moves a
         // roll actually wants to play.
@@ -7791,7 +7817,8 @@ function humanize_pick(best) {
             const maxLoss = winning ? Math.min(humanize_max_loss(rates, decided), humanize_thresholds().inaccuracy)
                                     : humanize_max_loss(rates, decided);
             const all = [bestLine, ...alts].map(l => ({move: l.move, cp: line_cp_ours(l), line: l}));
-            const pick = humanize_target_pick(all.filter(c => c.line === bestLine || safe(c.line)),
+            const human = (c) => !maiaWhich || (probs.get(c.move) || 0) >= HZ_MAIA_MIN;   // B1
+            const pick = humanize_target_pick(all.filter(c => c.line === bestLine || (safe(c.line) && human(c))),
                                               bestCp, run, humanize_target(), maxLoss);
             if (pick && pick.move !== best) {
                 cand = pick;
@@ -7822,7 +7849,10 @@ function humanize_pick(best) {
             if (cat !== 'top' && !barred && Math.random() < keep) {
                 const pool = alts.filter(l => loss(l) > bands[cat][0] && loss(l) <= bands[cat][1]);
                 const ok = pool.filter(l => safe(l) && (keep === 1 || takes(l)));
-                cand = ok[Math.floor(Math.random() * ok.length)] || null;
+                cand = maiaWhich ? hz_maia_weighted(ok, probs)
+                                 : (ok[Math.floor(Math.random() * ok.length)] || null);
+                if (maiaWhich && ok.length) console.log(`Humanize: Maia-weighted ${cat} from ${ok.length}: `
+                    + (cand ? `${cand.move} (${((probs.get(cand.move) || 0) * 100).toFixed(1)}%)` : 'none at 1%+, best move kept'));
                 if (cand) category = HUMANIZE_LABEL[cat];
                 else if (pool.length && guards) category = 'guard held';
             } else if (cat !== 'top' && guards && (barred || keep < 1)) {
@@ -10467,6 +10497,55 @@ async function safety_human_ask(fen) {
     }));
     if (answer && answer.length) safety_human_cache.set(fen, answer);
     return answer || [];
+}
+
+// ---- Humanize's Maia read (Stage B): the whole distribution at the PLAY-LIKE rating -------------
+// Same client and net as the two above, asked in turn with them. Its rating and list width are its
+// own: set before the pass and put back after it, so the threat reply and the safety net keep
+// reading at theirs. Asked at search start on our turn; humanize_pick reads whatever has arrived.
+const hz_maia_cache = new Map();   // fen -> Map(uci -> p)
+function hz_maia_probs(fen) { return hz_maia_cache.get(fen) || null; }
+function request_humanize_maia(fen) {
+    if (!config.humanize) return;
+    if (!humanize_flag('humanize_maia', false)) return;
+    if (config.variant && config.variant !== 'chess') return;    // the nets know one game
+    if (hz_maia_cache.has(fen)) return;
+    human_once(`hz|${fen}`, () => humanize_maia_ask(fen)).catch(() => {});
+}
+async function humanize_maia_ask(fen) {
+    await ensure_threat_human();
+    const elo = Math.max(600, Math.min(2600, Math.round(Number(config.maia3_elo) || 1500)));
+    const answer = await human_in_turn(() => new Promise((resolve) => {
+        const send = (line) => chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line});
+        const probs = new Map();
+        const done = (v) => {
+            cleanup();
+            const back = threat_human_elo_loaded ?? threat_human_elo();
+            send(`setoption name SelfElo value ${back}`);
+            send(`setoption name OppoElo value ${back}`);
+            send('setoption name MultiPV value 5');
+            resolve(v);
+        };
+        const timer = setTimeout(() => done(null), 15000);
+        const onMsg = (m) => {
+            if (!m || !m.fromOffscreen || m.clientId !== threat_human_id || m.kind !== 'line') return;
+            const info = /info .*maiaprob (\d+) pv ([a-h][1-8][a-h][1-8][qrbn]?)/.exec(m.line || '');
+            if (info) probs.set(info[2], Number(info[1]) / 10000);
+            if (/^bestmove\b/.test(m.line || '')) done(probs);
+        };
+        const cleanup = () => { clearTimeout(timer); chrome.runtime.onMessage.removeListener(onMsg); };
+        chrome.runtime.onMessage.addListener(onMsg);
+        send(`setoption name SelfElo value ${elo}`);
+        send(`setoption name OppoElo value ${elo}`);
+        send('setoption name MultiPV value 256');   // every legal move: the softmax covers them anyway
+        send(`position fen ${fen}`);
+        send('go nodes 1');
+    }));
+    if (answer && answer.size) {
+        if (hz_maia_cache.size >= 64) hz_maia_cache.clear();
+        hz_maia_cache.set(fen, answer);
+    }
+    return answer;
 }
 
 // asked whenever the net is watching our turn; redraws when the answer lands, because the verdict

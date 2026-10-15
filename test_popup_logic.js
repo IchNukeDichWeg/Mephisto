@@ -1566,7 +1566,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
            && H('humanize_band_of(300)') === 'mistake' && H('humanize_band_of(900)') === 'blunder');
     }
     ok('with a target reading the pick aims by accuracy; without one the roll uses the raw sliders',
-       /humanize_target_pick\(all\.filter\(c => c\.line === bestLine \|\| safe\(c\.line\)\),\s*bestCp, run, humanize_target\(\), maxLoss\)/.test(psrc)
+       /humanize_target_pick\(all\.filter\(c => c\.line === bestLine \|\| \(safe\(c\.line\) && human\(c\)\)\),\s*bestCp, run, humanize_target\(\), maxLoss\)/.test(psrc)
        && /category_for_roll\(r, humanize_rates_now\(fen\)\)/.test(psrc)
        && /const rates = humanize_rates\(\);\s*if \(!humanize_flag\('humanize_tc_scale', false\)\) return rates;/.test(psrc) && !/humanize_mix|humanize_steer/.test(psrc));
     ok('the eval history records while a target is set (the controller reads it)',
@@ -3665,7 +3665,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     // wiring: both modes go through the guards, the target stands down for a policy-net engine
     ok('...the mix pool and the target candidates both pass safe(), the long mate needs a still-winning non-hanging line, and Maia/Leela skip the target',
        /const ok = pool\.filter\(l => safe\(l\) && \(keep === 1 \|\| takes\(l\)\)\);/.test(psrc)
-       && /humanize_target_pick\(all\.filter\(c => c\.line === bestLine \|\| safe\(c\.line\)\),/.test(psrc)
+       && /humanize_target_pick\(all\.filter\(c => c\.line === bestLine \|\| \(safe\(c\.line\) && human\(c\)\)\),/.test(psrc)
        && /alts\.filter\(l => line_cp_ours\(l\) >= HZ_LONG_MATE_KEEP_CP && !hangs\(l\)\)/.test(psrc)
        && /humanize_target\(\) && !ONE_PASS_ENGINES\.includes\(config\.engine\)\) \? humanize_game_run\(\)/.test(psrc)
        && /const guards = humanize_flag\('humanize_guards', true\);/.test(psrc)); }
@@ -3764,4 +3764,27 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /id="maia3_elo_input"/.test(gh) && /registerFormElement\('maia3_elo', 'Play Like Rating:', 'input', 1500\)/.test(gj)
        && /'maia2_self_elo', 'maia2_oppo_elo', 'maia3_elo',/.test(psrc)
        && locs.every(l => l['set.play_like_rating'] && l['panel.maia_use_opp'] && l['panel.tip.maia_use_opp'])); }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // Stage B: Maia picks the deviation (B1) -- the real guards block
+    const a = psrc.indexOf('// ==== HUMANIZE GUARDS ===='), b = psrc.indexOf('// ==== END HUMANIZE GUARDS ====');
+    const g = vm.createContext({}); vm.runInContext(psrc.slice(a, b), g);
+    const v = (e) => vm.runInContext(e, g);
+    v("var P = new Map([['a2a3', 0.60], ['b2b3', 0.30], ['c2c3', 0.005], ['d2d3', 0.095]]);");
+    const draws = v("(() => { const pool = [{move:'b2b3'},{move:'c2c3'},{move:'d2d3'}]; const n = {b2b3:0, c2c3:0, d2d3:0}; for (let i = 0; i < 4000; i++) n[hz_maia_weighted(pool, P, () => (i + 0.5) / 4000).move]++; return n; })()");
+    ok('B1: a deviation is drawn by Maia probability (b3 30 : d3 9.5) and a move under 1% never',
+       draws.c2c3 === 0 && Math.abs(draws.b2b3 / (draws.b2b3 + draws.d2d3) - 0.30 / 0.395) < 0.01, draws);
+    ok('B1: no candidate at 1% or more -> no pick (the best move stays)',
+       v("hz_maia_weighted([{move:'c2c3'},{move:'h2h3'}], P, () => 0.5)") === null);
+    ok('...wired: Maia asked at search start on our turn, its rating and list width set per ask and put back, the pick weighted only with the switch on',
+       /if \(our_turn && config\.autoplay\) request_humanize_maia\(fen\);/.test(psrc)
+       && /send\('setoption name MultiPV value 256'\);/.test(psrc) && /send\('setoption name MultiPV value 5'\);/.test(psrc)
+       && /const maiaWhich = !!probs && humanize_flag\('humanize_maia', false\);/.test(psrc)
+       && /cand = maiaWhich \? hz_maia_weighted\(ok, probs\)/.test(psrc));
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('Human-Like Mistakes: a settings row, OFF by default, label and tip in all 14 locales',
+       ['humanize_maia'].every(k => new RegExp(`id="${k}_checkbox"`).test(gh)
+           && new RegExp(`registerFormElement\\('${k}', '[^']+:', 'checkbox', false\\)`).test(gj)
+           && locs.every(l => l['set.' + k] && l['set.tip.' + k]))); }
 // ==== END FIX CHECKS ====

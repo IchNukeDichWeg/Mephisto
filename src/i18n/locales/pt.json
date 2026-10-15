@@ -683,6 +683,8 @@
   "panel.tip.maia_use_opp": "Considera também o rating do adversário: troca para o Maia-2, o modelo que usa os dois ratings, então a mesma posição é jogada diferente contra um 1200 e contra um 2000. O rating do adversário é lido da página quando ela mostra um; senão vale o número abaixo. O Maia-3 joga os dez primeiros lances, nos quais o Maia-2 nunca foi treinado.",
   "set.play_like_rating": "Jogar como rating",
   "set.tip.play_like_rating": "O rating que o Humanize e o Maia buscam, de 600 a 2600. Com o Maia como motor é a força com que joga; com Erros humanos decide quais erros parecem naturais; com Ajustar erros ao relógio escolhe a linha das tabelas de erro. A mesma configuração de Jogar como no painel.",
+  "set.humanize_maia": "Erros humanos",
+  "set.tip.humanize_maia": "Desligado por padrão. Quando o Humanize joga algo que não é o melhor lance, escolhe o que uma pessoa no seu Jogar como rating jogaria de verdade: cada candidato é ponderado pela probabilidade que o Maia-3 dá a ele nesse rating, e um lance abaixo de 1% nunca é escolhido. Usa a rede Maia-3 incluída (88 MB, baixada na primeira vez) como segundo motor durante o autoplay; até ela responder para uma posição, vale a escolha normal. Só xadrez padrão.",
   "an.game": "Jogo",
   "an.tip.game": "O xadrez usa o tabuleiro abaixo. Shogi e xiangqi têm tabuleiro próprio, analisado pela versão de tabuleiro grande do Fairy-Stockfish.",
   "an.game_chess": "Xadrez",

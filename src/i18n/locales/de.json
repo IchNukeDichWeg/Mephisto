@@ -683,6 +683,8 @@
   "panel.tip.maia_use_opp": "Zusätzlich das Rating des Gegners einbeziehen: wechselt zu Maia-2, dem Modell mit beiden Ratings, sodass dieselbe Stellung gegen einen 1200er anders beantwortet wird als gegen einen 2000er. Das Gegner-Rating wird von der Seite gelesen, wenn sie eines zeigt, sonst gilt die Zahl darunter. Die ersten zehn Züge spielt Maia-3, darauf wurde Maia-2 nie trainiert.",
   "set.play_like_rating": "Spielt wie Rating",
   "set.tip.play_like_rating": "Das Rating, auf das Humanize und Maia zielen, 600 bis 2600. Mit Maia als Engine ist es die gespielte Stärke; mit Menschliche Fehler entscheidet es, welche Fehler natürlich aussehen; mit Fehler an die Uhr anpassen wählt es die Zeile der Fehlertabellen. Dieselbe Einstellung wie Spielt wie im Panel.",
+  "set.humanize_maia": "Menschliche Fehler",
+  "set.tip.humanize_maia": "Standardmäßig aus. Spielt Humanize etwas anderes als den besten Zug, wählt es den, den ein Mensch mit deinem Spielt-wie-Rating tatsächlich spielen würde: Jeder Kandidat wird danach gewichtet, wie wahrscheinlich Maia-3 ihn bei diesem Rating hält, und ein Zug unter 1 % wird nie gewählt. Nutzt das mitgelieferte Maia-3-Netz (88 MB, beim ersten Mal geladen) als zweite Engine während Autoplay; bis es für eine Stellung geantwortet hat, gilt die normale Wahl. Nur Standardschach.",
   "an.game": "Spiel",
   "an.tip.game": "Schach nutzt das Brett unten. Shogi und Xiangqi bekommen ein eigenes Brett, analysiert von der Großbrett-Version von Fairy-Stockfish.",
   "an.game_chess": "Schach",

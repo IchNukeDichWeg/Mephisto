@@ -683,6 +683,8 @@
   "panel.tip.maia_use_opp": "Tenir compte aussi du classement adverse : passe à Maia-2, le modèle qui prend les deux classements, donc la même position est jouée différemment face à un 1200 que face à un 2000. Le classement adverse est lu sur la page quand elle l'affiche, sinon le nombre ci-dessous est utilisé. Maia-3 joue les dix premiers coups, sur lesquels Maia-2 n'a jamais été entraîné.",
   "set.play_like_rating": "Jouer comme classement",
   "set.tip.play_like_rating": "Le classement que visent Humanize et Maia, de 600 à 2600. Avec Maia comme moteur, c'est la force jouée ; avec Erreurs humaines, il décide quelles erreurs paraissent naturelles ; avec Adapter les erreurs à la pendule, il choisit la ligne des tables d'erreurs. Même réglage que Jouer comme dans le panneau.",
+  "set.humanize_maia": "Erreurs humaines",
+  "set.tip.humanize_maia": "Désactivé par défaut. Quand Humanize joue autre chose que le meilleur coup, il choisit celui qu'une personne à votre Jouer comme classement jouerait vraiment : chaque candidat est pondéré par la probabilité que Maia-3 lui donne à ce classement, et un coup sous 1 % n'est jamais choisi. Utilise le réseau Maia-3 fourni (88 Mo, téléchargé la première fois) comme second moteur pendant l'autoplay ; tant qu'il n'a pas répondu pour une position, le choix habituel s'applique. Échecs standard uniquement.",
   "an.game": "Jeu",
   "an.tip.game": "Les échecs utilisent l'échiquier ci-dessous. Le shogi et le xiangqi ont leur propre plateau, analysé par la version grand plateau de Fairy-Stockfish.",
   "an.game_chess": "Échecs",

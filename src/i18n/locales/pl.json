@@ -683,6 +683,8 @@
   "panel.tip.maia_use_opp": "Uwzględnij też ranking rywala: przełącza na Maia-2, model biorący oba rankingi, więc ta sama pozycja jest grana inaczej przeciw 1200 niż przeciw 2000. Ranking rywala jest czytany ze strony, gdy go pokazuje, inaczej używana jest liczba poniżej. Pierwsze dziesięć ruchów gra Maia-3, bo na nich Maia-2 nie był trenowany.",
   "set.play_like_rating": "Graj jak ranking",
   "set.tip.play_like_rating": "Ranking, w który celują Humanize i Maia, od 600 do 2600. Z Maia jako silnikiem to siła, z jaką gra; z Ludzkimi błędami decyduje, które błędy wyglądają naturalnie; z Dopasuj błędy do zegara wybiera wiersz tabel błędów. To samo ustawienie co Graj jak w panelu.",
+  "set.humanize_maia": "Ludzkie błędy",
+  "set.tip.humanize_maia": "Domyślnie wyłączone. Gdy Humanize gra coś innego niż najlepszy ruch, wybiera ten, który naprawdę zagrałby człowiek z twoim rankingiem Graj jak: każdy kandydat jest ważony prawdopodobieństwem, jakie Maia-3 daje mu przy tym rankingu, a ruch poniżej 1% nigdy nie jest wybierany. Używa dołączonej sieci Maia-3 (88 MB, pobieranej za pierwszym razem) jako drugiego silnika podczas autoplay; dopóki nie odpowie dla danej pozycji, działa zwykły wybór. Tylko szachy standardowe.",
   "an.game": "Gra",
   "an.tip.game": "Szachy używają szachownicy poniżej. Shogi i xiangqi mają własną planszę, analizowaną przez wersję Fairy-Stockfish dla dużych plansz.",
   "an.game_chess": "Szachy",
