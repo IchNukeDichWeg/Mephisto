@@ -11,6 +11,8 @@
 // --types off  errors uniform inside their class (before the type-aware pick), for comparison
 // --hidden off no hidden-error preference inside the kind, for comparison
 // --simplify off no simplify-when-winning hold, for comparison
+// --opening off no opening repertoire rule (deviations before move 8 from any line), for comparison;
+//              with --maia the report adds how many of our opening moves Maia gives under 1/2/5%
 // The opponent is Stockfish UCI_LimitStrength at the same Elo (min 1320). Our lines come from
 // native Stockfish, MultiPV 20 at --depth, which is the panel's wide humanize search. No clock:
 // the comparison is against the blitz spread, the tables' baseline. Fixed depth, so --workers 0
@@ -37,6 +39,7 @@ const NO_CAP = A.cap === 'off';     // match mode without the blunder-threshold 
 const NO_TYPES = A.types === 'off'; // errors picked uniformly inside their class, as before the type-aware pick
 const NO_HIDDEN = A.hidden === 'off'; // no hidden-error preference, as before it
 const NO_SIMPLIFY = A.simplify === 'off'; // no simplify-when-winning hold, as before it
+const NO_OPENING = A.opening === 'off';   // no opening repertoire rule, as before it
 const WORKERS = +(A.workers || 0) || os.cpus().length;
 const MAX_OUR_MOVES = +(A['max-moves'] || 60);
 const SF = A.sf || 'stockfish';
@@ -138,7 +141,9 @@ function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0
 // One of our moves, as humanize_pick decides it (minus timing, reflexes handled by the caller).
 function pick(fen, lines, swing, rnd, st, probs = null) {
     const bestLine = lines[0], best = bestLine.move, bestCp = ours(bestLine);
-    const alts = lines.slice(1).filter(l => ours(l) > -90000);
+    // the opening repertoire rule, where the build has it (the sim always starts from the start array)
+    const opening = !NO_OPENING && !!H.hz_opening_ok && +fen.split(' ')[5] < 8;
+    const alts = lines.slice(1).filter(l => ours(l) > -90000 && (!opening || H.hz_opening_ok(true, probs, l.move)));
     const loss = (l) => bestCp - ours(l);
     let bestX;
     const bestExposure = () => (bestX !== undefined) ? bestX : (bestX = H.hz_exposure(H.Chess, 'chess', fen, best));
@@ -218,7 +223,12 @@ async function playGame(idx) {
                     kind = full < 8 ? 'normal' : (gap < 35 && Math.abs(bestCp) < 150) || swing < -120 ? 'long' : gap > 250 ? 'quick' : 'normal';
                     KINDS[kind]++;
                 }
-                move = (recapture || forced || lines.length < 2) ? lines[0].move : pick(fen, lines, swing, rnd, st, maia ? await maia(fen, Math.max(600, Math.min(2600, ELO))) : null);
+                const probs = maia ? await maia(fen, Math.max(600, Math.min(2600, ELO))) : null;
+                move = (recapture || forced || lines.length < 2) ? lines[0].move : pick(fen, lines, swing, rnd, st, probs);
+                if (probs && !recapture && !forced && +fen.split(' ')[5] < 8) {
+                    let rare = 0; for (const p of probs.values()) if (p < 0.01) rare += p;   // what players play under 1%
+                    OPENING.push({p: probs.get(move) || 0, rare});
+                }
                 // Think Like Your Time Control, drawn as humanize_pick draws it (blitz 3+0 at 60% clock: the
                 // ratio to the table mean is what the data reports, whatever the bin)
                 if (kind && H.HZ_THINK_CLASS) {
@@ -258,6 +268,7 @@ async function playGame(idx) {
 // ---- run, with progress -------------------------------------------------------------------------
 const KINDS = {quick: 0, normal: 0, long: 0};
 const THINKS = [];
+const OPENING = [];   // our opening moves (3-7), with --maia: Maia's probability of the move played
 const results = []; let next = 0, done = 0; const t0 = Date.now(); const TTY = process.stdout.isTTY;
 const fmt = (s) => s >= 3600 ? `${Math.floor(s / 3600)}h${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}m` : `${Math.floor(s / 60)}m${String(Math.floor(s % 60)).padStart(2, '0')}s`;
 const tick = () => { const el = (Date.now() - t0) / 1000, rate = done / Math.max(el, 1e-3);
@@ -294,6 +305,11 @@ if (THINKS.length) {
     const mx = m(0), my = m(1), cov = pr.reduce((a, x) => a + (x[0] - mx) * (x[1] - my), 0), vx = pr.reduce((a, x) => a + (x[0] - mx) ** 2, 0), vy = pr.reduce((a, x) => a + (x[1] - my) ** 2, 0);
     console.log(`think vs the table mean: all ${all.toFixed(2)}; good ${mr(0)}, 2-5 ${mr(1)}, inaccuracy ${mr(2)}, mistake ${mr(3)}, blunder ${mr(4)} `
         + `(players, blitz: 0.90 / 1.14 / 1.28 / 1.39 / 1.41); lag-1 ${(cov / Math.sqrt(vx * vy)).toFixed(3)} over ${pr.length} pairs (players 0.17)`);
+}
+if (OPENING.length) {
+    const u = (t) => (100 * OPENING.filter(o => o.p < t).length / OPENING.length).toFixed(1);
+    console.log(`opening moves 3-7: ${OPENING.length}, played under 1/2/5% Maia: ${u(0.01)} / ${u(0.02)} / ${u(0.05)}% `
+        + `(players under 1%: ${(100 * OPENING.reduce((a, o) => a + o.rare, 0) / OPENING.length).toFixed(1)}%)`);
 }
 console.log(`results W/D/L/cap ${c('W')}/${c('D')}/${c('L')}/${c('cap')}`);
 if (A.out) fs.writeFileSync(A.out, JSON.stringify({mode: MODE, elo: ELO, guards: GUARDS, depth: DEPTH, mix: mixKeys, results}));
