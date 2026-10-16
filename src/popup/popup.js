@@ -3063,7 +3063,15 @@ function on_engine_response(message) {
         // for the rest of the session. A `go` that produces no bestmove at all is enough to start it
         // (Maia is a single forward pass: if it rejects, nothing is ever emitted). The next `go`
         // sets the flag again, so this is safe for the ordinary supersession case.
-        if (message.startsWith('bestmove')) { pending_stops--; search_active = false; return; }
+        //
+        // ...EXCEPT THAT IT WAS NOT. In the ordinary case the new position's `go` has already gone
+        // out when the abandoned search's bestmove arrives, so this cleared the flag of a search
+        // that was RUNNING. The next position then charged no stop for it, and its bestmove was
+        // taken as the new position's answer: "engine answered e7e5, impossible in ... -- re-syncing",
+        // 3 times in 20 plies fired 150 ms apart, each one restarting a search the panel already had
+        // going. A searching engine always answers a stop with its bestmove, so only a one-pass
+        // engine (the case above, which can emit nothing) still clears it here.
+        if (message.startsWith('bestmove')) { pending_stops--; if (is_one_pass()) search_active = false; return; }
         // the flush is not coming -- stop eating the engine's output (see STOP_FLUSH_MS)
         if (Date.now() - stop_charged_at > STOP_FLUSH_MS) {
             console.warn(`Mephisto: ${pending_stops} stop(s) never flushed - resuming engine output`);

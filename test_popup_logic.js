@@ -3211,7 +3211,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         const head = psrc.slice(i, psrc.indexOf('last_info_at = Date.now();   // the panel is HEARING', i));
         const c3 = vm.createContext({console: {log() {}, warn() {}}, Date});
         vm.runInContext(`var pending_stops = 2, stop_charged_at = Date.now() - 5000, search_active = true, last_info_at = 0, passed = [];
-            const STOP_FLUSH_MS = 1500; function is_remote() { return false; } function note_unsupported_variant() {}
+            const STOP_FLUSH_MS = 1500; function is_remote() { return false; } function is_one_pass() { return false; } function note_unsupported_variant() {}
             function download_progress_text() { return null; } function update_best_move() {}
             ${head} passed.push(message); }`, c3);
         const got = vm.runInContext(`for (const m of ['info string nn.nnue downloaded', 'info depth 1 nodes 0', 'bestmove a2a3', 'info depth 1 nodes 0', 'bestmove a2a3', 'info depth 1 nodes 20', 'bestmove e2e4']) on_engine_response(m); passed`, c3);
@@ -4456,3 +4456,29 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && (psrc.match(/const alts = /g) || []).length === 1);
 }
 // ==== END OPENING REPERTOIRE ====
+
+// ==== STALE BESTMOVE KEEPS THE NEW SEARCH LIVE ====
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function on_engine_response(message) {');
+    const head = psrc.slice(i, psrc.indexOf('last_info_at = Date.now();   // the panel is HEARING', i));
+    const run = (onePass) => {
+        const c = vm.createContext({console: {log() {}, warn() {}}, Date});
+        vm.runInContext(`var pending_stops = 0, stop_charged_at = 0, search_active = false, last_info_at = 0, passed = [];
+            const STOP_FLUSH_MS = 1500; function is_remote() { return false; } function is_one_pass() { return ${onePass}; }
+            function note_unsupported_variant() {} function download_progress_text() { return null; } function update_best_move() {}
+            ${head} passed.push(message); }
+            function abandon() { if (search_active) { pending_stops++; stop_charged_at = Date.now(); } search_active = false; }
+            function go() { search_active = true; }`, c);
+        // P1 searching; P2 arrives (abandon + go); P1's bestmove lands after P2's go; P3 arrives the same way
+        return vm.runInContext(`go(); abandon(); go(); on_engine_response('bestmove e2e4'); const live = search_active;
+            abandon(); go(); on_engine_response('info depth 9 pv e7e5'); on_engine_response('bestmove e7e5');
+            on_engine_response('info depth 3 pv g1f3'); on_engine_response('bestmove g1f3'); ({live, passed, owed: pending_stops})`, c);
+    };
+    const sf = run(false), maia = run(true);
+    ok('a searching engine: the abandoned search\'s bestmove leaves the new one live, so the NEXT position drops its output too',
+       sf.live === true && JSON.stringify(sf.passed) === JSON.stringify(['info depth 3 pv g1f3', 'bestmove g1f3']) && sf.owed === 0, sf);
+    ok('...a one-pass engine (which can answer nothing) still clears the flag, as before', maia.live === false, maia);
+}
+// ==== END STALE BESTMOVE KEEPS THE NEW SEARCH LIVE ====
