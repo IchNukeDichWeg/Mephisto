@@ -4437,6 +4437,41 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 }
 // ==== END THINK WAKES ON A MOVED BOARD ====
 
+// ==== PANEL CLICK-THROUGH ONLY UNDER THE PANEL ====
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = csrc.indexOf('function panelCoversPoint('), b = csrc.indexOf('\n}\n', csrc.indexOf('function withPanelClickThrough(')) + 3;
+    const el = () => ({style: {pointerEvents: ''}, querySelector() { return this.frame; },
+                       getBoundingClientRect: () => ({left: 1000, right: 1400, top: 0, bottom: 500})});
+    const run = (body) => {
+        const c = vm.createContext({PANEL_OVERLAY_ID: 'p', RESTORE_BADGE_ID: 'b', config: {python_autoplay_backend: false}, badge: null});
+        vm.runInContext(csrc.slice(a, b).replace('let clickThroughDepth', 'var clickThroughDepth'), c);
+        c.wrap = el(); c.wrap.frame = {style: {pointerEvents: ''}};
+        c.overlayEl = (id) => id === 'p' ? c.wrap : (id === 'b' ? c.badge : null);
+        return vm.runInContext(body, c);
+    };
+    // a click far from the panel never touches it; one under it does, for exactly the click
+    run(`const seen = []; withPanelClickThrough(() => seen.push(wrap.style.pointerEvents), [[200, 300]]);
+         withPanelClickThrough(() => seen.push(wrap.style.pointerEvents, wrap.frame.style.pointerEvents), [[1200, 300]])
+             .then(() => { seen.push(wrap.style.pointerEvents, wrap.frame.style.pointerEvents); return seen.join(','); })`)
+        .then(v => ok('a click the panel does not cover leaves it clickable; one under it goes click-through only while in flight', v === ',none,none,,', v));
+    // two clicks in flight together, finishing in order: the panel must end clickable
+    ok('...two overlapping clicks restore the panel once both are done (no click-through left behind)',
+       run(`let r1, r2; const p1 = withPanelClickThrough(() => new Promise(r => r1 = r), [[1200, 50]]);
+            const p2 = withPanelClickThrough(() => new Promise(r => r2 = r), [[1300, 60]]);
+            r1(); p1.then(() => { const mid = wrap.style.pointerEvents; r2();
+                return p2.then(() => [mid, wrap.style.pointerEvents, wrap.frame.style.pointerEvents].join(',')); })`)
+           .then(v => ok('...overlap result', v === 'none,,', v)));
+    ok('...the python backend (screen pixels) keeps the blanket click-through',
+       run(`config.python_autoplay_backend = true; let got; withPanelClickThrough(() => got = wrap.style.pointerEvents, [[5, 5]]); got`) === 'none');
+    run(`let r; const pr = withPanelClickThrough(() => new Promise(x => r = x), [[1200, 50]]); badge = {}; r(); pr.then(() => wrap.style.pointerEvents)`)
+        .then(v => ok('...a panel minimised mid-click stays click-through', v === 'none', v));
+    ok('...the autoplay click passes its own point',
+       /return withPanelClickThrough\(\(\) => dispatchSimulateClickInner\(x, y, travelMs\), \[\[x, y\]\]\);/.test(csrc));
+}
+// ==== END PANEL CLICK-THROUGH ONLY UNDER THE PANEL ====
+
 // ==== OPENING REPERTOIRE ====
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

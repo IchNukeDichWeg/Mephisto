@@ -4827,18 +4827,43 @@ function warmClicker() {
 // So the box is made click-through for the moment the click is dispatched, and put back afterwards.
 // Restored in a `finally` and guarded on its own state, so an exception mid-click can never leave
 // the panel permanently unclickable.
-function withPanelClickThrough(fn) {
+//
+// ONLY WHEN THE CLICK LANDS UNDER THE PANEL. It used to go click-through for EVERY click, for the
+// whole cursor travel + round trip, and the user's own clicks on the panel in that window went to the
+// page underneath -- onto ads, as reported on Windows ("won't let you drag or click"). Measured there
+// in a 3+2 autoplay game: 25 stretches in 1.5 min, median 0.5 s, max 0.9 s, 15% of the time. A click
+// the panel does not cover needs nothing. The python backend aims in SCREEN pixels, which cannot be
+// compared with the panel's viewport box, so it keeps the blanket behaviour.
+//
+// A depth count, not a saved-and-restored value per call: two clicks in flight together (a premove
+// and a move) captured each other's 'none' as the value to restore, and the later restore left the
+// panel click-through for good. And a panel minimised mid-click stays click-through -- writing back
+// 'auto' would leave an invisible panel eating clicks; one restored from minimised mid-click keeps
+// the 'auto' the restore gave it.
+function panelCoversPoint(wrap, points) {
+    if (config.python_autoplay_backend) return true;
+    const r = wrap.getBoundingClientRect();
+    return points.some(([x, y]) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom);
+}
+let clickThroughDepth = 0, clickThroughSaved = null;
+function withPanelClickThrough(fn, points = []) {
     const wrap = overlayEl(PANEL_OVERLAY_ID);
-    const frame = wrap?.querySelector('.mephisto-panel-box');
-    if (!wrap) return fn();
-    const prevWrap = wrap.style.pointerEvents;
-    const prevFrame = frame ? frame.style.pointerEvents : null;
-    wrap.style.pointerEvents = 'none';
-    if (frame) frame.style.pointerEvents = 'none';
+    if (!wrap || !panelCoversPoint(wrap, points)) return fn();
+    const frame = wrap.querySelector('.mephisto-panel-box');
+    if (clickThroughDepth++ === 0) {
+        clickThroughSaved = {wrap, frame, wrapPE: wrap.style.pointerEvents, framePE: frame ? frame.style.pointerEvents : ''};
+        wrap.style.pointerEvents = 'none';
+        if (frame) frame.style.pointerEvents = 'none';
+    }
     const restore = () => {
+        if (--clickThroughDepth > 0) return;
+        const s = clickThroughSaved;
+        clickThroughSaved = null;
         try {
-            wrap.style.pointerEvents = prevWrap || '';
-            if (frame) frame.style.pointerEvents = prevFrame || '';
+            if (!s || overlayEl(RESTORE_BADGE_ID)) return;   // minimised meanwhile: stays click-through
+            if (s.wrap.style.pointerEvents !== 'none') return;   // restored from minimised meanwhile: theirs
+            s.wrap.style.pointerEvents = s.wrapPE || '';
+            if (s.frame) s.frame.style.pointerEvents = s.framePE || '';
         } catch (e) { /* panel torn down mid-click */ }
     };
     let out;
@@ -4849,7 +4874,7 @@ function withPanelClickThrough(fn) {
 }
 
 function dispatchSimulateClick(x, y, travelMs = 0) {
-    return withPanelClickThrough(() => dispatchSimulateClickInner(x, y, travelMs));
+    return withPanelClickThrough(() => dispatchSimulateClickInner(x, y, travelMs), [[x, y]]);
 }
 
 function dispatchSimulateClickInner(x, y, travelMs = 0) {
