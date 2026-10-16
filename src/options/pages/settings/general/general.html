@@ -731,7 +731,7 @@
                 <div class="set-row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.arrow_labels" class="tooltipped" data-position="right"
-                              data-tooltip="Write each arrow's own evaluation on it: +0.35, or #3 for a mate, from White's side like every other score in the panel. With Maia it shows how likely the move is instead. The rank number (1 for the best line) is Number Arrows. Off by default -- useful, and also more ink on the board."><span data-i18n="set.arrow_labels">Evals on Arrows</span></span>
+                              data-tooltip="Write each arrow's own evaluation on it: +0.35, or #3 for a mate, from White's side like every other score in the panel, or the side set in Arrow Evals From. With Maia it shows how likely the move is instead. The rank number (1 for the best line) is Number Arrows. Off by default -- useful, and also more ink on the board."><span data-i18n="set.arrow_labels">Evals on Arrows</span></span>
                     </div>
                     <div class="set-ctl">
                         <input id="arrow_labels_checkbox" type="checkbox" class="set-cb">
@@ -743,8 +743,22 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.arrow_eval_side" class="tooltipped" data-position="right"
+                              data-tooltip="Whose side the numbers on arrows are written from, for the engine&#39;s arrows (panel and Help Mode) and the ones you draw alike. White: + is good for White, like the panel score. Your side: + is good for you (on an analysis board, the side at the bottom). Side to move: + is good for whoever plays the arrow&#39;s move. A mate reads #3 for the side it favours and #-3 against it."><span data-i18n="set.arrow_eval_side">Arrow Evals From</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <select name="arrow_eval_side" id="arrow_eval_side_select">
+                            <option data-i18n="set.arrow_eval_side.white" value="white">White</option>
+                            <option data-i18n="set.arrow_eval_side.mine" value="mine">Your side</option>
+                            <option data-i18n="set.arrow_eval_side.mover" value="mover">Side to move</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.user_arrow_evals" class="tooltipped" data-position="right"
-                              data-tooltip="Right-drag an arrow on the Lichess or Chess.com board and the engine writes its verdict on it: the evaluation after that move, +0.35 or #3, from White&#39;s side. It never shows its own moves for this - you choose the move, it rates it. Uses a second, small engine of its own, so the main analysis is untouched. Standard chess only. Off by default."><span data-i18n="set.user_arrow_evals">Evals on Your Arrows</span></span>
+                              data-tooltip="Right-drag an arrow on the Lichess or Chess.com board and the engine writes its verdict on it: the evaluation after that move, +0.35 or #3, from White&#39;s side or the side set in Arrow Evals From. It never shows its own moves for this - you choose the move, it rates it. Uses a second, small engine of its own, so the main analysis is untouched. Standard chess only. Off by default."><span data-i18n="set.user_arrow_evals">Evals on Your Arrows</span></span>
                     </div>
                     <div class="set-ctl">
                         <input id="user_arrow_evals_checkbox" type="checkbox" class="set-cb">

@@ -441,6 +441,7 @@ async function initPanel(root, tabId) {
         // Evals on Your Arrows (see USER ARROWS): off by default, it is a second engine
         user_arrow_evals: JSON.parse(MephistoConfig.get('user_arrow_evals')) || false,
         user_arrow_replies: Math.max(0, Math.min(5, JSON.parse(MephistoConfig.get('user_arrow_replies')) || 0)),
+        arrow_eval_side: arrow_eval_side_of(JSON.parse(MephistoConfig.get('arrow_eval_side'))),
         // How many plies of a FORCED continuation to draw ahead. 0 is off; the ceiling is 5 because
         // past that the arrows stop being readable on an 8x8 board rather than because the walk stops.
         forced_lines: Math.max(0, Math.min(5, JSON.parse(MephistoConfig.get('forced_lines')) || 0)),
@@ -10355,7 +10356,7 @@ const LIVE_CONFIG_KEYS = [
     'mirror_ratio', 'time_trouble', 'time_trouble_at',
     'maia2_self_elo', 'maia2_oppo_elo', 'maia3_elo', 'rodent_personality',
     'analysis_limit', 'analysis_limit_mode',
-    'arrow_opacity', 'arrow_rank', 'arrow_labels', 'user_arrow_evals', 'user_arrow_replies', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
+    'arrow_opacity', 'arrow_rank', 'arrow_labels', 'arrow_eval_side', 'user_arrow_evals', 'user_arrow_replies', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
     'premove_confidence', 'premove_plies', 'move_time', 'move_variance', 'move_reason',
     'material_balance', 'square_heatmap',
     ...ARROW_COLOR_KEYS, // repaint on the next frame, no reload
@@ -10469,7 +10470,8 @@ function watch_config_changes() {
                 // options page ran an open panel at maxPlies 51 while a reloaded one ran at 5.
                 if (key === 'forced_lines') config.forced_lines = Math.max(0, Math.min(5, parseInt(value) || 0));
                 if (key === 'user_arrow_replies') config.user_arrow_replies = Math.max(0, Math.min(5, parseInt(value) || 0));
-                if (key === 'user_arrow_evals' || key === 'user_arrow_replies') {
+                if (key === 'arrow_eval_side') { config.arrow_eval_side = arrow_eval_side_of(value); draw_moves(); }
+                if (key === 'user_arrow_evals' || key === 'user_arrow_replies' || key === 'arrow_eval_side') {
                     if (key === 'user_arrow_evals' && !value) ua_dispose();
                     ua_last_sent = ''; refresh_user_arrows();
                 }
@@ -11283,7 +11285,7 @@ function refresh_user_arrows() {
         else if (after.stalemate) label = '0.00';
         else {
             const hit = ua_cache.get(`${after.fenAfter}|${replies}`);
-            if (hit) { label = ua_label(hit.white); reply = replies && newest ? hit.replies.slice(0, replies).map(r => r.uci) : []; }
+            if (hit) { label = ua_label(arrow_pov(hit.white, fen.split(' ')[1])); reply = replies && newest ? hit.replies.slice(0, replies).map(r => r.uci) : []; }
             else ua_ask(after, replies, () => last_eval.fen === fen && user_arrows.includes(arrow))
                 .then(() => { if (last_eval.fen === fen) refresh_user_arrows(); }).catch(() => {});
         }
@@ -12092,6 +12094,27 @@ function arrow_alpha(base) {
     return Math.max(0.05, Math.min(1, base * (frac / 0.75))).toFixed(3);
 }
 
+// WHOSE SIDE AN ARROW'S NUMBER IS FROM (Arrow Evals From). 'white' is the panel's own convention;
+// 'mine' is the side you play (the board's orientation on an analysis board), so + is always good
+// for you; 'mover' is the side whose move the arrow is, so + is always good for whoever plays it.
+// One switch for the engine's arrows (panel and Help Mode) and the ones you draw: a +1.2 on the
+// board must never mean one side on one arrow and the other on the next.
+// (the list is inline, not a const: the config is read at boot, above this line, and a const
+// there is still in its temporal dead zone)
+function arrow_eval_side_of(v) { return ['white', 'mine', 'mover'].includes(v) ? v : 'white'; }
+function arrow_pov_sign(stm) {
+    const side = config.arrow_eval_side;
+    if (side === 'mine') return our_side() === 'black' ? -1 : 1;
+    if (side === 'mover') return stm === 'b' ? -1 : 1;
+    return 1;
+}
+// a White's-view {cp}|{mate} -> the same in the chosen view
+function arrow_pov(white, stm) {
+    if (!white) return white;
+    const s = arrow_pov_sign(stm);
+    return white.mate != null ? {mate: s * white.mate} : {cp: s * white.cp};
+}
+
 function arrow_label(line) {
     // A human model's lines all carry ONE position eval (a single forward pass), so an eval label
     // says nothing -- the number that identifies a Maia line is how likely the move is. It rides
@@ -12105,9 +12128,10 @@ function arrow_label(line) {
     // side-to-move score once). Flipping by `turn` again here wrote the side-to-move's view on every
     // Black-to-move arrow while the tooltip and the panel said White's, and Math.abs made a mate FOR
     // you and a mate AGAINST you both read #3.
-    if (Number.isFinite(line.mate) && line.mate !== 0) return `#${line.mate}`;
+    const sign = arrow_pov_sign(turn);
+    if (Number.isFinite(line.mate) && line.mate !== 0) return `#${sign * line.mate}`;
     if (!Number.isFinite(line.score)) return '';
-    const cp = line.score / 100;
+    const cp = sign * line.score / 100;
     return (cp > 0 ? '+' : '') + cp.toFixed(2);
 }
 

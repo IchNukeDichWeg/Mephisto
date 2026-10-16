@@ -173,6 +173,9 @@ build has no Duck at all (see the [roadmap](#roadmap)).
   it rates it, and it never shows its own move for this. **Replies on Your Arrows** (0 to 5) also draws the opponent's
   best answers to the arrow you drew last, thin, dashed and numbered, so a bad number shows why. Its own small Stockfish
   (one thread, 0.7 s a move), so the main analysis is untouched; standard chess only; display only.
+- **Arrow Evals From** - whose side the numbers on arrows are written from, the engine's (panel and Help Mode) and
+  yours alike: **White** (default, like the panel score), **Your side** (+ is good for you) or **Side to move** (+ is
+  good for whoever plays the arrow's move). Mates read #3 for that side, #-3 against it.
 - **Copy Analysis** - the position, the score with its depth and every candidate line, as text you can paste.
   **Re-analyse** searches the position on screen again from scratch; **Loaded** names the engine build and the net that
   actually answered.

@@ -4546,13 +4546,14 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 }
 // ==== END EVALS ON YOUR ARROWS ====
 
-// ==== EVALS ON ARROWS ARE WHITE'S VIEW ====
+// ==== EVALS ON ARROWS ARE WHITE'S VIEW (OR THE SIDE YOU PICK) ====
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
-    const i = psrc.indexOf('function arrow_label('), fn = psrc.slice(i, psrc.indexOf('\n}\n', i) + 3);
+    const fnOf = (name) => { const i = psrc.indexOf(`function ${name}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const fn = ['arrow_eval_side_of', 'arrow_pov_sign', 'arrow_pov', 'arrow_label'].map(fnOf).join('');
     const c = vm.createContext({});
-    vm.runInContext(`var config = {arrow_labels: true}, turn = 'w';` + fn, c);
+    vm.runInContext(`var config = {arrow_labels: true, arrow_eval_side: 'white'}, turn = 'w', side = 'white'; function our_side() { return side; }` + fn, c);
     const lbl = (t, line) => vm.runInContext(`turn = ${JSON.stringify(t)}; arrow_label(${JSON.stringify(line)})`, c);
     // the stored score is White-relative: +35 is White better whoever is to move
     ok('a stored +0.35 (White better) reads +0.35 with White AND with Black to move, like the panel score',
@@ -4561,6 +4562,34 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        lbl('w', {mate: 3}) === '#3' && lbl('b', {mate: -3}) === '#-3' && lbl('b', {mate: 3}) === '#3', [lbl('b', {mate: -3}), lbl('b', {mate: 3})]);
     ok('...the score really is stored White-relative (the one flip at parse time this label relies on)',
        /lineInfo\[scoreType\] = \(turn === 'w' \? 1 : -1\) \* scoreNumber;/.test(psrc));
+
+    // ---- Arrow Evals From: white | mine | mover, one switch for the engine's arrows and yours
+    const at = (mode, t, me, line) => vm.runInContext(`config.arrow_eval_side = ${JSON.stringify(mode)}; turn = ${JSON.stringify(t)}; side = ${JSON.stringify(me)}; arrow_label(${JSON.stringify(line)})`, c);
+    const g = [at('mine', 'w', 'black', {score: 35}), at('mine', 'b', 'black', {score: 35}), at('mine', 'w', 'white', {score: 35}),
+               at('mover', 'b', 'white', {score: 35}), at('mover', 'w', 'white', {score: 35}), at('mine', 'b', 'black', {mate: -2}), at('mover', 'b', 'white', {mate: 4})];
+    ok('Your side: White +0.35 reads -0.35 for a Black player on either turn, +0.35 for a White one; a mate for you reads #2',
+       g[0] === '-0.35' && g[1] === '-0.35' && g[2] === '+0.35' && g[5] === '#2', g);
+    ok('...Side to move: + is good for whoever plays the arrow (Black to move: White +0.35 reads -0.35, a White mate reads #-4)',
+       g[3] === '-0.35' && g[4] === '+0.35' && g[6] === '#-4', g);
+    ok('...an unknown or missing value is White, the panel convention',
+       vm.runInContext(`[arrow_eval_side_of('mine'), arrow_eval_side_of('mover'), arrow_eval_side_of('x'), arrow_eval_side_of(null)].join()`, c) === 'mine,mover,white,white');
+    ok('...the drawn arrows go through the same switch: {cp}/{mate} flipped, White kept',
+       vm.runInContext(`config.arrow_eval_side = 'mover'; JSON.stringify([arrow_pov({cp: 40}, 'b'), arrow_pov({mate: 3}, 'b'), arrow_pov({cp: 40}, 'w')])`, c) === '[{"cp":-40},{"mate":-3},{"cp":40}]');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const live = psrc.slice(psrc.indexOf('const LIVE_CONFIG_KEYS = ['), psrc.indexOf('];', psrc.indexOf('const LIVE_CONFIG_KEYS = [')));
+    ok('...wired: White by default (page and panel), its select with the three values, live in an open panel, and the drawn-arrow label uses it',
+       /registerFormElement\('arrow_eval_side', '[^']+:', 'select', 'white'\)/.test(gj)
+       && /<select name="arrow_eval_side" id="arrow_eval_side_select">[\s\S]*?value="white"[\s\S]*?value="mine"[\s\S]*?value="mover"[\s\S]*?<\/select>/.test(gh)
+       && /arrow_eval_side: arrow_eval_side_of\(JSON\.parse\(MephistoConfig\.get\('arrow_eval_side'\)\)\),/.test(psrc) && /'arrow_eval_side'/.test(live)
+       && /label = ua_label\(arrow_pov\(hit\.white, fen\.split\(' '\)\[1\]\)\)/.test(psrc));
+    const keys = ['set.arrow_eval_side', 'set.tip.arrow_eval_side', 'set.arrow_eval_side.white', 'set.arrow_eval_side.mine', 'set.arrow_eval_side.mover'];
+    const dir = ROOT + '/src/i18n/locales/', files = fs.readdirSync(dir);
+    const bad = [];
+    const en = JSON.parse(fs.readFileSync(dir + 'en.json', 'utf8'));
+    for (const f of files) { const d = JSON.parse(fs.readFileSync(dir + f, 'utf8'));
+        for (const k of keys) if (typeof d[k] !== 'string' || !d[k].trim() || (f !== 'en.json' && d[k] === en[k])) bad.push(`${f}:${k}`); }
+    ok(`...${keys.length} strings in all ${files.length} locales, translated`, files.length === 14 && !bad.length, bad.join(' '));
 }
 // ==== END EVALS ON ARROWS ARE WHITE'S VIEW ====
 

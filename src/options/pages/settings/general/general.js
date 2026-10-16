@@ -62,6 +62,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('rodent_personality', 'Rodent Personality:', 'select', '---');
         this.registerFormElement('move_notation', 'Move Notation:', 'select', 'san');
         this.registerFormElement('arrow_labels', 'Evals on Arrows:', 'checkbox', false);
+        this.registerFormElement('arrow_eval_side', 'Arrow Evals From:', 'select', 'white');
         this.registerFormElement('user_arrow_evals', 'Evals on Your Arrows:', 'checkbox', false);
         this.registerFormElement('user_arrow_replies', 'Replies on Your Arrows:', 'input', 0);
         const arrow_opacity_range = this.registerFormElement('arrow_opacity', 'Arrow Opacity:', 'range', 75);
