@@ -4469,6 +4469,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         .then(v => ok('...a panel minimised mid-click stays click-through', v === 'none', v));
     ok('...the autoplay click passes its own point',
        /return withPanelClickThrough\(\(\) => dispatchSimulateClickInner\(x, y, travelMs\), \[\[x, y\]\]\);/.test(csrc));
+    ok('...and an autoplay drag passes both its squares',
+       /return withPanelClickThrough\(\(\) => dispatchSimulateDragInner\(x1, y1, x2, y2, travelMs\), \[\[x1, y1\], \[x2, y2\]\]\);/.test(csrc));
 }
 // ==== END PANEL CLICK-THROUGH ONLY UNDER THE PANEL ====
 

@@ -4912,7 +4912,14 @@ function dispatchSimulateClickInner(x, y, travelMs = 0) {
 }
 
 // Drag a piece from one square to another. Same transport as a click, one gesture instead of two.
+// Through the same panel click-through as a click: a drag whose squares were under the panel landed
+// on the panel and the piece never moved (live on lichess analysis: e2e4 under the panel NOT MOVED,
+// the same drag with the panel elsewhere MOVED).
 function dispatchSimulateDrag(x1, y1, x2, y2, travelMs = 0) {
+    return withPanelClickThrough(() => dispatchSimulateDragInner(x1, y1, x2, y2, travelMs), [[x1, y1], [x2, y2]]);
+}
+
+function dispatchSimulateDragInner(x1, y1, x2, y2, travelMs = 0) {
     try {
         if (document.hidden) travelMs = 0; // same reasoning as dispatchSimulateClick
         bgLog('dispatching drag', {x1: Math.round(x1), y1: Math.round(y1),
