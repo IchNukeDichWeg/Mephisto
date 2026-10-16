@@ -340,6 +340,7 @@ function handleExtensionMessage(response, sender, sendResponse) {
     } else if (response.pushConfig) {
         config = response.config;
         applyHideOpponent(!!config.hide_opponent); // follows the setting on every config push
+        syncUserArrowWatch();                      // Evals on Your Arrows, likewise
         maybeCheckStreamer();   // opt-in; one lookup per opponent, skipped entirely when off
         // config in hand = we can scrape. Start the event-driven pipeline and sync the panel
         // immediately (a re-opened panel must not wait for the next board mutation or fallback poll).
@@ -351,6 +352,8 @@ function handleExtensionMessage(response, sender, sendResponse) {
     } else if (response.clearHint) {
         dropPendingOverlay('hint');
         clearHintArrow();
+    } else if (response.drawUserArrows) {
+        drawUserArrows(response.items);
     } else if (response.drawMoveClass) {
         drawMoveClass(response);
     } else if (response.clearMoveClass) {
@@ -796,6 +799,8 @@ function removeOverlay() {
     clearEvalBar();   // closing removes the iframe; the board overlays it drew must go too
     clearHintArrow();
     clearMoveClass();   // the badge is page furniture too
+    clearInterval(userArrowTimer); userArrowTimer = null;   // nobody to rate them for now
+    drawUserArrows([]);
 }
 
 // Page unload = tab is going away (navigation, close, reload). Stop any running search cleanly so a
@@ -1397,6 +1402,105 @@ function drawHintArrows(arrows, region) {
     svg.innerHTML = `<defs>${defs}</defs>${lines}`;
     getOverlayRoot().appendChild(svg);
     lastHintKey = key;
+}
+
+// EVALS ON YOUR ARROWS: the arrows the USER draws on the site's board (right-drag). Read here, rated
+// by the panel (see USER ARROWS in popup.js), and the verdict written back at each arrow's head, with
+// the opponent's best replies drawn thin and numbered when Replies on Your Arrows asks for them.
+// The markup, captured live (2026-10-16):
+//   lichess:   svg.cg-shapes > g > g[cgHash="696,696,1,e2,e4,green"] -- squares and brush in the hash.
+//              User brushes are green / red / blue / yellow; the site's own shapes use the pale ones.
+//   chess.com: wc-chess-board svg.arrows > polygon.arrow[data-arrow="e2e4"] -- square names, so the
+//              board's orientation never enters into it.
+// Polled at 400 ms while the setting is on, sent only when the set changes: the arrow layer is
+// rebuilt by the site on every redraw, and a tiny querySelectorAll is cheaper than watching it.
+const USER_ARROW_OVERLAY_ID = 'mephisto-userarrow-overlay';
+const USER_ARROW_BRUSHES = new Set(['green', 'red', 'blue', 'yellow']);
+let userArrowTimer = null, userArrowKey = null, userArrowItems = [], userArrowDrawKey = null;
+
+function parseCgHash(hash) {
+    const t = String(hash || '').split(',');
+    for (let i = 0; i + 2 < t.length; i++) {
+        if (/^[a-h][1-8]$/.test(t[i]) && /^[a-h][1-8]$/.test(t[i + 1]) && USER_ARROW_BRUSHES.has(t[i + 2])) return t[i] + t[i + 1];
+    }
+    return null;   // a circle (one square), or one of the site's own pale shapes
+}
+
+function readUserArrows() {
+    let moves = [];
+    if (site === 'lichess') {
+        moves = [...document.querySelectorAll('cg-container svg.cg-shapes g[cgHash]')]
+            .map(g => parseCgHash(g.getAttribute('cgHash')));
+    } else if (site === 'chesscom') {
+        moves = [...document.querySelectorAll('wc-chess-board svg.arrows polygon.arrow[data-arrow], ' +
+                                              'chess-board svg.arrows polygon.arrow[data-arrow]')]
+            .map(p => p.getAttribute('data-arrow'));
+    }
+    return [...new Set(moves.filter(m => /^[a-h][1-8][a-h][1-8]$/.test(m || '')))];
+}
+
+function syncUserArrowWatch() {
+    const on = !!config?.user_arrow_evals && (site === 'lichess' || site === 'chesscom');
+    userArrowKey = null;   // a (re)opened panel has not been told yet
+    if (!on) {
+        clearInterval(userArrowTimer); userArrowTimer = null;
+        drawUserArrows([]);
+        return;
+    }
+    if (userArrowTimer) return;
+    const tick = () => {
+        const moves = readUserArrows();
+        const key = moves.join(' ');
+        if (key !== userArrowKey) { userArrowKey = key; sendToPanel({userArrows: moves}); }
+        if (userArrowItems.length) drawUserArrows(userArrowItems);   // follows a resized or moved board
+    };
+    userArrowTimer = setInterval(tick, 400);
+    tick();
+}
+
+function drawUserArrows(items) {
+    userArrowItems = Array.isArray(items) ? items : [];
+    const geo = userArrowItems.length ? boardGeometry(false, null) : null;
+    const key = geo ? JSON.stringify([userArrowItems, Math.round(geo.bounds.left), Math.round(geo.bounds.top),
+                                      Math.round(geo.bounds.width), getOrientation()]) : '';
+    if (key === userArrowDrawKey && (key === '' || overlayEl(USER_ARROW_OVERLAY_ID))) return;
+    userArrowDrawKey = key;
+    overlayEl(USER_ARROW_OVERLAY_ID)?.remove();
+    if (!geo) return;
+    const {bounds, square, squareCenter} = geo;
+    const esc = (t) => String(t).replace(/[<>&"]/g, '');
+    let body = '';
+    for (const it of userArrowItems) {
+        // the opponent's replies first, so the labels sit on top of them
+        (it.replies || []).forEach((r, i) => {
+            if (!/^[a-h][1-8][a-h][1-8]/.test(r)) return;
+            const [x0, y0] = squareCenter(r.slice(0, 2)), [x1, y1] = squareCenter(r.slice(2, 4));
+            const d = Math.hypot(x1 - x0, y1 - y0) || 1;
+            const xh = x1 - (x1 - x0) / d * square * 0.3, yh = y1 - (y1 - y0) / d * square * 0.3;
+            body += `<line x1="${x0}" y1="${y0}" x2="${xh}" y2="${yh}" stroke="#9aa0a6" stroke-width="${square * 0.07}"` +
+                ` stroke-linecap="round" stroke-dasharray="${square * 0.12} ${square * 0.1}" opacity="0.9"` +
+                ` marker-end="url(#mephisto-ua-head)"/>` +
+                `<circle cx="${x1}" cy="${y1 - square * 0.3}" r="${square * 0.14}" fill="#5f6368" opacity="0.95"/>` +
+                `<text x="${x1}" y="${y1 - square * 0.3}" text-anchor="middle" dominant-baseline="central"` +
+                ` font-size="${square * 0.2}" font-weight="700" fill="#fff" font-family="system-ui, sans-serif">${i + 1}</text>`;
+        });
+    }
+    for (const it of userArrowItems) {
+        if (!it.label || !/^[a-h][1-8][a-h][1-8]/.test(it.move)) continue;
+        const [x1, y1] = squareCenter(it.move.slice(2, 4));
+        body += `<text x="${x1}" y="${y1 + square * 0.36}" text-anchor="middle" dominant-baseline="central"` +
+            ` font-size="${square * 0.3}" font-weight="800" fill="#fff" stroke="#000" stroke-width="${square * 0.06}"` +
+            ` paint-order="stroke" font-family="system-ui, sans-serif">${esc(it.label)}</text>`;
+    }
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = USER_ARROW_OVERLAY_ID;
+    svg.setAttribute('width', bounds.width);
+    svg.setAttribute('height', bounds.height);
+    svg.style.cssText = `position: absolute; left: ${bounds.left + window.scrollX}px; ` +
+        `top: ${bounds.top + window.scrollY}px; z-index: ${BOARD_OVERLAY_Z}; pointer-events: none;`;
+    svg.innerHTML = `<defs><marker id="mephisto-ua-head" markerWidth="3" markerHeight="3" refX="0.1" refY="1.5"` +
+        ` orient="auto"><path d="M0,0 L2.4,1.5 L0,3 Z" fill="#9aa0a6"/></marker></defs>${body}`;
+    getOverlayRoot().appendChild(svg);
 }
 
 // THE SAME VERDICT, ON THE BOARD YOU ARE PLAYING ON. Move Classification badges the move on the

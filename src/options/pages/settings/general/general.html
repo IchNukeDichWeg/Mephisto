@@ -743,6 +743,33 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.user_arrow_evals" class="tooltipped" data-position="right"
+                              data-tooltip="Right-drag an arrow on the Lichess or Chess.com board and the engine writes its verdict on it: the evaluation after that move, +0.35 or #3, from White&#39;s side. It never shows its own moves for this - you choose the move, it rates it. Uses a second, small engine of its own, so the main analysis is untouched. Standard chess only. Off by default."><span data-i18n="set.user_arrow_evals">Evals on Your Arrows</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="user_arrow_evals_checkbox" type="checkbox" class="set-cb">
+                        <label for="user_arrow_evals_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.user_arrow_replies" class="tooltipped" data-position="right"
+                              data-tooltip="With Evals on Your Arrows on: also draw the opponent&#39;s best replies to the arrow you drew last, thin, dashed and numbered 1 for the best, so a bad evaluation shows you why. 0 is off, up to 5."><span data-i18n="set.user_arrow_replies">Replies on Your Arrows</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                            <input id="user_arrow_replies_input" type="number" min="0" max="5" step="1">
+                            <button type="button" class="set-step-btn" data-step="1">+</button>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.analysis_limit" class="tooltipped" data-position="right"
                               data-tooltip="What bounds the search when there is no move to play -- Autoplay off, Help Mode, Manual Mode, or a ponder on the opponent's turn. That search has always run until the position changed; it still does, because the slider's far right is No Limit in every mode. Depth and Nodes are reproducible (the same search on any machine), Time is not. On a native engine the budget is capped at 60 seconds whatever the unit, so a nodes limit that cannot be reached in a minute ends there."><span data-i18n="set.analysis_limit">Analysis Limit</span></span>
                     </div>

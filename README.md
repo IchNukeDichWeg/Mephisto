@@ -168,6 +168,11 @@ build has no Duck at all (see the [roadmap](#roadmap)).
   least 5% win given away, never a line that loses to mate), by Maia-3's probabilities when a Maia option is already
   on and otherwise the least obvious slip, and shown only when such a move exists. It widens the search to 20 lines
   like Humanize, so it costs depth, except while Autoplay plays through Humanize.
+- **Evals on Your Arrows** (off by default) - right-drag an arrow on the Lichess or Chess.com board and the engine
+  writes its verdict at its head: the evaluation after that move, +0.35 or #3, from White's side. You choose the move,
+  it rates it, and it never shows its own move for this. **Replies on Your Arrows** (0 to 5) also draws the opponent's
+  best answers to the arrow you drew last, thin, dashed and numbered, so a bad number shows why. Its own small Stockfish
+  (one thread, 0.7 s a move), so the main analysis is untouched; standard chess only; display only.
 - **Copy Analysis** - the position, the score with its depth and every candidate line, as text you can paste.
   **Re-analyse** searches the position on screen again from scratch; **Loaded** names the engine build and the net that
   actually answered.

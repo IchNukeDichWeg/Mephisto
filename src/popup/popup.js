@@ -438,6 +438,9 @@ async function initPanel(root, tabId) {
         // The rank badge is its own decision. It has been drawn unconditionally since 3.1.226, so
         // it stays ON by default -- turning it off is the new option, not turning it on.
         arrow_rank: (JSON.parse(MephistoConfig.get('arrow_rank')) !== false),
+        // Evals on Your Arrows (see USER ARROWS): off by default, it is a second engine
+        user_arrow_evals: JSON.parse(MephistoConfig.get('user_arrow_evals')) || false,
+        user_arrow_replies: Math.max(0, Math.min(5, JSON.parse(MephistoConfig.get('user_arrow_replies')) || 0)),
         // How many plies of a FORCED continuation to draw ahead. 0 is off; the ceiling is 5 because
         // past that the arrows stop being readable on an 8x8 board rather than because the walk stops.
         forced_lines: Math.max(0, Math.min(5, JSON.parse(MephistoConfig.get('forced_lines')) || 0)),
@@ -690,6 +693,12 @@ async function initPanel(root, tabId) {
         // only traced: a move that silently does not happen is the least actionable bug report
         // there is, and it was the shape of three separate ones.
         if (response.moveDropped) { set_idle_reason(response.moveDropped); return; }
+        // the arrows drawn on the site's board changed (see USER ARROWS)
+        if (Array.isArray(response.userArrows)) {
+            user_arrows = response.userArrows.filter(a => /^[a-h][1-8][a-h][1-8]$/.test(a));
+            refresh_user_arrows();
+            return;
+        }
         // The opponent is live-streaming this game. Said once, in the idle line, and nothing else:
         // what the extension should DO about it is an open question, and inventing an answer would
         // be worse than telling you and letting you decide.
@@ -5836,6 +5845,7 @@ function on_new_pos(fen, startFen, moves) {
     // was computed for, so it has to describe the position the panel is actually reasoning with --
     // if the two can drift apart, the check reads as passing while comparing the wrong pair.
     analysed_push_key = pushKeyForThisPosition;
+    refresh_user_arrows();   // drawn arrows are re-rated for the board they now sit on
     // A known solution means no search ran, so nothing else will ever call draw_moves for this
     // position -- the arrow has to be drawn from here or there is no arrow at all.
     //
@@ -10345,7 +10355,7 @@ const LIVE_CONFIG_KEYS = [
     'mirror_ratio', 'time_trouble', 'time_trouble_at',
     'maia2_self_elo', 'maia2_oppo_elo', 'maia3_elo', 'rodent_personality',
     'analysis_limit', 'analysis_limit_mode',
-    'arrow_opacity', 'arrow_rank', 'arrow_labels', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
+    'arrow_opacity', 'arrow_rank', 'arrow_labels', 'user_arrow_evals', 'user_arrow_replies', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
     'premove_confidence', 'premove_plies', 'move_time', 'move_variance', 'move_reason',
     'material_balance', 'square_heatmap',
     ...ARROW_COLOR_KEYS, // repaint on the next frame, no reload
@@ -10458,6 +10468,11 @@ function watch_config_changes() {
                 // The boot path clamps this; without the same clamp HERE, a typed 50 on the
                 // options page ran an open panel at maxPlies 51 while a reloaded one ran at 5.
                 if (key === 'forced_lines') config.forced_lines = Math.max(0, Math.min(5, parseInt(value) || 0));
+                if (key === 'user_arrow_replies') config.user_arrow_replies = Math.max(0, Math.min(5, parseInt(value) || 0));
+                if (key === 'user_arrow_evals' || key === 'user_arrow_replies') {
+                    if (key === 'user_arrow_evals' && !value) ua_dispose();
+                    ua_last_sent = ''; refresh_user_arrows();
+                }
                 if (key === 'grind_delay') config.grind_delay = Math.max(0, Math.min(600, Number(value) || 0));   // as at boot
                 if (key === 'pv_walk_limit') config.pv_walk_limit = Math.max(1, Math.min(50, parseInt(value) || 5));
                 if (key === 'help_mode' && !value) request_clear_hint();
@@ -11120,6 +11135,166 @@ function request_threat_human(fen, best) {
         update_best_move_suffix();   // the reply arrives after the readout, same shape as the tablebase verdict
     }).catch(() => {});
 }
+
+// ==== USER ARROWS ====
+// EVALS ON YOUR ARROWS. The arrows YOU draw on the site's board (right-drag, on lichess and
+// chess.com) get the engine's verdict: the eval after that move, written at its head from White's
+// side like every score in the panel. With Replies on Your Arrows, the opponent's best answers to the
+// arrow drawn last are drawn too, thin and numbered, so a bad number explains itself. Asked for in the issue tracker
+// as a training mode: rate the move I am considering instead of handing me the engine's.
+//
+// Its own Stockfish in the offscreen document (clientId `<tab>:ua`, the small net, one thread), so
+// it never touches the main search. One search of the position AFTER the drawn move, MultiPV = the
+// replies wanted: its first line's score IS the arrow's eval, and its lines ARE the replies.
+const UA_ENGINE = 'stockfish-19-small-nnue';
+const UA_MOVETIME_MS = 700;
+const UA_TIMEOUT_MS = 8000;
+let user_arrows = [];            // ['e2e4', ...] as drawn on the site's board, newest last
+let ua_id = null, ua_ready = null;
+const ua_cache = new Map();      // `${fenAfter}|${replies}` -> {white: {cp}|{mate}, replies: [{uci, white}]}
+let ua_serial = Promise.resolve();
+const ua_pending = new Set();   // keys queued and not answered yet: an arrow is asked about once
+let ua_last_sent = '';
+
+// A drawn arrow -> the legal move it stands for in `fen` and the position after it, or null when it
+// is not a legal move here (an idea for later, a decoration, the other side's piece). A pawn drawn
+// to its last rank is the queen promotion: that is what such an arrow means nine times in ten.
+function ua_move_after(fen, arrow, variant) {
+    if (!/^[a-h][1-8][a-h][1-8]$/.test(arrow || '')) return null;
+    try {
+        const c = new Chess(variant, fen);
+        const m = c.move({from: arrow.slice(0, 2), to: arrow.slice(2, 4), promotion: 'q'});
+        if (!m) return null;
+        return {uci: arrow + (m.promotion || ''), fenAfter: c.fen(), sideAfter: c.fen().split(' ')[1],
+                mated: c.isCheckmate(), stalemate: c.isStalemate()};
+    } catch (e) { return null; }
+}
+
+// The engine's lines for the position after the move (scores from the side to move, the OPPONENT)
+// -> White's view. `lines` holds the newest `info ... multipv k score ... pv ...` per k.
+function ua_result(lines, sideAfter) {
+    const sign = sideAfter === 'w' ? 1 : -1;
+    const white = (l) => l.mate != null ? {mate: sign * l.mate} : {cp: sign * l.cp};
+    const got = lines.filter(Boolean);
+    if (!got.length) return null;
+    return {white: white(got[0]), replies: got.map(l => ({uci: l.pv, white: white(l)}))};
+}
+
+// one UCI info line -> {k, cp|mate, pv} or null (bounds and lines without a pv do not count)
+function ua_parse_info(line) {
+    const m = /^info .*?\bmultipv (\d+) .*?\bscore (cp|mate) (-?\d+)\b(?! (?:lower|upper)bound).*?\bpv ([a-h][1-8][a-h][1-8][qrbn]?)/.exec(line || '');
+    if (!m) return null;
+    return {k: Number(m[1]), [m[2]]: Number(m[3]), pv: m[4]};
+}
+
+// White's-view score -> the label: +0.35, -1.20, #3 (White mates), #-3 (Black mates). Signed mates,
+// unlike the engine-line labels: a drawn move that walks INTO a mate has to read differently from
+// one that delivers it.
+function ua_label(white) {
+    if (!white) return '';
+    if (white.mate != null) return white.mate === 0 ? '#' : `#${white.mate}`;
+    const p = white.cp / 100;
+    return (p > 0 ? '+' : '') + p.toFixed(2);
+}
+
+function ua_engine() {
+    if (ua_ready) return ua_ready;
+    ua_id = ENGINE_CLIENT + ':ua';   // tab-prefixed: the background relays fromOffscreen by parseInt(clientId)
+    ua_ready = (async () => {
+        await chrome.runtime.sendMessage({ensureOffscreen: true});
+        await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => { cleanup(); reject(new Error('arrow engine load timed out')); }, 60000);
+            const onMsg = (m) => {
+                if (!m || !m.fromOffscreen || m.clientId !== ua_id) return;
+                if (m.kind === 'ready') { cleanup(); resolve(); }
+                if (m.kind === 'error') { cleanup(); reject(new Error(m.error)); }
+            };
+            const cleanup = () => { clearTimeout(timer); chrome.runtime.onMessage.removeListener(onMsg); };
+            chrome.runtime.onMessage.addListener(onMsg);
+            chrome.runtime.sendMessage({toOffscreen: true, clientId: ua_id, cmd: 'init', engine: UA_ENGINE, variant: 'chess'});
+        });
+        for (const l of ['setoption name Threads value 1', 'setoption name Hash value 16']) {
+            chrome.runtime.sendMessage({toOffscreen: true, clientId: ua_id, cmd: 'uci', line: l});
+        }
+    })();
+    const mine = ua_ready;
+    mine.catch(() => { if (ua_ready === mine) ua_ready = null; });   // a failed load is not the answer
+    return ua_ready;
+}
+
+function ua_dispose() {
+    if (!ua_id) return;
+    try { chrome.runtime.sendMessage({toOffscreen: true, clientId: ua_id, cmd: 'dispose'}); } catch (e) { /* gone */ }
+    ua_id = null; ua_ready = null;
+}
+
+// One question at a time on the one client, and a question nobody wants any more (the position
+// moved on, the arrow was wiped) is skipped when its turn comes rather than searched.
+function ua_ask(after, replies, wanted) {
+    const key = `${after.fenAfter}|${replies}`;
+    if (ua_pending.has(key)) return ua_serial;
+    ua_pending.add(key);
+    const p = ua_serial.then(async () => {
+        if (ua_cache.has(key) || !wanted()) return;
+        await ua_engine();
+        const res = await new Promise((resolve) => {
+            const lines = [];
+            const send = (line) => chrome.runtime.sendMessage({toOffscreen: true, clientId: ua_id, cmd: 'uci', line});
+            const timer = setTimeout(() => { cleanup(); send('stop'); resolve(null); }, UA_TIMEOUT_MS);
+            const onMsg = (m) => {
+                if (!m || !m.fromOffscreen || m.clientId !== ua_id || m.kind !== 'line') return;
+                const info = ua_parse_info(m.line);
+                if (info) lines[info.k - 1] = info;
+                if (/^bestmove\b/.test(m.line || '')) { cleanup(); resolve(ua_result(lines, after.sideAfter)); }
+            };
+            const cleanup = () => { clearTimeout(timer); chrome.runtime.onMessage.removeListener(onMsg); };
+            chrome.runtime.onMessage.addListener(onMsg);
+            send(`setoption name MultiPV value ${Math.max(1, replies)}`);
+            send(`position fen ${after.fenAfter}`);
+            send(`go movetime ${UA_MOVETIME_MS}`);
+        });
+        if (res) {
+            if (ua_cache.size >= 200) ua_cache.clear();
+            ua_cache.set(key, res);
+        }
+    });
+    ua_serial = p.catch(() => {}).then(() => { ua_pending.delete(key); });
+    return ua_serial;
+}
+
+// Called when the drawn arrows change and when the position does. Draws what is known at once
+// (a pending arrow shows "…") and asks for the rest, redrawing as each answer lands.
+function refresh_user_arrows() {
+    const on = !!config.user_arrow_evals && (!config.variant || config.variant === 'chess');
+    const fen = last_eval.fen;
+    if (!on || !fen || !user_arrows.length) {
+        if (ua_last_sent !== '[]') { ua_last_sent = '[]'; send_to_active_tab({drawUserArrows: true, items: []}); }
+        return;
+    }
+    const replies = Math.max(0, Math.min(5, parseInt(config.user_arrow_replies) || 0));
+    const items = [];
+    // replies only for the arrow drawn last: two arrows' replies land on the same squares and nobody
+    // can tell whose a "1" is (seen live on lichess with e4 and f3 drawn, both answered by ...e5)
+    const legal = user_arrows.map(arrow => [arrow, ua_move_after(fen, arrow, config.variant)]).filter(([, a]) => a);
+    for (const [arrow, after] of legal) {
+        const newest = arrow === legal[legal.length - 1][0];
+        let label = '…', reply = [];
+        if (after.mated) label = '#';
+        else if (after.stalemate) label = '0.00';
+        else {
+            const hit = ua_cache.get(`${after.fenAfter}|${replies}`);
+            if (hit) { label = ua_label(hit.white); reply = replies && newest ? hit.replies.slice(0, replies).map(r => r.uci) : []; }
+            else ua_ask(after, replies, () => last_eval.fen === fen && user_arrows.includes(arrow))
+                .then(() => { if (last_eval.fen === fen) refresh_user_arrows(); }).catch(() => {});
+        }
+        items.push({move: arrow, label, replies: reply});
+    }
+    const key = JSON.stringify(items);
+    if (key === ua_last_sent) return;
+    ua_last_sent = key;
+    send_to_active_tab({drawUserArrows: true, items});
+}
+// ==== END USER ARROWS ====
 
 function draw_human_reply() {
     if (last_eval.humanReply?.uci) {
@@ -12870,6 +13045,7 @@ self.MephistoPanel = {
     suspend: () => {
         try { abandon_search(); } catch (e) { /* ignore */ }
         try { dispose_threat_human(); } catch (e) { /* ignore */ }
+        try { ua_dispose(); user_arrows = []; ua_last_sent = ''; } catch (e) { /* ignore */ }
         setup_fen = null; snap_crop = null; setup_view = null;
         try { snap_follow_stop(); } catch (e) { /* ignore */ }
         try { stash_setup_state(); } catch (e) { /* ignore */ } // setup_fen is null -> clears the stash

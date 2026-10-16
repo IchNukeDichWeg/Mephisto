@@ -2223,6 +2223,9 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     () => void chrome.runtime.lastError);
   chrome.runtime.sendMessage({toOffscreen: true, clientId: String(tabId) + ':bn', cmd: 'dispose'},
     () => void chrome.runtime.lastError);
+  // ...and the Evals on Your Arrows engine
+  chrome.runtime.sendMessage({toOffscreen: true, clientId: String(tabId) + ':ua', cmd: 'dispose'},
+    () => void chrome.runtime.lastError);
 });
 
 // --- Offscreen engine host (N1). An offscreen document is an invisible EXTENSION-ORIGIN page, so it

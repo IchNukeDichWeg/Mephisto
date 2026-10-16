@@ -3832,8 +3832,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     // every board overlay sits below the panel; only the screen-select veil is above it
     const z = Number(csrc.match(/const BOARD_OVERLAY_Z = (\d+);/)[1]), panelZ = Number(csrc.match(/wrap\.style\.cssText = 'position: fixed; z-index: (\d+);/)[1]);
     const stray = csrc.split('\n').filter(l => /pointer-events: none/.test(l) && /z-index: 214748364\d/.test(l));
-    ok('board overlays (arrows, eval bar, history, stats, badge, banner) are drawn below the panel, none at a fixed top z-index',
-       z < panelZ && stray.length === 0 && (csrc.match(/z-index: \$\{BOARD_OVERLAY_Z\}; pointer-events: none/g) || []).length === 6, {z, panelZ, stray}); }
+    ok('board overlays (arrows, eval bar, history, stats, badge, banner, your arrows\' evals) are drawn below the panel, none at a fixed top z-index',
+       z < panelZ && stray.length === 0 && (csrc.match(/z-index: \$\{BOARD_OVERLAY_Z\}; pointer-events: none/g) || []).length === 7, {z, panelZ, stray}); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('picking the 4-player engine by hand remembers the engine it replaced, so the switch back restores it',
        /if \(key === 'engine' && FOURPC_ENGINES\.includes\(parse\(elem\.value\)\)\s*&& !FOURPC_ENGINES\.includes\(config\.engine\) && !fourpc_prev_engine\) \{\s*fourpc_prev_engine = config\.engine;\s*\}\s*if \(key === 'engine'\) stop_current_engine\(\);/.test(psrc)); }
@@ -4473,6 +4473,78 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /return withPanelClickThrough\(\(\) => dispatchSimulateDragInner\(x1, y1, x2, y2, travelMs\), \[\[x1, y1\], \[x2, y2\]\]\);/.test(csrc));
 }
 // ==== END PANEL CLICK-THROUGH ONLY UNDER THE PANEL ====
+
+// ==== EVALS ON YOUR ARROWS ====
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fnOf = (src, name) => { const i = src.indexOf(`function ${name}(`); return src.slice(i, src.indexOf('\n}\n', i) + 3); };
+    const cc = vm.createContext({});
+    vm.runInContext("const USER_ARROW_BRUSHES = new Set(['green', 'red', 'blue', 'yellow']);" + fnOf(csrc, 'parseCgHash'), cc);
+    const h = (x) => vm.runInContext(`parseCgHash(${JSON.stringify(x)})`, cc);
+    ok('a lichess user arrow (cgHash "696,696,1,e2,e4,green") reads as e2e4, in every user brush',
+       h('696,696,1,e2,e4,green') === 'e2e4' && h('696,696,0,g8,f6,red') === 'g8f6' && h('696,696,1,a7,a8,yellow') === 'a7a8' && h('696,696,1,h1,h8,blue') === 'h1h8');
+    ok('...a circle, the site\'s own pale shapes and junk are not arrows',
+       h('696,696,1,e4,green') === null && h('696,696,1,e2,e4,paleBlue') === null && h('') === null && h(null) === null);
+
+    const ec = vm.createContext({}); ec.self = ec;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), ec);
+    vm.runInContext(['ua_move_after', 'ua_result', 'ua_parse_info', 'ua_label'].map(n => fnOf(psrc, n)).join(''), ec);
+    const e = (x) => vm.runInContext(x, ec);
+    const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const a = e(`ua_move_after(${JSON.stringify(START)}, 'e2e4', 'chess')`);
+    ok('a drawn legal move gives the position after it, Black to move',
+       a && a.uci === 'e2e4' && a.sideAfter === 'b' && /^rnbqkbnr\/pppppppp\/8\/8\/4P3\/8\/PPPP1PPP\/RNBQKBNR b KQkq/.test(a.fenAfter) && !a.mated && !a.stalemate, a);
+    ok('...an arrow that is not a legal move here (an idea, the other side\'s piece, junk) is nothing',
+       e(`ua_move_after(${JSON.stringify(START)}, 'e2e5', 'chess')`) === null && e(`ua_move_after(${JSON.stringify(START)}, 'e7e5', 'chess')`) === null
+       && e(`ua_move_after(${JSON.stringify(START)}, 'x', 'chess')`) === null);
+    const promo = e(`ua_move_after('8/4P3/8/8/8/8/k7/4K3 w - - 0 1', 'e7e8', 'chess')`);
+    ok('...a pawn drawn to its last rank is the queen promotion', promo && promo.uci === 'e7e8q', promo);
+    const mate = e(`ua_move_after('6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1', 'a1a8', 'chess')`);
+    ok('...a mating arrow says so without a search', mate && mate.mated === true, mate);
+
+    ok('info lines parse: multipv, cp or mate, the first pv move; bounds and pv-less lines do not count',
+       JSON.stringify(e(`ua_parse_info('info depth 12 seldepth 18 multipv 2 score cp -35 nodes 9 nps 9 pv e7e5 g1f3')`)) === '{"k":2,"cp":-35,"pv":"e7e5"}'
+       && JSON.stringify(e(`ua_parse_info('info depth 9 multipv 1 score mate -2 nodes 9 pv d8h4')`)) === '{"k":1,"mate":-2,"pv":"d8h4"}'
+       && e(`ua_parse_info('info depth 12 multipv 1 score cp 40 lowerbound nodes 9 pv e7e5')`) === null
+       && e(`ua_parse_info('info depth 12 multipv 1 score cp 40 nodes 9')`) === null && e(`ua_parse_info('bestmove e7e5')`) === null);
+    const r = e(`ua_result([{k: 1, cp: -35, pv: 'e7e5'}, {k: 2, mate: 3, pv: 'd8h4'}], 'b')`);
+    ok('the search is from the OPPONENT\'s side; the result is White\'s view, line 1 is the arrow\'s eval and the lines are the replies',
+       JSON.stringify(r) === '{"white":{"cp":35},"replies":[{"uci":"e7e5","white":{"cp":35}},{"uci":"d8h4","white":{"mate":-3}}]}', r);
+    ok('...with White to move after the arrow the sign stays, and no lines is no result',
+       e(`ua_result([{k: 1, cp: 120, pv: 'e2e4'}], 'w').white.cp`) === 120 && e(`ua_result([], 'w')`) === null);
+    ok('labels: +0.35, -1.20, 0.00, #3 (White mates), #-3 (Black mates), # (mate on the board)',
+       ['{cp: 35}', '{cp: -120}', '{cp: 0}', '{mate: 3}', '{mate: -3}', '{mate: 0}'].map(x => e(`ua_label(${x})`)).join() === '+0.35,-1.20,0.00,#3,#-3,#');
+
+    // ---- wiring
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const live = psrc.slice(psrc.indexOf('const LIVE_CONFIG_KEYS = ['), psrc.indexOf('];', psrc.indexOf('const LIVE_CONFIG_KEYS = [')));
+    ok('OFF by default (page and panel), replies 0, both rows on the page, both live in an open panel',
+       /registerFormElement\('user_arrow_evals', '[^']+:', 'checkbox', false\)/.test(gj) && /registerFormElement\('user_arrow_replies', '[^']+:', 'input', 0\)/.test(gj)
+       && /id="user_arrow_evals_checkbox"/.test(gh) && /id="user_arrow_replies_input"/.test(gh)
+       && /user_arrow_evals: JSON\.parse\(MephistoConfig\.get\('user_arrow_evals'\)\) \|\| false,/.test(psrc)
+       && /'user_arrow_evals'/.test(live) && /'user_arrow_replies'/.test(live));
+    ok('...its own engine client (<tab>:ua, never the main search) is freed with the tab and with the panel',
+       /ua_id = ENGINE_CLIENT \+ ':ua'/.test(psrc) && /clientId: String\(tabId\) \+ ':ua', cmd: 'dispose'/.test(bg) && /ua_dispose\(\); user_arrows = \[\];/.test(psrc));
+    const MOVE_PATHS = ['on_engine_best_move', 'humanize_pick', 'request_automove', 'premove_certified', 'premove_reply_playable'];
+    ok('DISPLAY ONLY: no move path reads the arrows or their evals',
+       MOVE_PATHS.every(n => psrc.indexOf(`function ${n}(`) >= 0 && !/user_arrow|ua_/.test(fnOf(psrc, n))));
+    ok('...the board only reads the user brushes and polls only while the setting is on',
+       /const on = !!config\?\.user_arrow_evals && \(site === 'lichess' \|\| site === 'chesscom'\);/.test(csrc));
+    const keys = ['set.user_arrow_evals', 'set.tip.user_arrow_evals', 'set.user_arrow_replies', 'set.tip.user_arrow_replies'];
+    const dir = ROOT + '/src/i18n/locales/', files = fs.readdirSync(dir);
+    const loc = Object.fromEntries(files.map(f => [f.replace('.json', ''), JSON.parse(fs.readFileSync(dir + f, 'utf8'))]));
+    const bad = [];
+    for (const [l, d] of Object.entries(loc)) for (const k of keys) {
+        if (typeof d[k] !== 'string' || !d[k].trim()) bad.push(`${l}:${k} missing`);
+        else if (l !== 'en' && d[k] === loc.en[k]) bad.push(`${l}:${k}`);
+    }
+    ok(`...${keys.length} strings in all ${files.length} locales, translated`, files.length === 14 && !bad.length, bad.join(' '));
+}
+// ==== END EVALS ON YOUR ARROWS ====
 
 // ==== OPENING REPERTOIRE ====
 {
