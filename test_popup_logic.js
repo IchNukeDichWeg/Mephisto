@@ -4414,3 +4414,24 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && rq.indexOf("if (!humanize_flag('humanize_maia', false)") < rq.indexOf('human_once('));
 }
 // ==== END SUGGEST A HUMAN ERROR ====
+
+// ==== THINK WAKES ON A MOVED BOARD ====
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = csrc.indexOf('let wakeThink = null;'), b = csrc.indexOf('\n}\n', csrc.indexOf('function thinkWait(')) + 3;
+    const c = vm.createContext({setTimeout, clearTimeout});
+    vm.runInContext(csrc.slice(a, b).replace('let wakeThink', 'var wakeThink'), c);
+    const t0 = Date.now();
+    const woken = vm.runInContext('thinkWait(5000)', c);
+    vm.runInContext('wakeThink()', c);
+    Promise.all([woken, vm.runInContext('thinkWait(5)', c)]).then(([w, run]) => {
+        ok('the think wait ends at once when woken (true) and runs out by itself otherwise (false)',
+           w === true && run === false && Date.now() - t0 < 1000 && vm.runInContext('wakeThink', c) === null, {w, run, ms: Date.now() - t0});
+    });
+    ok('...a push during a move wakes the think, and the woken think re-asks the click guard and sleeps on when the board still matches',
+       /if \(moving\) \{\s*if \(wakeThink\) wakeThink\(\);/.test(csrc)
+       && /while \(await thinkWait\(until - Date\.now\(\)\)\) \{\s*if \(sessionGen !== undefined && sessionGen !== moveGen\) return;[^\n]*\n\s*if \(!is4PC\(\) && pendingForPush && !boardStillMatchesAnalysis\(pendingForPush\)\) return;/.test(csrc)
+       && /async function performSimulatedMoveSequence\(\) \{\s*await waitOutThink\(getThinkTime\(\)\);/.test(csrc));
+}
+// ==== END THINK WAKES ON A MOVED BOARD ====

@@ -3701,6 +3701,7 @@ function pushPosition() {
     if (key === lastPushKey) return; // already delivered as a full (analysed) push -> nothing to do
     try {
         if (moving) {
+            if (wakeThink) wakeThink();   // a think in progress re-checks the board now (see thinkWait)
             // mid-automove: mirror the position on the panel board the INSTANT it settles, so the
             // small board tracks the move in real time instead of freezing until the move verifies.
             // Flag it displayOnly -- the popup only redraws, never re-analyses/auto-moves mid-move
@@ -4947,6 +4948,29 @@ let lastAimed = null;
 // clicks actually happen rather than only when the move arrived.
 let pendingForPush = null;
 
+// THE THINK ENDS THE MOMENT THE BOARD MOVES ON. The think delay used to be a plain timer, and the
+// position guard only looked again once it ran out -- while `moving` turned every push in between into
+// a display-only one. So in bullet, a move that landed during a Humanize think left the panel blind
+// for the REST of that think, and then it dropped the move it had been waiting to play: measured on
+// lichess at 1+0 with 20 plies fired 300 ms apart, the final position reached the panel 2,750 ms
+// after the last move. Now any new board reading wakes the wait, the same guard the clicks use is
+// asked at once, and a board that really moved on drops the stale move right away. A reading that
+// still matches (a repaint, a torn read) goes back to sleep for what is left, so this never turns a
+// think into an instant move.
+let wakeThink = null;
+function thinkWait(ms) {   // resolves true when woken early, false when the time ran out
+    return new Promise(resolve => {
+        const done = (woken) => {
+            clearTimeout(timer);
+            if (wakeThink === wake) wakeThink = null;
+            resolve(woken);
+        };
+        const wake = () => done(true);
+        const timer = setTimeout(() => done(false), Math.max(0, ms));
+        wakeThink = wake;
+    });
+}
+
 function simulateMove(move, deselect, think = null, sessionGen = undefined) {
     const isDrop = DROP_RE.test(move ?? '');
     if (!isDrop && !/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
@@ -5177,8 +5201,16 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
     // difficulty (see FITTS above). On a normal move: piece (25%) + target (75%). On a promotion:
     // piece (20%) + target (55%) + promo picker (25%). Think time stays a separate slider (that's
     // the pause BEFORE the move; this budget is the physical act of playing it).
+    async function waitOutThink(ms) {
+        const until = Date.now() + ms;
+        while (await thinkWait(until - Date.now())) {
+            if (sessionGen !== undefined && sessionGen !== moveGen) return;           // superseded: stop now
+            if (!is4PC() && pendingForPush && !boardStillMatchesAnalysis(pendingForPush)) return; // moved on
+        }
+    }
+
     async function performSimulatedMoveSequence() {
-        await promiseTimeout(getThinkTime());
+        await waitOutThink(getThinkTime());
         const total = getMoveTime() * (isDrop ? 1 : fittsScale(move.substring(0, 2), move.substring(2, 4)));
         if (move[4]) {
             await performSimulatedMoveClicks(total * 0.20, total * 0.55, total);
