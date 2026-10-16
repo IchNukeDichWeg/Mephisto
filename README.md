@@ -378,8 +378,10 @@ blunders are hung pieces, and these are the natural ones.
 scales the error shares move by move from error rates measured over 2.1 million moves of Lichess games (October 2025,
 closed and banned accounts removed): at the same rating, rapid and classical err about as often per move as blitz,
 bullet up to 1.9x, ultrabullet up to 2.7x; under 5% of the clock about 1.4x the inaccuracies and 2x the blunders, far
-fewer at a full clock. **Human-Like Mistakes (optional)** draws the deviation by how likely Maia-3 thinks a player of
-that rating is to play it, and never a move it gives under 1%. **Mistakes Where People Make Them (optional)** moves
+fewer at a full clock. **Human-Like Mistakes (on by default)** draws the deviation by how likely Maia-3 thinks a player of
+that rating is to play it, and never a move it gives under 1% (without it, a quarter of the moves played were ones
+Maia gives under 1%, against 3% for players). Before move 8 a deviation needs Maia at 5% or more, so the opening
+stays a repertoire; without a Maia read the engine's move is played there. **Mistakes Where People Make Them (optional)** moves
 the error shares to the positions where Maia sees that rating going wrong, relative to its average this game - not yet
 calibrated against real error rates. Both Maia options use the 88 MB Maia-3 net (downloaded the first time) and
 standard chess only; until it has answered, the plain pick stands in.

@@ -7696,8 +7696,8 @@ function hz_simplify_hold(bestCp, trades, r) {
 // opening moves Humanize played were moves Maia-1500 gives under 1%, where 1500 players play such a
 // move 3.4% of the time (Maia's own mass, same positions). A deviation there now has to be a move
 // players of the Play-like rating actually play: Maia at least HZ_OPENING_MAIA_MIN (1.0% under 1%,
-// still deviating 67% of the time; players 76%). Without a Maia read (the Maia options are off, so
-// nothing asks for the 88 MB net, or it has not answered yet) there is no way to tell a main line
+// still deviating 67% of the time; players 76%). Without a Maia read (the Maia options switched off, or
+// the net has not answered yet) there is no way to tell a main line
 // from a4, and the engine's move is played instead (5.3% under 1%, the engine's own move being that
 // rare). A skipped error is owed like any other (hz_match_settle) and comes back after the opening.
 const HZ_OPENING_MAIA_MIN = 0.05;
@@ -7840,6 +7840,13 @@ function hz_scale_rates(rates, mult) {
 // otherwise. It replaces the move-mix shares, so whoever had tuned them keeps them: config-store.js
 // sets their humanize_match off once. Target Accuracy, when set, still comes first.
 const HZ_MATCH_DEFAULT = true;
+// HUMAN-LIKE MISTAKES ON BY DEFAULT since 3.1.325. The rate of errors matched the players but the
+// errors themselves did not: 25.1% of the moves Humanize played were moves Maia-1500 gives under 1%
+// (...Kh7, ...Kf8, ...Rg8: a pointless king or rook move that loses a bit), where 1500 players play
+// such a move 3.0% of the time. Drawn by Maia's probability it is 1.2%, with the error classes where
+// they were (sim, 1500, 40 games, 10.7 / 4.6 / 1.9%). The price is the 88 MB net, fetched the first
+// time Humanize plays, and one Maia read per move of ours; until it answers, the plain pick decides.
+const HZ_MAIA_DEFAULT = true;
 // ERR LIKE YOUR RATING. Instead of the sliders, each move's quality is drawn from what players of
 // the Play-like rating actually played, graded the way the Game Review grades: by the win% the move
 // gives away, in the lichess bands. The sliders' centipawn bands do not line up with that grading --
@@ -8306,7 +8313,7 @@ function humanize_pick(best) {
         const opening = in_opening(fen);
         const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000   // never move INTO mate
                                        && hz_opening_ok(opening, probs, l.move));  // nor off the repertoire
-        const maiaWhich = !!probs && humanize_flag('humanize_maia', false);
+        const maiaWhich = !!probs && humanize_flag('humanize_maia', HZ_MAIA_DEFAULT);
         let whereK = 1;
         if (probs && humanize_flag('humanize_maia_where', false)) {
             const tau = humanize_thresholds().fourth;
@@ -11158,7 +11165,7 @@ function hz_maia_probs(fen) { return hz_maia_cache.get(fen) || null; }
 function request_humanize_maia(fen) {
     if (!config.humanize && !config.human_error) return;
     // the natural-hang rule reads it too, but never asks for the 88 MB download on its own
-    if (!humanize_flag('humanize_maia', false) && !humanize_flag('humanize_maia_where', false)) return;
+    if (!humanize_flag('humanize_maia', HZ_MAIA_DEFAULT) && !humanize_flag('humanize_maia_where', false)) return;
     if (config.variant && config.variant !== 'chess') return;    // the nets know one game
     if (hz_maia_cache.has(fen)) return;
     // Suggest a Human Error waits for this answer, so tell it the moment it lands
@@ -11781,11 +11788,12 @@ const HUMAN_ERROR_MIN_DEPTH = 12;
 const HUMAN_ERROR_COLOR = '#a0522d';   // sienna: in no LINE_COLORS, forced, book, threat or refutation family
 let human_error_state = {fen: '', pick: null, done: false, basis: ''};
 
-// A Maia option is already on, so its net is (or is being) loaded. This option never asks for the
-// 88 MB download on its own: without one of these it picks from the engine's lines alone.
+// A Maia option is on (Human-Like Mistakes is, by default), so its net is (or is being) loaded. This
+// option never asks for the 88 MB download on its own: without one of these it picks from the
+// engine's lines alone.
 function human_error_maia_expected() {
     return (!config.variant || config.variant === 'chess')
-        && (humanize_flag('humanize_maia', false) || humanize_flag('humanize_maia_where', false));
+        && (humanize_flag('humanize_maia', HZ_MAIA_DEFAULT) || humanize_flag('humanize_maia_where', false));
 }
 
 // The shallow read for the hidden-error preference (depth-2 scores, HIDDEN ERRORS); null without one.

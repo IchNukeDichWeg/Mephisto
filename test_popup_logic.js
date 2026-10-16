@@ -3879,7 +3879,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && v("hz_natural_hang(new Map([['d1a4', 0.9]]), 'd1d4')") === false && v("hz_natural_hang(null, 'd1d4')") === false);
     ok('...wired into the hang guard, with the Maia read the Maia options already ask for (no download of its own)',
        /const hangs = \(l\) => !hz_natural_hang\(probs, l\.move\) && hz_hangs\(/.test(psrc)
-       && /if \(!humanize_flag\('humanize_maia', false\) && !humanize_flag\('humanize_maia_where', false\)\) return;/.test(psrc));
+       && /if \(!humanize_flag\('humanize_maia', HZ_MAIA_DEFAULT\) && !humanize_flag\('humanize_maia_where', false\)\) return;/.test(psrc));
     ok('winning floor: none below +3.00, +3.00 at +3.00, 60% of a +15 eval',
        v('hz_win_floor(299)') === -Infinity && v('hz_win_floor(300)') === 300 && v('hz_win_floor(1500)') === 900);
     ok('punish: full rate normally, a fifth after a 2-pawn gift the engine takes, a twentieth after a blatant one',
@@ -4041,17 +4041,18 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...wired: Maia asked at search start on our turn, its rating and list width set per ask and put back, the pick weighted only with the switch on',
        /if \(our_turn && \(config\.autoplay \|\| config\.human_error\)\) request_humanize_maia\(fen\);/.test(psrc)
        && /send\('setoption name MultiPV value 256'\);/.test(psrc) && /send\('setoption name MultiPV value 5'\);/.test(psrc)
-       && /const maiaWhich = !!probs && humanize_flag\('humanize_maia', false\);/.test(psrc)
+       && /const maiaWhich = !!probs && humanize_flag\('humanize_maia', HZ_MAIA_DEFAULT\);/.test(psrc)
        && /cand = maiaWhich \? hz_maia_weighted\(ok, probs\)/.test(psrc)
        && /if \(probs && humanize_flag\('humanize_maia_where', false\)\) \{/.test(psrc)
        && /rates = hz_scale_rates\(rates, \{inaccuracy: w\.k, mistake: w\.k, blunder: w\.k\}\);/.test(psrc));
     const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
     const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
-    ok('Human-Like Mistakes and Mistakes Where People Make Them: settings rows, OFF by default, label and tip in all 14 locales',
+    ok('Human-Like Mistakes ON by default, Mistakes Where People Make Them OFF: settings rows, label and tip in all 14 locales',
        ['humanize_maia', 'humanize_maia_where'].every(k => new RegExp(`id="${k}_checkbox"`).test(gh)
-           && new RegExp(`registerFormElement\\('${k}', '[^']+:', 'checkbox', false\\)`).test(gj)
-           && locs.every(l => l['set.' + k] && l['set.tip.' + k]))); }
+           && new RegExp(`registerFormElement\\('${k}', '[^']+:', 'checkbox', ${k === 'humanize_maia'}\\)`).test(gj)
+           && locs.every(l => l['set.' + k] && l['set.tip.' + k]))
+       && /const HZ_MAIA_DEFAULT = true;/.test(psrc) && !/humanize_flag\('humanize_maia', false\)/.test(psrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     // Err Like Your Rating: the real HUMANIZE MATCH block (it calls hz_maia_weighted from the guards block)
     const sl = (a, b) => psrc.slice(psrc.indexOf(a), psrc.indexOf(b));
@@ -4329,7 +4330,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const fnSrc = (name) => { const i = psrc.indexOf(`function ${name}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
     vm.runInContext(`var config = {human_error: true, variant: 'chess', engine: 'sf'}; var turn = 'w'; var last_eval = {fen: '', lines: [], activeLines: 0};
         var ONE_PASS_ENGINES = ['maia']; function our_turn_now() { return true; } var maia = null; function hz_maia_probs() { return maia; }
-        var flags = {}; function humanize_flag(k, d) { return k in flags ? flags[k] : d; } function effective_multipv() { return 20; }
+        var flags = {humanize_maia: false}; function humanize_flag(k, d) { return k in flags ? flags[k] : d; } function effective_multipv() { return 20; }
         var updates = 0, draws = 0; function update_best_move() { updates++; } function draw_moves() { draws++; }
         function user_color(k, d) { return d; } function notate(f, u) { return u; }`, ec);
     vm.runInContext(fnSrc('win_percent') + fnSrc('line_cp_ours') + blocks
@@ -4359,7 +4360,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        e('human_error_state.basis') === 'maia' && e('human_error_shown().move') === 'e1f1' && e('human_error_shown().source') === 'maia');
     e('refresh_human_error(false)'); e('refresh_human_error(true)');
     ok('...kept', e('human_error_shown().move') === 'e1f1');
-    e('maia = null; flags = {}; function hz_hidden_of(sh, u) { return sh.get(u) === true; }');
+    e('maia = null; flags = {humanize_maia: false}; function hz_hidden_of(sh, u) { return sh.get(u) === true; }');
     mk('4k3/8/8/8/1b6/8/3P4/4K3 w - - 0 3', 16, [20, -60, -90]); e("last_eval.shallow = new Map([['e1f1', true]])"); e('refresh_human_error(false)');
     ok('where the build has the shallow read, a hidden error is preferred without Maia', e('human_error_shown().move') === 'e1f1');
     mk('4k3/8/8/8/1b6/8/3P4/4K3 w - - 0 4', 16, [20, 15]); e('refresh_human_error(false)');
@@ -4410,8 +4411,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /on_engine_best_move\(best, threat, true\);\n\s*refresh_human_error\(true\);/.test(psrc));
     const rq = bodyOf('request_humanize_maia');
     ok('...and it never fetches the Maia net by itself: the request still needs a Maia option already on',
-       rq.indexOf("if (!humanize_flag('humanize_maia', false) && !humanize_flag('humanize_maia_where', false)) return;") > 0
-       && rq.indexOf("if (!humanize_flag('humanize_maia', false)") < rq.indexOf('human_once('));
+       rq.indexOf("if (!humanize_flag('humanize_maia', HZ_MAIA_DEFAULT) && !humanize_flag('humanize_maia_where', false)) return;") > 0
+       && rq.indexOf("if (!humanize_flag('humanize_maia', HZ_MAIA_DEFAULT)") < rq.indexOf('human_once('));
 }
 // ==== END SUGGEST A HUMAN ERROR ====
 

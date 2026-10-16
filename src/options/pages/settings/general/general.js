@@ -310,7 +310,7 @@ class GeneralSettings extends SettingsPage {
         // opt-in: scales the error shares by time control, clock left and phase (HUMANIZE TIME CONTROL)
         this.registerFormElement('humanize_tc_scale', 'Scale Errors to the Clock:', 'checkbox', false);
         // opt-in, Stage B: Maia-3 at the Play-like rating picks the deviation (B1) and where (B2)
-        this.registerFormElement('humanize_maia', 'Human-Like Mistakes:', 'checkbox', false);
+        this.registerFormElement('humanize_maia', 'Human-Like Mistakes:', 'checkbox', true);
         this.registerFormElement('humanize_maia_where', 'Mistakes Where People Make Them:', 'checkbox', false);
         // ON by default since 3.1.323 (HZ_MATCH_DEFAULT): each move's quality from the Play-like
         // rating's measured spread (HUMANIZE MATCH); a tuned move mix kept it off (config-store.js)
