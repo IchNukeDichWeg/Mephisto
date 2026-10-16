@@ -4435,3 +4435,23 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /async function performSimulatedMoveSequence\(\) \{\s*await waitOutThink\(getThinkTime\(\)\);/.test(csrc));
 }
 // ==== END THINK WAKES ON A MOVED BOARD ====
+
+// ==== OPENING REPERTOIRE ====
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const g = vm.createContext({}); g.self = g;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), g);
+    vm.runInContext(psrc.slice(psrc.indexOf('// ==== HUMANIZE GUARDS ===='), psrc.indexOf('// ==== END HUMANIZE GUARDS ====')), g);
+    const v = (e) => vm.runInContext(e, g);
+    ok('opening: a deviation needs Maia at HZ_OPENING_MAIA_MIN or more; without a Maia read none passes; after the opening anything does',
+       v("hz_opening_ok(true, new Map([['g1f3', HZ_OPENING_MAIA_MIN]]), 'g1f3')") === true
+       && v("hz_opening_ok(true, new Map([['a2a4', HZ_OPENING_MAIA_MIN / 10]]), 'a2a4')") === false
+       && v("hz_opening_ok(true, new Map([['g1f3', 0.4]]), 'a2a4')") === false
+       && v("hz_opening_ok(true, null, 'g1f3')") === false
+       && v("hz_opening_ok(false, null, 'a2a4')") === true && v('HZ_OPENING_MAIA_MIN') === 0.05);
+    ok('...applied to every deviation path: the alternatives list itself is filtered, with the opening read from in_opening',
+       /const probs = hz_maia_probs\(fen\);\s*const opening = in_opening\(fen\);\s*const alts = lines\.filter\(l => l !== bestLine && line_cp_ours\(l\) > -90000[^\n]*\n\s*&& hz_opening_ok\(opening, probs, l\.move\)\);/.test(psrc)
+       && (psrc.match(/const alts = /g) || []).length === 1);
+}
+// ==== END OPENING REPERTOIRE ====

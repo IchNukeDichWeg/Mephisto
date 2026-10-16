@@ -7690,6 +7690,21 @@ function hz_simplify_hold(bestCp, trades, r) {
     return bestCp >= HZ_WIN_CP && bestCp <= HZ_SIMPLIFY_HI && r < HZ_SIMPLIFY_HOLD && trades();
 }
 
+// THE OPENING IS A REPERTOIRE, NOT A ROLL. Before move 8 the engine's other lines are full of moves
+// that cost a few centipawns and that nobody plays (3.Qc2, 3.h4, 3.a4, 3...Rb8), and an error roll
+// picked from them like from any list. Measured (sim, 1500, 60 games, our moves 3-7): 32.1% of the
+// opening moves Humanize played were moves Maia-1500 gives under 1%, where 1500 players play such a
+// move 3.4% of the time (Maia's own mass, same positions). A deviation there now has to be a move
+// players of the Play-like rating actually play: Maia at least HZ_OPENING_MAIA_MIN (1.0% under 1%,
+// still deviating 67% of the time; players 76%). Without a Maia read (the Maia options are off, so
+// nothing asks for the 88 MB net, or it has not answered yet) there is no way to tell a main line
+// from a4, and the engine's move is played instead (5.3% under 1%, the engine's own move being that
+// rare). A skipped error is owed like any other (hz_match_settle) and comes back after the opening.
+const HZ_OPENING_MAIA_MIN = 0.05;
+function hz_opening_ok(opening, probs, uci) {
+    return !opening || (!!probs && (probs.get(uci) || 0) >= HZ_OPENING_MAIA_MIN);
+}
+
 // MAIA-GUIDED CHOICE (redesign Stage B, 3.1.322). probs = Maia-3's move probabilities at the
 // Play-like rating for this position, a Map uci -> p over every legal move.
 // B1, Human-Like Mistakes: a deviation is drawn in proportion to how often a player of that rating
@@ -8284,11 +8299,13 @@ function humanize_pick(best) {
     if (config.humanize && !recapture && !forced && !firstMove && lines.length >= 2 && bestLine) {
         const playable = (m) => premove_reply_playable(fen, m); // moves OUR piece + legal here
         const loss = (l) => bestCp - line_cp_ours(l);
-        const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000); // never move INTO mate
         let rates = humanize_rates_now(fen, true); // the mix, scaled to the clock when that is on
         // Maia's read of this position at the Play-like rating, asked at search start; null when it
         // has not answered yet (first-use download, a slow pass) -- then the plain mix decides.
         const probs = hz_maia_probs(fen);
+        const opening = in_opening(fen);
+        const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000   // never move INTO mate
+                                       && hz_opening_ok(opening, probs, l.move));  // nor off the repertoire
         const maiaWhich = !!probs && humanize_flag('humanize_maia', false);
         let whereK = 1;
         if (probs && humanize_flag('humanize_maia_where', false)) {
