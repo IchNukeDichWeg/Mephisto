@@ -12074,7 +12074,7 @@ function draw_threat() {
 
 // An arrow's own evaluation, from White's point of view like every other score the panel shows, so
 // a line does not read one way on the board and the other way in the panel. Mate is written as #N
-// rather than as a centipawn score, because a mate is not a number of pawns.
+// rather than as a centipawn score, because a mate is not a number of pawns: #3 White mates, #-3 Black.
 // See the config note: values <= 1 are the pre-3.1.229 fraction, everything else is a percentage.
 function read_arrow_opacity() {
     const raw = JSON.parse(MephistoConfig.get('arrow_opacity'));
@@ -12101,9 +12101,13 @@ function arrow_label(line) {
         return (config.arrow_rank || config.arrow_labels) ? `${Math.round(line.maiaprob / 100)}%` : '';
     }
     if (!line || !config.arrow_labels) return '';
-    if (Number.isFinite(line.mate) && line.mate !== 0) return `#${Math.abs(line.mate)}`;
+    // line.score / line.mate are stored White-relative already (on_engine_response flips the UCI
+    // side-to-move score once). Flipping by `turn` again here wrote the side-to-move's view on every
+    // Black-to-move arrow while the tooltip and the panel said White's, and Math.abs made a mate FOR
+    // you and a mate AGAINST you both read #3.
+    if (Number.isFinite(line.mate) && line.mate !== 0) return `#${line.mate}`;
     if (!Number.isFinite(line.score)) return '';
-    const cp = (turn === 'w' ? 1 : -1) * line.score / 100;
+    const cp = line.score / 100;
     return (cp > 0 ? '+' : '') + cp.toFixed(2);
 }
 

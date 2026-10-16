@@ -4546,6 +4546,24 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 }
 // ==== END EVALS ON YOUR ARROWS ====
 
+// ==== EVALS ON ARROWS ARE WHITE'S VIEW ====
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function arrow_label('), fn = psrc.slice(i, psrc.indexOf('\n}\n', i) + 3);
+    const c = vm.createContext({});
+    vm.runInContext(`var config = {arrow_labels: true}, turn = 'w';` + fn, c);
+    const lbl = (t, line) => vm.runInContext(`turn = ${JSON.stringify(t)}; arrow_label(${JSON.stringify(line)})`, c);
+    // the stored score is White-relative: +35 is White better whoever is to move
+    ok('a stored +0.35 (White better) reads +0.35 with White AND with Black to move, like the panel score',
+       lbl('w', {score: 35}) === '+0.35' && lbl('b', {score: 35}) === '+0.35' && lbl('b', {score: -120}) === '-1.20', [lbl('w', {score: 35}), lbl('b', {score: 35})]);
+    ok('...mates keep their sign: #3 White mates, #-3 Black mates, on either side\'s turn',
+       lbl('w', {mate: 3}) === '#3' && lbl('b', {mate: -3}) === '#-3' && lbl('b', {mate: 3}) === '#3', [lbl('b', {mate: -3}), lbl('b', {mate: 3})]);
+    ok('...the score really is stored White-relative (the one flip at parse time this label relies on)',
+       /lineInfo\[scoreType\] = \(turn === 'w' \? 1 : -1\) \* scoreNumber;/.test(psrc));
+}
+// ==== END EVALS ON ARROWS ARE WHITE'S VIEW ====
+
 // ==== OPENING REPERTOIRE ====
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
