@@ -3341,8 +3341,12 @@ function premove_certified(line) {
     // maybe_premove_forced_reply: the premove queues only when the reply is bound to the
     // predicted move and therefore cannot fire in a wrong position.
     if (line.maia2) return true;
-    // A reply that is the opponent's ONLY legal move is a fact about the rules -- no depth window
-    // can add or subtract confidence from it. NOTE what this does NOT do: it does not let a
+    // A PREDICTION that is the opponent's ONLY legal move is a fact about the rules: no depth window
+    // can add or subtract confidence from it, so the pair need not be stable across iterations. OUR
+    // REPLY is still a judgement. Certifying at any depth queued it from the first two-move pv, a
+    // depth-2 move in the sharpest positions of a game, so it has to reach the Premove Confidence
+    // dial's first checkpoint and the stability half is all the rules excuse.
+    // NOTE what this does NOT do: it does not let a
     // single-move engine premove (an earlier revision of this comment claimed it did, and was
     // wrong). Certification answers "is the prediction trustworthy" -- but a Maia line has no
     // line.reply to PLAY, and the gate above rejects it for exactly that reason. A single-move
@@ -3354,7 +3358,7 @@ function premove_certified(line) {
             const legal = c.moves({verbose: true});
             if (legal.length === 1) {
                 const only = `${legal[0].from}${legal[0].to}${legal[0].promotion || ''}`;
-                if (only === line.pred) return true;
+                if (only === line.pred) return line.depth >= premove_cert_prev();
             }
         } catch (e) { /* variant chess.js cannot parse -- fall through to the depth window */ }
     }

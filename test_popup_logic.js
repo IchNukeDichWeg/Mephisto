@@ -78,7 +78,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     if (okDial) console.log('ok   confidence is a dial: follows the setting, clamped [8,22], defaults 14');
     else { fails++; console.log('FAIL confidence dial (10->' + at(10) + ' 5->' + at(5) + ' 99->' + at(99) + ')'); }
 }
-// a reply that is the opponent's ONLY legal move is certified by the RULES, at any depth
+// a PREDICTION that is the opponent's ONLY legal move is certified by the RULES, stable or not, but
+// our reply on top of it still has to come from a real search
 {
     vm.runInContext(`premove_tracker.fen = '7k/8/8/8/8/8/6q1/7K w - - 0 1';`, ctx);   // Kxg2 forced
     // A MAIA-SHAPED LINE -- depth 1, a pred and NO reply -- must never certify: every consumer
@@ -87,11 +88,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const maiaShaped = premove_certified({pred: 'h1g2', depth: 1, pv: ['h1g2']});
     if (!maiaShaped) console.log('ok   a reply-less (Maia-shaped) line never certifies');
     else { fails++; console.log('FAIL a reply-less (Maia-shaped) line CERTIFIED'); }
-    const forcedOk = premove_certified({pred: 'h1g2', reply: 'g2f2', depth: 1});
-    const wrongPred = premove_certified({pred: 'h1h2', reply: 'x', depth: 1});
+    const forcedOk = premove_certified({pred: 'h1g2', reply: 'g2f2', depth: PREMOVE_DEPTH_PREV});
+    const forcedShallow = [1, 2, PREMOVE_DEPTH_PREV - 1].some(depth => premove_certified({pred: 'h1g2', reply: 'g2f2', depth}));
+    const wrongPred = premove_certified({pred: 'h1h2', reply: 'g2f2', depth: PREMOVE_DEPTH_PREV});
     vm.runInContext(`premove_tracker.fen = '';`, ctx);
-    if (forcedOk && !wrongPred) console.log('ok   a rules-forced reply certifies at depth 1; a different prediction does not');
-    else { fails++; console.log(`FAIL rules certification (forced=${forcedOk}, wrong=${wrongPred})`); }
+    if (forcedOk && !forcedShallow && !wrongPred) console.log('ok   a rules-forced prediction certifies at the first checkpoint, not below it; a different prediction does not');
+    else { fails++; console.log(`FAIL rules certification (forced=${forcedOk}, shallow=${forcedShallow}, wrong=${wrongPred})`); }
 }
 
 // MAIA SECOND INFERENCE: a line whose reply came from asking the net again certifies at depth 1
