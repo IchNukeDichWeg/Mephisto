@@ -3940,6 +3940,9 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        /const simplifyHold = guards && hz_simplify_hold\(bestCp, \(\) => hz_simplifies\(Chess, config\.variant, fen, best\), Math\.random\(\)\);/.test(psrc)
        && /const res = \(!simplifyHold && Math\.random\(\) < keep\) \? hz_match_pick\(/.test(psrc)
        && /if \(cat !== 'top' && !barred && !simplifyHold && Math\.random\(\) < keep\) \{/.test(psrc));
+    { const hb = psrc.indexOf("humanize_flag('humanize_match', HZ_MATCH_DEFAULT) && is_one_pass() && !maiaWhich"), mb = psrc.indexOf("} else if (humanize_flag('humanize_match', HZ_MATCH_DEFAULT)) {", hb);
+      ok('...a policy net with no Maia probabilities plays its own move, ahead of the pick that would be uniform over its list',
+         hb > 0 && mb > hb && !/\bcand = /.test(psrc.slice(hb, mb)) && /is_one_pass = \(eng\) => ONE_PASS_ENGINES\.includes/.test(psrc)); }
     // wiring: both modes go through the guards, the target stands down for a policy-net engine
     ok('...the mix pool and the target candidates both pass safe(), the long mate needs a still-winning non-hanging line, and Maia/Leela skip the target',
        /const ok = pool\.filter\(l => safe\(l\) && \(keep === 1 \|\| takes\(l\)\)\);/.test(psrc)

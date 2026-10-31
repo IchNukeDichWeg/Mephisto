@@ -8399,6 +8399,14 @@ function humanize_pick(best) {
                                                   humanize_max_loss(rates, decided));
                 if (free && free.move !== best && !safe(free.line)) category = 'guard held';
             }
+        } else if (humanize_flag('humanize_match', HZ_MATCH_DEFAULT) && is_one_pass() && !maiaWhich) {
+            // A POLICY NET WITH NO MAIA PROBABILITIES HAS NOTHING TO DRAW FROM. It prints one score
+            // for every line, so every move is drop 0 in class 0, and without probabilities to weigh
+            // them the pick below is uniform over up to 20 legal moves, the same finding that stands
+            // the target down above. That happens with Human-Like Mistakes off, during the first
+            // download, or when the net answers before the Maia read lands. Its own move is the
+            // humanized one here: the net already plays at a rating.
+            console.log(`Humanize match: ${config.engine} has no move probabilities here, played ${best}`);
         } else if (humanize_flag('humanize_match', HZ_MATCH_DEFAULT)) {
             // ERR LIKE YOUR RATING (HUMANIZE MATCH above): this move's quality is drawn from the
             // Play-like rating's own spread, scaled to the time control, clock and phase when a
