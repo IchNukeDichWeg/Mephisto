@@ -449,7 +449,8 @@ self.MephistoContent = {
     // engine, same effect. See panel_reload() in popup.js.
     reopenPanel: async () => { removeOverlay(); await toggleOverlay(); },
     // the panic key's landing: suspend + remove + clear the eval bar and every arrow, in one call
-    closePanel: () => { removeOverlay(); notePanelState('closed'); },   // the panel's own X
+    // and the panel's own X, which is why it notes the close: a tab that closed it keeps it closed
+    closePanel: () => { removeOverlay(); notePanelState('closed'); },
 };
 
 // ------------------------------------------------------------------------------------------
@@ -1120,7 +1121,7 @@ async function toggleOverlay() {
 
     wrap.append(bar, frame, grip);
     overlayRoot.appendChild(wrap);
-    bar.querySelector('.mephisto-overlay-close').addEventListener('click', removeOverlay);
+    bar.querySelector('.mephisto-overlay-close').addEventListener('click', () => self.MephistoContent.closePanel());
     bar.querySelector('.mephisto-overlay-min').addEventListener('click', () => minimizeOverlay(wrap));
     // popup.js owns the compact setting (persists it, drives the class) and calls straight back into
     // MephistoContent.setPanelCompact -- which resizes us AND repaints this icon. Just ask it to flip.
