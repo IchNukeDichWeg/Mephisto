@@ -2862,6 +2862,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const w = psrc.slice(psrc.indexOf('function watch_config_changes()'), psrc.indexOf('function watch_config_changes()') + 12000);
     const br = (k) => { const i = w.indexOf(`if (key === '${k}'`); return i < 0 ? '' : w.slice(i, w.indexOf('resync_after_config_change = true;', i)); };
     const elo = br('elo'), m2 = w.slice(w.indexOf("if ((key === 'maia2_self_elo'"), w.indexOf("if ((key === 'maia2_self_elo'") + 600);
+    { const c = vm.createContext({PANEL_BOOTED: true, reloads: 0, pending: [], clearTimeout: () => { c.pending.length = 0; }, setTimeout: (f) => c.pending.push(f), panel_reload: () => c.reloads++});
+      vm.runInContext(psrc.slice(psrc.indexOf('const RESET_RELOAD_MS'), psrc.indexOf('function watch_config_changes()')), c);
+      const burst = (n) => { c.reloads = 0; for (let i = 0; i < n; i++) vm.runInContext('reload_after_reset()', c); c.pending.splice(0).forEach(f => f()); return c.reloads; };
+      const one = burst(40); c.PANEL_BOOTED = false; const shut = burst(1);
+      ok('Restore Defaults reaches an open panel: a removed live key rebuilds it, once for a burst, never a closed one',
+         one === 1 && shut === 0 && w.indexOf('reload_after_reset(); continue;') > 0 && w.indexOf('reload_after_reset(); continue;') < w.indexOf('JSON.parse(changes[key].newValue)')); }
     ok('an Elo change from the settings page reaches the open engine, stop sent BEFORE any setoption',
        elo && elo.indexOf('abandon_search()') >= 0 && elo.indexOf('abandon_search()') < elo.indexOf('setoption name UCI_LimitStrength')
        && /request_remote_configure\(cap/.test(elo)

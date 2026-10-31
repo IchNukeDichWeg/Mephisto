@@ -10440,6 +10440,20 @@ function revive_if_engine_silent() {
 }
 setInterval(revive_if_engine_silent, 2000);
 
+// A REMOVED KEY MEANS "BACK TO THE DEFAULT", and Restore Defaults and Import both work by removing.
+// The live path below can only adopt a value it is handed, so an open panel kept playing on the old
+// settings while the page said they were reset. The defaults live in the boot path, so go through
+// it. Removals arrive as one storage event per key, hence the wait: one rebuild, not one per key.
+const RESET_RELOAD_MS = 200;
+let reset_reload_timer = null;
+function reload_after_reset() {
+    clearTimeout(reset_reload_timer);
+    reset_reload_timer = setTimeout(() => {
+        reset_reload_timer = null;
+        if (PANEL_BOOTED) panel_reload();
+    }, RESET_RELOAD_MS);
+}
+
 function watch_config_changes() {
     try {
         chrome.storage.onChanged.addListener((changes, area) => {
@@ -10461,6 +10475,7 @@ function watch_config_changes() {
                 // key, so newValue is undefined, and JSON.parse would throw and skip the reset --
                 // leaving the panel advertising the custom keys it no longer has.
                 if (key === 'hotkeys') { annotate_hotkey_labels(); continue; }
+                if (changes[key].newValue === undefined) { reload_after_reset(); continue; }
                 let value;
                 try { value = JSON.parse(changes[key].newValue); } catch (e) { continue; }
                 if (value === undefined || value === config[key]) continue;
