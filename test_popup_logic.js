@@ -3337,6 +3337,31 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('the worker remembers which tabs have the panel open, and the page asks at boot and reopens it',
        /if \(msg\.panelState\) \{/.test(bsrc) && /if \(msg\.panelWasOpen\) \{/.test(bsrc)
        && /sendMessage\(\{panelWasOpen: true\}, \(r\) => \{\s*if \(chrome\.runtime\.lastError \|\| !r\?\.open \|\| overlayEl\(PANEL_OVERLAY_ID\)\) return;\s*toggleOverlay\(\);/.test(csrc));
+    { // A CLOSED PANEL PRESSES NOTHING. The real ticks with every setting on: only the panel differs.
+      const cut = (from, to) => csrc.slice(csrc.indexOf(from), csrc.indexOf(to));
+      const c = vm.createContext({self: {MephistoPanel: {isBooted: () => c.panel}}, console: {debug() {}}, document: {contains: () => true}, bgLogAlways() {},
+          chrome: {runtime: {sendMessage: () => c.pressed.push('rematch')}}, setTimeout: (f) => c.timers.push(f), clearTimeout() {},
+          puzzleNextDelayMs: () => 0, puzzleNextButton: () => ({click: () => c.pressed.push('next'), getAttribute: () => ''}),
+          grindNewGameButton: () => ({textContent: 'New'}), grindClick: () => c.pressed.push('grind'), grindCancel() {},
+          rematchOffer: () => ({getBoundingClientRect: () => ({left: 0, top: 0, width: 1, height: 1}), classList: {contains: () => false}}),
+          GRIND_SITES: {lichess: {box: () => ({})}}});
+      vm.runInContext(`var site = 'lichess', config, grindSeenFollowUp, puzzleNextClicked, puzzleNextTimer, grindTimer, rematchTimer, REMATCH_PAUSE_MS = [0, 0], REMATCH_VERIFY_MS = 0;`
+          + cut('function panelRunning() {', 'function schedulePush() {') + cut('function grindTick() {', 'setInterval(grindTick') + cut('function rematchTick() {', 'setInterval(rematchTick'), c);
+      const pressedWith = (atStart, atFire) => {
+          c.panel = atStart; c.pressed = []; c.timers = [];
+          vm.runInContext(`grindSeenFollowUp = false; puzzleNextClicked = puzzleNextTimer = grindTimer = rematchTimer = null;
+              config = {grind_mode: true, accept_rematch: false, autoplay: true, grind_delay: 0, puzzle_mode: true, puzzle_auto_next: true};
+              maybeAdvancePuzzle(); grindTick(); config.accept_rematch = true; rematchTick(); config.accept_rematch = false;`, c);
+          c.panel = atFire;
+          const [puzzle, grind, rematch] = c.timers.splice(0);
+          puzzle?.(); grind?.();
+          vm.runInContext('config.accept_rematch = true;', c);   // on for Grind Mode it would stand aside for the offer
+          rematch?.();
+          return c.pressed.sort().join();
+      };
+      ok('with the panel open, Puzzle Next, Grind Mode and Accept Rematch press their buttons', pressedWith(true, true) === 'grind,next,rematch', pressedWith(true, true));
+      ok('with the panel closed they press nothing', pressedWith(false, false) === '', pressedWith(false, false));
+      ok('a panel closed during the wait calls the press off', pressedWith(true, false) === '', pressedWith(true, false)); }
     ok('closing the panel (toolbar, panic key or popup mode) is recorded, so it stays closed', (csrc.match(/notePanelState\('closed'\)/g) || []).length === 3);
     ok('the X in the title bar takes the same path: the count above passed while it only removed the panel',
        /querySelector\('\.mephisto-overlay-close'\)\.addEventListener\('click', \(\) => self\.MephistoContent\.closePanel\(\)\);/.test(csrc)); }

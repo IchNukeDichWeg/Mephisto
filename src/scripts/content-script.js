@@ -3694,8 +3694,18 @@ function puzzleNextButton() {
     return btn;
 }
 
+// Everything that presses a button for you on the site answers to this. `config` outlives the panel,
+// so a closed panel left Grind Mode queueing games, Accept Rematch accepting them and Puzzle Next
+// advancing with no engine to play any of it, when closing is what the X promises STOPS everything.
+// Minimized still counts: that panel is hidden, not gone. The toolbar bubble does not count (its
+// panel lives in another page and the content script cannot see it), and the same reasoning holds:
+// the bubble closes on the first click on the page.
+function panelRunning() {
+    return !!self.MephistoPanel?.isBooted?.();
+}
+
 function maybeAdvancePuzzle() {
-    if (!config || !config.puzzle_auto_next || !config.puzzle_mode || !config.autoplay) return;
+    if (!panelRunning() || !config || !config.puzzle_auto_next || !config.puzzle_mode || !config.autoplay) return;
     const btn = puzzleNextButton();
     if (!btn) {
         // the row is back to its mid-puzzle shape: a new puzzle is live, so arm for the next end.
@@ -3710,7 +3720,7 @@ function maybeAdvancePuzzle() {
         // re-read everything: the wait is long enough for the page, or you, to have moved on
         const now = puzzleNextButton();
         if (!now || now === puzzleNextClicked) return;
-        if (!config || !config.puzzle_auto_next || !config.puzzle_mode || !config.autoplay) return;
+        if (!panelRunning() || !config || !config.puzzle_auto_next || !config.puzzle_mode || !config.autoplay) return;
         puzzleNextClicked = now;
         bgLogAlways('puzzle: advancing to the next one', {label: now.getAttribute('aria-label') || ''});
         now.click();
@@ -4548,7 +4558,7 @@ function doGameAction(kind) {
 }
 
 function grindTick() {
-    if (!GRIND_SITES[site] || !config || !config.grind_mode || !config.autoplay) {
+    if (!panelRunning() || !GRIND_SITES[site] || !config || !config.grind_mode || !config.autoplay) {
         grindCancel('mode off');
         grindSeenFollowUp = false;
         return;
@@ -4562,12 +4572,13 @@ function grindTick() {
     if (grindSeenFollowUp) return;    // already counting down for THIS game
     grindSeenFollowUp = true;
     // The delay is the whole point of the setting: it is the window in which you can stop the next
-    // game from being searched for, by closing the tab, navigating away, or switching the mode off.
+    // game from being searched for, by closing the panel or the tab, navigating away, or switching
+    // the mode off.
     const wait = Math.max(0, Math.min(600, Number(config.grind_delay) || 0)) * 1000;
     console.debug(`Mephisto: grind -- next game in ${wait / 1000}s`);
     grindTimer = setTimeout(() => {
         grindTimer = null;
-        if (!config.grind_mode || !config.autoplay) return;   // switched off while we waited
+        if (!panelRunning() || !config.grind_mode || !config.autoplay) return;   // switched off while we waited
         if (config.accept_rematch && rematchOffer()) return;   // the opponent asked first: that is the next game
         const btn = grindNewGameButton();
         if (!btn) return console.debug('Mephisto: grind found nothing to click');
@@ -4603,7 +4614,7 @@ function rematchOffer() {
 }
 
 function rematchTick() {
-    if (!config || !config.accept_rematch || !config.autoplay) {
+    if (!panelRunning() || !config || !config.accept_rematch || !config.autoplay) {
         if (rematchTimer) { clearTimeout(rematchTimer); rematchTimer = null; }
         return;
     }
@@ -4611,7 +4622,7 @@ function rematchTick() {
     const [lo, hi] = REMATCH_PAUSE_MS;
     rematchTimer = setTimeout(() => {
         rematchTimer = null;
-        if (!config.accept_rematch || !config.autoplay) return;   // switched off while we waited
+        if (!panelRunning() || !config.accept_rematch || !config.autoplay) return;   // switched off while we waited
         const btn = rematchOffer();
         if (!btn) return;                                          // withdrawn while we waited
         grindCancel('the opponent offered a rematch');

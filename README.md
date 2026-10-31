@@ -337,7 +337,8 @@ free. Nothing about the software changed, the measurement did.
   game. A draw is offered alongside the move; a resignation takes the move away.
 - **Grind Mode** / **Accept Rematch** - with Autoplay on, Grind Mode starts the next game when one ends (after a
   delay you can stop it in), and Accept Rematch takes the opponent's rematch offer after a one-to-three-second
-  pause, ahead of Grind Mode. Accept Rematch is lichess only so far; your own offer is never touched.
+  pause, ahead of Grind Mode. Accept Rematch is lichess only so far; your own offer is never touched. Closing the
+  panel stops both, and Puzzle Next with them.
 - **Session Stats** - games, moves, the average delay each move really waited, and your accuracy across the
   session, on the readout line. The one number the pacing sliders cannot answer themselves.
 - **Complexity Clock** - think by how hard the position is. When the engine's top two lines are within 15cp the
