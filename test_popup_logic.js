@@ -4593,6 +4593,17 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 }
 // ==== END EVALS ON ARROWS ARE WHITE'S VIEW ====
 
+// ==== MAIA-2 SCORE IS FROM THE SIDE TO MOVE ====
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const m2 = fs.readFileSync(ROOT + '/src/offscreen/maia2.js', 'utf8');
+    const go = m2.slice(m2.indexOf('const win = '), m2.indexOf('listen(`bestmove ${scored[0][0]}`)'));
+    // UCI score is side-to-move and on_engine_response flips it for Black, so the adapter must not
+    ok('Maia-2 emits the value head as it is (side to move): no flip for Black in the adapter',
+       go.length > 0 && !/\bblack\b/.test(go) && !/1 - win/.test(m2), go.slice(0, 120));
+}
+// ==== END MAIA-2 SCORE IS FROM THE SIDE TO MOVE ====
+
 // ==== OPENING REPERTOIRE ====
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

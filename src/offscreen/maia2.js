@@ -140,10 +140,11 @@ export async function createMaia2Engine(listen, initialSelf, initialOppo) {
         }
         if (!scored.length) { listen(`bestmove ${legal[0]}`); return; }
         scored.sort((a, b) => b[1] - a[1]);
-        // the value head is the net's own win probability for the side to move, in the reference's
-        // scaling, flipped for black exactly as inference.py flips it
-        let win = Math.min(1, Math.max(0, Number(out.logits_value.data[0]) / 2 + 0.5));
-        if (black) win = 1 - win;
+        // the value head is the net's own win probability for the side to move (the board it saw is
+        // mirrored for Black). That is what UCI wants: `score cp` is from the side to move and every
+        // consumer flips it for Black itself. inference.py flips it to White's view because it reports
+        // to a person; doing the same here read White a queen up as -4.62 with Black to move.
+        const win = Math.min(1, Math.max(0, Number(out.logits_value.data[0]) / 2 + 0.5));
         const cp = Math.round(-Math.log10(1 / Math.min(0.9999, Math.max(0.0001, win)) - 1) * 400);
         const n = Math.min(multipv, scored.length);
         for (let i = 0; i < n; i++) {
