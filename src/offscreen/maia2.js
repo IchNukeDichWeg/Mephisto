@@ -103,12 +103,15 @@ export async function createMaia2Engine(listen, initialSelf, initialOppo) {
     async function go() {
         const board = position(fen, moves);
         if (plyOfFen(board.fen()) < MAIA2_FIRST_PLY) {
-            if (!opening) opening = await (await import('/src/offscreen/maia3.js')).createMaia3Engine(listen, selfElo);
-            opening.uci(`setoption name SelfElo value ${selfElo}`);
-            opening.uci(`setoption name OppoElo value ${oppoElo}`);
-            opening.uci(`setoption name MultiPV value ${multipv}`);
-            opening.uci(`position fen ${board.fen()}`);
-            opening.uci('go');
+            // The promise is what is kept: two gos during the first load built two sessions, and only
+            // the last was ever released.
+            opening = opening || import('/src/offscreen/maia3.js').then(m => m.createMaia3Engine(listen, selfElo));
+            const net = await opening;
+            net.uci(`setoption name SelfElo value ${selfElo}`);
+            net.uci(`setoption name OppoElo value ${oppoElo}`);
+            net.uci(`setoption name MultiPV value ${multipv}`);
+            net.uci(`position fen ${board.fen()}`);
+            net.uci('go');
             return;
         }
         const black = board.turn() === 'b';
@@ -201,7 +204,7 @@ export async function createMaia2Engine(listen, initialSelf, initialOppo) {
         // switch away from Maia-2. Same body as maia.js/maia3.js.
         terminate() {
             try { session.release && session.release(); } catch (e) { /* */ }
-            try { opening && opening.terminate(); } catch (e) { /* */ }
+            opening?.then(net => net.terminate()).catch(() => {});
         },
     };
 }

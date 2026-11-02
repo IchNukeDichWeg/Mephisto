@@ -3690,7 +3690,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('the ply of a position is read from its FEN: start 0, after 1.e4 1, white at move 6 = 10, black at move 5 = 9',
        ply('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') === 0 && ply('x b - - 0 1') === 1 && ply('x w - - 1 6') === 10 && ply('x b - - 0 5') === 9 && vm.runInContext('MAIA2_FIRST_PLY', c) === 10);
     ok('...and Maia-2 hands every ply below that to Maia-3 with both ratings, and frees it on terminate',
-       /if \(plyOfFen\(board\.fen\(\)\) < MAIA2_FIRST_PLY\) \{[\s\S]*?createMaia3Engine\(listen, selfElo\)[\s\S]*?OppoElo value \$\{oppoElo\}[\s\S]*?opening\.uci\('go'\);\s*return;/.test(m2) && /opening && opening\.terminate\(\)/.test(m2)); }
+       /if \(plyOfFen\(board\.fen\(\)\) < MAIA2_FIRST_PLY\) \{[\s\S]*?createMaia3Engine\(listen, selfElo\)[\s\S]*?OppoElo value \$\{oppoElo\}[\s\S]*?net\.uci\('go'\);\s*return;/.test(m2) && /opening\?\.then\(net => net\.terminate\(\)\)/.test(m2)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
     ok('an Analysis engine that fails to start stops saying "thinking…" in its column and its lines, and says why on the status line',
@@ -4541,6 +4541,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        (osrc.match(/\.catch\(e => send\(clientId, \{kind: 'error'/g) || []).length === 0
        && /Date\.now\(\) - \(loadFailedAt\[clientId\] \|\| 0\) > RELOAD_BACKOFF_MS/.test(osrc)
        && /delete loadFailedAt\[clientId\];\s*startEngine\(clientId, msg\.engine/.test(osrc));
+}
+// ---- ENG-11: one Maia-3 session for Maia-2's openings ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const m = fs.readFileSync(ROOT + '/src/offscreen/maia2.js', 'utf8');
+    ok('the session\'s promise is cached and terminate follows it', /opening = opening \|\| import\(/.test(m) && /opening\?\.then\(net => net\.terminate\(\)\)/.test(m));
 }
 // ==== END FIX CHECKS ====
 
