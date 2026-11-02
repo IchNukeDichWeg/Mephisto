@@ -5025,6 +5025,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        step({a2: {seat: 'R', type: 'P'}}) === 'e4' && calls.length === 2, calls.length);
     ok('resetting a page clears both', /fourPCPrev = fourPCPrevKey = fourPCEp = null;/.test(src));
 }
+// ---- PAGE-15: a click during a panel drag cannot leave the body click-through ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('a saved none never comes back', /s\.frame\.style\.pointerEvents = s\.framePE === 'none' \? 'auto' : s\.framePE \|\| ''/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

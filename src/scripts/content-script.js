@@ -5043,7 +5043,8 @@ function withPanelClickThrough(fn, points = []) {
             if (!s || overlayEl(RESTORE_BADGE_ID)) return;   // minimised meanwhile: stays click-through
             if (s.wrap.style.pointerEvents !== 'none') return;   // restored from minimised meanwhile: theirs
             s.wrap.style.pointerEvents = s.wrapPE || '';
-            if (s.frame) s.frame.style.pointerEvents = s.framePE || '';
+            // A saved 'none' is a drag or grip's own value, and its mouseup may already have passed.
+            if (s.frame) s.frame.style.pointerEvents = s.framePE === 'none' ? 'auto' : s.framePE || '';
         } catch (e) { /* panel torn down mid-click */ }
     };
     let out;
