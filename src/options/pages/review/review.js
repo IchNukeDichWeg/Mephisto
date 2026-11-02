@@ -3460,7 +3460,10 @@ class ReviewPage {
             const btn = $('rv_fit');
             if (!fit) { btn.textContent = 'No gradeable moves'; setTimeout(() => btn.textContent = 'Fit Humanize to a player', 2500); return; }
             for (const [k, v] of Object.entries(fit.pct)) MephistoConfig.set(`humanize_${k}`, String(v));
-            btn.textContent = `Fitted from ${fit.n} moves`;
+            // Play-like matching (on by default) draws at pick time and never reads these shares,
+            // so without this the button reported a fit that changed nothing.
+            setCfg('humanize_match', false);
+            btn.textContent = `Fitted from ${fit.n} moves - Play-like matching off`;
             setTimeout(() => btn.textContent = 'Fit Humanize to a player', 4000);
         });
         $('rv_first').addEventListener('click', () => showPly(0));

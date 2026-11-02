@@ -4732,6 +4732,13 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     r = run({nat: false}, 'nat');
     ok('a stored native engine whose host is gone falls back, and only that writes', r.value === 'sf19' && r.writes.join() === 'sf19', r);
 }
+// ---- OPT-4: Fit Humanize turns off what would ignore it ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    ok('the fit switches Play-like matching off, and says so',
+       /setCfg\('humanize_match', false\);\s*btn\.textContent = `Fitted from \$\{fit\.n\} moves - Play-like matching off`/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
