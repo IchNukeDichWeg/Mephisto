@@ -701,6 +701,7 @@ async function initPanel(root, tabId) {
         // only traced: a move that silently does not happen is the least actionable bug report
         // there is, and it was the shape of three separate ones.
         if (response.moveDropped) { set_idle_reason(response.moveDropped); return; }
+        if (response.gameActionFailed) { resign_gave_up(); return; }
         // the arrows drawn on the site's board changed (see USER ARROWS)
         if (Array.isArray(response.userArrows)) {
             user_arrows = response.userArrows.filter(a => /^[a-h][1-8][a-h][1-8]$/.test(a));
@@ -5519,6 +5520,7 @@ function on_new_pos(fen, startFen, moves) {
         // A NEW GAME IS NOT PAST ANY LINE. Without this a resignation streak carried into the next
         // game and could end it three moves in, and a draw already offered would never be offered.
         resign_streak = draw_streak = 0; end_game_sent = ''; end_game_key = ''; end_game_last = null;
+        resign_refused = false;
         // The game that just finished, folded into the session totals before anything is cleared.
         session_note_game(eval_history, eval_history_game);
         // ...and then cleared, as a change of start position already clears it (record_eval). A
@@ -11741,6 +11743,7 @@ function session_stats_label() {
 // is the behaviour that gets people muted.
 const END_GAME_STREAK = 3;            // consecutive turns of ours past the line
 const AUTO_DRAW_MIN_FULLMOVE = 20;    // nobody offers a draw on move six; that is just rude
+let resign_refused = false;   // the page would not resign: play the game out, do not try again
 let resign_streak = 0, draw_streak = 0, end_game_sent = '';
 // The position the streaks last counted, and what it decided. The streak is "three of OUR TURNS",
 // but this runs on every terminal bestmove, and one turn can be searched several times -- a resume
@@ -11817,9 +11820,16 @@ function game_fullmove() {
     return Math.max(fromBoard, fromFen, Math.floor(plies / 2) + 1);
 }
 
+function resign_gave_up() {
+    resign_refused = true;
+    end_game_sent = ''; end_game_key = ''; end_game_last = null;
+    set_idle_reason(i18n('panel.msg.resign_failed', 'Auto Resign could not find the resign button here, so the game goes on.'));
+    idle_hold_until = Date.now() + 10000;
+}
+
 function maybe_end_game() {
     if (!config.auto_resign && !config.auto_draw) return null;
-    if (config.help_mode || config.manual_mode || config.puzzle_mode) return null;
+    if (config.help_mode || config.manual_mode || config.puzzle_mode || resign_refused) return null;
     const line = (last_eval.lines || []).find(l => l && l.move);
     const cp = line ? line_cp_ours(line) : null;
     const proved = (tablebase_data && tablebase_data.fen === last_eval.fen)

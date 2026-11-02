@@ -4485,6 +4485,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('a where-multiplier of 0 removes the class instead of keeping the full rate', r.inaccuracy === 0 && r.blunder === 0 && r.mistake > 0, r);
     ok('hz_match_shares treats 0 the same way', /\(mult\.inaccuracy \?\? 1\)[\s\S]{0,80}\(mult\.mistake \?\? 1\)[\s\S]{0,60}\(mult\.blunder \?\? 1\)/.test(psrc));
 }
+// ---- PLAY-7: a resign the page refused does not freeze the game ------------------------------
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = csrc.indexOf('const RESIGN_CHECK_MS'), j = csrc.indexOf('\n}\n', csrc.indexOf('function doGameAction(kind)')) + 3;
+    const run = (button, gone) => {
+        const later = [];
+        const c = vm.createContext({sent: [], pushes: 0, later, setTimeout: (f) => { later.push(f); }, Date, console: {}});
+        let presses = 0;
+        c.rule = () => (presses && gone) ? null : button;
+        vm.runInContext(`var site = 'x', endActionAt = 0, lastPushKey = 'k', lastDisplayKey = 'k', resumePush = false; const END_ACTION_GAP_MS = 0;
+            const END_ACTION_SITES = {x: {resign: () => rule(), draw: () => rule(), confirm: () => null}};
+            function sendToPanel(m) { sent.push(m); } function schedulePush() { pushes++; } function bgLogAlways() {}
+            function pressControl() { globalThis.pressed = true; }` + csrc.slice(i, j), c);
+        vm.runInContext(`doGameAction('resign')`, c);
+        presses = 1; later.forEach(f => f());
+        return {sent: c.sent.length, pushes: c.pushes, resume: c.resumePush};
+    };
+    ok('no resign control: the panel is told and the position is pushed again', JSON.stringify(run(null)) === '{"sent":1,"pushes":1,"resume":true}', run(null));
+    ok('a button that stays after the press counts as refused', run({}, false).sent === 1);
+    ok('a button that went away is a finished game, nothing to report', run({}, true).sent === 0);
+    const a = psrc.indexOf('let resign_refused = false;');
+    ok('the panel stops trying and clears what withheld the move', /function resign_gave_up\(\) \{\s*resign_refused = true;\s*end_game_sent = ''; end_game_key = ''; end_game_last = null;/.test(psrc)
+       && /config\.puzzle_mode \|\| resign_refused\) return null;/.test(psrc) && a > 0);
+    ok('...for this game only', /end_game_last = null;\s*resign_refused = false;/.test(psrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

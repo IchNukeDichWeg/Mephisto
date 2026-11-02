@@ -461,6 +461,7 @@
   "panel.msg.engine_quiet": "Motor yanıt vermeyi bıraktı - arama yeniden başlatılıyor.",
   "panel.msg.drop_by_hand": "En iyi hamle bir taş yerleştirmek ({move}). Otomatik oynatma eldeki taşları yerleştiremez: kendiniz oynayın.",
   "panel.msg.backend_down": "Python otomatik oynatma arka ucu localhost:8080 üzerinde yanıt vermiyor, bu yüzden hamleler normal tıklamalarla yapılıyor. mephisto-clicker.py dosyasını başlatın veya ayarı kapatın.",
+  "panel.msg.resign_failed": "Otomatik terk burada terk düğmesini bulamadı, bu yüzden oyun devam ediyor.",
   "panel.msg.downloading_net": "{file} indiriliyor: %{pct} / {mb} MB (yalnızca ilk kullanımda)",
   "panel.msg.remote_unreachable": "Uzak motor: localhost:9090 üzerinde yanıt veren yok. remote-engine.py'yi başlat ya da başka bir motor seç.",
   "panel.fen.auto_flipped": "Ekrandan okundu - siyah alttaydı, tahta çevrildi. Tahtayı çevir bunu geri alır.",

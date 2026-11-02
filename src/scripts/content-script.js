@@ -4550,14 +4550,27 @@ function pressControl(el) {
     }, END_ACTION_VERIFY_MS);
 }
 
+// The panel withholds the move once it resigns, so a resign that did not happen left the game sitting
+// on an unmoved position until the clock ran out, with one console line to show for it (PLAY-7). The
+// panel is told, and the same position is pushed again so the move it held back gets played. A draw
+// offer withholds nothing and needs none of this.
+const RESIGN_CHECK_MS = 4000;
+function resignFailed() {
+    try { sendToPanel({gameActionFailed: 'resign'}); } catch (e) { /* panel not booted */ }
+    lastPushKey = lastDisplayKey = null;
+    resumePush = true;
+    schedulePush();
+}
 function doGameAction(kind) {
     const rules = END_ACTION_SITES[site];
+    if (kind === 'resign' && !rules) { resignFailed(); return; }
     if (!rules || (kind !== 'resign' && kind !== 'draw')) return;
     if (Date.now() - endActionAt < END_ACTION_GAP_MS) return;   // one press, not a stutter
     endActionAt = Date.now();
     const btn = rules[kind]();
     if (!btn) {
         bgLogAlways(`game action: no ${kind} control on this page`, {site});
+        if (kind === 'resign') resignFailed();
         return;
     }
     bgLogAlways(`game action: ${kind}`, {site});
@@ -4568,6 +4581,8 @@ function doGameAction(kind) {
         const yes = rules.confirm();
         if (yes) pressControl(yes);
     }, 900);
+    // A finished game has no resign button any more, so one still there means nothing happened.
+    if (kind === 'resign') setTimeout(() => { if (rules.resign()) resignFailed(); }, RESIGN_CHECK_MS);
 }
 
 function grindTick() {

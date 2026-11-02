@@ -461,6 +461,7 @@
   "panel.msg.engine_quiet": "エンジンが応答しなくなりました - 探索を再開しています。",
   "panel.msg.drop_by_hand": "最善手は打ち駒です（{move}）。自動着手は持ち駒を打てません。ご自分で指してください。",
   "panel.msg.backend_down": "Python 自動対局バックエンドが localhost:8080 で応答しないため、通常のクリックで指しています。mephisto-clicker.py を起動するか、設定をオフにしてください。",
+  "panel.msg.resign_failed": "自動投了はここで投了ボタンを見つけられなかったため、対局を続けます。",
   "panel.msg.downloading_net": "{file} をダウンロード中: {mb} MB 中 {pct}%（初回のみ）",
   "panel.msg.remote_unreachable": "リモートエンジン: localhost:9090 で応答するものがありません。remote-engine.py を起動するか、別のエンジンを選んでください。",
   "panel.fen.auto_flipped": "画面から読み取りました - 黒が下だったため盤を反転しました。盤を反転で元に戻せます。",
