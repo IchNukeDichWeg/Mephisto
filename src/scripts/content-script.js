@@ -519,6 +519,8 @@ function sendToPanel(msg) {
 // draggable floating window, like Chessvision's. Toggled by clicking the toolbar icon.
 // Unlike the anchored popup it can be moved anywhere and stays open while you play.
 
+// `k` is antichess, where a pawn may promote to a king; no other variant's engine prints one.
+const UCI_RE = /^[a-h][1-8][a-h][1-8][qrbnk]?$/;
 const PANEL_OVERLAY_ID = 'mephisto-overlay';
 const RESTORE_BADGE_ID = 'mephisto-restore-badge';
 const COMPACT_H = 280;     // compact: status/move/score + up to 4 lines, and the 7 mid-game toggles
@@ -1329,7 +1331,7 @@ function drawHintArrows(arrows, region) {
     // measurements; everything after this point is shared.
     const fourpc = is4PC();
     const SQ4 = '[a-n](?:1[0-4]|[1-9])';
-    const moveRe = fourpc ? new RegExp(`^${SQ4}${SQ4}[qrbnQRBN]?$`) : /^[a-h][1-8][a-h][1-8][qrbn]?$/;
+    const moveRe = fourpc ? new RegExp(`^${SQ4}${SQ4}[qrbnQRBN]?$`) : UCI_RE;
     arrows = (arrows || []).filter(a => a && moveRe.test(a.move ?? ''));
     // help mode redraws on every engine update; skip the DOM churn while the arrows are unchanged
     // ...and where the board is: the same arrows on a board that has since been resized, moved or
@@ -4303,7 +4305,7 @@ function getPromotionSelection(promotion) {
     const promoteMap = (site === 'chesscom')
         ? { 'b': 0, 'n': 1, 'q': 2, 'r': 3 }
         : (site === 'lichess')
-            ? { 'q': 0, 'n': 1, 'r': 2, 'b': 3 }
+            ? { 'q': 0, 'n': 1, 'r': 2, 'b': 3, 'k': 4 }   // the king is lichess's fifth choice in antichess
             : { 'q': 0, 'r': 1, 'n': 2, 'b': 3 };
     const idx = promoteMap[promotion];
     return (promotions) ? promotions[idx] : undefined;
@@ -5148,7 +5150,7 @@ function thinkWait(ms) {   // resolves true when woken early, false when the tim
 
 function simulateMove(move, deselect, think = null, sessionGen = undefined) {
     const isDrop = DROP_RE.test(move ?? '');
-    if (!isDrop && !/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
+    if (!isDrop && !UCI_RE.test(move ?? '')) {
         console.warn(`Mephisto: refusing to play invalid move '${move}'`); // e.g. '(none)'
         return Promise.resolve();
     }
@@ -5414,7 +5416,7 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
 // opponent has already replied, so we never re-fire a move into a changed position.
 async function simulateMoveVerified(move, deselect, verify, think = null, retries = 2, before = null,
                                     sessionGen = undefined) {
-    if (!DROP_RE.test(move ?? '') && !/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move ?? '')) {
+    if (!DROP_RE.test(move ?? '') && !UCI_RE.test(move ?? '')) {
         return simulateMove(move, deselect); // invalid -> simulateMove logs + no-ops
     }
     // Human moves are a bare from->to. The `deselect` lead-click only exists to recover from a stale

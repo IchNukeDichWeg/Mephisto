@@ -3862,7 +3862,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        run('lichess', 1) && !run('lichess', 0) && !run('chesscom', 1));
     ok('...and the move path drags from the pocket with the drag floor, keeps Fitts out of it, and lets a verified drop through',
        /const pocket = pocketPieceBounds\(move\[0\]\);[\s\S]{0,700}const dragMs = Math\.max\(approachMs \+ travelMs, DRAG_MIN_MS\);\s*await simulateDragSquares\(pocket, getBoundsFromCoords\(move\.substring\(2, 4\)\)/.test(csrc)
-       && /getMoveTime\(\) \* \(isDrop \? 1 : fittsScale/.test(csrc) && /if \(!DROP_RE\.test\(move \?\? ''\) && !\/\^\[a-h\]\[1-8\]\[a-h\]\[1-8\]\[qrbn\]\?\$\/\.test\(move \?\? ''\)\) \{\s*return simulateMove\(move, deselect\);/.test(csrc)); }
+       && /getMoveTime\(\) \* \(isDrop \? 1 : fittsScale/.test(csrc) && /if \(!DROP_RE\.test\(move \?\? ''\) && !UCI_RE\.test\(move \?\? ''\)\) \{\s*return simulateMove\(move, deselect\);/.test(csrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     // every board overlay sits below the panel; only the screen-select veil is above it
     const z = Number(csrc.match(/const BOARD_OVERLAY_Z = (\d+);/)[1]), panelZ = Number(csrc.match(/wrap\.style\.cssText = 'position: fixed; z-index: (\d+);/)[1]);
@@ -4380,7 +4380,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const i = csrc.indexOf('async function simulateMoveVerified(');
     const c = vm.createContext({console: {warn() {}}, setTimeout});
-    vm.runInContext(`var DROP_RE = /@/, polls = 0, clicks = 0, lastPushKey = 'k', lastDisplayKey = 'k', resumePush = false, answer;
+    vm.runInContext(`var DROP_RE = /@/, UCI_RE = /^[a-h][1-8][a-h][1-8][qrbnk]?$/, polls = 0, clicks = 0, lastPushKey = 'k', lastDisplayKey = 'k', resumePush = false, answer;
         function getMoveRecords() { return []; } async function promiseTimeout() { polls++; } function schedulePush() {}
         async function simulateMove() { clicks++; return answer; }` + csrc.slice(i, csrc.indexOf('\n}\n', i) + 3), c);
     (async () => {
@@ -4390,6 +4390,15 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     })();
     ok('a dropped move skips the promotion picker, and a superseded session cannot click a newer one\'s',
        /if \(await performSimulatedMoveClicks\(total \* 0\.20, total \* 0\.55, total\) === false\) return false;\s*if \(sessionGen !== undefined && sessionGen !== moveGen\) return false;/.test(csrc));
+}
+// ---- PAGE-18: antichess promotes to a king --------------------------------------------------
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const re = vm.runInNewContext(csrc.match(/const UCI_RE = (.+);/)[1]);
+    ok('a king promotion is a move, a seven-letter one is not', re.test('e7e8k') && re.test('e7e8q') && re.test('e2e4') && !re.test('e7e8x'));
+    ok('every 8x8 move check shares the one pattern', !/\[a-h\]\[1-8\]\[a-h\]\[1-8\]\[qrbn\]/.test(csrc));
+    ok('lichess finds the king as its fifth choice', /'q': 0, 'n': 1, 'r': 2, 'b': 3, 'k': 4/.test(csrc));
 }
 // ==== END FIX CHECKS ====
 
