@@ -1920,17 +1920,25 @@ async function renderExtras(pos) {
         if (positions[cursor]?.fen !== pos.fen) return;
         const tb = tbCache.get(pos.fen);
         if (!tb || !tb.category) { tbEl.textContent = ''; return; }
-        // side-to-move relative, exactly as lichess reports it; the count is moves, not plies
-        const n = Math.abs(tb.dtm ?? tb.dtz ?? 0);
         const best = tb.moves?.[0]?.uci;
         const san = best ? sanOf(pos.fen, best) : '';
-        const word = tb.category === 'win' ? `win in ${n}`
-            : tb.category === 'loss' ? `lost in ${n}`
-            : tb.category === 'draw' ? 'draw'
-            : tb.category === 'cursed-win' ? `win in ${n} (50-move drawn)`
-            : tb.category === 'blessed-loss' ? `lost in ${n} (50-move saved)` : tb.category;
-        tbEl.textContent = `Tablebase: ${word}${san && tb.category !== 'draw' ? ` - ${san}` : ''}`;
+        tbEl.textContent = `Tablebase: ${tbWords(tb)}${san && tb.category !== 'draw' ? ` - ${san}` : ''}`;
     }
+}
+
+// The panel's reading (popup.js tablebase_label), side-to-move relative as lichess reports it. dtm
+// is a mate distance in PLIES, so a mate in 9 read "win in 17" here; dtz only counts plies to a
+// capture or pawn move, which is no distance to a win; and no count at all is not a count of zero.
+function tbWords(tb) {
+    const c = tb.category;
+    const hasDtm = tb.dtm != null, hasDtz = tb.dtz != null;
+    const n = Math.abs((hasDtm ? tb.dtm : tb.dtz) ?? 0);
+    const m = Math.ceil(n / 2);
+    if (c === 'win') return hasDtm ? `mate in ${m}` : hasDtz ? `winning, DTZ ${n}` : 'winning';
+    if (c === 'loss') return hasDtm ? `mated in ${m}` : hasDtz ? `losing, DTZ ${n}` : 'losing';
+    if (c === 'cursed-win') return hasDtz ? `winning, DTZ ${n} (50-move drawn)` : 'winning (50-move drawn)';
+    if (c === 'blessed-loss') return 'loss (50-move drawn)';
+    return c;
 }
 
 // ---- opening book -------------------------------------------------------------------------------

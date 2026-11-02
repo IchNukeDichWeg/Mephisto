@@ -4755,6 +4755,18 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('onInit resets the list before init() registers the page again',
        /async onInit\(\) \{[\s\S]*?this\.formElements = \[\];[\s\S]*?this\.init\(\);/.test(src));
 }
+// ---- OPT-7: the Analysis tablebase line reads like the panel ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const a = src.indexOf('function tbWords(tb)');
+    const tbWords = vm.runInNewContext('(' + src.slice(a, src.indexOf('\n}\n', a) + 2) + ')');
+    ok('dtm is plies: 17 is a mate in 9', tbWords({category: 'win', dtm: 17, dtz: 3}) === 'mate in 9');
+    ok('...and from the losing side too', tbWords({category: 'loss', dtm: -16}) === 'mated in 8');
+    ok('dtz alone is said as DTZ', tbWords({category: 'win', dtz: 27}) === 'winning, DTZ 27');
+    ok('no count is no number', tbWords({category: 'win'}) === 'winning' && tbWords({category: 'cursed-win'}) === 'winning (50-move drawn)');
+    ok('a draw stays a draw', tbWords({category: 'draw', dtz: 0}) === 'draw');
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
