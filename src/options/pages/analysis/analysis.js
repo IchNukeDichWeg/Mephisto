@@ -692,13 +692,20 @@ async function inlineImage(url) {
 
 // The chart's numbers as a table: a reader with the picture can see the shape, and a reader with
 // this can check it, quote it, or paste it somewhere else.
-function exportBandTable() {
-    if (!lastBands?.series?.length) return '';
-    const {steps, series} = lastBands;
+function exportBandTable(bands) {
+    if (!bands?.series?.length) return '';
+    const {steps, series} = bands;
     const head = `<tr><th>Rating</th>${series.map(s => `<th>${esc(s.san)}</th>`).join('')}</tr>`;
     const rows = steps.map((b, i) =>
         `<tr><td>${esc(b)}</td>${series.map(s => `<td>${(s.ys[i] * 100).toFixed(1)}%</td>`).join('')}</tr>`).join('');
     return `<table class="an-export-t">${head}${rows}</table>`;
+}
+
+// The chart only describes this position if it was swept for it, by the model now chosen. Otherwise
+// a step before the sweep ended, or the model switched off, exported the previous position's numbers
+// under this FEN.
+function bandsFor(pos) {
+    return lastBands?.pos?.fen === pos.fen && lastBands.kind === cfg('an_human') ? lastBands : null;
 }
 
 async function exportPosition(btn) {
@@ -708,10 +715,11 @@ async function exportPosition(btn) {
     if (btn) { btn.disabled = true; btn.textContent = 'Building…'; }
     try {
         const css = (await Promise.all(AN_EXPORT_CSS.map(inlineText))).join('\n') + AN_EXPORT_RESET;
+        const bands = bandsFor(pos);
         const wrap = document.createElement('div');
         wrap.innerHTML = `<div class="an-export-grid">`
             + `<div>${document.querySelector('.an-boardrow')?.outerHTML || ''}</div>`
-            + `<div>${$('an_bands_wrap')?.outerHTML || ''}</div></div>`;
+            + `<div>${bands ? $('an_bands_wrap')?.outerHTML || '' : ''}</div></div>`;
         wrap.querySelectorAll('.an-hit, .an-band-cursor, .tooltipped .info-tooltip').forEach(el => el.remove());
 
         // the pieces are extension URLs, which mean nothing outside this browser
@@ -735,10 +743,10 @@ ${wrap.innerHTML}
 <h3 class="set-h">FEN</h3>
 <p class="an-export-fen">${esc(pos.fen)}</p>
 ${pgn ? `<h3 class="set-h">Moves</h3><p class="an-export-fen">${esc(pgn)}</p>` : ''}
-${lastBands ? `<h3 class="set-h">How often each move is played, by rating</h3>
+${bands ? `<h3 class="set-h">How often each move is played, by rating</h3>
 <p class="an-status">Human model: ${esc(human)}. Each figure is that move's share of ALL legal moves at
  that rating, so a row summing to under 100% is the rest of the moves, not a rounding error.</p>
-${exportBandTable()}` : ''}
+${exportBandTable(bands)}` : ''}
 <p class="an-status">Written by the Mephisto Chess Extension. Everything in this file was computed on the
  machine that wrote it; nothing was uploaded.</p>
 </div></main></body></html>`;

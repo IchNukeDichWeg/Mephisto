@@ -4885,6 +4885,20 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('every line click and the space key go through playUci',
        /row\.addEventListener\('click', \(\) => playUci\(uci\)\)/.test(src) && /if \(uci\) \{ playUci\(uci\); e\.preventDefault\(\); \}/.test(src));
 }
+// ---- OPT-18: an export only carries this position's chart ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const a = src.indexOf('function bandsFor(pos)');
+    const run = (last, human) => vm.runInNewContext(src.slice(a, src.indexOf('\n}\n', a) + 3) + '; bandsFor({fen: "A"})',
+        {lastBands: last, cfg: () => human});
+    const mine = {pos: {fen: 'A'}, kind: 'maia'};
+    ok('same position, same model: the chart goes in', run(mine, 'maia') === mine);
+    ok('another position, or another model, or none: it stays out',
+       run({pos: {fen: 'B'}, kind: 'maia'}, 'maia') === null && run(mine, '') === null && run(null, 'maia') === null);
+    ok('the export reads that, for the picture and the table',
+       /const bands = bandsFor\(pos\);/.test(src) && /\$\{bands \? \$\('an_bands_wrap'\)/.test(src) && /exportBandTable\(bands\)/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
