@@ -4905,6 +4905,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const src = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
     ok('the move is caught singly', /let mv = null;\s*try \{ mv = c\.move\(san\); \} catch \(e\) \{[^}]*\}\s*if \(!mv\) break;/.test(src));
 }
+// ---- OPT-20: the Analysis move list numbers from the start FEN ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const core = {console: {log() {}}, URLSearchParams};
+    core.self = core;
+    vm.createContext(core);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), core);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), core);
+    const body = src.slice(src.indexOf('function moveNumberOf(node)'), src.indexOf('function highlightMove()'));
+    const list = (fen, sans) => {
+        const root = {fen, parent: null, children: []}; let n = root, id = 0;
+        for (const san of sans) { const k = {san, id: ++id, parent: n, children: []}; n.children.push(k); n = k; }
+        const alt = {san: 'alt', id: 99, parent: root.children[0], children: []};
+        if (root.children[0].children[0]) root.children[0].children.push(alt);
+        const el = {innerHTML: '', querySelectorAll: () => []};
+        vm.runInNewContext(body + '; renderMoves();', {Core: core.MephistoReviewCore, treeRoot: root, nodeIndex: new Map(),
+            $: () => el, esc: s => s});
+        return el.innerHTML;
+    };
+    let h = list('4k3/8/8/8/8/8/8/4K3 b - - 0 30', ['Ke7', 'Ke2', 'Ke6']);
+    ok('Black to move on move 30: White cell empty, row 30, reply on 31',
+       /an-mnum">30<\/span><span class="an-mcell" >\.\.\.<\/span><span class="an-mcell" data-node="1">Ke7/.test(h)
+       && /an-mnum">31<\/span><span class="an-mcell" data-node="2">Ke2<\/span><span class="an-mcell" data-node="3">Ke6/.test(h), h);
+    ok('a variation on it is numbered from the FEN too', /31\. alt/.test(h), h);
+    h = list('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', ['e4', 'e5', 'Nf3']);
+    ok('a normal game is unchanged',
+       /an-mnum">1<\/span><span class="an-mcell" data-node="1">e4<\/span><span class="an-mcell" data-node="2">e5/.test(h)
+       && /an-mnum">2<\/span><span class="an-mcell" data-node="3">Nf3/.test(h), h);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

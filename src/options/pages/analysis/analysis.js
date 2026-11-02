@@ -2058,7 +2058,8 @@ function moveNumberOf(node) {
     // the ply is the DEPTH, not an array index: variations share their depth with the mainline
     let ply = 0;
     for (let n = node; n.parent; n = n.parent) ply++;
-    return {num: Math.ceil(ply / 2), white: ply % 2 === 1};
+    // numbered from the start FEN (Core.plyMove), like pgnText: a set-up position can be move 30
+    return Core.plyMove(treeRoot.fen, ply - 1);
 }
 
 function varLineHtml(node) {
@@ -2087,10 +2088,15 @@ function renderMoves() {
     const main = [];
     for (let n = treeRoot.children[0]; n; n = n.children[0]) main.push(n);
     const rows = [];
-    for (let i = 0; i < main.length; i += 2) {
-        const w = main[i], b = main[i + 1];
-        rows.push(`<div class="an-mrow"><span class="an-mnum">${Math.ceil((i + 1) / 2)}</span>`
-            + `<span class="an-mcell" data-node="${w.id}">${esc(w?.san || '')}</span>`
+    // A Black-to-move start opens with an empty White cell. Paired from the first move, Black's
+    // reply sat in White's column as move 1 and disagreed with Copy PGN.
+    const blackFirst = !Core.plyMove(treeRoot.fen, 0).white;
+    const cells = blackFirst ? [null, ...main] : main;
+    for (let i = 0; i < cells.length; i += 2) {
+        const w = cells[i], b = cells[i + 1];
+        const {num} = Core.plyMove(treeRoot.fen, i - (blackFirst ? 1 : 0));
+        rows.push(`<div class="an-mrow"><span class="an-mnum">${num}</span>`
+            + `<span class="an-mcell" ${w ? `data-node="${w.id}"` : ''}>${w ? esc(w.san || '') : '...'}</span>`
             + `<span class="an-mcell" ${b ? `data-node="${b.id}"` : ''}>${esc(b?.san || '')}</span></div>`);
         for (const branchOwner of [w, b]) {
             if (!branchOwner?.parent) continue;
