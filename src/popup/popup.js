@@ -11261,6 +11261,11 @@ let ua_id = null, ua_ready = null;
 const ua_cache = new Map();      // `${fenAfter}|${replies}` -> {white: {cp}|{mate}, replies: [{uci, white}]}
 let ua_serial = Promise.resolve();
 const ua_pending = new Set();   // keys queued and not answered yet: an arrow is asked about once
+// A question that failed waits this long and shows "?": the answer's own redraw asked again at once,
+// a tight loop on a failed load, and after the engine was reaped every arrow sat on "…" for the rest
+// of the page's life. A timeout also drops the client, so the next question builds a new one (SYS-4).
+const UA_RETRY_MS = 30000;
+const ua_failed = new Map();     // same key -> when it failed
 let ua_last_sent = '';
 
 // A drawn arrow -> the legal move it stands for in `fen` and the position after it, or null when it
@@ -11343,7 +11348,7 @@ function ua_ask(after, replies, wanted) {
     ua_pending.add(key);
     const p = ua_serial.then(async () => {
         if (ua_cache.has(key) || !wanted()) return;
-        await ua_engine();
+        try { await ua_engine(); } catch (e) { ua_failed.set(key, Date.now()); return; }
         const res = await new Promise((resolve) => {
             const lines = [];
             const send = (line) => chrome.runtime.sendMessage({toOffscreen: true, clientId: ua_id, cmd: 'uci', line});
@@ -11361,8 +11366,12 @@ function ua_ask(after, replies, wanted) {
             send(`go movetime ${UA_MOVETIME_MS}`);
         });
         if (res) {
-            if (ua_cache.size >= 200) ua_cache.clear();
+            if (ua_cache.size >= 200) { ua_cache.clear(); ua_failed.clear(); }
             ua_cache.set(key, res);
+            ua_failed.delete(key);
+        } else {
+            ua_failed.set(key, Date.now());
+            ua_dispose();
         }
     });
     ua_serial = p.catch(() => {}).then(() => { ua_pending.delete(key); });
@@ -11391,6 +11400,7 @@ function refresh_user_arrows() {
         else {
             const hit = ua_cache.get(`${after.fenAfter}|${replies}`);
             if (hit) { label = ua_label(arrow_pov(hit.white, fen.split(' ')[1])); reply = replies && newest ? hit.replies.slice(0, replies).map(r => r.uci) : []; }
+            else if (Date.now() - (ua_failed.get(`${after.fenAfter}|${replies}`) || 0) < UA_RETRY_MS) label = '?';
             else ua_ask(after, replies, () => last_eval.fen === fen && user_arrows.includes(arrow))
                 .then(() => { if (last_eval.fen === fen) refresh_user_arrows(); }).catch(() => {});
         }

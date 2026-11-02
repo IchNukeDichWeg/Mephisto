@@ -4607,6 +4607,26 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const e = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
     ok('Review asks again rather than scoring a short frame', /for \(let tries = 0; frame\.superseded && tries < 5; tries\+\+\)/.test(e));
 }
+// ---- SYS-4: arrow evals recover from a dead engine ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = psrc.indexOf('function ua_ask(after, replies, wanted)'), b = psrc.indexOf('// Called when the drawn arrows change and when the position does.');
+    const c = vm.createContext({setTimeout, clearTimeout});
+    vm.runInContext(`const UA_TIMEOUT_MS = 1, UA_MOVETIME_MS = 1; var ua_id = 'x', ua_ready = 1, ua_serial = Promise.resolve(), disposed = 0, fail = null;
+        const ua_pending = new Set(), ua_cache = new Map(), ua_failed = new Map();
+        const ua_engine = async () => { if (fail) throw fail; }; const ua_dispose = () => { disposed++; ua_id = null; ua_ready = null; };
+        const ua_parse_info = () => null, ua_result = () => ({});
+        const chrome = {runtime: {sendMessage() {}, onMessage: {addListener() {}, removeListener() {}}}};` + psrc.slice(a, b), c);
+    (async () => {
+        await vm.runInContext(`ua_ask({fenAfter: 'P'}, 0, () => true)`, c);
+        ok('a question that timed out is marked and the client dropped, so the next one rebuilds it',
+           vm.runInContext(`ua_failed.has('P|0') && disposed === 1 && ua_ready === null`, c));
+        await vm.runInContext(`fail = new Error('no net'); ua_ask({fenAfter: 'Q'}, 0, () => true)`, c);
+        ok('a failed load is marked rather than swallowed', vm.runInContext(`ua_failed.has('Q|0')`, c));
+    })();
+    ok('a recent failure shows ? and does not ask again', /< UA_RETRY_MS\) label = '\?';\s*else ua_ask\(/.test(psrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
