@@ -772,7 +772,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     setup({contempt: true, contempt_cp: 40}, mid, five, wrongPv, new c.Chess('chess').fen());
     eq('...and a pv describing another move is not this move\'s draw', c.contempt_pick('g8f6'), 'g8f6');
     ok('the played move consults it above the playstyle',
-        /const fought = contempt_pick\(best\);/.test(pj)
+        /const fought = config\.puzzle_mode \? best : contempt_pick\(best\);/.test(pj)
         && pj.indexOf(': fight_ok ? fought') < pj.indexOf(': style_ok ? styled : best;'));
 }
 
@@ -4440,6 +4440,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('the board unchanged: the answer goes after its pause', c.sent.length === 1 && c.sent[0].pv[0] === 'e7e5', c.sent);
     vm.runInContext(`last_eval.fen = 'C b'; request_automove('d7d5'); last_eval.fen = 'D b'`, c); c.timers.shift()();
     ok('the board moved on during the pause: nothing is sent', c.sent.length === 1, c.sent);
+}
+// ---- PLAY-4: Puzzle Mode plays the engine's move -------------------------------------------
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('book, playstyle and contempt all stand down in Puzzle Mode',
+       /const book = config\.puzzle_mode \? null : book_pick\(last_eval\.fen\);/.test(psrc)
+       && /const styled = config\.puzzle_mode \? best : playstyle_pick\(best\);/.test(psrc)
+       && /const fought = config\.puzzle_mode \? best : contempt_pick\(best\);/.test(psrc));
 }
 // ==== END FIX CHECKS ====
 

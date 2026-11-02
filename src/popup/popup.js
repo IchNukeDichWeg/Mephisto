@@ -2393,7 +2393,9 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 // replaces WHICH move is played; the timing below is untouched, so Clock/Mirror/
                 // Humanize still pace it exactly as they would have. Null whenever the lookup hasn't
                 // landed, we're out of book, or every candidate failed the games/engine filters.
-                const book = book_pick(last_eval.fen);
+                // A puzzle has one right answer: book, contempt and playstyle all pick something else
+                // on purpose, and contempt fails exactly the save-the-draw puzzles (PLAY-4).
+                const book = config.puzzle_mode ? null : book_pick(last_eval.fen);
                 if (book && !premove_reply_playable(last_eval.fen, book)) {
                     console.warn('Mephisto: ignoring a book move that is not ours/legal here:', book);
                 }
@@ -2413,7 +2415,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 // Playstyle sits UNDER the book and the tablebase and OVER the bare engine pick:
                 // both of those are facts about the position, while a style is a preference between
                 // moves the engine already called equal. Move only -- the timing below is untouched.
-                const styled = playstyle_pick(best);
+                const styled = config.puzzle_mode ? best : playstyle_pick(best);
                 if (styled !== best && !premove_reply_playable(last_eval.fen, styled)) {
                     console.warn('Mephisto: ignoring a playstyle move that is not ours/legal here:', styled);
                 }
@@ -2421,7 +2423,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 // CONTEMPT sits ABOVE the playstyle and below the two facts: a style is a preference
                 // between moves the engine already called equal, while contempt is a decision about
                 // how the GAME ends. Move only -- the timing below is untouched, like the rest.
-                const fought = contempt_pick(best);
+                const fought = config.puzzle_mode ? best : contempt_pick(best);
                 const fight_ok = fought !== best && premove_reply_playable(last_eval.fen, fought);
                 if (fought !== best && !fight_ok) {
                     console.warn('Mephisto: ignoring a contempt move that is not ours/legal here:', fought);
