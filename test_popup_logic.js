@@ -4533,6 +4533,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         function maybeGoIdle() {}` + osrc.slice(i, osrc.indexOf('\n}\n', i) + 3) + `disposeClient('x');`, c);
     ok('the old search\'s flush never reaches the panel', c.heard.length === 0, c.heard);
 }
+// ---- ENG-10: a failed load is not retried per UCI line ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const osrc = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8');
+    ok('every load goes through startEngine, and the respawn waits out the backoff',
+       (osrc.match(/\.catch\(e => send\(clientId, \{kind: 'error'/g) || []).length === 0
+       && /Date\.now\(\) - \(loadFailedAt\[clientId\] \|\| 0\) > RELOAD_BACKOFF_MS/.test(osrc)
+       && /delete loadFailedAt\[clientId\];\s*startEngine\(clientId, msg\.engine/.test(osrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -186,6 +186,17 @@ function maybeGoIdle() {
 // Create (or replace) the engine for one panel and load its NNUE net(s). Mirrors the WASM half of
 // popup.js initialize_engine EXACTLY (incl. Fairy's UCI_Variant-before-NNUE quirk); everything after
 // (Hash/Threads/MultiPV/Elo/ucinewgame/isready) stays in the popup and arrives as 'uci' commands.
+// A failed load looks like the abandoned state the respawn tests for, so without this every following
+// line (position, go, setoption) refetched the net and raised the error again (ENG-10).
+const RELOAD_BACKOFF_MS = 30000;
+const loadFailedAt = {};
+function startEngine(clientId, ...args) {
+    return initEngine(clientId, ...args).catch(e => {
+        loadFailedAt[clientId] = Date.now();
+        send(clientId, {kind: 'error', error: String(e)});
+    });
+}
+
 async function initEngine(clientId, engineName, variant, maiaLevel, elos) {
     disposeClient(clientId); // also bumps the generation, so ours is the newest from here on
     loading.add(clientId);   // ...and this document is NOT idle while we load (see maybeGoIdle)
@@ -334,7 +345,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (cmd === 'init') {
         initArgs[clientId] = [msg.engine, msg.variant, msg.maiaLevel, msg.elos];
         sticky[clientId] = {};
-        initEngine(clientId, msg.engine, msg.variant, msg.maiaLevel, msg.elos).catch(e => send(clientId, {kind: 'error', error: String(e)}));
+        delete loadFailedAt[clientId];
+        startEngine(clientId, msg.engine, msg.variant, msg.maiaLevel, msg.elos);
     } else if (cmd === 'uci') {
         const engine = clients[clientId];
         const line = msg.line || '';
@@ -344,11 +356,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (opt && sticky[clientId]) sticky[clientId][opt[1]] = line;
         if (engine) {
             try { engine.uci(line); } catch (e) { send(clientId, {kind: 'error', error: String(e)}); }
-        } else if (!loading.has(clientId) && initArgs[clientId] && !/^(stop|quit)\b/.test(line)) {
+        } else if (!loading.has(clientId) && initArgs[clientId] && !/^(stop|quit)\b/.test(line)
+                   && Date.now() - (loadFailedAt[clientId] || 0) > RELOAD_BACKOFF_MS) {
             // thrown away by the abandon sweep, and wanted again: respawn it (see initArgs)
             console.log(`[Mephisto] offscreen: ${clientId} is back -- respawning its engine`);
             pending[clientId] = [...Object.values(sticky[clientId] || {}).filter(l => l !== line), line];
-            initEngine(clientId, ...initArgs[clientId]).catch(e => send(clientId, {kind: 'error', error: String(e)}));
+            startEngine(clientId, ...initArgs[clientId]);
         } else {
             (pending[clientId] = pending[clientId] || []).push(line); // still loading -> queue
         }
