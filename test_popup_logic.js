@@ -4773,6 +4773,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const src = fs.readFileSync(ROOT + '/src/options/pages/review/ee-host.js', 'utf8');
     ok('every engine line re-arms the timer', /if \(m\.type === 'line'\) \{[\s\S]{0,300}?bump\(\);\s*if \(onLine\) onLine\(String\(m\.line\)\);/.test(src));
 }
+// ---- OPT-9: Stop in a batch keeps the finished games ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    ok('a Stop inside a game ends the loop when a game is finished, and says how far it got',
+       /catch \(e\) \{[\s\S]{0,200}?if \(cancel && done\.length\) break;\s*throw e;/.test(src)
+       && /if \(done\.length < list\.length\) note\(`Stopped after/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

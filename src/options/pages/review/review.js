@@ -2518,8 +2518,16 @@ async function onRun() {
             const label = batch ? `game ${g + 1} of ${list.length} - ` : '';
             // Each game gets its own slice of the bar, so a batch of forty does not sit at 2%.
             const base = g / list.length, span = 1 / list.length;
-            const built = await runReview(list[g], rig,
-                (frac, what) => progress(base + frac * span, label + what));
+            let built;
+            try {
+                built = await runReview(list[g], rig,
+                    (frac, what) => progress(base + frac * span, label + what));
+            } catch (e) {
+                // Stop lands inside a game, so it throws from here. The finished games are still
+                // a result; thrown on, they were lost with a bare "Stopped.".
+                if (cancel && done.length) break;
+                throw e;
+            }
             built.pgnText = gameText(list[g]);
             // ...and, if asked, their coach's words over our numbers (see applyEeProse).
             if (cfg('rv_explain') && !cancel) {
@@ -2545,6 +2553,7 @@ async function onRun() {
         renderReport();
         renderBatch();
         progress(1, batch ? `${done.length} games analysed` : 'done');
+        if (done.length < list.length) note(`Stopped after ${done.length} of ${list.length} games.`);
         $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});
     } catch (e) {
         if (cancel) note('Stopped.');
