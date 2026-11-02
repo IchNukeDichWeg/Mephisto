@@ -6799,7 +6799,13 @@ const HUMANIZE_SHALLOW_REACH_CP = 60;
 // is asked for, not what the panel lists.
 const MULTIPV_FLOOR_MODES = ['contempt', 'complexity_clock'];
 
+// Play Book Moves scores explorer moves from the engine's own lines and skips any it did not list, so
+// at the default of one line the pool held the engine's move and openings never varied (PLAY-5). Four
+// covers the usual spread of book replies. The search is back to its normal width once out of book.
+const BOOK_MULTIPV = 4;
+
 function multipv_floor() {
+    if (config.book_play && config.autoplay && !explorer_out_of_book) return BOOK_MULTIPV;
     return MULTIPV_FLOOR_MODES.some(k => config[k]) ? 2 : 1;
 }
 

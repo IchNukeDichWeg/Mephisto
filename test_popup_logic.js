@@ -4450,6 +4450,18 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && /const styled = config\.puzzle_mode \? best : playstyle_pick\(best\);/.test(psrc)
        && /const fought = config\.puzzle_mode \? best : contempt_pick\(best\);/.test(psrc));
 }
+// ---- PLAY-5: Play Book Moves has moves to choose from ----------------------------------------
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('const MULTIPV_FLOOR_MODES'), j = psrc.indexOf('\n}\n', psrc.indexOf('function multipv_floor()')) + 3;
+    const c = vm.createContext({});
+    vm.runInContext(`var config = {}, explorer_out_of_book = false;` + psrc.slice(i, j), c);
+    const f = (cfg, out) => vm.runInContext(`config = ${JSON.stringify(cfg)}; explorer_out_of_book = ${out}; multipv_floor()`, c);
+    ok('in book with Autoplay: wide enough for a choice', f({book_play: true, autoplay: true}, false) === 4);
+    ok('...normal width once out of book, or with it off', f({book_play: true, autoplay: true}, true) === 1 && f({autoplay: true}, false) === 1);
+    ok('...and no wider without Autoplay, which is what plays it', f({book_play: true}, false) === 1);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
