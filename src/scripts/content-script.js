@@ -5521,7 +5521,12 @@ async function simulateMoveVerified(move, deselect, verify, think = null, retrie
     // that DID land shows up only after we'd have re-read `before` as the already-grown count -- the
     // retry then replays into a changed board and still reports "failed". Compare against the
     // original count throughout, and POLL for it to grow instead of a single snapshot.
-    if (before === null) before = getMoveRecords()?.length ?? 0;
+    // ChessBase and BlitzTactics have no move list, so the count never grew: every move there ran the
+    // whole failed path, and a wrong move the site took back was replayed. Those compare the board.
+    const noList = getMoveRecords() === undefined;
+    const progress = () => noList ? tryScrapePosition() : (getMoveRecords()?.length ?? 0);
+    const landed = () => { const now = progress(); return noList ? now !== 'no' && now !== before : now > before; };
+    if (before === null) before = progress();
     // A move that was dropped or superseded clicked nothing, so there is nothing to verify: waiting
     // kept `moving` set for up to 4.5 s after the panel was told it was re-analysing, and pushes are
     // display-only until it clears (PAGE-16).
@@ -5530,7 +5535,7 @@ async function simulateMoveVerified(move, deselect, verify, think = null, retrie
     // tab's 1s timer clamp the step-counting version polled for 30 real seconds, not 1.5.
     for (const deadline = Date.now() + 1500; Date.now() < deadline; ) { // poll up to 1.5s
         await promiseTimeout(50);
-        if ((getMoveRecords()?.length ?? 0) > before) return; // a move was played -> success
+        if (landed()) return; // a move was played -> success
     }
     if (retries > 0) {
         console.warn(`Mephisto: move '${move}' did not register, retrying (${retries} left)`);

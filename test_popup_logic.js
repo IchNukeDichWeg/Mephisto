@@ -5091,6 +5091,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /await loadSiteValues\(\);\s*\/\/ Dismissed \(or reopened\)/.test(src) && /const box = siteValues\?\.box;/.test(src));
     ok('so does the start hunt', /async function determineStartPosition\(\) \{\s*await loadSiteValues\(\);/.test(src));
 }
+// ---- PAGE-12: a site with no move list verifies by the board ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = src.indexOf('async function simulateMoveVerified(');
+    const body = src.slice(a, src.indexOf('// Double premove:', a));
+    const run = async (boards) => {
+        let clicks = 0, i = 0;
+        const c = {UCI_RE: /^[a-h][1-8][a-h][1-8]/, DROP_RE: /^[A-Z]@/, leftSelected: () => false, console: {warn() {}},
+            getMoveRecords: () => undefined, tryScrapePosition: () => boards[Math.min(i, boards.length - 1)],
+            simulateMove: async () => { clicks++; i++; return true; }, promiseTimeout: () => new Promise(r => setTimeout(r, 1)),
+            lastPushKey: 1, lastDisplayKey: 1, resumePush: false, schedulePush() { c.pushed = true; }, Date, setTimeout};
+        await vm.runInNewContext(body + ';simulateMoveVerified("e2e4", false, true, null)', c);
+        return {clicks, pushed: !!c.pushed};
+    };
+    run(['A', 'B']).then(r => ok('the board changing is success, on the first attempt', r.clicks === 1 && !r.pushed, r));
+    ok('every list site still counts', /noList \? now !== 'no' && now !== before : now > before/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
