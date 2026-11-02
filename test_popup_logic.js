@@ -4971,6 +4971,28 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         return !d['set.tip.puzzle_capture'] || d['set.tip.puzzle_capture'] === d['set.tip.puzzle_capture_cdp']; });
     ok('the tip is present in all 14 locales', fails14.length === 0, fails14);
 }
+// ---- PAGE-4/SYS-1: the probe rendezvous listens only where a probe can exist ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = src.indexOf('function onProbeAnnounce(e)');
+    const body = src.slice(a, src.indexOf('// --- captured puzzle solutions'));
+    const run = (hostname, stored, detail) => {
+        const added = [], fired = [];
+        const document = {addEventListener: (n, f) => added.push([n, f]), dispatchEvent: (ev) => fired.push(ev.type)};
+        const chrome = {storage: {local: {get: (k, cb) => cb(stored)}}};
+        vm.runInNewContext(`let ttState, ttSid = null, cbState, cbSid = null, puzSid = null; ${body}`,
+            {document, chrome, location: {hostname}, config: null, CustomEvent: class { constructor(t) { this.type = t; } }, acceptPuzzleCaptures() {}, schedulePush() {}});
+        const rdv = added.find(x => x[0] === 'm9');
+        if (rdv) for (const s of ['a', 'b']) rdv[1]({detail: JSON.stringify({t: 'puz', s})});
+        return {listens: !!rdv, fired, added: added.length};
+    };
+    ok('an ordinary site does not listen at all', !run('example.com', {}).listens);
+    ok('lichess and chess.com with the setting off do not listen', !run('lichess.org', {puzzle_capture: 'false'}).listens && !run('www.chess.com', {}).listens);
+    const on = run('lichess.org', {puzzle_capture: 'true'});
+    ok('with it on, the first channel is taken and a second is ignored', on.listens && on.fired.join() === 'ar' && on.added === 2, on);
+    ok('the probe sites still listen', run('taketaketake.com', {}).listens && run('tactics.chessbase.com', {}).listens);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

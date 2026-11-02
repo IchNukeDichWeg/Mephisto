@@ -2564,19 +2564,21 @@ function spriteLightness(piece) {
 // PUSH from the probe's subscription, which refreshes + schedules a scrape.)
 let ttState = null, ttSid = null;
 let cbState = null, cbSid = null; // cb is wired in the SAME rendezvous below; declared here for it
-document.addEventListener('m9', (e) => {
+function onProbeAnnounce(e) {
     let d;
     try { d = JSON.parse(e.detail); } catch (err) { return; }
     if (!d || !d.s) return;
-    if (d.t === 'tt' && d.s !== ttSid) {
+    // One channel per probe per document: every new name a page offered stacked another permanent
+    // listener, and the replay below answered it.
+    if (d.t === 'tt' && !ttSid) {
         ttSid = d.s;
         document.addEventListener(ttSid + 's', ev => { try { ttState = JSON.parse(ev.detail); } catch (err) { ttState = null; } });
         document.addEventListener(ttSid + 'u', ev => { try { ttState = JSON.parse(ev.detail); } catch (err) { return; } if (config) schedulePush(); });
-    } else if (d.t === 'cb' && d.s !== cbSid) {
+    } else if (d.t === 'cb' && !cbSid) {
         cbSid = d.s;
         document.addEventListener(cbSid + 's', ev => { try { cbState = JSON.parse(ev.detail); } catch (err) { cbState = null; } });
         document.addEventListener(cbSid + 'u', ev => { try { cbState = JSON.parse(ev.detail); } catch (err) { return; } if (config) schedulePush(); });
-    } else if (d.t === 'puz' && d.s !== puzSid) {
+    } else if (d.t === 'puz' && !puzSid) {
         puzSid = d.s;
         document.addEventListener(puzSid + 'p', ev => {
             let got;
@@ -2587,7 +2589,19 @@ document.addEventListener('m9', (e) => {
         // bootstrap payload by now; ask it to replay what it is holding
         try { document.dispatchEvent(new CustomEvent(puzSid + 'r')); } catch (err) { /* */ }
     }
-});
+}
+
+// Only where a probe can exist. Listening on every site made one synthetic event an install check
+// for any page: this answered at once on a name the caller chose. On lichess and chess.com the probe
+// is only registered while Puzzle Capture is on, and there a reply tells a page nothing the probe's
+// own patches do not.
+if (/(^|\.)taketaketake\.com$/.test(location.hostname) || location.hostname === 'tactics.chessbase.com') {
+    document.addEventListener('m9', onProbeAnnounce);
+} else if (/^(www\.)?(chess\.com|lichess\.org)$/.test(location.hostname)) {
+    chrome.storage.local.get('puzzle_capture', ({puzzle_capture: v}) => {
+        if (v === 'true') document.addEventListener('m9', onProbeAnnounce);
+    });
+}
 
 // --- captured puzzle solutions ---------------------------------------------------------------
 // The page-world probe (puz-probe.js) reports things SHAPED like a puzzle: a position next to a line
