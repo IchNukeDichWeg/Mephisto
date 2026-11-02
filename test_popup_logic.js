@@ -2405,7 +2405,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('match: the two sides really get two client ids', /'analysis-match-a'/.test(aj) && /'analysis-match-b'/.test(aj));
     ok('match: one thread per engine', /multipv: 1, threads: 1, hash: MATCH_HASH/.test(aj));
     ok('match: the page\'s own analysis stands down while it plays',
-       /async function analyseNow\(\) \{\n\s+if \(match\?\.running\) return;/.test(aj) && /if \(!pos \|\| match\?\.running\) return false;/.test(aj));
+       /async function analyseNow\(gen\) \{\n\s+if \(gen !== pageGen\) return;[^\n]*\n\s+if \(match\?\.running\) return;/.test(aj) && /if \(!pos \|\| match\?\.running\) return false;/.test(aj));
     // the PGN goes back through the page's own parser and replays to the same moves -- from a start
     // position with black to move, which is where move numbering goes wrong
     const rt = run(`(() => {
@@ -4738,6 +4738,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
     ok('the fit switches Play-like matching off, and says so',
        /setCfg\('humanize_match', false\);\s*btn\.textContent = `Fitted from \$\{fit\.n\} moves - Play-like matching off`/.test(src));
+}
+// ---- OPT-5: analyses queued on a left page do not run ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    ok('a call keeps the generation it was queued under', /const gen = pageGen;\s*const run = \(\) => analyseNow\(gen\);/.test(src));
+    ok('analyseNow leaves on a moved generation, on entry and after the stop',
+       /async function analyseNow\(gen\) \{\s*if \(gen !== pageGen\) return;/.test(src)
+       && /await stopSearch\(\);[^\n]*\n\s*if \(gen !== pageGen\) return;\s*let e;/.test(src));
 }
 // ==== END FIX CHECKS ====
 

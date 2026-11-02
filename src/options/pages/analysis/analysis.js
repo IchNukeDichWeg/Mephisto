@@ -987,11 +987,17 @@ function goNode(n) {
 // Serialising them means the second call really does stop the first search before starting its own.
 let analyseChain = Promise.resolve();
 function analyseCurrent() {
-    analyseChain = analyseChain.then(analyseNow, analyseNow);
+    // Queued under the page visit that asked for it. teardown only stops a build already in flight,
+    // so a call still in this queue read the NEW pageGen and started `go infinite` behind Settings,
+    // where the page keep-alive stopped the orphan guard from ever ending it.
+    const gen = pageGen;
+    const run = () => analyseNow(gen);
+    analyseChain = analyseChain.then(run, run);
     return analyseChain;
 }
 
-async function analyseNow() {
+async function analyseNow(gen) {
+    if (gen !== pageGen) return;         // the page was left while this waited its turn
     if (match?.running) return;          // the match's engines are the only searches while it plays
     if (largeGame()) return;             // the chess board is hidden; large-board.js owns the engine
     const at = cursor;
@@ -1000,6 +1006,7 @@ async function analyseNow() {
     const meta = $('an_engine_meta');
     if (meta) meta.textContent = 'thinking…';
     await stopSearch();                 // the previous search must be finished, not merely told to stop
+    if (gen !== pageGen) return;
     let e;
     try { e = await ensureEngine(); } catch (err) {
         // The reason goes to the status line, and the column must stop claiming a search: an engine
