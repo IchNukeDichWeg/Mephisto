@@ -781,8 +781,8 @@ Style**). While the floating panel is in use:
 - **Lookups about your opponent leave from the worker, never the tab**, so they are not attributable to the page.
 - **Nothing loads on a page that does not need it** - the classifier is injected only when one of its three opt-in
   features is on.
-- **No config in the site's storage.** Two values do sit in page storage because they are read while the panel is
-  built; neither is named after the extension nor holds a setting.
+- **Nothing in the site's storage.** The panel's position and the custom-start cache live in extension storage, per
+  site, and an older install's copies are moved out of the page and removed.
 
 These reduce *passive* fingerprinting only. See the [disclaimer](#fair-play---read-this-first).
 
