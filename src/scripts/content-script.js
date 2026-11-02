@@ -5219,7 +5219,7 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         if (sessionGen !== undefined && sessionGen !== moveGen) {
             bgLog('superseded mid-think: clicks abandoned', {move, sessionGen, moveGen});
             lastAimed = `${move}->NOT CLICKED (superseded by a newer move session)`;
-            return;
+            return false;
         }
         refreshBoardGeometry();
         // AND THE POSITION IS CHECKED AGAIN, HERE, for the same reason the rectangle is measured
@@ -5240,14 +5240,14 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
             lastPushKey = lastDisplayKey = null;
             resumePush = true;
             pushWhenSettled();
-            return;
+            return false;
         }
         const held = moveHeldBack();
         if (held) {
             bgLog('DROPPED after the think', {move, held});
             lastAimed = `${move}->NOT CLICKED (${held === 'hidden' ? 'tab went inactive' : 'Autoplay switched off'} during the think)`;
             if (held === 'hidden') deferredWhileHidden = true;   // resumeIfDeferred re-issues it on return
-            return;
+            return false;
         }
         // Record the intent, in squares, from the geometry these clicks are about to use. Read back
         // through the SAME rect and orientation, so `aimed` is what the pixels mean -- if it does not
@@ -5276,7 +5276,7 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         if (/^[a-h][1-8]$/.test(deselect ?? '')) {
             await simulateClickSquare(getBoundsFromCoords(deselect), 0.8, 80);
             await promiseTimeout(40 + Math.random() * 90);
-            if (sessionGen !== undefined && sessionGen !== moveGen) return;  // superseded during the lead click
+            if (sessionGen !== undefined && sessionGen !== moveGen) return false;  // superseded during the lead click
         }
         // Two clicks: piece then target. Both are awaited, and each is a real cursor path -- so the
         // wall-clock IS approachMs + travelMs, spent as motion (M2). The caller splits the total
@@ -5301,7 +5301,7 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
                 dropMove(`The best move is a drop (${move}), but that piece is not in your pocket on the page: play it yourself.`,
                     'DROPPED: pocket piece not found', {move});
                 lastAimed = `${move}->NOT CLICKED (no ${POCKET_ROLE[move[0]]} in the pocket)`;
-                return;
+                return false;
             }
             // A drop is a drag by nature, so it takes the drag floor whatever Drag Pieces says.
             const dragMs = Math.max(approachMs + travelMs, DRAG_MIN_MS);
@@ -5343,7 +5343,7 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         // the pause between the clicks is the widest window for a supersede -- check again
         if (sessionGen !== undefined && sessionGen !== moveGen) {
             lastAimed = `${move}->HALF-CLICKED then superseded (from-click only)`;
-            return;
+            return false;
         }
         await simulateClickSquare(getBoundsFromCoords(move.substring(2)), 0.8, pathB);
         const dueEnd = (approachMs + travelMs) - (Date.now() - started);
@@ -5394,11 +5394,13 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
     async function performSimulatedMoveSequence() {
         await waitOutThink(getThinkTime());
         const total = getMoveTime() * (isDrop ? 1 : fittsScale(move.substring(0, 2), move.substring(2, 4)));
+        // false = nothing landed: no picker to wait for, nothing to verify (see simulateMoveVerified)
         if (move[4]) {
-            await performSimulatedMoveClicks(total * 0.20, total * 0.55, total);
+            if (await performSimulatedMoveClicks(total * 0.20, total * 0.55, total) === false) return false;
+            if (sessionGen !== undefined && sessionGen !== moveGen) return false;   // the picker may be the newer session's
             await simulatePromotionClicks(move[4], total * 0.25);
         } else {
-            await performSimulatedMoveClicks(total * 0.25, total * 0.75, total);
+            return performSimulatedMoveClicks(total * 0.25, total * 0.75, total);
         }
     }
 
@@ -5432,7 +5434,10 @@ async function simulateMoveVerified(move, deselect, verify, think = null, retrie
     // retry then replays into a changed board and still reports "failed". Compare against the
     // original count throughout, and POLL for it to grow instead of a single snapshot.
     if (before === null) before = getMoveRecords()?.length ?? 0;
-    await simulateMove(move, ds, think, sessionGen);
+    // A move that was dropped or superseded clicked nothing, so there is nothing to verify: waiting
+    // kept `moving` set for up to 4.5 s after the panel was told it was re-analysing, and pushes are
+    // display-only until it clears (PAGE-16).
+    if (await simulateMove(move, ds, think, sessionGen) === false) return;
     // Real elapsed time, not a count of intended steps -- see promiseTimeout. Under a background
     // tab's 1s timer clamp the step-counting version polled for 30 real seconds, not 1.5.
     for (const deadline = Date.now() + 1500; Date.now() < deadline; ) { // poll up to 1.5s

@@ -4374,6 +4374,23 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('tabbing away holds it, unless Background Play is on', held({ap: true, active: false}) === 'hidden' && held({ap: true, active: false, bg: true}) === null);
     ok('the click guard asks, after the board check', /boardStillMatchesAnalysis\(pendingForPush\)\) \{\s*dropMove\('The board moved on while it was thinking[\s\S]{0,700}const held = moveHeldBack\(\);/.test(csrc));
 }
+// ---- PAGE-16: a move that clicked nothing has nothing to verify ------------------------------
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = csrc.indexOf('async function simulateMoveVerified(');
+    const c = vm.createContext({console: {warn() {}}, setTimeout});
+    vm.runInContext(`var DROP_RE = /@/, polls = 0, clicks = 0, lastPushKey = 'k', lastDisplayKey = 'k', resumePush = false, answer;
+        function getMoveRecords() { return []; } async function promiseTimeout() { polls++; } function schedulePush() {}
+        async function simulateMove() { clicks++; return answer; }` + csrc.slice(i, csrc.indexOf('\n}\n', i) + 3), c);
+    (async () => {
+        await vm.runInContext(`answer = false; simulateMoveVerified('e2e4', null, true)`, c);
+        ok('a dropped or superseded move is not polled or retried, and the panel\'s re-push is left alone',
+           c.polls === 0 && c.clicks === 1 && c.lastPushKey === 'k', [c.polls, c.clicks]);
+    })();
+    ok('a dropped move skips the promotion picker, and a superseded session cannot click a newer one\'s',
+       /if \(await performSimulatedMoveClicks\(total \* 0\.20, total \* 0\.55, total\) === false\) return false;\s*if \(sessionGen !== undefined && sessionGen !== moveGen\) return false;/.test(csrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
