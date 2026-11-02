@@ -76,8 +76,22 @@ for i, after in enumerate((1, 2, 4)):
           f'{"never (>12s)" if g is None else "%.0fms" % g}', flush=True)
     gaps.append(g)
     time.sleep(9)                                   # let the superseding search finish on its own
+# A search stopped by another request or a configure must say so, or its short frame reads as an answer.
+send({'id': 200, 'cmd': 'analyse', 'fen': DEEP, 'time': BUDGET_MS})
+time.sleep(1)
+send({'id': 201, 'cmd': 'configure', 'options': {'Hash': 16}})
+time.sleep(0.5)
+send({'id': 202, 'cmd': 'analyse', 'fen': NEXT, 'time': 300})
+time.sleep(2)
+with lock:
+    stopped = next((m for _, m in frames if m.get('id') == 200 and m.get('done')), None)
+    last = next((m for _, m in frames if m.get('id') == 202 and m.get('done')), None)
 p.kill()
 shutil.rmtree(tmp, ignore_errors=True)
+if not (stopped and stopped.get('superseded')) or not last or last.get('superseded'):
+    print('FAIL the stopped search must carry superseded and the finished one must not', stopped, last)
+    sys.exit(1)
+print('a stopped search reports superseded, a finished one does not')
 
 if any(g is None for g in gaps):
     print('FAIL a superseding search never produced an info frame')

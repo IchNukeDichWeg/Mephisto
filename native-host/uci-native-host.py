@@ -266,14 +266,22 @@ def do_analyse(data, mid):
         with request_lock:
             if current_analysis is analysis:   # only OUR own search; a newer one owns the slot now
                 current_analysis = None
-        return format_lines(analysis.multipv, terminal, bestmove, in_check)
+        out = format_lines(analysis.multipv, terminal, bestmove, in_check)
+        if request_counter != request_id:
+            out['superseded'] = True   # stopped by another request: this is not an answer
+        return out
 
 def do_configure(data):
+    global request_counter
     get_engine()  # a configure is a real use -> open the engine (a ping never gets here)
     # S4: stop the outstanding search BEFORE taking engine_lock, mirroring do_analyse's pre-lock
     # stale.stop() -- without this a Threads/Hash change queues behind whatever search is running.
+    # The search it stops was not answered: the bump marks its frame superseded, and the panel
+    # searches the position again.
     with request_lock:
         stale = current_analysis
+        if stale is not None:
+            request_counter += 1
     if stale is not None:
         try:
             stale.stop()
