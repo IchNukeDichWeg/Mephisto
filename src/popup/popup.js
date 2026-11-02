@@ -5161,13 +5161,13 @@ async function with_panel_hidden(fn) {
 
 // The "least sure" line, as buttons. Clicking one swaps that square to the model's runner-up and
 // re-analyses -- the whole point being that a single wrong square no longer means reading again.
-function render_unsure(low, unresolved) {
+function render_unsure(low, unresolved, lead) {
     const el = PANEL_ROOT.getElementById('setup_fen_msg');
     if (!el) return;
     // a repaired square is ALWAYS shown, whatever its numbers now say: it was changed on rule
     // grounds, and its chip (whose runner-up is the original reading) is the one-click undo
     const unsure = (low || []).filter(sq => sq.prob < 0.9 || sq.repaired);
-    el.textContent = 'Read from screen - turn with the king switch, orientation with Flip board';
+    el.textContent = lead || 'Read from screen - turn with the king switch, orientation with Flip board';
     // a rule the runners-up could not fix is worth a plain sentence: the position on the board
     // genuinely breaks it, and the chips below are where to correct it by hand
     if (unresolved && unresolved.length) {
@@ -5280,10 +5280,10 @@ async function snap_position(crop) {
     // usually still yields a legal position, so this used to be the only warning anyone got, with
     // no way to act on it short of reading the whole board again. Each chip now applies the
     // model's second choice for that square, which is what a misread almost always is.
-    render_unsure(res.low || [], res.unresolved || []);
-    // say it out loud: an automatic 180 is exactly the kind of thing that must never happen quietly
-    if (auto_flipped) setup_fen_msg(i18n('panel.fen.auto_flipped',
-        'Read from screen - Black was at the bottom, so the board was turned round. Flip board undoes it.'));
+    // The flip notice leads rather than following: said afterwards, it replaced the chips on exactly
+    // the reads most likely to need them. An automatic 180 must never happen quietly.
+    render_unsure(res.low || [], res.unresolved || [], auto_flipped ? i18n('panel.fen.auto_flipped',
+        'Read from screen - Black was at the bottom, so the board was turned round. Flip board undoes it.') : '');
     last_eval.fen = ''; prev_ply_count = 0;
     opp_spend = opp_clock_mark = last_our_eval = null; opp_turn_at = 0;
     explorer_out_of_book = false; explorer_data = null; explorer_empty_streak = 0;
