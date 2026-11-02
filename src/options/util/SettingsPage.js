@@ -1,5 +1,7 @@
 import { FormElement } from "./FormElement.js";
 
+const RAW_KEYS = ['ui_mode', 'mephisto_installed_version'];
+
 export class SettingsPage {
     resetButton;
     formElements;
@@ -194,6 +196,9 @@ export class SettingsPage {
         // rebuild themselves on the other machine, and neither belongs in a file pasted into an issue.
         delete all.session_totals;
         delete all.player_book_cache;
+        // These two are stored raw, not as JSON, so a file carrying one was refused by its own import
+        // (MPH-S03). The installed version would also suppress the update offer on another machine.
+        for (const k of RAW_KEYS) delete all[k];
         const url = URL.createObjectURL(new Blob([JSON.stringify(all, null, 2)], {type: 'application/json'}));
         const a = document.createElement('a');
         a.href = url;
@@ -217,6 +222,8 @@ export class SettingsPage {
             alert(MephistoI18n.errText('MPH-S02'));
             return;
         }
+        // Files written before these left the export still carry them: skipped, so the backup works.
+        for (const k of RAW_KEYS) delete obj[k];
         // ...and every one of those strings has to BE JSON, or the panel's JSON.parse throws on it at
         // boot and takes more than that one setting down with it.
         const broken = Object.entries(obj).find(([, v]) => { try { JSON.parse(v); return false; } catch (e) { return true; } });
@@ -230,7 +237,7 @@ export class SettingsPage {
         // stayed on after importing a file from a setup where they were off). Settings the file does
         // not name go back to their defaults. The same things the export leaves out stay put: they
         // are a credential and this machine's own records, not settings.
-        const KEEP = ['__cfg_migrated', 'lichess_token', 'session_totals', 'player_book_cache'];
+        const KEEP = ['__cfg_migrated', 'lichess_token', 'session_totals', 'player_book_cache', ...RAW_KEYS];
         let have = {};
         try { have = await chrome.storage.local.get(null); } catch (e) { /* nothing to clear */ }
         for (const [k, v] of Object.entries(have)) {

@@ -4652,6 +4652,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('the move that loses slowest gets the reason, the quick loss does not',
        vm.runInContext(`tablebase_reason('F', 'a')`, c) === 'holds out longest' && vm.runInContext(`tablebase_reason('F', 'b')`, c) === '');
 }
+// ---- OPT-2: a settings export imports ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/options/util/SettingsPage.js', 'utf8');
+    ok('the raw keys leave the export, are skipped on import and are kept on this machine',
+       /for \(const k of RAW_KEYS\) delete all\[k\];/.test(s) && /for \(const k of RAW_KEYS\) delete obj\[k\];/.test(s) && /player_book_cache', \.\.\.RAW_KEYS\]/.test(s));
+    ok('...skipped before the JSON check that refused them', s.indexOf('delete obj[k]') < s.indexOf('const broken = Object.entries(obj)'));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
