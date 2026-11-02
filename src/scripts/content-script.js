@@ -4290,10 +4290,16 @@ function getPromotionSelection(promotion) {
         const found = findTheBoardPromoPicker(variantsGeometry());
         if (!found) return undefined;
         const idx = FOURPC_PROMO_ORDER.indexOf(String(promotion || '').toLowerCase());
-        return (idx < 0) ? undefined : found.el.children[idx];
+        // kids are the four pieces in screen order; the picker's raw children also hold its dismiss control
+        const r = found.kids[idx];
+        return r ? {getBoundingClientRect: () => r} : undefined;
     }
     if (site === 'chesscom') {
+        // BY IDENTITY: each piece carries its piece class (wq, bn). The index below is only for a
+        // picker without them, because its alphabetical order has never been seen on a live board.
         const promotionElems = document.querySelectorAll('.promotion-piece');
+        const named = [...promotionElems].find(e => e.classList.contains(`w${promotion}`) || e.classList.contains(`b${promotion}`));
+        if (named) return named;
         if (promotionElems.length) promotions = promotionElems;
     } else if (site === 'lichess') {
         const promotionModal = document.querySelector('#promotion-choice');

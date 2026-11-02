@@ -4400,6 +4400,18 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('every 8x8 move check shares the one pattern', !/\[a-h\]\[1-8\]\[a-h\]\[1-8\]\[qrbn\]/.test(csrc));
     ok('lichess finds the king as its fifth choice', /'q': 0, 'n': 1, 'r': 2, 'b': 3, 'k': 4/.test(csrc));
 }
+// ---- PAGE-8: promotion by piece -----------------------------------------------------------
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = csrc.indexOf('function getPromotionSelection('), j = csrc.indexOf('function isAnimating()');
+    const pieces = ['wr', 'wn', 'wq', 'wb'].map(k => ({k, classList: {contains: (x) => x === k}}));
+    const c = vm.createContext({pieces, site: 'chesscom', isChesscomVariants: () => false, is4PC: () => false,
+        document: {querySelectorAll: () => pieces, querySelector: () => null}});
+    vm.runInContext(csrc.slice(i, j).replace(/\n\s*\/\/[^\n]*/g, ''), c);
+    ok('chess.com: the queen is found by her class in any picker order', vm.runInContext("getPromotionSelection('q')", c)?.k === 'wq', vm.runInContext("getPromotionSelection('q')", c)?.k);
+    ok('chess.com variants: the piece comes from the sorted list, not the picker\'s raw children', /const r = found\.kids\[idx\];/.test(csrc) && !/found\.el\.children\[idx\]/.test(csrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
