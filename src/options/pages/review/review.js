@@ -650,6 +650,7 @@ async function startRig(override) {
         // the same rating -- an even game, which is what the report is describing anyway.
         const level = takesRating(humanKind) ? ratingFor(humanKind, cfg('rv_maia3_elo'))
                                              : String(cfg('rv_maia_band'));
+        opts.humanLevel = level;
         // Five of Maia's own choices: its RANK of the played move says far more than a yes/no.
         // Its own client id: it runs ALONGSIDE the analysis engine now, not after it.
         human = makeEngine(humanKind, {...opts, multipv: 5, maiaLevel: level}, 'review-human');
@@ -890,6 +891,7 @@ function assemble(game, positions, moves, book, opts) {
         counts: {w: countClasses(moves, 'w'), b: countClasses(moves, 'b')},
         engineId: opts.engineId || cfg('rv_engine'),
         humanKind: cfg('rv_human'),
+        humanLevel: opts.humanLevel,   // the run's rating: the dial can move after it
         at: new Date().toISOString(),
     };
 }
@@ -1561,8 +1563,8 @@ function renderHumanReport() {
     const on = cfg('rv_human_report') && report.moves.some(m => m.maiaRank != null);
     sec.classList.toggle('hidden', !on);
     if (!on) return;
-    const band = takesRating(report.humanKind) ? ratingFor(report.humanKind, cfg('rv_maia3_elo'))
-                                               : cfg('rv_maia_band');
+    const band = report.humanLevel ?? (takesRating(report.humanKind) ? ratingFor(report.humanKind, cfg('rv_maia3_elo'))
+                                                                     : cfg('rv_maia_band'));
     const col = (color) => {
         const mine = report.moves.filter(m => m.color === color && m.maiaRank != null);
         if (!mine.length) return '';
@@ -3499,6 +3501,7 @@ class ReviewPage {
             $('rv_pgn').value = report.pgnText || '';
             parsePgnBox();
             renderReport();
+            renderBatch();
         }
         // ...and a run the module is still driving. review.html ships rv_stop disabled, so a page
         // revisited mid-run showed an enabled Analyse and a dead Stop with the engines still going.

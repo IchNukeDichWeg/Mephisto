@@ -4859,6 +4859,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('language is live, and the listener reloads the strings',
        /const LIVE_CONFIG_KEYS = \[\s*'language',/.test(psrc) && /if \(key === 'language'\) load_language\(value\)\.then\(apply_language\);/.test(psrc));
 }
+// ---- OPT-16: returning to Game Review keeps the batch and the run's rating ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    ok('the rating is stamped on the report and read back from it',
+       /opts\.humanLevel = level;/.test(src) && /humanLevel: opts\.humanLevel,/.test(src) && /const band = report\.humanLevel \?\? /.test(src));
+    ok('re-entry redraws the batch table', /parsePgnBox\(\);\s*renderReport\(\);\s*renderBatch\(\);\s*\}/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
