@@ -4816,6 +4816,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
     ok('all five sections', /\['rv-report', 'rv-indicators', 'rv-human', 'rv-strength', 'rv-batch'\]\) \$\(id\)\?\.classList\.add\('hidden'\)/.test(src));
 }
+// ---- OPT-13: the Game type dropdown follows a 4-player switch ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = src.indexOf('function detectVariantFrom(game)');
+    const body = src.slice(a, src.indexOf('\n}\n', a) + 3);
+    const run = (variant, tag) => {
+        let store = variant, syncs = 0;
+        const ctx = {cfg: () => store, setCfg: (k, v) => { store = v; }, syncGameTypeUi: () => { syncs++; },
+            RV_PGN_VARIANTS: {}, RV_PGN4_VARIANTS: {'4pc': true}, looks960: () => false};
+        vm.runInNewContext('var is4pcGame = false;' + body + '; this.out = detectVariantFrom(game);',
+            Object.assign(ctx, {game: {tags: tag ? {Variant: tag} : {}}}));
+        return {store, syncs};
+    };
+    let r = run('chess', '4pc');
+    ok('a PGN4 sets the type and re-syncs the page', r.store === '4pc' && r.syncs === 1, r);
+    r = run('4pc', '');
+    ok('a normal PGN after one does too', r.store === 'chess' && r.syncs === 1, r);
+    r = run('4pc', '4pc');
+    ok('no switch, no re-sync', r.store === '4pc' && r.syncs === 0, r);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

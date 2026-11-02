@@ -114,7 +114,7 @@ function detectVariantFrom(game) {
         // Teams AND free-for-all both review since Tetrarch v8, which searches FFA paranoid with
         // its own net; the lane reads the mode off the game and grades accordingly.
         is4pcGame = true;
-        if (current !== '4pc') setCfg('rv_variant', '4pc');
+        if (current !== '4pc') { setCfg('rv_variant', '4pc'); syncGameTypeUi(); }
         return ' Four-player game - switched Game type to 4-player chess.';
     }
     is4pcGame = false;
@@ -125,6 +125,7 @@ function detectVariantFrom(game) {
     // standard paste died in the wrong lane.
     if (current === '4pc') {
         setCfg('rv_variant', 'chess');
+        syncGameTypeUi();
         return ' Standard PGN - switched Game type back from 4-player chess.';
     }
     if (rawTag && !mapped) {
