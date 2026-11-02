@@ -3466,7 +3466,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('an Appearance change (pieces, board, coordinates, dark mode) rebuilds an open panel', /if \(\['pieces', 'board', 'coordinates', 'dark_mode'\]\.some\(k => k in changes[\s\S]{0,90}\{\s*return panel_reload\(\);/.test(psrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const r = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
-    ok('Game Review: starting a run takes the previous game\'s report off the screen', /\$\('rv_stop'\)\.disabled = false;[\s\S]{0,420}\$\('rv-report'\)\?\.classList\.add\('hidden'\);\s*\$\('rv-indicators'\)\?\.classList\.add\('hidden'\);/.test(r)); }
+    ok('Game Review: starting a run takes the previous game\'s report off the screen', /\$\('rv_stop'\)\.disabled = false;[\s\S]{0,420}\['rv-report', 'rv-indicators',[^\]]*\]\) \$\(id\)\?\.classList\.add\('hidden'\);/.test(r)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const i = psrc.indexOf('function on_remote_error('), fn = psrc.slice(i, psrc.indexOf('\n}\n', i) + 3);
     // the real registry and the panel's real err_* helpers, so the line shown is the coded one
@@ -4809,6 +4809,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('this month leads, newest first, then last month from its end, capped at 40',
            list.length === 40 && list[0] === 'new2' && list[1] === 'new1' && list[2] === 'old44', list.slice(0, 3));
     }).catch(e => ok('fetchChesscom ran', false, String(e)));
+}
+// ---- OPT-12: a new run hides every section of the old report ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    ok('all five sections', /\['rv-report', 'rv-indicators', 'rv-human', 'rv-strength', 'rv-batch'\]\) \$\(id\)\?\.classList\.add\('hidden'\)/.test(src));
 }
 // ==== END FIX CHECKS ====
 
