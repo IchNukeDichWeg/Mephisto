@@ -5060,6 +5060,37 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('neither id is left', !src.includes('mephisto-hide-opp') && !src.includes('mephisto-drag-select'));
     ok('the veil lives in the closed root', /veil\.appendChild\(box\); veil\.appendChild\(hint\);\s*getOverlayRoot\(\)\.appendChild\(veil\);/.test(src));
 }
+// ---- SYS-12: nothing of ours stays in the site's storage ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = src.indexOf("const SITE_KEYS = {box:");
+    const body = src.slice(a, src.indexOf('const DEFAULT_POSITION', a));
+    const world = (ls, stored) => {
+        const writes = {}, removed = [];
+        const c = {location: {hostname: 'lichess.org'}, Object, JSON, console,
+            localStorage: {getItem: k => k in ls ? ls[k] : null, removeItem: k => { removed.push(k); delete ls[k]; }},
+            chrome: {storage: {local: {get: async () => stored, set: async (o) => { Object.assign(writes, o); }}}}};
+        vm.runInNewContext(body + ';this.load = loadSiteValues; this.save = saveSiteValue;', c);
+        return {c, writes, removed, ls};
+    };
+    (async () => {
+        let w = world({'ui.pnl.box': '{"width":400}', 'ui.sp.cache': '[1]'}, {});
+        let v = await w.c.load();
+        ok('old values move out of the page and into the extension',
+           v.box.width === 400 && Array.isArray(v.cache) && Object.keys(w.ls).length === 0
+           && w.writes['site.box.lichess.org'].width === 400, w);
+        w = world({'ui.pnl.box': 'not json'}, {'site.cache.lichess.org': [2]});
+        v = await w.c.load();
+        ok('junk is dropped from the page, and a stored value is kept', v.box === null && v.cache[0] === 2 && !('ui.pnl.box' in w.ls), v);
+        w.c.save('box', {width: 500});
+        ok('a save reaches both the live copy and storage', w.c.load && (await w.c.load()).box.width === 500 && w.writes['site.box.lichess.org'].width === 500);
+    })().catch(e => ok('site values ran', false, String(e)));
+    ok('no localStorage read or write is left outside the move', src.split('localStorage.').length === 3, src.split('localStorage.').length);
+    ok('the panel waits for them before reading its box',
+       /await loadSiteValues\(\);\s*\/\/ Dismissed \(or reopened\)/.test(src) && /const box = siteValues\?\.box;/.test(src));
+    ok('so does the start hunt', /async function determineStartPosition\(\) \{\s*await loadSiteValues\(\);/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

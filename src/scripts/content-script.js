@@ -81,13 +81,38 @@ try {
     });
 } catch (e) { /* extension context not ready; popup falls back to active-tab messaging */ }
 
-// These two keys live in the SITE's localStorage (they are read synchronously while the panel is
-// being built, which chrome.storage cannot do), so the site can read them. Named for what they are
-// and nothing else -- `mephisto.*` was a one-grep giveaway in the very storage the README promises
-// carries no extension keys, which is the same discipline the injected nodes already follow
-// ("no id / class / attributes to grep for"). Renaming orphans the old values; the panel falls back
-// to its default geometry once and the cache refills on the next scrape.
-const LOCAL_CACHE = 'ui.sp.cache';
+// The panel's box and the custom-start cache, per site. They used to sit in the SITE's localStorage,
+// where a site can read them and an uninstall leaves them behind. Non-strings, so the settings
+// export and import pass over them. Loaded once: the panel build and the start hunt wait for it.
+const SITE_KEYS = {box: 'site.box.' + location.hostname, cache: 'site.cache.' + location.hostname};
+const SITE_LEGACY = {box: 'ui.pnl.box', cache: 'ui.sp.cache'};
+let siteValues = null, siteValuesLoad = null;
+function loadSiteValues() {
+    return siteValuesLoad ||= (async () => {
+        let got = {};
+        try { got = await chrome.storage.local.get(Object.values(SITE_KEYS)); } catch (e) { /* defaults */ }
+        const out = {};
+        for (const [name, key] of Object.entries(SITE_KEYS)) {
+            out[name] = got[key] ?? null;
+            // moved out of the page once, whatever else happens to it
+            try {
+                const old = localStorage.getItem(SITE_LEGACY[name]);
+                if (old === null) continue;
+                localStorage.removeItem(SITE_LEGACY[name]);
+                if (out[name] === null) {
+                    out[name] = JSON.parse(old);
+                    chrome.storage.local.set({[key]: out[name]}).catch(() => {});
+                }
+            } catch (e) { /* junk, or storage blocked: start from nothing */ }
+        }
+        return (siteValues = out);
+    })();
+}
+function saveSiteValue(name, value) {
+    if (siteValues) siteValues[name] = value;
+    try { chrome.storage.local.set({[SITE_KEYS[name]]: value}).catch(() => {}); } catch (e) { /* extension reloaded */ }
+}
+
 const DEFAULT_POSITION = 'w*****b-r-a8*****b-n-b8*****b-b-c8*****b-q-d8*****b-k-e8*****b-b-f8*****b-n-g8*****' +
     'b-r-h8*****b-p-a7*****b-p-b7*****b-p-c7*****b-p-d7*****b-p-e7*****b-p-f7*****b-p-g7*****b-p-h7*****' +
     'w-p-a2*****w-p-b2*****w-p-c2*****w-p-d2*****w-p-e2*****w-p-f2*****w-p-g2*****w-p-h2*****w-r-a1*****' +
@@ -533,7 +558,6 @@ const panelH = () => panelCompact ? COMPACT_H : (POPUP_H + (panelBook ? BOOK_H :
 const POPUP_W = 568;       // the popup page's fixed layout size (popup.css html,body)
 const POPUP_H = 646; // matches popup.css body height (whichever column is taller)
 const OVERLAY_SCALE = 0.8; // default render scale for fresh installs; resizing the panel persists a width
-const OVERLAY_BOX_KEY = 'ui.pnl.box'; // per-site localStorage: {left, top, width} -- see LOCAL_CACHE
 
 // 1b (anti-detection): every injected node -- the panel + its chrome-extension:// iframe, the
 // restore badge, the on-board hint arrows and the eval bar -- lives inside a single CLOSED shadow
@@ -585,11 +609,8 @@ let overlayListeners = null;
 let overlayOpenGen = 0;
 function saveOverlayBox(wrap) {
     const r = wrap.getBoundingClientRect();
-    try {
-        localStorage.setItem(OVERLAY_BOX_KEY, JSON.stringify(
-            {left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width),
-             opacity: panelOpacity, dock: panelDock}));
-    } catch (e) { /* storage full/blocked -- panel just won't persist its geometry */ }
+    saveSiteValue('box', {left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width),
+                          opacity: panelOpacity, dock: panelDock});
 }
 
 // Apply both to the panel that exists right now. Called on load, on a change from the panel's own
@@ -609,7 +630,7 @@ function applyPanelStyle() {
 
 function readOverlayBox() {
     try {
-        const box = JSON.parse(localStorage.getItem(OVERLAY_BOX_KEY));
+        const box = siteValues?.box;
         if (!box || !(box.width > 0)) return null;
         // Adopted before the clamping below so a saved record restores the whole look, not just
         // the position. Both are validated here rather than at use: junk in storage must not be
@@ -1017,6 +1038,7 @@ async function toggleOverlay() {
     }
     clearTimeout(slow);
     bgLogAlways('panel assets', {ms: Date.now() - assetsAsked});
+    await loadSiteValues();
     // Dismissed (or reopened) while the worker was answering: this open is no longer wanted. The
     // placeholder being gone is the same fact seen from the DOM, and the second test also covers a
     // close that raced the increment.
@@ -4358,14 +4380,11 @@ function isAnimating() {
 
 function loadStartPosCache() {
     const cache = new LRU(10);
-    // The key lives in the SITE's localStorage, so anything can be under it. A non-JSON string or a
+    // Older installs kept this in the site's localStorage, so anything can have been moved here. A
     // non-array (`{}`) threw out of determineStartPosition, startPosCache stayed undefined, and
     // readStartPos then threw on every lichess/chess960 scrape: panel dead on the start position.
-    let entries = [];
-    try {
-        const v = JSON.parse(localStorage.getItem(LOCAL_CACHE));
-        if (Array.isArray(v)) entries = v;
-    } catch (e) { /* junk in storage: start empty, the next write replaces it */ }
+    const v = siteValues?.cache;
+    const entries = Array.isArray(v) ? [...v] : [];
     for (const entry of entries.reverse()) {
         if (entry && typeof entry === 'object') cache.set(entry.key, entry.value);
     }
@@ -4373,14 +4392,12 @@ function loadStartPosCache() {
 }
 
 function saveStartPosCache() {
-    try {
-        localStorage.setItem(LOCAL_CACHE, JSON.stringify(startPosCache.toJSON()));
-    } catch (e) { /* storage full/blocked -- the start position just is not remembered */ }
+    saveSiteValue('cache', startPosCache.toJSON());
 }
 
 // Both accessors can run before determineStartPosition has loaded the cache (or after it failed):
 // an empty LRU is the right answer then, not a TypeError that kills the scrape.
-// Read-only: this used to re-serialise the cache to localStorage on every read (every lichess
+// Read-only: this used to re-serialise the cache to storage on every read (every lichess
 // `chess` scrape, every chess960 scrape) purely to persist LRU recency. A 10-entry LRU does not
 // need per-read touching; recency is persisted by the next write.
 // What a custom start is filed under. On lichess the hash follows the ply and an analysis board
@@ -4705,7 +4722,8 @@ function rematchTick() {
 
 setInterval(rematchTick, GRIND_POLL_MS);
 
-function determineStartPosition() {
+async function determineStartPosition() {
+    await loadSiteValues();
     startPosCache = loadStartPosCache();
     // scrape the position when the board and pieces are present
     let retryCount = 0;
