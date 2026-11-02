@@ -5037,6 +5037,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('the wrapper follows the frame', /wrap\.style\.height = `\$\{Math\.round\(24 \+ \(parseFloat\(frame\.style\.height\) \|\| panelH\(\)\) \* scale\)\}px`/.test(src));
 }
+// ---- PAGE-6: a lichess custom start survives the URL changing ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = src.indexOf('let analysisStartKey = null;');
+    const c = {site: 'lichess', location: {pathname: '/abcd1234/white', search: '', href: 'https://lichess.org/abcd1234/white#3'}};
+    vm.runInNewContext(src.slice(a, src.indexOf('function readStartPos(url)')) + ';this.key = startPosKey;', c);
+    const k1 = c.key(); c.location.href = 'https://lichess.org/abcd1234/white#12';
+    ok('stepping a game moves the hash, not the key', c.key() === k1, k1);
+    c.location.pathname = '/analysis/standard/8_w_-_-'; const k2 = c.key();
+    c.location.pathname = '/analysis/standard/8_b_-_-';
+    ok('an analysis board keeps the key it started with', c.key() === k2, k2);
+    c.site = 'chesscom';
+    ok('other sites are as they were', c.key() === c.location.href);
+    ok('no reader or writer is left on the href', !/StartPos\(location\.href|startPosCache\?\.get\?\.\(location\.href/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

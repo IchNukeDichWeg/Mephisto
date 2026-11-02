@@ -2177,7 +2177,7 @@ function scrapePosition() {
             // the piece-scrape turn/order problem this gate exists for -- without it the panel
             // analyzed startpos + the session's SANs, i.e. a different game (found 2026-08-14
             // driving an engineered mate position vs a bot).
-            const customStart = (site === 'lichess') ? readStartPos(location.href)?.position
+            const customStart = (site === 'lichess') ? readStartPos(startPosKey())?.position
                 : (site === 'chesscom') ? ccPracticeCustomStart() : null;
             if (customStart && customStart !== DEFAULT_POSITION) {
                 // "From Position" game (custom start, e.g. endgame practice vs the AI): the SANs
@@ -2196,7 +2196,7 @@ function scrapePosition() {
     } else {
         prefix += 'var***';
         if (config.variant === 'fischerandom') {
-            const startPos = readStartPos(location.href)?.position || DEFAULT_POSITION;
+            const startPos = readStartPos(startPosKey())?.position || DEFAULT_POSITION;
             res = startPos + '&*****';
         }
         const moves = getMoveRecords();
@@ -4146,7 +4146,7 @@ function getTurn() {
         if (getMoveContainer()) {
             let firstTurn = 'w';
             if (site === 'lichess') {
-                const startPos = startPosCache?.get?.(location.href)?.position;
+                const startPos = startPosCache?.get?.(startPosKey())?.position;
                 if (startPos && startPos[0] === 'b') firstTurn = 'b';
             } else if (site === 'chesscom') {
                 firstTurn = chesscomUrlFenTurn() || 'w';
@@ -4383,6 +4383,17 @@ function saveStartPosCache() {
 // Read-only: this used to re-serialise the cache to localStorage on every read (every lichess
 // `chess` scrape, every chess960 scrape) purely to persist LRU recency. A 10-entry LRU does not
 // need per-read touching; recency is persisted by the next write.
+// What a custom start is filed under. On lichess the hash follows the ply and an analysis board
+// rewrites its path as you play, and the start is only captured once per document, so a full href
+// stopped matching and the game replayed from the standard position.
+let analysisStartKey = null;
+function startPosKey() {
+    if (site !== 'lichess') return location.href;
+    const here = location.pathname + location.search;
+    if (location.pathname.startsWith('/analysis')) return (analysisStartKey ||= here);
+    return here;
+}
+
 function readStartPos(url) {
     if (!startPosCache) startPosCache = new LRU(10);
     return startPosCache.get(url);
@@ -4882,9 +4893,9 @@ function onPositionLoad(retries = 10) {
     // move 0 -- without it the game is replayed from the standard position.
     if (getMoveRecords()?.length) {
         const fromPage = readInitialFenFromPage();
-        if (fromPage && fromPage !== DEFAULT_POSITION && !readStartPos(location.href)) {
+        if (fromPage && fromPage !== DEFAULT_POSITION && !readStartPos(startPosKey())) {
             console.log('Mephisto: recovered this game\'s custom start position from the page');
-            writeStartPos(location.href, {position: fromPage, timestamp: Date.now()});
+            writeStartPos(startPosKey(), {position: fromPage, timestamp: Date.now()});
         }
         return;
     }
@@ -4898,7 +4909,7 @@ function onPositionLoad(retries = 10) {
         // without the data.
         const atStart = readInitialFenFromPage();
         if (site === 'lichess' && atStart && atStart !== DEFAULT_POSITION) {
-            writeStartPos(location.href, {position: atStart, timestamp: Date.now()});
+            writeStartPos(startPosKey(), {position: atStart, timestamp: Date.now()});
             return;
         }
         let position;
@@ -4913,7 +4924,7 @@ function onPositionLoad(retries = 10) {
         // only lichess has "From Position" games; caching elsewhere risks a wrong-turn/order
         // scrape of the standard start being mistaken for a custom position (see scrapePosition)
         if (site === 'lichess' && position !== DEFAULT_POSITION) { // is non-standard?
-            writeStartPos(location.href, {
+            writeStartPos(startPosKey(), {
                 position: position,
                 timestamp: Date.now()
             })
