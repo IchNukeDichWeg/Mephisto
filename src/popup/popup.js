@@ -424,7 +424,7 @@ async function initPanel(root, tabId) {
         // one Play-like rating (maia3_elo) since 3.1.322; only the opponent's is Maia-2's own.
         maia2_self_elo: JSON.parse(MephistoConfig.get('maia3_elo')) || 1500,
         maia2_oppo_elo: JSON.parse(MephistoConfig.get('maia2_oppo_elo')) || 1500,
-        compute_time: (computeTime != null) ? computeTime : 300,
+        compute_time: (computeTime != null) ? clamp_compute_time(computeTime) : 300,
         // TIME OR DEPTH, and BOTH are kept. A depth is reproducible -- the same depth is the same
         // answer on any machine, where a millisecond budget is a different search on every box --
         // so the two are different instruments, not two spellings of one. Switching back and forth
@@ -3854,6 +3854,10 @@ function request_tablebase(fen) {
         update_best_move_suffix();
     });
 }
+
+// 50 is the panel stepper's own floor. Settings allowed 0, and `go movetime 0` carries no time stop
+// in Stockfish (read from its source, not run), so no bestmove came and Autoplay stalled.
+function clamp_compute_time(ms) { return Math.max(50, +ms || 0); }
 
 // The optimal move for THIS position, or null. lichess returns `moves` sorted best-first, so the
 // answer is simply moves[0] -- there is nothing to weigh or filter, and deliberately no "is the
@@ -10586,6 +10590,7 @@ function watch_config_changes() {
                     if (key === 'user_arrow_evals' && !value) ua_dispose();
                     ua_last_sent = ''; refresh_user_arrows();
                 }
+                if (key === 'compute_time') config.compute_time = clamp_compute_time(value);   // as at boot
                 if (key === 'grind_delay') config.grind_delay = Math.max(0, Math.min(600, Number(value) || 0));   // as at boot
                 if (key === 'pv_walk_limit') config.pv_walk_limit = Math.max(1, Math.min(50, parseInt(value) || 5));
                 if (key === 'help_mode' && !value) request_clear_hint();

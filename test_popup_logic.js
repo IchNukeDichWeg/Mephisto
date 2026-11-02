@@ -4781,6 +4781,20 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /catch \(e\) \{[\s\S]{0,200}?if \(cancel && done\.length\) break;\s*throw e;/.test(src)
        && /if \(done\.length < list\.length\) note\(`Stopped after/.test(src));
 }
+// ---- OPT-10: Search Time has a floor everywhere ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const html = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const a = psrc.indexOf('function clamp_compute_time(');
+    const clamp = vm.runInNewContext('(' + psrc.slice(a, psrc.indexOf('\n', a)) + ')');
+    ok('0, nonsense and low values land on the floor; a real value is untouched',
+       clamp(0) === 50 && clamp('x') === 50 && clamp(10) === 50 && clamp(300) === 300);
+    ok('boot and the live path both clamp, and the field starts at 50',
+       /compute_time: \(computeTime != null\) \? clamp_compute_time\(computeTime\) : 300/.test(psrc)
+       && /if \(key === 'compute_time'\) config\.compute_time = clamp_compute_time\(value\);/.test(psrc)
+       && /id="compute_time_input" type="number" min="50"/.test(html));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
