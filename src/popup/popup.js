@@ -10,6 +10,10 @@
 // or turn on its modes. Null only if opened before the content-script learned its id (falls back).
 let MY_TAB_ID = parseInt(new URLSearchParams(location.search).get('tab'), 10) || null;
 let engine_init_promise = null; // boot fires engine init without blocking the panel (see boot)
+// This file outlives the panel: closing or rebuilding it runs initPanel again in the same realm. So
+// the poll is kept to be cleared and the listeners go on once, or each reopen stacked another full
+// scrape a second, and a closed panel kept scraping for the life of the tab (P1, ENG-2, PAGE-11).
+let fen_poll_timer = null, page_listeners_on = false, config_watch_on = false;
 let PANEL_BOOTED = false; // popup.js also loads on every chess page as a content script --
 // its listeners must stay inert until THIS tab's panel is actually opened.
 
@@ -630,9 +634,12 @@ async function initPanel(root, tabId) {
     // -- Chrome puts a speaker icon on the tab strip for that, so it bought nothing and added a
     // visible tell. Now it runs only when you have actually asked to play in the background.
     const on_gesture = () => { user_has_gestured = true; keep_alive(keep_alive_wanted(), true); };
-    document.addEventListener('pointerdown', on_gesture, true); // gesture: may create
-    document.addEventListener('keydown', on_gesture, true);     // ...and so is a hotkey
-    document.addEventListener('visibilitychange', () => keep_alive(keep_alive_wanted()));
+    if (!page_listeners_on) {
+        page_listeners_on = true;
+        document.addEventListener('pointerdown', on_gesture, true); // gesture: may create
+        document.addEventListener('keydown', on_gesture, true);     // ...and so is a hotkey
+        document.addEventListener('visibilitychange', () => keep_alive(keep_alive_wanted()));
+    }
     push_config();
     session_restore();   // today's totals, now that the config store is loaded
     init_quick_settings();
@@ -899,7 +906,8 @@ async function initPanel(root, tabId) {
     // Clamped to >=1s so a legacy saved fen_refresh (10ms era) can't reinstate the old
     // 100-scrapes-a-second polling stampede.
     request_fen();
-    setInterval(function () {
+    clearInterval(fen_poll_timer);
+    fen_poll_timer = setInterval(function () {
         request_fen();
         // chess.com is a single-page app: this script is not rebuilt when the user navigates from
         // the bot list into a game, so the row's visibility has to be re-decided, not decided once.
@@ -10468,6 +10476,8 @@ function reload_after_reset() {
 }
 
 function watch_config_changes() {
+    if (config_watch_on) return;
+    config_watch_on = true;
     try {
         chrome.storage.onChanged.addListener((changes, area) => {
             if (area !== 'local' || !PANEL_BOOTED) return;
@@ -13109,6 +13119,7 @@ self.MephistoPanel = {
     // panel REBUILD (changing Engine or Variant tears the panel down and puts it straight back), which
     // is a different thing and was a real bug when it lost your board -- that behaviour stays.
     suspend: () => {
+        clearInterval(fen_poll_timer); fen_poll_timer = null;
         try { abandon_search(); } catch (e) { /* ignore */ }
         try { dispose_threat_human(); } catch (e) { /* ignore */ }
         try { ua_dispose(); user_arrows = []; ua_last_sent = ''; } catch (e) { /* ignore */ }

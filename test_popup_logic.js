@@ -4344,6 +4344,22 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         ok('panel: a refused drag answers the same way', r3?.backendFailed === true, r3);
     })();
 }
+// ---- ENG-2 / PAGE-11: a closed panel costs nothing, a reopen adds nothing ----------------------
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function watch_config_changes() {');
+    const c = vm.createContext({n: 0, chrome: {storage: {onChanged: {addListener() { c.n++; }}}}});
+    vm.runInContext('var config_watch_on = false;' + psrc.slice(i, psrc.indexOf('\n}\n', i) + 3) + 'watch_config_changes(); watch_config_changes();', c);
+    ok('the config listener goes on once however often the panel opens', c.n === 1, c.n);
+    ok('the fallback poll is cleared before a new one starts, and on close',
+       /clearInterval\(fen_poll_timer\);\s*fen_poll_timer = setInterval\(/.test(psrc)
+       && /suspend: \(\) => \{\s*clearInterval\(fen_poll_timer\); fen_poll_timer = null;/.test(psrc));
+    ok('the page listeners go on once', /if \(!page_listeners_on\) \{\s*page_listeners_on = true;/.test(psrc));
+    ok('closing the panel disconnects the board observer and drops a queued scrape',
+       /function removeOverlay\(\) \{[\s\S]*?positionObserver\?\.disconnect\(\); positionObserver = null;\s*clearTimeout\(pushDebounce\); pushDebounce = null;\s*\}/.test(csrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

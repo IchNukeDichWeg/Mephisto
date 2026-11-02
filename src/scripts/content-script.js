@@ -802,6 +802,10 @@ function removeOverlay() {
     clearMoveClass();   // the badge is page furniture too
     clearInterval(userArrowTimer); userArrowTimer = null;   // nobody to rate them for now
     drawUserArrows([]);
+    // The next config push starts it again. Left running, a closed panel scraped once per mutation
+    // burst and sent each result to the worker, which kept it awake.
+    positionObserver?.disconnect(); positionObserver = null;
+    clearTimeout(pushDebounce); pushDebounce = null;
 }
 
 // Page unload = tab is going away (navigation, close, reload). Stop any running search cleanly so a
