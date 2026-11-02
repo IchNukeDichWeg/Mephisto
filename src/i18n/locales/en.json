@@ -461,6 +461,8 @@
   "panel.msg.drop_by_hand": "The best move is a drop ({move}). Autoplay cannot place pieces from the pocket: play it yourself.",
   "panel.msg.backend_down": "Python Autoplay Backend is not answering on localhost:8080, so moves are using normal clicks. Start mephisto-clicker.py, or switch the setting off.",
   "panel.msg.resign_failed": "Auto Resign could not find the resign button here, so the game goes on.",
+  "panel.msg.net_failed": "The net could not answer this position. Diagnostics has the cause.",
+  "panel.msg.native_busy": "Another tab or page is using this native engine. Close it, or pick another engine here.",
   "panel.msg.downloading_net": "Downloading {file}: {pct}% of {mb} MB (first use only)",
   "panel.msg.remote_unreachable": "Remote Engine: nothing is answering on localhost:9090. Start remote-engine.py, or pick another engine.",
   "panel.fen.auto_flipped": "Read from screen - Black was at the bottom, so the board was turned round. Flip board undoes it.",

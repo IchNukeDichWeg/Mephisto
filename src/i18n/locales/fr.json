@@ -462,6 +462,8 @@
   "panel.msg.drop_by_hand": "Le meilleur coup est un parachutage ({move}). Le jeu automatique ne peut pas placer de pièces de la réserve : jouez-le vous-même.",
   "panel.msg.backend_down": "Le backend Python du jeu automatique ne répond pas sur localhost:8080, les coups passent donc par des clics normaux. Lancez mephisto-clicker.py ou désactivez le réglage.",
   "panel.msg.resign_failed": "L'abandon automatique n'a pas trouvé le bouton d'abandon ici, la partie continue donc.",
+  "panel.msg.net_failed": "Le réseau n'a pas pu répondre à cette position. Le diagnostic en donne la cause.",
+  "panel.msg.native_busy": "Un autre onglet ou une autre page utilise ce moteur natif. Fermez-le ou choisissez un autre moteur ici.",
   "panel.msg.downloading_net": "Téléchargement de {file} : {pct}% sur {mb} MB (première utilisation seulement)",
   "panel.msg.remote_unreachable": "Moteur distant : rien ne répond sur localhost:9090. Lancez remote-engine.py ou choisissez un autre moteur.",
   "panel.fen.auto_flipped": "Lu à l'écran - les noirs étaient en bas, l'échiquier a été retourné. Retourner l'échiquier annule cela.",

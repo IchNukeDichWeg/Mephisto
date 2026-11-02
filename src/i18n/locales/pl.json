@@ -462,6 +462,8 @@
   "panel.msg.drop_by_hand": "Najlepszy ruch to wstawienie bierki ({move}). Autogranie nie potrafi wstawiać bierek z rezerwy: zagraj go sam.",
   "panel.msg.backend_down": "Backend Pythona automatycznej gry nie odpowiada na localhost:8080, więc ruchy używają zwykłych kliknięć. Uruchom mephisto-clicker.py lub wyłącz to ustawienie.",
   "panel.msg.resign_failed": "Automatyczne poddanie nie znalazło tu przycisku poddania, więc gra toczy się dalej.",
+  "panel.msg.net_failed": "Sieć nie mogła odpowiedzieć na tę pozycję. Przyczyna jest w diagnostyce.",
+  "panel.msg.native_busy": "Inna karta lub strona używa tego natywnego silnika. Zamknij ją lub wybierz tu inny silnik.",
   "panel.msg.downloading_net": "Pobieranie {file}: {pct}% z {mb} MB (tylko przy pierwszym użyciu)",
   "panel.msg.remote_unreachable": "Silnik zdalny: nic nie odpowiada na localhost:9090. Uruchom remote-engine.py lub wybierz inny silnik.",
   "panel.fen.auto_flipped": "Odczytano z ekranu - czarne były na dole, więc szachownica została obrócona. Obróć szachownicę cofa to.",

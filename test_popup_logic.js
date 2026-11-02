@@ -4577,6 +4577,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('B stays live after A pays for it, so C charges a stop and B\'s answer is dropped',
        got.live === true && JSON.stringify(got.passed) === '["bestmove cccc"]', got);
 }
+// ---- ENG-9: a failed net pass is not a draw ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('a one-pass (none) with legal moves left says the net failed, before any game-over text',
+       /if \(is_one_pass\(\) && !mated && end\.moves\(\)\.length\) \{\s*(\/\/[^\n]*\s*)*update_best_move\(i18n\('panel\.msg\.net_failed'/.test(psrc)
+       && psrc.indexOf("'panel.msg.net_failed'") < psrc.indexOf("'panel.msg.stalemate'"));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

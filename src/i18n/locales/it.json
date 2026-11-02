@@ -462,6 +462,8 @@
   "panel.msg.drop_by_hand": "La mossa migliore è un paracadutaggio ({move}). Il gioco automatico non può piazzare pezzi dalla riserva: giocala tu.",
   "panel.msg.backend_down": "Il backend Python del gioco automatico non risponde su localhost:8080, quindi le mosse usano clic normali. Avvia mephisto-clicker.py o disattiva l'impostazione.",
   "panel.msg.resign_failed": "L'abbandono automatico non ha trovato qui il pulsante di abbandono, quindi la partita continua.",
+  "panel.msg.net_failed": "La rete non ha potuto rispondere a questa posizione. La diagnostica indica la causa.",
+  "panel.msg.native_busy": "Un'altra scheda o pagina sta usando questo motore nativo. Chiudila o scegli qui un altro motore.",
   "panel.msg.downloading_net": "Download di {file}: {pct}% di {mb} MB (solo al primo utilizzo)",
   "panel.msg.remote_unreachable": "Motore remoto: nessuno risponde su localhost:9090. Avvia remote-engine.py o scegli un altro motore.",
   "panel.fen.auto_flipped": "Letto dallo schermo - il nero era in basso, la scacchiera è stata ruotata. Ruota scacchiera annulla.",

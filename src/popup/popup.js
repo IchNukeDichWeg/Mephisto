@@ -2264,6 +2264,14 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         try {
             const end = new Chess(config.variant, last_eval.fen);
             if (typeof end.isCheckmate === 'function') mated = end.isCheckmate();
+            // The net adapters close a failed pass with bestmove (none) too, which declared a draw
+            // in a running game. One-pass only: a real engine's (none) with moves left is a variant
+            // ending chess.js does not model, and the words below are right for it.
+            if (is_one_pass() && !mated && end.moves().length) {
+                update_best_move(i18n('panel.msg.net_failed', 'The net could not answer this position. Diagnostics has the cause.'));
+                toggle_calculating(false);
+                return;
+            }
         } catch (e) { /* a variant position chess.js cannot read: the engine's word stands */ }
         if (mated) {
             update_evaluation(i18n('panel.msg.checkmate', 'Checkmate!'));

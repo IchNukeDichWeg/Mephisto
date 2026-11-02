@@ -462,6 +462,8 @@
   "panel.msg.drop_by_hand": "Der beste Zug ist ein Einsetzen ({move}). Autoplay kann keine Figuren aus der Reserve setzen: spiele ihn selbst.",
   "panel.msg.backend_down": "Das Python-Autoplay-Backend antwortet nicht auf localhost:8080, Züge laufen deshalb über normale Klicks. Starte mephisto-clicker.py oder schalte die Einstellung aus.",
   "panel.msg.resign_failed": "Automatisches Aufgeben hat hier keinen Aufgabe-Knopf gefunden, die Partie geht also weiter.",
+  "panel.msg.net_failed": "Das Netz konnte diese Stellung nicht beantworten. Die Ursache steht in der Diagnose.",
+  "panel.msg.native_busy": "Ein anderer Tab oder eine andere Seite nutzt diese native Engine. Schließe sie oder wähle hier eine andere Engine.",
   "panel.msg.downloading_net": "Lade {file} herunter: {pct}% von {mb} MB (nur bei der ersten Nutzung)",
   "panel.msg.remote_unreachable": "Remote-Engine: Auf localhost:9090 antwortet nichts. Starte remote-engine.py oder wähle eine andere Engine.",
   "panel.fen.auto_flipped": "Vom Bildschirm gelesen - Schwarz war unten, das Brett wurde gedreht. Brett drehen macht das rückgängig.",
