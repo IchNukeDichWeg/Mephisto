@@ -4548,6 +4548,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const m = fs.readFileSync(ROOT + '/src/offscreen/maia2.js', 'utf8');
     ok('the session\'s promise is cached and terminate follows it', /opening = opening \|\| import\(/.test(m) && /opening\?\.then\(net => net\.terminate\(\)\)/.test(m));
 }
+// ---- ENG-5: a crash on a held position analyses it again ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('the crash path re-drives a held position', /force re-analysis on next fen poll[\s\S]{0,120}if \(setup_fen\) on_new_pos\(setup_fen, setup_fen, ''\);/.test(psrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

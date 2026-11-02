@@ -2086,7 +2086,11 @@ function on_engine_error(message) {
     engine_ready = false; // a reopen mid-restart must do a full init, not warm-reuse the dead engine
     update_best_move(i18n('panel.msg.engine_restarting', 'Engine crashed - restarting (attempt {n}/3)', {n: engine_restarts}));
     initialize_engine()
-        .then(() => { last_eval = {fen: '', activeLines: 0, lines: []}; }) // force re-analysis on next fen poll
+        .then(() => {
+            last_eval = {fen: '', activeLines: 0, lines: []}; // force re-analysis on next fen poll
+            // a pasted or captured position has no poll to bring it back (ENG-5)
+            if (setup_fen) on_new_pos(setup_fen, setup_fen, '');
+        })
         .catch((e) => console.error('Engine restart failed:', e))
         .finally(() => engine_restarting = false);
 }
