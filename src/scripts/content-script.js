@@ -270,6 +270,7 @@ function handleExtensionMessage(response, sender, sendResponse) {
         // Kept for the SECOND check, taken after the think delay -- see performSimulatedMoveClicks.
         // One module var is enough: `moving` already forbids two click sequences at once.
         pendingForPush = response.forPush || null;
+        pendingManual = !!response.manual;
         if (!response.fourpc && !boardStillMatchesAnalysis(response.forPush)) {
             dropMove('The board moved on while it was thinking - re-analysing.',
                 'DROPPED: board no longer matches the analysed position');
@@ -5112,6 +5113,15 @@ let lastAimed = null;
 // The reference for the move currently in flight, so the check can be repeated at the moment the
 // clicks actually happen rather than only when the move arrived.
 let pendingForPush = null;
+let pendingManual = false;   // this move was asked for by hand, so Autoplay being off does not stop it
+// What the arrival checks ruled on can change during a think of several seconds, so the last moment
+// before the clicks asks again: the pushed config already holds the new Autoplay value, and tabbing
+// away would otherwise land a trusted click in a hidden tab (PAGE-5).
+function moveHeldBack() {
+    if (!config.autoplay && !pendingManual) return 'autoplay';
+    if (!config.background_play && !tabActive()) return 'hidden';
+    return null;
+}
 
 // THE THINK ENDS THE MOMENT THE BOARD MOVES ON. The think delay used to be a plain timer, and the
 // position guard only looked again once it ran out -- while `moving` turned every push in between into
@@ -5230,6 +5240,13 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
             lastPushKey = lastDisplayKey = null;
             resumePush = true;
             pushWhenSettled();
+            return;
+        }
+        const held = moveHeldBack();
+        if (held) {
+            bgLog('DROPPED after the think', {move, held});
+            lastAimed = `${move}->NOT CLICKED (${held === 'hidden' ? 'tab went inactive' : 'Autoplay switched off'} during the think)`;
+            if (held === 'hidden') deferredWhileHidden = true;   // resumeIfDeferred re-issues it on return
             return;
         }
         // Record the intent, in squares, from the geometry these clicks are about to use. Read back

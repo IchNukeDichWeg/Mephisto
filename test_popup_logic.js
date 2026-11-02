@@ -4360,6 +4360,20 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('closing the panel disconnects the board observer and drops a queued scrape',
        /function removeOverlay\(\) \{[\s\S]*?positionObserver\?\.disconnect\(\); positionObserver = null;\s*clearTimeout\(pushDebounce\); pushDebounce = null;\s*\}/.test(csrc));
 }
+// ---- PAGE-5: Autoplay off and the focus hold are asked again after the think -------------------
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = csrc.indexOf('function moveHeldBack()');
+    const c = vm.createContext({});
+    vm.runInContext('var config = {autoplay: true, background_play: false}, pendingManual = false, active = true; const tabActive = () => active;' + csrc.slice(i, csrc.indexOf('\n}\n', i) + 3), c);
+    const held = (o) => vm.runInContext(`config.autoplay = ${o.ap}; config.background_play = ${!!o.bg}; pendingManual = ${!!o.manual}; active = ${o.active !== false}; moveHeldBack()`, c);
+    ok('a move still wanted plays', held({ap: true}) === null);
+    ok('Autoplay switched off during the think stops it', held({ap: false}) === 'autoplay');
+    ok('...but not a move asked for by hand', held({ap: false, manual: true}) === null);
+    ok('tabbing away holds it, unless Background Play is on', held({ap: true, active: false}) === 'hidden' && held({ap: true, active: false, bg: true}) === null);
+    ok('the click guard asks, after the board check', /boardStillMatchesAnalysis\(pendingForPush\)\) \{\s*dropMove\('The board moved on while it was thinking[\s\S]{0,700}const held = moveHeldBack\(\);/.test(csrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
