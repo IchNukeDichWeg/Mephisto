@@ -1342,8 +1342,8 @@ function init_quick_settings() {
                 }
             }
             if (is_remote() && (key === 'threads' || key === 'memory')) {
-                // a native host applies options on its own lock and they take effect on the next
-                // analyse, so there is nothing to defer
+                // A native host stops the running search to apply them and reports it superseded, so
+                // on_remote_result searches again (ENG-4).
                 request_remote_configure({Threads: config.threads, Hash: config.memory}).catch(() => {});
             }
             // QUEUED OPTIONS ONLY GO OUT BEFORE THE NEXT `go`, and an analysis is `go infinite`: there
@@ -1353,9 +1353,7 @@ function init_quick_settings() {
             // setoption under a running search wedges the WASM engine).
             if (!is_remote() && (key === 'threads' || key === 'memory' || key === 'multiple_lines')) {
                 abandon_search();
-                last_eval.fen = '';
-                fen_request_inflight = false;
-                if (setup_fen) on_new_pos(setup_fen, setup_fen, ''); else request_fen();
+                search_same_position();
             }
             push_config();
         });
@@ -2044,6 +2042,31 @@ function remote_result_gate() {
         }
         fn(v);
     };
+}
+
+function search_same_position() {
+    last_eval.fen = '';
+    fen_request_inflight = false;
+    if (setup_fen) on_new_pos(setup_fen, setup_fen, ''); else request_fen();
+}
+
+// ONE HOST PROCESS PER ENGINE, so another tab's analyse or a configure stops our search, and its
+// short frame used to come back as an ordinary answer: a shallow move played, or (none) read as a
+// draw on a live position, with no new search because the position had not changed. The host now
+// marks such a frame (ENG-3, ENG-4). Search again after a random wait, so two tabs do not keep
+// stopping each other in step, and say so if it keeps happening. Tabs still share one engine's
+// MultiPV, Threads and Hash; per-request options would need the host to change them for every search.
+const SUPERSEDED_TRIES = 5;
+let superseded_tries = 0;
+function on_remote_result(res) {
+    if (!res?.superseded) { superseded_tries = 0; return on_engine_response(res); }
+    if (++superseded_tries > SUPERSEDED_TRIES) {
+        superseded_tries = 0;
+        set_idle_reason(i18n('panel.msg.native_busy', 'Another tab or page is using this native engine. Close it, or pick another engine here.'));
+        return;
+    }
+    const fen = last_eval.fen;
+    setTimeout(() => { if (PANEL_BOOTED && last_eval.fen === fen) search_same_position(); }, 300 + Math.random() * 700);
 }
 
 // The restart budget is for a build that traps REPEATEDLY -- three crashes in quick succession mean
@@ -5754,10 +5777,10 @@ function on_new_pos(fen, startFen, moves) {
             const want_depth = limit_depth || (searching_by_depth() ? config.compute_depth : null);
             if (moves) {
                 request_remote_analysis(startFen, rt, moves, want_depth, limit_nodes)
-                    .then(fresh(on_engine_response)).catch(fresh(on_remote_error)).finally(settle);
+                    .then(fresh(on_remote_result)).catch(fresh(on_remote_error)).finally(settle);
             } else {
                 request_remote_analysis(fen, rt, null, want_depth, limit_nodes)
-                    .then(fresh(on_engine_response)).catch(fresh(on_remote_error)).finally(settle);
+                    .then(fresh(on_remote_result)).catch(fresh(on_remote_error)).finally(settle);
             }
         };
         // The host reads MultiPV out of its stored options, not out of the analyse request, so the

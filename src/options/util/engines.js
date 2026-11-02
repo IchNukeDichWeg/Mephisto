@@ -506,11 +506,19 @@ class NativeEngine {
         // the field ignores it and uses `time` exactly as before, so an old install keeps working
         // rather than silently doing something else. In depth mode `time` is the safety cap.
         const depthMode = this.opts.limitKind === 'depth';
-        const frame = await this.request('analyse', {
+        const ask = () => this.request('analyse', {
             fen,
             time: depthMode ? NATIVE_DEPTH_CAP_MS : this.opts.limitValue,
             depth: depthMode ? this.opts.limitValue : undefined,
         });
+        // Another tab can stop this search on the shared host, and the short answer would go into
+        // the report as if it were a full one. Wait and ask again; a busy engine is an error here.
+        let frame = await ask();
+        for (let tries = 0; frame.superseded && tries < 5; tries++) {
+            await new Promise(r => setTimeout(r, 1000));
+            frame = await ask();
+        }
+        if (frame.superseded) throw new Error('another tab is using this native engine');
         const lines = (frame.lines || []).filter(l => l.pv && l.pv.length).map(l => this.toLine(l, turn));
         return {lines, depth: lines.length ? lines[0].depth : 0, nodes: 0};
     }

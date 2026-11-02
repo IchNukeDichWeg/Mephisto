@@ -3434,7 +3434,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     })(); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('changing Lines, Threads or Memory in the panel restarts the search so it applies now, stop first',
-       /if \(!is_remote\(\) && \(key === 'threads' \|\| key === 'memory' \|\| key === 'multiple_lines'\)\) \{\s*abandon_search\(\);\s*last_eval\.fen = '';/.test(psrc)); }
+       /if \(!is_remote\(\) && \(key === 'threads' \|\| key === 'memory' \|\| key === 'multiple_lines'\)\) \{\s*abandon_search\(\);\s*search_same_position\(\);/.test(psrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const pf = (name) => { const i = psrc.indexOf(`function ${name}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
     const c = vm.createContext({});
@@ -4584,6 +4584,28 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('a one-pass (none) with legal moves left says the net failed, before any game-over text',
        /if \(is_one_pass\(\) && !mated && end\.moves\(\)\.length\) \{\s*(\/\/[^\n]*\s*)*update_best_move\(i18n\('panel\.msg\.net_failed'/.test(psrc)
        && psrc.indexOf("'panel.msg.net_failed'") < psrc.indexOf("'panel.msg.stalemate'"));
+}
+// ---- ENG-3 / ENG-4: a superseded native frame is not an answer ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function search_same_position()'), j = psrc.indexOf('// The restart budget is for a build that traps REPEATEDLY');
+    const c = vm.createContext({timers: [], setTimeout: (f) => { c.timers.push(f); }, answers: [], idle: [], Math});
+    vm.runInContext(`var last_eval = {fen: 'P'}, fen_request_inflight = true, setup_fen = null, PANEL_BOOTED = true, asked = 0;
+        function on_new_pos() {} function request_fen() { asked++; last_eval.fen = 'P'; }
+        function on_engine_response(r) { answers.push(r); } function set_idle_reason(t) { idle.push(t); }` + psrc.slice(i, j), c);
+    vm.runInContext(`on_remote_result({bestmove: 'e2e4'})`, c);
+    ok('an ordinary answer goes through', c.answers.length === 1);
+    vm.runInContext(`on_remote_result({bestmove: 'a2a3', superseded: true})`, c);
+    ok('a superseded frame is not an answer', c.answers.length === 1);
+    c.timers.shift()();
+    ok('...the position is searched again', c.asked === 1 && vm.runInContext('fen_request_inflight', c) === false, c.asked);
+    vm.runInContext(`on_remote_result({superseded: true}); last_eval.fen = 'Q';`, c); c.timers.shift()();
+    ok('...unless the position moved on', c.asked === 1, c.asked);
+    vm.runInContext(`last_eval.fen = 'P'; for (let i = 0; i < 4; i++) on_remote_result({superseded: true});`, c);
+    ok('after five in a row it stops and says why', c.idle.length === 1 && /native engine/.test(c.idle[0]) && c.timers.length === 3, c.idle);
+    const e = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    ok('Review asks again rather than scoring a short frame', /for \(let tries = 0; frame\.superseded && tries < 5; tries\+\+\)/.test(e));
 }
 // ==== END FIX CHECKS ====
 
