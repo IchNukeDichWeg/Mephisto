@@ -6311,7 +6311,7 @@ function tablebase_reason(fen, uci) {
     if (root === 'loss' || root === 'blessed-loss') {
         // everything loses: the reason is that this one loses SLOWEST
         const {best} = fastest(moves.filter(m => m.category === 'win' || m.category === 'cursed-win'));
-        return best ? '' : 'holds out longest';
+        return best ? 'holds out longest' : '';
     }
     return '';
 }

@@ -4642,6 +4642,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const n = (psrc.match(/explorer_out_of_book = false; explorer_data = null; explorer_empty_streak = 0;/g) || []).length;
     ok('Re-detect and walking the line clear it too', n >= 5 && /panel\.fen\.walking_line[\s\S]{0,200}explorer_out_of_book = false;/.test(psrc), n);
 }
+// ---- SYS-8: holds out longest ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function tablebase_reason(fen, uci)');
+    const c = vm.createContext({});
+    vm.runInContext(`var tablebase_data = {fen: 'F', category: 'loss', moves: [{uci: 'a', category: 'win', dtm: 9}, {uci: 'b', category: 'win', dtm: 3}]};` + psrc.slice(i, psrc.indexOf('\n}\n', i) + 3), c);
+    ok('the move that loses slowest gets the reason, the quick loss does not',
+       vm.runInContext(`tablebase_reason('F', 'a')`, c) === 'holds out longest' && vm.runInContext(`tablebase_reason('F', 'b')`, c) === '');
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
