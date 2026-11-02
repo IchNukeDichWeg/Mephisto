@@ -92,6 +92,7 @@ function parseGame(text) {
             continue; // a comment before the first move is the game's, not a move's -- dropped
 
         }
+        if (/^\d+$/.test(tok)) continue;                   // a move number written without its dot
         if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(tok)) { movetextResult = tok; continue; }
         if (/^\.+$/.test(tok) || /^e\.?p\.?$/i.test(tok)) continue;   // stray dots, an "e.p." suffix
         // castling written with zeros is the FIDE spelling and common in hand-typed PGNs

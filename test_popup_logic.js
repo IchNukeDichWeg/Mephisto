@@ -4837,6 +4837,21 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     r = run('4pc', '4pc');
     ok('no switch, no re-sync', r.store === '4pc' && r.syncs === 0, r);
 }
+// ---- OPT-14: a PGN with bare move numbers parses ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console: {log() {}}, URLSearchParams};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const parse = (t) => c.MephistoReviewCore.parsePgn(t)[0];
+    let g = parse('1 e4 e5 2 Nf3 Nc6 *');
+    ok('bare numbers are skipped and every move survives', g.moves.map(m => m.san).join(' ') === 'e4 e5 Nf3 Nc6', g.moves);
+    g = parse('1. e4 {first} e5 2 Nf3 {third} Nc6 1-0');
+    ok('a real comment still lands on the move before it, past a bare number',
+       g.moves[0].comment === 'first' && g.moves[1].comment === '' && g.moves[2].comment === 'third' && g.result === '1-0', g.moves);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
