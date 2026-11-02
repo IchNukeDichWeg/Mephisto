@@ -10434,6 +10434,7 @@ let variant_switch_pending = false;   // a detected variant is about to reload t
 // need a full engine re-init, which is a panel rebuild; those are deliberately left to the existing
 // reload path rather than half-applied under a running search.
 const LIVE_CONFIG_KEYS = [
+    'language',   // missing from this list, the reload branch in the listener never ran
     'autoplay', 'premove', 'ponder', 'tablebase', 'background_play', 'hide_opponent',
     // read by the content script from the snapshot this panel pushes, and by nothing else: left out
     // of this list, switching Grind Mode OFF on the Settings page did not stop the next game

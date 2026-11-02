@@ -4852,6 +4852,13 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('a real comment still lands on the move before it, past a bare number',
        g.moves[0].comment === 'first' && g.moves[1].comment === '' && g.moves[2].comment === 'third' && g.result === '1-0', g.moves);
 }
+// ---- OPT-15: a language change reaches an open panel ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('language is live, and the listener reloads the strings',
+       /const LIVE_CONFIG_KEYS = \[\s*'language',/.test(psrc) && /if \(key === 'language'\) load_language\(value\)\.then\(apply_language\);/.test(psrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
