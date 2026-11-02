@@ -1395,7 +1395,11 @@ class GeneralSettings extends SettingsPage {
             if (!got.mephisto_autostart_update) return;
             await chrome.storage.local.remove('mephisto_autostart_update');
             document.getElementById('updates')?.scrollIntoView({block: 'center'});
-            if (await MephistoUpdater.isReady()) runInstall();
+            if (!(await MephistoUpdater.isReady())) return;
+            // The folder grant lapses across a browser restart, and asking for it again needs a
+            // click, which a page opened by the panel has not had: install() threw "Update failed".
+            if (await MephistoUpdater.folder()) runInstall();
+            else say('One click needed: the browser wants the folder confirmed. Press Install.');
         };
 
         render().then(autostart);

@@ -4676,6 +4676,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('both write loops use that order', (u.match(/for \(const f of manifestLast\(files\)\)/g) || []).length === 2);
     ok('finishing a staged update answers in install()\'s shape', /return \{installed: version, from, files: files\.length, backedUp:/.test(u));
 }
+// ---- SYS-7: a lapsed folder grant asks for a click ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    ok('the autostart checks the grant without prompting', /if \(await MephistoUpdater\.folder\(\)\) runInstall\(\);\s*else say\('One click needed/.test(g));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
