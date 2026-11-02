@@ -187,6 +187,10 @@ let native_inflight = null;
 // "a native engine is selected" and "a native engine is talking to us" -- an installer that was
 // never run looks exactly like the former and is the commonest cause of a silent panel.
 let native_alive = false;
+// One-pass gos not yet answered. A one-pass engine can emit nothing for a failed pass, so it clears
+// search_active on a paid bestmove, but with A, B, C arriving quickly the bestmove of A paid for B's
+// stop while B's go was in flight: C then charged no stop and B's answer was taken as C's (ENG-7).
+let one_pass_owed = 0;
 let search_active = false; // a 'go' was issued whose bestmove hasn't arrived yet (is_calculating can't be
                            // used for this: it flips false on the first info line, not on bestmove)
 let last_pos = {startFen: null, moves: ''}; // the position's own start + UCI move list, for Copy PGN
@@ -1758,6 +1762,7 @@ let wasm_search_held = false;      // on_new_pos skipped a search meanwhile; ini
 
 async function initialize_engine(reuseWarm = false) {
     pending_stops = 0; // a crashed/replaced engine never flushes what it owed; don't eat the new engine's first result
+    one_pass_owed = 0;
     // Options queued for the PREVIOUS engine are not this engine's. flush_engine_options only runs
     // in the WASM branch of on_new_pos, so anything queued while a native engine was selected sat
     // here untouched until a WASM engine picked it up and applied it -- including a Hash the WASM
@@ -3097,11 +3102,16 @@ function on_engine_response(message) {
         // 3 times in 20 plies fired 150 ms apart, each one restarting a search the panel already had
         // going. A searching engine always answers a stop with its bestmove, so only a one-pass
         // engine (the case above, which can emit nothing) still clears it here.
-        if (message.startsWith('bestmove')) { pending_stops--; if (is_one_pass()) search_active = false; return; }
+        if (message.startsWith('bestmove')) {
+            pending_stops--;
+            if (is_one_pass() && --one_pass_owed <= 0) { one_pass_owed = 0; search_active = false; }
+            return;
+        }
         // the flush is not coming -- stop eating the engine's output (see STOP_FLUSH_MS)
         if (Date.now() - stop_charged_at > STOP_FLUSH_MS) {
             console.warn(`Mephisto: ${pending_stops} stop(s) never flushed - resuming engine output`);
             pending_stops = 0;
+            one_pass_owed = 0;
         } else {
             return;
         }
@@ -3120,6 +3130,7 @@ function on_engine_response(message) {
         return; // ignore these messages
     } else if (message.startsWith('bestmove')) {
         search_active = false;
+        one_pass_owed = 0;
         const arr = message.split(' ');
         const best = arr[1];
         const threat = arr[3];
@@ -5851,6 +5862,7 @@ function on_new_pos(fen, startFen, moves) {
             send_engine_uci(`go movetime ${movetime}`); // autoplay needs a final bestmove to act on
         }
         search_active = true;
+        if (is_one_pass()) one_pass_owed++;
     }
 
     // (the repaint + annotation clear that used to live here now run at the TOP of this function)

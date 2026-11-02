@@ -4554,6 +4554,29 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('the crash path re-drives a held position', /force re-analysis on next fen poll[\s\S]{0,120}if \(setup_fen\) on_new_pos\(setup_fen, setup_fen, ''\);/.test(psrc));
 }
+// ---- ENG-7: a one-pass answer cannot be taken for the next position ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function on_engine_response(message) {');
+    const head = psrc.slice(i, psrc.indexOf('last_info_at = Date.now();   // the panel is HEARING', i));
+    const c = vm.createContext({console: {log() {}, warn() {}}});
+    vm.runInContext(`var pending_stops = 0, stop_charged_at = 0, search_active = false, last_info_at = 0, one_pass_owed = 0, passed = [];
+        const STOP_FLUSH_MS = 1500; function is_remote() { return false; } function is_one_pass() { return true; }
+        function note_unsupported_variant() {} function download_progress_text() { return null; } function update_best_move() {}
+        ${head} passed.push(message); }
+        function abandon() { if (search_active) { pending_stops++; stop_charged_at = Date.now(); } search_active = false; }
+        function go() { search_active = true; one_pass_owed++; }`, c);
+    const got = vm.runInContext(`go(); abandon(); go();        // A, then B
+        on_engine_response('bestmove aaaa');                    // A's pays B's stop while B is in flight
+        const live = search_active;
+        abandon(); go();                                        // C charges a stop for B
+        on_engine_response('bestmove bbbb');                    // B's is eaten
+        on_engine_response('bestmove cccc');                    // C's is the answer
+        ({live, passed})`, c);
+    ok('B stays live after A pays for it, so C charges a stop and B\'s answer is dropped',
+       got.live === true && JSON.stringify(got.passed) === '["bestmove cccc"]', got);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
@@ -4912,7 +4935,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const head = psrc.slice(i, psrc.indexOf('last_info_at = Date.now();   // the panel is HEARING', i));
     const run = (onePass) => {
         const c = vm.createContext({console: {log() {}, warn() {}}, Date});
-        vm.runInContext(`var pending_stops = 0, stop_charged_at = 0, search_active = false, last_info_at = 0, passed = [];
+        vm.runInContext(`var pending_stops = 0, stop_charged_at = 0, search_active = false, last_info_at = 0, one_pass_owed = 0, passed = [];
             const STOP_FLUSH_MS = 1500; function is_remote() { return false; } function is_one_pass() { return ${onePass}; }
             function note_unsupported_variant() {} function download_progress_text() { return null; } function update_best_move() {}
             ${head} passed.push(message); }
