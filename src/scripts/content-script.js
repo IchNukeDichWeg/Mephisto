@@ -2864,6 +2864,7 @@ const FOURPC_FILES = 'abcdefghijklmn'.split('');
 // -- classic/modern/by/byg/rg only move the king between index 7 and 8 (RULES.md 3.3, 6.1).
 const FOURPC_BACK = {R: ['rank', 1], B: ['file', 'a'], Y: ['rank', 14], G: ['file', 'n']};
 let fourPCPrev = null;   // previous board, for the en-passant diff
+let fourPCPrevKey = null, fourPCEp = null;   // ...its identity, and the field that diff produced
 let fourPCTurn = null;   // last KNOWN side to move; sticky across scrapes that saw no move
 // KEYED BY PATH, like fourPCModeCache below already is (audit finding #4, 2026-08-26): chess.com is
 // a client-routed SPA, so browsing from a lobby preview or a finished game into a live one keeps
@@ -2873,7 +2874,7 @@ let fourPCPrevPath = null;
 function fourPCResetIfNavigated() {
     if (fourPCPrevPath === location.pathname) return;
     fourPCPrevPath = location.pathname;
-    fourPCPrev = null;
+    fourPCPrev = fourPCPrevKey = fourPCEp = null;
     fourPCTurn = null;
 }
 
@@ -3174,8 +3175,16 @@ function scrapePosition4PC() {
     // the evaluation substantially.
     const dead = FOURPC_SEATS.map(seat => alive(seat) ? 0 : 1);
     const {short, long} = fourPCCastling(board);
-    const ep = fourPCEnPassant(board, fourPCPrev);
-    fourPCPrev = board;
+    // Only a real change advances this. The right came from the diff, so a second scrape of the same
+    // board lost it: the FEN4 changed with no board change, the panel threw its first search away, and
+    // the capture could never be chosen.
+    const boardKey = Object.keys(board).sort().map(k => k + board[k].seat + board[k].type).join();
+    if (boardKey !== fourPCPrevKey) {
+        fourPCEp = fourPCEnPassant(board, fourPCPrev);
+        fourPCPrev = board;
+        fourPCPrevKey = boardKey;
+    }
+    const ep = fourPCEp;
     const ranks = [];
     for (let r = 14; r >= 1; r--) {
         const out = []; let run = 0;

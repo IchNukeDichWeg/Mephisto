@@ -5009,6 +5009,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     c.restore(wrap, badge);
     ok('restoring lands on the Opacity setting', wrap.style.opacity === '0.6', wrap.style.opacity);
 }
+// ---- PAGE-14: the 4PC en passant field survives a re-scrape ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = src.indexOf('// Only a real change advances this.');
+    const body = src.slice(a, src.indexOf('const ep = fourPCEp;', a));
+    const calls = [];
+    const c = {fourPCPrev: null, fourPCPrevKey: null, fourPCEp: null, board: null, Object,
+        fourPCEnPassant: (b, p) => { calls.push(p); return p ? 'e4' : null; }};
+    const step = (b) => { c.board = b; vm.runInNewContext('{' + body + '}', c); return c.fourPCEp; };
+    step({a1: {seat: 'R', type: 'P'}});
+    ok('the push is read once', step({a2: {seat: 'R', type: 'P'}}) === 'e4' && calls.length === 2, calls.length);
+    ok('a second scrape of the same board keeps it, in any key order',
+       step({a2: {seat: 'R', type: 'P'}}) === 'e4' && calls.length === 2, calls.length);
+    ok('resetting a page clears both', /fourPCPrev = fourPCPrevKey = fourPCEp = null;/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
