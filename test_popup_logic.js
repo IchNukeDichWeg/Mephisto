@@ -4381,7 +4381,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const i = csrc.indexOf('async function simulateMoveVerified(');
     const c = vm.createContext({console: {warn() {}}, setTimeout});
     vm.runInContext(`var DROP_RE = /@/, UCI_RE = /^[a-h][1-8][a-h][1-8][qrbnk]?$/, polls = 0, clicks = 0, lastPushKey = 'k', lastDisplayKey = 'k', resumePush = false, answer;
-        function getMoveRecords() { return []; } async function promiseTimeout() { polls++; } function schedulePush() {}
+        function getMoveRecords() { return []; } async function promiseTimeout() { polls++; } function schedulePush() {} function leftSelected() { return null; }
         async function simulateMove() { clicks++; return answer; }` + csrc.slice(i, csrc.indexOf('\n}\n', i) + 3), c);
     (async () => {
         await vm.runInContext(`answer = false; simulateMoveVerified('e2e4', null, true)`, c);
@@ -4411,6 +4411,20 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     vm.runInContext(csrc.slice(i, j).replace(/\n\s*\/\/[^\n]*/g, ''), c);
     ok('chess.com: the queen is found by her class in any picker order', vm.runInContext("getPromotionSelection('q')", c)?.k === 'wq', vm.runInContext("getPromotionSelection('q')", c)?.k);
     ok('chess.com variants: the piece comes from the sorted list, not the picker\'s raw children', /const r = found\.kids\[idx\];/.test(csrc) && !/found\.el\.children\[idx\]/.test(csrc));
+}
+// ---- PAGE-17: a half-click's selection ---------------------------------------------------------
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = csrc.indexOf('let halfClicked = null;'), b = csrc.indexOf('function moveHeldBack()');
+    const d = vm.createContext({site: 'lichess', sel: {}, document: {querySelector: () => d.sel}});
+    vm.runInContext(csrc.slice(a, b).replace('let halfClicked', 'var halfClicked'), d);
+    const left = (half, mv) => { d.halfClicked = half; return vm.runInContext(`leftSelected('${mv}')`, d); };
+    ok('a half-click on the real move\'s from-square earns a lead click', left('e2', 'e2e4') === 'e2');
+    ok('...once', vm.runInContext("leftSelected('e2e4')", d) === null);
+    ok('...another from-square does not', left('e2', 'd2d4') === null);
+    d.sel = null; ok('...nor a board with nothing selected', left('e2', 'e2e4') === null);
+    d.sel = {}; d.site = 'chesscom'; ok('...nor a site that does not show it', left('e2', 'e2e4') === null);
 }
 // ==== END FIX CHECKS ====
 

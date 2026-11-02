@@ -5125,6 +5125,16 @@ let pendingManual = false;   // this move was asked for by hand, so Autoplay bei
 // What the arrival checks ruled on can change during a think of several seconds, so the last moment
 // before the clicks asks again: the pushed config already holds the new Autoplay value, and tabbing
 // away would otherwise land a trusted click in a hidden tab (PAGE-5).
+// A superseded move's from-click can leave its piece selected. If the real move starts on that
+// square its first click deselects, the to-click does nothing, and the move costs the 1.5 s verify
+// wait, which matters in bullet. Only lichess shows the selection in the DOM, so only there is a
+// lead click known to be needed; on a board with nothing selected it would cause what it prevents.
+let halfClicked = null;
+function leftSelected(move) {
+    const sq = halfClicked;
+    halfClicked = null;
+    return sq && sq === move.substring(0, 2) && site === 'lichess' && document.querySelector('cg-board square.selected') ? sq : null;
+}
 function moveHeldBack() {
     if (!config.autoplay && !pendingManual) return 'autoplay';
     if (!config.background_play && !tabActive()) return 'hidden';
@@ -5351,6 +5361,7 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         // the pause between the clicks is the widest window for a supersede -- check again
         if (sessionGen !== undefined && sessionGen !== moveGen) {
             lastAimed = `${move}->HALF-CLICKED then superseded (from-click only)`;
+            halfClicked = move.substring(0, 2);
             return false;
         }
         await simulateClickSquare(getBoundsFromCoords(move.substring(2)), 0.8, pathB);
@@ -5429,7 +5440,7 @@ async function simulateMoveVerified(move, deselect, verify, think = null, retrie
     // selection -- which is precisely what makes an attempt FAIL -- so spend it only on a retry, not
     // on every move (see performSimulatedMoveClicks). `before !== null` == we're in the retry
     // recursion, since the first call always enters with the default null.
-    const ds = (before !== null) ? deselect : null;
+    const ds = (before !== null) ? deselect : leftSelected(move);
     // A BLIND premove (verify=false) is clicked while it is NOT our turn: the site queues it and it
     // won't appear in the move list until the opponent moves. Verifying/retrying it would re-click
     // and clobber the queued premove -- so only verify real moves played on our own turn. The popup
