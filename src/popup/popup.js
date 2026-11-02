@@ -9791,9 +9791,17 @@ function request_automove(move, think = null, manual = false, opts = {}) {
         }
         if (!opts.paused) {
             clearTimeout(puzzle_move_timer);
-            puzzle_move_timer = setTimeout(
-                () => request_automove(move, think, manual, {...opts, paused: true, checked: true}),
-                puzzle_move_delay_ms());
+            const asked = puzzle_key(last_eval.fen || '');
+            puzzle_move_timer = setTimeout(() => {
+                // The fen and push key below are read at fire time, so a board that moved on during
+                // the pause would send the old answer under the NEW key and pass the content guard:
+                // the settled stale-answer bug through the engine path (PLAY-3).
+                if (puzzle_key(last_eval.fen || '') !== asked) {
+                    console.log('Puzzle: the board moved on during the pause -- not sending', move);
+                    return;
+                }
+                request_automove(move, think, manual, {...opts, paused: true, checked: true});
+            }, puzzle_move_delay_ms());
             return;
         }
     }

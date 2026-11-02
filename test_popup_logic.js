@@ -4426,6 +4426,21 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     d.sel = null; ok('...nor a board with nothing selected', left('e2', 'e2e4') === null);
     d.sel = {}; d.site = 'chesscom'; ok('...nor a site that does not show it', left('e2', 'e2e4') === null);
 }
+// ---- PLAY-3: a puzzle answer does not survive its pause into a new board ----------------------
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function request_automove(move, think'), j = psrc.indexOf('\n}\n', i) + 3;
+    const c = vm.createContext({console: {log() {}}, sent: [], timers: [], setTimeout: (f) => { c.timers.push(f); return 1; }, clearTimeout() {}});
+    vm.runInContext(`var setup_fen = null, config = {puzzle_mode: true}, last_eval = {fen: 'A b'}, puzzle_last_sent = {}, puzzle_move_timer = null, analysed_push_key = 'k', our_turn_at = 0;
+        const puzzle_key = (f) => f; const puzzle_move_delay_ms = () => 300; const bgTrace = () => {}; const our_side = () => 'black';
+        const safe_deselect_square = () => null; const fresh_timing = () => ({think_time: 0}); const move_situation = () => ''; const session_note_move = () => {};
+        const send_to_active_tab = (m) => sent.push(m);` + psrc.slice(i, j), c);
+    vm.runInContext(`request_automove('e7e5')`, c); c.timers.shift()();
+    ok('the board unchanged: the answer goes after its pause', c.sent.length === 1 && c.sent[0].pv[0] === 'e7e5', c.sent);
+    vm.runInContext(`last_eval.fen = 'C b'; request_automove('d7d5'); last_eval.fen = 'D b'`, c); c.timers.shift()();
+    ok('the board moved on during the pause: nothing is sent', c.sent.length === 1, c.sent);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
