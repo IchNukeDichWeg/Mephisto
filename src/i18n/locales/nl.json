@@ -460,6 +460,7 @@
   "panel.msg.resyncing": "De engine antwoordde voor een andere stelling - het bord wordt opnieuw gelezen.",
   "panel.msg.engine_quiet": "De engine reageert niet meer - de zoekopdracht wordt herstart.",
   "panel.msg.drop_by_hand": "De beste zet is een drop ({move}). Automatisch spelen kan geen stukken uit de reserve plaatsen: speel hem zelf.",
+  "panel.msg.backend_down": "De Python-backend voor automatisch spelen antwoordt niet op localhost:8080, dus zetten gebruiken normale klikken. Start mephisto-clicker.py of zet de instelling uit.",
   "panel.msg.downloading_net": "{file} downloaden: {pct}% van {mb} MB (alleen bij eerste gebruik)",
   "panel.msg.remote_unreachable": "Remote-engine: er antwoordt niets op localhost:9090. Start remote-engine.py of kies een andere engine.",
   "panel.fen.auto_flipped": "Van het scherm gelezen - zwart stond onderaan, dus het bord is omgedraaid. Bord omdraaien maakt dit ongedaan.",

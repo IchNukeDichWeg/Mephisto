@@ -4901,8 +4901,21 @@ function refreshPageZoom() {
 }
 refreshPageZoom();   // once per page; after that only while the backend that needs it is on
 window.addEventListener('resize', () => { if (config?.python_autoplay_backend) refreshPageZoom(); });
+// A BACKEND THAT IS NOT ANSWERING MUST NOT STOP THE GAME (GitHub issue 2). With the setting on and
+// nothing on localhost:8080 every click rejected with "Failed to fetch" and the same move was retried
+// every ~170 ms (62 times in 10 s in the report) until the clock ran out. The first refused click now
+// moves play to the debugger clicker for BACKEND_RETRY_MS, so the retry lands, and the backend is
+// asked again afterwards in case the script was started. Decided here because the coordinates are:
+// screen pixels for the backend, viewport pixels for the debugger.
+const BACKEND_RETRY_MS = 30000;
+let backendDownUntil = 0;
+const useBackend = () => !!config.python_autoplay_backend && Date.now() >= backendDownUntil;
+function backendRefused(r) {
+    if (r?.backendFailed) { backendDownUntil = Date.now() + BACKEND_RETRY_MS; throw new Error('backend click refused'); }
+    return r;
+}
 function toClickXY(x, y) {
-    if (!config.python_autoplay_backend) return [x, y];
+    if (!useBackend()) return [x, y];
     refreshPageZoom();   // for the next click: a zoom set before the backend was switched on
     const topBarHeight = window.outerHeight - window.innerHeight * page_zoom;   // both in screen pixels
     return [window.screenX + x * page_zoom, window.screenY + topBarHeight + y * page_zoom];
@@ -4928,7 +4941,7 @@ function getRandomSampledXY(bounds, range = 0.8) {
 // delay, means the bar is already up and settled by the time a single square is measured. No-op on
 // every later move.
 function warmClicker() {
-    try { return Promise.resolve(sendToPanel({warm: true})).catch(() => {}); }
+    try { return Promise.resolve(sendToPanel({warm: true, backend: useBackend()})).catch(() => {}); }
     catch (e) { return Promise.resolve(); }   // orphaned content-script
 }
 
@@ -4957,7 +4970,7 @@ function warmClicker() {
 // 'auto' would leave an invisible panel eating clicks; one restored from minimised mid-click keeps
 // the 'auto' the restore gave it.
 function panelCoversPoint(wrap, points) {
-    if (config.python_autoplay_backend) return true;
+    if (useBackend()) return true;
     const r = wrap.getBoundingClientRect();
     return points.some(([x, y]) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom);
 }
@@ -5018,8 +5031,8 @@ function dispatchSimulateClickInner(x, y, travelMs = 0) {
         // sentAt is stamped HERE, not in the panel. The panel's own `sentAt` only ever measured the
         // panel->worker hop (it read 1-3ms while a click measured 1.6s), so the content->panel leg
         // and the panel's own queueing were the one part of the round trip nothing timed.
-        return Promise.resolve(sendToPanel({click: true, x: x, y: y, travelMs, sentAt: Date.now()}))
-            .then((r) => { bgLog('click returned', {ms: Date.now() - clickStarted, r}); return r; })
+        return Promise.resolve(sendToPanel({click: true, x: x, y: y, travelMs, sentAt: Date.now(), backend: useBackend()}))
+            .then((r) => { bgLog('click returned', {ms: Date.now() - clickStarted, r}); return backendRefused(r); })
             .catch((e) => { bgLog('click FAILED', {ms: Date.now() - clickStarted, e: String(e)}); throw e; });
     } catch (e) {
         // "Extension context invalidated" -- this content-script was orphaned by an extension reload
@@ -5041,8 +5054,8 @@ function dispatchSimulateDragInner(x1, y1, x2, y2, travelMs = 0) {
         bgLog('dispatching drag', {x1: Math.round(x1), y1: Math.round(y1),
                                    x2: Math.round(x2), y2: Math.round(y2), travelMs});
         const started = Date.now();
-        return Promise.resolve(sendToPanel({drag: true, x1, y1, x2, y2, travelMs}))
-            .then((r) => { bgLog('drag returned', {ms: Date.now() - started, r}); return r; })
+        return Promise.resolve(sendToPanel({drag: true, x1, y1, x2, y2, travelMs, backend: useBackend()}))
+            .then((r) => { bgLog('drag returned', {ms: Date.now() - started, r}); return backendRefused(r); })
             .catch((e) => { bgLog('drag FAILED', {ms: Date.now() - started, e: String(e)}); throw e; });
     } catch (e) {
         // orphaned content-script (extension reloaded) -- swallowed like the click path

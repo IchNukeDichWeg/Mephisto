@@ -867,7 +867,7 @@ async function initPanel(root, tabId) {
         } else if (response.warm) {
             // Attach the debugger BEFORE the move measures any squares. Only meaningful for the CDP
             // clicker -- the python backend moves the real mouse and raises no infobar.
-            if (config.python_autoplay_backend) return;
+            if (response.backend) return;
             // NO EARLY RETURN ON A MISSING TAB ID. The in-page panel is handed an empty sender
             // (`PANEL_MSG_HANDLER(msg, {})`), so there is no id here and never was -- bailing on it
             // meant the in-page panel, which is every real game, never warmed at all. Send regardless
@@ -881,12 +881,13 @@ async function initPanel(root, tabId) {
             // otherwise a move firing while you're on another tab (e.g. chrome://extensions) dispatches
             // there and fails ("Cannot access a chrome:// URL"). Returned so the in-page caller can
             // AWAIT the click (its cursor travel paces the from->to gap -- see performSimulatedMoveClicks).
-            return dispatch_click_event(response.x, response.y, sender?.tab?.id, response.travelMs, response.sentAt);
+            return dispatch_click_event(response.x, response.y, sender?.tab?.id, response.travelMs, response.sentAt,
+                                        response.backend);
         } else if (response.drag) {
             // Same tab and the same await, but press-carry-release: chess.com's variants board only
             // accepts a CAPTURE as a drag (see cdpDrag).
             return dispatch_drag_event(response.x1, response.y1, response.x2, response.y2,
-                                       sender?.tab?.id, response.travelMs);
+                                       sender?.tab?.id, response.travelMs, response.backend);
         }
     };
     // Only the toolbar popup needs the runtime listener; in-page, content-script.js calls
@@ -12302,30 +12303,40 @@ function toggle_calculating(on) {
     }
 }
 
-async function dispatch_click_event(x, y, tabId, travelMs, sentAt) {
+// The content script decided `backend`, because its coordinates depend on it (see useBackend).
+// Failure comes back as a value, not a rejection: the toolbar popup answers over a runtime message,
+// which cannot carry one. The notice is held because the next engine frame would clear it.
+function backend_refused(e) {
+    console.warn('Mephisto: python backend did not answer:', e);
+    bgTrace('backend click refused', {e: String(e)});
+    set_idle_reason(i18n('panel.msg.backend_down', 'Python Autoplay Backend is not answering on localhost:8080, so moves are using normal clicks. Start mephisto-clicker.py, or switch the setting off.'));
+    idle_hold_until = Date.now() + 10000;
+    return {backendFailed: true};
+}
+
+async function dispatch_click_event(x, y, tabId, travelMs, sentAt, backend) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
         // NaN/undefined coords (e.g. a crazyhouse drop move) serialize badly and the debugger rejects them
         console.warn(`Ignoring click with invalid coordinates: (${x}, ${y})`);
         return;
     }
-    if (config.python_autoplay_backend) {
-        await request_backend_click(x, y); // the python clicker moves the real mouse itself
-        return;
+    if (backend) {
+        // the python clicker moves the real mouse itself
+        try { await request_backend_click(x, y); return; } catch (e) { return backend_refused(e); }
     }
     return request_debugger_click(x, y, tabId, travelMs, sentAt);
 }
 
-async function dispatch_drag_event(x1, y1, x2, y2, tabId, travelMs) {
+async function dispatch_drag_event(x1, y1, x2, y2, tabId, travelMs, backend) {
     if (![x1, y1, x2, y2].every(Number.isFinite)) {
         console.warn(`Ignoring drag with invalid coordinates: (${x1}, ${y1}) -> (${x2}, ${y2})`);
         return;
     }
     // The python clicker moves the real mouse and has no drag verb, so fall back to the two clicks
     // it does have. That path is unchanged and still works everywhere click-click works.
-    if (config.python_autoplay_backend) {
-        await request_backend_click(x1, y1);
-        await request_backend_click(x2, y2);
-        return;
+    if (backend) {
+        try { await request_backend_click(x1, y1); await request_backend_click(x2, y2); return; }
+        catch (e) { return backend_refused(e); }
     }
     const id = await resolve_click_tab(tabId);
     try {

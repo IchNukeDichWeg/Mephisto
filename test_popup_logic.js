@@ -3057,7 +3057,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     // the Python backend at 125% zoom: a CSS point scales by Chrome's zoom before the screen offset
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
-    const i = csrc.indexOf('function toClickXY('), j = csrc.indexOf('\n}\n', i) + 3;
+    const i = csrc.indexOf('const BACKEND_RETRY_MS'), j = csrc.indexOf('\n}\n', csrc.indexOf('function toClickXY(')) + 3;
     const c = vm.createContext({window: {screenX: 100, screenY: 50, outerHeight: 1000, innerHeight: 720},
         config: {python_autoplay_backend: true}, page_zoom: 1.25, refreshPageZoom() {}});
     vm.runInContext('var page_zoom = 1.25;' + csrc.slice(i, j), c);
@@ -4312,6 +4312,38 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('model downloads: every failure of fetchModel carries an N code at the front of its message (they cross to the panel as text)',
        !/new Error\(/.test(mf.replace(/const coded = [^\n]*/, '')) && (mf.match(/coded\('MPH-N0[1-4]'/g) || []).length === 6);
 })().catch(e => { fails++; console.log('FAIL error-code checks threw: ' + (e && e.stack || e)); });
+// ---- issue 2: a backend that does not answer moves play to the debugger clicker --------------
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = csrc.indexOf('const BACKEND_RETRY_MS'), b = csrc.indexOf('function getRandomSampledXY');
+    const c = vm.createContext({console: {log() {}, warn() {}}, config: {python_autoplay_backend: true}, page_zoom: 1,
+        window: {outerHeight: 900, innerHeight: 800, screenX: 10, screenY: 20}, refreshPageZoom() {}});
+    vm.runInContext(csrc.slice(a, b) + `; var now = Date.now; Date.now = () => now() + (globalThis.skew || 0);`, c);
+    const xy = () => vm.runInContext('toClickXY(100, 50)', c);
+    ok('backend up: screen pixels', JSON.stringify(xy()) === '[110,170]', xy());
+    vm.runInContext(`try { backendRefused({backendFailed: true}); } catch (e) { globalThis.threw = true; }`, c);
+    ok('a refused click rejects, so the move goes through the normal recovery', c.threw === true);
+    ok('...and the retry aims in viewport pixels for the debugger', JSON.stringify(xy()) === '[100,50]', xy());
+    vm.runInContext('skew = BACKEND_RETRY_MS + 1', c);
+    ok('...and the backend is asked again after the window', vm.runInContext('useBackend()', c) === true);
+    const d = psrc.indexOf('function backend_refused(e)'), e = psrc.indexOf('function resolve_click_tab');
+    const pc = vm.createContext({console: {log() {}, warn() {}}, Date, Number, bgTrace() {}, idle: []});
+    vm.runInContext(`let idle_hold_until = 0; function set_idle_reason(t) { idle.push(t); }
+        async function request_backend_click() { throw new TypeError('Failed to fetch'); }
+        async function request_debugger_click() { return {viaDebugger: true}; }
+        async function resolve_click_tab() { return 1; }
+        var chrome = {runtime: {sendMessage: async () => ({})}};` + psrc.slice(d, e), pc);
+    (async () => {
+        const r1 = await vm.runInContext('dispatch_click_event(1, 2, 3, 0, 0, true)', pc);
+        const r2 = await vm.runInContext('dispatch_click_event(1, 2, 3, 0, 0, false)', pc);
+        const r3 = await vm.runInContext('dispatch_drag_event(1, 2, 3, 4, 3, 0, true)', pc);
+        ok('panel: a refused click answers backendFailed and says why', r1?.backendFailed === true && /localhost:8080/.test(pc.idle[0]), r1);
+        ok('panel: the debugger path is unchanged', r2?.viaDebugger === true, r2);
+        ok('panel: a refused drag answers the same way', r3?.backendFailed === true, r3);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
@@ -4484,7 +4516,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
                        getBoundingClientRect: () => ({left: 1000, right: 1400, top: 0, bottom: 500})});
     const run = (body) => {
         const c = vm.createContext({PANEL_OVERLAY_ID: 'p', RESTORE_BADGE_ID: 'b', config: {python_autoplay_backend: false}, badge: null});
-        vm.runInContext(csrc.slice(a, b).replace('let clickThroughDepth', 'var clickThroughDepth'), c);
+        vm.runInContext('var useBackend = () => config.python_autoplay_backend;' + csrc.slice(a, b).replace('let clickThroughDepth', 'var clickThroughDepth'), c);
         c.wrap = el(); c.wrap.frame = {style: {pointerEvents: ''}};
         c.overlayEl = (id) => id === 'p' ? c.wrap : (id === 'b' ? c.badge : null);
         return vm.runInContext(body, c);

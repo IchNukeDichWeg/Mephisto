@@ -460,6 +460,7 @@
   "panel.msg.resyncing": "El motor respondió para otra posición - releyendo el tablero.",
   "panel.msg.engine_quiet": "El motor dejó de responder - reiniciando la búsqueda.",
   "panel.msg.drop_by_hand": "La mejor jugada es una colocación ({move}). El juego automático no puede colocar piezas de la reserva: juégala tú.",
+  "panel.msg.backend_down": "El backend de Python para el juego automático no responde en localhost:8080, así que las jugadas usan clics normales. Inicia mephisto-clicker.py o desactiva el ajuste.",
   "panel.msg.downloading_net": "Descargando {file}: {pct}% de {mb} MB (solo la primera vez)",
   "panel.msg.remote_unreachable": "Motor remoto: nada responde en localhost:9090. Inicia remote-engine.py o elige otro motor.",
   "panel.fen.auto_flipped": "Leído de la pantalla - las negras estaban abajo, se giró el tablero. Girar tablero lo deshace.",

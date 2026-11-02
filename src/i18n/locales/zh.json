@@ -460,6 +460,7 @@
   "panel.msg.resyncing": "引擎回答的是另一个局面 - 正在重新读取棋盘。",
   "panel.msg.engine_quiet": "引擎已停止响应 - 正在重新开始搜索。",
   "panel.msg.drop_by_hand": "最佳着法是放置棋子（{move}）。自动走子无法放置持驹，请自行走这一步。",
+  "panel.msg.backend_down": "Python 自动走棋后端在 localhost:8080 上没有响应,因此改用普通点击走棋。请启动 mephisto-clicker.py,或关闭此设置。",
   "panel.msg.downloading_net": "正在下载 {file}：{mb} MB 中的 {pct}%（仅首次使用）",
   "panel.msg.remote_unreachable": "远程引擎：localhost:9090 上没有任何响应。请启动 remote-engine.py，或选择其他引擎。",
   "panel.fen.auto_flipped": "从屏幕读取 - 黑方在下方，棋盘已翻转。翻转棋盘可撤销。",
