@@ -985,6 +985,7 @@ async function initPanel(root, tabId) {
         snap_crop = null;
         snap_follow_stop();
         stash_setup_state();
+        panel_line_reset('');   // or a key or strip click later jumps back into the old line
         const setupRow = PANEL_ROOT.getElementById('setup-fen-row');
         if (setupRow) setupRow.style.display = 'none';
         last_eval.fen = '';   // treat whatever comes back as a brand-new position
@@ -5338,6 +5339,7 @@ function apply_setup_fen() {
     }
     setup_fen = parsed;
     stash_setup_state();
+    panel_line_reset(parsed);   // the old line's moves do not belong to this position, nor its FENs to a flip
     setup_fen_msg(i18n('panel.fen.set', 'Set - the panel is no longer following the page'));
     // treat it as a brand-new game so no stale pacing/premove/book state carries over
     last_eval.fen = ''; prev_ply_count = 0;

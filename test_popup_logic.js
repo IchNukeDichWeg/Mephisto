@@ -4627,6 +4627,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     })();
     ok('a recent failure shows ? and does not ask again', /< UA_RETRY_MS\) label = '\?';\s*else ua_ask\(/.test(psrc));
 }
+// ---- SYS-6: a new position or Re-detect ends the old panel line ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('Re-detect and a set FEN both reset the line',
+       /stash_setup_state\(\);\s*panel_line_reset\(''\);[^\n]*\n\s*const setupRow/.test(psrc)
+       && /setup_fen = parsed;\s*stash_setup_state\(\);\s*panel_line_reset\(parsed\);/.test(psrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
