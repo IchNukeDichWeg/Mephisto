@@ -986,6 +986,8 @@ async function initPanel(root, tabId) {
         snap_follow_stop();
         stash_setup_state();
         panel_line_reset('');   // or a key or strip click later jumps back into the old line
+        // prev_ply_count = 0 below hides the new game from the ply-drop reset
+        explorer_out_of_book = false; explorer_data = null; explorer_empty_streak = 0;
         const setupRow = PANEL_ROOT.getElementById('setup-fen-row');
         if (setupRow) setupRow.style.display = 'none';
         last_eval.fen = '';   // treat whatever comes back as a brand-new position
@@ -4547,6 +4549,7 @@ function panel_line_goto(idx) {
     if (row) row.style.display = '';
     setup_fen_msg(i18n('panel.fen.walking_line', 'Walking the panel line - play a move to continue from here, Re-detect to follow the page'));
     last_eval.fen = ''; prev_ply_count = 0;
+    explorer_out_of_book = false; explorer_data = null; explorer_empty_streak = 0;   // walking back can be in book again
     abandon_search();
     try {
         turn = fen.split(' ')[1] || 'w';

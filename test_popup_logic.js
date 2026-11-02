@@ -4632,8 +4632,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
 const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('Re-detect and a set FEN both reset the line',
-       /stash_setup_state\(\);\s*panel_line_reset\(''\);[^\n]*\n\s*const setupRow/.test(psrc)
+       /stash_setup_state\(\);\s*panel_line_reset\(''\);/.test(psrc)
        && /setup_fen = parsed;\s*stash_setup_state\(\);\s*panel_line_reset\(parsed\);/.test(psrc));
+}
+// ---- SYS-9: the out-of-book latch ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const n = (psrc.match(/explorer_out_of_book = false; explorer_data = null; explorer_empty_streak = 0;/g) || []).length;
+    ok('Re-detect and walking the line clear it too', n >= 5 && /panel\.fen\.walking_line[\s\S]{0,200}explorer_out_of_book = false;/.test(psrc), n);
 }
 // ==== END FIX CHECKS ====
 
