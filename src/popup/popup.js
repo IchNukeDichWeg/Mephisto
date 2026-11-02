@@ -7867,7 +7867,7 @@ function hz_scale_rates(rates, mult) {
     let delta = 0;
     for (const cat of ['inaccuracy', 'mistake', 'blunder']) {
         const was = r[cat] || 0;
-        r[cat] = was * (mult[cat] || 1);
+        r[cat] = was * (mult[cat] ?? 1);   // 0 is a real answer: no error of this class here
         delta += r[cat] - was;
     }
     r.top = Math.max(0, (r.top || 0) - delta);
@@ -7919,9 +7919,9 @@ function hz_match_shares(elo, mult = {}) {
     const hi = bands.find(b => b > lo) ?? lo;
     const t = hi === lo ? 0 : (e - lo - 100) / (hi - lo);
     const s = HZ_HUMAN_DROP[lo].map((v, i) => v + t * (HZ_HUMAN_DROP[hi][i] - v));
-    let p1 = (s[2] + s[3] + s[4]) * (mult.inaccuracy || 1);
-    let p2 = (s[3] + s[4]) * (mult.mistake || 1);
-    let p3 = s[4] * (mult.blunder || 1);
+    let p1 = (s[2] + s[3] + s[4]) * (mult.inaccuracy ?? 1);
+    let p2 = (s[3] + s[4]) * (mult.mistake ?? 1);
+    let p3 = s[4] * (mult.blunder ?? 1);
     p1 = Math.min(0.95, p1); p2 = Math.min(p1, p2); p3 = Math.min(p2, p3);
     const g0 = s[0] / (s[0] + s[1]);
     return [(1 - p1) * g0, (1 - p1) * (1 - g0), p1 - p2, p2 - p3, p3];

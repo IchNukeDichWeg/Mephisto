@@ -4474,6 +4474,17 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('Help Mode and Manual Mode draw only, so they get the wide list', f({human_error: true, autoplay: true, help_mode: true}) === 20 && f({human_error: true, autoplay: true, manual_mode: true}) === 20);
     ok('no Autoplay gets it too', f({human_error: true}) === 20);
 }
+// ---- PLAY-8: a hazard of zero stays zero ------------------------------------------------------
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function hz_scale_rates(rates, mult)');
+    const c = vm.createContext({});
+    vm.runInContext(psrc.slice(i, psrc.indexOf('\n}\n', i) + 3), c);
+    const r = vm.runInContext(`hz_scale_rates({top: 80, inaccuracy: 10, mistake: 6, blunder: 4}, {inaccuracy: 0, mistake: 1, blunder: 0})`, c);
+    ok('a where-multiplier of 0 removes the class instead of keeping the full rate', r.inaccuracy === 0 && r.blunder === 0 && r.mistake > 0, r);
+    ok('hz_match_shares treats 0 the same way', /\(mult\.inaccuracy \?\? 1\)[\s\S]{0,80}\(mult\.mistake \?\? 1\)[\s\S]{0,60}\(mult\.blunder \?\? 1\)/.test(psrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
