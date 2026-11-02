@@ -4512,6 +4512,18 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && /config\.puzzle_mode \|\| resign_refused\) return null;/.test(psrc) && a > 0);
     ok('...for this game only', /end_game_last = null;\s*resign_refused = false;/.test(psrc));
 }
+// ---- ENG-6: the lease counts searches ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const osrc = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8');
+    ok('a go counts up, a bestmove counts down, a stop waits for its bestmove',
+       /searching\[clientId\] = \(searching\[clientId\] \|\| 0\) \+ 1;/.test(osrc) && /searching\[clientId\] = Math\.max\(0, \(searching\[clientId\] \|\| 0\) - 1\);/.test(osrc)
+       && !/\(stop\|quit\)\\b\/\.test\(line\)\) searching/.test(osrc));
+    const i = osrc.indexOf('function orphanedSearches'), c = vm.createContext({LEASE_MS: 100});
+    vm.runInContext(`var searching = {a: 1}, lastSeen = {a: 0};` + osrc.slice(i, osrc.indexOf('\n}\n', i) + 3), c);
+    vm.runInContext(`searching.a++; searching.a--;`, c);   // the superseded search's flush after the new go
+    ok('after a position change the live search is still seen as an orphan', vm.runInContext('orphanedSearches(500)', c).join() === 'a');
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -62,7 +62,7 @@ const epoch = {};
 
 function send(clientId, payload) {
     // every engine's output funnels through here, so this is the one place that sees a search end
-    if (payload && payload.kind === 'line' && /^bestmove/.test(payload.line || '')) searching[clientId] = false;
+    if (payload && payload.kind === 'line' && /^bestmove/.test(payload.line || '')) searching[clientId] = Math.max(0, (searching[clientId] || 0) - 1);
     try { chrome.runtime.sendMessage({fromOffscreen: true, clientId, ...payload}); } catch (e) { /* no receiver */ }
 }
 
@@ -83,7 +83,10 @@ const LEASE_MS = 60000;
 const ABANDON_MS = 300000;   // 5 min of silence: the panel is gone, not just thinking
 const LEASE_SWEEP_MS = 20000;
 const lastSeen = {};   // clientId -> when its panel last spoke to us
-const searching = {};  // clientId -> is a search running for it right now
+// clientId -> gos not yet answered by a bestmove. A count, because a superseded search's flushed
+// bestmove lands after the new go: a flag cleared there lost sight of the live search, and an
+// orphan burned its cores for the 5 minute sweep instead of the 60 s lease (ENG-6).
+const searching = {};
 
 // Exported shape kept dead simple so the ladder can drive it without a browser.
 function orphanedSearches(now, lease = LEASE_MS) {
@@ -93,7 +96,7 @@ function orphanedSearches(now, lease = LEASE_MS) {
 function stopOrphanedSearches(now = Date.now()) {
     for (const id of orphanedSearches(now)) {
         console.log(`[Mephisto] offscreen: lease expired for ${id} -- stopping an orphaned search`);
-        searching[id] = false;
+        searching[id] = 0;
         try { clients[id]?.uci('stop'); } catch (e) { /* engine already gone */ }
     }
     // A panel that has been silent for MINUTES is not coming back (its tab navigated away, reloaded
@@ -332,8 +335,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     } else if (cmd === 'uci') {
         const engine = clients[clientId];
         const line = msg.line || '';
-        if (/^go\b/.test(line)) searching[clientId] = true;
-        if (/^(stop|quit)\b/.test(line)) searching[clientId] = false;
+        if (/^go\b/.test(line)) searching[clientId] = (searching[clientId] || 0) + 1;
+        if (/^quit\b/.test(line)) searching[clientId] = 0;
         const opt = /^setoption name (.+?) value /.exec(line);
         if (opt && sticky[clientId]) sticky[clientId][opt[1]] = line;
         if (engine) {
