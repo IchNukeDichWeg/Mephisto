@@ -5053,6 +5053,13 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('other sites are as they were', c.key() === c.location.href);
     ok('no reader or writer is left on the href', !/StartPos\(location\.href|startPosCache\?\.get\?\.\(location\.href/.test(src));
 }
+// ---- PAGE-19: no light-DOM node carries the product name ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('neither id is left', !src.includes('mephisto-hide-opp') && !src.includes('mephisto-drag-select'));
+    ok('the veil lives in the closed root', /veil\.appendChild\(box\); veil\.appendChild\(hint\);\s*getOverlayRoot\(\)\.appendChild\(veil\);/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

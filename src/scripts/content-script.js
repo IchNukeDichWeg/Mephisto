@@ -636,11 +636,12 @@ function readOverlayBox() {
 // devicePixelRatio, so the CSS-pixel rect the user drags has to be scaled by that ratio to line up
 // with the pixels the recogniser sees -- on a retina screen it is 2x and skipping this reads the
 // wrong quarter of the screen.
+let dragVeil = null;   // in the closed root with the other overlays, and with no name
 function startDragSelect() {
-    if (document.getElementById('mephisto-drag-select')) return;
+    if (dragVeil) return;
     const veil = document.createElement('div');
-    veil.id = 'mephisto-drag-select';
-    veil.style.cssText = 'position:fixed;inset:0;z-index:2147483647;cursor:crosshair;' +
+    dragVeil = veil;
+    veil.style.cssText = 'position:fixed;inset:0;z-index:2147483647;cursor:crosshair;pointer-events:auto;' +
         'background:rgba(0,0,0,0.25)';
     const box = document.createElement('div');
     box.style.cssText = 'position:fixed;border:2px solid #14b8a6;background:rgba(20,184,166,0.15);display:none';
@@ -649,10 +650,10 @@ function startDragSelect() {
     hint.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);' +
         'background:#1b1c22;color:#fff;padding:6px 12px;border-radius:6px;font:14px sans-serif';
     veil.appendChild(box); veil.appendChild(hint);
-    document.documentElement.appendChild(veil);
+    getOverlayRoot().appendChild(veil);
 
     let sx = 0, sy = 0, dragging = false;
-    const done = () => { veil.remove(); document.removeEventListener('keydown', onKey, true); };
+    const done = () => { veil.remove(); dragVeil = null; document.removeEventListener('keydown', onKey, true); };
     function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); done(); } }
     document.addEventListener('keydown', onKey, true);
     veil.addEventListener('mousedown', (e) => {
@@ -690,7 +691,6 @@ function startDragSelect() {
 // Blur the opponent's name and avatar on the PAGE (opt-in, off by default). Purely cosmetic and
 // local -- it changes nothing the site sees. Worth knowing: this is the one feature that
 // deliberately adds a <style> to the page, so it is off unless you ask for it.
-const HIDE_OPP_ID = 'mephisto-hide-opp';
 // EVERY ONE OF THESE IS A GUESS ABOUT SOMEBODY ELSE'S MARKUP, and nothing else in this file
 // corroborates them -- the scrapers read the board and the move list, never the player boxes. So
 // when a site renames a class this list silently matches nothing, the stylesheet is injected over
@@ -764,12 +764,12 @@ function maybeCheckStreamer() {
 
 let hideOppMatched = null;   // last match count, for the diagnostics; null = never applied
 
+let hideOppStyle = null;      // by reference: an id on a node in the page is a name the page can look up
 function applyHideOpponent(on) {
-    const existing = document.getElementById(HIDE_OPP_ID);
-    if (!on) { existing?.remove(); hideOppMatched = null; return; }
-    if (!existing) {
+    if (!on) { hideOppStyle?.remove(); hideOppStyle = null; hideOppMatched = null; return; }
+    if (!hideOppStyle?.isConnected) {
         const st = document.createElement('style');
-        st.id = HIDE_OPP_ID;
+        hideOppStyle = st;
         // blur rather than hide: the layout stays intact, so the page looks normal
         st.textContent = `${HIDE_OPP_SELECTORS} { filter: blur(6px) !important; }`;
         (document.head || document.documentElement).appendChild(st);
