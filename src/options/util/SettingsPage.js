@@ -196,6 +196,9 @@ export class SettingsPage {
         // rebuild themselves on the other machine, and neither belongs in a file pasted into an issue.
         delete all.session_totals;
         delete all.player_book_cache;
+        // A folder path names the OS account, and this file gets pasted into issues. It also means
+        // nothing on another machine.
+        delete all.tb_path;
         // These two are stored raw, not as JSON, so a file carrying one was refused by its own import
         // (MPH-S03). The installed version would also suppress the update offer on another machine.
         for (const k of RAW_KEYS) delete all[k];
@@ -237,7 +240,7 @@ export class SettingsPage {
         // stayed on after importing a file from a setup where they were off). Settings the file does
         // not name go back to their defaults. The same things the export leaves out stay put: they
         // are a credential and this machine's own records, not settings.
-        const KEEP = ['__cfg_migrated', 'lichess_token', 'session_totals', 'player_book_cache', ...RAW_KEYS];
+        const KEEP = ['__cfg_migrated', 'lichess_token', 'session_totals', 'player_book_cache', 'tb_path', ...RAW_KEYS];
         let have = {};
         try { have = await chrome.storage.local.get(null); } catch (e) { /* nothing to clear */ }
         for (const [k, v] of Object.entries(have)) {

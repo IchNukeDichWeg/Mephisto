@@ -4657,8 +4657,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
 const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const s = fs.readFileSync(ROOT + '/src/options/util/SettingsPage.js', 'utf8');
     ok('the raw keys leave the export, are skipped on import and are kept on this machine',
-       /for \(const k of RAW_KEYS\) delete all\[k\];/.test(s) && /for \(const k of RAW_KEYS\) delete obj\[k\];/.test(s) && /player_book_cache', \.\.\.RAW_KEYS\]/.test(s));
+       /for \(const k of RAW_KEYS\) delete all\[k\];/.test(s) && /for \(const k of RAW_KEYS\) delete obj\[k\];/.test(s) && /\.\.\.RAW_KEYS\];/.test(s));
     ok('...skipped before the JSON check that refused them', s.indexOf('delete obj[k]') < s.indexOf('const broken = Object.entries(obj)'));
+}
+// ---- SYS-15: the tablebase path stays on this machine ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/options/util/SettingsPage.js', 'utf8');
+    ok('not exported, not cleared by an import', /delete all\.tb_path;/.test(s) && /'player_book_cache', 'tb_path', \.\.\.RAW_KEYS\]/.test(s));
 }
 // ==== END FIX CHECKS ====
 
