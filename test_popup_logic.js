@@ -4795,6 +4795,21 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && /if \(key === 'compute_time'\) config\.compute_time = clamp_compute_time\(value\);/.test(psrc)
        && /id="compute_time_input" type="number" min="50"/.test(html));
 }
+// ---- OPT-11: chess.com import is newest first ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = src.indexOf('async function fetchChesscom(user)');
+    const fn = vm.runInNewContext('(' + src.slice(a, src.indexOf('\n}\n', a) + 2) + ')', {
+        fetch: async (u) => ({ok: true, json: async () => /archives$/.test(u) ? {archives: ['m9', 'm10']}
+            : u === 'm10' ? {games: [{pgn: 'new1'}, {pgn: 'new2'}]}
+            : {games: Array.from({length: 45}, (_, i) => ({pgn: 'old' + i}))}})});
+    fn('someone').then(s => {
+        const list = s.split('\n\n');
+        ok('this month leads, newest first, then last month from its end, capped at 40',
+           list.length === 40 && list[0] === 'new2' && list[1] === 'new1' && list[2] === 'old44', list.slice(0, 3));
+    }).catch(e => ok('fetchChesscom ran', false, String(e)));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

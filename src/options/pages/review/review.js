@@ -2425,11 +2425,13 @@ async function fetchChesscom(user) {
     const out = [];
     for (const u of urls) {
         const month = await fetch(u).then(r => r.ok ? r.json() : null).catch(() => null);
-        for (const g of (month?.games || [])) if (g.pgn) out.push(g.pgn);
+        // A month runs oldest first. Reversed whole at the end, the older month landed on top and
+        // the 40 limit cut the newest games from this month.
+        for (const g of [...(month?.games || [])].reverse()) if (g.pgn) out.push(g.pgn);
         if (out.length >= 40) break;
     }
     if (!out.length) throw new Error(`No games with a PGN in "${clean}"'s last two months.`);
-    return out.reverse().slice(0, 40).join('\n\n');
+    return out.slice(0, 40).join('\n\n');
 }
 
 // Lichess, same shape: the export API is public, takes a username, and answers PGN directly -- with
