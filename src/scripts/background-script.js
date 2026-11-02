@@ -2134,6 +2134,37 @@ async function puzzleNetWanted() {
   } catch (e) { return false; }
 }
 
+// The page-world puzzle probe wraps fetch, XHR, WebSocket and Response, all of it readable by the
+// page, so it exists only while Puzzle Capture is on. As a static manifest entry it ran on every
+// lichess and chess.com page for everyone and read no setting. Reconciled at every worker start and
+// on install, so an update cannot leave the registration out of step with the setting.
+const PUZ_PROBE_ID = 'pz';
+let puzProbeChain = Promise.resolve();   // one at a time: a quick off-on must not race its own register
+function syncPuzProbe() {
+  puzProbeChain = puzProbeChain.then(async () => {
+    try {
+      const {puzzle_capture: v} = await chrome.storage.local.get('puzzle_capture');
+      let want = false;
+      try { want = JSON.parse(v ?? 'false') === true; } catch (e) { /* not a value we wrote */ }
+      const have = (await chrome.scripting.getRegisteredContentScripts({ids: [PUZ_PROBE_ID]})).length > 0;
+      if (want && !have) {
+        await chrome.scripting.registerContentScripts([{
+          id: PUZ_PROBE_ID, matches: ['*://lichess.org/*', '*://www.chess.com/*', '*://chess.com/*'],
+          js: ['src/scripts/puz-probe.js'], world: 'MAIN', runAt: 'document_start', persistAcrossSessions: true,
+        }]);
+      } else if (!want && have) {
+        await chrome.scripting.unregisterContentScripts({ids: [PUZ_PROBE_ID]});
+      }
+    } catch (e) { console.warn('Puzzle probe registration failed:', e); }
+  });
+  return puzProbeChain;
+}
+syncPuzProbe();
+chrome.runtime.onInstalled.addListener(() => { syncPuzProbe(); });
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.puzzle_capture) syncPuzProbe();
+});
+
 const PUZZLE_PAGE_URL = (url) => /^https?:\/\/(www\.)?(chess\.com|lichess\.org)\//.test(url)
     && /\/(puzzles|training|storm|racer|lessons\/practice)\b/.test(url);
 

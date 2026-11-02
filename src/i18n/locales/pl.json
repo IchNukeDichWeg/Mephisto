@@ -211,7 +211,7 @@
   "set.background_play": "Gra w tle",
   "set.opponent_mistake_alert": "Alert o błędzie przeciwnika",
   "set.puzzle_capture": "Odczytuj rozwiązania ze strony",
-  "set.tip.puzzle_capture": "Czytaj rozwiązanie z samej strony zadania. Te serwisy dają odpowiedź własnemu klientowi -- sprawdzają twoje ruchy lokalnie -- więc już jest w karcie. Nic nie jest pobierane ani wysyłane; czytane jest tylko to, co strona już dostała. Rozwiązanie jest użyte tylko, jeśli odtwarza się legalnie I należy do pozycji na szachownicy, więc niedopasowanie znaczy, że silnik gra jak zwykle. Domyślnie wyłączone.",
+  "set.tip.puzzle_capture": "Czytaj rozwiązanie z samej strony zadania. Te serwisy dają odpowiedź własnemu klientowi -- sprawdzają twoje ruchy lokalnie -- więc już jest w karcie. Nic nie jest pobierane ani wysyłane; czytane jest tylko to, co strona już dostała. Rozwiązanie jest użyte tylko, jeśli odtwarza się legalnie I należy do pozycji na szachownicy, więc niedopasowanie znaczy, że silnik gra jak zwykle. Domyślnie wyłączone. Po włączeniu odśwież stronę.",
   "set.puzzle_capture_cdp": "Użyj debugera do przechwytywania rozwiązań",
   "set.tip.puzzle_capture_cdp": "Czytaj rozwiązanie niezawodnie, obserwując ruch sieciowy strony przez debugger Chrome. Bez tego czytanie rozwiązań ze strony działa tylko, gdy rozszerzenie załaduje się przed serwisem, co w niektórych trybach zadań nie zdarza się nigdy - odpowiedź to rzut monetą. Kosztem jest żółty pasek Chrome 'debugowana', póki strona zadań jest otwarta. Wymaga Czytaj rozwiązania ze strony. Domyślnie wyłączone.",
   "set.puzzle_database": "Baza zadań",

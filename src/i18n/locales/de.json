@@ -211,7 +211,7 @@
   "set.background_play": "Spiel im Hintergrund",
   "set.opponent_mistake_alert": "Hinweis bei Gegnerfehler",
   "set.puzzle_capture": "Lösungen von der Seite lesen",
-  "set.tip.puzzle_capture": "Lies die Lösung von der Puzzleseite selbst. Diese Seiten geben ihrem eigenen Client die Antwort -- sie prüfen deine Züge lokal -- sie liegt also schon im Tab. Nichts wird angefragt und nichts gesendet; gelesen wird nur, was die Seite ohnehin bekam. Eine Lösung wird nur genutzt, wenn sie legal nachspielbar ist UND zur Stellung auf dem Brett gehört, ein Fehlgriff heißt also: Die Engine spielt wie üblich. Standardmäßig aus.",
+  "set.tip.puzzle_capture": "Lies die Lösung von der Puzzleseite selbst. Diese Seiten geben ihrem eigenen Client die Antwort -- sie prüfen deine Züge lokal -- sie liegt also schon im Tab. Nichts wird angefragt und nichts gesendet; gelesen wird nur, was die Seite ohnehin bekam. Eine Lösung wird nur genutzt, wenn sie legal nachspielbar ist UND zur Stellung auf dem Brett gehört, ein Fehlgriff heißt also: Die Engine spielt wie üblich. Standardmäßig aus. Lade die Seite neu, nachdem du dies eingeschaltet hast.",
   "set.puzzle_capture_cdp": "Debugger zum Erfassen der Lösungen nutzen",
   "set.tip.puzzle_capture_cdp": "Lies die Lösung zuverlässig, indem der eigene Netzwerkverkehr der Seite über Chromes Debugger beobachtet wird. Ohne das klappt das Lesen von der Seite nur, wenn die Erweiterung vor der Seite lädt, was in manchen Puzzle-Modi nie passiert - die Antwort ist also ein Münzwurf. Der Preis ist Chromes gelber 'wird debuggt'-Balken, solange eine Puzzleseite offen ist. Braucht Lösungen von der Seite lesen. Standardmäßig aus.",
   "set.puzzle_database": "Aufgabendatenbank",

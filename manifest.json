@@ -75,18 +75,6 @@
       ],
       "world": "MAIN",
       "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "*://lichess.org/*",
-        "*://www.chess.com/*",
-        "*://chess.com/*"
-      ],
-      "js": [
-        "src/scripts/puz-probe.js"
-      ],
-      "world": "MAIN",
-      "run_at": "document_start"
     }
   ],
   "options_ui": {

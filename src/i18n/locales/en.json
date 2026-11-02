@@ -213,7 +213,7 @@
   "set.background_play": "Background Play",
   "set.opponent_mistake_alert": "Opponent Mistake Alert",
   "set.puzzle_capture": "Read solutions from the page",
-  "set.tip.puzzle_capture": "Read the solution off the puzzle page itself. These sites hand their own client the answer -- they check your moves locally -- so it is already in the tab. Nothing is requested and nothing is sent; only what the page was already given is read. A solution is used only if it replays legally AND belongs to the position on the board, so a mismatch means the engine plays as usual. Off by default.",
+  "set.tip.puzzle_capture": "Read the solution off the puzzle page itself. These sites hand their own client the answer -- they check your moves locally -- so it is already in the tab. Nothing is requested and nothing is sent; only what the page was already given is read. A solution is used only if it replays legally AND belongs to the position on the board, so a mismatch means the engine plays as usual. Off by default. Reload the page after turning this on.",
   "set.puzzle_capture_cdp": "Use the debugger to catch solutions",
   "set.tip.puzzle_capture_cdp": "Read the solution reliably, by watching the page's own network traffic through Chrome's debugger. Without this, reading solutions off the page only works when the extension loads before the site does, which on some puzzle modes it never does - so the answer is a coin toss. The cost is that Chrome shows its yellow 'being debugged' bar while a puzzle page is open. Needs Read solutions from the page. Off by default.",
   "set.puzzle_database": "Puzzle Database",

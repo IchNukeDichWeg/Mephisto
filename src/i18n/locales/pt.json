@@ -211,7 +211,7 @@
   "set.background_play": "Jogo em segundo plano",
   "set.opponent_mistake_alert": "Alerta de erro do adversário",
   "set.puzzle_capture": "Ler as soluções da página",
-  "set.tip.puzzle_capture": "Leia a solução da própria página do puzzle. Esses sites entregam a resposta ao próprio cliente -- eles conferem seus lances localmente -- então ela já está na aba. Nada é pedido e nada é enviado; só o que a página já recebeu é lido. Uma solução só é usada se rejoga legalmente E pertence à posição no tabuleiro, então um descompasso significa que o motor joga como sempre. Desligado por padrão.",
+  "set.tip.puzzle_capture": "Leia a solução da própria página do puzzle. Esses sites entregam a resposta ao próprio cliente -- eles conferem seus lances localmente -- então ela já está na aba. Nada é pedido e nada é enviado; só o que a página já recebeu é lido. Uma solução só é usada se rejoga legalmente E pertence à posição no tabuleiro, então um descompasso significa que o motor joga como sempre. Desligado por padrão. Recarregue a página depois de ativar.",
   "set.puzzle_capture_cdp": "Usar o depurador para captar as soluções",
   "set.tip.puzzle_capture_cdp": "Leia a solução de forma confiável, observando o próprio tráfego de rede da página pelo depurador do Chrome. Sem isto, ler soluções da página só funciona quando a extensão carrega antes do site, o que em alguns modos de puzzle nunca acontece - a resposta vira cara ou coroa. O custo é a barra amarela do Chrome de 'sendo depurado' enquanto uma página de puzzle está aberta. Precisa de Ler soluções da página. Desligado por padrão.",
   "set.puzzle_database": "Base de dados de problemas",

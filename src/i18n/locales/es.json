@@ -211,7 +211,7 @@
   "set.background_play": "Juego en segundo plano",
   "set.opponent_mistake_alert": "Aviso de error del rival",
   "set.puzzle_capture": "Leer las soluciones de la página",
-  "set.tip.puzzle_capture": "Lee la solución de la propia página del puzle. Estos sitios entregan la respuesta a su propio cliente -- comprueban tus jugadas localmente -- así que ya está en la pestaña. No se pide nada y no se envía nada; solo se lee lo que la página ya recibió. Una solución solo se usa si se reproduce legalmente Y pertenece a la posición del tablero, así que un desajuste significa que el motor juega como siempre. Desactivado por defecto.",
+  "set.tip.puzzle_capture": "Lee la solución de la propia página del puzle. Estos sitios entregan la respuesta a su propio cliente -- comprueban tus jugadas localmente -- así que ya está en la pestaña. No se pide nada y no se envía nada; solo se lee lo que la página ya recibió. Una solución solo se usa si se reproduce legalmente Y pertenece a la posición del tablero, así que un desajuste significa que el motor juega como siempre. Desactivado por defecto. Recarga la página después de activarlo.",
   "set.puzzle_capture_cdp": "Usar el depurador para captar las soluciones",
   "set.tip.puzzle_capture_cdp": "Lee la solución de forma fiable, observando el propio tráfico de red de la página a través del depurador de Chrome. Sin esto, leer soluciones de la página solo funciona cuando la extensión carga antes que el sitio, cosa que en algunos modos de puzle no pasa nunca - así que la respuesta es cara o cruz. El coste es la barra amarilla de Chrome de 'siendo depurado' mientras haya una página de puzles abierta. Necesita Leer soluciones de la página. Desactivado por defecto.",
   "set.puzzle_database": "Base de datos de problemas",

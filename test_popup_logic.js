@@ -4935,6 +4935,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /an-mnum">1<\/span><span class="an-mcell" data-node="1">e4<\/span><span class="an-mcell" data-node="2">e5/.test(h)
        && /an-mnum">2<\/span><span class="an-mcell" data-node="3">Nf3/.test(h), h);
 }
+// ---- PAGE-1/SYS-2: the puzzle probe exists only while Puzzle Capture is on ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const man = JSON.parse(fs.readFileSync(ROOT + '/manifest.json', 'utf8'));
+    ok('no static entry', !JSON.stringify(man.content_scripts).includes('puz-probe') && man.permissions.includes('scripting'));
+    const src = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = src.indexOf("const PUZ_PROBE_ID = 'pz';");
+    const body = src.slice(a, src.indexOf('syncPuzProbe();\nchrome.runtime.onInstalled'));
+    const world = (stored, registered) => {
+        const log = [];
+        const chrome = {storage: {local: {get: async () => stored}}, scripting: {
+            getRegisteredContentScripts: async () => registered ? [{id: 'pz'}] : [],
+            registerContentScripts: async (l) => { log.push(['reg', l[0]]); },
+            unregisterContentScripts: async () => { log.push(['unreg']); }}};
+        return {log, sync: vm.runInNewContext(body + '; syncPuzProbe', {chrome, console, Promise})};
+    };
+    (async () => {
+        let w = world({}, false); await w.sync();
+        ok('never enabled: nothing registers', w.log.length === 0, w.log);
+        w = world({puzzle_capture: 'false'}, true); await w.sync();
+        ok('switched off: unregisters', w.log.length === 1 && w.log[0][0] === 'unreg', w.log);
+        w = world({puzzle_capture: 'true'}, false); await w.sync();
+        ok('switched on: MAIN world at document_start on the two sites',
+           w.log.length === 1 && w.log[0][1].world === 'MAIN' && w.log[0][1].runAt === 'document_start'
+           && w.log[0][1].js[0] === 'src/scripts/puz-probe.js' && w.log[0][1].matches.length === 3, w.log);
+        w = world({puzzle_capture: 'true'}, true); await w.sync();
+        ok('already right: nothing to do', w.log.length === 0, w.log);
+    })().catch(e => ok('syncPuzProbe ran', false, String(e)));
+    ok('the worker reconciles at start, on install and on the setting',
+       /\nsyncPuzProbe\(\);\nchrome\.runtime\.onInstalled\.addListener\(\(\) => \{ syncPuzProbe\(\); \}\);/.test(src)
+       && /changes\.puzzle_capture\) syncPuzProbe\(\)/.test(src));
+    const fails14 = fs.readdirSync(ROOT + '/src/i18n/locales').filter(f => {
+        const d = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8'));
+        return !d['set.tip.puzzle_capture'] || d['set.tip.puzzle_capture'] === d['set.tip.puzzle_capture_cdp']; });
+    ok('the tip is present in all 14 locales', fails14.length === 0, fails14);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

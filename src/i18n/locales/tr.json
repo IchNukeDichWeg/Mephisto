@@ -211,7 +211,7 @@
   "set.background_play": "Arka planda oynatma",
   "set.opponent_mistake_alert": "Rakip hatası uyarısı",
   "set.puzzle_capture": "Çözümleri sayfadan oku",
-  "set.tip.puzzle_capture": "Çözümü bulmaca sayfasının kendisinden oku. Bu siteler yanıtı kendi istemcilerine verir -- hamlelerinizi yerelde denetlerler -- yani yanıt zaten sekmede. Hiçbir şey istenmez, hiçbir şey gönderilmez; yalnız sayfanın zaten aldığı okunur. Bir çözüm ancak yasal biçimde yeniden oynanıyorsa VE tahtadaki konuma aitse kullanılır; uyuşmazlık, motorun her zamanki gibi oynaması demektir. Varsayılan olarak kapalı.",
+  "set.tip.puzzle_capture": "Çözümü bulmaca sayfasının kendisinden oku. Bu siteler yanıtı kendi istemcilerine verir -- hamlelerinizi yerelde denetlerler -- yani yanıt zaten sekmede. Hiçbir şey istenmez, hiçbir şey gönderilmez; yalnız sayfanın zaten aldığı okunur. Bir çözüm ancak yasal biçimde yeniden oynanıyorsa VE tahtadaki konuma aitse kullanılır; uyuşmazlık, motorun her zamanki gibi oynaması demektir. Varsayılan olarak kapalı. Açtıktan sonra sayfayı yenileyin.",
   "set.puzzle_capture_cdp": "Çözümleri yakalamak için hata ayıklayıcıyı kullan",
   "set.tip.puzzle_capture_cdp": "Çözümü güvenilir biçimde, sayfanın kendi ağ trafiğini Chrome'un hata ayıklayıcısından izleyerek oku. Bu olmadan sayfadan çözüm okumak yalnız eklenti siteden önce yüklenirse çalışır ki bazı bulmaca kiplerinde bu hiç olmaz - yanıt yazı tura olur. Bedeli, bulmaca sayfası açıkken Chrome'un sarı 'hata ayıklanıyor' çubuğudur. Sayfadan çözüm okumayı ister. Varsayılan olarak kapalı.",
   "set.puzzle_database": "Problem veritabanı",

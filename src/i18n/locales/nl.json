@@ -211,7 +211,7 @@
   "set.background_play": "Spelen op de achtergrond",
   "set.opponent_mistake_alert": "Melding bij fout tegenstander",
   "set.puzzle_capture": "Oplossingen van de pagina lezen",
-  "set.tip.puzzle_capture": "Lees de oplossing van de puzzelpagina zelf. Deze sites geven hun eigen client het antwoord -- ze controleren je zetten lokaal -- dus het zit al in het tabblad. Er wordt niets opgevraagd en niets verzonden; alleen wat de pagina al kreeg wordt gelezen. Een oplossing wordt alleen gebruikt als ze legaal naspeelt ÉN bij de stelling op het bord hoort, dus een mismatch betekent dat de engine als gewoonlijk speelt. Standaard uit.",
+  "set.tip.puzzle_capture": "Lees de oplossing van de puzzelpagina zelf. Deze sites geven hun eigen client het antwoord -- ze controleren je zetten lokaal -- dus het zit al in het tabblad. Er wordt niets opgevraagd en niets verzonden; alleen wat de pagina al kreeg wordt gelezen. Een oplossing wordt alleen gebruikt als ze legaal naspeelt ÉN bij de stelling op het bord hoort, dus een mismatch betekent dat de engine als gewoonlijk speelt. Standaard uit. Herlaad de pagina nadat je dit hebt ingeschakeld.",
   "set.puzzle_capture_cdp": "Gebruik de debugger om oplossingen op te vangen",
   "set.tip.puzzle_capture_cdp": "Lees de oplossing betrouwbaar, door het eigen netwerkverkeer van de pagina via Chromes debugger te bekijken. Zonder dit werkt het lezen van de pagina alleen als de extensie vóór de site laadt, wat in sommige puzzelmodi nooit gebeurt - het antwoord is dus een muntworp. De prijs is Chromes gele 'wordt gedebugd'-balk zolang een puzzelpagina open is. Vereist Oplossingen van de pagina lezen. Standaard uit.",
   "set.puzzle_database": "Puzzeldatabase",

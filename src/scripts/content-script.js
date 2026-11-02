@@ -2663,9 +2663,8 @@ function puzzleLineFits(fen, moves) {
 }
 
 function acceptPuzzleCaptures(found) {
-    // OPT-IN GATE. The probe observes unconditionally, but nothing is retained unless the user asked
-    // for it -- otherwise "captures=N" in the diagnostics meant the probe ran, not that the feature
-    // was armed, and a solution could sit in memory for a user who never turned the setting on.
+    // OPT-IN GATE. The worker registers the probe only while the setting is on, but a tab loaded
+    // before it was switched off still has one, and nothing is retained unless the user asked for it.
     // Before config has arrived the intent is unknown, so a capture is not dropped on that account.
     if (config && !config.puzzle_capture) return;
     if (!Array.isArray(found) || !found.length) return;
