@@ -4699,6 +4699,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     })();
     ok('Read Position and Bot Tricks both go through it', /tabOfAsker\(msg, sender\)\.then\(tab => botExploit/.test(w) && /const tab = await tabOfAsker\(msg, sender\);\s*if \(!tab \|\| tab\.id == null\)/.test(w));
 }
+// ---- SYS-13: the Analysis Board link keeps the side to move ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('whole FEN, and a variant missing from the map falls back', /analysis\/\$\{variant\}\/\$\{last_eval\.fen\.replace\(\/ \/g, '_'\)\}/.test(psrc) && /variantNameMap\[config\.variant\] \|\| 'standard'/.test(psrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

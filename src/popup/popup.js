@@ -947,10 +947,11 @@ async function initPanel(root, tabId) {
             'horde': 'horde',
             'racingkings': 'racingKings',
         }
-        const variant = variantNameMap[config.variant];
-        // Board only: just the piece-placement field, no side-to-move / castling / clocks. Keep the
-        // '/' separators raw -- encodeURIComponent would turn them into %2F and lichess won't parse it.
-        const url = `https://lichess.org/analysis/${variant}?fen=${last_eval.fen.split(' ')[0]}`;
+        const variant = variantNameMap[config.variant] || 'standard';
+        // The whole FEN, or Black to move opened as White to move: a different position. Spaces as
+        // underscores and the '/' separators raw, the form lichess itself uses in this URL;
+        // encodeURIComponent would turn them into %2F and lichess won't parse it.
+        const url = `https://lichess.org/analysis/${variant}/${last_eval.fen.replace(/ /g, '_')}`;
         // the background opens it: window.open from a content script runs in the SITE's context and
         // gets swallowed by popup blocking / page policy
         chrome.runtime.sendMessage({openUrl: url});
