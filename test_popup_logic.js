@@ -4899,6 +4899,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('the export reads that, for the picture and the table',
        /const bands = bandsFor\(pos\);/.test(src) && /\$\{bands \? \$\('an_bands_wrap'\)/.test(src) && /exportBandTable\(bands\)/.test(src));
 }
+// ---- OPT-19: one bad move ends one book game ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    ok('the move is caught singly', /let mv = null;\s*try \{ mv = c\.move\(san\); \} catch \(e\) \{[^}]*\}\s*if \(!mv\) break;/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

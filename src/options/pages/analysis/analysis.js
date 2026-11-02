@@ -2003,7 +2003,10 @@ async function onBookFile(e) {
                 for (const rec of game.moves) {
                     const san = typeof rec === 'string' ? rec : rec.san;
                     const k = keyOf(c.fen());
-                    const mv = c.move(san);
+                    // chess.js THROWS on a null or illegal move, so `if (!mv)` alone never ran and
+                    // one bad game rejected the whole book. It ends that game and no other.
+                    let mv = null;
+                    try { mv = c.move(san); } catch (e) { /* the game ends here */ }
                     if (!mv) break;
                     const uci = mv.from + mv.to + (mv.promotion || '');
                     const list = entries.get(k) || [];
