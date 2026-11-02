@@ -4524,6 +4524,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext(`searching.a++; searching.a--;`, c);   // the superseded search's flush after the new go
     ok('after a position change the live search is still seen as an orphan', vm.runInContext('orphanedSearches(500)', c).join() === 'a');
 }
+// ---- ENG-8: a disposed engine says nothing ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const osrc = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8');
+    const i = osrc.indexOf('function disposeClient(clientId)'), c = vm.createContext({heard: []});
+    vm.runInContext(`var epoch = {}, searching = {}, lastSeen = {}, engine = {uci() { this.listen('bestmove e2e4'); }, listen: (l) => heard.push(l)}, clients = {x: engine};
+        function maybeGoIdle() {}` + osrc.slice(i, osrc.indexOf('\n}\n', i) + 3) + `disposeClient('x');`, c);
+    ok('the old search\'s flush never reaches the panel', c.heard.length === 0, c.heard);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -147,6 +147,9 @@ function disposeClient(clientId) {
     // the cores; closing the document is what hands the workers back.
     // ponytail: idle workers may linger until the last client goes and the document closes. They
     // cost memory, not CPU, and that was never what anyone noticed.
+    // Silenced first: its flushed bestmove would reach the panel under the same clientId, and the
+    // panel has just zeroed the stops it owes, so it would read as an answer to the current position.
+    engine.listen = () => {};
     try { engine.uci && engine.uci('stop'); } catch (e) { /* */ }
     try { engine.terminate && engine.terminate(); } catch (e) { /* if a build ever grows one */ }
     delete clients[clientId];
