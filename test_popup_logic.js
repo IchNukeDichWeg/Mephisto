@@ -4682,6 +4682,23 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     ok('the autostart checks the grant without prompting', /if \(await MephistoUpdater\.folder\(\)\) runInstall\(\);\s*else say\('One click needed/.test(g));
 }
+// ---- SYS-3: toolbar popup reaches its tab ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const w = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const i = w.indexOf('async function tabOfAsker(msg, sender)'), c = vm.createContext({chrome: {runtime: {id: 'me'}, tabs: {get: async (id) => ({id})}}});
+    vm.runInContext(w.slice(i, w.indexOf('\n}\n', i) + 3), c);
+    (async () => {
+        const own = {id: 'me', url: 'chrome-extension://me/src/popup/popup.html'};
+        const t1 = await vm.runInContext('tabOfAsker', c)({tabId: 5}, own);
+        const t2 = await vm.runInContext('tabOfAsker', c)({tabId: 5}, {tab: {id: 9}});
+        const t3 = await vm.runInContext('tabOfAsker', c)({tabId: 5}, {id: 'me', url: 'https://evil.example/'});
+        ok('our own page may name a tab', t1?.id === 5, t1);
+        ok('a content script always gets its own tab, whatever it names', t2?.id === 9, t2);
+        ok('anything else gets none', t3 === undefined, t3);
+    })();
+    ok('Read Position and Bot Tricks both go through it', /tabOfAsker\(msg, sender\)\.then\(tab => botExploit/.test(w) && /const tab = await tabOfAsker\(msg, sender\);\s*if \(!tab \|\| tab\.id == null\)/.test(w));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

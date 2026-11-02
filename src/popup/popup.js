@@ -4867,7 +4867,7 @@ function run_bot_trick(what, retried) {
     const btn = PANEL_ROOT.getElementById(what === 'draw' ? 'qs_bot_draw' : 'qs_bot_play');
     const send = (req) => {
         if (btn) btn.disabled = true;
-        chrome.runtime.sendMessage({botExploit: req}, (r) => {
+        resolve_click_tab().then(tabId => chrome.runtime.sendMessage({botExploit: req, tabId}, (r) => {
             if (btn) btn.disabled = false;
             if (!chrome.runtime.lastError && r && !r.ok && r.why === 'wrong-colour' && r.side && !retried
                 && (config.bot_trick_game || 'auto') === 'auto') {
@@ -4875,7 +4875,7 @@ function run_bot_trick(what, retried) {
                 return;
             }
             set_idle_reason(bot_trick_message(what, r));
-        });
+        }));
     };
     if (what === 'draw') { send({what: 'draw'}); return; }
 
@@ -5061,7 +5061,7 @@ async function snap_follow_tick() {
     if (document.hidden) return;                  // nothing of ours is on screen to read (see below)
     snap_follow_busy = true;
     try {
-        const res = await chrome.runtime.sendMessage({captureAndRecognize: {crop: snap_crop}});
+        const res = await chrome.runtime.sendMessage({captureAndRecognize: {crop: snap_crop}, tabId: await resolve_click_tab()});
         if (res?.error) {
             // Surfaced, not swallowed. The usual one is Chrome's captureVisibleTab quota (~2/sec),
             // and a silent skip made that look like "the recogniser is slow" rather than "we asked
@@ -5236,8 +5236,8 @@ async function snap_position(crop) {
     let res;
     try {
         res = crop
-            ? await chrome.runtime.sendMessage({captureAndRecognize: {crop}})
-            : await with_panel_hidden(() => chrome.runtime.sendMessage({captureAndRecognize: {}}));
+            ? await chrome.runtime.sendMessage({captureAndRecognize: {crop}, tabId: await resolve_click_tab()})
+            : await with_panel_hidden(async () => chrome.runtime.sendMessage({captureAndRecognize: {}, tabId: await resolve_click_tab()}));
     } catch (e) {
         setup_fen_msg(err_line('MPH-V02', {detail: e}));
         return;

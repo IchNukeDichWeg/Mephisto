@@ -281,7 +281,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   }
   // Bot-game tricks. Runs on the sender's own tab, and only on Play Computer -- see botExploit.
   if (msg.botExploit) {
-    botExploit(sender.tab, msg.botExploit).then(sendResponse)
+    tabOfAsker(msg, sender).then(tab => botExploit(tab, msg.botExploit)).then(sendResponse)
       .catch(e => sendResponse({ok: false, why: String(e)}));
     return true; // async sendResponse
   }
@@ -578,7 +578,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         // tab's pixels -- and fed them to the recogniser, which happily read a placement out of
         // whatever was on screen and restarted that panel's search on someone else's board. Every
         // other route in this file is careful to address the sender's tab; this one was not.
-        const tab = sender.tab;
+        const tab = await tabOfAsker(msg, sender);
         if (!tab || tab.id == null) return sendResponse({error: 'no sender tab'});
         if (!tab.active) return sendResponse({error: 'tab is not visible'});
         // JPEG, NOT PNG. This is the dominant cost of a screen read and it was being paid three
@@ -1469,6 +1469,16 @@ async function chesscomAnalyzeOne({game}) {
 // to do, so widening the gate to cover it would only add surface. Someone who presses the button
 // there is told to go back, which is the right answer.
 const BOT_PAGE_RE = /^https?:\/\/(www\.)?chess\.com\/play\/computer(\/|$|[?#])/;
+
+// sender.tab for a content script. The toolbar popup is an extension page with no tab of its own, so
+// it names one, honoured only from our own pages (see the guard on cdpClick).
+async function tabOfAsker(msg, sender) {
+  if (sender.tab) return sender.tab;
+  const own = sender.id === chrome.runtime.id && typeof sender.url === 'string'
+    && sender.url.startsWith(`chrome-extension://${chrome.runtime.id}/`);
+  if (!own || !Number.isInteger(msg.tabId)) return undefined;
+  return chrome.tabs.get(msg.tabId).catch(() => undefined);
+}
 
 async function botExploit(tab, req) {
   // sender.tab.url is authenticated by Chrome; a message-supplied url is not (issue #36 SS1). This
