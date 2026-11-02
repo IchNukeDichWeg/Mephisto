@@ -6811,11 +6811,13 @@ function multipv_floor() {
 
 // SUGGEST A HUMAN ERROR needs the same wide list Humanize's error bands do: an inaccuracy (5% win,
 // about half a pawn level) sits around rank 6-12, so a short list has none to offer and the option
-// would show nothing. EXCEPT while Autoplay plays through Humanize: that search must stay exactly
-// what it was before this option existed, because a wider list is a shallower search and could change
-// the move Humanize plays. There the suggestion only uses the lines the search already has.
+// would show nothing. EXCEPT while Autoplay plays, with or without Humanize: that search must stay
+// exactly what it was before this option existed, because a wider list is a shallower search and
+// could change the move played, for a feature that only draws. There the suggestion uses the lines
+// the search already has.
 function human_error_lines() {
-    return (config.human_error && !(config.autoplay && config.humanize)) ? HUMANIZE_DEEP_MULTIPV : 1;
+    const we_play = config.autoplay && !config.help_mode && !config.manual_mode;
+    return (config.human_error && !we_play) ? HUMANIZE_DEEP_MULTIPV : 1;
 }
 
 function effective_multipv() {

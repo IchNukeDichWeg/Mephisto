@@ -4462,6 +4462,18 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...normal width once out of book, or with it off', f({book_play: true, autoplay: true}, true) === 1 && f({autoplay: true}, false) === 1);
     ok('...and no wider without Autoplay, which is what plays it', f({book_play: true}, false) === 1);
 }
+// ---- PLAY-6: Suggest a Human Error never widens a search we play from ------------------------
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function human_error_lines()');
+    const c = vm.createContext({});
+    vm.runInContext(`const HUMANIZE_DEEP_MULTIPV = 20; var config = {};` + psrc.slice(i, psrc.indexOf('\n}\n', i) + 3), c);
+    const f = (cfg) => vm.runInContext(`config = ${JSON.stringify(cfg)}; human_error_lines()`, c);
+    ok('plain Autoplay keeps its search', f({human_error: true, autoplay: true}) === 1);
+    ok('Help Mode and Manual Mode draw only, so they get the wide list', f({human_error: true, autoplay: true, help_mode: true}) === 20 && f({human_error: true, autoplay: true, manual_mode: true}) === 20);
+    ok('no Autoplay gets it too', f({human_error: true}) === 20);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
