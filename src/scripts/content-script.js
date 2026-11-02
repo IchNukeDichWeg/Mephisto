@@ -741,9 +741,10 @@ const OPP_NAME_SELECTORS = [
     // lichess: the top player row beside the board
     '.ruser-top .user-link name', '.ruser-top .user-link', '.ruser-top .name',
 ];
+const oppBox = (sel) => boardFlippedFromSide() ? sel.replace(/-top\b/g, '-bottom') : sel;
 function opponentUsername() {
     for (const sel of OPP_NAME_SELECTORS) {
-        const el = document.querySelector(sel);
+        const el = document.querySelector(oppBox(sel));
         const raw = (el?.textContent || '').trim();
         // strip a rating suffix and any title prefix -- "GM Hikaru (3210)" -> "Hikaru"
         const name = raw.replace(/\s*\(\d+\)\s*$/, '').replace(/^(GM|IM|FM|WGM|WIM|WFM|CM|NM|WCM|WNM)\s+/i, '').trim();
@@ -762,7 +763,7 @@ const OPP_RATING_SELECTORS = [
 ];
 function opponentRating() {
     for (const sel of OPP_RATING_SELECTORS) {
-        const m = /(\d{3,4})/.exec(document.querySelector(sel)?.textContent || '');
+        const m = /(\d{3,4})/.exec(document.querySelector(oppBox(sel))?.textContent || '');
         if (m && +m[1] >= 100 && +m[1] <= 3500) return +m[1];
     }
     return null;
@@ -2473,11 +2474,36 @@ function figurineSan(figurine, text) {
 // Kings board round, so orientation reads "white" for a Black player there; the clock layout still
 // puts the player's own clock at the bottom, coloured. Spectating, the bottom clock is the
 // orientation's colour, so this agrees with it.
+//
+// PINNED PER GAME. Both readings are screen positions, so pressing the site's flip control swapped
+// them mid-game: real moves were sent for the opponent's pieces and Autoplay stopped on our own turn.
+// Read afresh only for a new game: a new path, or a move list back under two plies (one chess.com
+// URL hosts many games).
+const CC_GAME_PATH = /^\/(game|play)(\/|$)/;
+let sidePin = null, sidePinGame = null;
+function bottomColor() {
+    if (site === 'lichess') {
+        const c = document.querySelector('.rclock-bottom');
+        if (!c) return null;
+        return c.classList.contains('rclock-black') ? 'black' : c.classList.contains('rclock-white') ? 'white' : null;
+    }
+    if (site === 'chesscom' && !isChesscomVariants() && CC_GAME_PATH.test(location.pathname)) return getOrientation();
+    return null;
+}
 function playerColor() {
-    if (site !== 'lichess') return null;
-    const c = document.querySelector('.rclock-bottom');
-    if (!c) return null;
-    return c.classList.contains('rclock-black') ? 'black' : c.classList.contains('rclock-white') ? 'white' : null;
+    const now = bottomColor();
+    if (!now) return null;
+    if (location.pathname !== sidePinGame || (getMoveRecords()?.length ?? 0) < 2) {
+        sidePinGame = location.pathname;
+        sidePin = now;
+    }
+    return sidePin;
+}
+// The player has flipped the board, so "bottom" is the opponent. Not an orientation test: lichess
+// never turns a Racing Kings board round, and there the bottom clock is the player's either way.
+function boardFlippedFromSide() {
+    const me = playerColor();
+    return !!me && bottomColor() !== me;
 }
 
 function getOrientation() {
@@ -3504,6 +3530,7 @@ function scrapeClocks() {
             || document.querySelector('.clock-top')?.textContent;
         tcText = document.querySelector('.time-control-component, .game-time-control')?.textContent || '';
     }
+    if (boardFlippedFromSide()) [mineTxt, theirsTxt] = [theirsTxt, mineTxt];
     const mine = parseClockText(mineTxt), theirs = parseClockText(theirsTxt);
     if (mine == null && theirs == null) return null;
     // increment from the time-control text; null when unknown. lichess writes "3+2" / "½+0 • Rated";

@@ -3623,8 +3623,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        man.homepage_url === 'https://github.com/IchNukeDichWeg/Mephisto' && !/github\.com\/AlexPetrusca/.test(pages)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     // Racing Kings as Black: lichess keeps that board White-side up, so our colour comes from the player's own (bottom) clock
-    const a = csrc.indexOf('function playerColor()'), pc = csrc.slice(a, csrc.indexOf('function getOrientation()', a));
-    const read = (site, cls) => { const c = vm.createContext({site, document: {querySelector: (q) => q === '.rclock-bottom' && cls ? {classList: {contains: (x) => cls.split(' ').includes(x)}} : null}}); vm.runInContext(pc, c); return vm.runInContext('playerColor()', c); };
+    const a = csrc.indexOf('const CC_GAME_PATH ='), pc = csrc.slice(a, csrc.indexOf('function getOrientation()', a));
+    const read = (site, cls) => { const c = vm.createContext({site, location: {pathname: '/analysis'}, isChesscomVariants: () => false, getMoveRecords: () => [], document: {querySelector: (q) => q === '.rclock-bottom' && cls ? {classList: {contains: (x) => cls.split(' ').includes(x)}} : null}}); vm.runInContext(pc, c); return vm.runInContext('playerColor()', c); };
     ok('the player colour is read off lichess\'s bottom clock, and is null off lichess or without a clock',
        read('lichess', 'rclock rclock-bottom rclock-black') === 'black' && read('lichess', 'rclock rclock-bottom rclock-white') === 'white' && read('lichess', null) === null && read('chesscom', 'rclock-black') === null);
     const b = psrc.indexOf('let page_side = null;'), os = psrc.slice(b, psrc.indexOf('\n}\n', b) + 3);
@@ -4047,7 +4047,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        JSON.stringify(sent) === JSON.stringify(['setoption name OppoElo value 1500', 'setoption name OppoElo value 2800']) || JSON.stringify(sent) === JSON.stringify(['setoption name OppoElo value 2800']), sent);
     const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const r0 = csrc.indexOf('const OPP_RATING_SELECTORS'), r1 = csrc.indexOf('let streamerAsked');
-    const dc = vm.createContext({document: {querySelector: (sel) => sel === '.ruser-top rating' ? {textContent: '2893'} : null}});
+    const dc = vm.createContext({oppBox: (s) => s, document: {querySelector: (sel) => sel === '.ruser-top rating' ? {textContent: '2893'} : null}});
     vm.runInContext(csrc.slice(r0, r1), dc);
     ok('...the page reads lichess\'s <rating> off the top player row, and only sends it while Maia-2 is the engine',
        vm.runInContext('opponentRating()', dc) === 2893
@@ -5108,6 +5108,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     };
     run(['A', 'B']).then(r => ok('the board changing is success, on the first attempt', r.clicks === 1 && !r.pushed, r));
     ok('every list site still counts', /noList \? now !== 'no' && now !== before : now > before/.test(src));
+}
+// ---- PAGE-13: flipping the board does not swap our side ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = src.indexOf('const CC_GAME_PATH =');
+    const body = src.slice(a, src.indexOf('function getOrientation()', a));
+    const lichess = (start) => {
+        const st = {bottom: start, plies: 10, path: '/abcd1234/white'};
+        const c = {site: 'lichess', location: {get pathname() { return st.path; }}, isChesscomVariants: () => false, getOrientation: () => st.bottom,
+            getMoveRecords: () => Array(st.plies), document: {querySelector: () => ({classList: {contains: k => k === 'rclock-' + st.bottom}})}};
+        vm.runInNewContext(body + ';this.side = playerColor; this.flipped = boardFlippedFromSide;', c);
+        return {st, c};
+    };
+    const {st, c} = lichess('white');
+    ok('the first reading sticks', c.side() === 'white' && !c.flipped());
+    st.bottom = 'black';
+    ok('a mid-game flip keeps the side, and says the board is flipped', c.side() === 'white' && c.flipped());
+    st.path = '/efgh5678/black';
+    ok('a new game path reads again', c.side() === 'black' && !c.flipped());
+    st.bottom = 'white'; st.plies = 0;
+    ok('so does a list back at the start, on the same path', c.side() === 'white');
+    c.site = 'chesscom'; st.path = '/analysis';
+    ok('a chess.com analysis board stays on the orientation, as before', c.side() === null);
+    ok('clocks and the opponent lookups follow it',
+       /if \(boardFlippedFromSide\(\)\) \[mineTxt, theirsTxt\] = \[theirsTxt, mineTxt\];/.test(src)
+       && (src.match(/document\.querySelector\(oppBox\(sel\)\)/g) || []).length === 2);
 }
 // ==== END FIX CHECKS ====
 
