@@ -4666,6 +4666,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const s = fs.readFileSync(ROOT + '/src/options/util/SettingsPage.js', 'utf8');
     ok('not exported, not cleared by an import', /delete all\.tb_path;/.test(s) && /'player_book_cache', 'tb_path', \.\.\.RAW_KEYS\]/.test(s));
 }
+// ---- SYS-10 / SYS-11: finishing an update ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const u = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const i = u.indexOf('function manifestLast(files)'), c = vm.createContext({});
+    vm.runInContext(u.slice(i, u.indexOf('\n    }\n', i) + 7), c);
+    ok('manifest.json is written last', vm.runInContext(`manifestLast([{path: 'lib/a'}, {path: 'manifest.json'}, {path: 'src/b'}]).map(f => f.path).join()`, c) === 'lib/a,src/b,manifest.json');
+    ok('both write loops use that order', (u.match(/for \(const f of manifestLast\(files\)\)/g) || []).length === 2);
+    ok('finishing a staged update answers in install()\'s shape', /return \{installed: version, from, files: files\.length, backedUp:/.test(u));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

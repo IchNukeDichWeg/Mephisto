@@ -402,12 +402,19 @@ const MephistoUpdater = (function () {
             await backupCurrent(dir, installed.version, paths, onStatus);
         }
         let n = 0;
-        for (const f of files) {
+        for (const f of manifestLast(files)) {
             await writeFile(dir, f.path, f.bytes);
             if (++n % 40 === 0 || n === files.length) onStatus(`Installing… ${n}/${files.length}`);
         }
         await removeEntry(dir, STAGING);
-        return {version, files: files.length};
+        const from = (await rollbackInfo())?.version;
+        return {installed: version, from, files: files.length, backedUp: from ? paths.length : 0, added: 0, headline: ''};
+    }
+
+    // manifest.json goes in last: a new one naming a file not yet on disk stops Chrome loading the
+    // extension, and the page that finishes an interrupted update lives inside it.
+    function manifestLast(files) {
+        return [...files].sort((a, b) => (a.path === 'manifest.json') - (b.path === 'manifest.json'));
     }
 
     // --- writing --------------------------------------------------------------------------------
@@ -485,7 +492,7 @@ const MephistoUpdater = (function () {
         // the I/O. Staging still earns its keep: it is the on-disk proof that the whole version
         // arrived, and it is what finishes the job if this loop is interrupted.
         n = 0;
-        for (const f of files) {
+        for (const f of manifestLast(files)) {
             await writeFile(dir, f.path, f.bytes);
             if (++n % 40 === 0 || n === files.length) onStatus(`Installing… ${n}/${files.length}`);
         }
