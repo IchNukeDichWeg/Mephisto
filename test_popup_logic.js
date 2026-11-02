@@ -4748,6 +4748,13 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /async function analyseNow\(gen\) \{\s*if \(gen !== pageGen\) return;/.test(src)
        && /await stopSearch\(\);[^\n]*\n\s*if \(gen !== pageGen\) return;\s*let e;/.test(src));
 }
+// ---- OPT-6: a revisited page starts with no form elements ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/util/SettingsPage.js', 'utf8');
+    ok('onInit resets the list before init() registers the page again',
+       /async onInit\(\) \{[\s\S]*?this\.formElements = \[\];[\s\S]*?this\.init\(\);/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

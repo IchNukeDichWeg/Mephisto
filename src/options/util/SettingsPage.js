@@ -18,6 +18,11 @@ export class SettingsPage {
     }
 
     async onInit() {
+        // require.js caches the page object, so this runs on the same instance per visit. Kept, the
+        // old controls stayed registered and their listeners fired too: N returns to Analysis meant
+        // N times its four engine reloads on every open.
+        this.formElements = [];
+
         // Guarded, like every other lookup in this class: a page that has no reset button (the
         // Analysis page is one -- there is nothing on it to reset) would otherwise throw HERE and
         // take the whole page down before a single control was registered. Same failure shape as
