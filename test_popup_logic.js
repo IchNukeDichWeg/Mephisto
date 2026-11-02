@@ -4867,6 +4867,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /opts\.humanLevel = level;/.test(src) && /humanLevel: opts\.humanLevel,/.test(src) && /const band = report\.humanLevel \?\? /.test(src));
     ok('re-entry redraws the batch table', /parsePgnBox\(\);\s*renderReport\(\);\s*renderBatch\(\);\s*\}/.test(src));
 }
+// ---- OPT-17: Crazyhouse drop lines play and draw ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (from, to) => src.slice(src.indexOf(from), src.indexOf(to));
+    const calls = [];
+    const c = {playMove: (...a) => calls.push(a), flipped: false, Core: {clamp: (v, a, b) => Math.min(b, Math.max(a, v))}};
+    vm.runInNewContext(cut('function playUci(uci)', 'function playMove(from') + cut('function rankBadge(', '// ---- moves by rating')
+        + ';this.playUci = playUci; this.arrow = arrow;', c);
+    c.playUci('N@f3'); c.playUci('e7e8q');
+    ok('a drop goes to playMove as a drop, a normal line as squares',
+       JSON.stringify(calls[0]) === '[null,"f3",null,"N"]' && JSON.stringify(calls[1]) === '["e7","e8","q"]', calls);
+    const svg = c.arrow('N@f3', '#111', 0.1, 0.8, 2);
+    ok('a drop draws a ring on the target (f3 = 5.5, 5.5) with its rank', /<circle cx="5.5" cy="5.5" r="0.36"/.test(svg) && />2<\/text>/.test(svg), svg);
+    ok('a normal move still draws an arrow with its badge', /<polygon/.test(c.arrow('e2e4', '#111', 0.1, 0.8, 1)) && />1<\/text>/.test(c.arrow('e2e4', '#111', 0.1, 0.8, 1)));
+    ok('every line click and the space key go through playUci',
+       /row\.addEventListener\('click', \(\) => playUci\(uci\)\)/.test(src) && /if \(uci\) \{ playUci\(uci\); e\.preventDefault\(\); \}/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

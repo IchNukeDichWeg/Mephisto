@@ -310,7 +310,7 @@ function onKey(e) {
     // only when there was a move to play, so space still scrolls while the engine is thinking.
     else if (e.key === ' ' || e.code === 'Space') {
         const uci = topEngineUci();
-        if (uci) { playMove(uci.slice(0, 2), uci.slice(2, 4), uci[4]); e.preventDefault(); }
+        if (uci) { playUci(uci); e.preventDefault(); }
     }
 }
 
@@ -1239,6 +1239,13 @@ function renderCmp(pos, cols) {
 // already exists as a child is followed, anything else becomes a new variation, and the move list
 // shows every branch with a way back in. `drop` is a crazyhouse pocket piece ('P'..'Q', ours),
 // played by SAN because that is the only drop syntax this chess.js accepts.
+// An engine line's first move. Crazyhouse lines can open with a drop, N@f3, which slices into no
+// squares at all, so its row did nothing when clicked.
+function playUci(uci) {
+    const drop = /^([pnbrq])@([a-h][1-8])/i.exec(uci);
+    return drop ? playMove(null, drop[2], null, drop[1]) : playMove(uci.slice(0, 2), uci.slice(2, 4), uci[4]);
+}
+
 function playMove(from, to, promotion, drop) {
     const pos = positions[cursor];
     if (!pos || match?.running) return false;
@@ -1468,7 +1475,7 @@ function wireLineClicks(host) {
     host?.querySelectorAll('.an-lrow[data-uci]').forEach(row => {
         const uci = row.dataset.uci;
         if (!uci) return;
-        row.addEventListener('click', () => playMove(uci.slice(0, 2), uci.slice(2, 4), uci[4]));
+        row.addEventListener('click', () => playUci(uci));
     });
 }
 
@@ -1571,13 +1578,26 @@ function renderArrows(pos, ev, hum) {
     svg.innerHTML = out.filter(Boolean).join('');
 }
 
+function rankBadge(px, py, colour, rank) {
+    return `<circle cx="${px}" cy="${py}" r="0.19" fill="${colour}" stroke="#00000055" stroke-width="0.02"/>`
+        + `<text x="${px}" y="${py + 0.072}" font-size="0.24" font-weight="700" text-anchor="middle" `
+        + `fill="#fff" font-family="system-ui,sans-serif">${rank}</text>`;
+}
+
 function arrow(uci, colour, width, opacity, rank) {
-    const m = /^([a-h][1-8])([a-h][1-8])/.exec(uci || '');
-    if (!m) return '';
     const sq = (t) => {
         const f = t.charCodeAt(0) - 97, r = +t[1];
         return flipped ? {x: 7.5 - f, y: r - 0.5} : {x: f + 0.5, y: 8.5 - r};
     };
+    // A drop has no from-square to draw from, so it is a ring on the target.
+    const drop = /^[pnbrq]@([a-h][1-8])/i.exec(uci || '');
+    if (drop) {
+        const c = sq(drop[1]);
+        return `<g opacity="${opacity}"><circle cx="${c.x}" cy="${c.y}" r="0.36" fill="none" stroke="${colour}" `
+            + `stroke-width="${width}"/>${rank ? rankBadge(Core.clamp(c.x + 0.3, 0.2, 7.8), Core.clamp(c.y - 0.3, 0.2, 7.8), colour, rank) : ''}</g>`;
+    }
+    const m = /^([a-h][1-8])([a-h][1-8])/.exec(uci || '');
+    if (!m) return '';
     const a = sq(m[1]), b = sq(m[2]);
     const dx = b.x - a.x, dy = b.y - a.y;
     const len = Math.hypot(dx, dy) || 1;
@@ -1595,9 +1615,7 @@ function arrow(uci, colour, width, opacity, rank) {
         // piece that is about to move and cannot be read. Beside the tip it is on empty board.
         const px = Core.clamp(b.x + ux * 0.16 - uy * 0.24, 0.2, 7.8);
         const py = Core.clamp(b.y + uy * 0.16 + ux * 0.24, 0.2, 7.8);
-        tag = `<circle cx="${px}" cy="${py}" r="0.19" fill="${colour}" stroke="#00000055" stroke-width="0.02"/>`
-            + `<text x="${px}" y="${py + 0.072}" font-size="0.24" font-weight="700" text-anchor="middle" `
-            + `fill="#fff" font-family="system-ui,sans-serif">${rank}</text>`;
+        tag = rankBadge(px, py, colour, rank);
     }
     return `<g opacity="${opacity}" stroke-linejoin="round">`
         + `<line x1="${sx}" y1="${sy}" x2="${bx}" y2="${by}" stroke="${colour}" stroke-width="${width}" stroke-linecap="round"/>`
