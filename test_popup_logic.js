@@ -4713,6 +4713,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /render_unsure\(res\.low \|\| \[\], res\.unresolved \|\| \[\], auto_flipped \? i18n\('panel\.fen\.auto_flipped'/.test(psrc)
        && !/if \(auto_flipped\) setup_fen_msg/.test(psrc) && /el\.textContent = lead \|\|/.test(psrc));
 }
+// ---- OPT-3: Game Review keeps the chosen engine across a page open ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const body = src.slice(src.indexOf('function updateEngineOptions()'), src.indexOf('function bindNumber('));
+    const run = (nativeAvailable, stored) => {
+        const writes = [];
+        const ENGINES = [{id: 'sf19', label: 'a', kind: 'wasm'}, {id: 'sf18', label: 'b', kind: 'wasm'}, {id: 'nat', label: 'c', kind: 'native'}];
+        const sel = {value: '', innerHTML: '', get options() {
+            return ENGINES.map(e => ({value: e.id, disabled: e.kind === 'native' && nativeAvailable && !nativeAvailable[e.id]})); }};
+        vm.runInNewContext(body + '; updateEngineOptions();', {ENGINES, nativeAvailable, esc: s => s, $: () => sel,
+            cfg: () => stored, setCfg: (k, v) => writes.push(v)});
+        return {value: sel.value, writes};
+    };
+    let r = run(null, 'sf18');
+    ok('an empty select takes the stored engine and writes nothing', r.value === 'sf18' && r.writes.length === 0, r);
+    r = run({nat: false}, 'nat');
+    ok('a stored native engine whose host is gone falls back, and only that writes', r.value === 'sf19' && r.writes.join() === 'sf19', r);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

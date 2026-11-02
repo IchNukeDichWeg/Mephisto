@@ -2903,7 +2903,10 @@ function syncLimitUi(fromInput) {
 function updateEngineOptions() {
     const sel = $('rv_engine');
     if (!sel) return;
-    const current = sel.value;
+    // The select starts empty on every page open. Reading '' as the choice picked the first engine
+    // and stored it, so the choice never survived a reload: this writes only when a stored engine
+    // has really become unavailable.
+    const current = sel.value || cfg('rv_engine');
     sel.innerHTML = ENGINES.map(e => {
         const missing = e.kind === 'native' && nativeAvailable && !nativeAvailable[e.id];
         return `<option value="${e.id}"${missing ? ' disabled' : ''}>`
