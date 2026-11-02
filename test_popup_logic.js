@@ -5161,6 +5161,23 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /`\$\{sq\}\|\$\{msg\.glyph\}\|\$\{msg\.color\}\|\$\{boardPlace\(\)\}`/.test(src)
        && /for \(const kind of \['hint', 'bar', 'moveClass'\]\) overlayFollow\(kind, null\);/.test(src));
 }
+// ---- PAGE-7: a move waits while a live chess.com board shows history ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = src.indexOf('function chesscomViewingHistory()');
+    const body = src.slice(a, src.indexOf('function moveHeldBack()', a));
+    const run = (path, selIn, nodes = 5) => {
+        const list = Array.from({length: nodes}, (_, i) => ({i, contains: (x) => x === 'sel' + i}));
+        return vm.runInNewContext(body + ';chesscomViewingHistory()', {site: 'chesscom', isChesscomVariants: () => false,
+            CC_GAME_PATH: /^\/(game|play)(\/|$)/, location: {pathname: path}, getMoveRecords: () => list, getSelectedMoveRecord: () => selIn === null ? null : 'sel' + selIn});
+    };
+    ok('the live move selected: not history', run('/game/live/1', 4) === false);
+    ok('stepped back: history', run('/game/live/1', 2) === true);
+    ok('no selection yet, or not a game page: not history', run('/game/live/1', null) === false && run('/analysis', 2) === false);
+    ok('the wait is bounded and comes before the clicks',
+       /await waitOutThink\(getThinkTime\(\)\);\s*await waitOutHistoryView\(\);/.test(src) && /Date\.now\(\) \+ HISTORY_HOLD_MS/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

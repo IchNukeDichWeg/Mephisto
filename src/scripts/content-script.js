@@ -5269,6 +5269,19 @@ function leftSelected(move) {
     halfClicked = null;
     return sq && sq === move.substring(0, 2) && site === 'lichess' && document.querySelector('cg-board square.selected') ? sq : null;
 }
+// STEPPED BACK THROUGH A LIVE CHESS.COM GAME. The move list marks the viewed move with a `.selected`
+// child, so on a public game page (measured 2026-11-02) the scrape still reads to the end and the
+// analysis stays on the live position, but the board shows history and a click lands on that. The
+// move waits for the user to come back. Bounded, because the site's response to a click there was
+// not determinable and a wrong reading of this DOM must cost seconds, not the game.
+const HISTORY_HOLD_MS = 5000;
+function chesscomViewingHistory() {
+    if (site !== 'chesscom' || isChesscomVariants() || !CC_GAME_PATH.test(location.pathname)) return false;
+    const moves = getMoveRecords(), sel = getSelectedMoveRecord();
+    const last = moves?.[moves.length - 1];
+    return !!sel && !!last && last !== sel && !last.contains?.(sel);
+}
+
 function moveHeldBack() {
     if (!config.autoplay && !pendingManual) return 'autoplay';
     if (!config.background_play && !tabActive()) return 'hidden';
@@ -5536,6 +5549,14 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
     // difficulty (see FITTS above). On a normal move: piece (25%) + target (75%). On a promotion:
     // piece (20%) + target (55%) + promo picker (25%). Think time stays a separate slider (that's
     // the pause BEFORE the move; this budget is the physical act of playing it).
+    async function waitOutHistoryView() {
+        const until = Date.now() + HISTORY_HOLD_MS;
+        while (chesscomViewingHistory() && Date.now() < until) {
+            if (sessionGen !== undefined && sessionGen !== moveGen) return;
+            await promiseTimeout(100);
+        }
+    }
+
     async function waitOutThink(ms) {
         const until = Date.now() + ms;
         while (await thinkWait(until - Date.now())) {
@@ -5546,6 +5567,7 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
 
     async function performSimulatedMoveSequence() {
         await waitOutThink(getThinkTime());
+        await waitOutHistoryView();
         const total = getMoveTime() * (isDrop ? 1 : fittsScale(move.substring(0, 2), move.substring(2, 4)));
         // false = nothing landed: no picker to wait for, nothing to verify (see simulateMoveVerified)
         if (move[4]) {
