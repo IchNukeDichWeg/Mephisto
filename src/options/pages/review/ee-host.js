@@ -353,7 +353,13 @@ function sfSearchOne(assets, positions, take, done, {depth = 10, movetime = 0, m
             const m = ev.data || {};
             if (m.type === 'error') return finish(new Error(m.error || 'Stockfish error'));
             if (m.type === 'booted') return run();
-            if (m.type === 'line' && onLine) onLine(String(m.line));
+            if (m.type === 'line') {
+                // ANY line proves the engine is alive. Bumped on bestmove alone, the silence timer
+                // was a hard 60 s cap per position, and depth 24 or 26 on a slow machine died with
+                // "stopped answering" while the engine was working.
+                bump();
+                if (onLine) onLine(String(m.line));
+            }
         };
         const until = (re) => new Promise((res) => {
             const prev = onLine;

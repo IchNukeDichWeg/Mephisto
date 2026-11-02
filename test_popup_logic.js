@@ -4767,6 +4767,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('no count is no number', tbWords({category: 'win'}) === 'winning' && tbWords({category: 'cursed-win'}) === 'winning (50-move drawn)');
     ok('a draw stays a draw', tbWords({category: 'draw', dtz: 0}) === 'draw');
 }
+// ---- OPT-8: the classifier search times out on silence, not on a slow position ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/ee-host.js', 'utf8');
+    ok('every engine line re-arms the timer', /if \(m\.type === 'line'\) \{[\s\S]{0,300}?bump\(\);\s*if \(onLine\) onLine\(String\(m\.line\)\);/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
