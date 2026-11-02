@@ -378,12 +378,15 @@ function handleExtensionMessage(response, sender, sendResponse) {
     } else if (response.clearHint) {
         dropPendingOverlay('hint');
         clearHintArrow();
+        overlayFollow('hint', null);
     } else if (response.drawUserArrows) {
         drawUserArrows(response.items);
     } else if (response.drawMoveClass) {
         drawMoveClass(response);
+        overlayFollow('moveClass', response);
     } else if (response.clearMoveClass) {
         clearMoveClass();
+        overlayFollow('moveClass', null);
     } else if (response.panelStyle) {
         // The panel's own Opacity / Dock rows. Per-site, so it is stored here rather than in the
         // settings: see saveOverlayBox.
@@ -403,6 +406,7 @@ function handleExtensionMessage(response, sender, sendResponse) {
     } else if (response.clearEvalBar) {
         dropPendingOverlay('evalbar');
         clearEvalBar();
+        overlayFollow('bar', null);
     } else if (response.oppAlert) {
         showOppAlert(response.label, response.drop, response.san, response.uci);
     } else if (response.consoleMessage) {
@@ -826,6 +830,7 @@ function removeOverlay() {
     clearEvalBar();   // closing removes the iframe; the board overlays it drew must go too
     clearHintArrow();
     clearMoveClass();   // the badge is page furniture too
+    for (const kind of ['hint', 'bar', 'moveClass']) overlayFollow(kind, null);
     clearInterval(userArrowTimer); userArrowTimer = null;   // nobody to rate them for now
     drawUserArrows([]);
     // The next config push starts it again. Left running, a closed panel scraped once per mutation
@@ -1557,7 +1562,7 @@ function drawMoveClass(msg) {
     const fourpc = is4PC();
     const ok = fourpc ? /^[a-n](?:1[0-4]|[1-9])$/.test(sq) : /^[a-h][1-8]$/.test(sq);
     if (!ok || !msg.glyph) return clearMoveClass();
-    const key = `${sq}|${msg.glyph}|${msg.color}`;
+    const key = `${sq}|${msg.glyph}|${msg.color}|${boardPlace()}`;
     if (key === lastMoveClassKey && overlayEl(MOVECLASS_OVERLAY_ID)) return;
     clearMoveClass();
     const geo = boardGeometry(fourpc, null);
@@ -1665,8 +1670,41 @@ function flushOverlayDraws() {
     const hint = pendingOverlay.hint, bar = pendingOverlay.evalbar;
     delete pendingOverlay.hint;
     delete pendingOverlay.evalbar;
-    if (hint) { overlayDraws++; drawHintArrows(hint.arrows, hint.region); }
-    if (bar) { overlayDraws++; drawEvalBar(bar); }
+    if (hint) { overlayDraws++; drawHintArrows(hint.arrows, hint.region); overlayFollow('hint', hint.arrows?.length ? hint : null); }
+    if (bar) { overlayDraws++; drawEvalBar(bar); overlayFollow('bar', bar); }
+}
+
+// THE OVERLAYS FOLLOW THE BOARD. They are absolute, in document coordinates, and were only placed on
+// an engine message, so an idle engine left arrows, bar, graph and badge where the board used to be
+// after a resize, a collapsed sidebar or a flip. A timer rather than a ResizeObserver: a board that
+// only moved has not resized. Runs only while something is drawn.
+const overlayPlaced = {hint: null, bar: null, moveClass: null};
+let overlayFollowTimer = null, overlayFollowPlace = null;
+function boardPlace() {
+    try {
+        const r = getBoard()?.getBoundingClientRect?.();
+        if (!r) return null;
+        return [r.left + window.scrollX, r.top + window.scrollY, r.width, r.height].map(Math.round).join() + getOrientation();
+    } catch (e) { return null; }
+}
+function overlayFollow(kind, payload) {
+    overlayPlaced[kind] = payload;
+    if (!overlayPlaced.hint && !overlayPlaced.bar && !overlayPlaced.moveClass) {
+        clearInterval(overlayFollowTimer);
+        overlayFollowTimer = null;
+        return;
+    }
+    if (overlayFollowTimer) return;
+    overlayFollowPlace = boardPlace();
+    overlayFollowTimer = setInterval(() => {
+        const place = boardPlace();
+        if (!place || place === overlayFollowPlace) return;
+        overlayFollowPlace = place;
+        const {hint, bar, moveClass} = overlayPlaced;
+        if (hint) drawHintArrows(hint.arrows, hint.region);
+        if (bar) drawEvalBar(bar);
+        if (moveClass) drawMoveClass(moveClass);
+    }, 400);
 }
 function dropPendingOverlay(kind) { delete pendingOverlay[kind]; }
 

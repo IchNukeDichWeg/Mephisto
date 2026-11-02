@@ -5136,6 +5136,31 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /if \(boardFlippedFromSide\(\)\) \[mineTxt, theirsTxt\] = \[theirsTxt, mineTxt\];/.test(src)
        && (src.match(/document\.querySelector\(oppBox\(sel\)\)/g) || []).length === 2);
 }
+// ---- PAGE-10: board overlays follow the board with the engine idle ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = src.indexOf('const overlayPlaced =');
+    const body = src.slice(a, src.indexOf('function dropPendingOverlay(kind)', a));
+    let rect = {left: 10, top: 10, width: 400, height: 400}, tick = null, cleared = 0;
+    const log = [];
+    const c = {window: {scrollX: 0, scrollY: 0}, Math, getBoard: () => ({getBoundingClientRect: () => rect}), getOrientation: () => 'white',
+        setInterval: (f) => { tick = f; return 1; }, clearInterval: () => { cleared++; tick = null; },
+        drawHintArrows: (a, r) => log.push('hint:' + a), drawEvalBar: () => log.push('bar'), drawMoveClass: () => log.push('class')};
+    vm.runInNewContext(body + ';this.follow = overlayFollow;', c);
+    c.follow('hint', {arrows: 'A'}); c.follow('bar', {frac: 1});
+    tick();
+    ok('an unchanged board redraws nothing', log.length === 0, log);
+    rect = {...rect, left: 60}; tick();
+    ok('a moved board redraws what is on it', log.join() === 'hint:A,bar', log);
+    tick();
+    ok('...once', log.length === 2, log);
+    c.follow('hint', null); c.follow('bar', null);
+    ok('with nothing drawn, the timer stops', cleared === 1 && tick === null, cleared);
+    ok('the badge key carries the place, and closing the panel forgets all three',
+       /`\$\{sq\}\|\$\{msg\.glyph\}\|\$\{msg\.color\}\|\$\{boardPlace\(\)\}`/.test(src)
+       && /for \(const kind of \['hint', 'bar', 'moveClass'\]\) overlayFollow\(kind, null\);/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
