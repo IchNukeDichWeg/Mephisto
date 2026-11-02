@@ -4993,6 +4993,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('with it on, the first channel is taken and a second is ignored', on.listens && on.fired.join() === 'ar' && on.added === 2, on);
     ok('the probe sites still listen', run('taketaketake.com', {}).listens && run('tactics.chessbase.com', {}).listens);
 }
+// ---- PAGE-9: a minimized panel stays hidden and restores at its Opacity ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (a, b) => src.slice(src.indexOf(a), src.indexOf(b, src.indexOf(a)));
+    const body = cut('function applyPanelStyle()', 'function readOverlayBox()') + cut('function restoreOverlay(wrap, badge)', '// Hotkey entry point');
+    const wrap = {style: {opacity: '0'}, querySelector: () => null, getBoundingClientRect: () => ({width: 300})};
+    let badge = {remove() { badge = null; }};
+    const c = {panelOpacity: 60, panelDock: 'free', window: {innerWidth: 1000}, PANEL_OVERLAY_ID: 'p', RESTORE_BADGE_ID: 'b',
+        overlayEl: (id) => id === 'p' ? wrap : badge};
+    vm.runInNewContext(body + ';this.apply = applyPanelStyle; this.restore = restoreOverlay;', c);
+    c.apply();
+    ok('a resize while minimized leaves it at 0', wrap.style.opacity === '0', wrap.style.opacity);
+    c.restore(wrap, badge);
+    ok('restoring lands on the Opacity setting', wrap.style.opacity === '0.6', wrap.style.opacity);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

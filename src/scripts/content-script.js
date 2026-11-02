@@ -598,7 +598,8 @@ function saveOverlayBox(wrap) {
 function applyPanelStyle() {
     const wrap = overlayEl(PANEL_OVERLAY_ID);
     if (!wrap) return;
-    wrap.style.opacity = String(Math.max(40, Math.min(100, panelOpacity)) / 100);
+    // Minimized is opacity 0: written here on any resize, it came back as an unclickable ghost.
+    if (!overlayEl(RESTORE_BADGE_ID)) wrap.style.opacity = String(Math.max(40, Math.min(100, panelOpacity)) / 100);
     if (panelDock === 'free') return;
     const w = wrap.getBoundingClientRect().width;
     wrap.style.right = 'auto';
@@ -913,10 +914,10 @@ function setPanelBook(on) {
 // eating clicks (the failure the minimize path already carries a comment about).
 function restoreOverlay(wrap, badge) {
     const frame = wrap.querySelector('.mephisto-panel-box');
-    wrap.style.opacity = '1';
     wrap.style.pointerEvents = 'auto';
     if (frame) frame.style.pointerEvents = 'auto';
     if (badge) badge.remove();
+    applyPanelStyle();   // the Opacity setting, not a hard 100%
 }
 
 // Hotkey entry point: minimize if the panel is up, restore if it is already minimized. Returns
