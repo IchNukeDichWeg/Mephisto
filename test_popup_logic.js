@@ -5031,6 +5031,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('a saved none never comes back', /s\.frame\.style\.pointerEvents = s\.framePE === 'none' \? 'auto' : s\.framePE \|\| ''/.test(src));
 }
+// ---- PAGE-20: the resize grip keeps a grown panel's height ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('the wrapper follows the frame', /wrap\.style\.height = `\$\{Math\.round\(24 \+ \(parseFloat\(frame\.style\.height\) \|\| panelH\(\)\) \* scale\)\}px`/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

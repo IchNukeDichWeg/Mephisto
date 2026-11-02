@@ -1170,7 +1170,8 @@ async function toggleOverlay() {
             Math.round(window.innerWidth * 0.95));
         scale = w / POPUP_W;
         wrap.style.width = `${w}px`;
-        wrap.style.height = `${Math.round(24 + panelH() * scale)}px`; // panelH(): compact must survive a resize
+        // the frame's own height, which is panelH() or more: a grown panel lost its bottom rows
+        wrap.style.height = `${Math.round(24 + (parseFloat(frame.style.height) || panelH()) * scale)}px`;
         frame.style.transform = `scale(${scale})`;
     }, {signal});
     window.addEventListener('mouseup', () => {
