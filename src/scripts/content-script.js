@@ -201,6 +201,12 @@ function handleExtensionMessage(response, sender, sendResponse) {
         sendResponse({variant: detectVariant(), href: location.href, stated: variantIsStated()});
         return;
     }
+    // The toolbar popup's way to the page's captured solution: it is an extension page, where
+    // self.puzzleCaptureFor does not exist (audit 3.1.328 PAGE-4).
+    if (response.puzzleCaptureFor) {
+        sendResponse(puzzleCaptureFor(response.puzzleCaptureFor));
+        return;
+    }
     if (response.queryfen) {
         // ALWAYS answer so the popup's in-flight poll guard clears immediately -- otherwise a poll
         // sent while we're mid-move (or before config) gets no reply and the board freezes for up

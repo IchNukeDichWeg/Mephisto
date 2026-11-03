@@ -4085,10 +4085,33 @@ function puzzle_capture_enabled() {
         && (!config.variant || config.variant === 'chess');
 }
 
+// THE TOOLBAR POPUP ASKS THE TAB. There popup.js is an extension page and self.puzzleCaptureFor is
+// undefined, so Read Solutions From The Page patched the page and never answered (audit 3.1.328
+// PAGE-4). The capture comes back by message; a hit is cached for its position and the solution
+// path re-entered, which then finds it here synchronously. A miss is not cached: the page's own
+// fetch can land after the board, and the next request for the position asks again.
+let puzzle_capture_remote = null;   // {key, hit} -- toolbar popup only
+function ask_tab_puzzle_capture(fen) {
+    const key = puzzle_key(fen);
+    const ask = tabId => chrome.tabs.sendMessage(tabId, {puzzleCaptureFor: fen}, hit => {
+        if (chrome.runtime.lastError || !hit?.line) return;
+        puzzle_capture_remote = {key, hit};
+        const w = puzzle_deferred;
+        if (w && puzzle_key(w.fen) === key) { on_new_pos(w.fen, w.startFen, w.moves); return; }
+        if (last_eval.fen && puzzle_key(last_eval.fen) === key) request_puzzle_solution(last_eval.fen);
+    });
+    if (MY_TAB_ID) return ask(MY_TAB_ID);
+    chrome.tabs.query({active: true, currentWindow: true}, tabs => (tabs[0] && tabs[0].id) && ask(tabs[0].id));
+}
+
 function try_puzzle_capture(fen) {
     if (!puzzle_capture_enabled()) return false;
     let hit = null;
-    try { hit = self.puzzleCaptureFor?.(fen) || null; } catch (e) { return false; }
+    if (!IS_CONTENT_SCRIPT) {
+        if (puzzle_capture_remote?.key === puzzle_key(fen)) hit = puzzle_capture_remote.hit;
+        else { try { ask_tab_puzzle_capture(fen); } catch (e) { /* tab gone */ } return false; }
+    }
+    else try { hit = self.puzzleCaptureFor?.(fen) || null; } catch (e) { return false; }
     if (!hit?.line) return false;
     const map = puzzle_expand(fen, hit.line);
     // expand replays from the BOARD's fen; a line that does not fit the board leaves nothing useful
