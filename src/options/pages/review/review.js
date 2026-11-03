@@ -2910,9 +2910,14 @@ function syncDepthPreset() {
     sel.value = [...sel.options].some(o => o.value === now) ? now : '';
 }
 
-function syncLimitUi(fromInput) {
+// `typing`: an `input` event mid-entry. The value is stored but NOT written back: clamping and
+// rounding the half-typed number in place turned a typed `0` into `0.1` at once and `1.5` into 15 or
+// 0.6 depending on how Chrome reports `1.` (audit 3.1.328 REVIEW-7). An unparseable partial stores
+// nothing. `change` (commit or blur) clamps and writes back as before.
+function syncLimitUi(fromInput, typing = false) {
     const kind = $('rv_limit_kind').value;
     const num = $('rv_limit_num');
+    if (typing && !isFinite(parseFloat(num.value))) return;
     const isD = kind === 'depth';
     num.step = isD ? 1 : 0.5;            // the -/+ buttons read this
     num.min = isD ? 1 : 0.1;
@@ -2922,7 +2927,7 @@ function syncLimitUi(fromInput) {
     if (!isFinite(disp)) disp = isD ? DEPTH_DEFAULT : TIME_DEFAULT_MS_UI / 1000;
     disp = isD ? Math.max(1, Math.min(40, Math.round(disp)))
                : Math.max(0.1, Math.min(300, Math.round(disp * 10) / 10));   // 0.1s resolution
-    num.value = String(disp);
+    if (!typing) num.value = String(disp);
     const value = isD ? disp : Math.round(disp * 1000);   // internal: plies or ms
     $('rv_limit_value').value = value;
     setCfg('rv_limit_value', value);
@@ -3329,7 +3334,7 @@ class ReviewPage {
         });
 
         // The box is the truth on a keystroke; the -/+ buttons fire 'change' through bindSteppers.
-        $('rv_limit_num')?.addEventListener('input', () => syncLimitUi(true));
+        $('rv_limit_num')?.addEventListener('input', () => syncLimitUi(true, true));
         $('rv_limit_num')?.addEventListener('change', () => syncLimitUi(true));
         $('rv_limit_kind').value = cfg('rv_limit_kind');
         $('rv_limit_kind').addEventListener('change', () => {

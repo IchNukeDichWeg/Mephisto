@@ -5698,6 +5698,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        c.ran4 === 1 && ['rv-report', 'rv-indicators', 'rv-human', 'rv-strength', 'rv-batch'].every(id => hidden.has(id))
        && vm.runInContext('report === null && batchReports === null', c), [...hidden]);
 }
+// ---- audit 3.1.328 REVIEW-7: typing a fractional budget is not rewritten mid-entry ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rv.indexOf('function syncLimitUi('), b = rv.indexOf('// A native engine is disabled for ONE reason only', a);
+    const els = {rv_limit_kind: {value: 'time'}, rv_limit_num: {value: ''}, rv_limit_value: {value: ''}};
+    const saved = {};
+    const c = vm.createContext({$: id => els[id], isFinite, parseFloat, Math, String, storedFor: () => 1000, DEPTH_DEFAULT: 20, TIME_DEFAULT_MS_UI: 1000,
+        setCfg: (k, v) => { saved[k] = v; }, PER_KIND_KEY: {time: 'rv_limit_time', depth: 'rv_limit_depth'}, updateEngineOptions() {}});
+    vm.runInContext(rv.slice(a, b), c);
+    const type = (v) => { els.rv_limit_num.value = v; c.syncLimitUi(true, true); return els.rv_limit_num.value; };
+    ok('typing 0 leaves the box at 0 (not 0.1) and stores the clamped 100 ms', type('0') === '0' && saved.rv_limit_value === 100, [els.rv_limit_num.value, saved.rv_limit_value]);
+    ok('typing 1.5 stores 1500 ms with the box untouched', type('1.5') === '1.5' && saved.rv_limit_value === 1500, saved.rv_limit_value);
+    saved.rv_limit_value = 'kept';
+    ok('an unparseable partial stores nothing', type('') === '' && saved.rv_limit_value === 'kept');
+    els.rv_limit_num.value = '0'; c.syncLimitUi(true);
+    ok('change still clamps and writes back', els.rv_limit_num.value === '0.1' && saved.rv_limit_value === 100, els.rv_limit_num.value);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
