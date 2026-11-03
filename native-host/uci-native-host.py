@@ -3,7 +3,7 @@
 #
 # Chrome launches this on stdin/stdout when the extension calls
 # chrome.runtime.connectNative('com.<slug>.host'); there is NO listening port and nothing to
-# start by hand. One source file serves several engines: install.sh copies it to
+# start by hand. One source file serves several engines: the installer copies it to
 # <slug>-host.py (e.g. sf18-native-host.py) and writes the engine's absolute path into a
 # sibling <slug>.path file. Optional sibling <slug>.nnue-dir points at a directory of
 # Fairy-Stockfish variant nets (EvalFile is switched per UCI_Variant).
@@ -49,7 +49,7 @@ def _resolve_engine():
     if path and os.path.isfile(path):
         return path
     _dbg(f"no usable {_SLUG}.path ({path!r}); giving up")
-    raise SystemExit(f"{_SLUG}: engine path missing -- re-run install.sh")
+    raise SystemExit(f"{_SLUG}: engine path missing -- re-run the native installer (see the README)")
 
 _NNUE_DIR = _read_sibling(f'{_SLUG}.nnue-dir')
 
