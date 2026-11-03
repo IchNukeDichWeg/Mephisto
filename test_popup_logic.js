@@ -5412,6 +5412,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext(`maia2_on_line('bestmove g1f3')`, c);
     ok('the newest answer is', fired.join() === 'g1f3' && !c.maia2.pending, fired);
 }
+// ---- audit 3.1.328 ENGINE-5: a push that is not adopted leaves `turn` as it was ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = s.indexOf('const turn_before = turn;'), b = s.indexOf('// Manual turn override (header king switch)', a);
+    const block = s.slice(a, b);
+    ok('unparseable, empty, illegal and display-only pushes all restore turn', (block.match(/turn = turn_before;/g) || []).length === 4);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

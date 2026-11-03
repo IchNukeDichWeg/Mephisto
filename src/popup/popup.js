@@ -755,10 +755,16 @@ async function initPanel(root, tabId) {
                 board.orientation(response.orient);
             }
             page_side = (response.mine === 'white' || response.mine === 'black') ? response.mine : null;
+            // `turn` signs every score and picks who is to play, and the parse writes it before this
+            // handler decides whether to adopt the position. A rejected or display-only push left the
+            // running search signed for the wrong side, and a bestmove landing then went unplayed
+            // (audit 3.1.328 ENGINE-5). Every return below that does not adopt puts it back.
+            const turn_before = turn;
             let parsed;
             try {
                 parsed = parse_position_from_response(response.dom);
             } catch (e) {
+                turn = turn_before;
                 console.warn('Mephisto: skipping unparseable scrape:', e.message);
                 return; // transient scrape garbage - the next poll (100ms) retries
             }
@@ -775,6 +781,7 @@ async function initPanel(root, tabId) {
                 bgTrace('scrape parsed to an empty position -- keeping the last one', {
                     head: String(response.dom || '').slice(0, 60),
                     startFen: startFen || null, moves: moves ? String(moves).slice(0, 40) : null});
+                turn = turn_before;
                 return;
             }
             cross_check_position(fen); // warns only; never gates the move
@@ -790,6 +797,7 @@ async function initPanel(root, tabId) {
                 // sat dead, because Horde starts with 36 white pawns and no white king).
                 // English, like every other string on this line (see health_rows).
                 set_idle_reason(illegal_scrape_reason(fen));
+                turn = turn_before;
                 return;
             }
             if (response.displayOnly) {
@@ -797,6 +805,7 @@ async function initPanel(root, tabId) {
                 // move in real time. NO analysis/autoplay -- the authoritative full push (sent when the
                 // content-script's `moving` clears) drives those.
                 board.position(fen);
+                turn = turn_before;
                 return;
             }
             // Manual turn override (header king switch): force which side is to move. STICKY per
