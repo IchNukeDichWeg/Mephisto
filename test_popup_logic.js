@@ -5511,6 +5511,26 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('a good lichess answer is still read and cached', r4.live === true && r4.channel === 'x' && runs[3][0].streamerCache.size === 1, r4);
     });
 }
+// ---- audit 3.1.328 PAGE-1: variant auto-detect leaves nothing in the site's sessionStorage ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = src.indexOf('function maybe_autodetect_variant()'), b = src.indexOf('let variant_switch_pending', a);
+    const run = (inPage) => {
+        const store = new Map(), applied = [];
+        const c = vm.createContext({IS_CONTENT_SCRIPT: inPage, autodetected_urls: new Set(), config: {variant: 'chess', engine: 'stockfish'},
+            needs_fairy_engine: () => false, FAIRY_ENGINES: [], console: {log() {}}, abandon_search() {}, variant_switch_pending: false,
+            setTimeout: (f) => f(), apply_detected_variant: (v) => applied.push(v),
+            sessionStorage: {getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v)},
+            request_detect_variant: (cb) => cb('crazyhouse', 'https://lichess.org/abc', true)});
+        vm.runInContext(src.slice(a, b), c);
+        vm.runInContext('maybe_autodetect_variant(); maybe_autodetect_variant();', c);
+        return {store, applied};
+    };
+    const page = run(true), pop = run(false);
+    ok('in-page: applied once per URL with nothing written to the site sessionStorage', page.applied.length === 1 && page.store.size === 0, [page.applied, [...page.store.keys()]]);
+    ok('toolbar popup: still guarded once per URL by its own sessionStorage', pop.applied.length === 1 && pop.store.size === 1, [pop.applied, [...pop.store.keys()]]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

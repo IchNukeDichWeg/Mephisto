@@ -10457,8 +10457,18 @@ function maybe_autodetect_variant() {
         // already correct: right variant AND (no Fairy needed, or already on some Fairy engine).
         // (Which Fairy engine - native vs WASM - is resolved by an async probe inside apply.)
         if (config.variant === v && (!needs_fairy_engine(v) || FAIRY_ENGINES.includes(config.engine))) return;
-        const key = 'mephisto.autodetected:' + href;
-        try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) { /* */ }
+        // NOT THE SITE'S STORAGE. In the floating panel this file is a content script, and an isolated
+        // world shares the page's sessionStorage, so the guard left `mephisto.autodetected:<url>` for
+        // any page script to find (audit 3.1.328 PAGE-1). There the guard is a Set: this script is
+        // loaded once per document and a panel reload (reopenPanel) keeps it. The toolbar popup is an
+        // extension page that reloads itself, so it keeps sessionStorage, which is the extension's own.
+        if (IS_CONTENT_SCRIPT) {
+            if (autodetected_urls.has(href)) return;
+            autodetected_urls.add(href);
+        } else {
+            const key = 'mephisto.autodetected:' + href;
+            try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) { /* */ }
+        }
         console.log('Mephisto: auto-detected variant', v, '-> applying (was', config.variant + '/' + config.engine + ')');
         // after start-up has finished: applying rebuilds the panel, and doing that from inside the
         // panel's own (async) init tore the board out from under the lines that follow this call.
@@ -10472,6 +10482,7 @@ function maybe_autodetect_variant() {
     });
 }
 let variant_switch_pending = false;   // a detected variant is about to reload the panel (see above)
+const autodetected_urls = new Set();  // the in-page once-per-URL guard (see above)
 
 // Options-page changes reaching a LIVE panel.
 //
