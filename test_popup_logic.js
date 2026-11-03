@@ -2259,7 +2259,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         makeEngine: () => { const e = {disposed: false, dispose() { this.disposed = true; }, send() {}};
                             e.start = () => new Promise(r => { e.finish = r; }); made.push(e); return e; },
         cfg: (k) => k === 'an_engine2' || k === 'an_human' ? 'x' : (k === 'an_wdl' ? false : 'y'),
-        engineOpts: () => ({}), CFG: {an_band: 1500},
+        engineOpts: () => ({}), CFG: {an_band: 1500}, engineFor: (id) => id,
         hideLargeGame() {}, stopMatch() {}, stopSearch() {}, $: () => null});
     (async () => {
         vm.runInContext('let engine = null, human = null, humanKey = null, boardResizeObs = null, bandRun = 0, prefetchTimer = null;\n'
@@ -5916,6 +5916,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        out === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 2+3 0 1' && c.threeCheckCounts(out).left.w === 2 && c.threeCheckCounts(out).fen === START, out);
     ok('Copy FEN and the export use the full FEN, and the export picture includes the pockets',
        /copyOut\(fullFen\(positions\[cursor\]\), 'FEN'\)/.test(an) && /an-export-fen">\$\{esc\(fullFen\(pos\)\)\}/.test(an) && /\$\('an_pocket_top'\), document\.querySelector\('\.an-boardrow'\), \$\('an_pocket_bottom'\)/.test(an));
+}
+// ---- audit 3.1.328 ANALYSIS-4: a native engine on a Chess960 board runs as its WASM build ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const en = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const ids = [...en.matchAll(/\{id: '([^']+)', label: '[^']*', kind: '(\w+)'/g)].map(m => ({id: m[1], kind: m[2]}));
+    let v = 'fischerandom';
+    const c = vm.createContext({anVariant: () => v, ENGINES: ids});
+    vm.runInContext(an.slice(an.indexOf('const NATIVE_960_WASM'), an.indexOf('let engineChain = Promise.resolve();')), c);
+    const wasm = new Set(ids.filter(x => x.kind === 'wasm').map(x => x.id));
+    ok('Chess960: every native engine resolves to a WASM build that exists, WASM picks are kept',
+       ids.filter(x => x.kind === 'native').every(x => wasm.has(c.engineFor(x.id))) && c.engineFor('fairy-native') === 'fairy-stockfish-14-nnue' && c.engineFor('stockfish-19-nnue') === 'stockfish-19-nnue');
+    v = 'chess';
+    ok('standard chess keeps the native pick, and nothing is saved', c.engineFor('sf19-native') === 'sf19-native' && !/setCfg\('an_engine', NATIVE_960_WASM|setCfg\('an_engine', engineFor/.test(an));
+    ok('both builders resolve through engineFor', /makeEngine\(engineFor\(cfg\('an_engine'\)\)/.test(an) && /makeEngine\(engineFor\(cfg\('an_engine2'\)\)/.test(an));
 }
 // ==== END FIX CHECKS ====
 

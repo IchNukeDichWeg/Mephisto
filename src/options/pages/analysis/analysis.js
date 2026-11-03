@@ -472,6 +472,10 @@ function onVariantChange(quiet) {
             if (e2) e2.value = '';
         }
     }
+    if (!quiet) for (const k of ['an_engine', 'an_engine2']) {
+        const id = cfg(k), use = engineFor(id);
+        if (use !== id) status(`${ENGINES.find(e => e.id === id)?.label || id} cannot castle in Chess960; using ${ENGINES.find(e => e.id === use)?.label || use} here.`);
+    }
     syncBandRow();
     reloadEngine2();
     reloadEngine();   // clears the eval caches and re-analyses via go(cursor)
@@ -805,6 +809,18 @@ function engineOpts() {
 // searching with nothing pointing at it -- unstoppable, undisposable, and still feeding the old
 // position's lines into the live callback, which is why the page showed a depth but never a move.
 // Serialising the builder is the whole fix: the second caller waits and gets the first one's engine.
+// CHESS960 RUNS ON WASM. The native hosts build a non-960 python-chess board, which drops every
+// castling right that is not a corner rook with the king on e1/e8, so a native engine analysed the
+// same placement with castling gone, and said nothing (audit 3.1.328 ANALYSIS-4; the match already
+// refuses the pair). The WASM build of the same engine plays 960 through UCI_Chess960. Resolved per
+// build, not saved: back on standard chess the stored pick is used again.
+const NATIVE_960_WASM = {'sf19-native': 'stockfish-19-nnue', 'sf18-native': 'stockfish-18-nnue',
+                         'sf11-native': 'stockfish-11-hce', 'fairy-native': 'fairy-stockfish-14-nnue'};
+function engineFor(id) {
+    if (!id || anVariant() !== 'fischerandom' || ENGINES.find(e => e.id === id)?.kind !== 'native') return id;
+    return NATIVE_960_WASM[id] || 'stockfish-19-nnue';
+}
+
 let engineChain = Promise.resolve();
 function ensureEngine() {
     engineChain = engineChain.then(buildEngine, buildEngine);
@@ -813,7 +829,7 @@ function ensureEngine() {
 async function buildEngine() {
     if (engine) return engine;
     const gen = pageGen;
-    const e = makeEngine(cfg('an_engine'), engineOpts(), 'analysis');
+    const e = makeEngine(engineFor(cfg('an_engine')), engineOpts(), 'analysis');
     await e.start();
     if (leftDuringLoad(gen, e)) return null;
     if (cfg('an_wdl')) e.send?.('setoption name UCI_ShowWDL value true');
@@ -838,7 +854,7 @@ async function buildEngine2() {
     if (!cfg('an_engine2')) return null;
     if (engine2) return engine2;
     const gen = pageGen;
-    const e = makeEngine(cfg('an_engine2'), engineOpts(), 'analysis-b');
+    const e = makeEngine(engineFor(cfg('an_engine2')), engineOpts(), 'analysis-b');
     await e.start();
     if (leftDuringLoad(gen, e)) return null;
     if (cfg('an_wdl')) e.send?.('setoption name UCI_ShowWDL value true');
@@ -1561,7 +1577,7 @@ function renderEngine2Lines(pos, ev) {
     if (!host) return;
     const title = $('an_engine2_title');
     if (title) {
-        const id = cfg('an_engine2');
+        const id = engineFor(cfg('an_engine2'));
         title.textContent = ENGINES.find(x => x.id === id)?.label || 'Second engine';
     }
     const lines = (ev?.lines || []).filter(l => legalHere(pos.fen, l.pv?.[0]))
