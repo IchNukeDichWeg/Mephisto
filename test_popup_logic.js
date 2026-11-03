@@ -2918,7 +2918,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('session: the finished game is folded and its history cleared, and the live game always counts (no start-FEN "folded" check)',
-       /session_note_game\(eval_history, eval_history_game\);[\s\S]{0,400}eval_history = \[\];/.test(psrc) && !/session\.folded/.test(psrc));
+       /session_note_game\(eval_history, eval_history_game, eval_history_side\);[\s\S]{0,400}eval_history = \[\];/.test(psrc) && !/session\.folded/.test(psrc));
 }
 {
     const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
@@ -5351,6 +5351,18 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('on_new_pos clears it, and the search path skips that position',
        /function on_new_pos\(fen, startFen, moves\) \{\s*instant_reply_fen = null;/.test(s)
        && /if \(isTerminal && config\.autoplay && instant_reply_fen && instant_reply_fen === last_eval\.fen\) \{/.test(s));
+}
+// ---- audit 3.1.328 PLAY-5: a finished game is scored for the side we played in it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = s.indexOf('function session_note_game('), j = s.indexOf('\n}\n', i) + 3;
+    const c = vm.createContext({session: {day: 1, games: 0, acc: [], cur: 1}, session_day: () => 1, session_fresh: () => ({}), session_save() {},
+        our_side: () => 'black', live_stats: () => ({white: {accuracy: 91}, black: {accuracy: 40}})});
+    vm.runInContext(s.slice(i, j), c);
+    vm.runInContext(`session_note_game([0.5], 'g', 'white')`, c);
+    ok('the side the game was played with decides whose accuracy is folded', c.session.acc[0] === 91, c.session.acc);
+    ok('the side is recorded as evals land', /eval_seen\[ply\] = true;\s*eval_history_side = our_side\(\);/.test(s));
 }
 // ==== END FIX CHECKS ====
 

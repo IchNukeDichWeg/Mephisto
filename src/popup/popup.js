@@ -5594,7 +5594,7 @@ function on_new_pos(fen, startFen, moves) {
         resign_streak = draw_streak = 0; end_game_sent = ''; end_game_key = ''; end_game_last = null;
         resign_refused = false;
         // The game that just finished, folded into the session totals before anything is cleared.
-        session_note_game(eval_history, eval_history_game);
+        session_note_game(eval_history, eval_history_game, eval_history_side);
         // ...and then cleared, as a change of start position already clears it (record_eval). A
         // new game from the SAME start (every normal game) kept the finished game's history, which
         // the live session reading then had to be kept from counting twice.
@@ -9978,6 +9978,7 @@ function request_clear_hint() {
 // appending -- without that the strip would grow by a band per engine info line.
 let eval_history = [];
 let eval_history_game = null; // the startFen this history belongs to; a new game resets it
+let eval_history_side = null; // the side we played while it was recorded, for the session fold
 
 // --- Game phases (lichess's Divider, ported) ----------------------------------------------------
 // Opening / middlegame / endgame boundaries for the eval graph, computed exactly the way lichess
@@ -10130,6 +10131,7 @@ function record_eval_history(frac) {
     }
     eval_history[ply] = frac;
     eval_seen[ply] = true;
+    eval_history_side = our_side();
     if (eval_history.length > ply + 1) eval_history.length = ply + 1; // a takeback truncates
     if (eval_seen.length > ply + 1) eval_seen.length = ply + 1;
     // ...and what the ENGINE saw here, which is what makes the move that leaves this position
@@ -11794,11 +11796,13 @@ function session_note_move(think_ms) {
 // A game just ended (the ply count dropped back to the start). Its accuracy is folded in HERE, once,
 // rather than recomputed on every render: live_stats runs the classifier over the whole history.
 // `gameKey` is the game's start FEN (eval_history_game), which says who moved first.
-function session_note_game(history, gameKey) {
+// `side` is the side we played in THAT game. The fold runs on the new game's first position, when
+// our_side() already describes the new game, so after a colour change (a chess.com rematch or Grind
+// hop) the finished game was scored with the opponent's accuracy (audit 3.1.328 PLAY-5).
+function session_note_game(history, gameKey, side = our_side()) {
     if (session.day !== session_day()) session = session_fresh();
     session.games++;
     try {
-        const side = our_side();
         const acc = live_stats(history, gameKey)[side]?.accuracy;
         if (Number.isFinite(acc)) session.acc.push(acc);
     } catch (e) { /* an ungradeable game still counts as a game */ }
