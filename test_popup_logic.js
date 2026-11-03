@@ -5205,6 +5205,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('content: the backend (real OS mouse) is only used while the tab is active', /const useBackend = \(\) => [^\n]*tabActive\(\)/.test(s));
 }
+// ---- audit 3.1.328 CLICK-4: a refused move resolves false so the verify chain stops ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = s.indexOf('function simulateMove(move, deselect'), b = s.indexOf('const orientation = getOrientation();', a);
+    const body = s.slice(a, b);
+    ok('simulateMove: the invalid-move, drop and no-board refusals all resolve false', (body.match(/return Promise\.resolve\(false\);/g) || []).length === 3 && !/return Promise\.resolve\(\);/.test(body));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

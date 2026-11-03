@@ -5317,17 +5317,20 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
     const isDrop = DROP_RE.test(move ?? '');
     if (!isDrop && !UCI_RE.test(move ?? '')) {
         console.warn(`Mephisto: refusing to play invalid move '${move}'`); // e.g. '(none)'
-        return Promise.resolve();
+        return Promise.resolve(false);
     }
+    // false, not undefined, on every refusal here: simulateMoveVerified only skips its verify, two
+    // retries and the give-up re-push on `=== false`, so a refused drop was asked for again every few
+    // seconds with its notice repeated three times a cycle (audit 3.1.328 CLICK-4).
     if (isDrop && site !== 'lichess') {
         dropMove(`The best move is a drop (${move}). Autoplay places pocket pieces on lichess only: play it yourself.`,
             'DROPPED: a drop on a site without pocket support', {move, site});
-        return Promise.resolve();
+        return Promise.resolve(false);
     }
     let boardBounds = clickableBoardBounds();
     if (!boardBounds) {
         console.warn('Mephisto: no board to click on');
-        return Promise.resolve();
+        return Promise.resolve(false);
     }
     const orientation = getOrientation();
 
