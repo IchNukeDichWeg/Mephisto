@@ -5241,6 +5241,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('boardPlace measures through clickableBoardBounds (ChessBase has no board element)', vm.runInContext('boardPlace()', c) === '10,20,400,400white', vm.runInContext('boardPlace()', c));
     ok('the hint key measures the same way', /const r = region \? null : clickableBoardBounds\(\);/.test(s));
 }
+// ---- audit 3.1.328 SCRAPE-1: a chess.com 960 start is read from the board at move 0 ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = s.indexOf('let seen960Start = null;'), j = s.indexOf('function readStartPos(url) {');
+    const c = vm.createContext({DEFAULT_POSITION: 'STD', Date, written: [], board: 'RNB960', startPosKey: () => 'k',
+        writeStartPos: (k, v) => c.written.push([k, v.position]), scrapePositionPuz: () => { if (c.board === 'throw') throw new Error('x'); return c.board; }});
+    vm.runInContext(s.slice(i, j) + ';this.seen = () => seen960Start;', c);
+    vm.runInContext('capture960Start(); capture960Start();', c);
+    ok('960 at move 0: the board is kept as the start, written once', c.seen() === 'RNB960' && c.written.length === 1, [c.seen(), c.written]);
+    c.board = 'throw'; vm.runInContext('capture960Start()', c);
+    ok('a torn read keeps what was captured', c.seen() === 'RNB960');
+    c.board = 'STD'; vm.runInContext('capture960Start()', c);
+    ok('a standard array clears it (position 518, or the next game)', c.seen() === null);
+    ok('the var scrape falls back to the captured start off lichess', /\|\| \(site !== 'lichess' && seen960Start\) \|\| DEFAULT_POSITION/.test(s));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

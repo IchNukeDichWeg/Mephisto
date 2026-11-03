@@ -2259,7 +2259,9 @@ function scrapePosition() {
     } else {
         prefix += 'var***';
         if (config.variant === 'fischerandom') {
-            const startPos = readStartPos(startPosKey())?.position || DEFAULT_POSITION;
+            if (site !== 'lichess' && !getMoveRecords()?.length) capture960Start();
+            const startPos = readStartPos(startPosKey())?.position
+                || (site !== 'lichess' && seen960Start) || DEFAULT_POSITION;
             res = startPos + '&*****';
         }
         const moves = getMoveRecords();
@@ -4484,6 +4486,22 @@ function startPosKey() {
     const here = location.pathname + location.search;
     if (location.pathname.startsWith('/analysis')) return (analysisStartKey ||= here);
     return here;
+}
+
+// CHESS960 OFF LICHESS. Only lichess files a custom start (onPositionLoad), so a chess.com 960 game
+// was replayed from the standard array: the opening move was for the wrong position and later SANs
+// threw or landed somewhere else (audit 3.1.328 SCRAPE-1). At move 0 the board IS the start, so it
+// is read there and kept, under the page's key and in this document, because chess.com can change
+// the URL once the game begins. A game joined after move 0 still has no start to read.
+let seen960Start = null;
+function capture960Start() {
+    let p;
+    try { p = scrapePositionPuz(); } catch (e) { return; }   // still animating in: the next scrape retries
+    if (!p) return;
+    if (p === DEFAULT_POSITION) { seen960Start = null; return; }   // position 518, or a new game's board
+    if (p === seen960Start) return;
+    seen960Start = p;
+    writeStartPos(startPosKey(), {position: p, timestamp: Date.now()});
 }
 
 function readStartPos(url) {
