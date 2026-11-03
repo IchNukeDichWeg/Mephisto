@@ -4455,8 +4455,9 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
 const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     const i = psrc.indexOf('const MULTIPV_FLOOR_MODES'), j = psrc.indexOf('\n}\n', psrc.indexOf('function multipv_floor()')) + 3;
+    const e = psrc.indexOf('function explorer_enabled()'), ee = psrc.indexOf('\n}\n', e) + 3;
     const c = vm.createContext({});
-    vm.runInContext(`var config = {}, explorer_out_of_book = false;` + psrc.slice(i, j), c);
+    vm.runInContext(`var config = {}, explorer_out_of_book = false, explorer_error = null, document = {hidden: false};` + psrc.slice(e, ee) + psrc.slice(i, j), c);
     const f = (cfg, out) => vm.runInContext(`config = ${JSON.stringify(cfg)}; explorer_out_of_book = ${out}; multipv_floor()`, c);
     ok('in book with Autoplay: wide enough for a choice', f({book_play: true, autoplay: true}, false) === 4);
     ok('...normal width once out of book, or with it off', f({book_play: true, autoplay: true}, true) === 1 && f({autoplay: true}, false) === 1);
@@ -5317,6 +5318,21 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('15 s left: a quarter second; 5 s left: nothing', at(15) === 250 && at(5) === 0, [at(15), at(5)]);
     ok('humanize_pick rails the think when no pacing mode is on, and the presearch is railed too',
        /\} else \{\s*think = hz_clock_rail\(think\);/.test(s) && /if \(evalCp < 150\) return hz_clock_rail\(2500\);/.test(s));
+}
+// ---- audit 3.1.328 PLAY-2: the book width lifts wherever the explorer cannot answer ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('const MULTIPV_FLOOR_MODES'), j = psrc.indexOf('\n}\n', psrc.indexOf('function multipv_floor()')) + 3;
+    const e = psrc.indexOf('function explorer_enabled()'), ee = psrc.indexOf('\n}\n', e) + 3;
+    const c = vm.createContext({});
+    vm.runInContext(`var config = {}, explorer_out_of_book = false, explorer_error = null, document = {hidden: false};` + psrc.slice(e, ee) + psrc.slice(i, j), c);
+    const f = (cfg, extra = '') => vm.runInContext(`config = ${JSON.stringify(cfg)}; explorer_error = null; document.hidden = false; ${extra}; multipv_floor()`, c);
+    const base = {book_play: true, autoplay: true};
+    ok('Puzzle Mode and variants: normal width', f({...base, puzzle_mode: true}) === 1 && f({...base, variant: 'crazyhouse'}) === 1);
+    ok('a failed lookup: normal width', f(base, `explorer_error = 'HTTP 429'`) === 1);
+    ok('a hidden tab without Background Play: normal width; with it, still the book width',
+       f(base, 'document.hidden = true') === 1 && f({...base, background_play: true}, 'document.hidden = true') === 4);
 }
 // ==== END FIX CHECKS ====
 

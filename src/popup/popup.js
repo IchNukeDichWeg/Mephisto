@@ -6863,8 +6863,13 @@ const MULTIPV_FLOOR_MODES = ['contempt', 'complexity_clock'];
 // covers the usual spread of book replies. The search is back to its normal width once out of book.
 const BOOK_MULTIPV = 4;
 
+// Only while the explorer can actually answer: in Puzzle Mode, a variant, a hidden tab without
+// Background Play, or after a failed lookup it is never asked (or never answers), the out-of-book
+// latch is never reached, and every search stayed at four lines for no book move (audit 3.1.328
+// PLAY-2). A failed lookup clears on the next one that answers.
 function multipv_floor() {
-    if (config.book_play && config.autoplay && !explorer_out_of_book) return BOOK_MULTIPV;
+    if (config.book_play && config.autoplay && !explorer_out_of_book && explorer_enabled() && !explorer_error
+        && !(document.hidden && !config.background_play)) return BOOK_MULTIPV;
     return MULTIPV_FLOOR_MODES.some(k => config[k]) ? 2 : 1;
 }
 
