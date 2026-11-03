@@ -1997,7 +1997,10 @@ async function renderExtras(pos) {
                     });
                 } catch (e) { resolve(null); }
             });
-            tbCache.set(pos.fen, res);
+            // NEVER CACHE A FAILURE, as the worker does not: offline, a lichess cooldown or a timeout
+            // used to blank this position's verdict until the options tab was reloaded (audit 3.1.328
+            // ANALYSIS-6). The next visit asks again.
+            if (res) tbCache.set(pos.fen, res);
         }
         if (positions[cursor]?.fen !== pos.fen) return;
         const tb = tbCache.get(pos.fen);

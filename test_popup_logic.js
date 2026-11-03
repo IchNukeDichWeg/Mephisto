@@ -5954,6 +5954,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('a rook going e1 to h1 stays Rh1, not Rg1', P.bufferLookup(rookBuf, rookFen)[0].uci === 'e1h1' && P.lookup(P.readBook(rookBuf), rookFen)[0].uci === 'e1h1',
        P.bufferLookup(rookBuf, rookFen));
 }
+// ---- audit 3.1.328 ANALYSIS-6: a failed tablebase lookup is asked again ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const a = an.indexOf('    if (tbEl) {'), b = an.indexOf('\n    }\n}\n', a) + 7;
+    const POS = {fen: '8/8/8/8/8/8/k7/K6Q w - - 0 1'};
+    let answer = {error: 'lichess cooling down'}, asked = 0;
+    const c = vm.createContext({tbCache: new Map(), TB_MAX_MEN: 7, pieceCount: () => 3, positions: [POS], cursor: 0, sanOf: () => 'Qb7', tbWords: () => 'mate in 3',
+        tbEl: {textContent: ''}, pos: POS, Promise,
+        chrome: {runtime: {lastError: null, sendMessage: (m, cb) => { asked++; cb(answer); }}}});
+    vm.runInContext('run = async () => {\n' + an.slice(a, b) + '\n};', c);
+    c.run().then(() => {
+        const first = c.tbCache.size;
+        answer = {category: 'win', dtm: 5, moves: [{uci: 'h1b7'}]};
+        return c.run().then(() => ok('an error answer is not cached, and the next visit asks and shows the verdict',
+            first === 0 && asked === 2 && /Tablebase: mate in 3 - Qb7/.test(c.tbEl.textContent), [first, asked, c.tbEl.textContent]));
+    });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
