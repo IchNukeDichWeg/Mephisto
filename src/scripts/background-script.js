@@ -2665,10 +2665,15 @@ async function fetchArchivePgn(site, user, max) {
     // `.catch(() => null)`, so a 429 across all of them returned '' -- and the callers cached that
     // as an empty repertoire for six hours. Count them: if not one month came back, that is a fetch
     // failure and it has to throw, so "rate-limited" and "genuinely no games" stop reading alike.
+    // NEWEST MONTH FIRST, EACH MONTH PREPENDED. `fetched` runs newest month to oldest and every
+    // month lists its games oldest first; appending them in that order put the newest month at the
+    // FRONT, so the `slice(-max)` below kept the oldest month and an early-in-the-month opponent's
+    // recent games were the ones dropped (audit 3.1.328 SYS-6). Prepending keeps `parts` in play
+    // order, so the tail is the latest `max` games.
     let got = 0;
     for (const month of fetched) {
         if (month) got++;
-        for (const g of (month?.games || [])) if (g.pgn) parts.push(g.pgn);
+        parts.unshift(...(month?.games || []).filter(g => g.pgn).map(g => g.pgn));
         if (parts.length >= max) break;   // the cut the serial loop made: same games out, one RTT in
     }
     if (!got) throw new Error('chess.com archive unavailable');

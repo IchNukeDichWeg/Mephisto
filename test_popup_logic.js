@@ -5470,6 +5470,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('resume reads res.installed and leaves the whats-new and installed-version notes',
        /v\$\{res\.installed\}/.test(block) && !/res\.version/.test(block) && /mephisto_whats_new/.test(block) && /mephisto_installed_version: res\.installed/.test(block));
 }
+// ---- audit 3.1.328 SYS-6: the chess.com archive cut keeps the newest games ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = bg.indexOf('async function fetchArchivePgn('), b = bg.indexOf('async function oppPrepLookup(', a);
+    const month = (tag, n) => ({games: Array.from({length: n}, (_, i) => ({pgn: `${tag}${i}`}))});
+    const files = {'arch': {archives: ['m1', 'm2', 'm3']}, 'm3': month('new', 10), 'm2': month('mid', 50), 'm1': month('old', 50)};
+    const ctx = vm.createContext({
+        archiveFetch: async (u) => { const k = u.includes('/games/archives') ? 'arch' : u; return {ok: true, json: async () => files[k]}; },
+        lichess_blocked: () => false, lichess_note_response: () => {}, encodeURIComponent, Promise, Error, Math,
+    });
+    vm.runInContext(bg.slice(a, b), ctx);
+    vm.runInContext(`fetchArchivePgn('chesscom', 'x', 40).then(t => { out = t.split('\\n\\n'); })`, ctx);
+    setTimeout(() => {
+        const out = ctx.out || [];
+        ok('an opponent with 10 games this month keeps all 10, plus the latest 30 of last month, in play order',
+           out.length === 40 && out[39] === 'new9' && out[30] === 'new0' && out[29] === 'mid49' && out[0] === 'mid20', out.slice(0, 2).concat(out.slice(-2)));
+    }, 0);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
