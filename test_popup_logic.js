@@ -5933,6 +5933,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('standard chess keeps the native pick, and nothing is saved', c.engineFor('sf19-native') === 'sf19-native' && !/setCfg\('an_engine', NATIVE_960_WASM|setCfg\('an_engine', engineFor/.test(an));
     ok('both builders resolve through engineFor', /makeEngine\(engineFor\(cfg\('an_engine'\)\)/.test(an) && /makeEngine\(engineFor\(cfg\('an_engine2'\)\)/.test(an));
 }
+// ---- audit 3.1.328 ANALYSIS-5: Polyglot castling is translated only for a king ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console}; c.self = c; vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/polyglot-random.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/util/polyglot.js', 'utf8'), c);
+    const P = c.MephistoPolyglot;
+    const enc = (from, to) => ((from.charCodeAt(1) - 49) << 9) | ((from.charCodeAt(0) - 97) << 6) | ((to.charCodeAt(1) - 49) << 3) | (to.charCodeAt(0) - 97);
+    const book = (fen, raws) => {
+        const buf = new ArrayBuffer(16 * raws.length), v = new DataView(buf);
+        raws.forEach((r, i) => { v.setBigUint64(i * 16, P.polyglotKey(fen)); v.setUint16(i * 16 + 8, r); v.setUint16(i * 16 + 10, 1); });
+        return buf;
+    };
+    const kingFen = 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1';
+    const rookFen = '4k3/8/8/8/8/8/8/4R1K1 w - - 0 1';   // Re1-h1 is a rook move
+    const kingBuf = book(kingFen, [enc('e1', 'h1'), enc('e1', 'a1')]), rookBuf = book(rookFen, [enc('e1', 'h1')]);
+    ok('a king on e1 taking its rook is castling, from the bytes and from the parsed book',
+       P.bufferLookup(kingBuf, kingFen).map(e => e.uci).join() === 'e1g1,e1c1' && P.lookup(P.readBook(kingBuf), kingFen).map(e => e.uci).join() === 'e1g1,e1c1');
+    ok('a rook going e1 to h1 stays Rh1, not Rg1', P.bufferLookup(rookBuf, rookFen)[0].uci === 'e1h1' && P.lookup(P.readBook(rookBuf), rookFen)[0].uci === 'e1h1',
+       P.bufferLookup(rookBuf, rookFen));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

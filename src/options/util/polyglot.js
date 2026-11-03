@@ -75,18 +75,36 @@ function polyglotKey(fen) {
     return key & MASK64;
 }
 
-// A book move is packed into 16 bits: to-file, to-rank, from-file, from-rank, promotion.
-// Castling is stored as the KING TAKING ITS OWN ROOK (e1h1), which is not a legal move anywhere
-// else, so it is translated to the king's two-square move.
+// A book move is packed into 16 bits: to-file, to-rank, from-file, from-rank, promotion. The raw
+// squares, nothing translated: castling is stored as the KING TAKING ITS OWN ROOK (e1h1), and only
+// the position can say whether e1h1 is that or a rook or queen moving to the corner.
 function decodeMove(raw) {
     const toFile = raw & 0x7, toRank = (raw >> 3) & 0x7;
     const fromFile = (raw >> 6) & 0x7, fromRank = (raw >> 9) & 0x7;
     const promo = (raw >> 12) & 0x7;
     const sq = (f, r) => String.fromCharCode(97 + f) + (r + 1);
-    let from = sq(fromFile, fromRank), to = sq(toFile, toRank);
-    const CASTLES = {e1h1: 'e1g1', e1a1: 'e1c1', e8h8: 'e8g8', e8a8: 'e8c8'};
-    const uci = CASTLES[from + to] || (from + to);
-    return uci + (promo ? ' nbrq'[promo] : '');
+    return sq(fromFile, fromRank) + sq(toFile, toRank) + (promo ? ' nbrq'[promo] : '');
+}
+
+// KING-TAKES-ROOK BECOMES CASTLING ONLY WHEN A KING IS MOVING. Translated with no position, every
+// e1h1/e1a1/e8h8/e8a8 became castling, so a rook lift back to the corner read Rg1 instead of Rh1:
+// always legal, because the corner move needs those squares empty, so the panel played it as a
+// book move in a live game (audit 3.1.328 ANALYSIS-5).
+const CASTLES = {e1h1: 'e1g1', e1a1: 'e1c1', e8h8: 'e8g8', e8a8: 'e8c8'};
+function pieceAt(fen, square) {
+    const rows = String(fen).trim().split(/\s+/)[0].split('/');
+    const row = rows[8 - (+square[1])] || '';
+    let file = 0;
+    for (const ch of row) {
+        if (ch >= '1' && ch <= '8') { file += ch.charCodeAt(0) - 48; continue; }
+        if (file === square.charCodeAt(0) - 97) return ch;
+        file++;
+    }
+    return '';
+}
+function castleFor(uci, fen) {
+    const to = CASTLES[uci.slice(0, 4)];
+    return to && /^[Kk]$/.test(pieceAt(fen, uci.slice(0, 2))) ? to : uci;
 }
 
 // The whole file as a lookup table. A book is read ONCE and kept as a Map, because a browser tab
@@ -111,7 +129,7 @@ function readBook(buffer) {
 
 function lookup(entries, fen) {
     if (!entries) return [];
-    return entries.get(polyglotKey(fen).toString(16)) || [];
+    return (entries.get(polyglotKey(fen).toString(16)) || []).map(e => ({...e, uci: castleFor(e.uci, fen)}));
 }
 
 // A LOOKUP WITHOUT A PARSE: the entries are sorted by key, so a book of any size answers one
@@ -134,7 +152,7 @@ function bufferLookup(buffer, fen) {
     for (let i = first; i < count; i++) {
         const o = i * 16;
         if (view.getBigUint64(o) !== want) break;
-        out.push({uci: decodeMove(view.getUint16(o + 8)), weight: view.getUint16(o + 10)});
+        out.push({uci: castleFor(decodeMove(view.getUint16(o + 8)), fen), weight: view.getUint16(o + 10)});
     }
     return out;
 }
