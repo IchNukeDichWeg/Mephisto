@@ -235,7 +235,7 @@ class AnalysisPage extends SettingsPage {
         $('an_next')?.addEventListener('click', () => go(cursor + 1));
         $('an_last')?.addEventListener('click', () => go(positions.length - 1));
         $('an_flip')?.addEventListener('click', () => { flipped = !flipped; buildBoard(); render(); });
-        $('an_copy_fen')?.addEventListener('click', () => copyOut(positions[cursor]?.fen || '', 'FEN'));
+        $('an_copy_fen')?.addEventListener('click', () => copyOut(fullFen(positions[cursor]), 'FEN'));
         $('an_copy_pgn')?.addEventListener('click', () => copyOut(pgnText(), 'PGN'));
         $('an_export')?.addEventListener('click', (e) => exportPosition(e.currentTarget));
         $('an_match_run')?.addEventListener('click', () => runMatch());
@@ -619,6 +619,11 @@ function nodeExtras(parent, mv) {
 
 // The line as it stands, ready to paste somewhere else. A line that did not start from the initial
 // position carries the FEN tags, or it is not the same game when it is read back.
+// THE FULL FEN EVERYWHERE IT LEAVES THE PAGE. chess.js fen() carries no crazyhouse pockets and no
+// three-check counts; only engineFen() adds them, so Copy FEN, the export and this [FEN] tag all
+// described a different position (audit 3.1.328 ANALYSIS-3).
+function fullFen(pos) { return pos ? engineFen(pos) : ''; }
+
 function pgnText() {
     const start = positions[0]?.fen;
     const body = [];
@@ -631,8 +636,10 @@ function pgnText() {
     }
     const varTag = anVariant() !== 'chess'
         ? `[Variant "${(AN_VARIANTS.find(v => v[0] === anVariant()) || ['', ''])[1]}"]\n` : '';
-    const tags = (start && start !== newChess().fen())
-        ? `${varTag}[SetUp "1"]\n[FEN "${start}"]\n\n` : (varTag ? varTag + '\n' : '');
+    const startFull = fullFen(positions[0]);
+    const initialFull = fullFen({fen: newChess().fen(), holdings: {w: '', b: ''}, checksLeft: {w: 3, b: 3}});
+    const tags = (start && startFull !== initialFull)
+        ? `${varTag}[SetUp "1"]\n[FEN "${startFull}"]\n\n` : (varTag ? varTag + '\n' : '');
     return (tags + body.join(' ')).trim();
 }
 
@@ -719,7 +726,9 @@ async function exportPosition(btn) {
         const bands = bandsFor(pos);
         const wrap = document.createElement('div');
         wrap.innerHTML = `<div class="an-export-grid">`
-            + `<div>${document.querySelector('.an-boardrow')?.outerHTML || ''}</div>`
+            // the pockets are part of a crazyhouse position, so they go into the picture too
+            + `<div>${[$('an_pocket_top'), document.querySelector('.an-boardrow'), $('an_pocket_bottom')]
+                .filter(el => el && !el.classList.contains('hidden')).map(el => el.outerHTML).join('')}</div>`
             + `<div>${bands ? $('an_bands_wrap')?.outerHTML || '' : ''}</div></div>`;
         wrap.querySelectorAll('.an-hit, .an-band-cursor, .tooltipped .info-tooltip').forEach(el => el.remove());
 
@@ -742,7 +751,7 @@ async function exportPosition(btn) {
 <h3 class="set-h">Position</h3>
 ${wrap.innerHTML}
 <h3 class="set-h">FEN</h3>
-<p class="an-export-fen">${esc(pos.fen)}</p>
+<p class="an-export-fen">${esc(fullFen(pos))}</p>
 ${pgn ? `<h3 class="set-h">Moves</h3><p class="an-export-fen">${esc(pgn)}</p>` : ''}
 ${bands ? `<h3 class="set-h">How often each move is played, by rating</h3>
 <p class="an-status">Human model: ${esc(human)}. Each figure is that move's share of ALL legal moves at

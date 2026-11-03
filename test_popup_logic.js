@@ -2353,7 +2353,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     if (!okErr) fails++;
     console.log(`${okErr ? 'ok  ' : 'FAIL'} the illegal-move error names the real move number (got ${err.slice(0, 30)})`);
     // the analysis page's copy-PGN
-    const a = vm.createContext({Core: c.MephistoReviewCore, anVariant: () => 'chess', AN_VARIANTS: [],
+    const a = vm.createContext({Core: c.MephistoReviewCore, anVariant: () => 'chess', AN_VARIANTS: [], fullFen: (p) => (p ? p.fen : ''),
         newChess: () => ({fen: () => 'startpos'}),
         positions: [{fen: FEN}, {san: 'e5'}, {san: 'Nf3'}, {san: 'Nc6'}]});
     vm.runInContext(cut(aj, 'function pgnText', 'async function copyOut'), a);
@@ -5891,6 +5891,31 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('stalemate is named, a finished search with no lines is "game over", a running one still "thinking…"',
        c.emptyColumnWord(stale, false) === 'Stalemate' && c.emptyColumnWord({fen: '8/8/8/8/8/8/8/K6k w - - 0 1', turn: 'w'}, true) === 'game over'
        && c.emptyColumnWord({fen: '8/8/8/8/8/8/8/K6k w - - 0 1', turn: 'w'}, false) === 'thinking…');
+}
+// ---- audit 3.1.328 ANALYSIS-3: Copy FEN, Export and Copy PGN keep pockets and check counts ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (x, y) => an.slice(an.indexOf(x), an.indexOf(y, an.indexOf(x)));
+    let variant = 'crazyhouse';
+    const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const c = vm.createContext({anVariant: () => variant, AN_VARIANTS: [['crazyhouse', 'Crazyhouse'], ['3check', 'Three-check']],
+        newChess: () => ({fen: () => START}), Core: {plyMove: () => ({num: 1, white: true})}, positions: []});
+    vm.runInContext(cut('function threeCheckCounts(', 'function newChess(') + cut('function engineFen(pos)', 'let engine = null;')
+        + cut('// THE FULL FEN EVERYWHERE IT LEAVES THE PAGE.', 'async function copyOut('), c);
+    const zh = {fen: 'rnbqkb1r/pppppppp/8/8/8/8/PPPPPPPP/RNBQKB1R w KQkq - 0 4', holdings: {w: 'n', b: 'n'}, checksLeft: {w: 3, b: 3}};
+    ok('crazyhouse: the copied FEN carries both pockets', c.fullFen(zh) === 'rnbqkb1r/pppppppp/8/8/8/8/PPPPPPPP/RNBQKB1R[Nn] w KQkq - 0 4', c.fullFen(zh));
+    c.positions = [zh];
+    ok('crazyhouse: the PGN [FEN] tag carries them too', /\[FEN "rnbqkb1r\/pppppppp\/8\/8\/8\/8\/PPPPPPPP\/RNBQKB1R\[Nn\] w KQkq - 0 4"\]/.test(c.pgnText()), c.pgnText());
+    c.positions = [{fen: START, holdings: {w: '', b: ''}, checksLeft: {w: 3, b: 3}}];
+    ok('the plain start still writes no FEN tag', !/\[FEN/.test(c.pgnText()), c.pgnText());
+    variant = '3check';
+    const tc = {fen: START, holdings: {w: '', b: ''}, checksLeft: {w: 2, b: 3}};
+    const out = c.fullFen(tc);
+    ok('three-check: the copied FEN carries the counts and reads back to the same counts',
+       out === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 2+3 0 1' && c.threeCheckCounts(out).left.w === 2 && c.threeCheckCounts(out).fen === START, out);
+    ok('Copy FEN and the export use the full FEN, and the export picture includes the pockets',
+       /copyOut\(fullFen\(positions\[cursor\]\), 'FEN'\)/.test(an) && /an-export-fen">\$\{esc\(fullFen\(pos\)\)\}/.test(an) && /\$\('an_pocket_top'\), document\.querySelector\('\.an-boardrow'\), \$\('an_pocket_bottom'\)/.test(an));
 }
 // ==== END FIX CHECKS ====
 
