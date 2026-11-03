@@ -57,6 +57,9 @@ const RV_PGN_VARIANTS = {
     'threecheck': '3check', 'three check': '3check', 'king of the hill': 'kingofthehill',
     'kingofthehill': 'kingofthehill', 'antichess': 'antichess', 'giveaway': 'antichess',
     'atomic': 'atomic', 'horde': 'horde', 'racing kings': 'racingkings', 'racingkings': 'racingkings',
+    // lichess's custom-start games: standard rules, and the [FEN] tag already carries the start. It
+    // read as "which this page cannot review" and then reviewed fine (audit 3.1.328 REVIEW-16).
+    'from position': 'chess',
 };
 
 // chess.com's 4-player games carry their MODE in the Variant tag ("Teams", "FFA"), not the words

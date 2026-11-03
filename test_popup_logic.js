@@ -5821,6 +5821,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('re-entry refills the batch input after a batch, the one game otherwise',
        !!line && pick([{}, {}], 'g1\n\ng2', {pgnText: 'g2'}) === 'g1\n\ng2' && pick(null, 'g1\n\ng2', {pgnText: 'g3'}) === 'g3', line);
 }
+// ---- audit 3.1.328 REVIEW-16: a lichess "From Position" game is reviewable ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rv.indexOf('const RV_PGN_VARIANTS = {'), b = rv.indexOf('};', a) + 2;
+    const map = vm.runInNewContext(rv.slice(a, b).replace('const RV_PGN_VARIANTS =', '(') .replace(/};$/, '})'));
+    ok('"From Position" maps to standard chess', map['from position'] === 'chess', map['from position']);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
