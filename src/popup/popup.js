@@ -2486,7 +2486,13 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                     // tb_ok must be explicit here: now that the readout substitutes the tablebase
                     // move into `best`, played === best on a tablebase hit -- and without this,
                     // humanize's roll could override a SOLVED position's move
-                    if (tb_ok || played !== best) pick.move = played; // book/tablebase win the move, humanize keeps the clock
+                    // Book and tablebase are facts about the position and win the move; humanize keeps
+                    // the clock. Contempt and Playstyle only replace the engine's own move: Humanize's
+                    // pick had already settled Err Like Your Rating's debt as played, so a style
+                    // swapping out its error left the game cleaner than the rating (audit 3.1.328 PLAY-3).
+                    const book_ok = !!book && premove_reply_playable(last_eval.fen, book);
+                    if (tb_ok || book_ok) pick.move = played;
+                    else if (pick.move === best && played !== best) pick.move = played;
                     if (pick.move !== best) console.log(`Humanize: playing ${pick.move} over ${best}`);
                     // the search already burned most of the intended think (on_new_pos sized it to
                     // the pace), so only wait out the RESIDUAL -- never idle time the engine could

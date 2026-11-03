@@ -5334,6 +5334,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('a hidden tab without Background Play: normal width; with it, still the book width',
        f(base, 'document.hidden = true') === 1 && f({...base, background_play: true}, 'document.hidden = true') === 4);
 }
+// ---- audit 3.1.328 PLAY-3: a style or contempt pick never replaces Humanize's error ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('Humanize: only book and tablebase override its pick; style and contempt only replace the engine move',
+       /if \(tb_ok \|\| book_ok\) pick\.move = played;\s*else if \(pick\.move === best && played !== best\) pick\.move = played;/.test(s)
+       && !/if \(tb_ok \|\| played !== best\) pick\.move = played;/.test(s));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
