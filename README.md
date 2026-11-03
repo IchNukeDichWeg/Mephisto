@@ -537,12 +537,17 @@ For Fairy-Stockfish, install it or pass `--fairy /path/to/binary`. On an install
 downloads the Fairy-Stockfish nets the zip leaves out (494 MB, each checked against the release's SHA-256), once;
 `--no-fairy-nets` skips that, and the native Fairy then plays on its classical evaluation.
 
-**Windows** - native messaging needs a registry key, so this is manual: install Python and `pip install chess`,
-download `stockfish.exe`, copy `native-host/uci-native-host.py` somewhere stable with a `sf-native.path` file beside
-it holding the full path to the exe, write a host manifest `com.sf_native.host.json` (underscores - Chrome rejects
-hyphens) pointing at a `.bat` that runs the host script with
-`"allowed_origins": ["chrome-extension://YOUR_EXTENSION_ID/"]`, and add registry key
-`HKCU\Software\Google\Chrome\NativeMessagingHosts\com.sf_native.host` = the manifest path.
+**Windows** - native messaging needs a registry key, so this is manual. Install Python and `pip install chess`, and
+download `stockfish.exe`. The host takes its name from its own file name, so the names have to line up:
+1. In a stable folder, copy `native-host/uci-native-host.py` as **`sf-native-host.py`** and create **`sf-native.path`**
+   beside it holding the full path to `stockfish.exe` (for Fairy-Stockfish: `fairy-native-host.py` and
+   `fairy-native.path`).
+2. Beside them, a copy of `native-host/tetrarch-host.bat` named `sf-native-host.bat`, with `tetrarch-host.py`
+   changed to `sf-native-host.py` on both of its lines (Chrome on Windows runs a `.bat` or `.exe`, never a `.py`).
+3. A host manifest `com.sf_native.host.json` (underscores - Chrome rejects hyphens) with `"name": "com.sf_native.host"`,
+   `"type": "stdio"`, `"path"` = the `.bat`, and `"allowed_origins": ["chrome-extension://YOUR_EXTENSION_ID/"]`.
+4. Registry key `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.sf_native.host` with its default value = the
+   manifest's full path (`com.fairy_native.host` for Fairy-Stockfish).
 
 The installer registers the host for every Chromium-family browser it knows: **Chrome, Brave, Edge, Chromium,
 Vivaldi, Arc, Opera and Opera GX**, with their beta, dev and canary channels. Firefox isn't supported for

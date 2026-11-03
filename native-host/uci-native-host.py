@@ -53,6 +53,18 @@ def _resolve_engine():
 
 _NNUE_DIR = _read_sibling(f'{_SLUG}.nnue-dir')
 
+# WINDOWS: stdio MUST be binary, as in tetrarch-host.py -- the CRT turns \n into \r\n on a text-mode
+# handle, inside the length prefix as readily as the JSON, and Chrome just reports the host as
+# unavailable. This host had no such line because only the Unix installer ever ran it; the README's
+# Windows recipe does. No-op everywhere else.
+if sys.platform == 'win32':
+    import msvcrt
+    for _f in (sys.stdin, sys.stdout):
+        try:
+            msvcrt.setmode(_f.fileno(), os.O_BINARY)
+        except Exception:
+            pass
+
 # --- native messaging framing (4-byte LE length prefix + UTF-8 JSON) --------- #
 _stdout_lock = threading.Lock()
 _MAX_MESSAGE_BYTES = 8 * 1024 * 1024  # S9: a few MB is plenty for any real UCI/tbprobe frame; a
