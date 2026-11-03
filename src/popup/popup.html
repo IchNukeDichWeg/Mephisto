@@ -204,8 +204,8 @@
     <div class="qs-row" id="qs_bot_row" hidden>
         <span data-i18n="panel.bot_game" data-i18n-tip="panel.tip.bot_game" class="qs-label tooltipped" data-position="left"
               data-tooltip="Hands a chess.com bot a finished game to walk into, move by move. Only from the starting position of a fresh bot game.">Bot game</span>
-        <select id="qs_bot_game" class="browser-default"
-                class="tooltipped" data-position="left" data-tooltip="Which game to hand the bot. Every line here leaves the bot no turn - it ends in checkmate, or in a draw that gets claimed - because a game that merely stopped would leave the bot to move and it would then answer for real. Auto picks one that wins for the colour you were dealt."></select>
+        <select id="qs_bot_game" class="browser-default tooltipped"
+                data-position="left" data-tooltip="Which game to hand the bot. Every line here leaves the bot no turn - it ends in checkmate, or in a draw that gets claimed - because a game that merely stopped would leave the bot to move and it would then answer for real. Auto picks one that wins for the colour you were dealt."></select>
         <div class="qs-bot-actions">
             <button id="qs_bot_play" type="button"
                 class="tooltipped" data-position="left" data-tooltip="Play the chosen game against the bot, one move every half second or so. Only from the starting position of a fresh bot game.">Play</button>
@@ -309,8 +309,8 @@
 <div class="qs-row qs-nums">
         <!-- The budget is a CHOICE, so the label is the control: time or depth, with its own number.
              Both numbers persist, so switching back does not lose the one you were using. -->
-        <select id="qs_search_mode" class="browser-default qs-label qs-inline-select"
-                class="tooltipped" data-position="left" data-i18n-tip="panel.tip.search_budget" data-tooltip="How the search is budgeted. Time is what the clock allows; a Depth is reproducible -- the same depth is the same answer on any machine, where a millisecond budget is a different search on every one. Each keeps its own number.">
+        <select id="qs_search_mode" class="browser-default qs-label qs-inline-select tooltipped"
+                data-position="left" data-i18n-tip="panel.tip.search_budget" data-tooltip="How the search is budgeted. Time is what the clock allows; a Depth is reproducible -- the same depth is the same answer on any machine, where a millisecond budget is a different search on every one. Each keeps its own number.">
             <option value="time" data-i18n="set.search_time_ms">Search Time (ms)</option>
             <option value="depth" data-i18n="set.search_depth">Search Depth</option>
         </select>

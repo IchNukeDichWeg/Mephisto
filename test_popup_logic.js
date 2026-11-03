@@ -6123,6 +6123,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('the kept names survive, the rest are cleared', removed.join() === 'autoplay,threads', removed);
     ok('General\'s reset keeps exactly the two names Import keeps', /onResetConfigValues\(\) \{[\s\S]{0,500}?this\.clearConfigValues\(\['lichess_token', 'tb_path'\]\);/.test(g));
 }
+// ---- OPT-10: settings rows show their own tooltip ----
+// OPT-10: every settings row's tooltip key exists in every locale and matches its row (the Threads,
+// Memory and Line 1-3 Arrow rows showed another setting's tip), and no tag carries two class
+// attributes (the browser keeps the first, so the second class="tooltipped" never applied).
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const path = require('path');
+    const locDir = path.join(ROOT, 'src/i18n/locales');
+    const locs = fs.readdirSync(locDir).filter(f => f.endsWith('.json')).map(f => [f, JSON.parse(fs.readFileSync(path.join(locDir, f), 'utf8'))]);
+    const htmls = ['src/popup/popup.html', ...fs.readdirSync(path.join(ROOT, 'src/options/pages/settings')).map(d => `src/options/pages/settings/${d}/${d}.html`)]
+        .filter(p => fs.existsSync(path.join(ROOT, p)));
+    const missing = [];
+    for (const p of htmls) {
+        const src = fs.readFileSync(path.join(ROOT, p), 'utf8');
+        for (const m of src.matchAll(/data-i18n-tip="([^"]+)"/g))
+            for (const [f, d] of locs) if (!(m[1] in d)) missing.push(`${p}:${m[1]}:${f}`);
+    }
+    ok('OPT-10: every data-i18n-tip key exists in every locale', missing.length === 0, missing.slice(0, 5));
+    const ap = fs.readFileSync(path.join(ROOT, 'src/options/pages/settings/appearance/appearance.html'), 'utf8');
+    const gen = fs.readFileSync(path.join(ROOT, 'src/options/pages/settings/general/general.html'), 'utf8');
+    const tipFor = (src, label) => (src.match(new RegExp(`data-i18n-tip="([^"]+)"[^>]*><span data-i18n="${label.replace(/\./g, '\\.')}"`)) || [])[1];
+    ok('OPT-10: Line 1-3 Arrow rows use their own tips',
+        [1, 2, 3].every(i => tipFor(ap, `set.arrow_color_line${i}`) === `set.tip.arrow_color_line${i}`),
+        [1, 2, 3].map(i => tipFor(ap, `set.arrow_color_line${i}`)));
+    ok('OPT-10: Threads and Memory rows use the threads and memory tips',
+        tipFor(gen, 'panel.threads') === 'panel.tip.threads' && tipFor(gen, 'panel.memory') === 'panel.tip.memory',
+        [tipFor(gen, 'panel.threads'), tipFor(gen, 'panel.memory')]);
+    const dup = [];
+    for (const p of htmls) {
+        const src = fs.readFileSync(path.join(ROOT, p), 'utf8');
+        for (const m of src.matchAll(/<[a-zA-Z][^>]*>/g)) if ((m[0].match(/\sclass=/g) || []).length > 1) dup.push(`${p}: ${m[0].slice(0, 60)}`);
+    }
+    ok('OPT-10: no tag carries two class attributes', dup.length === 0, dup);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

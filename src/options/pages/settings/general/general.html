@@ -168,7 +168,7 @@
                 </div>
 
                 <div class="set-row section">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.compute_time" class="tooltipped" data-position="right" data-tooltip="How long the engine thinks per move, in milliseconds. More time means stronger play and a slower panel."><span data-i18n="panel.threads">Threads</span></span></div>
+                    <div class="set-lbl"><span data-i18n-tip="panel.tip.threads" class="tooltipped" data-position="right" data-tooltip="How many CPU threads the engine may use. More is stronger up to the cores you actually have; past that it is slower, not faster."><span data-i18n="panel.threads">Threads</span></span></div>
                     <div class="set-ctl">
                         <input id="threads_range" type="range" min="1" max="24" step="1">
                         <span class="value set-val"></span>
@@ -176,7 +176,7 @@
                 </div>
 
                 <div class="set-row section">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.compute_depth" class="tooltipped" data-position="right" data-tooltip="How many plies deep the engine searches when the budget is Depth instead of time."><span data-i18n="panel.memory">Memory</span></span></div>
+                    <div class="set-lbl"><span data-i18n-tip="panel.tip.memory" class="tooltipped" data-position="right" data-tooltip="The engine's hash table. Bigger helps long searches; bigger than the machine can spare hurts everything."><span data-i18n="panel.memory">Memory</span></span></div>
                     <div class="set-ctl">
                         <input id="memory_range" type="range" min="32" max="4096" step="32">
                         <span class="value set-val"></span><span class="set-unit">MB</span>
