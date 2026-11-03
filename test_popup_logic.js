@@ -5273,6 +5273,17 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     c.config.autoplay = true; c.location.pathname = '/analysis';
     ok('...and on an analysis page too', vm.runInContext('scrapePositionFen()', c) === 'e4*****');
 }
+// ---- audit 3.1.328 SCRAPE-3: a lichess castle with a number, glyph or eval keeps its place ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = s.indexOf('function hasSanText(el) {'), j = s.indexOf('\n}\n', i) + 3;
+    const c = vm.createContext({}); vm.runInContext(s.slice(i, j), c);
+    const mv = (text, san) => ({textContent: text, querySelector: q => q === 'san' && san ? {textContent: san} : null});
+    const f = el => vm.runInContext('hasSanText', c)(el);
+    ok('castle with inline number, glyph or eval counts as a move', f(mv('12.O-O', 'O-O')) && f(mv('O-O?!', 'O-O')) && f(mv('O-O-O+0.4', 'O-O-O')));
+    ok('a plain castle, a normal move and a result line are judged as before', f(mv('O-O')) && f(mv('Nf3')) && !f(mv('1-0')));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -4013,7 +4013,10 @@ function getSelectedMoveRecord() {
 // game-result line, trailing placeholder cells, and lichess's `<move class="empty">...</move>`,
 // which it renders for White's skipped half-move whenever a position starts with BLACK to move.
 function hasSanText(el) {
-    const t = el.textContent.trim();
+    // The <san> child where lichess has one: the node also holds a move number, a glyph or an inline
+    // eval, and a castle ("12.O-O", "O-O?!") failed the anchored test and vanished from the line
+    // (audit 3.1.328 SCRAPE-3). Other moves passed only because their text holds a square.
+    const t = (el.querySelector?.('san') || el).textContent.trim();
     return /[a-h][1-8]/.test(t) || /^O-O(-O)?[+#]?$/.test(t);
 }
 
