@@ -49,6 +49,12 @@ const PREMOVE_DEPTH_PREV = vm.runInContext('premove_cert_prev()', ctx);
 const PREMOVE_DEPTH_LAST = vm.runInContext('premove_cert_last()', ctx);
 
 let fails = 0;
+// The verdict: a summary line last and a non-zero exit on any failure, so a caller that reads the
+// exit status or the tail sees a red suite. beforeExit fires once the async blocks have settled.
+process.on('beforeExit', () => {
+    console.log(fails ? `${fails} FAILED` : 'all passed');
+    process.exitCode = fails ? 1 : 0;
+});
 function eq(name, got, want) {
     const ok = JSON.stringify(got) === JSON.stringify(want);
     if (!ok) { fails++; console.log(`FAIL ${name}\n       got  ${JSON.stringify(got)}\n       want ${JSON.stringify(want)}`); }
@@ -6156,6 +6162,13 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         for (const m of src.matchAll(/<[a-zA-Z][^>]*>/g)) if ((m[0].match(/\sclass=/g) || []).length > 1) dup.push(`${p}: ${m[0].slice(0, 60)}`);
     }
     ok('OPT-10: no tag carries two class attributes', dup.length === 0, dup);
+}
+// ---- NATIVE-1: the suite reports its verdict ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const self = fs.readFileSync(__filename, 'utf8');
+    ok('NATIVE-1: the suite sets a non-zero exit code and prints a summary when anything failed',
+       /process\.on\('beforeExit', \(\) => \{[\s\S]{0,120}?FAILED[\s\S]{0,80}?process\.exitCode = fails \? 1 : 0;/.test(self));
 }
 // ==== END FIX CHECKS ====
 
