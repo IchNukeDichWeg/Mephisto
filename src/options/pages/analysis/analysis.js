@@ -290,6 +290,7 @@ function applyGame(initial) {
             if (engine2) { try { engine2.dispose?.(); } catch (e) { /* */ } engine2 = null; }
             if (human) { try { human.dispose?.(); } catch (e) { /* */ } human = null; humanKey = null; }
         }, () => {});
+        bandRun++;   // see reloadHuman
         showLargeGame(g, largeOpts);
     } else if (!initial) {
         hideLargeGame();
@@ -884,6 +885,7 @@ function reloadEngine() {
 
 // Reload ONLY the human model; the engine keeps thinking about the position it is on.
 async function reloadHuman() {
+    bandRun++;   // a sweep in flight is for the model being replaced (ANALYSIS-1)
     syncBandRow();
     humanCache.clear();
     bandCache.clear();
@@ -933,6 +935,7 @@ function leftDuringLoad(gen, e) {
 
 function teardown() {
     pageGen++;
+    bandRun++;   // ends a running sweep at its next band and every queued one before it builds (ANALYSIS-1/-8)
     hideLargeGame();
     stopMatch();
     stopSearch();
@@ -1110,9 +1113,12 @@ async function humanFor(pos) {
     const res = takesRating(kind)
         ? await queueSweep(() => {
               const again = bandCache.get(bandKey(pos.fen, kind))?.[cfg('an_band')];
-              return again?.length ? {cached: again} : h.analyse(pos.fen, pos.turn);
+              if (again?.length) return {cached: again};
+              // disposed while this waited its turn: asking it would hold the queue for 180 s
+              return h === human ? h.analyse(pos.fen, pos.turn) : null;
           })
         : await h.analyse(pos.fen, pos.turn);
+    if (!res) return null;
     if (res?.cached) {
         const out = res.cached.slice(0, 5);
         humanCache.set(key, out);
@@ -1775,6 +1781,7 @@ async function sweepBands(pos, kind, run, onStep) {
     const acc = {};
     let shared = null;
     let borrowed = false;
+    if (run !== bandRun) return null;   // superseded (or the page left) while queued: build nothing
     try {
         if (takesRating(kind)) {   // one net, swept across its rating dial
             // The human column's engine IS this net. Loading a second copy for the sweep is
@@ -1792,7 +1799,11 @@ async function sweepBands(pos, kind, run, onStep) {
             }
         }
         for (let i = 0; i < steps.length; i++) {
-            if (run !== bandRun) return null;
+            // A BORROWED NET THAT WAS DISPOSED ENDS THE SWEEP. dispose() rejects only the waits that
+            // exist at that moment, so the next band's analyse() on the dead engine waited out the
+            // whole 180 s backstop, band after band, with every later human column and chart
+            // queued behind it in bandChain (audit 3.1.328 ANALYSIS-1).
+            if (run !== bandRun || (borrowed && shared !== human)) return null;
             onStep?.(i + 1, steps.length);
             const band = steps[i];
             try {

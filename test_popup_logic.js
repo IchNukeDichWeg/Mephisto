@@ -2262,7 +2262,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         engineOpts: () => ({}), CFG: {an_band: 1500},
         hideLargeGame() {}, stopMatch() {}, stopSearch() {}, $: () => null});
     (async () => {
-        vm.runInContext('let engine = null, human = null, humanKey = null, boardResizeObs = null;\n'
+        vm.runInContext('let engine = null, human = null, humanKey = null, boardResizeObs = null, bandRun = 0;\n'
             + cut('let engineChain', '// Reload ONLY the analysis engine') + cut('// teardown() bumps this', '// Returns a promise'), ac);
         const got = vm.runInContext('[ensureEngine(), ensureEngine2(), ensureHuman()]', ac);
         await new Promise(r => setImmediate(r));                  // the builders are now awaiting start()
@@ -5828,6 +5828,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const a = rv.indexOf('const RV_PGN_VARIANTS = {'), b = rv.indexOf('};', a) + 2;
     const map = vm.runInNewContext(rv.slice(a, b).replace('const RV_PGN_VARIANTS =', '(') .replace(/};$/, '})'));
     ok('"From Position" maps to standard chess', map['from position'] === 'chess', map['from position']);
+}
+// ---- audit 3.1.328 ANALYSIS-1: a disposed human net ends the band sweep ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const a = an.indexOf('let bandChain = Promise.resolve();'), b = an.indexOf('// SWEEP THE NEXT PLY', a);
+    const c = vm.createContext({Promise, Math, bandRun: 1, calls: 0, built: 0, bandCache: new Map(), bandKey: (f, k) => f + k, cfg: () => 1500,
+        bandSteps: () => [600, 700, 800, 900], takesRating: () => true, BAND_MULTIPV: 12, makeEngine: () => { c.built++; return {start: async () => {}}; }});
+    c.human = {send() {}, analyse: async () => { c.calls++; if (c.calls === 1) c.human = null; return {lines: [{pv: ['e2e4'], prob: 1}]}; }};
+    c.ensureHuman = async () => c.human;
+    vm.runInContext(an.slice(a, b), c);
+    vm.runInContext('sweepBands({fen: "x", turn: "w"}, "maia3", bandRun, null)', c).then(r => {
+        ok('the sweep stops at the next band once its borrowed net is gone', r === null && c.calls === 1 && c.built === 0, [r, c.calls, c.built]);
+        c.bandRun = 2;
+        return vm.runInContext('sweepBands({fen: "y", turn: "w"}, "maia3", 1, null)', c);
+    }).then(r => ok('a sweep queued under an older run builds nothing', r === null && c.built === 0, [r, c.built]));
+    ok('teardown, reloadHuman and the large-game switch all bump bandRun',
+       /function teardown\(\) \{\s*pageGen\+\+;\s*bandRun\+\+;/.test(an) && /async function reloadHuman\(\) \{\s*bandRun\+\+;/.test(an) && /bandRun\+\+;   \/\/ see reloadHuman\s*showLargeGame/.test(an));
 }
 // ==== END FIX CHECKS ====
 
