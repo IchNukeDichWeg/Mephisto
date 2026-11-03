@@ -37,6 +37,12 @@ MANIFEST=src/offscreen/engine-assets.json
 [ "$(git rev-parse HEAD)" = "$(git rev-parse "$REF^{commit}")" ] \
     || { echo "!! HEAD is not $REF -- check out $REF first, the gates test the working tree" >&2; exit 1; }
 
+# THE VERSION IS THE ONE THE ZIPS ARE NAMED FOR. $V only names the files; the version an install
+# reports is $REF's manifest.json, and a mismatch fails every self-update with MPH-U11 ("the archive
+# says v3.1.M but the release says v3.1.N"). The zips archive exactly this blob.
+GOT="$(git show "$REF:manifest.json" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).version))')"
+[ "$GOT" = "$V" ] || { echo "!! $REF's manifest.json says $GOT, not $V -- commit the version bump first" >&2; exit 1; }
+
 # THE LOGIC SUITE GATES THE BUILD: it exits non-zero on any failed check.
 echo "logic suite gate..."
 node test_popup_logic.js > /dev/null || { echo "LOGIC SUITE FAILED -- no release (node test_popup_logic.js | grep ^FAIL)" >&2; exit 1; }
