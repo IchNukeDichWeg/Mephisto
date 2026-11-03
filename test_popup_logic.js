@@ -5531,6 +5531,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('in-page: applied once per URL with nothing written to the site sessionStorage', page.applied.length === 1 && page.store.size === 0, [page.applied, [...page.store.keys()]]);
     ok('toolbar popup: still guarded once per URL by its own sessionStorage', pop.applied.length === 1 && pop.store.size === 1, [pop.applied, [...pop.store.keys()]]);
 }
+// ---- audit 3.1.328 PAGE-2: keys typed into a panel input do not reach the site ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = cs.indexOf('function getOverlayRoot()'), b = cs.indexOf('// look up one of our overlay nodes', a);
+    const handlers = {};
+    const root = {activeElement: null, addEventListener: (t, f) => { (handlers[t] ||= []).push(f); }};
+    const c = vm.createContext({overlayRoot: null, overlayHost: null,
+        document: {createElement: () => ({isConnected: true, attachShadow: () => root}), body: {appendChild() {}}}});
+    vm.runInContext(cs.slice(a, b) + '; getOverlayRoot();', c);
+    const fire = (type, focused) => { root.activeElement = focused; let stopped = false; for (const f of handlers[type] || []) f({stopPropagation: () => { stopped = true; }}); return stopped; };
+    ok('keydown/keyup/keypress in the FEN box stop at the panel root',
+       ['keydown', 'keyup', 'keypress'].every(t => fire(t, {tagName: 'INPUT'})) && fire('keydown', {tagName: 'TEXTAREA'}));
+    ok('a focused panel button, or nothing focused, lets the key through to the site',
+       !fire('keydown', {tagName: 'BUTTON'}) && !fire('keydown', null));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

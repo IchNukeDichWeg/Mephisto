@@ -588,6 +588,18 @@ function getOverlayRoot() {
     // did when they were direct children of <body>.
     document.body.appendChild(overlayHost);
     overlayRoot = overlayHost.attachShadow({mode: 'closed'});
+    // TYPING IN THE PANEL STAYS IN THE PANEL. Key events are composed, so they left the closed root
+    // retargeted to the bare host div; a site handler that ignores keys only when the target is an
+    // INPUT saw a plain div and acted, so typing a FEN or arrowing a Quick Settings number stepped
+    // lichess's board through history or flipped it, and the page could log every character
+    // (audit 3.1.328 PAGE-2). Stopped at the root, bubble phase, only while an editable inside has
+    // focus: our own capture-phase listeners have run by then, and a focused panel BUTTON still lets
+    // the site's keys through as before.
+    const root = overlayRoot;
+    for (const type of ['keydown', 'keyup', 'keypress']) root.addEventListener(type, (e) => {
+        const f = root.activeElement;
+        if (f && (f.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName))) e.stopPropagation();
+    });
     return overlayRoot;
 }
 
