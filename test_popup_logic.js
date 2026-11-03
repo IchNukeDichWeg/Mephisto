@@ -6186,6 +6186,45 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && /with request_lock:[\s\S]{0,200}?if all\(k in engine_options and engine_options\[k\] == v/.test(conf)
        && /configure_cut is analysis/.test(ana));
 }
+// ---- NATIVE-11: native Fairy refuses the four python-chess-less variants with its own line ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const helpers = src.slice(src.indexOf('const err_line = '), src.indexOf('// Background-play tracing from the PANEL side'));
+    const a = src.indexOf('const NATIVE_BOARDLESS_VARIANTS');
+    const fn = src.slice(a, src.indexOf('\n    if (uses_cloud()) {', a));
+    const c = vm.createContext({console, sent: []});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+    c.MephistoI18n.setFallback(JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8')));
+    vm.runInContext(`var remote_multipv_set = null; var config = {engine: 'fairy-native', variant: 'duck'}, premove_tracker = {fen: ''}, turn = 'w', board = null;
+        const i18n = (k, d) => MephistoI18n.t(k, d);
+        function uses_native() { return true; } function our_side() { return 'white'; } function on_native_info() {}
+        function native_send(cmd, data) { sent.push([cmd, data]); return Promise.resolve({ok: true}); }
+        ${helpers}
+        ${fn}
+    }`, c);
+    const run = async (variant) => {
+        c.sent.length = 0;
+        vm.runInContext(`config.variant = ${JSON.stringify(variant)}`, c);
+        try { await vm.runInContext(`request_remote_analysis('8/8/8/8/8/8/8/8 w - - 0 1', 500)`, c); return null; }
+        catch (e) { return e; }
+    };
+    (async () => {
+        const duck = await run('duck'), sei = await run('seirawan');
+        const line = vm.runInContext('err_code_line', c)(duck);
+        ok('NATIVE-11: Duck on the native Fairy throws MPH-E08 before any request, naming the variant',
+           duck && duck.code === 'MPH-E08' && c.sent.length === 0 && /^MPH-E08: The native Fairy-Stockfish cannot analyse Duck:/.test(line), [duck && duck.message, line]);
+        ok('...Seirawan the same, by its dropdown label', sei && sei.code === 'MPH-E08' && /Seirawan/.test(sei.message), sei && sei.message);
+        const atomic = await run('atomic');
+        ok('...a variant python-chess has still goes to the host', atomic === null && c.sent.length === 1 && c.sent[0][0] === 'analyse', [atomic && atomic.message, c.sent.length]);
+        vm.runInContext(`config.engine = 'sf-native'`, c);
+        const sfDuck = await run('duck');
+        ok('...and only the Fairy host is refused here', sfDuck === null && c.sent.length === 1, sfDuck && sfDuck.message);
+        const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+        ok('...the line is translated: err.E08 is in en.json with the {variant} slot', /\{variant\}/.test(en['err.E08'] || ''));
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

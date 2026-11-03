@@ -784,6 +784,7 @@
   "err.E01": "本地引擎主机未安装或未运行。请运行一次 native-host/install-native.sh（见 README），然后刷新此页面。",
   "err.E03": "localhost:9090 上响应的不是 remote-engine.py。请停止它，或在该端口启动 remote-engine.py。",
   "err.E06": "在线引擎无法响应。请检查网络连接，或在设置中选择其他引擎。",
+  "err.E08": "本地版 Fairy-Stockfish 无法分析 {variant}：其宿主程序没有该变体的棋盘。请在设置中为它选择内置的 Fairy-Stockfish。",
   "err.N01": "无法下载此版本未内置的模型文件。请检查网络连接后重试。",
   "err.N02": "模型下载中断或大小不符。请重试。",
   "err.N03": "下载的模型未通过完整性校验，已被丢弃。请重试；若仍失败，请安装完整 zip。",

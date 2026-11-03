@@ -184,6 +184,7 @@ const ERRORS = Object.freeze(Object.fromEntries([
     ['MPH-E05', 'panel.msg.engine_error', 'Engine error - {detail}'],
     ['MPH-E06', 'err.E06', 'The online engine could not answer. Check your internet connection, or pick another engine in Settings.'],
     ['MPH-E07', 'panel.tetrarch_setup', 'Tetrarch is not installed yet - see the README section "Four-player chess" for macOS, Linux and Windows setup'],
+    ['MPH-E08', 'err.E08', 'The native Fairy-Stockfish cannot analyse {variant}: its host has no board for that variant. Pick the built-in Fairy-Stockfish in Settings for it.'],
 
     ['MPH-N01', 'err.N01', 'Could not download a model file this build does not include. Check your internet connection and try again.'],
     ['MPH-N02', 'err.N02', 'The model download was cut short or came out the wrong size. Try again.'],

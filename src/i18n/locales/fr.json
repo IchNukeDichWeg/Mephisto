@@ -784,6 +784,7 @@
   "err.E01": "L'hôte natif du moteur n'est pas installé ou ne tourne pas. Exécutez native-host/install-native.sh une fois (voir le README), puis rechargez cette page.",
   "err.E03": "Autre chose que remote-engine.py répond sur localhost:9090. Arrêtez-le ou lancez remote-engine.py à cet endroit.",
   "err.E06": "Le moteur en ligne n'a pas pu répondre. Vérifiez votre connexion internet ou choisissez un autre moteur dans les paramètres.",
+  "err.E08": "Le Fairy-Stockfish natif ne peut pas analyser {variant} : son hôte n'a pas d'échiquier pour cette variante. Choisissez le Fairy-Stockfish intégré dans les paramètres.",
   "err.N01": "Impossible de télécharger un fichier de modèle que cette version n'inclut pas. Vérifiez votre connexion internet et réessayez.",
   "err.N02": "Le téléchargement du modèle a été interrompu ou n'a pas la bonne taille. Réessayez.",
   "err.N03": "Le modèle téléchargé a échoué à la vérification d'intégrité et a été écarté. Réessayez ; si cela échoue encore, installez le zip complet.",

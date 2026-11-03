@@ -13251,8 +13251,18 @@ async function request_remote_configure(options) {
     return call_backend('http://localhost:9090/configure', options).then(parse_backend_json);
 }
 
+// Variants the dropdown offers that python-chess has no board class for. The native host builds
+// every position as a python-chess board, so each analyse of these came back "unsupported variant"
+// and Autoplay stopped (3.1.328 audit NATIVE-11). The built-in Fairy-Stockfish plays all four.
+// Value = the label key, so the line names the variant the way the dropdown does.
+const NATIVE_BOARDLESS_VARIANTS = {duck: 'panel.duck', minihouse: 'panel.minihouse',
+                                   seirawan: 'panel.seirawan_s_chess', chaturanga: 'panel.chaturanga'};
+
 async function request_remote_analysis(fen, time, moves = null, depth = null, nodes = null) {
     if (uses_native()) {
+        // Said before the round-trip, in words a user can act on, not as the host's raw error.
+        const boardless = config.engine === 'fairy-native' && NATIVE_BOARDLESS_VARIANTS[config.variant];
+        if (boardless) throw err_fail('MPH-E08', {variant: i18n(boardless, config.variant)}, `no python-chess board for ${config.variant}`);
         // guard streamed frames by the ACTUAL position (moves-mode passes startFen here, but
         // premove_tracker.fen holds the real current fen), so late frames don't leak across moves
         const posFen = premove_tracker.fen;

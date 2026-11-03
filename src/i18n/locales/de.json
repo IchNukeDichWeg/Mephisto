@@ -784,6 +784,7 @@
   "err.E01": "Der native Engine-Host ist nicht installiert oder läuft nicht. Führe native-host/install-native.sh einmal aus (siehe README) und lade dann diese Seite neu.",
   "err.E03": "Auf localhost:9090 antwortet etwas anderes als remote-engine.py. Beende es oder starte remote-engine.py dort.",
   "err.E06": "Die Online-Engine konnte nicht antworten. Prüfe deine Internetverbindung oder wähle in den Einstellungen eine andere Engine.",
+  "err.E08": "Das native Fairy-Stockfish kann {variant} nicht analysieren: sein Host hat kein Brett für diese Variante. Wähle dafür in den Einstellungen das eingebaute Fairy-Stockfish.",
   "err.N01": "Eine Modelldatei, die dieser Build nicht enthält, konnte nicht heruntergeladen werden. Prüfe deine Internetverbindung und versuche es erneut.",
   "err.N02": "Der Modell-Download wurde abgebrochen oder hat die falsche Größe. Versuche es erneut.",
   "err.N03": "Das heruntergeladene Modell hat die Integritätsprüfung nicht bestanden und wurde verworfen. Versuche es erneut; schlägt es weiter fehl, installiere das vollständige Zip.",

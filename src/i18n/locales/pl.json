@@ -784,6 +784,7 @@
   "err.E01": "Natywny host silnika nie jest zainstalowany albo nie działa. Uruchom raz native-host/install-native.sh (zob. README), a potem odśwież tę stronę.",
   "err.E03": "Na localhost:9090 odpowiada coś innego niż remote-engine.py. Zatrzymaj to lub uruchom tam remote-engine.py.",
   "err.E06": "Silnik online nie mógł odpowiedzieć. Sprawdź połączenie z internetem lub wybierz w ustawieniach inny silnik.",
+  "err.E08": "Natywny Fairy-Stockfish nie może analizować wariantu {variant}: jego host nie ma planszy dla tego wariantu. Wybierz w ustawieniach wbudowany Fairy-Stockfish.",
   "err.N01": "Nie udało się pobrać pliku modelu, którego ta wersja nie zawiera. Sprawdź połączenie z internetem i spróbuj ponownie.",
   "err.N02": "Pobieranie modelu zostało przerwane albo ma zły rozmiar. Spróbuj ponownie.",
   "err.N03": "Pobrany model nie przeszedł kontroli integralności i został odrzucony. Spróbuj ponownie; jeśli nadal się nie uda, zainstaluj pełny zip.",
