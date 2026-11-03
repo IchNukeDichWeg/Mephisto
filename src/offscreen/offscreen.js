@@ -380,3 +380,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         delete sticky[clientId];
     }
 });
+
+// A DOCUMENT NOBODY USES CLOSES TOO. The idle timer was armed only by a dispose or a finished load, so
+// a document the worker created on wake (it does, to time its cold start) and that never got a client
+// stayed open for the rest of the browser session (audit 3.1.328 SYS-4). Any message from a panel
+// clears the timer, so a panel that is about to init is not raced.
+maybeGoIdle();

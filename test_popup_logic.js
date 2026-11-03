@@ -5455,6 +5455,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /changes\.puzzle_mode \|\| changes\.puzzle_capture \|\| changes\.puzzle_capture_cdp\)\) \{\s*puzzleNetWanted\(\)\.then\(want => \{ if \(!want\) for \(const id of \[\.\.\.puzzleNetTabs\]\) puzzleNetStop\(id\); \}\);/.test(b)
        && /if \(!\(await puzzleNetWanted\(\)\)\) \{ if \(puzzleNetTabs\.has\(tabId\)\) puzzleNetStop\(tabId\); return; \}/.test(b));
 }
+// ---- audit 3.1.328 SYS-4: an offscreen document with no client arms its idle close at load ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const o = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8');
+    ok('offscreen.js arms the idle timer once at top level', /\nmaybeGoIdle\(\);\n$/.test(o));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
