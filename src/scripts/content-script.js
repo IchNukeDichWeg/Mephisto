@@ -2293,6 +2293,12 @@ function scrapePositionFen(moves = getMoveRecords()) {
         return res;
     }
     if (site === 'chesscom') {
+        // PLAYING A GAME READS TO THE LATEST MOVE, as lichess's live list does. The viewed-move marker
+        // is the node's last child in the repo's fixture, so stepping back stopped the scrape there:
+        // the panel analysed the history position and, once the 5 s hold ran out, Autoplay clicked
+        // that move onto the history board (audit 3.1.328 SCRAPE-2). History review (Autoplay off,
+        // or an analysis page) still follows the viewed move.
+        const toLatest = !!config.autoplay && CC_GAME_PATH.test(location.pathname);
         for (const moveWrapper of moves) {
             const move = moveWrapper.lastElementChild;
             // This branch takes `.node` unfiltered, unlike the variants branch above which already
@@ -2308,7 +2314,7 @@ function scrapePositionFen(moves = getMoveRecords()) {
             } else {
                 res += move.innerText + '*****';
             }
-            if (!config.simon_says_mode && move === selectedMove) {
+            if (!config.simon_says_mode && !toLatest && move === selectedMove) {
                 break;
             }
         }

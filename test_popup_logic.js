@@ -5257,6 +5257,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('a standard array clears it (position 518, or the next game)', c.seen() === null);
     ok('the var scrape falls back to the captured start off lichess', /\|\| \(site !== 'lichess' && seen960Start\) \|\| DEFAULT_POSITION/.test(s));
 }
+// ---- audit 3.1.328 SCRAPE-2: a chess.com game with Autoplay on is scraped to the latest move ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = s.indexOf('function scrapePositionFen('), j = s.indexOf('\n}\n', i) + 3;
+    const node = (san, sel) => { const m = {innerText: san, lastElementChild: null, classList: {contains: () => false}}; return {m, w: {lastElementChild: m}}; };
+    const n = ['e4', 'e5', 'Nf3'].map(x => node(x));
+    const c = vm.createContext({site: 'chesscom', config: {autoplay: true, simon_says_mode: false}, location: {pathname: '/game/123'},
+        CC_GAME_PATH: /^\/(game|play)(\/|$)/, isChesscomVariants: () => false, getSelectedMoveRecord: () => n[0].m, getMoveRecords: () => n.map(x => x.w), figurineSan: (a, b) => b});
+    vm.runInContext(s.slice(i, j), c);
+    ok('chess.com game, Autoplay on, stepped back: the scrape reads to the latest move', vm.runInContext('scrapePositionFen()', c) === 'e4*****e5*****Nf3*****', vm.runInContext('scrapePositionFen()', c));
+    c.config.autoplay = false;
+    ok('...with Autoplay off it still follows the viewed move (history review)', vm.runInContext('scrapePositionFen()', c) === 'e4*****');
+    c.config.autoplay = true; c.location.pathname = '/analysis';
+    ok('...and on an analysis page too', vm.runInContext('scrapePositionFen()', c) === 'e4*****');
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
