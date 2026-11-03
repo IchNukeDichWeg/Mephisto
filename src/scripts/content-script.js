@@ -2704,6 +2704,7 @@ function onProbeAnnounce(e) {
     let d;
     try { d = JSON.parse(e.detail); } catch (err) { return; }
     if (!d || !d.s) return;
+    if (!PROBE_TYPES.includes(d.t)) return;   // only the probe this host can have (see below)
     // One channel per probe per document: every new name a page offered stacked another permanent
     // listener, and the replay below answered it.
     if (d.t === 'tt' && !ttSid) {
@@ -2731,6 +2732,11 @@ function onProbeAnnounce(e) {
 // for any page: this answered at once on a name the caller chose. On lichess and chess.com the probe
 // is only registered while Puzzle Capture is on, and there a reply tells a page nothing the probe's
 // own patches do not.
+// AND ONLY THAT HOST'S PROBE. Gating by host still let TakeTakeTake and ChessBase answer a `puz`
+// announce, the one type that replies on the caller's chosen name, so a page script could run an
+// install check there long after the probes' own announce window (audit 3.1.328 PAGE-6).
+const PROBE_TYPES = /(^|\.)taketaketake\.com$/.test(location.hostname) ? ['tt']
+    : location.hostname === 'tactics.chessbase.com' ? ['cb'] : ['puz'];
 if (/(^|\.)taketaketake\.com$/.test(location.hostname) || location.hostname === 'tactics.chessbase.com') {
     document.addEventListener('m9', onProbeAnnounce);
 } else if (/^(www\.)?(chess\.com|lichess\.org)$/.test(location.hostname)) {

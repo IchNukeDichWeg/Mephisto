@@ -5571,6 +5571,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext(`try_puzzle_capture(${JSON.stringify(FEN)})`, miss);
     ok('a miss is not cached and does not re-enter', miss.reentered.length === 0 && vm.runInContext('puzzle_capture_remote', miss) === null && !miss.puzzle_from_page);
 }
+// ---- audit 3.1.328 PAGE-6: the m9 rendezvous takes only the host's own probe type ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = cs.indexOf('let ttState = null, ttSid = null;'), b = cs.indexOf('// --- captured puzzle solutions', a);
+    const run = (host) => {
+        const listening = [], sent = [];
+        const c = vm.createContext({location: {hostname: host}, JSON, puzSid: null, config: null, schedulePush() {}, acceptPuzzleCaptures() {},
+            CustomEvent: function (n) { this.type = n; }, chrome: {storage: {local: {get: (k, cb) => cb({puzzle_capture: 'true'})}}},
+            document: {addEventListener: (n) => listening.push(n), dispatchEvent: (e) => sent.push(e.type)}});
+        vm.runInContext(cs.slice(a, b), c);
+        for (const t of ['puz', 'tt', 'cb']) vm.runInContext(`onProbeAnnounce({detail: JSON.stringify({t: '${t}', s: 'x${t}'})})`, c);
+        return {listening, sent};
+    };
+    const tt = run('taketaketake.com'), cb = run('tactics.chessbase.com'), li = run('lichess.org');
+    ok('TakeTakeTake wires only tt, and answers no puz replay', tt.listening.includes('xtts') && !tt.listening.some(n => /^x(puz|cb)/.test(n)) && tt.sent.length === 0, tt);
+    ok('ChessBase wires only cb', cb.listening.includes('xcbs') && !cb.listening.some(n => /^x(puz|tt)/.test(n)) && cb.sent.length === 0, cb);
+    ok('lichess still takes puz and replays on it, and nothing else', li.listening.includes('xpuzp') && li.sent.includes('xpuzr') && !li.listening.some(n => /^x(tt|cb)/.test(n)), li);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
