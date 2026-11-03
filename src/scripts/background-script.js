@@ -179,8 +179,14 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     });
     return;
   }
+  // Never in toolbar-popup mode: a tab that missed the closeOverlay broadcast (discarded by Memory
+  // Saver) kept its entry, and its next load reopened the floating panel in the zero-footprint mode,
+  // with Autoplay if it was on (audit 3.1.328 SYS-2).
   if (msg.panelWasOpen) {
-    chrome.storage.session.get('panelTabs', ({panelTabs = {}}) => sendResponse({open: !!panelTabs[sender.tab?.id]}));
+    chrome.storage.local.get('ui_mode', ({ui_mode}) => {
+      if (ui_mode === 'popup') return sendResponse({open: false});
+      chrome.storage.session.get('panelTabs', ({panelTabs = {}}) => sendResponse({open: !!panelTabs[sender.tab?.id]}));
+    });
     return true;
   }
   if (msg.getZoom) {
@@ -2343,6 +2349,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (mode === 'popup') { // tear down any overlay that's open when the user switches to the safe mode
     chrome.tabs.query({}, tabs => tabs.forEach(t => t.id &&
       chrome.tabs.sendMessage(t.id, {closeOverlay: true}, () => void chrome.runtime.lastError)));
+    chrome.storage.session.set({panelTabs: {}});   // ...including tabs that could not hear it (SYS-2)
   }
 });
 

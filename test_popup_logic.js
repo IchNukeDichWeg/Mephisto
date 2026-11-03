@@ -5433,6 +5433,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     ok('the streaming trace line names nobody', /bgLog\('opponent is streaming'\);/.test(cs));
 }
+// ---- audit 3.1.328 SYS-2: toolbar-popup mode never reopens a floating panel ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    ok('panelWasOpen answers false in popup mode, and switching to it clears panelTabs',
+       /if \(msg\.panelWasOpen\) \{\s*chrome\.storage\.local\.get\('ui_mode', \(\{ui_mode\}\) => \{\s*if \(ui_mode === 'popup'\) return sendResponse\(\{open: false\}\);/.test(b)
+       && /chrome\.storage\.session\.set\(\{panelTabs: \{\}\}\);/.test(b));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
