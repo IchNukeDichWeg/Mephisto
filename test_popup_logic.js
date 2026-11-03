@@ -5871,6 +5871,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            a === null && b === null && made.length === 1 && made[0].disposed && vm.runInContext('prefetchTimer', c) === null, [a, b, made.length]);
     })().catch(e => { fails++; console.log('FAIL ANALYSIS-8 check threw: ' + (e && e.stack || e)); });
 }
+// ---- audit 3.1.328 ANALYSIS-2: a finished position says so instead of "thinking…" ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const c = {console}; c.self = c; vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext('var Chess = self.Chess || Chess;', c);
+    const els = {an_evalfill: {style: {}}, an_evallabel: {textContent: '', classList: {toggle() {}}}, an_engine_lines: {innerHTML: '', querySelectorAll: () => []}};
+    Object.assign(c, {wireLineClicks() {}, $: id => els[id] || null, cfg: () => 3, anVariant: () => 'chess', Core: {MATE_CP: 100000, isMateScore: cp => Math.abs(cp) > 90000, clamp: (v, a, b) => Math.max(a, Math.min(b, v)), winPercent: () => 50}});
+    vm.runInContext(an.slice(an.indexOf('function newChess('), an.indexOf('\n', an.indexOf('function newChess('))) + '\n'
+        + an.slice(an.indexOf('// A FINISHED POSITION SAYS SO.'), an.indexOf('const RANK_COLOURS = ')) + '\n'
+        + an.slice(an.indexOf('function legalHere('), an.indexOf('// the second engine\'s column')), c);
+    const mate = {fen: 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3', turn: 'w'};
+    vm.runInContext('renderEval', c)(mate, {lines: [], done: true});
+    vm.runInContext('renderEngineLines', c)(mate, {lines: [], done: true});
+    ok('Fool\'s mate: the bar fills to Black, and the column says Checkmate', els.an_evalfill.style.height === '0%' && /Checkmate/.test(els.an_engine_lines.innerHTML), [els.an_evalfill.style.height, els.an_engine_lines.innerHTML]);
+    const stale = {fen: '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1', turn: 'b'};
+    ok('stalemate is named, a finished search with no lines is "game over", a running one still "thinking…"',
+       c.emptyColumnWord(stale, false) === 'Stalemate' && c.emptyColumnWord({fen: '8/8/8/8/8/8/8/K6k w - - 0 1', turn: 'w'}, true) === 'game over'
+       && c.emptyColumnWord({fen: '8/8/8/8/8/8/8/K6k w - - 0 1', turn: 'w'}, false) === 'thinking…');
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

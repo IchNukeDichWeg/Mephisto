@@ -1445,9 +1445,24 @@ function render() {
     highlightMove();
 }
 
+// A FINISHED POSITION SAYS SO. Stockfish answers mate or stalemate with a pv-less `info depth 0`
+// and `bestmove (none)`, Maia with the bestmove alone, so every column got "no lines" and read it as
+// "still searching": "thinking…" for ever under "depth 0 · done", and a level bar for the mated
+// side (audit 3.1.328 ANALYSIS-2). The rules decide mate and stalemate here; a search that finished
+// with nothing to say (a variant's own ending, which this chess.js does not know) says "game over".
+function gameOverAt(pos) {
+    try {
+        const c = newChess(pos.fen);
+        if (c.isCheckmate()) return {word: 'Checkmate', cp: pos.turn === 'w' ? -Core.MATE_CP : Core.MATE_CP};
+        if (c.isStalemate()) return {word: 'Stalemate', cp: 0};
+    } catch (e) { /* an unreadable fen is not a finished game */ }
+    return null;
+}
+function emptyColumnWord(pos, done) { return gameOverAt(pos)?.word || (done ? 'game over' : 'thinking…'); }
+
 function renderEval(pos, ev) {
     const top = (ev?.lines || []).find(l => legalHere(pos.fen, l.pv?.[0]));
-    const cp = top?.cp;
+    const cp = top ? top.cp : gameOverAt(pos)?.cp;
     const fill = $('an_evalfill'), label = $('an_evallabel');
     const mated = cp != null && Core.isMateScore(cp);
     // A mate fills the bar OUTRIGHT. The 2..98 clamp exists so a huge but finite eval still shows a
@@ -1525,7 +1540,7 @@ function renderEngineLines(pos, ev) {
         const pct = Core.clamp(Core.winPercent(cp), 2, 100);
         return lineRow(i, RANK_COLOURS[Math.min(i, 4)], sanOf(pos.fen, l.pv?.[0]),
                        pvText(pos.fen, l.pv, 4), val, pct, l.pv?.[0] || '');
-    }).join('') : '<div class="an-lrow"><span></span><span class="an-lval">thinking…</span><span></span></div>';
+    }).join('') : `<div class="an-lrow"><span></span><span class="an-lval">${emptyColumnWord(pos, ev?.done)}</span><span></span></div>`;
     wireLineClicks(host);
 }
 
@@ -1552,7 +1567,7 @@ function renderEngine2Lines(pos, ev) {
         const pct = Core.clamp(Core.winPercent(cp), 2, 100);
         return lineRow(i, RANK_COLOURS_B[Math.min(i, 4)], sanOf(pos.fen, l.pv?.[0]),
                        pvText(pos.fen, l.pv, 4), val, pct, l.pv?.[0] || '');
-    }).join('') : '<div class="an-lrow"><span></span><span class="an-lval">thinking…</span><span></span></div>';
+    }).join('') : `<div class="an-lrow"><span></span><span class="an-lval">${emptyColumnWord(pos, ev?.done)}</span><span></span></div>`;
     wireLineClicks(host);
 }
 
@@ -1566,7 +1581,7 @@ function renderHumanLines(pos, hum) {
     host.innerHTML = (hum && hum.length) ? hum.map((h, i) =>
         lineRow(i, '#a8657f', sanOf(pos.fen, h.uci), '', `${(h.prob * 100).toFixed(1)}%`,
                 Core.clamp(h.prob * 100, 2, 100), h.uci)).join('')
-        : `<div class="an-lrow"><span></span><span class="an-lval">${kind ? 'thinking…' : 'off'}</span><span></span></div>`;
+        : `<div class="an-lrow"><span></span><span class="an-lval">${kind ? emptyColumnWord(pos, !!hum) : 'off'}</span><span></span></div>`;
     wireLineClicks(host);
 }
 
