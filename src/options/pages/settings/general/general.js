@@ -1369,7 +1369,12 @@ class GeneralSettings extends SettingsPage {
             buttons.forEach(b => b.disabled = true);
             try {
                 const res = await MephistoUpdater.finishStaged(say);
-                say(`Finished the update to v${res.version} - ${res.files} files. ` +
+                // finishStaged answers `installed`, like install(); `version` read "vundefined"
+                // (audit 3.1.328 SYS-5). The same two notes Install leaves, so the panel says what is
+                // on disk and the update check stops offering it.
+                await chrome.storage.local.set({mephisto_whats_new: {version: res.installed, headline: res.headline || '', at: Date.now()},
+                                                mephisto_installed_version: res.installed});
+                say(`Finished the update to v${res.installed} - ${res.files} files. ` +
                     `Reloading the extension; reload your game tabs.`);
                 setTimeout(() => chrome.runtime.reload(), 1500);
                 return;

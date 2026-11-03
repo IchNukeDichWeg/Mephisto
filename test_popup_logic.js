@@ -5461,6 +5461,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const o = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8');
     ok('offscreen.js arms the idle timer once at top level', /\nmaybeGoIdle\(\);\n$/.test(o));
 }
+// ---- audit 3.1.328 SYS-5: finishing a stopped update names the version it installed ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const a = g.indexOf('const res = await MephistoUpdater.finishStaged(say);'), b = g.indexOf('setTimeout(() => chrome.runtime.reload()', a);
+    const block = g.slice(a, b);
+    ok('resume reads res.installed and leaves the whats-new and installed-version notes',
+       /v\$\{res\.installed\}/.test(block) && !/res\.version/.test(block) && /mephisto_whats_new/.test(block) && /mephisto_installed_version: res\.installed/.test(block));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
