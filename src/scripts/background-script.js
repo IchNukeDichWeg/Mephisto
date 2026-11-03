@@ -2740,10 +2740,17 @@ async function streamerLookup({site, username}) {
   if (hit && Date.now() - hit.at < STREAMER_TTL_MS) return {...hit, cached: true};
   const out = {live: false, channel: null, kind: null, at: Date.now()};
   try {
+    // A FAILED ANSWER IS NOT "NOT STREAMING". A non-200 used to fall through with `out` at its
+    // live:false defaults and be cached for ten minutes, so a rate-limited lookup silently missed a
+    // live streamer for the game and its rematch; and the lichess call ignored the shared budget the
+    // explorer and tablebase honour (audit 3.1.328 SYS-8). Errors are returned, never cached.
     if (site === 'lichess') {
+      if (lichess_blocked()) return {error: 'lichess cooling down'};
       const r = await fetch(`https://lichess.org/api/user/${encodeURIComponent(user)}`,
                             {signal: AbortSignal.timeout(4000)});
-      if (r.ok) {
+      lichess_note_response(r, 'streamer');
+      if (!r.ok) return {error: `lichess answered ${r.status}`};
+      {
         const d = await r.json();
         // `streaming` is the live flag; `streamer` only says a channel exists
         out.live = !!d.streaming;
@@ -2752,7 +2759,8 @@ async function streamerLookup({site, username}) {
       }
     } else if (site === 'chesscom') {
       const r = await fetch('https://api.chess.com/pub/streamers', {signal: AbortSignal.timeout(4000)});
-      if (r.ok) {
+      if (!r.ok) return {error: `chess.com answered ${r.status}`};
+      {
         const d = await r.json();
         const me = (d.streamers || []).find(x => String(x.username || '').toLowerCase() === user.toLowerCase());
         // their list carries is_live; being ON the list at all only means "is a streamer"

@@ -5489,6 +5489,28 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            out.length === 40 && out[39] === 'new9' && out[30] === 'new0' && out[29] === 'mid49' && out[0] === 'mid20', out.slice(0, 2).concat(out.slice(-2)));
     }, 0);
 }
+// ---- audit 3.1.328 SYS-8: the streamer check honours the lichess budget and never caches a failure ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = bg.indexOf('async function streamerLookup('), b = bg.indexOf('\n}\n', a) + 3;
+    const mk = (blocked, status) => {
+        const c = vm.createContext({streamerCache: new Map(), STREAMER_TTL_MS: 600000, STREAMER_CACHE_MAX: 50, capMap: () => {},
+            lichess_blocked: () => blocked, noted: [], lichess_note_response: (r) => c.noted.push(r.status),
+            AbortSignal: {timeout: () => null}, encodeURIComponent, Date, String,
+            calls: 0, fetch: async () => { c.calls++; return {ok: status === 200, status, json: async () => ({streaming: true, streamer: {twitch: {channel: 'x'}}, streamers: []})}; }});
+        vm.runInContext(bg.slice(a, b), c);
+        return c;
+    };
+    const runs = [[mk(true, 200), 'lichess'], [mk(false, 429), 'lichess'], [mk(false, 500), 'chesscom'], [mk(false, 200), 'lichess']];
+    Promise.all(runs.map(([c, site]) => vm.runInContext(`streamerLookup({site: '${site}', username: 'someone'})`, c))).then(([r1, r2, r3, r4]) => {
+        ok('a lichess cooldown answers an error without fetching', r1.error && runs[0][0].calls === 0 && runs[0][0].streamerCache.size === 0, r1);
+        ok('a lichess 429 is noted for the shared budget and not cached as not-streaming',
+           r2.error && runs[1][0].noted.includes(429) && runs[1][0].streamerCache.size === 0, r2);
+        ok('a chess.com non-200 is an error, not a cached live:false', r3.error && runs[2][0].streamerCache.size === 0, r3);
+        ok('a good lichess answer is still read and cached', r4.live === true && r4.channel === 'x' && runs[3][0].streamerCache.size === 1, r4);
+    });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
