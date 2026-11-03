@@ -1240,7 +1240,9 @@ function renderGraph() {
     // The viewBox tracks the panel, so a resize has to rebuild it or the picture distorts again.
     if (!renderGraph.onResize) {
         let t;
-        renderGraph.onResize = () => { clearTimeout(t); t = setTimeout(() => { if (report) { renderGraph(); setGraphCursor(); } }, 150); };
+        // ONLY WHILE THE REVIEW PAGE IS SHOWN. Bound once on `window` and never removed on a route
+        // change, so every resize on Settings threw on the missing graph (audit 3.1.328 REVIEW-12).
+        renderGraph.onResize = () => { clearTimeout(t); t = setTimeout(() => { if (report && $('rv_graph')) { renderGraph(); setGraphCursor(); } }, 150); };
         addEventListener('resize', renderGraph.onResize);
     }
     el.addEventListener('click', (e) => {
@@ -3568,7 +3570,9 @@ function stopOnUnload() {
 }
 
 function onKey(e) {
-    if (!report) return;
+    // ...and the same for the keys: on another options page Home/End stepped a detached board and
+    // preventDefault() kept them from scrolling that page (audit 3.1.328 REVIEW-12).
+    if (!report || !$('rv_board')) return;
     // optional call: the target is not always an Element (a key dispatched at the document is not)
     if (e.target.matches?.('input, textarea, select')) return;
     if (e.key === 'ArrowLeft') { showPly(cursor - 1); e.preventDefault(); }

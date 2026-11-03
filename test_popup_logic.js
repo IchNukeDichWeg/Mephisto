@@ -5777,6 +5777,21 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const html = String(vm.runInContext('exportMoveTable()', c));
     ok('White +2 reads +2.00 on both rows', (html.match(/\+2\.00/g) || []).length === 2 && !/-2\.00/.test(html), html.slice(0, 300));
 }
+// ---- audit 3.1.328 REVIEW-12: Review's key and resize handlers stand down on other pages ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rv.indexOf('function onKey(e) {'), b = rv.indexOf('\n}\n', a) + 3;
+    let present = false, stepped = 0, prevented = 0;
+    const c = vm.createContext({report: {positions: [1, 2, 3]}, cursor: 1, $: () => (present ? {} : null), showPly: () => { stepped++; }});
+    vm.runInContext(rv.slice(a, b), c);
+    const key = (k) => c.onKey({key: k, target: {matches: () => false}, preventDefault: () => { prevented++; }});
+    key('Home'); key('End');
+    ok('on another page Home/End are left to that page', stepped === 0 && prevented === 0, [stepped, prevented]);
+    present = true; key('Home');
+    ok('on the Review page Home still steps the board', stepped === 1 && prevented === 1);
+    ok('the resize redraw checks the graph is on the page', /if \(report && \$\('rv_graph'\)\) \{ renderGraph\(\); setGraphCursor\(\); \}/.test(rv));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
