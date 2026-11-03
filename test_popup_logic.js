@@ -5547,6 +5547,30 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('a focused panel button, or nothing focused, lets the key through to the site',
        !fire('keydown', {tagName: 'BUTTON'}) && !fire('keydown', null));
 }
+// ---- audit 3.1.328 PAGE-4: Read Solutions From The Page answers in the toolbar popup ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = src.indexOf('let puzzle_capture_remote = null;'), b = src.indexOf('// Fire-and-forget, exactly like the tablebase probe', a);
+    const FEN = '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1';
+    const mk = (answer) => {
+        const c = vm.createContext({IS_CONTENT_SCRIPT: false, MY_TAB_ID: 7, puzzle_capture_enabled: () => true, puzzle_key: f => f.split(' ').slice(0, 4).join(' '),
+            puzzle_expand: (f, line) => new Map([[f.split(' ').slice(0, 4).join(' '), line.split(' ')[0]]]),
+            puzzle_deferred: null, puzzle_defer_timer: 0, clearTimeout() {}, console: {log() {}}, update_best_move_suffix() {},
+            last_eval: {fen: FEN}, asked: [], reentered: [], puzzle_solutions: null, puzzle_rating: null, puzzle_from_page: false, puzzle_answered: null,
+            chrome: {runtime: {lastError: null}, tabs: {sendMessage: (id, m, cb) => { c.asked.push([id, m.puzzleCaptureFor]); cb(answer); }}}});
+        vm.runInContext(src.slice(a, b) + '; function request_puzzle_solution(f) { reentered.push(f); return try_puzzle_capture(f); }', c);
+        return c;
+    };
+    const hit = mk({line: 'a1a8', rating: 1500});
+    const first = vm.runInContext(`try_puzzle_capture(${JSON.stringify(FEN)})`, hit);
+    ok('popup mode asks the tab for the capture, and the answer re-enters and takes the page solution',
+       first === false && hit.asked.length === 1 && hit.asked[0][0] === 7 && hit.reentered.length === 1
+       && hit.puzzle_from_page === true && hit.puzzle_rating === 1500, [first, hit.asked, hit.reentered.length, hit.puzzle_from_page]);
+    const miss = mk(null);
+    vm.runInContext(`try_puzzle_capture(${JSON.stringify(FEN)})`, miss);
+    ok('a miss is not cached and does not re-enter', miss.reentered.length === 0 && vm.runInContext('puzzle_capture_remote', miss) === null && !miss.puzzle_from_page);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
