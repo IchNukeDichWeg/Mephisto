@@ -4040,11 +4040,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     // the opponent's rating: read off the page only for Maia-2, rounded into the net's range
     const a = psrc.indexOf('function set_maia2_oppo('), b = psrc.indexOf('\n}\n', a) + 3;
     const sent = [], saved = {}, c = vm.createContext({config: {engine: 'maia2', maia2_oppo_elo: 1500}, PANEL_ROOT: null, last_eval: {fen: 'x'},
-        save: (k, v) => { saved[k] = v; }, send_engine_uci: (l) => sent.push(l), abandon_search() {}, push_config() {}});
+        MephistoConfig: {set: (k, v) => { saved[k] = v; }}, send_engine_uci: (l) => sent.push(l), abandon_search() {}, push_config() {}});
     vm.runInContext(psrc.slice(a, b), c);
     vm.runInContext('set_maia2_oppo(1523)', c); vm.runInContext('set_maia2_oppo(1510)', c); vm.runInContext('set_maia2_oppo(3200)', c);
     ok('the opponent rating is rounded to 50 and clamped to 600-2800, and an unchanged one sends nothing',
        JSON.stringify(sent) === JSON.stringify(['setoption name OppoElo value 1500', 'setoption name OppoElo value 2800']) || JSON.stringify(sent) === JSON.stringify(['setoption name OppoElo value 2800']), sent);
+    ok('...and the new rating is stored through MephistoConfig, not the out-of-scope save (OPT-1)', saved.maia2_oppo_elo === '2800', saved);
     const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const r0 = csrc.indexOf('const OPP_RATING_SELECTORS'), r1 = csrc.indexOf('let streamerAsked');
     const dc = vm.createContext({oppBox: (s) => s, document: {querySelector: (sel) => sel === '.ruser-top rating' ? {textContent: '2893'} : null}});

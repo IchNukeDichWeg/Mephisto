@@ -10852,7 +10852,10 @@ function set_maia2_oppo(v) {
     if (box) box.value = String(v);
     if (v === config.maia2_oppo_elo) return;
     config.maia2_oppo_elo = v;
-    save('maia2_oppo_elo', v);
+    // NOT `save`: that is a const inside init_quick_settings, so calling it from here threw a
+    // ReferenceError after config had changed -- no setoption, nothing stored, and the fen
+    // response carrying the rating was dropped with it (audit 3.1.328 OPT-1)
+    MephistoConfig.set('maia2_oppo_elo', JSON.stringify(v));
     if (config.engine === 'maia2') {
         send_engine_uci(`setoption name OppoElo value ${v}`);
         abandon_search();
