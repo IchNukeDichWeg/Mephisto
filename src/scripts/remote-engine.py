@@ -238,6 +238,14 @@ def analyse():
             multipv = 1
         if 'multipv' not in engine.options:
             multipv = 1 # engine doesn't support MultiPV - don't ask for it
+        else:
+            # Humanize asks for MultiPV 20; clamp to this engine's declared range or
+            # python-chess rejects it ("expected value for option 'MultiPV' to be at most N").
+            opt = engine.options['MultiPV']
+            if opt.max is not None:
+                multipv = min(multipv, opt.max)
+            if opt.min is not None:
+                multipv = max(multipv, opt.min)
 
         terminal = not any(board.legal_moves) # authoritative game-over signal
         try:
