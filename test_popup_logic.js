@@ -5810,6 +5810,17 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('no hard-coded engine name left in the classifier strings, and EE_ENGINE has a label to read',
        !/'[^']*\(Stockfish 18 Small\)'|fed our Stockfish 18 Small/.test(rv) && /our engine \(\$\{eeEngineLabel\(\)\}\)/.test(rv) && !!label, [ee, label]);
 }
+// ---- audit 3.1.328 REVIEW-15: revisiting after a batch restores the whole input ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const run = rv.slice(rv.indexOf('async function onRun() {'), rv.indexOf('// The PGN of one game as it was pasted'));
+    ok('a batch run keeps the box text it started from', /if \(batch\) batchInputText = \$\('rv_pgn'\)\?\.value \|\| '';/.test(run));
+    const line = /\$\('rv_pgn'\)\.value = (\(batchReports\?\.length && batchInputText\) \|\| report\.pgnText \|\| '');/.exec(rv)?.[1];
+    const pick = (batchReports, batchInputText, report) => vm.runInNewContext(line, {batchReports, batchInputText, report});
+    ok('re-entry refills the batch input after a batch, the one game otherwise',
+       !!line && pick([{}, {}], 'g1\n\ng2', {pgnText: 'g2'}) === 'g1\n\ng2' && pick(null, 'g1\n\ng2', {pgnText: 'g3'}) === 'g3', line);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

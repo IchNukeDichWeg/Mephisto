@@ -2517,6 +2517,11 @@ function selectedGame() {
     return games[i] || games[0];
 }
 
+// THE BOX AS A BATCH FOUND IT. Each report keeps only its own game's text, so a revisit refilled the
+// PGN box from the last game's report and a fetched list of forty came back as one game (audit
+// 3.1.328 REVIEW-15). Kept beside batchReports and restored with it.
+let batchInputText = '';
+
 async function onRun() {
     if (running) return;
     if (!games.length) return note('Paste a PGN first.', true);
@@ -2538,6 +2543,7 @@ async function onRun() {
     }
     const batch = cfg('rv_batch') && games.length > 1;
     const list = batch ? games : [selectedGame()];
+    if (batch) batchInputText = $('rv_pgn')?.value || '';
     running = true;
     cancel = false;
     $('rv_run').disabled = true;
@@ -3554,7 +3560,7 @@ class ReviewPage {
 
         // Coming back to this page after visiting another one: the module survived, the DOM did not.
         if (report) {
-            $('rv_pgn').value = report.pgnText || '';
+            $('rv_pgn').value = (batchReports?.length && batchInputText) || report.pgnText || '';
             parsePgnBox();
             renderReport();
             renderBatch();
