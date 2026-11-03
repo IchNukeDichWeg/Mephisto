@@ -6084,6 +6084,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('the span carries no data-i18n for apply() to overwrite, and a language apply repaints it',
        /<span id="qs_elo_val">/.test(html) && /MephistoI18n\.apply\(PANEL_ROOT\);\s*sync_elo_slider\(\);/.test(src));
 }
+// ---- audit 3.1.328 OPT-7: a rebuilt English panel drops a translated table still in memory ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const m = /const wantLang = config\.language \|\| MephistoI18n\.DEFAULT_LANG;\s*if \((.*)\) \{\s*load_language\(wantLang\)/.exec(src);
+    const cond = (language, lang) => vm.runInNewContext(`const wantLang = config.language || MephistoI18n.DEFAULT_LANG; ${m[1]}`,
+        {config: {language}, MephistoI18n: {DEFAULT_LANG: 'en', lang}});
+    ok('English config with a German table in memory reloads English; English over English does nothing; German loads',
+       !!m && cond(undefined, 'de') === true && cond(undefined, 'en') === false && cond('de', 'en') === true, m && m[1]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
