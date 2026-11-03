@@ -2510,17 +2510,22 @@ async function onRun() {
     // The GAME decides, not just the stored type: setCfg writes through the config cache, and a
     // click landing in the same tick as the parse note still read the pre-switch value -- so a
     // PGN4 went down the two-player path and silently sat there.
-    if (is4pcGame || String(cfg('rv_variant')) === '4pc') return run4pcReview();
+    // A NEW RUN IS A NEW GAME'S REPORT. The last one stayed on screen under it, so pressing Stop on
+    // game B left game A's header, accuracy cards, move list and graph below a PGN box holding B,
+    // with nothing to say they belonged to a different game. Before the four-player branch too: it
+    // returned above this and left the old two-player report around the new 4-player section, with
+    // Export, Share and the arrow keys still acting on it (audit 3.1.328 REVIEW-6).
+    for (const id of ['rv-report', 'rv-indicators', 'rv-human', 'rv-strength', 'rv-batch']) $(id)?.classList.add('hidden');
+    if (is4pcGame || String(cfg('rv_variant')) === '4pc') {
+        report = null; batchReports = null;   // nothing left for Export, Share or the arrow keys
+        return run4pcReview();
+    }
     const batch = cfg('rv_batch') && games.length > 1;
     const list = batch ? games : [selectedGame()];
     running = true;
     cancel = false;
     $('rv_run').disabled = true;
     $('rv_stop').disabled = false;
-    // A NEW RUN IS A NEW GAME'S REPORT. The last one stayed on screen under it, so pressing Stop on
-    // game B left game A's header, accuracy cards, move list and graph below a PGN box holding B,
-    // with nothing to say they belonged to a different game.
-    for (const id of ['rv-report', 'rv-indicators', 'rv-human', 'rv-strength', 'rv-batch']) $(id)?.classList.add('hidden');
     note('');
     let rig = null;
     try {

@@ -3466,7 +3466,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('an Appearance change (pieces, board, coordinates, dark mode) rebuilds an open panel', /if \(\['pieces', 'board', 'coordinates', 'dark_mode'\]\.some\(k => k in changes[\s\S]{0,90}\{\s*return panel_reload\(\);/.test(psrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const r = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
-    ok('Game Review: starting a run takes the previous game\'s report off the screen', /\$\('rv_stop'\)\.disabled = false;[\s\S]{0,420}\['rv-report', 'rv-indicators',[^\]]*\]\) \$\(id\)\?\.classList\.add\('hidden'\);/.test(r)); }
+    ok('Game Review: starting a run takes the previous game\'s report off the screen', /async function onRun\(\) \{[\s\S]{0,1500}?\['rv-report', 'rv-indicators',[^\]]*\]\) \$\(id\)\?\.classList\.add\('hidden'\);\s*if \(is4pcGame/.test(r)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const i = psrc.indexOf('function on_remote_error('), fn = psrc.slice(i, psrc.indexOf('\n}\n', i) + 3);
     // the real registry and the panel's real err_* helpers, so the line shown is the coded one
@@ -5683,6 +5683,20 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('a threefold that ends the game is still a draw', end[end.length - 1] === 'draw' && end.slice(0, -1).every(o => o === null), end);
     const mate = overs('1. f3 e5 2. g4 Qh4# 0-1');
     ok('a mate at the end is untouched', mate[mate.length - 1] === 'mate', mate);
+}
+// ---- audit 3.1.328 REVIEW-6: a 4-player run hides and drops the previous two-player report ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rv.indexOf('async function onRun() {'), b = rv.indexOf('// The PGN of one game as it was pasted', a);
+    const hidden = new Set();
+    const c = vm.createContext({String, $: (id) => ({classList: {add: (k) => hidden.add(id)}}), cfg: () => 'chess', note() {}, ran4: 0});
+    vm.runInContext('var running = false, cancel = false, is4pcGame = true, batchReports = [1], report = {old: 1}; var games = [{}];\n'
+        + 'function run4pcReview() { ran4++; }\n' + rv.slice(a, b), c);
+    vm.runInContext('onRun()', c);
+    ok('the old report sections are hidden and the report dropped before the 4-player lane runs',
+       c.ran4 === 1 && ['rv-report', 'rv-indicators', 'rv-human', 'rv-strength', 'rv-batch'].every(id => hidden.has(id))
+       && vm.runInContext('report === null && batchReports === null', c), [...hidden]);
 }
 // ==== END FIX CHECKS ====
 
