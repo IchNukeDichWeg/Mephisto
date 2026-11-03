@@ -5,13 +5,16 @@
 # full-strength engines (all CPU cores, real RAM). It registers a Chrome native-messaging host so
 # the browser AUTO-LAUNCHES a local Stockfish -- there is NO server to run.
 #
-#   ./install-native.sh --ext-id <EXTENSION_ID> [--stockfish /path] [--fairy /path] [--tetrarch /path]
+#   ./install-native.sh --ext-id <EXTENSION_ID> [--stockfish /path] [--fairy /path] [--tetrarch /path] [--no-fairy-nets]
 #
 # --ext-id : your Mephisto extension ID from chrome://extensions (Developer mode on). It changes
 #            when an unpacked extension is reloaded -- re-run this script if native engines stop working.
 # --stockfish / --fairy : engine binaries. Auto-detected from PATH if omitted. Install one via:
 #            macOS: brew install stockfish fairy-stockfish   |   Linux: apt/pacman, or download from
 #            stockfishchess.org and fairy-stockfish releases. Pick the build matching your CPU.
+#
+# --no-fairy-nets : do not download the Fairy nets a slim-zip install lacks (494 MB from the assets
+#            release). Without them the native Fairy plays on its classical eval.
 #
 # --tetrarch : path to a Tetrarch checkout, for four-player chess (see the README). Looked for
 #            beside this repo's parent folder if omitted, and skipped entirely if not found.
@@ -22,13 +25,14 @@ set -euo pipefail
 cd "$(dirname "$0")"
 SRC_DIR="$(pwd)"
 
-EXT_ID=""; SF_BIN=""; FAIRY_BIN=""; TETRARCH_DIR=""   # set -u: must exist before the flag can skip it
+EXT_ID=""; SF_BIN=""; FAIRY_BIN=""; TETRARCH_DIR=""; FETCH_NETS=1   # set -u: must exist before the flag can skip it
 while [ $# -gt 0 ]; do
   case "$1" in
     --ext-id) EXT_ID="$2"; shift 2 ;;
     --stockfish) SF_BIN="$2"; shift 2 ;;
     --fairy) FAIRY_BIN="$2"; shift 2 ;;
     --tetrarch) TETRARCH_DIR="$2"; shift 2 ;;
+    --no-fairy-nets) FETCH_NETS=0; shift ;;
     *) echo "unknown arg: $1"; exit 1 ;;
   esac
 done
@@ -130,9 +134,19 @@ for spec in "${SPECS[@]}"; do
   fi
   host="$RUNTIME_DIR/$slug-host.py"; rm -f "$host"; cp "$SRC_DIR/uci-native-host.py" "$host"; pin_shebang "$host"; chmod +x "$host"
   echo "$runbin" > "$RUNTIME_DIR/$slug.path"
-  if [ -n "$nnue" ] && [ -d "$nnue" ]; then
-    runnnue="$RUNTIME_DIR/engines/$slug-nnue"; rm -rf "$runnnue"; mkdir -p "$runnnue"
-    cp "$nnue"/*.nnue "$runnnue"/ 2>/dev/null || true
+  if [ -n "$nnue" ]; then
+    # Kept across runs, not wiped: on a slim-zip install the nets (494 MB) are FETCHED, since the zip
+    # leaves them out and the extension's own copies sit in the Cache API where a host cannot see them.
+    # An empty folder here made the native Fairy run every variant on its classical eval, silently.
+    # The fetcher skips nets already present and drops ones the manifest no longer names.
+    runnnue="$RUNTIME_DIR/engines/$slug-nnue"; mkdir -p "$runnnue"
+    [ -d "$nnue" ] && { cp "$nnue"/*.nnue "$runnnue"/ 2>/dev/null || true; }
+    if [ "$FETCH_NETS" = 1 ]; then
+      "$PYBIN" "$SRC_DIR/fetch-fairy-nets.py" "$SRC_DIR/../src/offscreen/engine-assets.json" "$runnnue" \
+        || echo "!! some Fairy nets are missing -- the native Fairy runs those variants without one"
+    else
+      echo "-- --no-fairy-nets: the native Fairy gets only the nets this zip carries"
+    fi
     echo "$runnnue" > "$RUNTIME_DIR/$slug.nnue-dir"
   fi
   host_id="com.${slug//-/_}.host"   # host names allow only [a-z0-9._] -- no hyphens

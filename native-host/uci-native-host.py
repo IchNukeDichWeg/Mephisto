@@ -189,6 +189,8 @@ def _apply_variant_net(variant):
         _set_if_declared('EvalFile', hits[0])
         _set_if_declared('Use NNUE', True)
         _dbg(f"EvalFile -> {hits[0]}")
+    else:
+        _dbg(f"no net for {prefix} in {_NNUE_DIR} -- classical eval (re-run the installer to fetch the nets)")
 
 def do_analyse(data, mid):
     global request_counter, current_analysis
