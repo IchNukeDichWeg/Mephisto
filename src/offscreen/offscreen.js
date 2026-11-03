@@ -345,6 +345,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (cmd === 'init') {
         initArgs[clientId] = [msg.engine, msg.variant, msg.maiaLevel, msg.elos];
         sticky[clientId] = {};
+        // Lines queued for the load this init replaces belong to that load. Kept, they were flushed
+        // into the new engine ahead of its own, so a stale `go` ran first (audit 3.1.328 ENGINE-1).
+        delete pending[clientId];
         delete loadFailedAt[clientId];
         startEngine(clientId, msg.engine, msg.variant, msg.maiaLevel, msg.elos);
     } else if (cmd === 'uci') {

@@ -5364,6 +5364,26 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('the side the game was played with decides whose accuracy is folded', c.session.acc[0] === 91, c.session.acc);
     ok('the side is recorded as evals land', /eval_seen\[ply\] = true;\s*eval_history_side = our_side\(\);/.test(s));
 }
+// ---- audit 3.1.328 ENGINE-1: a loading engine is not revived, and init drops the old load's queue ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const o = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8');
+    const i = s.indexOf('let engine_loading_since = 0;'), j = s.indexOf('\nsetInterval(revive_if_engine_silent', i);
+    const c = vm.createContext({Date, console: {warn() {}}, PANEL_BOOTED: true, search_active: true, last_info_at: Date.now() - 10000,
+        last_revive_at: 0, engine_probe_at: 0, revive_attempts: 0, is_remote: () => false, probes: 0, send_engine_uci: () => c.probes++,
+        ENGINE_SILENT_MS: 4000, REVIVE_GAP_MS: 8000, set_idle_reason() {}, i18n: (k, d) => d, abandon_search() {}, pending_stops: 0,
+        last_eval: {}, initialize_engine() {}, setup_fen: null, on_new_pos() {}, fen_request_inflight: false, request_fen() {}});
+    vm.runInContext(s.slice(i, j) + ';this.setLoading = v => { engine_loading_since = v; };', c);
+    c.setLoading(Date.now() - 5000);
+    vm.runInContext('revive_if_engine_silent()', c);
+    ok('a silent engine still loading is left alone', c.probes === 0 && c.revive_attempts === 0);
+    c.setLoading(Date.now() - 61000);
+    vm.runInContext('revive_if_engine_silent()', c);
+    ok('...until the load grace runs out', c.probes === 1);
+    ok('ready ends the load and restarts the silence clock', /if \(msg\.kind === 'ready'\) \{ engine_loading_since = 0; last_info_at = Date\.now\(\); return; \}/.test(s));
+    ok('offscreen: init drops lines queued for the load it replaces', /if \(cmd === 'init'\) \{[\s\S]{0,400}delete pending\[clientId\];[\s\S]{0,80}startEngine/.test(o));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

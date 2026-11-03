@@ -1637,6 +1637,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     if (msg.clientId === maia2_client()) { if (msg.kind === 'line') maia2_on_line(msg.line); return; }
     if (msg.clientId === bench_client()) { bench_sink?.(msg); return; }   // engine-recommendation bench
     if (msg.clientId !== ENGINE_CLIENT) return;
+    if (msg.kind === 'ready') { engine_loading_since = 0; last_info_at = Date.now(); return; }
     if (msg.kind === 'line') on_engine_response(msg.line);
     else if (msg.kind === 'error') on_engine_error(msg.error);
 });
@@ -1754,6 +1755,7 @@ async function ensure_offscreen_engine(engineName) {
     // Fire the init and return WITHOUT waiting for 'ready'. The offscreen host queues any uci sent
     // while it loads and flushes it in order, so nothing is lost -- and the panel no longer stalls
     // behind a slow engine load (Fairy's per-variant NNUE), which is why its board used to appear late.
+    engine_loading_since = Date.now();
     chrome.runtime.sendMessage({toOffscreen: true, clientId: ENGINE_CLIENT, cmd: 'init',
                                 engine: engineName, variant: config.variant,
                                 maiaLevel: engineName === 'maia3' ? config.maia3_elo : config.maia_level,
@@ -10536,8 +10538,16 @@ let revive_attempts = 0;
 // preamble deadlock). Any reply at all refreshes last_info_at, so a live engine stands the watchdog
 // down without this function needing to hear the answer itself.
 let engine_probe_at = 0;
+// A LOADING ENGINE IS NOT A SILENT ONE. last_info_at survives a closed panel, so a reopen whose engine
+// took more than a few seconds to load (a cold offscreen document, a big net) read as dead at once:
+// the revive wrote off the owed stop and re-sent the search, the queued `go`, `stop`, `go` reached the
+// engine together, and the first search's near-zero-depth bestmove was played (audit 3.1.328
+// ENGINE-1). The grace is bounded so a load that hangs is still rebuilt.
+let engine_loading_since = 0;
+const ENGINE_LOAD_GRACE_MS = 60000;   // chosen, not measured: well past a cold 98 MB net read
 function revive_if_engine_silent() {
     if (!PANEL_BOOTED || !search_active) return;
+    if (engine_loading_since && Date.now() - engine_loading_since < ENGINE_LOAD_GRACE_MS) return;
     if (!last_info_at || Date.now() - last_info_at < ENGINE_SILENT_MS) return;
     if (Date.now() - last_revive_at < REVIVE_GAP_MS) return;
     // One probe per silence, and only where there is something to probe: send_engine_uci is a no-op
