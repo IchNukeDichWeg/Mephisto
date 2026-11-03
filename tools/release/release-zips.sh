@@ -68,6 +68,12 @@ fi
 echo "logic suite gate..."
 node test_popup_logic.js > /dev/null || { echo "LOGIC SUITE FAILED -- no release (node test_popup_logic.js | grep ^FAIL)" >&2; exit 1; }
 
+# THE NATIVE HOST'S HALF of supersession: the logic suite only feeds the panel hand-made superseded
+# frames, so the host's own stop/supersede/width handling is tested here, against a real engine. ~45 s;
+# it prints SKIP and passes on a machine with no UCI engine on PATH or no python-chess.
+echo "native host supersede gate..."
+python3 native-host/test-supersede.py | tail -1 || { echo "NATIVE HOST TEST FAILED -- no release (python3 native-host/test-supersede.py)" >&2; exit 1; }
+
 # THE HARNESS GATES THE BUILD (v3.1.248): the fixture suite must pass before any archive is cut.
 # One that cannot run stops the build unless --no-harness says to go without it.
 if [ $HARNESS = 1 ]; then
