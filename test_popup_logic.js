@@ -5441,6 +5441,20 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /if \(msg\.panelWasOpen\) \{\s*chrome\.storage\.local\.get\('ui_mode', \(\{ui_mode\}\) => \{\s*if \(ui_mode === 'popup'\) return sendResponse\(\{open: false\}\);/.test(b)
        && /chrome\.storage\.session\.set\(\{panelTabs: \{\}\}\);/.test(b));
 }
+// ---- audit 3.1.328 SYS-3 / PAGE-5: switching the debugger capture off stops it on open tabs ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const i = b.indexOf('function puzzleNetStop(tabId) {'), j = b.indexOf('\n}\n', i) + 3;
+    const cmds = [];
+    const c = vm.createContext({puzzleNetTabs: new Set([7]), chrome: {runtime: {}, debugger: {sendCommand: (t, m) => cmds.push([t.tabId, m])}}});
+    vm.runInContext(b.slice(i, j), c);
+    vm.runInContext('puzzleNetStop(7)', c);
+    ok('puzzleNetStop: Network off and the tab out of the set, debugger kept', c.puzzleNetTabs.size === 0 && JSON.stringify(cmds) === '[[7,"Network.disable"]]', cmds);
+    ok('a change to any of the three keys stops watched tabs when capture is no longer wanted; a reload does too',
+       /changes\.puzzle_mode \|\| changes\.puzzle_capture \|\| changes\.puzzle_capture_cdp\)\) \{\s*puzzleNetWanted\(\)\.then\(want => \{ if \(!want\) for \(const id of \[\.\.\.puzzleNetTabs\]\) puzzleNetStop\(id\); \}\);/.test(b)
+       && /if \(!\(await puzzleNetWanted\(\)\)\) \{ if \(puzzleNetTabs\.has\(tabId\)\) puzzleNetStop\(tabId\); return; \}/.test(b));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

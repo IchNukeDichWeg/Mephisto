@@ -2187,6 +2187,12 @@ syncPuzProbe();
 chrome.runtime.onInstalled.addListener(() => { syncPuzProbe(); });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.puzzle_capture) syncPuzProbe();
+  // Any of the three switched off stops the debugger capture on tabs already watched. Only the probe
+  // registration followed the setting, so an attached puzzle tab kept having its puzzle responses
+  // read and injected into the page as m7 events until it left puzzle pages (audit 3.1.328 SYS-3).
+  if (area === 'local' && (changes.puzzle_mode || changes.puzzle_capture || changes.puzzle_capture_cdp)) {
+    puzzleNetWanted().then(want => { if (!want) for (const id of [...puzzleNetTabs]) puzzleNetStop(id); });
+  }
 });
 
 const PUZZLE_PAGE_URL = (url) => /^https?:\/\/(www\.)?(chess\.com|lichess\.org)\//.test(url)
@@ -2209,6 +2215,13 @@ try {
   });
 } catch (e) { /* no debugger permission granted yet */ }
 
+// The capture off, the tab kept: Network off and the tab out of the set, but the debugger stays
+// attached, because Autoplay's clicks may be using the same attachment.
+function puzzleNetStop(tabId) {
+  puzzleNetTabs.delete(tabId);
+  try { chrome.debugger.sendCommand({tabId}, 'Network.disable', {}, () => void chrome.runtime.lastError); } catch (e) { /* gone */ }
+}
+
 function puzzleNetDetach(tabId) {
   puzzleNetTabs.delete(tabId);
   attached.delete(tabId);
@@ -2226,7 +2239,7 @@ chrome.tabs?.onUpdated?.addListener(async (tabId, info, tab) => {
   }
   if (info.status !== 'complete') return;
   if (!PUZZLE_PAGE_URL(url)) return;
-  if (!(await puzzleNetWanted())) return;
+  if (!(await puzzleNetWanted())) { if (puzzleNetTabs.has(tabId)) puzzleNetStop(tabId); return; }
   try { await puzzleNetEnable(tabId); } catch (e) { /* the user can decline the attachment */ }
 });
 
