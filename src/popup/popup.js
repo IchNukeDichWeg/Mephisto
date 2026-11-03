@@ -12508,12 +12508,19 @@ async function do_debugger_click(id, x, y, travelMs) {
 }
 
 
+// A clicker that answers with an error (its origin guard's 403, a crash's 500) did not click either,
+// so it counts as refused like one that is not running.
+async function backend_clicked(res) {
+    if (!res.ok) throw new Error(`mephisto-clicker.py answered HTTP ${res.status}`);
+    return res;
+}
+
 async function request_backend_click(x, y) {
-    return call_backend(`http://localhost:8080/performClick`, {x: x, y: y});
+    return call_backend(`http://localhost:8080/performClick`, {x: x, y: y}).then(backend_clicked);
 }
 
 async function request_backend_move(x0, y0, x1, y1) {
-    return call_backend('http://localhost:8080/performMove', {x0: x0, y0: y0, x1: x1, y1: y1});
+    return call_backend('http://localhost:8080/performMove', {x0: x0, y0: y0, x1: x1, y1: y1}).then(backend_clicked);
 }
 
 // Both the HTTP "Remote Engine" and the serverless native engines speak the same request/response
@@ -13160,16 +13167,14 @@ function on_remote_error(err) {
     toggle_calculating(false);
 }
 
+// Through the worker, never a fetch from here: in the page this is a content script, and the site's
+// CORS stopped every call before it left (audit 3.1.328 CLICK-1, see the worker's backendFetch).
+// The answer is shaped like the fetch Response the callers read: ok, status, url, text().
 async function call_backend(url, data) {
-    return fetch(url, {
-        method: 'POST',
-        credentials: 'include',
-        cache: 'no-cache',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-    });
+    const r = await chrome.runtime.sendMessage({backendFetch: {url, data}});
+    if (!r || r.unreachable) throw new TypeError(r?.error || 'Failed to fetch');
+    if (r.error) throw new Error(r.error);
+    return {ok: r.ok, status: r.status, url: r.url, text: async () => r.text};
 }
 
 // the content-script calls this to boot the panel inside its closed shadow root

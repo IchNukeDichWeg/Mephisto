@@ -5055,7 +5055,9 @@ window.addEventListener('resize', () => { if (config?.python_autoplay_backend) r
 // screen pixels for the backend, viewport pixels for the debugger.
 const BACKEND_RETRY_MS = 30000;
 let backendDownUntil = 0;
-const useBackend = () => !!config.python_autoplay_backend && Date.now() >= backendDownUntil;
+// tabActive too: the backend moves the REAL mouse to screen pixels, so with Background Play in a
+// hidden or unfocused tab it would click whatever window is on top there (audit 3.1.328 CLICK-1).
+const useBackend = () => !!config.python_autoplay_backend && Date.now() >= backendDownUntil && tabActive();
 function backendRefused(r) {
     if (r?.backendFailed) { backendDownUntil = Date.now() + BACKEND_RETRY_MS; throw new Error('backend click refused'); }
     return r;

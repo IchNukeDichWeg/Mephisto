@@ -3059,7 +3059,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const i = csrc.indexOf('const BACKEND_RETRY_MS'), j = csrc.indexOf('\n}\n', csrc.indexOf('function toClickXY(')) + 3;
     const c = vm.createContext({window: {screenX: 100, screenY: 50, outerHeight: 1000, innerHeight: 720},
-        config: {python_autoplay_backend: true}, page_zoom: 1.25, refreshPageZoom() {}});
+        config: {python_autoplay_backend: true}, page_zoom: 1.25, refreshPageZoom() {}, tabActive: () => true});
     vm.runInContext('var page_zoom = 1.25;' + csrc.slice(i, j), c);
     const got = vm.runInContext('toClickXY(400, 200)', c);
     // toolbar = 1000 - 720 * 1.25 = 100 screen px; x = 100 + 400*1.25, y = 50 + 100 + 200*1.25
@@ -4319,7 +4319,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     const a = csrc.indexOf('const BACKEND_RETRY_MS'), b = csrc.indexOf('function getRandomSampledXY');
     const c = vm.createContext({console: {log() {}, warn() {}}, config: {python_autoplay_backend: true}, page_zoom: 1,
-        window: {outerHeight: 900, innerHeight: 800, screenX: 10, screenY: 20}, refreshPageZoom() {}});
+        window: {outerHeight: 900, innerHeight: 800, screenX: 10, screenY: 20}, refreshPageZoom() {}, tabActive: () => true});
     vm.runInContext(csrc.slice(a, b) + `; var now = Date.now; Date.now = () => now() + (globalThis.skew || 0);`, c);
     const xy = () => vm.runInContext('toClickXY(100, 50)', c);
     ok('backend up: screen pixels', JSON.stringify(xy()) === '[110,170]', xy());
@@ -5177,6 +5177,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('no selection yet, or not a game page: not history', run('/game/live/1', null) === false && run('/analysis', 2) === false);
     ok('the wait is bounded and comes before the clicks',
        /await waitOutThink\(getThinkTime\(\)\);\s*await waitOutHistoryView\(\);/.test(src) && /Date\.now\(\) \+ HISTORY_HOLD_MS/.test(src));
+}
+// ---- audit 3.1.328 CLICK-1: local backends go through the worker, not a content-script fetch ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const bsrc = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = psrc.indexOf('async function call_backend('), b = psrc.indexOf('\n}\n', a) + 3;
+    const c = vm.createContext({sent: [], answer: null, TypeError, Error});
+    vm.runInContext(`var chrome = {runtime: {sendMessage: async m => { sent.push(m); return answer; }}};` + psrc.slice(a, b), c);
+    const w = bsrc.indexOf('if (msg.backendFetch)'), we = bsrc.indexOf('return true;\n  }', w) + 16;
+    const wc = vm.createContext({fetched: [], fetch: async (u, i) => { wc.fetched.push([u, i]); return {ok: true, status: 200, url: u, text: async () => '{"bestmove":"e2e4"}'}; }, TypeError, String, JSON});
+    vm.runInContext(`function handle(msg) { return new Promise(res => { const sendResponse = res; const r = (() => { ${bsrc.slice(w, we)} })(); }); }`, wc);
+    (async () => {
+        c.answer = {ok: true, status: 200, url: 'http://localhost:9090/analyse', text: '{"x":1}'};
+        const r = await vm.runInContext(`call_backend('http://localhost:9090/analyse', {fen: 'f'})`, c);
+        ok('panel: a backend call is a worker message, not a fetch from the page', c.sent.length === 1 && c.sent[0].backendFetch?.url === 'http://localhost:9090/analyse' && !/\bfetch\(/.test(psrc.slice(a, b)), c.sent);
+        ok('panel: the answer reads like a Response (ok, status, url, text())', r.ok === true && r.status === 200 && (await r.text()) === '{"x":1}', r);
+        c.answer = {error: 'Failed to fetch', unreachable: true};
+        let t; try { await vm.runInContext(`call_backend('http://localhost:8080/performClick', {})`, c); } catch (e) { t = e; }
+        ok('panel: nothing answering is still a TypeError (MPH-E02 and the click fallback key on it)', t instanceof TypeError, String(t));
+        const good = await vm.runInContext(`handle({backendFetch: {url: 'http://localhost:8080/performMove', data: {x0: 1}}})`, wc);
+        ok('worker: a known endpoint is fetched with a JSON body and answered with ok/status/text', good.ok === true && good.text === '{"bestmove":"e2e4"}' && wc.fetched[0][1].body === '{"x0":1}', good);
+        const bad = await vm.runInContext(`handle({backendFetch: {url: 'http://localhost:22/x', data: {}}})`, wc);
+        ok('worker: any other url is refused without a fetch', /not a backend endpoint/.test(bad.error) && wc.fetched.length === 1, bad);
+    })().catch(e => { fails++; console.log('FAIL backend relay checks threw: ' + (e && e.stack || e)); });
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('content: the backend (real OS mouse) is only used while the tab is active', /const useBackend = \(\) => [^\n]*tabActive\(\)/.test(s));
 }
 // ==== END FIX CHECKS ====
 

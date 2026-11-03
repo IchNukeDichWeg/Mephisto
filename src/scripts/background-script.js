@@ -624,6 +624,24 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       .catch(e => sendResponse({error: String(e)}));
     return true;
   }
+  // LOCAL BACKENDS GO THROUGH HERE (audit 3.1.328 CLICK-1/PAGE-3/NATIVE-2). The panel lives in the
+  // page's isolated world, so its own fetch to localhost ran under the SITE's origin and CORS: a JSON
+  // POST needs a preflight that neither mephisto-clicker.py nor remote-engine.py answers, and every
+  // call failed with "Failed to fetch" with the server running (likely the error in GitHub issue 2).
+  // The worker holds host_permissions for both ports. Only these four endpoints are relayed, so a
+  // content script cannot be turned into a general localhost proxy.
+  if (msg.backendFetch) {
+    const {url, data} = msg.backendFetch;
+    const BACKEND_URLS = ['http://localhost:8080/performClick', 'http://localhost:8080/performMove',
+                          'http://localhost:9090/configure', 'http://localhost:9090/analyse'];
+    if (!BACKEND_URLS.includes(url)) { sendResponse({error: `not a backend endpoint: ${url}`}); return; }
+    fetch(url, {method: 'POST', cache: 'no-store', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)})
+      .then(async res => sendResponse({ok: res.ok, status: res.status, url: res.url, text: await res.text()}))
+      // a TypeError is fetch's "nothing answered"; the panel keeps telling that apart from a real error
+      .catch(e => sendResponse({error: String(e?.message || e), unreachable: e instanceof TypeError}));
+    return true;
+  }
   // Trusted clicks: chrome.debugger is unavailable to a content script, so the panel routes CDP
   // clicks through here now that it lives in the page's isolated world.
   if (msg.cdpClick) {
