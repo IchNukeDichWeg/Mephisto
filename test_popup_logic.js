@@ -5728,6 +5728,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const r = c.fitHumanize(moves, 'w');
     ok('a rank-1 move with a few cp of drift is top, a rank-2 move still lands in second', r.pct.top === 50 && r.pct.second === 50, r.pct);
 }
+// ---- audit 3.1.328 REVIEW-9: a failed or stopped engine pass keeps its own status line ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rv.indexOf('    let engineFailed = false;'), b = rv.indexOf('    const book = cfg(\'rv_book\')', a);
+    const block = rv.slice(a, b);
+    let rejectHuman;
+    const c = vm.createContext({notes: [], cancel: false, moves: [{uci: 'e2e4'}, {uci: 'e7e5'}], positions: [{fen: 'a', turn: 'w'}, {fen: 'b', turn: 'b'}],
+        note: (t) => c.notes.push(t), Promise, Error,
+        rig: {human: {analyse: () => new Promise((_, rej) => { rejectHuman = rej; })}},
+        enginePass: Promise.reject(new Error('the engine stopped answering after 180s'))});
+    c.enginePass.catch(() => {});
+    vm.runInContext('result = (async () => {\n' + block + '\n})();', c);
+    c.result.then(() => ok('engine failure rethrows', false), (e) => {
+        rejectHuman(new Error('engine disposed'));   // what disposeRig does in onRun's finally
+        setTimeout(() => ok('the human pass catch says nothing after the engine pass failed',
+            /180s/.test(e.message) && c.notes.length === 0, c.notes), 0);
+    });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

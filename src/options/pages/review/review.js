@@ -360,11 +360,17 @@ async function runReview(game, rig, onProgress) {
         await firstFailure;
     })();
 
+    // SET WHEN THE ENGINE PASS FAILS OR IS STOPPED. The review is over then, but the human pass is
+    // not awaited: disposeRig in onRun's finally rejects its pending analyse with "engine disposed",
+    // and its catch used to replace "Stopped." or the real error with a red "Human model
+    // unavailable (engine disposed)". `cancel` cannot tell it, the finally has reset it by then; and
+    // the loop could go on to ask the disposed engine (audit 3.1.328 REVIEW-9).
+    let engineFailed = false;
     const humanPass = (async () => {
         if (!rig.human) return;
         try {
             for (let i = 0; i < moves.length; i++) {
-                if (cancel) break;
+                if (cancel || engineFailed) break;
                 const r = await rig.human.analyse(positions[i].fen, positions[i].turn);
                 const order = r.lines.map(l => l.pv?.[0]).filter(Boolean);
                 moves[i].maiaMove = order[0] || null;
@@ -376,6 +382,7 @@ async function runReview(game, rig, onProgress) {
                 moves[i].maiaMatch = moves[i].maiaRank === 1;
             }
         } catch (e) {
+            if (cancel || engineFailed) return;   // the run's own note stands (see engineFailed)
             // A missing Maia net must not throw the whole review away: the engine pass is the report.
             note(`Human model unavailable (${e.message}) -- the rest of the report is unaffected.`, true);
         }
@@ -383,7 +390,7 @@ async function runReview(game, rig, onProgress) {
 
     // The engine pass owns the verdict: if it throws (or is stopped), the review is over. The human
     // pass is already swallowed above, and is awaited so a half-filled `moves` never reaches assemble.
-    await Promise.all([enginePass.catch(e => { throw e; }), humanPass]);
+    await Promise.all([enginePass.catch(e => { engineFailed = true; throw e; }), humanPass]);
 
     const book = cfg('rv_book') ? await lookupOpening(positions) : {name: null, plies: 0};
     // AFTER assemble, not before: the estimate skips book and forced moves, and those flags are set
