@@ -5284,6 +5284,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('castle with inline number, glyph or eval counts as a move', f(mv('12.O-O', 'O-O')) && f(mv('O-O?!', 'O-O')) && f(mv('O-O-O+0.4', 'O-O-O')));
     ok('a plain castle, a normal move and a result line are judged as before', f(mv('O-O')) && f(mv('Nf3')) && !f(mv('1-0')));
 }
+// ---- audit 3.1.328 SCRAPE-4: a lichess pieces-only scrape ships the last move for the ep right ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = s.indexOf('function scrapePositionPuz()'), j = s.indexOf('\nfunction boardShowsBlack', i);
+    const sq = (f, r) => ({style: {transform: `translate(${(f - 1) * 50}px, ${(8 - r) * 50}px)`}});
+    const pc = (c, t, f, r) => ({classList: Object.assign([c, t], {contains: () => false}), style: sq(f, r).style});
+    let hl = [sq(4, 7), sq(4, 5)];
+    const ctx = vm.createContext({site: 'lichess', isAnimating: () => false, animationStalled: () => false,
+        getBoard: () => ({getBoundingClientRect: () => ({width: 400})}), getOrientation: () => 'white', getTurn: () => 'w',
+        getPieces: () => [pc('white', 'king', 5, 1), pc('black', 'king', 5, 8), pc('black', 'pawn', 4, 5), pc('white', 'pawn', 5, 5)],
+        getLastMoveHighlights: () => hl, document: {querySelector: () => null}, Math, Number, String});
+    vm.runInContext(s.slice(i, j), ctx);
+    const r1 = vm.runInContext('scrapePositionPuz()', ctx);
+    ok('lichess Storm/Racer: d7-d5 just played ships lm-d7d5', /lm-d7d5\*{5}$/.test(r1), r1);
+    hl = [sq(4, 5), sq(4, 4)];
+    const r2 = vm.runInContext('scrapePositionPuz()', ctx);
+    ok('...and a highlight whose destination is empty ships no last move', !/lm-/.test(r2), r2);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

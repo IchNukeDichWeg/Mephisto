@@ -2483,7 +2483,27 @@ function scrapePositionPuz() {
             const coords = (getOrientation() === 'black')
                 ? String.fromCharCode('h'.charCodeAt(0) - file + 1) + rank
                 : String.fromCharCode('a'.charCodeAt(0) + file - 1) + (9 - rank);
+            occupied.add(coords);
             res += `${colorMap[piece.classList[0]]}-${pieceMap[piece.classList[1]]}-${coords}*****`;
+        }
+        // The last move, as chess.com's branch ships it, so the popup can declare an en-passant right.
+        // Storm and Racer have no move list, so without it an ep capture never existed for the engine
+        // (audit 3.1.328 SCRAPE-4). Same transform math as the pieces; only when the destination is
+        // occupied and the origin empty, so a half-painted board declares nothing.
+        if (site === 'lichess') {
+            try {
+                const sqOf = el => {
+                    const t = el?.style?.transform || '';
+                    const [x, y] = t.substring(t.indexOf('(') + 1, t.length - 1).replaceAll('px', '').replace(' ', '')
+                        .split(',').map(n => Math.round(Number(n) / squarePx + 1));
+                    if (!(x >= 1 && x <= 8 && y >= 1 && y <= 8)) return null;
+                    return (getOrientation() === 'black')
+                        ? String.fromCharCode('h'.charCodeAt(0) - x + 1) + y
+                        : String.fromCharCode('a'.charCodeAt(0) + x - 1) + (9 - y);
+                };
+                const [from, to] = getLastMoveHighlights().map(sqOf);
+                if (from && to && occupied.has(to) && !occupied.has(from)) res += `lm-${from}${to}*****`;
+            } catch (e) { /* no readable last move: pieces only, as before */ }
         }
     }
     return (res) ? getTurn() + '*****' + res : null;
