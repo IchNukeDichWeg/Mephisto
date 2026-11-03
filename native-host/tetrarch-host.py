@@ -112,6 +112,12 @@ def _start_engine():
                              creationflags=flags)
     _send('uci')
     _read_until(lambda l: l.strip() == 'uciok', timeout=30)
+    # A RELAUNCH (crash, kill) starts from the engine's defaults, while _OPTIONS still holds what the
+    # old process was sent and do_configure skips an unchanged value -- so the panel's Mode before
+    # every analyse never arrived, and a free-for-all game was searched under Teams rules with one
+    # line for the rest of the host's life. Re-send everything the old process had.
+    for key, value in _OPTIONS.items():
+        _send(f"setoption name {key} value {_uci_value(value)}")
     _dbg(f"engine up from {_repo}")
     return _proc
 
@@ -178,6 +184,9 @@ def parse_info(line):
 # BOARD when changed (PROTOCOL.md), so they are only sent when the value differs.
 _OPTIONS = {}
 
+def _uci_value(value):
+    return ('true' if value else 'false') if isinstance(value, bool) else value
+
 def do_configure(data):
     with engine_lock:
         _start_engine()
@@ -185,9 +194,7 @@ def do_configure(data):
             if _OPTIONS.get(key) == value:
                 continue   # Setup/Mode reset the board -- never re-send an unchanged value
             _OPTIONS[key] = value
-            if isinstance(value, bool):
-                value = 'true' if value else 'false'
-            _send(f"setoption name {key} value {value}")
+            _send(f"setoption name {key} value {_uci_value(value)}")
         _send('isready')
         _read_until(lambda l: l.strip() == 'readyok', timeout=30)
         return {'ok': True}
