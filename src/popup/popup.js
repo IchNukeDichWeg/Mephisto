@@ -198,7 +198,7 @@ let last_pos = {startFen: null, moves: ''}; // the position's own start + UCI mo
 let premove_tracker = {fen: '', lines: {}}; // per-multipv reply stability while the opponent thinks
 let search_threads_set = null; // last Threads value pushed to the engine; opponent-turn search is capped unless Pondering
 let search_multipv_set = null; // last MultiPV pushed to the WASM engine, so an unchanged width is not re-sent
-let remote_multipv_set = null; // last MultiPV pushed to a NATIVE host (it stores options; the analyse request has none)
+let remote_multipv_set = null; // last MultiPV pushed to a NATIVE host (it stores options; a native analyse also carries it)
 let premove_lines = 2; // top-N lines premove tracks/certifies; widened to the ponder width while pondering (see ponder_line_count)
 let prog = 0;
 let last_eval = {fen: '', activeLines: 0, lines: []};
@@ -5863,8 +5863,10 @@ function on_new_pos(fen, startFen, moves) {
                     .then(fresh(on_remote_result)).catch(fresh(on_remote_error)).finally(settle);
             }
         };
-        // The host reads MultiPV out of its stored options, not out of the analyse request, so the
-        // width is configured separately. FIRE AND FORGET, never awaited.
+        // A native analyse carries the width itself (request_remote_analysis), and the host stores it
+        // before it numbers the search, so the configure below finds nothing to change there and cuts
+        // nothing. It is still sent: remote-engine.py and hosts from before 3.1.329 read MultiPV only
+        // from their stored options. FIRE AND FORGET, never awaited.
         //
         // It was awaited at first, to avoid a race: the host handles each message on its own thread
         // and they only serialise on the engine lock, so a configure sent alongside an analyse can
@@ -5926,8 +5928,8 @@ function on_new_pos(fen, startFen, moves) {
         // effective_multipv). Set at engine init only, those sliders would silently do nothing until
         // the next re-init -- the exact trap that made the whole mix look broken. Free between
         // searches; we just stopped one. (The remote/native path reaches the same width a different
-        // way: an analyse request carries only {fen, time, moves}, so MultiPV goes to the host via
-        // request_remote_configure -- see the awaited push in that branch.)
+        // way: MultiPV rides on the native analyse request and is pushed via request_remote_configure as
+        // well, for remote-engine.py and older hosts -- see the push in that branch.)
         // Pondering overrides the width: the opponent's turn is searched over their top few candidate
         // replies (ponder_line_count), not our configured line count -- premove_lines mirrors it so an
         // instant reply can be certified for any of them.
@@ -13261,7 +13263,10 @@ async function request_remote_analysis(fen, time, moves = null, depth = null, no
         // `nodes` is the Analysis Limit's third unit. A host that predates it ignores the key and
         // searches to the time it was given, which is the same search one notch less precise --
         // never a wrong one.
-        return native_send('analyse', {fen, time, moves, depth, nodes},
+        // `multipv` carries the width the configure beside it pushes, so the host never searches at
+        // the previous width when its threads run the two in the other order. A host from before
+        // 3.1.329 ignores the key and still gets the configure.
+        return native_send('analyse', {fen, time, moves, depth, nodes, multipv: remote_multipv_set ?? undefined},
             info => on_native_info(info, posFen));
     }
     if (uses_cloud()) {

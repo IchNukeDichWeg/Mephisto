@@ -86,12 +86,46 @@ time.sleep(2)
 with lock:
     stopped = next((m for _, m in frames if m.get('id') == 200 and m.get('done')), None)
     last = next((m for _, m in frames if m.get('id') == 202 and m.get('done')), None)
-p.kill()
-shutil.rmtree(tmp, ignore_errors=True)
 if not (stopped and stopped.get('superseded')) or not last or last.get('superseded'):
+    p.kill()
     print('FAIL the stopped search must carry superseded and the finished one must not', stopped, last)
     sys.exit(1)
 print('a stopped search reports superseded, a finished one does not')
+
+# The panel's own pattern: a width configure and the analyse carrying that width, in ONE write while a
+# search runs. The new search must run, unsuperseded, at that width, whichever host thread takes the
+# lock first -- a configure used to bump the global counter and kill the analyse queued behind it.
+# Several rounds, with the width changing each time as Pondering's does. Which thread wins is the
+# scheduler's call, and the configure written first nearly always does, so odd rounds write the
+# analyse first: that is the order that lost (MEASURED: the configure-first rounds alone passed on
+# the unfixed host 6 of 6).
+def both(mid, width, analyse_first):
+    a = json.dumps({'id': mid, 'cmd': 'configure', 'options': {'MultiPV': width}}).encode()
+    b = json.dumps({'id': mid + 1, 'cmd': 'analyse', 'fen': NEXT, 'time': 400, 'multipv': width}).encode()
+    if analyse_first:
+        a, b = b, a
+    p.stdin.write(struct.pack('<I', len(a)) + a + struct.pack('<I', len(b)) + b)
+    p.stdin.flush()
+bad = []
+for i in range(6):
+    width, mid = 2 + i % 2, 400 + 10 * i
+    send({'id': mid, 'cmd': 'analyse', 'fen': DEEP, 'time': BUDGET_MS})
+    time.sleep(0.5)
+    both(mid + 1, width, i % 2 == 1)
+    got, t0 = None, time.perf_counter()
+    while got is None and time.perf_counter() - t0 < 5:
+        with lock:
+            got = next((m for _, m in frames if m.get('id') == mid + 2 and m.get('done')), None)
+        time.sleep(0.01)
+    if not got or got.get('superseded') or len(got.get('lines') or []) != width:
+        bad.append((i, width, got and got.get('superseded'), got and len(got.get('lines') or [])))
+if bad:
+    p.kill()
+    print('FAIL a configure sent with its analyse cut that analyse, or the width was wrong:', bad)
+    sys.exit(1)
+print('a configure sent with its analyse never supersedes it, and the width is the one asked for')
+p.kill()
+shutil.rmtree(tmp, ignore_errors=True)
 
 if any(g is None for g in gaps):
     print('FAIL a superseding search never produced an info frame')

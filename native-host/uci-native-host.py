@@ -149,6 +149,11 @@ request_counter = 0
 # latency. Best effort: an engine that ignores `stop` still ends on its own time limit, and the
 # request_counter check below is what actually decides whose result is used.
 current_analysis = None
+# The search a configure cut short. A configure marks THAT search only: it used to bump the global
+# request_counter, which also killed an analyse already numbered but not yet recorded in
+# current_analysis -- the panel sends its MultiPV configure and the analyse back to back, so the new
+# search came back superseded with no search run and the panel re-searched after its retry pause.
+configure_cut = None
 
 def _set_if_declared(key, value):
     try:
@@ -191,6 +196,12 @@ def do_analyse(data, mid):
         request_counter += 1
         request_id = request_counter
         stale = current_analysis
+        # The width can travel with the request, so it never depends on which of a configure and an
+        # analyse sent together takes the engine lock first (the lock is not FIFO). Stored as the
+        # option under request_lock, so the panel's matching configure -- kept for older hosts --
+        # finds nothing to change whichever thread gets here first, and cuts no search.
+        if isinstance(data.get('multipv'), int) and data['multipv'] > 0:
+            engine_options['MultiPV'] = data['multipv']
     # BEFORE the engine lock, which the outstanding search is holding: `stop` is the only thing that
     # can make it let go promptly. SimpleAnalysisResult.stop() hands the call to the engine's own
     # loop thread (call_soon_threadsafe) and is idempotent on a finished search.
@@ -246,10 +257,12 @@ def do_analyse(data, mid):
             with request_lock:
                 current_analysis = analysis
             bestmove = None
-            if request_counter == request_id:
+            def superseded():
+                return request_counter != request_id or configure_cut is analysis
+            if not superseded():
                 for info in analysis:
-                    if request_counter != request_id:
-                        break  # superseded by a newer position
+                    if superseded():
+                        break  # superseded by a newer position, or cut by a configure
                     # STREAM per-depth updates (live depth UI + JS premove certification).
                     # Aspiration re-searches (`lowerbound`/`upperbound`) carry an unresolved pv, so
                     # they must not feed premove certification -- but they are FORWARDED anyway,
@@ -261,27 +274,31 @@ def do_analyse(data, mid):
                             send_message({'id': mid, 'info': format_line(info, False, None)})
                         except Exception:
                             pass
-                if request_counter == request_id:
+                if not superseded():
                     bestmove = analysis.wait().move
         with request_lock:
             if current_analysis is analysis:   # only OUR own search; a newer one owns the slot now
                 current_analysis = None
         out = format_lines(analysis.multipv, terminal, bestmove, in_check)
-        if request_counter != request_id:
+        if superseded():
             out['superseded'] = True   # stopped by another request: this is not an answer
         return out
 
 def do_configure(data):
-    global request_counter
+    global configure_cut
     get_engine()  # a configure is a real use -> open the engine (a ping never gets here)
     # S4: stop the outstanding search BEFORE taking engine_lock, mirroring do_analyse's pre-lock
     # stale.stop() -- without this a Threads/Hash change queues behind whatever search is running.
-    # The search it stops was not answered: the bump marks its frame superseded, and the panel
+    # The search it stops was not answered: configure_cut marks its frame superseded, and the panel
     # searches the position again.
+    options = data.get('options') or {}
     with request_lock:
+        # Nothing to change -> nothing to stop: the panel re-sends a width the analyse carried.
+        if all(k in engine_options and engine_options[k] == v for k, v in options.items()):
+            return {'ok': True}
         stale = current_analysis
         if stale is not None:
-            request_counter += 1
+            configure_cut = stale
     if stale is not None:
         try:
             stale.stop()

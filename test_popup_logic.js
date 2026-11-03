@@ -6170,6 +6170,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('NATIVE-1: the suite sets a non-zero exit code and prints a summary when anything failed',
        /process\.on\('beforeExit', \(\) => \{[\s\S]{0,120}?FAILED[\s\S]{0,80}?process\.exitCode = fails \? 1 : 0;/.test(self));
 }
+// ---- NATIVE-3: the native analyse carries its MultiPV ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('NATIVE-3: a native analyse sends the width its configure pushes',
+       /native_send\('analyse', \{fen, time, moves, depth, nodes, multipv: remote_multipv_set \?\? undefined\}/.test(src));
+    const host = fs.readFileSync(ROOT + '/native-host/uci-native-host.py', 'utf8');
+    const ana = host.slice(host.indexOf('def do_analyse'), host.indexOf('def do_configure'));
+    const conf = host.slice(host.indexOf('def do_configure'), host.indexOf('def do_configure') + 1500);
+    ok('NATIVE-3: the host stores the request width under request_lock, where it numbers the search',
+       /request_id = request_counter[\s\S]{0,700}?engine_options\['MultiPV'\] = data\['multipv'\][\s\S]{0,80}?# BEFORE the engine lock/.test(ana));
+    ok('NATIVE-3: a configure marks only the search it stops, and an unchanged one stops nothing',
+       !/request_counter \+= 1/.test(conf) && /configure_cut = stale/.test(conf)
+       && /with request_lock:[\s\S]{0,200}?if all\(k in engine_options and engine_options\[k\] == v/.test(conf)
+       && /configure_cut is analysis/.test(ana));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
