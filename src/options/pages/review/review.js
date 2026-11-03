@@ -3275,7 +3275,12 @@ class ReviewPage {
                 // text pane only if the PGN cannot be replayed into positions.
                 const built = buildCcrReport(review, pgn);
                 if (built) {
+                    // one game's report, so no batch around it: the "Across games" table from an
+                    // earlier batch stayed under it and came back on every revisit (audit 3.1.328
+                    // REVIEW-13); the local classifier path already did this
+                    batchReports = null;
                     report = built;
+                    renderBatch();
                     renderCcrReport($('rv_ccr_strength').value);
                     $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});
                     out.classList.add('hidden');

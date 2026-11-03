@@ -5792,6 +5792,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('on the Review page Home still steps the board', stepped === 1 && prevented === 1);
     ok('the resize redraw checks the graph is on the page', /if \(report && \$\('rv_graph'\)\) \{ renderGraph\(\); setGraphCursor\(\); \}/.test(rv));
 }
+// ---- audit 3.1.328 REVIEW-13: a chess.com online review clears an earlier batch ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rv.indexOf('const built = buildCcrReport(review, pgn);'), b = rv.indexOf('renderCcrReport($(\'rv_ccr_strength\').value);', a);
+    ok('the online path drops batchReports and re-renders the batch section before drawing',
+       /batchReports = null;\s*report = built;\s*renderBatch\(\);/.test(rv.slice(a, b)), rv.slice(a, b));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
