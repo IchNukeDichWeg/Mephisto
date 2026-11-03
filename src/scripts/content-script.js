@@ -3441,6 +3441,14 @@ function simulateMove4PC(move, think = null, sessionGen = undefined) {
                 bgLogAlways('4PC move superseded: click abandoned', {move, sq, sessionGen, moveGen});
                 return false;
             }
+            // Autoplay switched off, or the tab left, during the think: the 8x8 path's PAGE-5 check,
+            // which this lane never called, so it clicked anyway (audit 3.1.328 CLICK-3).
+            const held = moveHeldBack();
+            if (held) {
+                bgLogAlways('4PC move held back after the think', {move, sq, held});
+                if (held === 'hidden') deferredWhileHidden = true;   // resumeIfDeferred re-issues it
+                return false;
+            }
             const r = rectOf(sq);
             if (!r) { console.warn(`Mephisto: 4PC square '${sq}' vanished mid-move`); return false; }
             bgLogAlways('4PC click', {sq, x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2),

@@ -5213,6 +5213,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const body = s.slice(a, b);
     ok('simulateMove: the invalid-move, drop and no-board refusals all resolve false', (body.match(/return Promise\.resolve\(false\);/g) || []).length === 3 && !/return Promise\.resolve\(\);/.test(body));
 }
+// ---- audit 3.1.328 CLICK-3: the 4PC lane obeys Autoplay off and a hidden tab after its think ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = s.indexOf('const click = async (sq, travel) => {'), b = s.indexOf('await simulateClickSquare(r, 0.8, travel);', a);
+    const body = s.slice(a, b);
+    ok('4PC click: asks moveHeldBack before clicking and defers a hidden tab', /const held = moveHeldBack\(\);/.test(body) && /deferredWhileHidden = true/.test(body));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
