@@ -168,9 +168,14 @@ def format_lines(lines, terminal, bestmove):
     lines = list(map(lambda line: format_line(line, terminal, bestmove), lines or [{}]))
     if 'pv' in lines[0]:
         pv0 = lines[0].get('pv')
+        best, threat = pv0[0], pv0[1] if len(pv0) > 1 else '(none)'
+        # a partial deeper iteration can change the engine's FINAL bestmove after the last
+        # completed info line -- the true bestmove wins (as in uci-native-host.py)
+        if bestmove is not None and bestmove != chess.Move.null() and bestmove.uci() != best:
+            best, threat = bestmove.uci(), '(none)'
         return {
-            'bestmove': pv0[0],
-            'threat': pv0[1] if len(pv0) > 1 else '(none)',
+            'bestmove': best,
+            'threat': threat,
             'lines': lines,
         }
     else:
@@ -244,7 +249,12 @@ def analyse():
                             break # request was cancelled
                     if request_counter == request_id:
                         bestmove = analysis.wait().move # actual move (search or book)
-            return format_lines(analysis.multipv, terminal, bestmove)
+            out = format_lines(analysis.multipv, terminal, bestmove)
+            # Cut short by a newer request: say so, or the panel plays the shallow line (or a
+            # `(none)`) as an answer. Its retry fires on this flag, as with the native hosts.
+            if request_counter != request_id:
+                out['superseded'] = True
+            return out
         except chess.engine.EngineTerminatedError:
             return {'error': 'the engine process stopped - restart this script'}, 503
 
