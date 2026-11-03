@@ -5303,6 +5303,21 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const r2 = vm.runInContext('scrapePositionPuz()', ctx);
     ok('...and a highlight whose destination is empty ships no last move', !/lm-/.test(r2), r2);
 }
+// ---- audit 3.1.328 PLAY-1: Humanize respects the clock with no pacing mode on ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = s.indexOf('const HZ_CLOCK_SHARE_MAX'), j = s.indexOf('\n}\n', s.indexOf('function hz_clock_rail', i)) + 3;
+    const c = vm.createContext({Date, Math, last_clocks: null});
+    vm.runInContext(s.slice(i, j), c);
+    const at = (mine) => { c.last_clocks = {mine, at: Date.now()}; return vm.runInContext('hz_clock_rail(6500)', c); };
+    c.last_clocks = null;
+    ok('no clock read: the think is untouched', vm.runInContext('hz_clock_rail(6500)', c) === 6500);
+    ok('a minute left: at most 4 s', Math.round(at(60)) === 4000, at(60));
+    ok('15 s left: a quarter second; 5 s left: nothing', at(15) === 250 && at(5) === 0, [at(15), at(5)]);
+    ok('humanize_pick rails the think when no pacing mode is on, and the presearch is railed too',
+       /\} else \{\s*think = hz_clock_rail\(think\);/.test(s) && /if \(evalCp < 150\) return hz_clock_rail\(2500\);/.test(s));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

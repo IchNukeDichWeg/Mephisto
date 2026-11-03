@@ -7348,11 +7348,25 @@ function humanize_presearch_ms(fen) {
     if (!config.humanize || clock_aware() || !config.autoplay
         || config.help_mode || config.puzzle_mode || in_time_trouble()) return null;
     if (first_move(fen)) return FIRST_MOVE_PACE_MS;                 // move 1: played, not thought about
-    if (in_opening(fen)) return 500;                                // opening: reel it off
+    if (in_opening(fen)) return hz_clock_rail(500);                 // opening: reel it off
     const evalCp = (last_our_eval != null) ? Math.abs(last_our_eval) : 0;
-    if (evalCp > 600) return 500;                                  // game decided: moves matter less
-    if (evalCp < 150) return 2500;                                 // balanced & tense: think
-    return 1200;                                                   // ordinary middlegame
+    if (evalCp > 600) return hz_clock_rail(500);                   // game decided: moves matter less
+    if (evalCp < 150) return hz_clock_rail(2500);                  // balanced & tense: think
+    return hz_clock_rail(1200);                                    // ordinary middlegame
+}
+
+// THE CLOCK BOUNDS HUMANIZE WITH NO PACING MODE ON. Clock Mode, Mirror Time and Time Trouble are all
+// opt-in, and without them neither the search nor the think looked at the clock: a level position
+// searched 2.5 s and a 'long' think ran 2-6.5 s (about 26 s with Human Move Times) whatever was left,
+// which lost bullet games on time (audit 3.1.328 PLAY-1). The rails are Clock Mode's own (under 20 s
+// a quarter second, under 8 s nothing); above them one move takes at most a share of what is left.
+const HZ_CLOCK_SHARE_MAX = 1 / 15;   // chosen, not measured: 4 s of a minute, 1.3 s of 20 s
+function hz_clock_rail(ms) {
+    if (!last_clocks || last_clocks.mine == null) return ms;
+    const T = last_clocks.mine - (Date.now() - last_clocks.at) / 1000;
+    if (T < 8) return 0;
+    if (T < 20) return Math.min(ms, 250);
+    return Math.min(ms, T * 1000 * HZ_CLOCK_SHARE_MAX);
 }
 
 // {move, think}: which move to actually play, and how long to sit on it first
@@ -8628,6 +8642,8 @@ function humanize_pick(best) {
         }
         if (T < 20) think = Math.min(think, 250);
         if (T < 8) think = 0;
+    } else {
+        think = hz_clock_rail(think);   // no pacing mode on: the clock still bounds the think (PLAY-1)
     }
     // TIME TROUBLE outranks every pacing mode, as it does in clock_pace_timing. This think is sent as
     // the move's own override, which the page uses FIRST -- so without this line Humanize kept its
