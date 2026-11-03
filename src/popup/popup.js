@@ -3765,6 +3765,7 @@ function ponder_line_count(fen, lastUci) {
 // never delay a move or eat into a Clock/Mirror time budget.
 const BOOK_MIN_GAMES = 20;   // drop 3-game oddities -- the move must be statistically real
 const BOOK_MAX_LOSS = 40;    // cp: the engine's veto. A book move this far below its best is "worse"
+let explorer_wanted = null;  // the position the explorer was last asked about (request_explorer)
 let explorer_data = null;    // {fen, moves:[...], opening} for the position we last looked up
 let explorer_out_of_book = false; // latched per game: first empty answer stops all further lookups
 let explorer_error = null;   // last lookup failure, shown in the overlay instead of drawing nothing
@@ -4382,8 +4383,13 @@ function request_explorer(fen) {
     // Same rule as the tablebase probe: silent in a hidden tab, unless Background Play says the game
     // is still going. Otherwise a backgrounded game silently loses its book moves.
     if (document.hidden && !config.background_play) return;
+    explorer_wanted = fen;
     if (explorer_data?.fen === fen) return; // already have this position
     chrome.runtime.sendMessage({explorerLookup: {fen, db: config.explorer_db || 'masters'}}, (res) => {
+        // ONLY THE ANSWER FOR THE POSITION ASKED ABOUT LAST. A slow answer for A landing after B's
+        // was stored as explorer_data and drawn under B's board until the next move, and a late
+        // empty one counted toward the out-of-book latch (audit 3.1.328 ANALYSIS-9).
+        if (fen !== explorer_wanted) return;
         // A failed lookup must SAY so. Drawing nothing is indistinguishable from "the feature is
         // broken" -- which is exactly how a blocked endpoint presented.
         if (chrome.runtime.lastError || !res || res.error) {

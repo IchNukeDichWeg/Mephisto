@@ -5987,6 +5987,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     large = null; key('ArrowLeft');
     ok('on shogi/xiangqi the keys do nothing; on chess they still step', onLarge === 0 && did.join() === 'go2', did);
 }
+// ---- audit 3.1.328 ANALYSIS-9: a late explorer answer for an earlier position is dropped ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = src.indexOf('function request_explorer(fen) {'), b = src.indexOf('\n}\n', a) + 3;
+    const pending = [];
+    const c = vm.createContext({explorer_enabled: () => true, explorer_out_of_book: false, document: {hidden: false}, config: {}, console: {warn() {}},
+        explorer_wanted: null, explorer_data: null, explorer_error: null, explorer_empty_streak: 0, renders: 0, render_explorer: () => { c.renders++; },
+        chrome: {runtime: {lastError: null, sendMessage: (m, cb) => pending.push([m.explorerLookup.fen, cb])}}});
+    vm.runInContext(src.slice(a, b), c);
+    c.request_explorer('A'); c.request_explorer('B');
+    pending[1][1]({moves: [{uci: 'e7e5'}]});           // B answers first (a worker cache hit)
+    pending[0][1]({moves: [{uci: 'd2d4'}]});           // ...then A's slow network answer
+    ok('the overlay keeps B\'s moves when A answers late', c.explorer_data?.fen === 'B' && c.explorer_data.moves[0].uci === 'e7e5' && c.renders === 1, c.explorer_data);
+    c.request_explorer('C');
+    pending[0][1]({moves: []});                        // a late EMPTY answer for A
+    ok('a late empty answer does not count toward the out-of-book latch', c.explorer_empty_streak === 0, c.explorer_empty_streak);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
