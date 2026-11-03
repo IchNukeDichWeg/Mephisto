@@ -60,7 +60,9 @@ New-Item -ItemType Directory -Force -Path $runtime | Out-Null
 
 Copy-Item (Join-Path $src 'tetrarch-host.py')  (Join-Path $runtime 'tetrarch-host.py')  -Force
 Copy-Item (Join-Path $src 'tetrarch-host.bat') (Join-Path $runtime 'tetrarch-host.bat') -Force
-Set-Content -Path (Join-Path $runtime 'tetrarch-path') -Value $Tetrarch -Encoding UTF8
+# WriteAllText, not Set-Content -Encoding UTF8: Windows PowerShell 5.1 (`powershell`) writes a BOM
+# with that, and the path then never exists. The host also reads utf-8-sig, for files from before.
+[IO.File]::WriteAllText((Join-Path $runtime 'tetrarch-path'), $Tetrarch)
 
 $bat = Join-Path $runtime 'tetrarch-host.bat'
 $manifestPath = Join-Path $runtime 'com.tetrarch.host.json'

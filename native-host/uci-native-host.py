@@ -40,7 +40,8 @@ except Exception:
 def _read_sibling(name):
     p = os.path.join(_DIR, name)
     if os.path.isfile(p):
-        return open(p).read().strip() or None
+        # utf-8-sig: a .path saved by Notepad or Windows PowerShell 5.1 starts with a BOM
+        return open(p, encoding='utf-8-sig').read().strip() or None
     return None
 
 def _resolve_engine():

@@ -33,7 +33,8 @@ def _resolve_repo():
         return os.environ['TETRARCH_DIR']
     sibling = os.path.join(_DIR, 'tetrarch-path')
     if os.path.isfile(sibling):
-        return open(sibling).read().strip()
+        # utf-8-sig: Windows PowerShell 5.1 and Notepad write a BOM, which strip() keeps
+        return open(sibling, encoding='utf-8-sig').read().strip()
     return os.path.abspath(os.path.join(_DIR, '..', '..', 'Tetrarch'))
 
 def _resolve_python():
