@@ -4779,8 +4779,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
 const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
     ok('a Stop inside a game ends the loop when a game is finished, and says how far it got',
-       /catch \(e\) \{[\s\S]{0,200}?if \(cancel && done\.length\) break;\s*throw e;/.test(src)
-       && /if \(done\.length < list\.length\) note\(`Stopped after/.test(src));
+       /catch \(e\) \{[\s\S]{0,200}?if \(cancel && done\.length\) break;[\s\S]{0,500}?throw e;/.test(src)
+       && /else if \(done\.length < list\.length\) note\(`Stopped after/.test(src));
 }
 // ---- OPT-10: Search Time has a floor everywhere ----
 {
@@ -5643,6 +5643,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('each info line re-arms the timer, so only the newest one is live', timers.length === 6 && timers.filter(t => t.live).length === 1, timers.map(t => t.live));
     const src = en.slice(en.indexOf('this.listeners.push(collect);'), en.indexOf('this.send(`position fen ${fen}`);'));
     ok('analyse passes an info-line alive predicate to its bestmove wait', /searchTimeout\(\),\s*m => m\.kind === 'line' && \/\^info\\b\/\.test\(m\.line\)\)/.test(src), src);
+}
+// ---- audit 3.1.328 REVIEW-4: a batch skips a game that will not replay and keeps the rest ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rv.indexOf('async function onRun() {'), b = rv.indexOf('// The PGN of one game as it was pasted', a);
+    const el = () => ({disabled: false, value: '', classList: {add() {}, remove() {}}, scrollIntoView() {}});
+    const run = (bad) => {
+        const c = vm.createContext({notes: [], rendered: 0, String, Error, console,
+            $: () => el(), note: (t, err) => c.notes.push([t, !!err]), progress() {}, startRig: async () => ({}), disposeRig() {},
+            cfg: k => (k === 'rv_batch' ? true : k === 'rv_variant' ? 'chess' : false), gameText: g => g.id, eeCached: async () => null,
+            renderReport: () => { c.rendered++; }, renderBatch() {}, selectedGame: () => null,
+            runReview: async (g) => { if (bad.includes(g.id)) throw new Error('Move 3. Nf6 is not legal'); return {id: g.id}; }});
+        vm.runInContext('var running = false, cancel = false, is4pcGame = false, batchReports = null, report = null; var games = [{id: 1}, {id: 2}, {id: 3}];\n' + rv.slice(a, b), c);
+        return vm.runInContext('onRun()', c).then(() => c);
+    };
+    Promise.all([run([2]), run([1, 2, 3])]).then(([one, all]) => {
+        ok('a batch with one unplayable game keeps the other two and names the skipped one',
+           one.batchReports?.length === 2 && one.rendered === 1 && one.notes.some(([t, e]) => e && /Skipped 1 of 3: game 2 \(Move 3/.test(t)), [one.batchReports, one.notes]);
+        ok('a batch where nothing replays says so, naming the games', all.rendered === 0 && all.notes.some(([t, e]) => e && /No game could be reviewed: game 1/.test(t)), all.notes);
+    });
 }
 // ==== END FIX CHECKS ====
 

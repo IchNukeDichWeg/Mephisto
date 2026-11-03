@@ -2521,7 +2521,7 @@ async function onRun() {
     try {
         progress(0, 'starting the engine');
         rig = await startRig();
-        const done = [];
+        const done = [], skipped = [];
         for (let g = 0; g < list.length; g++) {
             if (cancel) break;
             const label = batch ? `game ${g + 1} of ${list.length} - ` : '';
@@ -2535,6 +2535,10 @@ async function onRun() {
                 // Stop lands inside a game, so it throws from here. The finished games are still
                 // a result; thrown on, they were lost with a bare "Stopped.".
                 if (cancel && done.length) break;
+                // ONE GAME THAT WILL NOT REPLAY IS SKIPPED, NOT FATAL. A Chess960 or crazyhouse game
+                // among forty fetched standard ones threw here and took every finished game with it,
+                // under a message that did not say which game failed (audit 3.1.328 REVIEW-4).
+                if (batch && !cancel) { skipped.push(`game ${g + 1} (${String(e.message || e)})`); continue; }
                 throw e;
             }
             built.pgnText = gameText(list[g]);
@@ -2555,14 +2559,16 @@ async function onRun() {
             }
             done.push(built);
         }
-        if (!done.length) throw new Error('stopped');
+        if (!done.length) throw new Error(skipped.length ? `No game could be reviewed: ${skipped.join('; ')}` : 'stopped');
         batchReports = batch ? done : null;
         report = done[done.length - 1];
         report.pgnText = report.pgnText || ($('rv_pgn')?.value || '');
         renderReport();
         renderBatch();
         progress(1, batch ? `${done.length} games analysed` : 'done');
-        if (done.length < list.length) note(`Stopped after ${done.length} of ${list.length} games.`);
+        if (skipped.length) note(`Skipped ${skipped.length} of ${list.length}: ${skipped.join('; ')}`
+                                 + (done.length + skipped.length < list.length ? ' - then stopped.' : ''), true);
+        else if (done.length < list.length) note(`Stopped after ${done.length} of ${list.length} games.`);
         $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});
     } catch (e) {
         if (cancel) note('Stopped.');
