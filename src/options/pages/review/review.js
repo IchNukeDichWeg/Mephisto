@@ -3404,9 +3404,14 @@ class ReviewPage {
             }
             // a fairy variant is Fairy-Stockfish's game: flip the visible engine too, the way the
             // Analysis page does, so the select never shows an engine the run would not use
-            if (RV_FAIRY_ONLY.includes(rvChessVariant()) && cfg('rv_engine') !== RV_FAIRY_ENGINE) {
-                setCfg('rv_engine', RV_FAIRY_ENGINE);
-                if ($('rv_engine')) $('rv_engine').value = RV_FAIRY_ENGINE;
+            // ...but SHOWN, never saved. Writing rv_engine overwrote the user's pick for good, so
+            // after one crazyhouse game every standard review ran on Fairy-Stockfish (audit 3.1.328
+            // REVIEW-10). startRig already swaps for the run; back on Chess the select shows the
+            // stored engine again.
+            const esel = $('rv_engine');
+            if (esel) {
+                const shown = RV_FAIRY_ONLY.includes(rvChessVariant()) ? RV_FAIRY_ENGINE : String(cfg('rv_engine'));
+                if (esel.value !== shown) esel.value = shown;
             }
             const fourPc = variant === '4pc';
             $('rv_4pc_note')?.classList.toggle('hidden', !fourPc);

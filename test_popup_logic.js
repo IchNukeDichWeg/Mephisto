@@ -5747,6 +5747,23 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
             /180s/.test(e.message) && c.notes.length === 0, c.notes), 0);
     });
 }
+// ---- audit 3.1.328 REVIEW-10: a fairy variant shows Fairy-Stockfish without saving it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rv.indexOf('const rvModeSync = () => {'), b = rv.indexOf('const fourPc = variant === \'4pc\';', a);
+    const body = rv.slice(a, b);
+    const m = /const esel = \$\('rv_engine'\);[\s\S]*?\n            \}\n/.exec(body);
+    ok('rvModeSync never writes rv_engine', !/setCfg\('rv_engine'/.test(body), body.length);
+    if (m) {
+        const sel = {value: 'stockfish-native'};
+        let variant = 'crazyhouse';
+        const run = () => vm.runInContext(m[0], vm.createContext({$: () => sel, RV_FAIRY_ONLY: ['crazyhouse'], RV_FAIRY_ENGINE: 'fairy-stockfish-14', rvChessVariant: () => variant, cfg: () => 'stockfish-native', String}));
+        run(); const onFairy = sel.value;
+        variant = 'chess'; run();
+        ok('the select shows Fairy for crazyhouse and the stored engine again for chess', onFairy === 'fairy-stockfish-14' && sel.value === 'stockfish-native', [onFairy, sel.value]);
+    } else ok('the shown-engine block is present', false);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
