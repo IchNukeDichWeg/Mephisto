@@ -2262,7 +2262,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         engineOpts: () => ({}), CFG: {an_band: 1500},
         hideLargeGame() {}, stopMatch() {}, stopSearch() {}, $: () => null});
     (async () => {
-        vm.runInContext('let engine = null, human = null, humanKey = null, boardResizeObs = null, bandRun = 0;\n'
+        vm.runInContext('let engine = null, human = null, humanKey = null, boardResizeObs = null, bandRun = 0, prefetchTimer = null;\n'
             + cut('let engineChain', '// Reload ONLY the analysis engine') + cut('// teardown() bumps this', '// Returns a promise'), ac);
         const got = vm.runInContext('[ensureEngine(), ensureEngine2(), ensureHuman()]', ac);
         await new Promise(r => setImmediate(r));                  // the builders are now awaiting start()
@@ -5846,6 +5846,30 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     }).then(r => ok('a sweep queued under an older run builds nothing', r === null && c.built === 0, [r, c.built]));
     ok('teardown, reloadHuman and the large-game switch all bump bandRun',
        /function teardown\(\) \{\s*pageGen\+\+;\s*bandRun\+\+;/.test(an) && /async function reloadHuman\(\) \{\s*bandRun\+\+;/.test(an) && /bandRun\+\+;   \/\/ see reloadHuman\s*showLargeGame/.test(an));
+}
+// ---- audit 3.1.328 ANALYSIS-8: a human-model build asked for before leaving Analysis builds nothing after ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (x, y) => an.slice(an.indexOf(x), an.indexOf(y, an.indexOf(x)));
+    const made = [];
+    let band = 1500;
+    const c = vm.createContext({Promise, made, cfg: (k) => (k === 'an_band' ? band : 'maia3'), CFG: {an_band: 1500}, engineOpts: () => ({}),
+        makeEngine: () => { const e = {dispose() { e.disposed = true; }}; e.start = () => new Promise(r => { e.finish = r; }); made.push(e); return e; },
+        hideLargeGame() {}, stopMatch() {}, stopSearch() {}, clearTimeout() {}});
+    vm.runInContext('let human = null, humanKey = null, engine = null, engine2 = null, boardResizeObs = null, bandRun = 0, prefetchTimer = 7;\n'
+        + cut('let humanChain = Promise.resolve();', '// Reload ONLY the analysis engine') + cut('// teardown() bumps this', '// Returns a promise'), c);
+    (async () => {
+        const first = vm.runInContext('ensureHuman()', c);
+        await new Promise(r => setImmediate(r));
+        band = 1900;                                            // a second build is queued behind the first
+        const second = vm.runInContext('ensureHuman()', c);
+        vm.runInContext('teardown()', c);                       // the page is left
+        made[0].finish();
+        const [a, b] = await Promise.all([first, second]);
+        ok('the build queued before leaving loads nothing afterwards, and the prefetch timer is cleared',
+           a === null && b === null && made.length === 1 && made[0].disposed && vm.runInContext('prefetchTimer', c) === null, [a, b, made.length]);
+    })().catch(e => { fails++; console.log('FAIL ANALYSIS-8 check threw: ' + (e && e.stack || e)); });
 }
 // ==== END FIX CHECKS ====
 

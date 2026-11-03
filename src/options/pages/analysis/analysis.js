@@ -848,12 +848,16 @@ function reloadEngine2() {
 }
 
 // Same shape, same reason: humanFor() is called without being awaited, so two of them overlap freely.
+// THE GENERATION OF THE ASK, not of the build. buildHuman read pageGen when its turn came, so a
+// build queued before the page was left ran under the new generation, passed leftDuringLoad, and a
+// Maia net loaded and stayed loaded behind Settings (audit 3.1.328 ANALYSIS-8).
 let humanChain = Promise.resolve();
-function ensureHuman() {
-    humanChain = humanChain.then(buildHuman, buildHuman);
+function ensureHuman(gen = pageGen) {
+    humanChain = humanChain.then(() => buildHuman(gen), () => buildHuman(gen));
     return humanChain;
 }
-async function buildHuman() {
+async function buildHuman(askedGen = pageGen) {
+    if (askedGen !== pageGen) return null;
     const kind = cfg('an_human');
     if (!kind) return null;
     const band = String(cfg('an_band') || CFG.an_band);
@@ -936,6 +940,7 @@ function leftDuringLoad(gen, e) {
 function teardown() {
     pageGen++;
     bandRun++;   // ends a running sweep at its next band and every queued one before it builds (ANALYSIS-1/-8)
+    if (prefetchTimer) { clearTimeout(prefetchTimer); prefetchTimer = null; }   // ANALYSIS-8
     hideLargeGame();
     stopMatch();
     stopSearch();
