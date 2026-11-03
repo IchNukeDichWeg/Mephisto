@@ -1025,7 +1025,11 @@ class GeneralSettings extends SettingsPage {
     // hotkeys and macros, and Panel Style. Remove those too and reload, since each has its own
     // renderer and a fresh page is the one path that redraws them all.
     onResetConfigValues() {
-        this.clearConfigValues();
+        // THE TOKEN AND THE FOLDER ARE NOT DEFAULTS. Both are registered form fields, so the reset
+        // wiped a pasted lichess token and a typed tablebase folder along with the settings, while
+        // Import deliberately keeps both (its KEEP list); the two reset paths now agree (audit
+        // 3.1.328 OPT-9).
+        this.clearConfigValues(['lichess_token', 'tb_path']);
         for (const k of ['humanize_top', 'humanize_second', 'humanize_third', 'humanize_fourth', 'humanize_inaccuracy',
             'humanize_mistake', 'humanize_blunder', 'humanize_cp_second', 'humanize_cp_third', 'humanize_cp_fourth',
             'humanize_cp_inaccuracy', 'humanize_cp_mistake', 'humanize_cp_blunder',

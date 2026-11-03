@@ -106,9 +106,11 @@ export class SettingsPage {
         });
     }
 
-    clearConfigValues() {
+    // `keep`: registered names that are not settings to reset but things the user supplied (see
+    // General's onResetConfigValues).
+    clearConfigValues(keep = []) {
         this.formElements.forEach(formElement => {
-            MephistoConfig.remove(formElement.name);
+            if (!keep.includes(formElement.name)) MephistoConfig.remove(formElement.name);
         });
     }
 

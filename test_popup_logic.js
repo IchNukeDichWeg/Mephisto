@@ -6110,6 +6110,19 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     c.annotate_hotkey_labels();
     ok('the row hint and the title-bar hint go, and the button title loses its key', removed.join() === 'row,bar' && btn.title === 'Minimise', [removed, btn.title]);
 }
+// ---- audit 3.1.328 OPT-9: Restore Defaults on General keeps the lichess token and the tablebase folder ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const sp = fs.readFileSync(ROOT + '/src/options/util/SettingsPage.js', 'utf8');
+    const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const a = sp.indexOf('    clearConfigValues(keep = []) {'), b = sp.indexOf('\n    }\n', a) + 6;
+    const removed = [];
+    const c = vm.createContext({MephistoConfig: {remove: k => removed.push(k)}});
+    vm.runInContext('page = {formElements: [{name: "autoplay"}, {name: "lichess_token"}, {name: "tb_path"}, {name: "threads"}],\n' + sp.slice(a, b).trim() + '\n};', c);
+    c.page.clearConfigValues(['lichess_token', 'tb_path']);
+    ok('the kept names survive, the rest are cleared', removed.join() === 'autoplay,threads', removed);
+    ok('General\'s reset keeps exactly the two names Import keeps', /onResetConfigValues\(\) \{[\s\S]{0,500}?this\.clearConfigValues\(\['lichess_token', 'tb_path'\]\);/.test(g));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
