@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # PROPOSED replacement for the repo-root release-zips.sh: the full archive stops carrying the nets.
 #
-#   tools/release/release-zips.sh 3.1.316 [ref]        # ref defaults to master
+#   tools/release/release-zips.sh 3.1.316 [ref] [--no-harness]     # ref defaults to master
+#
+# --no-harness   cut the zips without the fixture harness (puppeteer not available here). Said out loud
+#                because the harness is a gate: without the flag, a harness that cannot run stops the
+#                build rather than waving it through on one warning line.
 #
 # FULL     mephisto-<v>.zip          ~11 MB   everything EXCEPT the nets/models listed in
 #                                             src/offscreen/engine-assets.json. New installs use this.
@@ -18,25 +22,41 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-V="${1:?usage: tools/release/release-zips.sh <version> [ref]}"
-REF="${2:-master}"
+USAGE="usage: tools/release/release-zips.sh <version> [ref] [--no-harness]"
+POS=(); HARNESS=1
+for a in "$@"; do case "$a" in --no-harness) HARNESS=0;; -*) echo "$USAGE" >&2; exit 1;; *) POS+=("$a");; esac; done
+V="${POS[0]:?$USAGE}"
+REF="${POS[1]:-master}"
 OUT="$(cd .. && pwd)"
 MANIFEST=src/offscreen/engine-assets.json
 
+# THE GATES TEST THE WORKING TREE AND THE ZIPS ARCHIVE $REF, so the two must be the same code: a clean
+# tree with $REF checked out. Otherwise the suites pass or fail on code that is not what ships.
+[ -z "$(git status --porcelain --untracked-files=no)" ] \
+    || { echo "!! uncommitted changes -- the gates would test code the zips do not carry" >&2; exit 1; }
+[ "$(git rev-parse HEAD)" = "$(git rev-parse "$REF^{commit}")" ] \
+    || { echo "!! HEAD is not $REF -- check out $REF first, the gates test the working tree" >&2; exit 1; }
+
+# THE LOGIC SUITE GATES THE BUILD: it exits non-zero on any failed check.
+echo "logic suite gate..."
+node test_popup_logic.js > /dev/null || { echo "LOGIC SUITE FAILED -- no release (node test_popup_logic.js | grep ^FAIL)" >&2; exit 1; }
+
 # THE HARNESS GATES THE BUILD (v3.1.248): the fixture suite must pass before any archive is cut.
-# Skipped ONLY when puppeteer is not resolvable on this machine -- loudly, never silently.
-if node -e "require('puppeteer')" 2>/dev/null; then
+# One that cannot run stops the build unless --no-harness says to go without it.
+if [ $HARNESS = 1 ]; then
+    node -e "require('puppeteer')" 2>/dev/null \
+        || { echo "!! puppeteer not resolvable (set NODE_PATH), so the fixture harness cannot run -- pass --no-harness to cut without it" >&2; exit 1; }
     echo "fixture harness gate..."
     node test/run-harness.js || { echo "HARNESS FAILED -- no release" >&2; exit 1; }
 else
-    echo "WARNING: puppeteer not resolvable (set NODE_PATH); the fixture harness gate was SKIPPED" >&2
+    echo "WARNING: --no-harness -- the fixture harness gate was SKIPPED" >&2
 fi
 
 # THE MANIFEST GATES THE BUILD: a net that changed without a new manifest would ship a slim zip whose
-# download fails its SHA check on every fresh install. The check reads the WORKING TREE, so that tree
-# must be exactly what $REF archives for these paths.
-[ -z "$(git status --porcelain -- lib/engine "$MANIFEST")" ] && git diff --quiet HEAD "$REF" -- lib/engine "$MANIFEST" \
-    || { echo "!! lib/engine or $MANIFEST differs from $REF -- check out $REF cleanly first" >&2; exit 1; }
+# download fails its SHA check on every fresh install. The check reads the WORKING TREE, which the
+# gate above pinned to $REF; untracked files under lib/engine would still be read, so refuse them too.
+[ -z "$(git status --porcelain -- lib/engine "$MANIFEST")" ] \
+    || { echo "!! untracked files under lib/engine -- the manifest check would read them" >&2; exit 1; }
 node tools/release/build-engines-manifest.mjs --check | tail -1   # on failure: stale list on stderr, set -e stops here
 
 # One exclude per manifest entry, derived from the manifest itself so the zip and the loader can
