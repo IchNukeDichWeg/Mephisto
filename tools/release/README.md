@@ -14,7 +14,8 @@ both zips. The loader (`src/offscreen/model-fetch.js`) tries the bundled file fi
 
 ## Every release
 
-1. Check the manifest still matches `lib/engine` (release-zips.sh does this and stops if not):
+1. Check the manifest still matches `lib/engine`, and that every tag it names is published with
+   those exact bytes (release-zips.sh does this and stops if not; it reads the GitHub API):
 
        node tools/release/build-engines-manifest.mjs --check
 
@@ -43,7 +44,9 @@ both zips. The loader (`src/offscreen/model-fetch.js`) tries the bundled file fi
        gh release create engines-v2 ../engines-v2/* --title engines-v2 --notes "..."
 
    This has to be done BEFORE the version that needs it ships. A slim install asking for a tag
-   that does not exist yet gets HTTP 404 and no engine.
+   that does not exist yet gets HTTP 404 and no engine; `--check` (and so release-zips.sh) refuses
+   until it is published. The rebuild itself refuses a `--tag` that is already published but does
+   not hold the new bytes.
 
 The first run, for `engines-v1`, is:
 

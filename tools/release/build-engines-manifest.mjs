@@ -3,14 +3,20 @@
 // stage the files a new assets release has to carry.
 //
 //   node tools/release/build-engines-manifest.mjs --check
-//        verify the committed manifest still matches lib/engine (release-zips.sh gates on this)
+//        verify the committed manifest still matches lib/engine, AND that every tag it names is published
+//        and holds each file under that name with that sha256 (release-zips.sh gates on this)
 //   node tools/release/build-engines-manifest.mjs --tag engines-v1 --reuse models-v1
 //        rewrite the manifest; files already on a --reuse release with the SAME sha256 keep that tag
 //   node tools/release/build-engines-manifest.mjs --tag engines-v1 --reuse models-v1 --out ../engines-v1
 //        ...and copy/join/split every file that needs the NEW tag into ../engines-v1 for upload
 //
 // Options: --root <extension dir> (default: two levels above this file). Nothing here writes to
-// GitHub: --reuse only READS a release's asset list (name, size, digest) from the public API.
+// GitHub: --check, --reuse and the --tag guard only READ a release's asset list (name, size, digest)
+// from the public API.
+//
+// A --tag that is already published is refused unless it already holds every file the rewrite would
+// pin to it: the manifest would otherwise name new bytes under a tag whose asset is the old file, and
+// every fresh slim install would fail that engine on its sha256 (MPH-N03). Releases are never re-tagged.
 //
 // What goes remote: every *.nnue and *.onnx under lib/engine -- the data. The engine .js/.wasm
 // glue stays bundled: a pthread build starts its workers from its own script URL, which must be the
@@ -82,12 +88,21 @@ async function hashFiles(sources) {
     return {size, sha256: h.digest('hex')};
 }
 
-async function releaseDigests(tag) {
+// name -> sha256 of a published release's assets, or null when the tag is not published
+async function releaseAssets(tag) {
     const r = await fetch(`https://api.github.com/repos/${REPO}/releases/tags/${tag}`,
         {headers: {Accept: 'application/vnd.github+json'}});
-    if (r.status === 404) return {};          // not published yet: nothing to reuse
+    if (r.status === 404) return null;
     if (!r.ok) throw new Error(`GitHub API ${r.status} reading ${tag}`);
     return Object.fromEntries((await r.json()).assets.map(a => [a.name, (a.digest || '').replace(/^sha256:/, '')]));
+}
+const releaseDigests = async (tag) => (await releaseAssets(tag)) || {};   // --reuse: unpublished = nothing to reuse
+
+// Does `assets` hold manifest entry `e` under `name`? A split file is checked part by part for presence
+// only: the manifest pins the joined bytes, which no single asset carries.
+function holds(assets, name, e) {
+    if (e.parts) return Array.from({length: e.parts}, (_, p) => `${name}.part${p}`).every(a => a in assets);
+    return assets[name] === e.sha256;
 }
 
 const mb = (n) => (n / 1e6).toFixed(1).padStart(8) + ' MB';
@@ -128,8 +143,31 @@ async function main() {
             console.error(`\n!! ${MANIFEST} is stale -- rebuild it (see tools/release/README.md):\n  ` + bad.join('\n  '));
             process.exit(1);
         }
-        console.log(`\n${MANIFEST} matches lib/engine (${names.length} files)`);
+        // THE BYTES MUST BE ON THE TAG. Matching the disk proves nothing about the release a fresh
+        // slim install downloads from: a rebuilt net pinned under an old tag, or a tag not published
+        // yet, passed here and then failed every install with MPH-N03 or a 404.
+        const tags = [...new Set(Object.values(have).map(e => e.tag))].sort();
+        const published = {};
+        for (const t of tags) published[t] = await releaseAssets(t);
+        const missing = [];
+        for (const [n, e] of Object.entries(have)) {
+            if (!published[e.tag]) missing.push(`${n}: release ${e.tag} is not published`);
+            else if (!holds(published[e.tag], n, e)) missing.push(`${n}: release ${e.tag} has no asset of that name with this sha256`);
+        }
+        if (missing.length) {
+            console.error(`\n!! ${MANIFEST} names bytes its releases do not hold -- publish them, or rebuild with a new --tag:\n  ` + missing.join('\n  '));
+            process.exit(1);
+        }
+        console.log(`\n${MANIFEST} matches lib/engine (${names.length} files) and ${tags.join(', ')} hold every one`);
         return;
+    }
+
+    // Never pin new bytes to a tag that is already out: its assets are what installs download.
+    const target = await releaseAssets(o.tag);
+    if (target) {
+        const absent = names.filter(n => files[n].tag === o.tag && !holds(target, n, files[n]));
+        if (absent.length) throw new Error(`--tag ${o.tag} is already published and does not hold ${absent.length} of these files `
+            + `(${absent.slice(0, 3).join(', ')}${absent.length > 3 ? ', ...' : ''}) -- pass a new --tag, e.g. ${o.tag.replace(/\d+$/, d => +d + 1)}`);
     }
 
     fs.writeFileSync(manifestPath, JSON.stringify({
