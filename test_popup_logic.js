@@ -5764,6 +5764,19 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('the select shows Fairy for crazyhouse and the stored engine again for chess', onFairy === 'fairy-stockfish-14' && sel.value === 'stockfish-native', [onFairy, sel.value]);
     } else ok('the shown-engine block is present', false);
 }
+// ---- audit 3.1.328 REVIEW-11: the exported Eval column is White's view on both sides' rows ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rv.indexOf('function exportMoveTable() {'), b = rv.indexOf('\n}\n', a) + 3;
+    const c = vm.createContext({esc: s => String(s), moveLabel: m => m.san, CLASS_LABEL: {}, scoreText: cp => (cp >= 0 ? '+' : '') + (cp / 100).toFixed(2),
+        uciToSan: () => '', Core: {phaseOf: () => ''}, String,
+        report: {phases: {}, positions: [{lines: [{cp: 200}]}, {lines: [{cp: 200}]}],
+                 moves: [{ply: 0, san: 'e4', color: 'w', evalBefore: 200}, {ply: 1, san: 'e5', color: 'b', evalBefore: -200}]}});
+    vm.runInContext(rv.slice(a, b), c);
+    const html = String(vm.runInContext('exportMoveTable()', c));
+    ok('White +2 reads +2.00 on both rows', (html.match(/\+2\.00/g) || []).length === 2 && !/-2\.00/.test(html), html.slice(0, 300));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

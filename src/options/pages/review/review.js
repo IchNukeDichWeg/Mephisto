@@ -2110,11 +2110,14 @@ async function inlineImage(url) {
 
 // The full move table, which the page does not show: on screen the detail is a click away, in a
 // file there is nothing to click.
+// The Eval column is WHITE's view, like every number on the page. It printed m.evalBefore, which is
+// mover-relative, so +2.00 on White's row read -2.00 on Black's (audit 3.1.328 REVIEW-11).
 function exportMoveTable() {
+    const whiteCp = (m) => report.positions[m.ply]?.lines?.[0]?.cp;
     const rows = report.moves.map(m => `<tr>
         <td>${esc(moveLabel(m))}</td>
         <td class="rv-c-${m.klass || 'good'}"><b>${esc(CLASS_LABEL[m.klass] || '')}</b></td>
-        <td class="n">${m.evalBefore == null ? '' : esc(scoreText(m.evalBefore, null))}</td>
+        <td class="n">${whiteCp(m) == null ? '' : esc(scoreText(whiteCp(m), null))}</td>
         <td class="n">${m.cpLoss == null ? '' : Math.round(m.cpLoss)}</td>
         <td class="n">${m.rank ?? ''}</td>
         <td class="n">${m.seconds == null ? '' : m.seconds.toFixed(1)}</td>
