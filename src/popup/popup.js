@@ -12930,10 +12930,21 @@ function show_update_notice(el, res) {
 // NOT a toolbar button: that row is absolutely positioned by id on a 45px pitch and its own
 // comment does the arithmetic showing five is exactly what fits. A sixth fell out of the layout
 // and landed on the board. It is a hotkey and a settings button instead.
+// THE ROUTE, NOT THE GAME. A game page's path IS the game id (chess.com /game/live/<id>, lichess's
+// 8 or 12 character id, the longer one including the player's own), and the report is meant for a
+// public issue: anyone could open the game and see both accounts (audit 3.1.328 SYS-1). Known route
+// words are kept, so "which page" still reads; anything else becomes <id>.
+const DIAG_ROUTE_WORDS = new Set(['game', 'games', 'live', 'daily', 'play', 'online', 'computer', 'analysis', 'puzzles',
+    'puzzle', 'training', 'variants', 'practice', 'custom', 'storm', 'racer', 'streak', 'study', 'tv', 'editor',
+    'setup', 'review', 'explorer', 'chess960', 'crazyhouse', '4-player', 'bots', 'friend', 'tournament', 'swiss']);
+function diagnostics_path_shape(path) {
+    return String(path || '').split('/').map(s => (!s || DIAG_ROUTE_WORDS.has(s.toLowerCase())) ? s : '<id>').join('/');
+}
+
 function copy_diagnostics(onDone = () => {}) {
         const ctx = {
             site: (typeof site !== 'undefined' && site) || location.hostname,
-            path: location.pathname,                       // path only: never the query string
+            path: diagnostics_path_shape(location.pathname),   // route words only: never an id
             engine: config.engine,
             detection: PANEL_ROOT.getElementById('game-detection')?.textContent || '',
             reason: idle_reason_text,

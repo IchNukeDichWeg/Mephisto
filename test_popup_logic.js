@@ -5420,6 +5420,19 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const block = s.slice(a, b);
     ok('unparseable, empty, illegal and display-only pushes all restore turn', (block.match(/turn = turn_before;/g) || []).length === 4);
 }
+// ---- audit 3.1.328 SYS-1: diagnostics carry the route, never a game id or a username ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = s.indexOf('const DIAG_ROUTE_WORDS'), j = s.indexOf('\n}\n', s.indexOf('function diagnostics_path_shape', i)) + 3;
+    const c = vm.createContext({}); vm.runInContext(s.slice(i, j), c);
+    const f = p => vm.runInContext(`diagnostics_path_shape(${JSON.stringify(p)})`, c);
+    ok('chess.com and lichess game ids become <id>; route words stay',
+       f('/game/live/123456789') === '/game/live/<id>' && f('/AbCdEfGh1234') === '/<id>' && f('/analysis') === '/analysis' && f('/variants/chess960/game/42') === '/variants/chess960/game/<id>',
+       [f('/game/live/123456789'), f('/AbCdEfGh1234')]);
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    ok('the streaming trace line names nobody', /bgLog\('opponent is streaming'\);/.test(cs));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

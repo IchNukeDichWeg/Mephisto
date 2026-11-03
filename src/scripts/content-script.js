@@ -782,7 +782,7 @@ function maybeCheckStreamer() {
         chrome.runtime.sendMessage({streamerLookup: {site, username: name}}, (res) => {
             void chrome.runtime.lastError;
             if (!res || res.error || !res.live) return;
-            bgLog('opponent is streaming', {username: name, channel: res.channel});
+            bgLog('opponent is streaming');   // no name: the trace ring goes into public bug reports
             sendToPanel({streamerNotice: true, username: name, channel: res.channel || null});
         });
     } catch (e) { /* worker asleep; the next game asks again */ }
