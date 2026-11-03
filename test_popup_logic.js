@@ -5611,6 +5611,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('with only game or puzzle tabs open, a background tab is spawned', busy.r.spawned && busy.created.length === 1 && busy.created[0].active === false, busy.r);
     });
 }
+// ---- audit 3.1.328 REVIEW-1: the HTML export leaves hidden sections out ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rv.indexOf("wrap.innerHTML = `<div class=\"row\">"), b = rv.indexOf('// the board\'s pieces are extension URLs', a);
+    const block = rv.slice(a, b);
+    ok('the export removes hidden blocks from the clone instead of un-hiding them',
+       /querySelectorAll\('\.hidden'\)\.forEach\(el => el\.remove\(\)\)/.test(block) && !/classList\.remove\('hidden'\)/.test(block));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

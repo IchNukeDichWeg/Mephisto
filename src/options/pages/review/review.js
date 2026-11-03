@@ -2130,7 +2130,12 @@ async function exportHtml(btn) {
         wrap.innerHTML = `<div class="row"><div class="col s12"><div class="big-section">`
             + $('rv-report').outerHTML + ($('rv-strength')?.outerHTML || '') + $('rv-indicators').outerHTML
             + `</div></div></div>`;
-        wrap.querySelectorAll('.hidden').forEach(el => el.classList.remove('hidden'));
+        // WHAT IS HIDDEN STAYS OUT. The clone used to un-hide everything, but the strength, clock-card
+        // and turning-point renderers only hide a block that has nothing to show and leave the last
+        // review's markup inside it, so game B's export carried game A's clocks, turning point and
+        // strength cards, and an online review the engine-only indicators (audit 3.1.328 REVIEW-1).
+        // Hidden on screen means not part of this report.
+        wrap.querySelectorAll('.hidden').forEach(el => el.remove());
         wrap.querySelectorAll('.rv-nav, .rv-share, .tooltipped .info-tooltip').forEach(el => el.remove());
         wrap.querySelector('#rv_graph_cursor')?.remove();
         wrap.querySelector('#rv_move_detail')?.remove();
