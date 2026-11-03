@@ -224,20 +224,25 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
     // Maia: not a Stockfish WASM build -- a UCI adapter running one onnxruntime forward pass of the
     // selected lc0 Maia net (no search). Same interface, so the panel drives it like any engine.
     if (engineName === 'maia' || engineName === 'maia2' || engineName === 'maia3' || engineName === 'elite-leela') {
+        // These adapters emit through the callback they were built with, so disposeClient replacing
+        // engine.listen silenced nothing: a disposed Maia-2's download progress and its late bestmove
+        // reached the engine that replaced it (audit 3.1.328 ENGINE-2). Gated on this load's epoch,
+        // which a dispose or a newer init bumps.
+        const emit = (line) => { if (!superseded()) send(clientId, { kind: 'line', line }); };
         const engine = engineName === 'maia2'
             // Maia-2 takes BOTH ratings, so it is built with the pair rather than one level.
             ? await (await import('/src/offscreen/maia2.js')).createMaia2Engine(
-                (line) => send(clientId, { kind: 'line', line }), elos?.[0], elos?.[1])
+                emit, elos?.[0], elos?.[1])
             : engineName === 'maia3'
-            ? await (await import('/src/offscreen/maia3.js')).createMaia3Engine((line) => send(clientId, { kind: 'line', line }), maiaLevel)
+            ? await (await import('/src/offscreen/maia3.js')).createMaia3Engine(emit, maiaLevel)
             : engineName === 'elite-leela'
                 // Elite Leela: an lc0 net trained on the Lichess Elite database (2200+ human games),
                 // run the same way Maia is -- one forward pass, policy for the move, its WDL head for
                 // the score. Verified move-for-move against lc0 itself at nodes=1.
                 ? await (await import('/src/offscreen/maia.js')).createMaiaEngine(null,
-                    (line) => send(clientId, { kind: 'line', line }),
+                    emit,
                     { dir: '/lib/engine/elite', file: 'elite-leela.onnx' })
-                : await (await import('/src/offscreen/maia.js')).createMaiaEngine(maiaLevel || '1500', (line) => send(clientId, { kind: 'line', line }));
+                : await (await import('/src/offscreen/maia.js')).createMaiaEngine(maiaLevel || '1500', emit);
         if (superseded()) return abandon(engine);
         clients[clientId] = engine;
         const queued = pending[clientId] || []; delete pending[clientId];

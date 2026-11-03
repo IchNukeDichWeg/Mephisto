@@ -5384,6 +5384,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('ready ends the load and restarts the silence clock', /if \(msg\.kind === 'ready'\) \{ engine_loading_since = 0; last_info_at = Date\.now\(\); return; \}/.test(s));
     ok('offscreen: init drops lines queued for the load it replaces', /if \(cmd === 'init'\) \{[\s\S]{0,400}delete pending\[clientId\];[\s\S]{0,80}startEngine/.test(o));
 }
+// ---- audit 3.1.328 ENGINE-2: a disposed net engine is silenced too ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const o = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8');
+    const a = o.indexOf("const emit = (line) =>"), b = o.indexOf("if (superseded()) return abandon(engine);", a);
+    const block = o.slice(a, b);
+    ok('net adapters emit through an epoch-gated callback, all four', /if \(!superseded\(\)\) send\(clientId/.test(block) && (block.match(/\bemit\b/g) || []).length === 5 && !/\(line\) => send\(clientId/.test(block));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
