@@ -6044,6 +6044,13 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('all six rows follow config, and the skill label with them',
        got.join() === 'aggressive,engine,ffa,4,12,1800' && els.qs_skill_val.textContent === 'Skill 12', [got, els.qs_skill_val.textContent]);
 }
+// ---- audit 3.1.328 OPT-4: the panel's Multi Lines stepper shows or hides the Playstyle row ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = src.indexOf("['qs_lines', 'multiple_lines', v => parseInt(v) || 1],"), b = src.indexOf('if (is_remote()) {', a);
+    ok('the qs_lines change handler calls update_playstyle_row', /if \(key === 'multiple_lines'\) \{[\s\S]{0,300}?update_playstyle_row\(\);/.test(src.slice(a, b + 20)));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

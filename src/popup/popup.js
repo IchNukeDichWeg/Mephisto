@@ -1348,6 +1348,9 @@ function init_quick_settings() {
             if (key === 'threads') queue_engine_option('Threads', value);
             if (key === 'memory') queue_engine_option('Hash', value); // flush_engine_options clamps for WASM
             if (key === 'multiple_lines') {
+                // the Playstyle row follows Multi Lines; the storage listener cannot do it for this
+                // change, because config already holds the value it would compare (audit 3.1.328 OPT-4)
+                update_playstyle_row();
                 if (is_remote()) {
                     remote_multipv_set = effective_multipv();
                     request_remote_configure({MultiPV: remote_multipv_set}).catch(() => { remote_multipv_set = null; });
