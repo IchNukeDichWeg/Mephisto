@@ -5665,6 +5665,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('a batch where nothing replays says so, naming the games', all.rendered === 0 && all.notes.some(([t, e]) => e && /No game could be reviewed: game 1/.test(t)), all.notes);
     });
 }
+// ---- audit 3.1.328 REVIEW-5: an unclaimed repetition mid-game is not a terminal draw ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const c = {console}; c.self = c; vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    vm.runInContext('const Core = self.MephistoReviewCore; const RV_FAIRY_ONLY = [];\n'
+        + rj.slice(rj.indexOf('function buildPositions'), rj.indexOf('function incrementFromTimeControl')), c);
+    const overs = (pgn) => vm.runInContext(`buildPositions(Core.parsePgn(${JSON.stringify(pgn)})[0]).positions.map(p => p.over)`, c);
+    // threefold after 4...Ng8 (start position a third time), then the game goes on
+    const on = overs('1. Nf3 Nf6 2. Ng1 Ng8 3. Nf3 Nf6 4. Ng1 Ng8 5. e4 *');
+    ok('a threefold the game played past is not terminal', on.every(o => o === null), on);
+    const end = overs('1. Nf3 Nf6 2. Ng1 Ng8 3. Nf3 Nf6 4. Ng1 Ng8 1/2-1/2');
+    ok('a threefold that ends the game is still a draw', end[end.length - 1] === 'draw' && end.slice(0, -1).every(o => o === null), end);
+    const mate = overs('1. f3 e5 2. g4 Qh4# 0-1');
+    ok('a mate at the end is untouched', mate[mate.length - 1] === 'mate', mate);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

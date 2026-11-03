@@ -280,6 +280,11 @@ function buildPositions(game, variant = 'chess') {
             efen: efenOf(),
         });
     }
+    // A DRAW IS TERMINAL ONLY WHERE THE GAME ENDED. isGameOver() includes threefold and the 50-move
+    // rule, which are claims: a game that played on past an unclaimed repetition had that position
+    // scored as a dead 0, so the move reaching it lost the mover's whole advantage and showed as a
+    // Miss or Blunder (audit 3.1.328 REVIEW-5). Mid-game, the engine scores it like any other.
+    for (let i = 0; i < positions.length - 1; i++) if (positions[i].over === 'draw') positions[i].over = null;
     return {positions, moves};
 }
 
