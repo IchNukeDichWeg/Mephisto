@@ -141,6 +141,7 @@ function load_language(lang) {
 // thing a language change needs, since every string in the markup carries its key.
 function apply_language() {
     MephistoI18n.apply(PANEL_ROOT);
+    sync_elo_slider();        // its label is written in code, in the language now loaded
     annotate_hotkey_labels(); // the "(A)" suffixes are appended to label text -- redo them after
     update_best_move(null);   // re-render the readout with the new confidence/tablebase suffixes
 }
@@ -1062,6 +1063,7 @@ async function initPanel(root, tabId) {
     if ((config.language || MephistoI18n.DEFAULT_LANG) !== MephistoI18n.DEFAULT_LANG) {
         load_language(config.language).then(() => {
             MephistoI18n.apply(PANEL_ROOT);
+            sync_elo_slider();
             annotate_hotkey_labels();
             init_tooltips(PANEL_ROOT, PANEL_TIP_HOST);
         });
@@ -2026,8 +2028,11 @@ function paint_elo_slider() {
     const v = stops[+eloSlider.value];
     // the right-hand full-strength stop shows the engine's OWN ceiling (SF dev 3190,
     // SF 11 / Fairy 2850), not the internal 3200 sentinel -- stops[len-2] is that max.
-    eloLabel.textContent = v === 0 ? 'Off / Full Strength'
-        : v >= FULL_STRENGTH_ELO ? `${stops[stops.length - 2]}+ / Full Strength` : v;
+    // TRANSLATED HERE, not by a data-i18n on the span: MephistoI18n.apply rewrote the number this
+    // writes, so a non-English panel with a cap of 1500 said "Off / Full Strength" (audit 3.1.328
+    // OPT-6). apply_language repaints it.
+    eloLabel.textContent = v === 0 ? i18n('panel.off_full_strength', 'Off / Full Strength')
+        : v >= FULL_STRENGTH_ELO ? `${stops[stops.length - 2]}+ / ${i18n('panel.full_strength', 'Full Strength')}` : v;
 }
 
 function abandon_search() {

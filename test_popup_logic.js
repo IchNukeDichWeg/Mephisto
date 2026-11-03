@@ -6065,6 +6065,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('the panel toggle and the storage listener both update it',
        /request_tablebase\(last_eval\.fen\);\s*update_tb_show_row\(\);/.test(src) && /if \(key === 'tablebase'\) \{ tablebase_data = null; update_tb_show_row\(\); \}/.test(src));
 }
+// ---- audit 3.1.328 OPT-6: the Elo label keeps the cap in a translated panel ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const html = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
+    const a = src.indexOf('function paint_elo_slider() {'), b = src.indexOf('\n}\n', a) + 3;
+    const label = {textContent: ''}, slider = {value: '0'};
+    const de = {'panel.off_full_strength': 'Aus / Volle Stärke', 'panel.full_strength': 'Volle Stärke'};
+    const c = vm.createContext({PANEL_ROOT: {getElementById: id => (id === 'qs_elo' ? slider : label)}, config: {engine: 'sf'}, elo_stops: () => [0, 1500, 3190, 3200], FULL_STRENGTH_ELO: 3200,
+        i18n: (k, d) => de[k] || d});
+    vm.runInContext(src.slice(a, b), c);
+    c.paint_elo_slider(); const off = label.textContent;
+    slider.value = '3'; c.paint_elo_slider(); const full = label.textContent;
+    slider.value = '1'; c.paint_elo_slider();
+    ok('the label is translated in code: Off, the engine max, and a cap shows its number',
+       off === 'Aus / Volle Stärke' && full === '3190+ / Volle Stärke' && String(label.textContent) === '1500', [off, full, label.textContent]);
+    ok('the span carries no data-i18n for apply() to overwrite, and a language apply repaints it',
+       /<span id="qs_elo_val">/.test(html) && /MephistoI18n\.apply\(PANEL_ROOT\);\s*sync_elo_slider\(\);/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
