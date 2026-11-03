@@ -6051,6 +6051,20 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const a = src.indexOf("['qs_lines', 'multiple_lines', v => parseInt(v) || 1],"), b = src.indexOf('if (is_remote()) {', a);
     ok('the qs_lines change handler calls update_playstyle_row', /if \(key === 'multiple_lines'\) \{[\s\S]{0,300}?update_playstyle_row\(\);/.test(src.slice(a, b + 20)));
 }
+// ---- audit 3.1.328 OPT-5: the Tablebase Display row follows the Tablebase toggle ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = src.indexOf('function update_tb_show_row() {'), b = src.indexOf('\n}\n', a) + 3;
+    const row = {style: {display: 'none'}};
+    const c = vm.createContext({PANEL_ROOT: {getElementById: () => row}, config: {tablebase: true}});
+    vm.runInContext(src.slice(a, b), c);
+    c.update_tb_show_row(); const on = row.style.display;
+    c.config.tablebase = false; c.update_tb_show_row();
+    ok('the row shows with Tablebase on and hides with it off', on === '' && row.style.display === 'none', [on, row.style.display]);
+    ok('the panel toggle and the storage listener both update it',
+       /request_tablebase\(last_eval\.fen\);\s*update_tb_show_row\(\);/.test(src) && /if \(key === 'tablebase'\) \{ tablebase_data = null; update_tb_show_row\(\); \}/.test(src));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

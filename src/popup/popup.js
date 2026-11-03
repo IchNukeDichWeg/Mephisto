@@ -1233,6 +1233,7 @@ function init_quick_settings() {
             if (key === 'tablebase') {
                 tablebase_data = null; // a stale answer must not survive a toggle
                 if (last_eval.fen) request_tablebase(last_eval.fen);
+                update_tb_show_row();
             }
             if (key === 'humanize') {
                 // humanize picks among alternative lines, so it needs MultiPV headroom; re-apply
@@ -1501,8 +1502,7 @@ function init_quick_settings() {
     const tbSel = PANEL_ROOT.getElementById('qs_tb_show');
     if (tbSel) {
         tbSel.value = tb_show();
-        const tbRow = PANEL_ROOT.getElementById('qs_tb_show_row');
-        if (tbRow) tbRow.style.display = config.tablebase ? '' : 'none';
+        update_tb_show_row();
         tbSel.addEventListener('change', () => {
             const v = TB_SHOW_MODES.includes(tbSel.value) ? tbSel.value : 'both';
             config.tablebase_show = v;
@@ -10705,7 +10705,7 @@ function watch_config_changes() {
                 if (key === 'multiple_lines' || key === 'variant') update_playstyle_row();
                 if (key === 'live_stats' || key === 'live_classify' || key === 'class_on_board'
                     || key === 'opp_alert') ensure_classifier();
-                if (key === 'tablebase') tablebase_data = null;       // a stale answer must not survive
+                if (key === 'tablebase') { tablebase_data = null; update_tb_show_row(); }   // a stale answer must not survive
                 // both are painted by the board's render hook; re-render once so a toggle shows now
                 if (key === 'material_balance' || key === 'square_heatmap') { try { board.resize(); } catch (e) { /* */ } }
                 // Display-only: nothing is re-searched, but the board and the evaluation line
@@ -10819,6 +10819,13 @@ function watch_config_changes() {
 
 // Mirror `config` back onto the quick-settings switches, so a change made on the options page shows
 // up on the panel instead of leaving the two disagreeing about what is on.
+// The Tablebase Display row exists for the Tablebase feature, so it shows with it. Set once at init,
+// it ignored the panel's own Tablebase toggle until a reload (audit 3.1.328 OPT-5).
+function update_tb_show_row() {
+    const row = PANEL_ROOT?.getElementById?.('qs_tb_show_row');
+    if (row) row.style.display = config.tablebase ? '' : 'none';
+}
+
 function sync_quick_settings() {
     for (const key in HOTKEY_TOGGLES) {
         const box = PANEL_ROOT.getElementById(HOTKEY_TOGGLES[key]);
