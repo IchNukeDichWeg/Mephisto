@@ -5620,6 +5620,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('the export removes hidden blocks from the clone instead of un-hiding them',
        /querySelectorAll\('\.hidden'\)\.forEach\(el => el\.remove\(\)\)/.test(block) && !/classList\.remove\('hidden'\)/.test(block));
 }
+// ---- audit 3.1.328 REVIEW-2: a native depth review is not capped at 8 s a position ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const en = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const cap = Number(/const NATIVE_DEPTH_CAP_MS = (\d+);/.exec(en)?.[1]);
+    ok('the time sent beside a native depth is a backstop of minutes, not 8 s', cap >= 300000, cap);
+    ok('the request backstop outlives that cap instead of multiplying it',
+       /limitKind === 'depth' \? NATIVE_DEPTH_CAP_MS \+ 30000/.test(en));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

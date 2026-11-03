@@ -421,9 +421,12 @@ class WasmEngine {
 
 // The native hosts, over the service worker's port relay. The host answers a whole `analyse` with
 // its final line list, already white-relative, so there is no UCI parsing on this path at all.
-// How long a depth-mode native search is allowed to take if the host turns out not to understand
-// `depth`. It has to be a real budget rather than a token one: an old host will spend all of it.
-const NATIVE_DEPTH_CAP_MS = 8000;
+// The `time` sent beside `depth`. Every current host applies it as a CEILING with the depth
+// (Limit(depth=, time=)), so at 8 s it cut each hard position short while the header said "depth
+// 26" and one report mixed depths (audit 3.1.328 REVIEW-2). It is a backstop now, not a budget: ten
+// minutes is far past any review depth the box allows on a native engine. A host old enough to
+// ignore `depth` would spend all of it; those predate the depth field by many releases.
+const NATIVE_DEPTH_CAP_MS = 600000;
 // The native stand-in for `go infinite`. A host's `analyse` always carries a budget, so unbounded
 // analysis is one very long request that streams its info frames; this is a ceiling, not a target
 // -- stop() ends it long before, and an hour is the same figure the panel's ponder budget uses.
@@ -478,8 +481,8 @@ class NativeEngine {
                 if (!this.pending.has(id)) return;
                 this.pending.delete(id);
                 reject(new Error('the native host did not answer this position'));
-            }, extra.timeoutMs || Math.max(30000, (this.opts.limitKind === 'depth'
-                ? NATIVE_DEPTH_CAP_MS : (this.opts.limitValue || 300)) * 20));
+            }, extra.timeoutMs || (this.opts.limitKind === 'depth' ? NATIVE_DEPTH_CAP_MS + 30000
+                : Math.max(30000, (this.opts.limitValue || 300) * 20)));
             try { this.port.postMessage({id, cmd, ...data}); } catch (e) { this.pending.delete(id); reject(e); }
         });
     }
