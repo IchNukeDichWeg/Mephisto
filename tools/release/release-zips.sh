@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # PROPOSED replacement for the repo-root release-zips.sh: the full archive stops carrying the nets.
 #
-#   tools/release/release-zips.sh 3.1.316 [ref] [--no-harness]     # ref defaults to master
+#   tools/release/release-zips.sh 3.1.316 [ref] [--no-harness] [--glue-changed]   # ref defaults to master
 #
+# --glue-changed lib/engine or lib/ort changed since the previous release outside the nets. The update
+#                zip leaves those trees out and the updater refuses an archive that has them, so
+#                updated installs would keep the old glue: say in the notes that this release needs
+#                the full zip. Without the flag such a change stops the build.
 # --no-harness   cut the zips without the fixture harness (puppeteer not available here). Said out loud
 #                because the harness is a gate: without the flag, a harness that cannot run stops the
 #                build rather than waving it through on one warning line.
@@ -22,9 +26,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-USAGE="usage: tools/release/release-zips.sh <version> [ref] [--no-harness]"
-POS=(); HARNESS=1
-for a in "$@"; do case "$a" in --no-harness) HARNESS=0;; -*) echo "$USAGE" >&2; exit 1;; *) POS+=("$a");; esac; done
+USAGE="usage: tools/release/release-zips.sh <version> [ref] [--no-harness] [--glue-changed]"
+POS=(); HARNESS=1; GLUE_OK=0
+for a in "$@"; do case "$a" in --no-harness) HARNESS=0;; --glue-changed) GLUE_OK=1;; -*) echo "$USAGE" >&2; exit 1;; *) POS+=("$a");; esac; done
 V="${POS[0]:?$USAGE}"
 REF="${POS[1]:-master}"
 OUT="$(cd .. && pwd)"
@@ -42,6 +46,23 @@ MANIFEST=src/offscreen/engine-assets.json
 # says v3.1.M but the release says v3.1.N"). The zips archive exactly this blob.
 GOT="$(git show "$REF:manifest.json" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).version))')"
 [ "$GOT" = "$V" ] || { echo "!! $REF's manifest.json says $GOT, not $V -- commit the version bump first" >&2; exit 1; }
+
+# THE UPDATE ZIP CANNOT CARRY ENGINE GLUE. It leaves lib/engine and lib/ort out (the nets are ~1 GB)
+# and the updater refuses an archive containing lib/engine, so a changed .js/.wasm/table there, or a
+# new engine directory, never reaches an install that updates in place: old glue under new code, or no
+# glue at all. Nets are exempt -- they come from the assets releases by manifest. Compared with the
+# newest release tag that is not this one; tags are fetched first so a stale clone cannot hide one.
+git fetch -q --tags origin 2>/dev/null || echo "WARNING: could not fetch tags; comparing with the local ones" >&2
+PREV="$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -vx "v$V" | head -1)"
+NETS=(':(exclude,glob)**/*.nnue' ':(exclude,glob)**/*.nnue.part*' ':(exclude,glob)**/*.onnx' ':(exclude,glob)**/*.onnx.part*')
+if [ -n "$PREV" ] && ! git diff --quiet "$PREV" "$REF" -- lib/engine lib/ort "${NETS[@]}"; then
+    git diff --stat "$PREV" "$REF" -- lib/engine lib/ort "${NETS[@]}" >&2
+    if [ $GLUE_OK = 1 ]; then
+        echo "WARNING: --glue-changed -- engine glue changed since $PREV; updated installs keep the old glue. The notes must say to install the full zip." >&2
+    else
+        echo "!! engine glue changed since $PREV, and the update zip cannot carry it -- pass --glue-changed and tell users to install the full zip" >&2; exit 1
+    fi
+fi
 
 # THE LOGIC SUITE GATES THE BUILD: it exits non-zero on any failed check.
 echo "logic suite gate..."
