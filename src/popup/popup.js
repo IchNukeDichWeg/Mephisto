@@ -10827,6 +10827,17 @@ function sync_quick_settings() {
         const el = PANEL_ROOT.getElementById(id);
         if (el && String(el.value) !== String(config[key])) el.value = config[key];
     }
+    // THE REST OF THE LIVE ROWS. The engine already took a Settings-page change to these, but the
+    // panel row kept showing the old value, and stepping Multi Lines from it could jump more than one
+    // line or undo the Settings change (audit 3.1.328 OPT-3).
+    for (const [id, v] of [['qs_playstyle', config.playstyle || 'balanced'], ['qs_tb_show', tb_show()],
+                           ['qs_fourpc_mode', config.fourpc_mode || 'auto'], ['qs_lines', config.multiple_lines],
+                           ['qs_skill', config.skill_level], ['qs_maia2_oppo', config.maia2_oppo_elo]]) {
+        const el = PANEL_ROOT.getElementById(id);
+        if (el && v != null && String(el.value) !== String(v)) el.value = v;
+    }
+    const skLbl = PANEL_ROOT.getElementById('qs_skill_val');
+    if (skLbl && config.skill_level != null) skLbl.textContent = skill_label(config.skill_level);
     apply_search_mode_ui(); // the shared stepper: mode AND the value that mode names
     mark_autoplay_overridden();
 }
