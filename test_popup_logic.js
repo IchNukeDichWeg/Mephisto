@@ -5972,6 +5972,21 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
             first === 0 && asked === 2 && /Tablebase: mate in 3 - Qb7/.test(c.tbEl.textContent), [first, asked, c.tbEl.textContent]));
     });
 }
+// ---- audit 3.1.328 ANALYSIS-7: arrow keys and Space leave the hidden chess board alone ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const a = an.indexOf('function onKey(e) {'), b = an.indexOf('\n}\n', a) + 3;
+    let large = 'shogi';
+    const did = [];
+    const c = vm.createContext({$: () => ({}), largeGame: () => large, cursor: 3, go: (i) => did.push('go' + i), playUci: (u) => did.push(u), topEngineUci: () => 'e2e4'});
+    vm.runInContext(an.slice(a, b), c);
+    const key = (k) => c.onKey({key: k, target: {tagName: 'BODY'}, preventDefault() {}});
+    key('ArrowLeft'); key(' ');
+    const onLarge = did.length;
+    large = null; key('ArrowLeft');
+    ok('on shogi/xiangqi the keys do nothing; on chess they still step', onLarge === 0 && did.join() === 'go2', did);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

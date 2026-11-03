@@ -303,6 +303,9 @@ function applyGame(initial) {
 
 function onKey(e) {
     if (!$('an_board') || /input|textarea|select/i.test(e.target?.tagName || '')) return;
+    // the chess board is only HIDDEN under shogi/xiangqi, so the keys stepped and played moves into
+    // a line nobody could see (audit 3.1.328 ANALYSIS-7)
+    if (largeGame()) return;
     if (e.key === 'ArrowLeft') { go(cursor - 1); e.preventDefault(); }
     else if (e.key === 'ArrowRight') { go(cursor + 1); e.preventDefault(); }
     // Space plays the engine's first choice. Read off the rendered row rather than the last
