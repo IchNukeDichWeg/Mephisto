@@ -1369,7 +1369,7 @@ function drawHintArrows(arrows, region) {
     // was (after a flip they pointed at the mirrored squares) until the engine changed its mind.
     let where = null;
     try {
-        const r = region ? null : getBoard()?.getBoundingClientRect?.();
+        const r = region ? null : clickableBoardBounds();
         if (r) where = [Math.round(r.left), Math.round(r.top), Math.round(r.width), getOrientation()];
     } catch (e) { /* no board to measure: the arrows alone decide */ }
     const key = JSON.stringify([arrows, region || null, where]);
@@ -1680,9 +1680,11 @@ function flushOverlayDraws() {
 // only moved has not resized. Runs only while something is drawn.
 const overlayPlaced = {hint: null, bar: null, moveClass: null};
 let overlayFollowTimer = null, overlayFollowPlace = null;
+// clickableBoardBounds, not getBoard: ChessBase paints on a canvas and has no board element, so the
+// follow timer and the hint key never saw it move (audit 3.1.328 CLICK-5).
 function boardPlace() {
     try {
-        const r = getBoard()?.getBoundingClientRect?.();
+        const r = clickableBoardBounds();
         if (!r) return null;
         return [r.left + window.scrollX, r.top + window.scrollY, r.width, r.height].map(Math.round).join() + getOrientation();
     } catch (e) { return null; }

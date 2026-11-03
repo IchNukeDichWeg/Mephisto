@@ -5144,7 +5144,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const body = src.slice(a, src.indexOf('function dropPendingOverlay(kind)', a));
     let rect = {left: 10, top: 10, width: 400, height: 400}, tick = null, cleared = 0;
     const log = [];
-    const c = {window: {scrollX: 0, scrollY: 0}, Math, getBoard: () => ({getBoundingClientRect: () => rect}), getOrientation: () => 'white',
+    const c = {window: {scrollX: 0, scrollY: 0}, Math, clickableBoardBounds: () => rect, getOrientation: () => 'white',
         setInterval: (f) => { tick = f; return 1; }, clearInterval: () => { cleared++; tick = null; },
         drawHintArrows: (a, r) => log.push('hint:' + a), drawEvalBar: () => log.push('bar'), drawMoveClass: () => log.push('class')};
     vm.runInNewContext(body + ';this.follow = overlayFollow;', c);
@@ -5229,6 +5229,17 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const body = s.slice(a, b);
     const set = body.indexOf('halfClicked = move.substring(0, 2);'), wait = body.indexOf('await promiseTimeout(dueSecond)');
     ok('click pair: halfClicked is set before the between-clicks wait and cleared after the to-click', set > 0 && set < wait && /halfClicked = null;\s*\/\/ both clicks landed/.test(body));
+}
+// ---- audit 3.1.328 CLICK-5: overlays follow the ChessBase canvas board too ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = s.indexOf('function boardPlace() {'), j = s.indexOf('\n}\n', i) + 3;
+    const c = vm.createContext({window: {scrollX: 0, scrollY: 0}, Math, getOrientation: () => 'white',
+        clickableBoardBounds: () => ({left: 10, top: 20, width: 400, height: 400}), getBoard: () => undefined});
+    vm.runInContext(s.slice(i, j), c);
+    ok('boardPlace measures through clickableBoardBounds (ChessBase has no board element)', vm.runInContext('boardPlace()', c) === '10,20,400,400white', vm.runInContext('boardPlace()', c));
+    ok('the hint key measures the same way', /const r = region \? null : clickableBoardBounds\(\);/.test(s));
 }
 // ==== END FIX CHECKS ====
 
