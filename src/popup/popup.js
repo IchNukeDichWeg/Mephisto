@@ -1720,25 +1720,27 @@ function maia2_kick(line) {
     // arrives, so a long window never plays a stale move. It must be long: the first kick pays
     // the :m2 client's own net load (seconds for the Maia-3 transformer), and 5s dropped the
     // first premove opportunity of the game on exactly the engine this feature is for.
-    maia2.pending = {fen, line, timer: setTimeout(() => { if (maia2) maia2.pending = null; }, 12000)};
+    // Numbered, because the answers come back in order but carry no position: two kicks in flight
+    // (the first paying the net load) answered the NEWEST question with the OLDEST answer, and the
+    // fen check compared the current position with itself (audit 3.1.328 ENGINE-4).
+    maia2.sent = (maia2.sent || 0) + 1;
+    maia2.pending = {fen, line, seq: maia2.sent, timer: setTimeout(() => { if (maia2) maia2.pending = null; }, 12000)};
     try {
         chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'uci', line: `position fen ${fen2}`});
         chrome.runtime.sendMessage({toOffscreen: true, clientId: maia2_client(), cmd: 'uci', line: 'go'});
-    } catch (e) { maia2.pending = null; }
+    } catch (e) { maia2.pending = null; maia2.sent--; }
 }
 
 function maia2_on_line(text) {
-    if (!maia2 || !maia2.pending) return; // late or duplicate answer, or already timed out
-    const m = /^bestmove ([a-h][1-8][a-h][1-8][qrbn]?)$/.exec(text || '');
-    if (!m) {
-        // mate/stalemate after the prediction answers "(none)": there is no reply to premove,
-        // so free the slot now instead of letting it sit until the timer does
-        if (/^bestmove \(none\)/.test(text || '')) { clearTimeout(maia2.pending.timer); maia2.pending = null; }
-        return;                           // the second client's info lines are noise here
-    }
+    if (!maia2 || !/^bestmove /.test(text || '')) return;   // the second client's info lines are noise here
+    maia2.answered = (maia2.answered || 0) + 1;              // counted even late: it pairs answers to kicks
     const p = maia2.pending;
+    if (!p || maia2.answered !== p.seq) return;              // timed out, or the answer to an older kick
     clearTimeout(p.timer);
     maia2.pending = null;
+    // mate/stalemate after the prediction answers "(none)": there is no reply to premove
+    const m = /^bestmove ([a-h][1-8][a-h][1-8][qrbn]?)$/.exec(text);
+    if (!m) return;
     // the game moved on while the net was thinking -> the answer belongs to a dead position
     if (premove_tracker.fen !== p.fen || premove_tracker.premoved) return;
     p.line.reply = m[1];

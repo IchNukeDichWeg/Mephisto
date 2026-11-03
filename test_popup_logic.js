@@ -113,7 +113,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         vm.runInContext(`
             var premove_tracker = {fen: 'FEN_A', premoved: false};
             var maybe_premove_forced_reply = (l) => calls.push(l);
-            var maia2 = {pending: {fen: 'FEN_A', line: {pred: 'e7e5'}, timer: 0}};
+            var maia2 = {pending: {fen: 'FEN_A', line: {pred: 'e7e5'}, timer: 0, seq: 1}};
             maia2_on_line('info depth 1 multipv 1 score cp 12 pv g1f3'); // noise first
             maia2_on_line('bestmove g1f3');
         `, mctx);
@@ -125,7 +125,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         vm.runInContext(`
             calls.length = 0;
             premove_tracker = {fen: 'FEN_NEW', premoved: false};
-            maia2 = {pending: {fen: 'FEN_OLD', line: {pred: 'e7e5'}, timer: 0}};
+            maia2 = {pending: {fen: 'FEN_OLD', line: {pred: 'e7e5'}, timer: 0, seq: 1}};
             maia2_on_line('bestmove g1f3');
         `, mctx);
         if (mctx.calls.length === 0) console.log('ok   maia2_on_line: a stale answer (position moved on) is dropped');
@@ -133,7 +133,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         vm.runInContext(`
             calls.length = 0;
             premove_tracker = {fen: 'FEN_A', premoved: false};
-            maia2 = {pending: {fen: 'FEN_A', line: {pred: 'e7e5'}, timer: 0}};
+            maia2 = {pending: {fen: 'FEN_A', line: {pred: 'e7e5'}, timer: 0, seq: 1}};
             maia2_on_line('bestmove (none)');
         `, mctx);
         const freed = vm.runInContext('maia2.pending === null && calls.length === 0', mctx);
@@ -5397,6 +5397,20 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const m = fs.readFileSync(ROOT + '/src/offscreen/maia2.js', 'utf8');
     ok('a rejected opening load clears the cached promise', /createMaia3Engine\(listen, selfElo\)\)\s*\.catch\(e => \{ opening = null; throw e; \}\);/.test(m));
+}
+// ---- audit 3.1.328 ENGINE-4: a Maia premove answer is paired with the kick that asked it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = s.indexOf('function maia2_on_line(text) {'), j = s.indexOf('\n}\n', i) + 3;
+    const fired = [];
+    const c = vm.createContext({clearTimeout() {}, premove_tracker: {fen: 'F2', premoved: false}, maybe_premove_forced_reply: l => fired.push(l.reply),
+        maia2: {sent: 2, answered: 0, pending: {fen: 'F2', seq: 2, line: {pred: 'e7e5'}, timer: 1}}});
+    vm.runInContext(s.slice(i, j), c);
+    vm.runInContext(`maia2_on_line('bestmove a2a3')`, c);
+    ok('the answer to the older kick is not taken for the newest question', fired.length === 0 && c.maia2.pending);
+    vm.runInContext(`maia2_on_line('bestmove g1f3')`, c);
+    ok('the newest answer is', fired.join() === 'g1f3' && !c.maia2.pending, fired);
 }
 // ==== END FIX CHECKS ====
 
