@@ -6027,6 +6027,23 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('an options-page native engine configures full strength, standard castling and no personality',
        /UCI_Variant: 'chess', UCI_Chess960: false, UCI_LimitStrength: false, Personality: '---',/.test(en));
 }
+// ---- audit 3.1.328 OPT-3: a Settings-page change shows in the open panel's own rows ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = src.indexOf('function sync_quick_settings() {'), b = src.indexOf('\n}\n', a) + 3;
+    const els = {};
+    for (const id of ['qs_playstyle', 'qs_tb_show', 'qs_fourpc_mode', 'qs_lines', 'qs_skill', 'qs_maia2_oppo']) els[id] = {value: 'old'};
+    els.qs_skill_val = {textContent: 'old'};
+    const c = vm.createContext({HOTKEY_TOGGLES: {}, PANEL_ROOT: {getElementById: id => els[id] || null}, String,
+        config: {playstyle: 'aggressive', fourpc_mode: 'ffa', multiple_lines: 4, skill_level: 12, maia2_oppo_elo: 1800},
+        tb_show: () => 'engine', skill_label: v => 'Skill ' + v, apply_search_mode_ui() {}, mark_autoplay_overridden() {}});
+    vm.runInContext(src.slice(a, b), c);
+    c.sync_quick_settings();
+    const got = ['qs_playstyle', 'qs_tb_show', 'qs_fourpc_mode', 'qs_lines', 'qs_skill', 'qs_maia2_oppo'].map(id => String(els[id].value));
+    ok('all six rows follow config, and the skill label with them',
+       got.join() === 'aggressive,engine,ffa,4,12,1800' && els.qs_skill_val.textContent === 'Skill 12', [got, els.qs_skill_val.textContent]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
