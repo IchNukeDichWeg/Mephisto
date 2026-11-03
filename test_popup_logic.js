@@ -5716,6 +5716,18 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     els.rv_limit_num.value = '0'; c.syncLimitUi(true);
     ok('change still clamps and writes back', els.rv_limit_num.value === '0.1' && saved.rv_limit_value === 100, els.rv_limit_num.value);
 }
+// ---- audit 3.1.328 REVIEW-8: Fit Humanize counts the engine's own move as top ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rv.indexOf('function fitHumanize('), b = rv.indexOf('function renderReport()', a);
+    const c = vm.createContext({MephistoConfig: {get: () => undefined}, Number, Math, parseFloat,
+        FIT_ORDER: ['second', 'third', 'fourth', 'inaccuracy', 'mistake', 'blunder']});
+    vm.runInContext(rv.slice(a, b), c);
+    const moves = [{color: 'w', cpLoss: 6, rank: 1}, {color: 'w', cpLoss: 0, rank: 1}, {color: 'w', cpLoss: 12, rank: 2}, {color: 'w', cpLoss: 3, rank: null}];
+    const r = c.fitHumanize(moves, 'w');
+    ok('a rank-1 move with a few cp of drift is top, a rank-2 move still lands in second', r.pct.top === 50 && r.pct.second === 50, r.pct);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

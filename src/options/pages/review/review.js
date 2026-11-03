@@ -1026,7 +1026,11 @@ function fitHumanize(moves, colour) {
         if (m.klass === 'book' || m.klass === 'forced') continue;
         if (m.cpLoss == null) continue;
         n++;
-        if (m.cpLoss <= 0) { counts.top++; continue; }
+        // THE ENGINE'S MOVE IS TOP whatever its cpLoss says. cpLoss is evalBefore minus evalAfter from
+        // two separate searches, so a rank-1 move usually drifts a few cp positive and was counted in
+        // the 0-40 "second" band: the fitted top share came out below how often the player really
+        // played the best move, and second inflated by the same amount (audit 3.1.328 REVIEW-8).
+        if (m.rank === 1 || m.cpLoss <= 0) { counts.top++; continue; }
         let placed = false;
         let lo = 0;
         for (const k of FIT_ORDER) {
