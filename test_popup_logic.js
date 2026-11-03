@@ -6094,6 +6094,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('English config with a German table in memory reloads English; English over English does nothing; German loads',
        !!m && cond(undefined, 'de') === true && cond(undefined, 'en') === false && cond('de', 'en') === true, m && m[1]);
 }
+// ---- audit 3.1.328 OPT-8: clearing a hotkey removes its hint from the panel ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = src.indexOf('function annotate_hotkey_labels() {'), b = src.indexOf('\n}\n', a) + 3;
+    const removed = [];
+    const hk = {remove: () => removed.push('row')}, barHk = {remove: () => removed.push('bar')};
+    const label = {querySelector: (s) => (s === '.qs-hk' ? hk : null)};
+    const input = {closest: () => ({querySelector: () => label})};
+    const btn = {dataset: {baseTitle: 'Minimise'}, title: 'Minimise (M)', querySelector: (s) => (s === '.mephisto-bar-hk' ? barHk : null)};
+    const c = vm.createContext({MephistoConfig: {hotkeys: () => ({autoplay: '', compact: '', minimize: ''})}, HOTKEY_TOGGLES: {autoplay: 'qs_autoplay'},
+        PANEL_ROOT: {getElementById: () => input, querySelector: (s) => (s === '.mephisto-overlay-min' ? btn : null)}, hotkey_pretty: k => k});
+    vm.runInContext(src.slice(a, b), c);
+    c.annotate_hotkey_labels();
+    ok('the row hint and the title-bar hint go, and the button title loses its key', removed.join() === 'row,bar' && btn.title === 'Minimise', [removed, btn.title]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

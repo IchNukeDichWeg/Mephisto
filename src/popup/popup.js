@@ -9292,7 +9292,10 @@ function annotate_hotkey_labels() {
     for (const action in HOTKEY_TOGGLES) {
         const input = PANEL_ROOT.getElementById(HOTKEY_TOGGLES[action]);
         const label = input?.closest('.qs-row')?.querySelector('.qs-label');
-        if (!label || !keys[action]) continue;
+        if (!label) continue;
+        // A CLEARED BINDING TAKES ITS HINT WITH IT. The empty-binding `continue` used to come first,
+        // so a key removed in the hotkey editor kept its "(A)" on the row (audit 3.1.328 OPT-8).
+        if (!keys[action]) { label.querySelector('.qs-hk')?.remove(); continue; }
         // UPDATED, not skipped-if-present. Skipping meant a key rebound on the settings page kept
         // advertising the old one until the panel was rebuilt -- a label that lies about a shortcut
         // is worse than no label.
@@ -9311,7 +9314,12 @@ function annotate_hotkey_labels() {
     for (const [action, cls] of [['compact', 'mephisto-overlay-compact'],
                                  ['minimize', 'mephisto-overlay-min']]) {
         const el = PANEL_ROOT.querySelector?.(`.${cls}`);
-        if (!el || !keys[action]) continue;
+        if (!el) continue;
+        if (!keys[action]) {   // ...and on the title bar, back to the plain tooltip
+            el.querySelector('.mephisto-bar-hk')?.remove();
+            if (el.dataset.baseTitle !== undefined) el.title = el.dataset.baseTitle;
+            continue;
+        }
         const key = hotkey_pretty(keys[action]);
         let hk = el.querySelector('.mephisto-bar-hk');
         if (!hk) {
