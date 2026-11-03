@@ -33,8 +33,8 @@ const ENGINES = [
     // per-variant net and validates the variant against the engine's own declared list.
     {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish 14 (WASM)', kind: 'wasm'},
     {id: 'fairy-native', label: 'Fairy-Stockfish (native)', kind: 'native'},
-    // No WASM twin, so it sits after the twin pairs. A review runs it at whichever personality the
-    // host was last given (the panel's setting when both are open, the engine's default otherwise).
+    // No WASM twin, so it sits after the twin pairs. A review runs it with no personality, on its
+    // own host process (see NativeEngine.start).
     {id: 'rodent-native', label: 'Rodent IV (native)', kind: 'native'},
 ];
 
@@ -466,9 +466,14 @@ class NativeEngine {
             this.pending.clear();
             this.port = null;
         });
+        // A NEUTRAL ENGINE, said out loud. The host keeps whatever it was last configured with and an
+        // engine can boot weakened (Rodent IV starts with UCI_LimitStrength on), so a review or
+        // analysis states full strength and no style; options the engine does not declare are
+        // dropped by the host (audit 3.1.328 OPT-2). No Skill Level: its top differs by engine, and
+        // with its own host process nothing here ever lowered it.
         await this.request('configure', {options: {
             MultiPV: this.opts.multipv, Threads: this.opts.threads, Hash: this.opts.hash,
-            UCI_Variant: 'chess',
+            UCI_Variant: 'chess', UCI_Chess960: false, UCI_LimitStrength: false, Personality: '---',
         }});
     }
 

@@ -2501,9 +2501,11 @@ function workerLoadLine() {
   ].join('  ');
 }
 
+// `name` is a relay key: the engine's port name, or `<engine>#options` for the options pages (see
+// onConnect below); the host is chosen by the engine part.
 function ensureNative(name) {
   if (nativePorts[name]) return nativePorts[name];
-  const {app, label} = NATIVE_HOSTS[name];
+  const {app, label} = NATIVE_HOSTS[name.split('#')[0]];
   const np = chrome.runtime.connectNative(app);
   nativePorts[name] = np;
   const peers = () => popupPortsByName[name] || new Set();
@@ -2540,7 +2542,13 @@ function ensureNative(name) {
 
 chrome.runtime.onConnect.addListener(port => {
   if (!NATIVE_HOSTS[port.name]) return;
-  const name = port.name;
+  // THE OPTIONS PAGES GET THEIR OWN HOST PROCESS. The host keeps every option it is configured with,
+  // and one process per engine was shared by the panel and Game Review / Analysis: a review ran at
+  // the panel's Elo cap, Skill Level or Rodent personality with nothing on screen saying so, and the
+  // review's own configure reset the live game's Threads, Hash, MultiPV and variant (audit 3.1.328
+  // OPT-2). Separate keys, separate processes; the panel and the toolbar popup still share one.
+  const fromOptions = /\/src\/options\//.test(port.sender?.url || '');
+  const name = fromOptions ? `${port.name}#options` : port.name;
   (popupPortsByName[name] = popupPortsByName[name] || new Set()).add(port);
   port.onDisconnect.addListener(() => {
     popupPortsByName[name].delete(port);

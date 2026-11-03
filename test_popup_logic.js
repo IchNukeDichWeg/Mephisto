@@ -6006,6 +6006,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     pending[0][1]({moves: []});                        // a late EMPTY answer for A
     ok('a late empty answer does not count toward the out-of-book latch', c.explorer_empty_streak === 0, c.explorer_empty_streak);
 }
+// ---- audit 3.1.328 OPT-2: options-page native engines run on their own, neutral host process ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = bg.indexOf('function ensureNative(name) {'), b = bg.indexOf('// ===== IS THE OPPONENT STREAMING?', a);
+    const hosts = [], listeners = [];
+    const mkPort = (name, url) => { const p = {name, sender: {url}, sent: [], postMessage(m) { p.sent.push(m); }, onDisconnect: {addListener(f) { p.bye = f; }}, onMessage: {addListener(f) { p.hear = f; }}}; return p; };
+    const c = vm.createContext({NATIVE_HOSTS: {'sf-native': {app: 'com.x.sf', label: 'Stockfish'}}, nativePorts: {}, popupPortsByName: {}, nativeRequestOwner: new Map(),
+        nativeSeq: 0, nativeFramesIn: 0, nativeFramesRecent: [], nativeFramesOut: 0, sweepNativeOwners() {}, nativeTrace() {}, console, Date,
+        chrome: {runtime: {lastError: null, onConnect: {addListener: (f) => listeners.push(f)},
+            connectNative: (app) => { const h = {app, got: [], postMessage(m) { h.got.push(m); }, onMessage: {addListener() {}}, onDisconnect: {addListener() {}}, disconnect() {}}; hosts.push(h); return h; }}}});
+    vm.runInContext(bg.slice(a, b), c);
+    const panel = mkPort('sf-native', 'https://lichess.org/abc'), popup = mkPort('sf-native', 'chrome-extension://id/src/popup/popup.html'),
+          review = mkPort('sf-native', 'chrome-extension://id/src/options/options.html#review');
+    for (const p of [panel, popup, review]) { listeners[0](p); p.hear({id: 1, cmd: 'configure', options: {}}); }
+    ok('the panel and the toolbar popup share one host; Review gets its own', hosts.length === 2 && hosts[0].got.length === 2 && hosts[1].got.length === 1
+       && Object.keys(c.nativePorts).sort().join() === 'sf-native,sf-native#options', Object.keys(c.nativePorts));
+    const en = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    ok('an options-page native engine configures full strength, standard castling and no personality',
+       /UCI_Variant: 'chess', UCI_Chess960: false, UCI_LimitStrength: false, Personality: '---',/.test(en));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
