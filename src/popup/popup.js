@@ -1060,8 +1060,12 @@ async function initPanel(root, tabId) {
     // Re-running the two calls above afterwards is required, not tidiness: annotate_hotkey_labels
     // APPENDS the "(A)" suffix to label text, and Materialize snapshots data-tooltip when a tooltip
     // is initialised, so both have to be redone against the translated markup.
-    if ((config.language || MephistoI18n.DEFAULT_LANG) !== MephistoI18n.DEFAULT_LANG) {
-        load_language(config.language).then(() => {
+    // ...OR WHEN THE TABLE IN MEMORY IS ANOTHER LANGUAGE. A panel rebuilt in the same content-script
+    // context keeps the MephistoI18n table it had, so after Restore Defaults (language removed, so
+    // English) the markup was English and every t() string still German (audit 3.1.328 OPT-7).
+    const wantLang = config.language || MephistoI18n.DEFAULT_LANG;
+    if (wantLang !== MephistoI18n.DEFAULT_LANG || MephistoI18n.lang !== MephistoI18n.DEFAULT_LANG) {
+        load_language(wantLang).then(() => {
             MephistoI18n.apply(PANEL_ROOT);
             sync_elo_slider();
             annotate_hotkey_labels();
