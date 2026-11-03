@@ -2758,6 +2758,10 @@ const EE_THREADS = 1;     // ...on one thread, as their four single-threaded wor
 // dropped the dev target the day 19 released). The number is NOT re-measured: it says a full net
 // beats a small one at this job, which is the reason the pin exists, and 19 is the full net now.
 const EE_ENGINE = 'stockfish-19-nnue';
+// Named from the table, so the status line and the Stockfish row say what actually searched: both
+// said "Stockfish 18 Small" after EE_ENGINE moved to 19, while the report header named 19
+// (audit 3.1.328 REVIEW-14).
+const eeEngineLabel = () => ENGINES.find(e => e.id === EE_ENGINE)?.label || EE_ENGINE;
 
 function eeElo(tags, color) {
     const raw = Number(tags?.[color === 'w' ? 'WhiteElo' : 'BlackElo']);
@@ -3113,7 +3117,7 @@ class ReviewPage {
                 ? `chess.com\u2019s ${sfNiceName(build)} ready (${(have.bytes / 1048576).toFixed(1)} MB) - the review now uses their engine as well as their classifier.`
                 : sfBuildNow() === SF16_BUILD
                     ? `${sfNiceName(build)} is required for this budget: it IS chess.com\u2019s Game Review engine, and ours at the same seconds would be a different engine.`
-                    : 'Optional. Without it the classifier is fed our Stockfish 18 Small, which differs from theirs by a few moves a game.');
+                    : `Optional. Without it the classifier is fed our ${eeEngineLabel()}, which differs from theirs by a few moves a game.`);
             return have;
         };
         sfSync();
@@ -3211,7 +3215,7 @@ class ReviewPage {
                 renderBatch();
                 progress(1, 'done');
                 const how = sf ? 'their engine and their classifier'
-                    : 'their classifier, our engine (Stockfish 18 Small)';
+                    : `their classifier, our engine (${eeEngineLabel()})`;
                 eeSay(`Classified by ${how}, v${eeInstalled}.`);   // the game's sentence renders in the header
                 $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});
             } catch (e) {

@@ -5800,6 +5800,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('the online path drops batchReports and re-renders the batch section before drawing',
        /batchReports = null;\s*report = built;\s*renderBatch\(\);/.test(rv.slice(a, b)), rv.slice(a, b));
 }
+// ---- audit 3.1.328 REVIEW-14: the classifier fallback names the engine that searched ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const en = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const ee = /const EE_ENGINE = '([^']+)';/.exec(rv)?.[1];
+    const label = new RegExp(`\\{id: '${ee}', label: '([^']+)'`).exec(en)?.[1];
+    ok('no hard-coded engine name left in the classifier strings, and EE_ENGINE has a label to read',
+       !/'[^']*\(Stockfish 18 Small\)'|fed our Stockfish 18 Small/.test(rv) && /our engine \(\$\{eeEngineLabel\(\)\}\)/.test(rv) && !!label, [ee, label]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
