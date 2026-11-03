@@ -5342,6 +5342,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /if \(tb_ok \|\| book_ok\) pick\.move = played;\s*else if \(pick\.move === best && played !== best\) pick\.move = played;/.test(s)
        && !/if \(tb_ok \|\| played !== best\) pick\.move = played;/.test(s));
 }
+// ---- audit 3.1.328 PLAY-4: a position answered by an instant premove reply is not played again ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const sent = s.indexOf('instant_reply_fen = fen;'), req = s.indexOf('request_automove(instant);');
+    ok('the instant reply records its position before sending', sent > 0 && sent < req && req - sent < 80);
+    ok('on_new_pos clears it, and the search path skips that position',
+       /function on_new_pos\(fen, startFen, moves\) \{\s*instant_reply_fen = null;/.test(s)
+       && /if \(isTerminal && config\.autoplay && instant_reply_fen && instant_reply_fen === last_eval\.fen\) \{/.test(s));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

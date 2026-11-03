@@ -868,6 +868,7 @@ async function initPanel(root, tabId) {
                     // click the opponent's move or an illegal move -- discard it, normal search plays.
                     if (premove_reply_playable(fen, instant)) {
                         console.log('Premove: certified instant reply', instant);
+                        instant_reply_fen = fen;
                         request_automove(instant);
                     } else {
                         console.warn('Mephisto: discarding premove reply not playable in this position:', instant);
@@ -2417,7 +2418,9 @@ function on_engine_best_move(best, threat, isTerminal=false) {
             console.warn('Mephisto: NOT autoplaying', best,
                 config.help_mode ? '-- Help Mode is on' : '-- Manual Mode is on');
         }
-        if (!config.help_mode && !config.manual_mode && config.autoplay && isTerminal) {
+        if (isTerminal && config.autoplay && instant_reply_fen && instant_reply_fen === last_eval.fen) {
+            console.log('Mephisto: this position was answered by the instant premove reply -- not playing', best);
+        } else if (!config.help_mode && !config.manual_mode && config.autoplay && isTerminal) {
             // SAFETY: only autoplay a move that actually moves OUR piece and is legal right now.
             // If the turn was mis-scraped we'd otherwise play the opponent's best move as ours.
             // AUTO RESIGN / AUTO DRAW go in FRONT of the move: a game we are ending is not one we
@@ -5501,7 +5504,14 @@ function show_puzzle_answer(uci) {
     if (npsEl) npsEl.textContent = '';
 }
 
+// The position a certified instant premove reply was sent for. That position's own search still runs
+// and finishes inside the reply's click session, and played the move path a second time: Session
+// Stats counted the move twice and a countdown ran for a move already made (audit 3.1.328 PLAY-4).
+// Cleared on every new position, so a repetition later is played normally.
+let instant_reply_fen = null;
+
 function on_new_pos(fen, startFen, moves) {
+    instant_reply_fen = null;
     held_eval_line = null;   // a reading held for the PREVIOUS position is not this one's
     // Taken here and held in a LOCAL for the whole call: whichever push brought us in, that is the
     // one this position belongs to, and nothing that happens below can attach it to a different one.
