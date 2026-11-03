@@ -5392,6 +5392,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const block = o.slice(a, b);
     ok('net adapters emit through an epoch-gated callback, all four', /if \(!superseded\(\)\) send\(clientId/.test(block) && (block.match(/\bemit\b/g) || []).length === 5 && !/\(line\) => send\(clientId/.test(block));
 }
+// ---- audit 3.1.328 ENGINE-3: Maia-2's opening net is not cached as a failure ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const m = fs.readFileSync(ROOT + '/src/offscreen/maia2.js', 'utf8');
+    ok('a rejected opening load clears the cached promise', /createMaia3Engine\(listen, selfElo\)\)\s*\.catch\(e => \{ opening = null; throw e; \}\);/.test(m));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

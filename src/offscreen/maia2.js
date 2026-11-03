@@ -105,7 +105,10 @@ export async function createMaia2Engine(listen, initialSelf, initialOppo) {
         if (plyOfFen(board.fen()) < MAIA2_FIRST_PLY) {
             // The promise is what is kept: two gos during the first load built two sessions, and only
             // the last was ever released.
-            opening = opening || import('/src/offscreen/maia3.js').then(m => m.createMaia3Engine(listen, selfElo));
+            // A failed load is not kept: a rejected promise answered every later opening position
+            // with "could not answer" until the engine was rebuilt (audit 3.1.328 ENGINE-3).
+            opening = opening || import('/src/offscreen/maia3.js').then(m => m.createMaia3Engine(listen, selfElo))
+                .catch(e => { opening = null; throw e; });
             const net = await opening;
             net.uci(`setoption name SelfElo value ${selfElo}`);
             net.uci(`setoption name OppoElo value ${oppoElo}`);
