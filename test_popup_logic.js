@@ -5221,6 +5221,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const body = s.slice(a, b);
     ok('4PC click: asks moveHeldBack before clicking and defers a hidden tab', /const held = moveHeldBack\(\);/.test(body) && /deferredWhileHidden = true/.test(body));
 }
+// ---- audit 3.1.328 CLICK-2: the half-click is recorded when the from-click lands ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = s.indexOf("await simulateClickSquare(getBoundsFromCoords(move.substring(0, 2)), 0.8, pathA);"), b = s.indexOf('const dueEnd = (approachMs + travelMs)', a);
+    const body = s.slice(a, b);
+    const set = body.indexOf('halfClicked = move.substring(0, 2);'), wait = body.indexOf('await promiseTimeout(dueSecond)');
+    ok('click pair: halfClicked is set before the between-clicks wait and cleared after the to-click', set > 0 && set < wait && /halfClicked = null;\s*\/\/ both clicks landed/.test(body));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

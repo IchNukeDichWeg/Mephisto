@@ -5516,15 +5516,19 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         // resuming between awaits (measured: workerMs 1466 with only 132ms of it inside
         // chrome.debugger). A deadline kept on this side survives that; one kept there does not.
         await simulateClickSquare(getBoundsFromCoords(move.substring(0, 2)), 0.8, pathA);
+        // Recorded the moment the from-click lands, not when this session finds it was superseded:
+        // the real move reads it synchronously at its start, before this session resumes from the
+        // await below, so a flag set on discovery was always read as empty (audit 3.1.328 CLICK-2).
+        halfClicked = move.substring(0, 2);
         const dueSecond = approachMs - (Date.now() - started);
         if (dueSecond > 0) await promiseTimeout(dueSecond);
         // the pause between the clicks is the widest window for a supersede -- check again
         if (sessionGen !== undefined && sessionGen !== moveGen) {
             lastAimed = `${move}->HALF-CLICKED then superseded (from-click only)`;
-            halfClicked = move.substring(0, 2);
             return false;
         }
         await simulateClickSquare(getBoundsFromCoords(move.substring(2)), 0.8, pathB);
+        if (halfClicked === move.substring(0, 2)) halfClicked = null;   // both clicks landed
         const dueEnd = (approachMs + travelMs) - (Date.now() - started);
         if (dueEnd > 0) await promiseTimeout(dueEnd);
     }
