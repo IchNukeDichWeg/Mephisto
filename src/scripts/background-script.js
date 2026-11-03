@@ -1422,10 +1422,21 @@ function ccrWaitComplete(tabId, timeoutMs) {
 // The socket must run in a logged-in chess.com tab (native Origin + first-party session cookie). If
 // one is already open we borrow it; otherwise we open one in the BACKGROUND -- the session cookie
 // lives in the browser profile, so a fresh tab carries it -- and the caller closes it again after.
+// NEVER A TAB WITH A GAME IN IT. The review socket is opened by `new WebSocket` in the tab's MAIN
+// world, through the page's own window.WebSocket, so borrowing the first chess.com tab could open it
+// inside a live game, where a page wrapper (chess.com's telemetry, or our own puzzle probe) sees a
+// review socket the page never started (audit 3.1.328 PAGE-7). Only a tab on some other page is
+// borrowed; otherwise a background tab is spawned, as when none is open.
+const CCR_BUSY_PATH = /^\/(game|play|live|daily|variants|puzzles?)(\/|$)/;
+function ccrCalmTab(t) {
+  if (t.id == null) return false;
+  try { return !CCR_BUSY_PATH.test(new URL(t.url || t.pendingUrl || '').pathname); } catch (e) { return false; }
+}
+
 async function ccrEnsureTab() {
   let tabs = [];
   try { tabs = await chrome.tabs.query({url: ['*://www.chess.com/*', '*://chess.com/*']}); } catch (e) { /* */ }
-  const existing = tabs.find((t) => t.id != null);
+  const existing = tabs.find(ccrCalmTab);
   if (existing) return {tab: existing, spawned: false};
   let tab;
   try { tab = await chrome.tabs.create({url: 'https://www.chess.com/', active: false}); }

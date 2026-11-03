@@ -5590,6 +5590,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('ChessBase wires only cb', cb.listening.includes('xcbs') && !cb.listening.some(n => /^x(puz|tt)/.test(n)) && cb.sent.length === 0, cb);
     ok('lichess still takes puz and replays on it, and nothing else', li.listening.includes('xpuzp') && li.sent.includes('xpuzr') && !li.listening.some(n => /^x(tt|cb)/.test(n)), li);
 }
+// ---- audit 3.1.328 PAGE-7: the review socket never borrows a tab with a game in it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = bg.indexOf('const CCR_BUSY_PATH'), b = bg.indexOf('// ONE REVIEW AT A TIME', a);
+    const run = (urls) => {
+        const created = [];
+        const c = vm.createContext({URL, ccrWaitComplete: async () => {}, chrome: {tabs: {
+            query: async () => urls.map((u, i) => ({id: i + 1, url: u})),
+            create: async (o) => { created.push(o); return {id: 99}; }}}});
+        vm.runInContext(bg.slice(a, b), c);
+        return vm.runInContext('ccrEnsureTab()', c).then(r => ({r, created}));
+    };
+    Promise.all([
+        run(['https://www.chess.com/game/live/123', 'https://www.chess.com/analysis']),
+        run(['https://www.chess.com/game/live/123', 'https://www.chess.com/puzzles/rated']),
+    ]).then(([mixed, busy]) => {
+        ok('a calm chess.com tab is borrowed ahead of a live game', mixed.r.tab.id === 2 && !mixed.r.spawned && mixed.created.length === 0, mixed.r);
+        ok('with only game or puzzle tabs open, a background tab is spawned', busy.r.spawned && busy.created.length === 1 && busy.created[0].active === false, busy.r);
+    });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
