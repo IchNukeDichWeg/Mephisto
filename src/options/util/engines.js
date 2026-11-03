@@ -299,7 +299,11 @@ class WasmEngine {
         // it has thought long enough. It ends when something ASKS it to -- stopSearch(), which the
         // Stop button calls -- and until then the position keeps getting deeper.
         this.listeners.push(collect);
-        const done = this.once(m => m.kind === 'line' && /^bestmove\b/.test(m.line), this.searchTimeout());
+        // SILENCE, NOT TOTAL TIME. Without `alive` the 180 s depth backstop was a wall clock, so one
+        // sharp position at depth 26+ on a modest machine failed the whole run although info lines
+        // were still arriving (audit 3.1.328 REVIEW-3; the defect OPT-8 fixed in ee-host.js).
+        const done = this.once(m => m.kind === 'line' && /^bestmove\b/.test(m.line), this.searchTimeout(),
+                               m => m.kind === 'line' && /^info\b/.test(m.line));
         this.send(`position fen ${fen}`);
         this.send(this.goCommand());
         try {

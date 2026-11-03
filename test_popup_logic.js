@@ -5629,6 +5629,21 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('the request backstop outlives that cap instead of multiplying it',
        /limitKind === 'depth' \? NATIVE_DEPTH_CAP_MS \+ 30000/.test(en));
 }
+// ---- audit 3.1.328 REVIEW-3: the WASM review backstop measures silence ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const en = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const a = en.indexOf('    once(pred, timeoutMs, alive = null) {'), b = en.indexOf('\n    }\n', a) + 7;
+    const timers = [];
+    const c = vm.createContext({Number, Error, Promise, setTimeout: (f, ms) => { timers.push({f, ms, live: true}); return timers.length; }, clearTimeout: (id) => { timers[id - 1].live = false; }});
+    vm.runInContext('class E { constructor() { this.waiters = new Set(); this.listeners = []; }\n' + en.slice(a, b) + '\n}; e = new E();', c);
+    let state = 'pending';
+    vm.runInContext("p = e.once(m => /^bestmove/.test(m.line), 180000, m => /^info/.test(m.line))", c).then(() => { state = 'done'; }, () => { state = 'failed'; });
+    for (let i = 0; i < 5; i++) c.e.listeners.forEach(f => f({kind: 'line', line: 'info depth ' + (20 + i)}));
+    ok('each info line re-arms the timer, so only the newest one is live', timers.length === 6 && timers.filter(t => t.live).length === 1, timers.map(t => t.live));
+    const src = en.slice(en.indexOf('this.listeners.push(collect);'), en.indexOf('this.send(`position fen ${fen}`);'));
+    ok('analyse passes an info-line alive predicate to its bestmove wait', /searchTimeout\(\),\s*m => m\.kind === 'line' && \/\^info\\b\/\.test\(m\.line\)\)/.test(src), src);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
