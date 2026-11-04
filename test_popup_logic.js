@@ -7090,6 +7090,47 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('SYS-5: with chrome.storage unreadable the localStorage fallback still answers', bad.c.MephistoConfig.get('search_mode') === '"time"');
     })();
 }
+// ---- audit 3.1.329 NATIVE-1 (= CLICK-1 = SYS-2): the HTTP Remote Engine never gets the hour-long rail, and nodes reach it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // the real budget lines of on_new_pos's remote branch, from the Analysis Limit read to the cap
+    const a = psrc.indexOf('        const limit = open_ended ? analysis_limit_value('), b = psrc.indexOf('        const posKey = ', a);
+    const lim = psrc.indexOf('const ANALYSIS_LIMIT_MAX'), lime = psrc.indexOf('\n}\n', psrc.indexOf('function analysis_limit_value(', lim)) + 3;
+    const nm = (psrc.match(/const (NATIVE_MAX_RT|REMOTE_HTTP_MAX_RT) = \d+;/g) || []).join(' ');   // the caps the lines below read
+    const c = vm.createContext({});
+    vm.runInContext(`var config = {}; const NATIVE_ENGINES = ['sf18-native', 'rodent-native'];
+        function uses_native() { return NATIVE_ENGINES.includes(config.engine); }
+        ${nm} ${psrc.slice(lim, lime)}
+        function budget(open_ended, movetime, want_multipv) { ${psrc.slice(a, b)} return {rt, limit_nodes, limit_depth}; }`, c);
+    const run = (cfg, open_ended, movetime = 300, mpv = 1) => {
+        c.config = Object.assign({analysis_limit_mode: 'time', analysis_limit: 61}, cfg);
+        vm.runInContext('config = this.config', c);
+        return vm.runInContext(`budget(${open_ended}, ${movetime}, ${mpv})`, c);
+    };
+    ok('HTTP remote, Autoplay off / Help / Manual (open-ended), no limit: searches the move budget, not 3600000',
+       run({engine: 'remote'}, true).rt === 300, run({engine: 'remote'}, true));
+    ok('...with an Analysis Limit in time, that limit', run({engine: 'remote', analysis_limit: 10}, true, 300).rt === 10000);
+    const n = run({engine: 'remote', analysis_limit_mode: 'nodes', analysis_limit: 1}, true);
+    ok('...with an Analysis Limit in nodes, the nodes are worked out for the request', n.limit_nodes === 1000000, n);
+    ok('a native host on the same rail keeps its streamed, capped budget (NATIVE_MAX_RT)',
+       run({engine: 'sf18-native'}, true).rt === vm.runInContext('NATIVE_MAX_RT', c));
+    ok('the HTTP remote with Autoplay on our turn is unchanged: the move budget', run({engine: 'remote'}, false, 1200).rt === 1200);
+    // the HTTP request itself carries `nodes` (remote-engine.py reads it: nodes > depth > time)
+    const r = psrc.indexOf('async function request_remote_analysis('), re = psrc.indexOf('\n}\n', r) + 3;
+    const rc = vm.createContext({posted: []});
+    vm.runInContext(`var config = {engine: 'remote'};
+        function uses_native() { return false; } function uses_cloud() { return false; }
+        async function call_backend(url, data) { posted.push([url, data]); return {}; }
+        function parse_backend_json(x) { return x; }
+        ${psrc.slice(r, re)}`, rc);
+    (async () => {
+        await vm.runInContext(`request_remote_analysis('startfen', 25000, 'e2e4', null, 2000000)`, rc);
+        const [url, body] = rc.posted[0] || [];
+        ok('NATIVE-1: the Remote Engine /analyse request sends the Analysis Limit nodes',
+           url === 'http://localhost:9090/analyse' && body.nodes === 2000000 && body.time === 25000 && body.moves === 'e2e4', body);
+    })().catch(e => { fails++; console.log('FAIL NATIVE-1 request check threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

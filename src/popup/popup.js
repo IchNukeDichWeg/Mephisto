@@ -5849,7 +5849,14 @@ function on_new_pos(fen, startFen, moves) {
         const limit = open_ended ? analysis_limit_value(config.analysis_limit_mode, config.analysis_limit) : null;
         const limit_depth = (limit != null && config.analysis_limit_mode === 'depth') ? limit : null;
         const limit_nodes = (limit != null && config.analysis_limit_mode === 'nodes') ? limit : null;
-        let rt = (open_ended && !(uses_native() && want_multipv > 1)) ? 3600000 : movetime;
+        // THE HTTP REMOTE ENGINE CANNOT STREAM, so it never rides the hour-long rail. remote-engine.py
+        // answers one POST once, when the search ends, with no `info` frames on the way: an hour asked
+        // for was an hour of progress bar, and the answer, when the next position cut it short,
+        // belonged to a position the gate had already dropped. Nothing was ever shown (audit 3.1.329
+        // NATIVE-1 / CLICK-1 / SYS-2). It searches the move budget instead, or the Analysis Limit
+        // below -- the same trade the native MultiPV case makes: analysis stops at the budget.
+        const http_remote = config.engine === 'remote';
+        let rt = (open_ended && !http_remote && !(uses_native() && want_multipv > 1)) ? 3600000 : movetime;
         if (limit != null) rt = (config.analysis_limit_mode === 'time') ? limit : Math.max(rt, 60000);
         // A NATIVE SEARCH CANNOT BE CALLED BACK, so it must never be open-ended.
         //
@@ -13367,11 +13374,14 @@ async function request_remote_analysis(fen, time, moves = null, depth = null, no
         if (res.error) throw err_fail('MPH-E06', null, res.error);
         return res;
     }
+    // `nodes` too: remote-engine.py has read it since S5 (nodes > depth > time, `time` the ceiling),
+    // but it was never sent, so Analysis Limit = nodes searched the time alone (audit 3.1.329 NATIVE-1).
     return call_backend('http://localhost:9090/analyse', {
         fen: fen,
         moves: moves,
         time: time,
         depth: depth,
+        nodes: nodes,
     }).then(parse_backend_json);
 }
 
