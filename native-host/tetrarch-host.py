@@ -33,8 +33,19 @@ def _resolve_repo():
         return os.environ['TETRARCH_DIR']
     sibling = os.path.join(_DIR, 'tetrarch-path')
     if os.path.isfile(sibling):
-        # utf-8-sig: Windows PowerShell 5.1 and Notepad write a BOM, which strip() keeps
-        return open(sibling, encoding='utf-8-sig').read().strip()
+        # utf-8-sig: Notepad writes a UTF-8 BOM, which strip() keeps. Windows PowerShell 5.1's `>`
+        # writes UTF-16 and Explorer's "Copy as path" adds quotes: the first killed the host at
+        # import, the second pointed it at no checkout (audit 3.1.330 NATIVEA-3).
+        try:
+            raw = open(sibling, 'rb').read()
+            text = raw.decode('utf-16' if raw[:2] in (b'\xff\xfe', b'\xfe\xff') else 'utf-8-sig').strip()
+        except Exception as e:
+            _dbg(f"cannot read tetrarch-path: {e!r} -- save it as plain UTF-8 text")
+            text = ''
+        if len(text) >= 2 and text[0] == text[-1] and text[0] in '"\'':
+            text = text[1:-1].strip()
+        if text:
+            return text
     return os.path.abspath(os.path.join(_DIR, '..', '..', 'Tetrarch'))
 
 def _resolve_python():

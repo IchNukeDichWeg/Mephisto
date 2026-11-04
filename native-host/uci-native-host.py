@@ -40,8 +40,20 @@ except Exception:
 def _read_sibling(name):
     p = os.path.join(_DIR, name)
     if os.path.isfile(p):
-        # utf-8-sig: a .path saved by Notepad or Windows PowerShell 5.1 starts with a BOM
-        return open(p, encoding='utf-8-sig').read().strip() or None
+        # The README's Windows recipe has the user write these by hand (audit 3.1.330 NATIVEA-3 /
+        # NATIVEB-5). Windows PowerShell 5.1's `>` writes UTF-16 with a BOM, which utf-8-sig cannot
+        # decode: the host died at import, before its first message. Explorer's "Copy as path" wraps
+        # the path in double quotes, which isfile() and the net glob then failed on.
+        try:
+            raw = open(p, 'rb').read()
+            text = raw.decode('utf-16' if raw[:2] in (b'\xff\xfe', b'\xfe\xff') else 'utf-8-sig')
+        except Exception as e:
+            _dbg(f"cannot read {name}: {e!r} -- save it as plain UTF-8 text")
+            return None
+        text = text.strip()
+        if len(text) >= 2 and text[0] == text[-1] and text[0] in '"\'':
+            text = text[1:-1].strip()
+        return text or None
     return None
 
 def _resolve_engine():

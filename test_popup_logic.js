@@ -11092,6 +11092,52 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('BOUNDARY-5: --check (the release-zips gate) stops when Latest is not a version tag',
        /releases\/latest`/.test(bm) && /if \(latest !== null && !\/\^v\\d\+\(\\\.\\d\+\)\*\$\/\.test\(latest\)\) \{[\s\S]{0,300}process\.exit\(1\)/.test(bm));
 }
+// ---- NATIVEA-3 / NATIVEB-5 (audit 3.1.330): hand-written Windows path files (UTF-16 from PowerShell's `>`,
+// quotes from Explorer's "Copy as path") are read, and an unreadable one is logged instead of killing the host ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // run asynchronously: a blocking spawnSync here holds the event loop while the timer-raced async
+    // checks above (the CDP click rig's 1500 ms settle) are waiting, and fails them on a loaded machine
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    // the two readers are lifted out of the hosts with ast (no python-chess, no engine) and fed every shape
+    const py = `import ast, json, os, shutil, sys, tempfile
+P = 'C:\\\\Program Files\\\\Stockfish\\\\stockfish.exe'
+shapes = {'utf16le': ('\\ufeff' + P + '\\r\\n').encode('utf-16-le'), 'utf16be': ('\\ufeff' + P + '\\r\\n').encode('utf-16-be'),
+          'quoted': ('"' + P + '"\\r\\n').encode(), 'bom+quoted': ('\\ufeff"' + P + '"\\n').encode(), 'plain': (P + '\\n').encode()}
+def lift(path, names, ns):
+    tree = ast.parse(open(path, encoding='utf-8-sig').read())
+    body = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
+    exec(compile(ast.Module(body=body, type_ignores=[]), path, 'exec'), ns)
+    return ns
+out = {}
+for host, fn, fname in ((sys.argv[1], '_read_sibling', 'x.path'), (sys.argv[2], '_resolve_repo', 'tetrarch-path')):
+    for k, data in list(shapes.items()) + [('cp1252', b'C:\\\\J\\xfcrgen\\\\sf.exe\\r\\n')]:
+        d = tempfile.mkdtemp(); logs = []
+        open(os.path.join(d, fname), 'wb').write(data)
+        ns = lift(host, [fn], {'os': os, 'sys': sys, '_DIR': d, '_dbg': logs.append})
+        try:
+            got = ns[fn](fname) if fn == '_read_sibling' else ns[fn]()
+        except Exception as e:
+            got = 'RAISED ' + type(e).__name__
+        shutil.rmtree(d, ignore_errors=True)
+        out[os.path.basename(host) + ' ' + k] = [got, len(logs)]
+print(json.dumps(out))`;
+    const env = Object.assign({}, process.env); delete env.TETRARCH_DIR;
+    const r = await pyRun(['-I', '-B', '-c', py, ROOT + '/native-host/uci-native-host.py', ROOT + '/native-host/tetrarch-host.py'], {encoding: 'utf8', env});
+    if (r.error) console.log('ok   NATIVEA-3: skipped (no python3 here)');
+    else {
+        let res = {}; try { res = JSON.parse(r.stdout); } catch (e) { res = {err: (r.stderr || '').slice(-300)}; }
+        const P = 'C:\\Program Files\\Stockfish\\stockfish.exe';
+        for (const k of ['utf16le', 'utf16be', 'quoted', 'bom+quoted', 'plain'])
+            ok(`NATIVEA-3: a ${k} .path file reads as the bare path in both hosts`,
+               (res['uci-native-host.py ' + k] || [])[0] === P && (res['tetrarch-host.py ' + k] || [])[0] === P, [res['uci-native-host.py ' + k], res['tetrarch-host.py ' + k]]);
+        ok('NATIVEA-3: an undecodable .path is logged to host-debug.log, not raised at import',
+           JSON.stringify(res['uci-native-host.py cp1252']) === '[null,1]'
+           && (res['tetrarch-host.py cp1252'] || [])[1] === 1 && /Tetrarch$/.test((res['tetrarch-host.py cp1252'] || [])[0]), [res['uci-native-host.py cp1252'], res['tetrarch-host.py cp1252']]);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
