@@ -121,7 +121,9 @@ SPECS=("sf-native|$SF_BIN||" "fairy-native|$FAIRY_BIN|$NNUE_SRC|" "rodent-native
 [ -n "$PYBIN" ] || SPECS=()   # no python-chess -> no UCI hosts, but Tetrarch below still installs
 
 installed=0
-for spec in "${SPECS[@]}"; do
+# ${SPECS[@]+...}: under set -u, macOS's stock bash 3.2 calls an EMPTY array unbound, so a Tetrarch-only
+# install (no python-chess) died here before Tetrarch was registered (audit 3.1.330 NATIVEB-1).
+for spec in ${SPECS[@]+"${SPECS[@]}"}; do
   IFS='|' read -r slug bin nnue home <<< "$spec"
   if [ -z "$bin" ] || [ ! -x "$bin" ]; then
     echo "-- skipping $slug (no binary; pass --${slug%-native} /path or install it)"; continue

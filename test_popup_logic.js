@@ -11334,6 +11334,18 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            /^exec "\$\(dirname "\$0"\)\/tools\/release\/release-zips\.sh" "\$@"$/m.test(sh) && !/git archive/.test(sh));
     }
 }
+// ---- NATIVEB-1 (audit 3.1.330): the public installer survives an empty SPECS under set -u on macOS's bash 3.2 ----
+// (run with /bin/bash 3.2 and bash 5.3 in a sandboxed HOME: a Tetrarch-only install now registers Tetrarch; fork-only file)
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const p = ROOT + '/native-host/install-native.sh';
+    if (!fs.existsSync(p)) console.log('ok   NATIVEB-1: skipped (install-native.sh is the public fork\'s installer)');
+    else {
+        const sh = fs.readFileSync(p, 'utf8');
+        ok('NATIVEB-1: the UCI-host loop expands SPECS with the bash-3.2-safe ${SPECS[@]+...} form, since SPECS=() without python-chess',
+           /\[ -n "\$PYBIN" \] \|\| SPECS=\(\)/.test(sh) && /for spec in \$\{SPECS\[@\]\+"\$\{SPECS\[@\]\}"\}; do/.test(sh) && !/for spec in "\$\{SPECS\[@\]\}"/.test(sh));
+    }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
