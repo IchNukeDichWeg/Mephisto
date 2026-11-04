@@ -10007,6 +10007,55 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext(`new_pos('Q b'); new_pos('P w'); request_automove('e2e4')`, d);
     ok('...a repetition after another position still counts', d.counted.length === 2, d.counted);
 }
+// ---- audit 3.1.330 PLAYB-3: the punish swing is measured from the eval of the move we played, not the best line's ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fnS = (n) => { const i = s.indexOf(`function ${n}(`); return i < 0 ? '' : s.slice(i, s.indexOf('\n}\n', i) + 3); };
+    const has = s.includes('function hz_note_played(');
+    const c = vm.createContext({console: {log() {}, warn() {}}, Math, Date, Map, String, parseInt, Number, Infinity});
+    // the real humanize_pick with the real debt arithmetic, the roll stubbed to a mistake on the second line
+    vm.runInContext(`var config = {humanize: true, variant: 'chess', maia3_elo: 1500, engine: 'stockfish'};
+        var turn = 'w', last_our_eval = null, humanize_roll = {r: 50}, hz_where_state = null, hz_match_state = null, hz_think_rhythm = null;
+        var last_pos = {moves: 'e2e4 e7e5 g1f3 b8c6 f1c4 d7d6 b1c3 c8g4 h2h3 g4h5 f3e5 h5d1'};
+        var last_eval = {fen: 'r2qkbnr/ppp2ppp/2np4/4N3/2B1P3/2N4P/PPPP1PP1/R1BbK2R w KQkq - 0 7', lastMove: 'h5d1',
+            lines: [{move: 'c4f7', pv: 'c4f7', score: 30}, {move: 'c3d1', pv: 'c3d1', score: -150}]};
+        const HZ_WIN_CP = 300, HZ_PUNISH_CP = 200, HZ_MATCH_DEFAULT = true, ONE_PASS_ENGINES = [], HUMAN_TIME_MEAN = {};
+        ${s.slice(s.indexOf('const HZ_MATCH_LABEL'), s.indexOf('\n', s.indexOf('const HZ_MATCH_LABEL')))}
+        ${s.slice(s.indexOf('const HZ_DEBT_PAY'), s.indexOf('\n', s.indexOf('const HZ_DEBT_PAY')))}
+        ${fnS('hz_match_with_debt')}${fnS('hz_match_settle')}
+        function line_cp_ours(l) { return l.score; } function win_percent(cp) { return 50 + cp / 10; }
+        function Chess() { return {moves: () => ['a', 'b']}; }
+        function first_move() { return false; } function in_opening() { return false; } function hz_opening_ok() { return true; }
+        function premove_reply_playable() { return true; } function humanize_rates_now() { return {}; } function hz_maia_probs() { return null; }
+        function humanize_flag(k, d) { return d; } function humanize_thresholds() { return {blunder: 1000, inaccuracy: 50, fourth: 20}; }
+        function hz_natural_hang() { return true; } function hz_hangs() { return false; } function hz_exposure() { return null; }
+        function hz_win_floor() { return -Infinity; } function hz_mate_in() { return null; } function hz_simplify_hold() { return false; }
+        function humanize_target() { return null; } function humanize_game_run() { return null; } function is_one_pass() { return false; }
+        function humanize_tc_inputs() { return null; } function hz_match_shares() { return [0.5, 0.2, 0.15, 0.1, 0.05]; }
+        function hz_type_classifier() { return null; } function hz_type_mix() { return null; }
+        function hz_hidden_of() { return false; } function hz_drop_class() { return 3; } function complexity_k() { return 1; }
+        function clock_budget_ms() { return null; } function hz_clock_rail(t) { return t; } function in_time_trouble() { return false; }
+        function hz_match_pick(cands) { return {cand: cands[1], rolled: 3, played: 3}; }
+        var swings = []; function hz_punish_keep(swing) { swings.push(swing); return 1; }
+        ${has ? fnS('hz_note_played') : 'function hz_note_played() {}'}
+        ${fnS('humanize_pick')}`, c);
+    // our move: Humanize plays the rolled mistake c3d1 (-150) over c4f7 (+30)
+    vm.runInContext(`last_our_eval = 0; var p = humanize_pick('c4f7'); hz_note_played(p.move)`, c);
+    const played = vm.runInContext('p.move', c), after = vm.runInContext('last_our_eval', c);
+    // their reply hangs a knight: the best line now reads +150 for us, 300 cp better than after our move
+    vm.runInContext(`last_eval = {...last_eval, fen: 'next w - - 0 8', lines: [{move: 'a1a2', pv: 'a1a2', score: 150}, {move: 'b1b2', pv: 'b1b2', score: 0}]}; humanize_pick('a1a2')`, c);
+    const swings = vm.runInContext('swings', c);
+    ok('PLAYB-3: after our own 180 cp deviation, an opponent handing 300 cp back reads as a 300 swing (punished), not 120',
+       has && played === 'c3d1' && after === -150 && swings[1] === 300, {played, after, swings});
+    // a book or tablebase move that replaced Humanize's pick: its own line, and a move outside the list keeps the best's
+    vm.runInContext(`last_eval = {...last_eval, lines: [{move: 'a1a2', pv: 'a1a2', score: 150}, {move: 'b1b2', pv: 'b1b2', score: 40}]}; last_our_eval = 150; hz_note_played('b1b2')`, c);
+    const b = vm.runInContext('last_our_eval', c);
+    vm.runInContext(`last_our_eval = 150; hz_note_played('h7h8')`, c);
+    ok('...an override\'s own line is used, an unlisted move leaves the best line\'s eval', has && b === 40 && vm.runInContext('last_our_eval', c) === 150, [b, vm.runInContext('last_our_eval', c)]);
+    ok('...wired: on_engine_best_move notes the move it hands to request_automove, after book, tablebase and style have had their say',
+       /if \(pick\.move !== best\) console\.log\(`Humanize: playing \$\{pick\.move\} over \$\{best\}`\);\s*hz_note_played\(pick\.move\);/.test(s));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

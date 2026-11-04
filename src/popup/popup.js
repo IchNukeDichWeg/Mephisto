@@ -2606,6 +2606,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                     if (tb_ok || book_ok) pick.move = played;
                     else if (pick.move === best && played !== best) pick.move = played;
                     if (pick.move !== best) console.log(`Humanize: playing ${pick.move} over ${best}`);
+                    hz_note_played(pick.move);
                     // the search already burned most of the intended think (on_new_pos sized it to
                     // the pace), so only wait out the RESIDUAL -- never idle time the engine could
                     // have spent searching. Clock-aware paces are largely consumed by the search;
@@ -8661,6 +8662,15 @@ function hz_turn_begin() {
     else hz_turn = {key, before: {last_our_eval, hz_match_state, hz_where_state, hz_think_rhythm}};
 }
 
+// THE PUNISH SWING IS MEASURED FROM THE MOVE WE PLAYED. last_our_eval was the best line's eval even when
+// Humanize, the book or a style played another move, so after our own 150 cp mistake an opponent who
+// hung a knight read as +150, under the punish guard's 200, and every deviation over 120 cp made the
+// next move a 'long' think (audit 3.1.330 PLAYB-3). A move outside the listed lines keeps the best's.
+function hz_note_played(move) {
+    const l = (last_eval.lines || []).find(x => x && x.move === move && x.pv);
+    if (l) last_our_eval = line_cp_ours(l);
+}
+
 // overridden: a book or tablebase move will be played whatever this picks (on_engine_best_move). The
 // roll still runs, so Err Like Your Rating books its error as owed, not as paid, and no deviation
 // or error label comes back for a move that is not the one played (audit 3.1.329 PLAY-1).
@@ -8855,7 +8865,7 @@ function humanize_pick(best, overridden = false) {
     // ---- HOW LONG to think: classify the position, then sample a duration.
     const second = lines.find(l => l !== bestLine);
     const gap = second ? bestCp - line_cp_ours(second) : Infinity;
-    last_our_eval = bestCp;
+    last_our_eval = bestCp;   // until on_engine_best_move knows the move played (hz_note_played)
 
     let kind;
     const reelOff = !(recapture || forced) && in_opening(fen);
