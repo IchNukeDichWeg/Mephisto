@@ -2074,6 +2074,37 @@ function variantsBoard(geo) {
     return board;
 }
 
+// THE CHESS960 START ON THE VARIANTS BOARD, for capture960Start: {square: piece}, or null (mid-slide,
+// or not a start). capture960Start read it through the main site's piece reader, which needs
+// `square-NN` classes these pieces do not have, so it threw, nothing was captured and a
+// /variants/chess960 game replayed from the standard array (audit 3.1.329 SCRAPE-1). Same transform
+// and settledness rule as variantsBoard, but no coordinate labels needed: square size from the board
+// box, files and ranks from the orientation the click path already uses. COLOUR BY HALF: at a start
+// each side fills its own two rows, and the bottom two are the orientation's colour, so this holds
+// whatever the per-game data-color codes are; a code seen in both halves is not a start.
+function variants960Board() {
+    const size = (getBoard()?.getBoundingClientRect().width || 0) / 8;
+    if (!size) return null;
+    const black = getChesscomVariantsOrientation() === 'black';
+    const half = {}, board = {};
+    for (const p of document.querySelectorAll('.piece.BasePiece-component:not([data-dead])')) {
+        const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(p.getAttribute('style') || '');
+        if (!m) continue;
+        const cx = parseFloat(m[1]) / size, cy = parseFloat(m[2]) / size;
+        const col = Math.round(cx), row = Math.round(cy);
+        if (Math.abs(cx - col) > 0.1 || Math.abs(cy - row) > 0.1) return null;   // sliding in
+        if (col < 0 || col > 7 || row < 0 || row > 7) continue;                    // off the board
+        const type = String(p.getAttribute('data-piece') || '').toLowerCase();
+        const side = (row >= 6) ? 'bottom' : (row <= 1) ? 'top' : null;
+        const code = p.getAttribute('data-color');
+        if (!/^[pnbrqk]$/.test(type) || !side || (half[code] && half[code] !== side)) return null;
+        half[code] = side;
+        const white = (side === 'bottom') !== black;
+        board['abcdefgh'[black ? 7 - col : col] + (black ? row + 1 : 8 - row)] = white ? type.toUpperCase() : type;
+    }
+    return board;
+}
+
 // Whose move. From the MOVE LIST, not from any text on the page.
 //
 // The first attempt matched the name in the "X's move" readout against the player boxes, on the
@@ -4565,9 +4596,11 @@ function startPosKey() {
 // the shape test below is exactly "nothing has moved"; anything else keeps the last good capture.
 let seen960Start = null;
 function capture960Start() {
-    let p;
-    try { p = scrapePositionPuz(); } catch (e) { return; }   // still animating in: the next scrape retries
-    const start = chess960Start(puzBoard(p));
+    let board;
+    try {   // throws while still animating in: the next scrape retries
+        board = isChesscomVariants() ? variants960Board() : puzBoard(scrapePositionPuz());
+    } catch (e) { return; }
+    const start = chess960Start(board);
     if (!start || start === seen960Start) return;
     seen960Start = start;   // position 518 included: it IS this game's start, and replaces an older one
     writeStartPos(startPosKey(), {position: start, timestamp: Date.now()});

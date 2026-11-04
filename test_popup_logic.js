@@ -6527,6 +6527,63 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('the var scrape only uses a stored start off lichess when it is a 960 start',
        /\(\(site === 'lichess'\) \? stored : chess960Start\(puzBoard\(stored\)\)\)\s*\|\| \(site !== 'lichess' && seen960Start\) \|\| DEFAULT_POSITION/.test(s));
 }
+// ---- audit 3.1.329 SCRAPE-1: a /variants/chess960 start is read off the variants board ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const fn = (name) => { const a = s.indexOf(`function ${name}(`); return a < 0 ? '' : s.slice(a, s.indexOf('\n}\n', a) + 3); };
+    const SQ = 50;
+    let pieces = [];
+    const sprite = (hex) => `url("data:image/svg+xml;base64,${Buffer.from(`<svg><path fill="${hex}"/></svg>`).toString('base64')}")`;
+    const c = vm.createContext({Date, Math, String, parseFloat, written: [],
+        atob: (x) => Buffer.from(x, 'base64').toString('binary'),
+        getComputedStyle: (p) => ({backgroundImage: sprite(p.light ? '#f8f8f8' : '#202020')}),
+        getBoard: () => ({getBoundingClientRect: () => ({width: 8 * SQ, height: 8 * SQ})}),
+        isChesscomVariants: () => true, startPosKey: () => 'k', writeStartPos: (k, v) => c.written.push([k, v.position]),
+        scrapePositionPuz: () => { throw new Error('the main-site reader was used'); },
+        document: {querySelectorAll: (sel) => pieces.filter(p => !(/:not\(\[data-dead\]\)/.test(sel) && p.attrs['data-dead'] !== undefined))}});
+    try {
+        vm.runInContext(cut('const DEFAULT_POSITION =', '\n\n') + cut('const CC_VARIANTS_COLORS =', '\n') + fn('variants960Board')
+            + fn('getChesscomVariantsOrientation') + fn('spriteLightness') + cut('let seen960Start = null;', 'function readStartPos(url) {')
+            + ';this.seen = () => seen960Start;', c);
+    } catch (e) { console.log('slice threw: ' + e.message); }
+    // a variants 960 start: pieces positioned only by transform, per-game colour codes, plus a captured
+    // piece and a bank piece that must be ignored
+    const lay = (back, {black = false, codes = ['5', '6'], frac = 0} = {}) => {
+        pieces = [];
+        const put = (f, r, pc) => {
+            const col = black ? 7 - f : f, row = black ? r - 1 : 8 - r;
+            const w = pc === pc.toUpperCase();
+            const attrs = {'data-piece': pc.toUpperCase(), 'data-color': w ? codes[0] : codes[1], style: `transform: translate(${col * SQ + frac}px, ${row * SQ}px);`};
+            pieces.push({attrs, light: w, getAttribute: (n) => attrs[n]});
+        };
+        for (let f = 0; f < 8; f++) { put(f, 1, back[f]); put(f, 2, 'P'); put(f, 7, 'p'); put(f, 8, back[f].toLowerCase()); }
+        const dead = {'data-piece': 'Q', 'data-color': codes[0], 'data-dead': '', style: `transform: translate(${3 * SQ}px, ${4 * SQ}px);`};
+        const bank = {'data-piece': 'N', 'data-color': codes[1], style: `transform: translate(${-2 * SQ}px, ${3 * SQ}px);`};
+        pieces.push({attrs: dead, getAttribute: (n) => dead[n]}, {attrs: bank, getAttribute: (n) => bank[n]});
+    };
+    const cap = () => { try { vm.runInContext('capture960Start()', c); } catch (e) { return e.message; } return null; };
+    const seen = () => { try { return c.seen(); } catch (e) { return 'threw'; } };
+    lay('NRKBBQRN', {frac: 17});
+    cap();
+    ok('pieces still sliding in: nothing captured, the next scrape retries', seen() === null, seen());
+    lay('NRKBBQRN');
+    const err = cap();
+    const one = seen();
+    ok('variants 960, White at the bottom (codes 5/6): the start is read off the transforms, not the main-site reader',
+       err === null && typeof one === 'string' && one.startsWith('w*****b-n-a8*****b-r-b8*****b-k-c8*****') && one.includes('w-k-c1*****') && c.written.length === 1, [err, one]);
+    lay('BQNRKRNB', {black: true, codes: ['7', '9']});
+    cap();
+    const two = seen();
+    ok('...Black at the bottom with per-game colour codes: same files and ranks, colours by half',
+       typeof two === 'string' && two.startsWith('w*****b-b-a8*****b-q-b8*****b-n-c8*****b-r-d8*****b-k-e8') && two.includes('w-b-h1*****') && c.written.length === 2, two);
+    lay('NRKBBQRN');
+    pieces = pieces.filter(p => !(p.attrs.style.includes(`${4 * SQ}px, ${6 * SQ}px`)));   // e2 gone
+    pieces.push({attrs: {'data-piece': 'P', 'data-color': '5', style: `transform: translate(${4 * SQ}px, ${4 * SQ}px);`}, getAttribute(n) { return this.attrs[n]; }});
+    cap();
+    ok('...a board already a move in (e4) is not a start: the last capture stays', seen() === two && c.written.length === 2, seen());
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
