@@ -6924,7 +6924,14 @@ function panel_reload() {
 //                                      isolated world and never touches chrome.tabs at all)
 let relay_failures = 0;
 function note_relay_result(lastError) {
-    if (!lastError) { relay_failures = 0; return; }
+    // "The message port closed before a response was received" is the NORMAL answer of a live
+    // content script: it calls sendResponse only for detectVariant and puzzleCaptureFor, so every
+    // queryfen / pushConfig / drawHint callback carries it. Counting it called a healthy tab dead
+    // within three messages and, since nothing ever reset the count, left the real orphan detector
+    // spent after boot (audit 3.1.330 STUBS-3). It proves a receiver exists: treat it as success.
+    if (!lastError || /message port closed/i.test(String(lastError.message || lastError))) {
+        relay_failures = 0; return;
+    }
     if (++relay_failures !== 3) return; // exactly 3 -> report once, don't repaint every poll
     const why = String(lastError.message || lastError);
     console.warn('Mephisto: the panel cannot reach this tab\'s content script:', why);

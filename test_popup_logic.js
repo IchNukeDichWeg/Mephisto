@@ -9008,6 +9008,37 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...glyphs attached to a move are still stripped, and check/mate signs on a move stay',
        JSON.stringify(d) === JSON.stringify(['e4', 'e5', 'Qh5', 'Nc6', 'Bc4', 'Nf6', 'Qxf7#']), d);
 }
+// ---- audit 3.1.330 STUBS-3: the toolbar popup's orphan detector calls a healthy tab dead ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = s.indexOf('let relay_failures = 0;'), b = s.indexOf('function send_to_active_tab', a);
+    const c = vm.createContext({console: {warn() {}, log() {}}, shown: []});
+    let res;
+    try {
+        vm.runInContext('function set_detection_status(t) { shown.push(t); }\n' + s.slice(a, b)
+            + ';this.note = note_relay_result; this.count = () => relay_failures;', c);
+        // what Chrome hands every tabs.sendMessage callback when the content script answers nothing
+        const closed = {message: 'The message port closed before a response was received.'};
+        for (let i = 0; i < 6; i++) c.note(closed);
+        const healthy = c.shown.length;
+        // a dead relay: three in a row report once
+        const dead = {message: 'Could not establish connection. Receiving end does not exist.'};
+        c.note(dead); c.note(dead); c.note(dead);
+        const afterDead = c.shown.slice();
+        // an ordinary reply resets the count, so a later orphaning is reported again
+        c.note(closed);
+        const reset = c.count();
+        c.note(dead); c.note(dead); c.note(dead);
+        res = {healthy, afterDead, reset, again: c.shown.length};
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('STUBS-3: a live content script that answers nothing ("message port closed") is never reported as dead',
+       res?.healthy === 0, res);
+    ok('STUBS-3: three "Receiving end does not exist" in a row still say to reload the page',
+       res?.afterDead?.length === 1 && /Reload this page/.test(res.afterDead[0]), res);
+    ok('STUBS-3: an ordinary reply resets the count, so the detector fires again on a later orphaning',
+       res?.reset === 0 && res?.again === 2, res);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
