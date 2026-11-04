@@ -7017,6 +7017,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('PAGE-4: the bgTrace branch builds its ring line through traceLineBody',
        /if \(msg\.bgTrace\) \{[\s\S]{0,300}?const body = traceLineBody\(msg\.bgTrace\.from, msg\.bgTrace\.args\);/.test(b));
 }
+// ---- audit 3.1.329 PAGE-5: paste, input and composition events from a panel input stop at the panel root ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = cs.indexOf('function getOverlayRoot()'), b = cs.indexOf('// look up one of our overlay nodes', a);
+    const handlers = {};
+    const root = {activeElement: null, addEventListener: (t, f) => { (handlers[t] ||= []).push(f); }};
+    const c = vm.createContext({overlayRoot: null, overlayHost: null,
+        document: {createElement: () => ({isConnected: true, attachShadow: () => root}), body: {appendChild() {}}}});
+    vm.runInContext(cs.slice(a, b) + '; getOverlayRoot();', c);
+    const fire = (type, focused) => { root.activeElement = focused; let stopped = false; for (const f of handlers[type] || []) f({stopPropagation: () => { stopped = true; }}); return stopped; };
+    const types = ['beforeinput', 'input', 'paste', 'cut', 'copy', 'compositionstart', 'compositionupdate', 'compositionend'];
+    const leaked = types.filter(t => !fire(t, {tagName: 'INPUT'}));
+    ok('PAGE-5: text, clipboard and composition events from a focused panel input stop at the root', leaked.length === 0, leaked);
+    ok('PAGE-5: ...and pass when nothing editable in the panel has focus', types.every(t => !fire(t, {tagName: 'BUTTON'}) && !fire(t, null)));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

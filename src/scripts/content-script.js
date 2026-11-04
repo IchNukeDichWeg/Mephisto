@@ -601,8 +601,12 @@ function getOverlayRoot() {
     // (audit 3.1.328 PAGE-2). Stopped at the root, bubble phase, only while an editable inside has
     // focus: our own capture-phase listeners have run by then, and a focused panel BUTTON still lets
     // the site's keys through as before.
+    // The text events are composed too: a page listener for paste read a pasted FEN from
+    // clipboardData, and beforeinput/input carried every typed character in e.data (audit 3.1.329
+    // PAGE-5). Same stop, same gate.
     const root = overlayRoot;
-    for (const type of ['keydown', 'keyup', 'keypress']) root.addEventListener(type, (e) => {
+    for (const type of ['keydown', 'keyup', 'keypress', 'beforeinput', 'input', 'paste', 'cut', 'copy',
+                        'compositionstart', 'compositionupdate', 'compositionend']) root.addEventListener(type, (e) => {
         const f = root.activeElement;
         if (f && (f.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName))) e.stopPropagation();
     });
