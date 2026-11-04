@@ -3496,8 +3496,12 @@ class ReviewPage {
             // forced to 'own' for every non-chess type, so the 4pc lane runs through it. Hiding every
             // block for 4pc left the note saying to press a button the page no longer showed, with
             // no way to start or stop a four-player review (audit 3.1.330 REVIEWA-1).
+            // A block can serve several modes: the Run row's Stop, Export and Fit also belong to the
+            // local classifier run, which enables Stop and renders an engine report, but had no Stop
+            // on screen while it searched (audit 3.1.330 REVIEWA-2). Analyse game is `own` only.
             document.querySelectorAll('.rv-mode').forEach(el =>
-                el.classList.toggle('hidden', el.dataset.mode !== m));
+                el.classList.toggle('hidden', !el.dataset.mode.split(' ').includes(m)));
+            $('rv_run')?.classList.toggle('hidden', m !== 'own');
             // ...and the settings themselves: a control that cannot affect the selected review is
             // worse than absent, because changing it looks like it did something. Rows marked
             // data-chess-only (the Maia passes) stand down for every other game type; in 4pc, which

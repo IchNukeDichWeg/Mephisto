@@ -10146,6 +10146,52 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     store.rv_variant = 'chess'; vm.runInContext('rvModeSync()', c);
     ok('REVIEWA-1: back on Chess the two-player rows are back', shown('rv_run') && shown('rv_engine') && shown('rv_threads') && shown('rv_limit_kind'));
 }
+// ---- audit 3.1.330 REVIEWA-2: the chess.com classifier run has a Stop button on screen ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    // The real rvModeSync over the real page: every .rv-mode block and [data-for] row of review.html
+    // becomes an element spanning its source range; an id is on screen when neither it nor any
+    // enclosing block is hidden.
+    const mkEl = (tag, at, end) => {
+        const cls = new Set(((tag.match(/class="([^"]*)"/) || [])[1] || '').split(/\s+/).filter(Boolean));
+        return {at, end, tag, classList: {toggle(c, on) { on ? cls.add(c) : cls.delete(c); }, add(c) { cls.add(c); },
+                                          remove(c) { cls.delete(c); }, contains: (c) => cls.has(c)},
+                dataset: {mode: (tag.match(/data-mode="([^"]*)"/) || [])[1], for: (tag.match(/data-for="([^"]*)"/) || [])[1]},
+                hasAttribute: (a) => new RegExp('\\s' + a + '[\\s=>]').test(tag), options: [], value: ''};
+    };
+    const closeOf = (at) => {   // matching </div> of the <div at `at`
+        const re = /<div\b|<\/div>/g; re.lastIndex = at + 4; let depth = 1, m;
+        while ((m = re.exec(html))) { depth += m[0] === '</div>' ? -1 : 1; if (!depth) return m.index; }
+        return html.length;
+    };
+    const blocks = [...html.matchAll(/<div\b[^>]*>/g)].filter(m => /class="[^"]*\brv-mode\b|data-for=/.test(m[0]))
+        .map(m => mkEl(m[0], m.index, closeOf(m.index)));
+    const byId = {};
+    const $ = (id) => {
+        if (byId[id]) return byId[id];
+        const m = new RegExp(`<[a-z]+\\b[^>]*\\bid="${id}"[^>]*>`).exec(html);
+        return m ? (byId[id] = mkEl(m[0], m.index, m.index)) : null;
+    };
+    const shown = (id) => { const e = $(id); return !!e && !e.classList.contains('hidden')
+        && blocks.every(b => !(b.at <= e.at && e.at < b.end) || !b.classList.contains('hidden')); };
+    const store = {rv_variant: 'chess', rv_mode: 'local', rv_engine: 'sf19'};
+    const ms = rj.indexOf('        const rvModeSync = () => {'), me = rj.indexOf('\n        };\n', ms) + 11;
+    const c = vm.createContext({String, cfg: (k) => store[k], setCfg: (k, v) => { store[k] = v; }, $,
+        document: {querySelectorAll: (q) => q === '.rv-mode' ? blocks.filter(b => b.dataset.mode) : blocks.filter(b => b.dataset.for)},
+        RV_FAIRY_ONLY: [], RV_FAIRY_ENGINE: 'fairy', rvChessVariant: () => 'chess'});
+    vm.runInContext(rj.slice(ms, me) + '\n        rvModeSync();\n', c);
+    ok('REVIEWA-2: Review with the classifier shows Stop beside its own run button', shown('rv_stop') && shown('rv_ee_run'), [shown('rv_stop'), shown('rv_ee_run')]);
+    ok('REVIEWA-2: ...but not Analyse game, which starts a different review', !shown('rv_run'));
+    ok('REVIEWA-2: ...and Export and Fit, which the classifier report enables, are reachable', shown('rv_export') && shown('rv_fit'));
+    store.rv_mode = 'own'; vm.runInContext('rvModeSync()', c);
+    ok('REVIEWA-2: Mephisto\'s engine still shows Analyse and Stop, and no classifier button', shown('rv_run') && shown('rv_stop') && !shown('rv_ee_run'));
+    store.rv_mode = 'online'; vm.runInContext('rvModeSync()', c);
+    ok('REVIEWA-2: chess.com\'s own review (no Stop of its own) shows neither', !shown('rv_run') && !shown('rv_stop') && shown('rv_ccr_run'));
+    store.rv_variant = '4pc'; vm.runInContext('rvModeSync()', c);
+    ok('REVIEWA-2: 4-player keeps Analyse and Stop', shown('rv_run') && shown('rv_stop'));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
