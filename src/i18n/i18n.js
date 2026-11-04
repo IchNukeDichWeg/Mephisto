@@ -264,7 +264,8 @@ function nativeSetup() {
         : t('native.setup', 'run the native-host installer once (see the README)');
 }
 function nativeUpdate() {
-    return ON_WINDOWS ? t('native.update_win', 'copy the host files again (the README\'s Windows steps)')
+    // generic on Windows: the engine hosts are copied again by hand, Tetrarch's installer is re-run
+    return ON_WINDOWS ? t('native.update_win', 'update it with the README\'s Windows steps')
         : t('native.update', 're-run the native-host installer');
 }
 

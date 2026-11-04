@@ -9202,7 +9202,7 @@ async function run_self_test() {
     if (NATIVE_ENGINES.includes(config.engine)) {
         const frame = await native_host_probe(native_port_name());
         nativeOK = !!frame && !native_host_outdated(frame);   // BOUNDARY-2: an old host is not a pass
-        nativePart = nativeOK ? ' · Native ✓' : frame ? ` · Native ✗ (${i18n('panel.native_host_old_short', 'host out of date: re-run the installer')})`
+        nativePart = nativeOK ? ' · Native ✓' : frame ? ` · Native ✗ (${i18n('panel.native_host_old_short', 'host out of date: {hint}', {hint: native_update_hint()})})`
             : ` · Native ✗ (${native_setup_hint()})`;
     }
     const mark = (b) => b ? '✓' : '✗';
@@ -10753,6 +10753,11 @@ const native_host_outdated = (frame) => !(Number(frame && frame.protocol) >= NAT
 // hosts (audit 3.1.330 follow-up L42). Never throws, like i18n().
 function native_setup_hint() {
     try { return MephistoI18n.nativeSetup(); } catch (e) { return 'run the native-host installer once (see the README)'; }
+}
+// ...and for a host that is out of date (audit 3.1.330 follow-up L51: "re-run the installer" named
+// nothing on Windows).
+function native_update_hint() {
+    try { return MephistoI18n.nativeUpdate(); } catch (e) { return 're-run the native-host installer'; }
 }
 // The ping's answer frame, or false when no host answered.
 function native_host_probe(portName) {

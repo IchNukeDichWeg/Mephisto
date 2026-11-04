@@ -12489,6 +12489,26 @@ print(json.dumps(out))`;
     vm.runInContext('(() => {\n' + rj.slice(ra, rb) + '})()', c);
     ok('L54: ...and a later revisit leaves it enabled', dom.rv_ccr_run.disabled === false);
 })().catch(e => { fails++; console.log('FAIL L54 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 follow-up L51: the self-test's "host out of date" names the per-OS update step, not an installer Windows lacks ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'), isrc = fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8');
+    const dir = ROOT + '/src/i18n/locales', locs = Object.fromEntries(fs.readdirSync(dir).map(f => [f.slice(0, -5), JSON.parse(fs.readFileSync(dir + '/' + f, 'utf8'))]));
+    // the self-test's text, built as the panel builds it: i18n.js loaded as Windows, the panel's own helper
+    const c = vm.createContext({TypeError, Error, Object, String, RegExp, navigator: {platform: 'Win32'}}); c.self = c;
+    let line = null;
+    try {
+        vm.runInContext(isrc, c); c.MephistoI18n.setFallback(locs.en);
+        const a = psrc.indexOf('function native_update_hint('), b = psrc.indexOf('\n}\n', a) + 3;
+        vm.runInContext(psrc.slice(a, b), c);
+        const call = (/i18n\('panel\.native_host_old_short', ('[^']*'), (\{[^}]*\})\)/.exec(psrc) || []);
+        line = vm.runInContext(`MephistoI18n.t('panel.native_host_old_short', ${call[1]}, ${call[2]})`, c);
+    } catch (e) { line = 'threw ' + e.message; }
+    ok('L51: on Windows the self-test says to update the host with the README\'s Windows steps', line === 'host out of date: ' + locs.en['native.update_win'], line);
+    ok('L51: ...which fits both the copied engine hosts and Tetrarch\'s installer (no "copy the host files")', !/copy the host files/.test(locs.en['native.update_win']));
+    const bad = Object.entries(locs).filter(([, l]) => !/\{hint\}/.test(l['panel.native_host_old_short'] || '')).map(([k]) => k);
+    ok('L51: every locale\'s short "out of date" text takes the step as {hint}', bad.length === 0, bad);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
