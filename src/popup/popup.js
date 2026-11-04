@@ -2601,6 +2601,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                     // Humanize is TOLD the move is overridden, so a rolled error is booked as owed, not
                     // as played, and the countdown does not label the book move with it (audit 3.1.329 PLAY-1).
                     const book_ok = !!book && premove_reply_playable(last_eval.fen, book);
+                    hz_turn_begin();   // a re-search of this turn picks from the state the first pick found (PLAYB-2)
                     const pick = humanize_pick(best, !!(tb_ok || book_ok));
                     if (tb_ok || book_ok) pick.move = played;
                     else if (pick.move === best && played !== best) pick.move = played;
@@ -5704,7 +5705,10 @@ function on_new_pos(fen, startFen, moves) {
         bgTrace('puzzle misread -- ignoring this poll', {fen: String(fen).split(' ')[0]});
         return;   // deliberately WITHOUT promoting incoming_push_key: we are still on the old position
     }
-    if (fen !== last_eval.fen) session_counted_fen = null;   // last_eval is still the previous position here
+    // against the counted position itself, not last_eval: a setting that re-analyses (Play-like rating,
+    // Elo, Clock Mode) blanks last_eval.fen while our move waits, and the re-search of the same position
+    // then counted the move again (audit 3.1.330 PLAYB-2)
+    if (fen !== session_counted_fen) session_counted_fen = null;
     // The key travels in a LOCAL from here (see the top of this function) and is adopted only where
     // last_eval is, far below. Adopting it here was wrong and shipped a wrong move: there are two
     // early returns between this point and last_eval -- the deferred puzzle lookup is one -- so the
@@ -8641,6 +8645,20 @@ function humanize_rates_now(fen, log = false) {
     if (log) console.log(`Humanize clock scale: ${x.tc}, ${Math.round(x.frac * 100)}% clock, phase ${x.phase}:`
         + ` inaccuracy x${mult.inaccuracy.toFixed(2)}, mistake x${mult.mistake.toFixed(2)}, blunder x${mult.blunder.toFixed(2)}`);
     return hz_scale_rates(rates, mult);
+}
+
+// ONE TURN ADVANCES HUMANIZE ONCE. humanize_pick moves the punish guard's eval, Err Like Your Rating's
+// debt, B2's running mean and the think rhythm on as it picks, and one turn can be searched several
+// times (a resume re-push after a hidden tab or a refused click, a setting that re-analyses, the
+// silent-engine revive). The second pass measured the punish swing against its own eval (about 0, so
+// a hung piece went unpunished) and settled the debt twice (audit 3.1.330 PLAYB-2). A pick of the
+// same turn now starts from the state the first one found; the turn is the position plus the ply
+// count, as Auto Resign keys it, so a repetition later is a new turn.
+let hz_turn = null;   // {key, before}: the turn humanize_pick last ran for and the state it found
+function hz_turn_begin() {
+    const key = `${last_eval.fen}|${String(last_pos.moves || '').trim().split(/\s+/).filter(Boolean).length}`;
+    if (hz_turn && hz_turn.key === key) ({last_our_eval, hz_match_state, hz_where_state, hz_think_rhythm} = hz_turn.before);
+    else hz_turn = {key, before: {last_our_eval, hz_match_state, hz_where_state, hz_think_rhythm}};
 }
 
 // overridden: a book or tablebase move will be played whatever this picks (on_engine_best_move). The

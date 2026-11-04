@@ -6421,7 +6421,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     const i = s.indexOf('function request_automove(move, think'), j = s.indexOf('\n}\n', i) + 3;
-    const clr = s.indexOf('if (fen !== last_eval.fen) session_counted_fen = null;');
+    const clr = s.indexOf('if (fen !== session_counted_fen) session_counted_fen = null;');   // keyed on itself since audit 3.1.330 PLAYB-2
     const c = vm.createContext({console: {log() {}}, Date, Number, Math, counted: [], sent: []});
     vm.runInContext(`var setup_fen = null, config = {}, last_eval = {fen: 'P w'}, analysed_push_key = 'k', our_turn_at = 0, session_counted_fen = null;
         const bgTrace = () => {}; const our_side = () => 'white'; const safe_deselect_square = () => null;
@@ -9941,6 +9941,71 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     // a time scramble whose error shares already exceed the good ones: good keeps at least half its mass
     const scr = v(`hz_match_with_debt([0.2, 0.1, 0.3, 0.2, 0.2], [0, 0, 5, 5, 5])`);
     ok('...where the errors already outweigh the good moves, the debt never takes more than half of them', Math.abs(good(scr) - 0.15) < 1e-9, scr);
+}
+// ---- audit 3.1.330 PLAYB-2: a turn searched twice advances Humanize's per-move state once, and Session Stats counts it once ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fnS = (n) => { const i = s.indexOf(`function ${n}(`); return i < 0 ? '' : s.slice(i, s.indexOf('\n}\n', i) + 3); };
+    const has = s.includes('function hz_turn_begin(');
+    const c = vm.createContext({console: {log() {}, warn() {}}, Math, Date, Map, String, parseInt, Number, Infinity});
+    // the real humanize_pick with the real debt arithmetic, the roll stubbed to a mistake on the second line
+    vm.runInContext(`var config = {humanize: true, variant: 'chess', maia3_elo: 1500, engine: 'stockfish'};
+        var turn = 'w', last_our_eval = null, humanize_roll = {r: 50}, hz_where_state = null, hz_match_state = null, hz_think_rhythm = null;
+        var last_pos = {moves: 'e2e4 e7e5 g1f3 b8c6 f1c4 d7d6 b1c3 c8g4 h2h3 g4h5 f3e5 h5d1'};
+        var last_eval = {fen: 'r2qkbnr/ppp2ppp/2np4/4N3/2B1P3/2N4P/PPPP1PP1/R1BbK2R w KQkq - 0 7', lastMove: 'h5d1',
+            lines: [{move: 'c4f7', pv: 'c4f7', score: 30}, {move: 'c3d1', pv: 'c3d1', score: -150}]};
+        const HZ_WIN_CP = 300, HZ_PUNISH_CP = 200, HZ_MATCH_DEFAULT = true, ONE_PASS_ENGINES = [], HUMAN_TIME_MEAN = {};
+        ${s.slice(s.indexOf('const HZ_MATCH_LABEL'), s.indexOf('\n', s.indexOf('const HZ_MATCH_LABEL')))}
+        ${s.slice(s.indexOf('const HZ_DEBT_PAY'), s.indexOf('\n', s.indexOf('const HZ_DEBT_PAY')))}
+        ${fnS('hz_match_with_debt')}${fnS('hz_match_settle')}
+        function line_cp_ours(l) { return l.score; } function win_percent(cp) { return 50 + cp / 10; }
+        function Chess() { return {moves: () => ['a', 'b']}; }
+        function first_move() { return false; } function in_opening() { return false; } function hz_opening_ok() { return true; }
+        function premove_reply_playable() { return true; } function humanize_rates_now() { return {}; } function hz_maia_probs() { return null; }
+        function humanize_flag(k, d) { return d; } function humanize_thresholds() { return {blunder: 1000, inaccuracy: 50, fourth: 20}; }
+        function hz_natural_hang() { return true; } function hz_hangs() { return false; } function hz_exposure() { return null; }
+        function hz_win_floor() { return -Infinity; } function hz_mate_in() { return null; } function hz_simplify_hold() { return false; }
+        function humanize_target() { return null; } function humanize_game_run() { return null; } function is_one_pass() { return false; }
+        function humanize_tc_inputs() { return null; } function hz_match_shares() { return [0.5, 0.2, 0.15, 0.1, 0.05]; }
+        function hz_type_classifier() { return null; } function hz_type_mix() { return null; }
+        function hz_hidden_of() { return false; } function hz_drop_class() { return 3; } function complexity_k() { return 1; }
+        function clock_budget_ms() { return null; } function hz_clock_rail(t) { return t; } function in_time_trouble() { return false; }
+        function hz_match_pick(cands) { return {cand: cands[1], rolled: 3, played: 3}; }
+        var swings = []; function hz_punish_keep(swing) { swings.push(swing); return 1; }
+        ${has ? s.slice(s.indexOf('let hz_turn = null;'), s.indexOf('\n', s.indexOf('let hz_turn = null;'))) + '\n' + fnS('hz_turn_begin') : 'function hz_turn_begin() {}'}
+        ${fnS('humanize_pick')}`, c);
+    // the opponent just hung their queen: we were at -300 after our move, the best line now reads +30
+    vm.runInContext(`last_our_eval = -300; hz_turn_begin(); humanize_pick('c4f7')`, c);
+    const once = vm.runInContext('JSON.stringify(hz_match_state.debt)', c);
+    // a resume re-push of the same turn: searched and picked again
+    vm.runInContext(`hz_turn_begin(); humanize_pick('c4f7')`, c);
+    const twice = vm.runInContext('JSON.stringify(hz_match_state.debt)', c), swings = vm.runInContext('swings', c);
+    ok('PLAYB-2: a re-search of the same turn measures the punish swing from the eval after our last move again (was ~0 on the second pass)',
+       has && swings.length === 2 && swings[0] === 330 && swings[1] === 330, swings);
+    ok('...and Err Like Your Rating\'s debt is settled once for the turn, not twice', has && once === twice, {once, twice});
+    // the next turn of ours moves the state on as before
+    vm.runInContext(`last_pos = {moves: last_pos.moves + ' c4f7 e8e7'}; last_eval = {...last_eval, fen: 'next w - - 0 8'}; hz_turn_begin(); humanize_pick('c4f7')`, c);
+    ok('...a new turn starts from what the last pick left (the swing is measured from it, the debt moves on)',
+       vm.runInContext('swings[2]', c) !== 330 && vm.runInContext('JSON.stringify(hz_match_state.debt)', c) !== once, [vm.runInContext('swings', c), vm.runInContext('hz_match_state.debt', c)]);
+    ok('...wired: on_engine_best_move opens the turn right before humanize_pick',
+       /hz_turn_begin\(\);[^\n]*\n\s*const pick = humanize_pick\(best, /.test(s));
+    // Session Stats: a setting that re-analyses blanks last_eval.fen while our move waits; the same position comes back
+    const i = s.indexOf('function request_automove(move, think'), j = s.indexOf('\n}\n', i) + 3;
+    const clrAt = s.indexOf('session_counted_fen = null;', s.indexOf('function on_new_pos('));
+    const clr = s.slice(s.lastIndexOf('\n', clrAt) + 1, s.indexOf('\n', clrAt));
+    const d = vm.createContext({console: {log() {}}, Date, Number, Math, counted: [], sent: []});
+    vm.runInContext(`var setup_fen = null, config = {}, last_eval = {fen: 'P w'}, analysed_push_key = 'k', our_turn_at = 0, session_counted_fen = null;
+        const bgTrace = () => {}; const our_side = () => 'white'; const safe_deselect_square = () => null;
+        const fresh_timing = () => ({think_time: 500}); const move_situation = () => '';
+        const session_note_move = (ms) => counted.push(ms); const send_to_active_tab = (m) => sent.push(m);
+        function new_pos(fen) { ${clr}
+            last_eval = {fen}; }
+        ${s.slice(i, j)}`, d);
+    vm.runInContext(`request_automove('e2e4'); last_eval.fen = ''; new_pos('P w'); request_automove('e2e4')`, d);
+    ok('PLAYB-2: a move re-sent after a setting blanked last_eval is counted once in Session Stats', d.sent.length === 2 && d.counted.length === 1, {sent: d.sent.length, counted: d.counted});
+    vm.runInContext(`new_pos('Q b'); new_pos('P w'); request_automove('e2e4')`, d);
+    ok('...a repetition after another position still counts', d.counted.length === 2, d.counted);
 }
 // ==== END FIX CHECKS ====
 
