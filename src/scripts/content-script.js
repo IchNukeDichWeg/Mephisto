@@ -2327,6 +2327,17 @@ function scrapePosition() {
     }
 }
 
+// Has this chess.com game ENDED? Only positive evidence counts, because a wrong "ended" in a live
+// game brings back the history-board click of 3.1.328 SCRAPE-2, while a wrong "live" only costs
+// history review. Two signs, neither on the repo's fixture (a game in progress): the game-over modal
+// (the class GRIND_SITES matches), or a result in the move list's text, which no SAN can contain.
+// ponytail: unmeasured markup; if neither sign shows on a finished page this stays "live", as before.
+const RESULT_IN_TEXT = /(^|\s)(1-0|0-1|1\/2-1\/2|½-½)(\s|$)/;
+function chesscomGameOver() {
+    if (document.querySelector('[class*="game-over-modal"]')) return true;
+    return RESULT_IN_TEXT.test(knownMoveContainer()?.textContent || '');
+}
+
 // `moves` is the caller's own getMoveRecords() result when it has one (the variant branch already
 // queried it to decide whether to come here); the default keeps every other caller as it was.
 function scrapePositionFen(moves = getMoveRecords()) {
@@ -2349,8 +2360,10 @@ function scrapePositionFen(moves = getMoveRecords()) {
         // is the node's last child in the repo's fixture, so stepping back stopped the scrape there:
         // the panel analysed the history position and, once the 5 s hold ran out, Autoplay clicked
         // that move onto the history board (audit 3.1.328 SCRAPE-2). History review (Autoplay off,
-        // or an analysis page) still follows the viewed move.
-        const toLatest = !!config.autoplay && CC_GAME_PATH.test(location.pathname);
+        // or an analysis page) still follows the viewed move, and so does a FINISHED game: a game page
+        // keeps its /game path after the end and for archived games, so with Autoplay left on review
+        // stuck on the final position (audit 3.1.329 SCRAPE-3).
+        const toLatest = !!config.autoplay && CC_GAME_PATH.test(location.pathname) && !chesscomGameOver();
         for (const moveWrapper of moves) {
             const move = moveWrapper.lastElementChild;
             // This branch takes `.node` unfiltered, unlike the variants branch above which already

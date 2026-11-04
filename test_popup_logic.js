@@ -5257,7 +5257,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const node = (san, sel) => { const m = {innerText: san, lastElementChild: null, classList: {contains: () => false}}; return {m, w: {lastElementChild: m}}; };
     const n = ['e4', 'e5', 'Nf3'].map(x => node(x));
     const c = vm.createContext({site: 'chesscom', config: {autoplay: true, simon_says_mode: false}, location: {pathname: '/game/123'},
-        CC_GAME_PATH: /^\/(game|play)(\/|$)/, isChesscomVariants: () => false, getSelectedMoveRecord: () => n[0].m, getMoveRecords: () => n.map(x => x.w), figurineSan: (a, b) => b});
+        CC_GAME_PATH: /^\/(game|play)(\/|$)/, isChesscomVariants: () => false, chesscomGameOver: () => false, getSelectedMoveRecord: () => n[0].m, getMoveRecords: () => n.map(x => x.w), figurineSan: (a, b) => b});
     vm.runInContext(s.slice(i, j), c);
     ok('chess.com game, Autoplay on, stepped back: the scrape reads to the latest move', vm.runInContext('scrapePositionFen()', c) === 'e4*****e5*****Nf3*****', vm.runInContext('scrapePositionFen()', c));
     c.config.autoplay = false;
@@ -6583,6 +6583,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     pieces.push({attrs: {'data-piece': 'P', 'data-color': '5', style: `transform: translate(${4 * SQ}px, ${4 * SQ}px);`}, getAttribute(n) { return this.attrs[n]; }});
     cap();
     ok('...a board already a move in (e4) is not a start: the last capture stays', seen() === two && c.written.length === 2, seen());
+}
+// ---- audit 3.1.329 SCRAPE-3: a FINISHED chess.com game follows the viewed move even with Autoplay on ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const r = s.indexOf('const RESULT_IN_TEXT ='), i = s.indexOf('function scrapePositionFen('), j = s.indexOf('\n}\n', i) + 3;
+    const node = (san) => { const m = {innerText: san, lastElementChild: null, classList: {contains: () => false}}; return {m, w: {lastElementChild: m}}; };
+    const n = ['e4', 'e5', 'Nf3'].map(x => node(x));
+    let modal = false, listText = '';
+    const c = vm.createContext({site: 'chesscom', config: {autoplay: true, simon_says_mode: false}, location: {pathname: '/game/live/123'},
+        CC_GAME_PATH: /^\/(game|play)(\/|$)/, isChesscomVariants: () => false, getSelectedMoveRecord: () => n[0].m, getMoveRecords: () => n.map(x => x.w), figurineSan: (a, b) => b,
+        document: {querySelector: (sel) => (modal && /game-over-modal/.test(sel)) ? {} : null}, knownMoveContainer: () => ({textContent: listText})});
+    try { vm.runInContext((r < 0 ? '' : s.slice(r, i)) + s.slice(i, j), c); } catch (e) { console.log('slice threw: ' + e.message); }
+    const run = () => { try { return vm.runInContext('scrapePositionFen()', c); } catch (e) { return 'threw ' + e.message; } };
+    listText = ' 1. e4 e5 2. Nf3 ';
+    ok('live game, Autoplay on, stepped back: still read to the latest move', run() === 'e4*****e5*****Nf3*****', run());
+    listText = ' 1. e4 e5 2. Nf3 1-0 ';
+    ok('finished game (a result in the move list), Autoplay on: follows the viewed move', run() === 'e4*****', run());
+    listText = ' 1. e4 e5 2. Nf3 ½-½ ';
+    ok('...a draw result too', run() === 'e4*****', run());
+    listText = ' 1. e4 e5 2. Nf3 '; modal = true;
+    ok('...and while the game-over modal is up', run() === 'e4*****', run());
+    modal = false; listText = ' 1. e4 d5 2. exd5 Qxd5 3. Nc3 Qa5 4. d4 c6 5. Nf3 Bf5 10. O-O-O ';
+    ok('ordinary SANs and move numbers never read as a result', run() === 'e4*****e5*****Nf3*****', run());
+    const fx = fs.readFileSync(ROOT + '/test/fixtures/chesscom-game.html', 'utf8');
+    const live = fx.slice(fx.indexOf('<wc-simple-move-list'), fx.indexOf('</wc-simple-move-list>')).replace(/<[^>]*>/g, ' ');
+    let rx = null; try { rx = vm.runInContext('RESULT_IN_TEXT', c); } catch (e) { /* old code: no such check */ }
+    ok('the fixture\'s game in progress reads as live', !!rx && !rx.test(live));
 }
 // ==== END FIX CHECKS ====
 
