@@ -2981,7 +2981,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     }
     // timers are unref'd: a never-answered command legitimately leaves its 1e9 ms "hung" timer behind
     const quiet = (f, ms) => { const t = setTimeout(f, ms); t.unref && t.unref(); return t; };
-    const settle = (p) => Promise.race([p.then(() => 'resolved', e => 'rejected: ' + e.message), new Promise(r => setTimeout(() => r('HUNG'), 1500))]);
+    // The watchdog counts event-loop turns, not wall-clock time: a 1500 ms timer armed while later sync
+    // blocks held the loop was already overdue when it woke, and fired before the click's own 60 ms ack
+    // timers could run -- the checks read HUNG at a load average of 30 with the click path unchanged.
+    const settle = (p) => Promise.race([p.then(() => 'resolved', e => 'rejected: ' + e.message),
+        new Promise(r => { let n = 0; const tick = () => ++n >= 50 ? r('HUNG') : setTimeout(tick, 30); tick(); })]);
 
     let r = rig('never');
     const out1 = await settle(r.cdpClick(9, 100, 100, 200));
