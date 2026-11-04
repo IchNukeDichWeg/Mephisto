@@ -10,7 +10,7 @@
 import {define} from "../../framework/require.js";
 import {SettingsPage} from "../../util/SettingsPage.js";
 // polyglot.js is a classic script now (the service worker importScripts it for the panel book)
-const {readBook: readPolyglot, lookup: lookupPolyglot} = self.MephistoPolyglot;
+const {bufferLookup: lookupPolyglot} = self.MephistoPolyglot;
 import {wirePgnDrop} from "../../util/dragdrop.js";
 import {refreshLimitWarnings} from "../../util/limits.js";
 import {showLargeGame, hideLargeGame} from "./large-board.js";
@@ -178,7 +178,7 @@ let liveSearch = null;
 let evalCache = new Map();
 let humanCache = new Map();
 let bandCache = new Map();
-let bookMoves = null;    // {name, entries: Map(positionKey -> [{uci, weight}])}
+let bookMoves = null;    // {name, entries: Map(positionKey -> [{uci, weight}])} or {name, polyglot: ArrayBuffer}
 let boardResizeObs = null;
 let searchTimer = null;  // the budget's stopwatch; null whenever the budget is the infinite notch
 let lastBands = null;    // the chart as last drawn, so the export can describe what is on screen
@@ -2152,12 +2152,15 @@ async function onBookFile(e) {
     try {
         if (/\.bin$/i.test(file.name)) {
             // A Polyglot book keys positions by its own Zobrist hash (lib/polyglot-random.js), so
-            // this branch is not a text format at all: the bytes are read as 16-byte entries and
-            // kept as a key -> moves map.
-            const entries = readPolyglot(await file.arrayBuffer());
-            if (!entries.size) throw new Error('that .bin has no readable entries');
-            bookMoves = {name: file.name, polyglot: entries};
-            status(`Book loaded: ${file.name}, ${entries.size} positions.`);
+            // this branch is not a text format at all. The bytes are KEPT AS THEY ARE: the entries
+            // are sorted by key, so bufferLookup answers a position by binary search, as the panel's
+            // book does. Expanding them into a Map cost ~150 bytes of heap per 16-byte entry and hung
+            // or crashed this tab on a big book (audit 3.1.330 ANALYSISB-3).
+            const buffer = await file.arrayBuffer();
+            const count = polyglotPositions(buffer);
+            if (!count) throw new Error('that .bin has no readable entries');
+            bookMoves = {name: file.name, polyglot: buffer};
+            status(`Book loaded: ${file.name}, ${count} positions.`);
             renderBook();
             return;
         }
@@ -2198,6 +2201,18 @@ async function onBookFile(e) {
 }
 
 function keyOf(fen) { return String(fen).split(' ').slice(0, 4).join(' '); }
+
+// Distinct positions in a sorted Polyglot buffer: one pass comparing each 64-bit key as two 32-bit
+// halves, so counting allocates nothing (no BigInt, no Map) whatever the book's size.
+function polyglotPositions(buffer) {
+    const view = new DataView(buffer), end = Math.floor(buffer.byteLength / 16) * 16;
+    let count = 0, hi = -1, lo = -1;
+    for (let o = 0; o < end; o += 16) {
+        const h = view.getUint32(o), l = view.getUint32(o + 4);
+        if (h !== hi || l !== lo) { count++; hi = h; lo = l; }
+    }
+    return count;
+}
 
 function renderBook() {
     const wrap = $('an_book_wrap'), host = $('an_book_lines'), meta = $('an_book_meta');

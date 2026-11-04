@@ -10535,6 +10535,44 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('ANALYSISB-2: the folder status names the 6-7 man limit (in every status line that says in-browser)',
        (gj.match(/bigNote\(/g) || []).length === 2 && !!en['set.tb_big_online']);
 }
+// ---- audit 3.1.330 ANALYSISB-3: the Analysis page answers a Polyglot book off its raw bytes, never parsing it into a Map ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (from, to) => { const a = an.indexOf(from), b = an.indexOf(to, a); return (a < 0 || b < 0) ? '' : an.slice(a, b); };
+    const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+    const els = {};
+    const el = (id) => els[id] || (els[id] = {id, textContent: '', innerHTML: '', classList: {hidden: false, toggle(k, v) { this.hidden = !!v; }}});
+    const c = vm.createContext({console, $: el, cfg: (k) => k === 'an_book', anVariant: () => 'chess', status: (t) => { c.said = t; },
+        positions: [{fen: START}], cursor: 0, sanOf: (fen, uci) => uci, wireLineClicks: () => {},
+        lineRow: (i, col, san, pv, val) => `<${san} ${val}>`, Core: {clamp: (x) => x}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/polyglot-random.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/util/polyglot.js', 'utf8'), c);
+    const P = c.MephistoPolyglot;
+    let parsed = 0;
+    const realRead = P.readBook;
+    P.readBook = (b) => { parsed++; return realRead(b); };
+    // a real sorted book: two moves from the start, one after 1.e4
+    const enc = (u) => ((u.charCodeAt(1) - 49) << 9) | ((u.charCodeAt(0) - 97) << 6) | ((u.charCodeAt(3) - 49) << 3) | (u.charCodeAt(2) - 97);
+    const rows = [[START, 'e2e4', 30], [START, 'd2d4', 10], [AFTER_E4, 'e7e5', 7]]
+        .map(([f, u, w]) => ({k: P.polyglotKey(f), m: enc(u), w})).sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : b.w - a.w));
+    const buf = new ArrayBuffer(16 * rows.length), v = new DataView(buf);
+    rows.forEach((r, i) => { v.setBigUint64(i * 16, r.k); v.setUint16(i * 16 + 8, r.m); v.setUint16(i * 16 + 10, r.w); });
+    try { vm.runInContext('var bookMoves = null;\n' + cut('// polyglot.js is a classic script now', 'import {wirePgnDrop}')
+        + cut('async function onBookFile(e)', '// ---- move list'), c); } catch (e) { console.log('slice threw: ' + e.message); }
+    (async () => {
+        try { await c.onBookFile({target: {files: [{name: 'big.bin', arrayBuffer: async () => buf}], value: 'x'}}); } catch (e) { c.said = 'threw ' + e.message; }
+        ok('ANALYSISB-3: loading a .bin does not expand it entry by entry into a Map', parsed === 0, parsed);
+        ok('ANALYSISB-3: ...the status still counts distinct positions (2, from 3 entries)', /big\.bin, 2 positions/.test(c.said || ''), c.said);
+        ok('ANALYSISB-3: ...and the start position shows its two book moves, heaviest first',
+           /^<e2e4 75%><d2d4 25%>$/.test(els.an_book_lines?.innerHTML || ''), els.an_book_lines?.innerHTML);
+        c.positions = [{fen: AFTER_E4}];
+        try { c.renderBook(); } catch (e) { /* reported below */ }
+        ok('ANALYSISB-3: ...and 1.e4 shows its reply', els.an_book_lines?.innerHTML === '<e7e5 100%>', els.an_book_lines?.innerHTML);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
