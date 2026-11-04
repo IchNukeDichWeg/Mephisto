@@ -10696,6 +10696,39 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     run(() => c.request_explorer(B));
     ok('ANALYSISB-7: back on the answered position its rows return without a new lookup', pending.length === 0 && /<b>e5<\/b>/.test(box.innerHTML), box.innerHTML);
 }
+// ---- audit 3.1.330 CONTEXT-3: a chosen tablebase folder the worker cannot read is named, not skipped in silence ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (s, from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const F = '8/8/8/8/8/8/R7/K6k w - - 0 1';
+    let perm = 'prompt', online = true;
+    const c = vm.createContext({console: {log() {}, warn() {}}, AbortController, setTimeout, clearTimeout,
+        tablebaseLocal: async () => null, tbMergeOnlineDtm: async () => {}, lichess_blocked: () => false, lichess_note_response: () => {},
+        fetch: async () => { if (!online) throw new Error('offline'); return {ok: true, status: 200, json: async () => ({category: 'win', dtz: 13, moves: [{uci: 'a1b1', category: 'loss', dtz: -12}]})}; },
+        MephistoTbStore: {permission: async () => perm, inventory: async () => ({tables: 0, men: {}, names: new Set()}), readTable: async () => new ArrayBuffer(8)}});
+    c.self = c;
+    try { vm.runInContext(cut(bg, 'const TABLEBASE_HOST', '// --- Local Syzygy probing') + cut(bg, 'async function tablebaseLookup', '// Lichess put the opening explorer')
+        + '\nthis.lookup = tablebaseLookup; this.clear = () => tablebaseCache.clear();', c); } catch (e) { console.log('slice threw: ' + e.message); }
+    // the panel's verdict line
+    const pc = vm.createContext({our_side: () => 'white', last_eval: {fen: F}, tablebase_data: null});
+    try { vm.runInContext(cut(pj, 'const TB_FLIP', '// --- Lichess puzzle database'), pc); } catch (e) { console.log('slice threw: ' + e.message); }
+    const label = (res) => { pc.tablebase_data = {fen: F, ...res}; try { return pc.tablebase_label(); } catch (e) { return 'threw ' + e.message; } };
+    (async () => {
+        const get = async () => { try { c.clear(); return await c.lookup({fen: F, variant: 'chess'}); } catch (e) { return {threw: e.message}; } };
+        const lapsed = await get();
+        ok('CONTEXT-3: a folder whose grant reads "prompt" in the worker marks the online answer', lapsed.localNeedsAllow === true && lapsed.category === 'win', lapsed);
+        ok('CONTEXT-3: ...and the panel says the folder needs Re-allow instead of nothing', /needs Re-allow in Settings/.test(label(lapsed)), label(lapsed));
+        online = false;
+        const off = await get();
+        ok('CONTEXT-3: offline, the failed lookup carries the mark too', off.error && off.localNeedsAllow === true, off);
+        online = true; perm = 'missing';
+        const none = await get();
+        ok('CONTEXT-3: with no folder chosen the online answer is unmarked, as before', none.category === 'win' && !('localNeedsAllow' in none) && !/Re-allow/.test(label(none)), none);
+        ok('CONTEXT-3: a local answer still reads "(local)"', /\(local\)$/.test(label({category: 'win', dtz: 13, source: 'local'})));
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

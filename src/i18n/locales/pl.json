@@ -158,6 +158,7 @@
   "panel.tb.cursed_nodtz": "Tablice końcówek: wygrywa (remis 50 posunięć)",
   "panel.tb.blessed": "Tablebase: przegrana (remis z reguły 50 posunięć)",
   "panel.tb.local": "(lokalnie)",
+  "panel.tb.local_allow": "(online: folder lokalny wymaga „Re-allow” w Ustawieniach)",
   "panel.puzzle_db_label": "Baza zadań",
   "panel.puzzle_page_label": "Rozwiązanie ze strony",
   "panel.detected_on": "Wykryto partię na {site}",

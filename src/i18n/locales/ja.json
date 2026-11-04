@@ -158,6 +158,7 @@
   "panel.tb.cursed_nodtz": "テーブルベース:勝勢(50手ルールで引き分け)",
   "panel.tb.blessed": "テーブルベース：負け（50 手ルールで引き分け）",
   "panel.tb.local": "(ローカル)",
+  "panel.tb.local_allow": "(オンライン: ローカルフォルダーは設定で「Re-allow」が必要です)",
   "panel.puzzle_db_label": "問題データベース",
   "panel.puzzle_page_label": "ページの解答",
   "panel.detected_on": "{site} で対局を検出",

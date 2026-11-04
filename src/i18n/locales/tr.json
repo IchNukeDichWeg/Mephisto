@@ -158,6 +158,7 @@
   "panel.tb.cursed_nodtz": "Tablebase: kazanıyor (50 hamle beraberliği)",
   "panel.tb.blessed": "Tablebase: kayıp (50 hamle kuralıyla beraberlik)",
   "panel.tb.local": "(yerel)",
+  "panel.tb.local_allow": "(çevrimiçi: yerel klasör Ayarlar'da «Re-allow» gerektiriyor)",
   "panel.puzzle_db_label": "Problem veritabanı",
   "panel.puzzle_page_label": "Sayfadan çözüm",
   "panel.detected_on": "{site} üzerinde oyun bulundu",

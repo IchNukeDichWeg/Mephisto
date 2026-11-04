@@ -4102,8 +4102,11 @@ function tablebase_label() {
     const hasDtz = tablebase_data.dtz != null;
     const n = Math.abs((hasDtm ? tablebase_data.dtm : tablebase_data.dtz) ?? 0);
     const m = Math.ceil(n / 2);   // plies -> moves for the mate count
-    // name the source: "(local)" means the user's own files answered and nothing left this machine
-    const s = tablebase_data.source === 'local' ? ' ' + i18n('panel.tb.local', '(local)') : '';
+    // name the source: "(local)" means the user's own files answered and nothing left this machine.
+    // A chosen folder the worker could not read says so instead of answering online in silence
+    // (audit 3.1.330 CONTEXT-3).
+    const s = tablebase_data.source === 'local' ? ' ' + i18n('panel.tb.local', '(local)')
+        : tablebase_data.localNeedsAllow ? ' ' + i18n('panel.tb.local_allow', '(online: the local folder needs Re-allow in Settings)') : '';
     if (c === 'win') return (hasDtm ? i18n('panel.tb.mate', 'Tablebase: mate in {m}', {m})
                            : hasDtz ? i18n('panel.tb.win_dtz', 'Tablebase: winning, DTZ {n}', {n})
                                     : i18n('panel.tb.win', 'Tablebase: winning')) + s;

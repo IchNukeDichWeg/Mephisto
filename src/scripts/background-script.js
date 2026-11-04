@@ -1052,10 +1052,18 @@ const TB_JS_LOAD_CAP = 64;   // missing-table retries per probe; each loads exac
 const TB_JS_MAX_MEN = 5;
 
 function tbBrowserReset() { tbJs = null; }
+// A chosen folder whose grant reads back 'prompt' here (Chrome may drop it with the Settings tab, or
+// in a new browser session) was skipped in silence and every lookup went to lichess, while Check,
+// run from the open Settings tab, said the folder works (audit 3.1.330 CONTEXT-3). Whether Chrome
+// keeps the grant for the worker with no extension tab open is not measured; this makes the lapse
+// visible either way: the answer carries localNeedsAllow and the panel says so.
+let tbBrowserNeedsAllow = false;
 
 async function tbBrowserEnsure() {
   if (tbJs) return tbJs;
-  if ((await MephistoTbStore.permission()) !== 'granted') return null;
+  const perm = await MephistoTbStore.permission();
+  tbBrowserNeedsAllow = perm === 'prompt';
+  if (perm !== 'granted') return null;
   const inv = await MephistoTbStore.inventory();
   if (!inv || !inv.tables) return null;
   const maxMen = Math.max(0, ...Object.keys(inv.men).map(Number));
@@ -1064,6 +1072,7 @@ async function tbBrowserEnsure() {
 }
 
 async function tablebaseBrowserLocal(fen) {
+  tbBrowserNeedsAllow = false;
   try {
     const [placement, , castling] = fen.split(' ');
     if (castling !== '-') return null;   // Syzygy has no notion of castling rights
@@ -1090,6 +1099,8 @@ async function tablebaseBrowserLocal(fen) {
     }
     return null;
   } catch (e) {
+    // a grant that lapsed after the folder was opened in this worker life fails the read itself
+    if (e && e.name === 'NotAllowedError') { tbBrowserNeedsAllow = true; tbBrowserReset(); }
     console.warn('Mephisto: in-browser tablebase probe fell back online -', e && e.message);
     return null;
   }
@@ -1663,12 +1674,16 @@ async function tablebaseLookup({fen, variant}) {
   if (!path) return {error: `no tablebase for variant ${variant}`};
   const key = `${path}|${fen}`;
   if (tablebaseCache.has(key)) return tablebaseCache.get(key);
+  let needsAllow = false;   // CONTEXT-3: the chosen folder could not be read -- say so, not silence
   // LOCAL FIRST: the chosen folder answers on this machine, off the network -- the in-browser
   // decoder first (works with nothing installed), the native-host route as second chance for
   // whoever configured a path. Standard chess only; anything local cannot answer falls through
   // to lichess unchanged.
   if ((variant || 'chess') === 'chess') {
-    const local = (await tablebaseBrowserLocal(fen)) || (await tablebaseLocal(fen));
+    let local = await tablebaseBrowserLocal(fen);
+    needsAllow = tbBrowserNeedsAllow;
+    if (needsAllow) console.warn('Mephisto: local tablebase folder needs Re-allow in Settings - asking elsewhere');
+    if (!local) local = await tablebaseLocal(fen);
     if (local) {
       // Syzygy files hold NO mate distances -- lichess adds dtm from separate Gaviota tables
       // (<=5 men only). Borrow it when the network allows: the label then counts MATE and the
@@ -1681,7 +1696,7 @@ async function tablebaseLookup({fen, variant}) {
       return local;
     }
   }
-  if (lichess_blocked()) return {error: 'lichess cooling down'}; // cached hits above still answer
+  if (lichess_blocked()) return {error: 'lichess cooling down', ...(needsAllow ? {localNeedsAllow: true} : {})}; // cached hits above still answer
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 4000); // a miss just means the engine plays instead
   let out;
@@ -1698,6 +1713,7 @@ async function tablebaseLookup({fen, variant}) {
   } finally {
     clearTimeout(timer);
   }
+  if (needsAllow) out.localNeedsAllow = true;   // the cache is cleared by Re-allow (tbChanged)
   if (out.error) {
     console.warn('Mephisto: tablebase lookup failed -', out.error);
   } else { // never cache a failure: the next position should retry

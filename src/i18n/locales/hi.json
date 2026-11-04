@@ -158,6 +158,7 @@
   "panel.tb.cursed_nodtz": "टेबलबेस: जीत (50-चाल नियम से ड्रॉ)",
   "panel.tb.blessed": "टेबलबेस: हार (50-चाल नियम से ड्रॉ)",
   "panel.tb.local": "(स्थानीय)",
+  "panel.tb.local_allow": "(ऑनलाइन: स्थानीय फ़ोल्डर के लिए सेटिंग्स में «Re-allow» ज़रूरी है)",
   "panel.puzzle_db_label": "पहेली डेटाबेस",
   "panel.puzzle_page_label": "पेज समाधान",
   "panel.detected_on": "{site} पर खेल मिला",

@@ -158,6 +158,7 @@
   "panel.tb.cursed_nodtz": "Tablebase: ganhando (empate das 50 jogadas)",
   "panel.tb.blessed": "Tablebase: derrota (empate pela regra dos 50)",
   "panel.tb.local": "(local)",
+  "panel.tb.local_allow": "(online: a pasta local precisa de «Re-allow» nas Definições)",
   "panel.puzzle_db_label": "Base de problemas",
   "panel.puzzle_page_label": "Solução da página",
   "panel.detected_on": "Partida detetada em {site}",

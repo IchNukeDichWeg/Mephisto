@@ -160,6 +160,7 @@
   "panel.tb.cursed_nodtz": "Tablebase: winning (50-move drawn)",
   "panel.tb.blessed": "Tablebase: loss (50-move drawn)",
   "panel.tb.local": "(local)",
+  "panel.tb.local_allow": "(online: the local folder needs Re-allow in Settings)",
   "panel.puzzle_db_label": "Puzzle database",
   "panel.puzzle_page_label": "Page solution",
   "panel.detected_on": "Game detected on {site}",

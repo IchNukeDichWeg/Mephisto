@@ -158,6 +158,7 @@
   "panel.tb.cursed_nodtz": "Tablebase: winnend (50-zettenremise)",
   "panel.tb.blessed": "Tablebase: verlies (remise door 50-zettenregel)",
   "panel.tb.local": "(lokaal)",
+  "panel.tb.local_allow": "(online: de lokale map heeft 'Re-allow' nodig in Instellingen)",
   "panel.puzzle_db_label": "Puzzeldatabase",
   "panel.puzzle_page_label": "Oplossing van de pagina",
   "panel.detected_on": "Partij gevonden op {site}",

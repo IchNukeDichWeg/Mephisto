@@ -158,6 +158,7 @@
   "panel.tb.cursed_nodtz": "Tables de finales : gagnant (nulle des 50 coups)",
   "panel.tb.blessed": "Tablebase : perte (nulle par la règle des 50 coups)",
   "panel.tb.local": "(local)",
+  "panel.tb.local_allow": "(en ligne : le dossier local demande « Re-allow » dans les Réglages)",
   "panel.puzzle_db_label": "Base de problèmes",
   "panel.puzzle_page_label": "Solution de la page",
   "panel.detected_on": "Partie détectée sur {site}",

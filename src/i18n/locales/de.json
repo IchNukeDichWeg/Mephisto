@@ -158,6 +158,7 @@
   "panel.tb.cursed_nodtz": "Endspieldatenbank: gewinnt (50-Züge-Remis)",
   "panel.tb.blessed": "Tablebase: Verlust (50-Züge-Remis)",
   "panel.tb.local": "(lokal)",
+  "panel.tb.local_allow": "(online: der lokale Ordner braucht „Re-allow“ in den Einstellungen)",
   "panel.puzzle_db_label": "Taktik-Datenbank",
   "panel.puzzle_page_label": "Lösung von der Seite",
   "panel.detected_on": "Partie erkannt auf {site}",
