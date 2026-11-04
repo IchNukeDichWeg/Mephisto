@@ -9039,6 +9039,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('STUBS-3: an ordinary reply resets the count, so the detector fires again on a later orphaning',
        res?.reset === 0 && res?.again === 2, res);
 }
+// ---- audit 3.1.330 CONTEXT-2 = STUBS-2: the toolbar popup adopts every other tab's scrape pushes ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    // the head of the real initPanel, up to where it marks itself booted, and the real cross-tab guard
+    const head = cut('async function initPanel(root, tabId) {', '    PANEL_BOOTED = true;');
+    const guard = cut('if (MY_TAB_ID && sender.tab && sender.tab.id', '\n');
+    const boot = async (isCs, tabId) => {
+        const c = vm.createContext({IS_CONTENT_SCRIPT: isCs, document: {body: {}},
+            chrome: {tabs: {query: async () => [{id: 42}]}}});
+        vm.runInContext(`var MY_TAB_ID = null, ENGINE_CLIENT = 'toolbar', PANEL_ROOT = null, PANEL_TIP_HOST = null;
+            ${head} }
+            this.accepts = (sender) => { ${guard}; return true; };`, c);
+        await vm.runInContext(`initPanel(${isCs ? '{}' : 'undefined'}, ${tabId === undefined ? 'undefined' : tabId})`, c);
+        return {tab: vm.runInContext('MY_TAB_ID', c), client: vm.runInContext('ENGINE_CLIENT', c),
+                own: c.accepts({tab: {id: 42}}) === true, other: c.accepts({tab: {id: 9}}) === true, worker: c.accepts({}) === true};
+    };
+    (async () => {
+        let res;
+        try { res = {popup: await boot(false), inpage: await boot(true, 7)}; }
+        catch (e) { res = {err: String(e.message || e)}; }
+        ok('CONTEXT-2: the toolbar popup binds to its active tab at boot, engine client stays "toolbar"',
+           res?.popup?.tab === 42 && res.popup.client === 'toolbar', res);
+        ok('CONTEXT-2: ...so a push from another tab is ignored, its own tab and the worker still pass',
+           res?.popup?.other === false && res.popup.own === true && res.popup.worker === true, res);
+        ok('CONTEXT-2: the in-page panel still takes the tab id it is handed, with its own engine client',
+           res?.inpage?.tab === 7 && res.inpage.client === '7', res);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -362,6 +362,18 @@ async function initPanel(root, tabId) {
     if (root) { PANEL_ROOT = root; PANEL_TIP_HOST = root; }
     else { PANEL_TIP_HOST = document.body || document.documentElement; }
     if (tabId != null) { MY_TAB_ID = tabId; ENGINE_CLIENT = String(tabId); } // no ?tab= when in-page
+    else if (!IS_CONTENT_SCRIPT && MY_TAB_ID == null) {
+        // The TOOLBAR POPUP has no ?tab= and no tabId, so MY_TAB_ID stayed null and the cross-tab
+        // guard in PANEL_MSG_HANDLER failed open: every other chess tab's scrape pushes, drops and
+        // notices reached this popup, which analysed and drew another game (audit 3.1.330 CONTEXT-2
+        // = STUBS-2). An action popup belongs to its window's active tab for its whole life (it
+        // closes when focus leaves), so bind to that tab before any listener goes on. ENGINE_CLIENT
+        // stays 'toolbar': the worker routes a numeric client's engine output to the tab, not here.
+        try {
+            const [t] = await chrome.tabs.query({active: true, currentWindow: true});
+            if (t?.id != null) MY_TAB_ID = t.id;
+        } catch (e) { /* no tab (a devtools-opened popup page): keep the active-tab fallbacks */ }
+    }
     // BOOTED means "can answer", not "has started". isBooted() is what makes the content script
     // hand us messages directly instead of posting into the runtime, and PANEL_MSG_HANDLER is
     // assigned ~160 lines below this -- so anything arriving in between hit
@@ -6954,10 +6966,9 @@ function send_to_active_tab(message) {
         chrome.tabs.sendMessage(MY_TAB_ID, message, () => note_relay_result(chrome.runtime.lastError));
         return;
     }
-    // The TOOLBAR POPUP always lands here: chrome.action.setPopup registers popup.html with no
-    // ?tab= param, so MY_TAB_ID is null for the whole session. This is the path that has to report,
-    // not the one above -- which is why the first version of note_relay_result never fired in the
-    // one mode it was written for.
+    // The TOOLBAR POPUP lands here only if initPanel could not resolve its tab (it has no ?tab=;
+    // CONTEXT-2 binds MY_TAB_ID to the active tab at boot). Both paths report: the first version of
+    // note_relay_result never fired because the toolbar popup always took this one.
     chrome.tabs.query({active: true, currentWindow: true}, function (tabs) { // fallback: no tab id yet
         if (!tabs[0]?.id) return note_relay_result({message: 'no active tab'});
         chrome.tabs.sendMessage(tabs[0].id, message, () => note_relay_result(chrome.runtime.lastError));
