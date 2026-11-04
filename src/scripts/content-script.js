@@ -2313,8 +2313,9 @@ function scrapePosition() {
         prefix += 'var***';
         if (config.variant === 'fischerandom') {
             if (site !== 'lichess') {
-                forget960OnNewGame();
-                if (!getMoveRecords()?.length) capture960Start();
+                const plies = getMoveRecords()?.length || 0;
+                forget960OnNewGame(plies);
+                if (!plies) capture960Start();
             }
             // Off lichess only capture960Start files a start, and 3.1.329 filed boards already past
             // move 0 (audit 3.1.329 SCRAPE-2): a stored one that is not a 960 start is not used.
@@ -4644,14 +4645,24 @@ function capture960Start() {
 // stored under it) replayed from the PREVIOUS game's start, a real 960 start that the shape test
 // passes (audit 3.1.329 X2-3). So a capture is dropped once the page leaves the game page it was
 // last used on. Lobby -> game page keeps it: chess.com can change the URL once the game begins.
-// ponytail: a page with no game in its path (/play/computer) hosts game after game with nothing to
-// tell them apart, so there a missed move 0 still falls back to the last capture, as before.
+//
+// A NEW GAME ON THE SAME PATH. A page with no game in its path (/play/computer, /play/online) hosts
+// game after game, and when the next game's move 0 was missed (a premove drawn on the board, or the
+// list lagging it) the scrape fell back to the PREVIOUS game's capture (audit 3.1.329 X3-1). The
+// sign used is the move list emptying: within one game it only shrinks by takebacks, and a takeback
+// to move 0 shows the start again, which the same scrape re-captures. So the capture is dropped when
+// a list that held moves reads empty; a missed move 0 then gets no start rather than a wrong one.
+// ponytail: a game left at move 0 (aborted) followed by one whose move 0 is missed never shows a
+// list with moves in between, so that one pair still falls back to the older capture.
 let seen960Page;   // the one-game path at the last 960 scrape; null = a page naming no game
-function forget960OnNewGame() {
+let seen960Plies = 0;   // the move list's length at the last 960 scrape
+function forget960OnNewGame(plies) {
     const m = ONE_GAME_PATH.exec(location.pathname);
     const page = m ? location.pathname.slice(0, m.index + m[0].length).replace(/\/$/, '') : null;
     if (seen960Page != null && page !== seen960Page) seen960Start = null;
+    if (seen960Plies > 0 && plies === 0) seen960Start = null;
     seen960Page = page;
+    seen960Plies = plies;
 }
 
 // A scraped piece string ("w*****b-r-a8*****...") -> {square: 'K'|'p'|...}, or null. The turn and

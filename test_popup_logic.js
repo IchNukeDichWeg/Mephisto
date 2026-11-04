@@ -7583,6 +7583,52 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...a loaded Q~ FEN comes back out unchanged, and a position with no promoted piece carries no mark',
        res?.roundTrip === true && res?.plain === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1', res);
 }
+// ---- audit 3.1.329 X3-1: a page naming no game drops the Chess960 capture when the move list empties ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const lru = fs.readFileSync(ROOT + '/lib/lru.min.js', 'utf8');
+    // the real var-scrape 960 branch, run as one scrape
+    const branch = cut("if (config.variant === 'fischerandom') {", "\n        const moves = getMoveRecords();");
+    // a chess.com scrape (h-file first) of the start `back`, with an optional [from, to] already moved
+    const board = (back, mv) => {
+        let out = 'b*****';
+        for (const F of 'hgfedcba') for (const r of [8, 7, 2, 1]) {
+            const k = back['abcdefgh'.indexOf(F)];
+            const pc = r === 8 ? k.toLowerCase() : r === 7 ? 'p' : r === 2 ? 'P' : k;
+            const sq = (mv && mv[0] === F + r) ? mv[1] : F + r;
+            out += `${pc === pc.toUpperCase() ? 'w' : 'b'}-${pc.toLowerCase()}-${sq}*****`;
+        }
+        return out;
+    };
+    const c = vm.createContext({Date, site: 'chesscom', config: {variant: 'fischerandom'}, location: {pathname: '/', search: '', href: ''},
+        siteValues: {cache: []}, saveSiteValue: () => {}, isChesscomVariants: () => false, moves: [], cur: '',
+        getMoveRecords: () => c.moves, scrapePositionPuz: () => c.cur});
+    try {
+        vm.runInContext(lru + ';\n' + cut('const DEFAULT_POSITION =', '\n\n') + cut('function loadStartPosCache()', '// --- GRIND MODE')
+            + ';startPosCache = loadStartPosCache();\nthis.scrape = () => { let res; ' + branch + ' return res; };', c);
+    } catch (e) { console.log('slice threw: ' + e.message); }
+    const go = (plies, cur) => {
+        c.location.pathname = '/play/computer'; c.location.href = 'https://www.chess.com/play/computer';
+        c.moves = Array(plies).fill('m'); if (cur) c.cur = cur;
+        try { return c.scrape().split('&*****')[0]; } catch (e) { return 'threw ' + e.message; }
+    };
+    const DP = vm.runInContext('DEFAULT_POSITION', c);
+    const A = go(0, board('NRKBBQRN'));
+    ok('X3-1: game 1 on Play Computer: its move-0 board is the start', A.startsWith('w*****b-n-a8*****b-r-b8*****b-k-c8'), A);
+    ok('X3-1: ...and stays it through the game', go(1, board('NRKBBQRN', ['e2', 'e4'])) === A && go(30) === A);
+    ok('X3-1: a takeback is the same game: the start is kept', go(29) === A && go(27) === A);
+    ok('X3-1: game 2 with a premove on its move-0 board: the list emptied, so game 1\'s start is not used',
+       go(0, board('BQNRKRNB', ['d2', 'd4'])) === DP, go(0));
+    ok('X3-1: ...nor later in game 2', go(1) === DP && go(6) === DP, go(6));
+    go(9);
+    ok('X3-1: game 3 whose list lags the board (empty while move 1 is on it) gets no borrowed start either',
+       go(0, board('RKRNNQBB', ['f2', 'f3'])) === DP && go(2) === DP, go(2));
+    ok('X3-1: game 4 seen at move 0 uses its own start, as before', go(0, board('QRKRBBNN')).startsWith('w*****b-q-a8*****b-r-b8')
+       && go(4).startsWith('w*****b-q-a8*****b-r-b8'));
+    ok('X3-1: a takeback to move 0 re-reads the same start', go(0, board('QRKRBBNN')).startsWith('w*****b-q-a8') && go(1).startsWith('w*****b-q-a8'));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
