@@ -770,7 +770,9 @@ prepares. A code is never reused: a retired one stays retired.
 ---
 ## Page footprint
 
-**Toolbar popup** leaves **zero page footprint** - it renders in the browser's own chrome. It closes when you click
+**Toolbar popup** leaves **zero page footprint** - it renders in the browser's own chrome. The one exception is
+**Read solutions from the page**: while it is on, the puzzle pages (and only those) get a page-world script that wraps
+`fetch`, XHR and `WebSocket`, whichever panel style you use. The popup closes when you click
 the board, so it is analysis only; Autoplay and Premove need the floating panel (**Settings → Panel → Panel
 Style**). While the floating panel is in use:
 
