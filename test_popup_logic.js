@@ -9603,6 +9603,37 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const none = flip('tablebase', false).concat(flip('explorer', false));
     ok('...with no position on screen yet nothing is asked', none.length === 0, none);
 }
+// ---- audit 3.1.330 NATIVEA-2 / SWALLOW-8: a clicker that answers with an error is not "not running" ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const c = vm.createContext({console: {warn: () => {}}, Date, JSON, String, Error, TypeError, idle_hold_until: 0, shown: '',
+        bgTrace: () => {}, set_idle_reason: (t) => { c.shown = t; },
+        i18n: (k, d, v) => v ? String(d).replace(/\{(\w+)\}/g, (m, n) => (n in v ? v[n] : m)) : d});
+    vm.runInContext(cut('function backend_refused(', 'async function dispatch_click_event(')
+        + cut('async function backend_clicked(', 'async function request_backend_click('), c);
+    const res = (status, body) => ({ok: status < 300, status, text: async () => body});
+    const refusal = async (r) => { try { await c.backend_clicked(r); return null; } catch (e) { return e; } };
+    (async () => {
+        const e500 = await refusal(res(500, '{"error": "TypeError: unsupported operand type(s)"}'));
+        const out = e500 && c.backend_refused(e500);
+        ok('NATIVEA-2: an error answer is still a refusal (CDP takes the move)', !!(out && out.backendFailed), out);
+        ok('NATIVEA-2: ...and the panel shows the clicker\'s own reason, not "Start mephisto-clicker.py"',
+           /answered with an error \(HTTP 500: TypeError: unsupported operand/.test(c.shown) && !/Start mephisto-clicker/.test(c.shown), c.shown);
+        const eHtml = await refusal(res(500, '<!doctype html><title>500 Internal Server Error</title>'));
+        c.backend_refused(eHtml);
+        ok('NATIVEA-2: an old clicker\'s HTML error page shows the status only', /\(HTTP 500\)/.test(c.shown), c.shown);
+        c.backend_refused(new TypeError('Failed to fetch'));
+        ok('NATIVEA-2: nothing answering still says to start the script', /not answering on localhost:8080/.test(c.shown), c.shown);
+        ok('NATIVEA-2: a 200 is not a refusal', (await refusal(res(200, 'OK'))) === null);
+        const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+        ok('NATIVEA-2: the error line is translated with its {reason}', /\{reason\}/.test(en['panel.msg.backend_error'] || ''));
+        const py = fs.readFileSync(ROOT + '/src/scripts/mephisto-clicker.py', 'utf8');
+        ok('NATIVEA-2: the clicker\'s timing and port flags parse as ints',
+           ['--port', '--drag-time', '--drag-var'].every(f => new RegExp(`'${f}'[^\\n]*type=int`).test(py)));
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

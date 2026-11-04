@@ -12810,7 +12810,12 @@ function toggle_calculating(on) {
 function backend_refused(e) {
     console.warn('Mephisto: python backend did not answer:', e);
     bgTrace('backend click refused', {e: String(e)});
-    set_idle_reason(i18n('panel.msg.backend_down', 'Python Autoplay Backend is not answering on localhost:8080, so moves are using normal clicks. Start mephisto-clicker.py, or switch the setting off.'));
+    // A clicker that ANSWERED with an error is running: "Start mephisto-clicker.py" sent the user
+    // looking for a problem that was not there (audit 3.1.330 SWALLOW-8). Its own reason is shown.
+    set_idle_reason(e && e.backendStatus
+        ? i18n('panel.msg.backend_error', 'mephisto-clicker.py answered with an error ({reason}), so moves are using normal clicks for now. Its window shows the details.',
+               {reason: e.backendReason})
+        : i18n('panel.msg.backend_down', 'Python Autoplay Backend is not answering on localhost:8080, so moves are using normal clicks. Start mephisto-clicker.py, or switch the setting off.'));
     idle_hold_until = Date.now() + 10000;
     return {backendFailed: true};
 }
@@ -12919,7 +12924,15 @@ async function do_debugger_click(id, x, y, travelMs) {
 // A clicker that answers with an error (its origin guard's 403, a crash's 500) did not click either,
 // so it counts as refused like one that is not running.
 async function backend_clicked(res) {
-    if (!res.ok) throw new Error(`mephisto-clicker.py answered HTTP ${res.status}`);
+    if (!res.ok) {
+        // the clicker answers {"error": ...}; anything else (an old copy's HTML 500 page) is not shown
+        let detail = '';
+        try { detail = String(JSON.parse(await res.text())?.error || '').slice(0, 160); } catch (e) { /* not JSON */ }
+        const err = new Error(`mephisto-clicker.py answered HTTP ${res.status}${detail ? ': ' + detail : ''}`);
+        err.backendStatus = res.status;
+        err.backendReason = `HTTP ${res.status}${detail ? ': ' + detail : ''}`;
+        throw err;
+    }
     return res;
 }
 

@@ -464,6 +464,7 @@
   "panel.msg.engine_quiet": "O motor parou de responder - reiniciando a busca.",
   "panel.msg.drop_by_hand": "A melhor jogada é colocar uma peça da reserva ({move}). O jogo automático não consegue colocá-la: jogue você mesmo.",
   "panel.msg.backend_down": "O backend Python do jogo automático não responde em localhost:8080, por isso as jogadas usam cliques normais. Inicie o mephisto-clicker.py ou desligue a opção.",
+  "panel.msg.backend_error": "O mephisto-clicker.py respondeu com um erro ({reason}), por isso, por agora, as jogadas usam cliques normais. A janela dele mostra os detalhes.",
   "panel.msg.resign_failed": "A desistência automática não encontrou aqui o botão de desistir, por isso o jogo continua.",
   "panel.msg.net_failed": "A rede não conseguiu responder a esta posição. O diagnóstico indica a causa.",
   "panel.msg.native_busy": "Outro separador ou página está a usar este motor nativo. Feche-o ou escolha outro motor aqui.",

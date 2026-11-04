@@ -464,6 +464,7 @@
   "panel.msg.engine_quiet": "Silnik przestał odpowiadać - ponowne uruchomienie analizy.",
   "panel.msg.drop_by_hand": "Najlepszy ruch to wstawienie bierki ({move}). Autogranie nie potrafi wstawiać bierek z rezerwy: zagraj go sam.",
   "panel.msg.backend_down": "Backend Pythona automatycznej gry nie odpowiada na localhost:8080, więc ruchy używają zwykłych kliknięć. Uruchom mephisto-clicker.py lub wyłącz to ustawienie.",
+  "panel.msg.backend_error": "mephisto-clicker.py odpowiedział błędem ({reason}), więc na razie ruchy używają zwykłych kliknięć. Szczegóły widać w jego oknie.",
   "panel.msg.resign_failed": "Automatyczne poddanie nie znalazło tu przycisku poddania, więc gra toczy się dalej.",
   "panel.msg.net_failed": "Sieć nie mogła odpowiedzieć na tę pozycję. Przyczyna jest w diagnostyce.",
   "panel.msg.native_busy": "Inna karta lub strona używa tego natywnego silnika. Zamknij ją lub wybierz tu inny silnik.",
