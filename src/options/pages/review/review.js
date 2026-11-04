@@ -1015,8 +1015,16 @@ function progress(frac, text) {
     if (t) t.textContent = text ? `${Math.round(frac * 100)}% - ${text}${etaText(frac)}` : '';
 }
 
+// THE STATUS LINE OUTLIVES THE PAGE. A run is module state and can end while another options page is
+// on screen; its note then had no element to land in, and a revisit showed the report under
+// "N games read." with nothing about the engine failure or the skipped games (audit 3.1.330
+// REVIEWA-6). A note nobody could see is kept with the report it belongs to, and init shows it
+// once on the revisit; one that was shown is not replayed.
+let lastNote = null;
+
 function note(text, bad) {
     const el = $('rv_pgn_status');
+    lastNote = el ? null : {text: text || '', bad: !!bad, report};
     if (!el) return;
     el.textContent = text || '';
     el.classList.toggle('rv-bad', !!bad);
@@ -1097,7 +1105,9 @@ function fitHumanize(moves, colour) {
 }
 
 function renderReport() {
-    if (!report) return;
+    // No Review DOM (the run ended on another options page): the revisit renders it. Drawing here
+    // threw, and the TypeError skipped the run's own notes (audit 3.1.330 REVIEWA-6).
+    if (!report || !$('rv-report')) return;
     // A chess.com online review comes back through here when the page is revisited; drawn as an
     // engine report it re-enabled Export and Fit and showed the engine-only blocks over stub data.
     if (report.ccr) return renderCcrReport(report.ccrStrength);
@@ -2664,7 +2674,7 @@ async function onRun() {
         else if (done.length < list.length) note(`Stopped after ${done.length} of ${list.length} games.`
             + (done[done.length - 1].strengthStopped ? ' The last one has no strength estimate: it was stopped before it finished.' : ''));
         else if (done[done.length - 1].strengthStopped) note('Stopped: the strength estimate did not finish, so this report has none.');
-        $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});
+        $('rv-report')?.scrollIntoView({behavior: 'smooth', block: 'start'});
     } catch (e) {
         if (cancel) note('Stopped.');
         else note(String(e.message || e), true);
@@ -3635,12 +3645,16 @@ class ReviewPage {
         window.addEventListener('pagehide', stopOnUnload);
 
         // Coming back to this page after visiting another one: the module survived, the DOM did not.
+        const said = lastNote;   // before parsePgnBox writes "N games read." over it
         if (report) {
             $('rv_pgn').value = (batchReports?.length && batchInputText) || report.pgnText || '';
             parsePgnBox();
             renderReport();
             renderBatch();
         }
+        // ...and what a run that ended while away said about it (an engine failure, skipped games,
+        // an error), which had no page to say it on (REVIEWA-6)
+        if (!running && said?.text && said.report === report) note(said.text, said.bad);
         // ...and a run the module is still driving. review.html ships rv_stop disabled, so a page
         // revisited mid-run showed an enabled Analyse and a dead Stop with the engines still going.
         if (running) {

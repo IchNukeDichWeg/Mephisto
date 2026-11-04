@@ -10307,6 +10307,45 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        single.some(t => /strength estimate did not finish/.test(t)), single);
     ok('REVIEWA-5: ...and so does the last game of a batch', batch.some(t => /strength estimate did not finish/.test(t)), batch);
 })().catch(e => { fails++; console.log('FAIL REVIEWA-5 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 REVIEWA-6: a run that ends on another options page keeps its note for the revisit ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    const ra = rj.indexOf('        // Coming back to this page after visiting another one'), rb = rj.indexOf('        // ...and a run the module is still driving.', ra);
+    // the real onRun, note and renderReport; once the first game starts another options page is on screen ($ finds nothing),
+    // then the real revisit block of init() on a re-injected Review page
+    const run = async (batch, runReview) => {
+        let dom = {};   // the run starts on the Review page...
+        const c = vm.createContext({console, Promise, Error, String, $: (id) => (dom ? (dom[id] = dom[id] || {value: '', textContent: '', disabled: false,
+                classList: {add() {}, remove() {}, toggle(k, on) { if (k === 'rv-bad') this.bad = on; }}, scrollIntoView() {}}) : null),
+            document: {querySelector: () => null},
+            cfg: (k) => (k === 'rv_batch' ? batch : k === 'rv_variant' ? 'chess' : false), progress() {}, renderBatch() {}, disposeRig() {},
+            gameText: (g) => 'pgn' + g.id, run4pcReview() {}, startRig: async () => ({}), selectedGame: () => ({id: 1}), eeCached: async () => null,
+            renderCcrReport() {}, runReview: (g) => { dom = null; return runReview(g); }, parsePgnBox: () => c.note(`${batch ? 3 : 1} games read.`)});
+        vm.runInContext('var running = false, cancel = false, is4pcGame = false, batchInputText = "", report = null, batchReports = null;\n'
+            + 'var games = [{id: 1}, {id: 2}, {id: 3}], lastNote = null, fourpcReport = null, board4pc = null;\n' + fn('function note(text, bad) {')
+            + fn('function renderReport() {') + fn('async function onRun() {'), c);
+        let threw = null;
+        try { await vm.runInContext('onRun()', c); } catch (e) { threw = e; }
+        dom = {};   // back on the Review page (drawing the report itself is not under test here)
+        vm.runInContext('renderReport = function () {};', c);
+        vm.runInContext('(() => {\n' + rj.slice(ra, rb) + '})()', c);
+        const status = dom.rv_pgn_status?.textContent || '', bad = !!dom.rv_pgn_status?.classList.bad;
+        dom = {};   // and once more
+        vm.runInContext('(() => {\n' + rj.slice(ra, rb) + '})()', c);
+        return {status, bad, threw, again: dom.rv_pgn_status?.textContent || ''};
+    };
+    let r = await run(true, async (g) => { if (g.id === 2) throw new Error('the engine stopped answering after 180s'); return {moves: []}; });
+    ok('REVIEWA-6: a batch whose engine failed while away says so on the revisit, not "3 games read."',
+       /The engine failed in game 2 \(the engine stopped answering after 180s\) - stopped after 1 of 3 games/.test(r.status) && r.bad && !r.threw, r);
+    ok('REVIEWA-6: ...once: the next revisit shows the parse note again', r.again === '3 games read.', r.again);
+    r = await run(false, async () => { throw new Error('the native host did not answer this position'); });
+    ok('REVIEWA-6: a single run that failed outright while away shows its error on the revisit',
+       /did not answer this position/.test(r.status) && r.bad, r);
+    r = await run(false, async () => ({moves: []}));
+    ok('REVIEWA-6: a run that simply finished shows the parse note as before', r.status === '1 games read.' && !r.bad, r);
+})().catch(e => { fails++; console.log('FAIL REVIEWA-6 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
