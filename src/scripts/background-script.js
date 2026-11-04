@@ -640,11 +640,18 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     const BACKEND_URLS = ['http://localhost:8080/performClick', 'http://localhost:8080/performMove',
                           'http://localhost:9090/configure', 'http://localhost:9090/analyse'];
     if (!BACKEND_URLS.includes(url)) { sendResponse({error: `not a backend endpoint: ${url}`}); return; }
+    // UNDER CHROME'S 30 s FETCH LIMIT. Chrome ends an extension worker whose fetch() response takes
+    // more than 30 s, and with it every in-memory state here (native ports, the debugger set, caches);
+    // the panel then printed Chrome's raw "message channel closed". The panel asks the Remote Engine
+    // for at most 25 s (REMOTE_HTTP_MAX_RT), so this only fires on a server that hangs, and it fires
+    // first, with a coded error (audit 3.1.329 ENGINE-1).
+    const BACKEND_TIMEOUT_MS = 28000;
     fetch(url, {method: 'POST', cache: 'no-store', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)})
+                body: JSON.stringify(data), signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS)})
       .then(async res => sendResponse({ok: res.ok, status: res.status, url: res.url, text: await res.text()}))
       // a TypeError is fetch's "nothing answered"; the panel keeps telling that apart from a real error
-      .catch(e => sendResponse({error: String(e?.message || e), unreachable: e instanceof TypeError}));
+      .catch(e => sendResponse({error: String(e?.message || e), unreachable: e instanceof TypeError,
+                                timedOut: e?.name === 'TimeoutError', ms: BACKEND_TIMEOUT_MS}));
     return true;
   }
   // Trusted clicks: chrome.debugger is unavailable to a content script, so the panel routes CDP

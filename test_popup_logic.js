@@ -5199,7 +5199,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const c = vm.createContext({sent: [], answer: null, TypeError, Error});
     vm.runInContext(`var chrome = {runtime: {sendMessage: async m => { sent.push(m); return answer; }}};` + psrc.slice(a, b), c);
     const w = bsrc.indexOf('if (msg.backendFetch)'), we = bsrc.indexOf('return true;\n  }', w) + 16;
-    const wc = vm.createContext({fetched: [], fetch: async (u, i) => { wc.fetched.push([u, i]); return {ok: true, status: 200, url: u, text: async () => '{"bestmove":"e2e4"}'}; }, TypeError, String, JSON});
+    const wc = vm.createContext({fetched: [], fetch: async (u, i) => { wc.fetched.push([u, i]); return {ok: true, status: 200, url: u, text: async () => '{"bestmove":"e2e4"}'}; }, AbortSignal, TypeError, String, JSON});
     vm.runInContext(`function handle(msg) { return new Promise(res => { const sendResponse = res; const r = (() => { ${bsrc.slice(w, we)} })(); }); }`, wc);
     (async () => {
         c.answer = {ok: true, status: 200, url: 'http://localhost:9090/analyse', text: '{"x":1}'};
@@ -7130,6 +7130,66 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('NATIVE-1: the Remote Engine /analyse request sends the Analysis Limit nodes',
            url === 'http://localhost:9090/analyse' && body.nodes === 2000000 && body.time === 25000 && body.moves === 'e2e4', body);
     })().catch(e => { fails++; console.log('FAIL NATIVE-1 request check threw: ' + (e && e.stack || e)); });
+}
+// ---- audit 3.1.329 ENGINE-1 (= CLICK-2): no Remote Engine fetch outlives Chrome's 30 s worker fetch limit ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const bsrc = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    // 1. the budget: the real lines of on_new_pos's remote branch
+    const a = psrc.indexOf('        const limit = open_ended ? analysis_limit_value('), b = psrc.indexOf('        const posKey = ', a);
+    const lim = psrc.indexOf('const ANALYSIS_LIMIT_MAX'), lime = psrc.indexOf('\n}\n', psrc.indexOf('function analysis_limit_value(', lim)) + 3;
+    const consts = (psrc.match(/const (NATIVE_MAX_RT|REMOTE_HTTP_MAX_RT) = \d+;/g) || []).join(' ');
+    const c = vm.createContext({});
+    vm.runInContext(`var config = {}; const NATIVE_ENGINES = ['sf18-native'];
+        function uses_native() { return NATIVE_ENGINES.includes(config.engine); }
+        ${consts} ${psrc.slice(lim, lime)}
+        function budget(open_ended, movetime, want_multipv) { ${psrc.slice(a, b)} return rt; }`, c);
+    const rt = (cfg, open_ended, movetime = 300) => {
+        c.config = Object.assign({analysis_limit_mode: 'time', analysis_limit: 61}, cfg);
+        return vm.runInContext(`budget(${open_ended}, ${movetime}, 1)`, c);
+    };
+    const all = [rt({engine: 'remote', analysis_limit: 60}, true), rt({engine: 'remote', analysis_limit: 31}, true),
+                 rt({engine: 'remote', analysis_limit_mode: 'nodes', analysis_limit: 30}, true),
+                 rt({engine: 'remote', analysis_limit_mode: 'depth', analysis_limit: 40}, true),
+                 rt({engine: 'remote'}, false, 45000), rt({engine: 'remote'}, true, 45000)];
+    ok('HTTP remote: every request is asked for at most 25 s (time limit 60/31 s, nodes, depth, a 45 s paced think)',
+       all.every(v => v === 25000), all);
+    ok('...a short one is left alone', rt({engine: 'remote', analysis_limit: 10}, true) === 10000 && rt({engine: 'remote'}, false, 1200) === 1200);
+    ok('...and a native host (which streams, over a Port) keeps its own minute for a typed limit',
+       rt({engine: 'sf18-native', analysis_limit: 60}, true) === 60000);
+    // 2. the worker relay times out on a server that holds the request, before Chrome would end the worker
+    const w = bsrc.indexOf('if (msg.backendFetch)'), we = bsrc.indexOf('return true;\n  }', w) + 16;
+    const body = bsrc.slice(w, we).replace(/const BACKEND_TIMEOUT_MS = \d+;/, 'const BACKEND_TIMEOUT_MS = 300;');
+    const http = require('http');
+    const held = [];
+    const server = http.createServer((req, res) => { held.push(res); }).listen(0, '127.0.0.1');
+    const panel = vm.createContext({sent: [], answer: null, TypeError, Error, console});
+    panel.self = panel;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), panel);
+    panel.MephistoI18n.setFallback(JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8')));
+    const e1 = psrc.indexOf('const err_line = '), e2 = psrc.indexOf('\n};\n', psrc.indexOf('const err_fail = ', e1)) + 4;
+    const cb = psrc.indexOf('async function call_backend('), cbe = psrc.indexOf('\n}\n', cb) + 3;
+    vm.runInContext(`var chrome = {runtime: {sendMessage: async m => { sent.push(m); return answer; }}};` + psrc.slice(e1, e2) + psrc.slice(cb, cbe), panel);
+    server.on('listening', () => (async () => {
+        const port = server.address().port;
+        // the relay only takes its four URLs: point the 9090 /analyse entry at the held server
+        const wb = body.replace("'http://localhost:9090/analyse'", `'http://127.0.0.1:${port}/analyse'`);
+        const wc = vm.createContext({fetch, AbortSignal, TypeError, String, JSON});
+        vm.runInContext(`function handle(msg) { return new Promise(res => { const sendResponse = res; (() => { ${wb} })(); }); }`, wc);
+        const t0 = Date.now();
+        const r = await Promise.race([
+            vm.runInContext(`handle({backendFetch: {url: 'http://127.0.0.1:${port}/analyse', data: {fen: 'f', time: 25000}}})`, wc),
+            new Promise(res => setTimeout(() => res('no answer after 3 s'), 3000))]);
+        ok('worker: a backend that holds the request is answered with timedOut, not left open', r && r.timedOut === true && r.unreachable === false && Date.now() - t0 < 2500, r);
+        // 3. the panel turns that into a coded, translated line instead of Chrome's raw text
+        panel.answer = r && typeof r === 'object' ? r : {timedOut: true, ms: 28000, error: 'x'};
+        let err; try { await vm.runInContext(`call_backend('http://localhost:9090/analyse', {})`, panel); } catch (e) { err = e; }
+        const line = err && vm.runInContext('err_code_line', panel)(err);
+        ok('panel: a timed-out relay is MPH-E09 naming remote-engine.py',
+           err && err.code === 'MPH-E09' && /^MPH-E09: remote-engine\.py did not answer within \d+ seconds/.test(line || ''), [err && err.message, line]);
+    })().catch(e => { fails++; console.log('FAIL ENGINE-1 relay checks threw: ' + (e && e.stack || e)); })
+        .finally(() => { held.forEach(res => res.destroy()); server.close(); server.closeAllConnections?.(); }));
 }
 // ==== END FIX CHECKS ====
 

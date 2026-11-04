@@ -785,6 +785,7 @@
   "err.E03": "localhost:9090 üzerinde remote-engine.py dışında bir şey yanıt veriyor. Onu durdur ya da orada remote-engine.py'yi başlat.",
   "err.E06": "Çevrimiçi motor yanıt veremedi. İnternet bağlantını kontrol et ya da ayarlardan başka bir motor seç.",
   "err.E08": "Yerel Fairy-Stockfish {variant} varyantını analiz edemez: ana makinesinde bu varyant için tahta yok. Bunun için ayarlardan yerleşik Fairy-Stockfish'i seç.",
+  "err.E09": "{program} {seconds} saniye içinde yanıt vermedi, bu yüzden istek bırakıldı. Penceresinde hata olup olmadığına bakın ya da yeniden başlatın.",
   "err.N01": "Bu sürümde bulunmayan bir model dosyası indirilemedi. İnternet bağlantını kontrol edip tekrar dene.",
   "err.N02": "Model indirmesi yarıda kesildi ya da boyutu yanlış. Tekrar dene.",
   "err.N03": "İndirilen model bütünlük denetimini geçemedi ve atıldı. Tekrar dene; yine başarısız olursa tam zip'i kur.",

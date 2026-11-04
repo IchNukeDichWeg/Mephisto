@@ -183,6 +183,11 @@ let remote_gen = 0;
 // The longest a NATIVE analyse may run. An abandoned one keeps going at the host (see the note where
 // this is applied), so this is the ceiling on how long a dead search can block the live one.
 const NATIVE_MAX_RT = 8000;
+// The longest search the HTTP Remote Engine is asked for. Its one answer comes back on a fetch the
+// service worker holds, which Chrome cuts at 30 s; 25 s leaves room for the engine to overshoot its
+// movetime and for remote-engine.py to stop the search this one supersedes. The worker's relay
+// times out at 28 s (BACKEND_TIMEOUT_MS) with MPH-E09 as the backstop.
+const REMOTE_HTTP_MAX_RT = 25000;
 let native_inflight = null;
 // Has a native host actually answered this session? The health check needs the difference between
 // "a native engine is selected" and "a native engine is talking to us" -- an installer that was
@@ -5872,6 +5877,10 @@ function on_new_pos(fen, startFen, moves) {
         // typed in is not the case it protects against, so an explicit one is honoured up to a
         // minute -- which is also where the watchdog below still arms.
         if (uses_native()) rt = Math.min(rt, limit != null ? 60000 : NATIVE_MAX_RT);
+        // The HTTP answer waits on a fetch in the service worker (the CORS relay), and Chrome ends a
+        // worker whose fetch response takes over 30 s -- an Analysis Limit of 31-60 s, the 60 s
+        // ceiling under a nodes/depth limit, or a long paced think all crossed it (audit 3.1.329 ENGINE-1).
+        if (http_remote) rt = Math.min(rt, REMOTE_HTTP_MAX_RT);
         const posKey = moves ? `${startFen}|${moves}` : fen;
         const send_analysis = () => {
             if (uses_native() && native_inflight === posKey) {
@@ -13415,6 +13424,12 @@ function on_remote_error(err) {
 async function call_backend(url, data) {
     const r = await chrome.runtime.sendMessage({backendFetch: {url, data}});
     if (!r || r.unreachable) throw new TypeError(r?.error || 'Failed to fetch');
+    // The worker gave up on a reply before Chrome's 30 s fetch limit could end the worker itself,
+    // which would have shown Chrome's raw "message channel closed" text (audit 3.1.329 ENGINE-1).
+    if (r.timedOut) {
+        throw err_fail('MPH-E09', {program: /:9090\//.test(url) ? 'remote-engine.py' : 'mephisto-clicker.py',
+                                   seconds: Math.round((r.ms || 28000) / 1000)}, r.error);
+    }
     if (r.error) throw new Error(r.error);
     return {ok: r.ok, status: r.status, url: r.url, text: async () => r.text};
 }

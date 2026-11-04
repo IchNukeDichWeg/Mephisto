@@ -785,6 +785,7 @@
   "err.E03": "Su localhost:9090 risponde qualcosa che non è remote-engine.py. Fermalo o avvia lì remote-engine.py.",
   "err.E06": "Il motore online non ha potuto rispondere. Controlla la connessione a internet o scegli un altro motore nelle impostazioni.",
   "err.E08": "Il Fairy-Stockfish nativo non può analizzare {variant}: il suo host non ha una scacchiera per questa variante. Scegli il Fairy-Stockfish integrato nelle impostazioni.",
+  "err.E09": "{program} non ha risposto entro {seconds} secondi, quindi la richiesta è stata scartata. Controlla se nella sua finestra ci sono errori, oppure riavvialo.",
   "err.N01": "Impossibile scaricare un file di modello che questa versione non include. Controlla la connessione a internet e riprova.",
   "err.N02": "Il download del modello si è interrotto o ha la dimensione sbagliata. Riprova.",
   "err.N03": "Il modello scaricato non ha superato il controllo di integrità ed è stato scartato. Riprova; se continua a fallire, installa lo zip completo.",

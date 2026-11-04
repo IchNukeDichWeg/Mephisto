@@ -785,6 +785,7 @@
   "err.E03": "Er antwoordt iets anders dan remote-engine.py op localhost:9090. Stop het of start daar remote-engine.py.",
   "err.E06": "De online engine kon niet antwoorden. Controleer je internetverbinding of kies in de instellingen een andere engine.",
   "err.E08": "De native Fairy-Stockfish kan {variant} niet analyseren: de host heeft geen bord voor die variant. Kies daarvoor in de instellingen de ingebouwde Fairy-Stockfish.",
+  "err.E09": "{program} heeft niet binnen {seconds} seconden geantwoord, dus het verzoek is afgebroken. Kijk in het venster ervan of er fouten staan, of start het opnieuw.",
   "err.N01": "Een modelbestand dat deze build niet bevat kon niet worden gedownload. Controleer je internetverbinding en probeer het opnieuw.",
   "err.N02": "De modeldownload is afgebroken of heeft de verkeerde grootte. Probeer het opnieuw.",
   "err.N03": "Het gedownloade model faalde de integriteitscontrole en is weggegooid. Probeer het opnieuw; blijft het mislukken, installeer dan de volledige zip.",

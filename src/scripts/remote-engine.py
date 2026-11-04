@@ -28,6 +28,7 @@ except ImportError as e:
 engine = None
 engine_options = {}
 request_counter = 0
+current_analysis = None  # the search running now, so a newer /analyse can stop it at once
 engine_lock = threading.Lock()
 request_lock = threading.Lock()
 
@@ -196,11 +197,20 @@ def format_score(score, depth):
 
 @app.route('/analyse', methods=['POST'])
 def analyse():
-    global request_counter, request_lock
+    global request_counter, request_lock, current_analysis
 
     with request_lock:
         request_counter += 1
         request_id = request_counter
+        # Stop the search this request supersedes NOW. The loop below only notices a newer request at
+        # the engine's next info line, which deep in a search is seconds away (measured with Stockfish:
+        # a 300 ms request took up to 5.9 s behind a superseded one, 0.37 s with this stop). The
+        # extension's call waits on a fetch that Chrome cuts at 30 s, so that queue time came out of
+        # the new search's budget (audit 3.1.329 ENGINE-1). Set and read under request_lock, so a
+        # search either sees the bumped counter before it starts or is in current_analysis here to
+        # be stopped.
+        if current_analysis is not None:
+            current_analysis.stop()
 
     with engine_lock:
         data = request.get_json(silent=True)
@@ -250,13 +260,20 @@ def analyse():
         terminal = not any(board.legal_moves) # authoritative game-over signal
         try:
             with engine.analysis(board, time_limit, multipv=multipv) as analysis:
-                bestmove = None
-                if request_counter == request_id:
-                    for _ in analysis:
-                        if request_counter != request_id:
-                            break # request was cancelled
+                with request_lock:
+                    current_analysis = analysis
+                try:
+                    bestmove = None
                     if request_counter == request_id:
-                        bestmove = analysis.wait().move # actual move (search or book)
+                        for _ in analysis:
+                            if request_counter != request_id:
+                                break # request was cancelled
+                        if request_counter == request_id:
+                            bestmove = analysis.wait().move # actual move (search or book)
+                finally:
+                    with request_lock:
+                        if current_analysis is analysis:
+                            current_analysis = None
             out = format_lines(analysis.multipv, terminal, bestmove)
             # Cut short by a newer request: say so, or the panel plays the shallow line (or a
             # `(none)`) as an answer. Its retry fires on this flag, as with the native hosts.

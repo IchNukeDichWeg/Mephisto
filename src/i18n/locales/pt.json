@@ -785,6 +785,7 @@
   "err.E03": "Algo que não é o remote-engine.py está a responder em localhost:9090. Pára-o ou inicia o remote-engine.py aí.",
   "err.E06": "O motor online não conseguiu responder. Verifica a tua ligação à internet ou escolhe outro motor nas definições.",
   "err.E08": "O Fairy-Stockfish nativo não consegue analisar {variant}: o host não tem tabuleiro para essa variante. Escolhe o Fairy-Stockfish integrado nas definições.",
+  "err.E09": "{program} não respondeu em {seconds} segundos, então o pedido foi descartado. Verifique se há erros na janela dele ou reinicie-o.",
   "err.N01": "Não foi possível transferir um ficheiro de modelo que esta versão não inclui. Verifica a tua ligação à internet e tenta novamente.",
   "err.N02": "A transferência do modelo foi interrompida ou tem o tamanho errado. Tenta novamente.",
   "err.N03": "O modelo transferido falhou a verificação de integridade e foi descartado. Tenta novamente; se continuar a falhar, instala o zip completo.",
