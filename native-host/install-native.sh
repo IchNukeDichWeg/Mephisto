@@ -115,18 +115,23 @@ fi
 RODENT_BIN=""; [ -x "$RODENT_DIR/rodent-iv" ] && RODENT_BIN="$RODENT_DIR/rodent-iv"
 
 # slug | binary | nnue-dir ("" = none) | home dir (optional: an engine that reads data files beside
-# its own executable gets that whole directory copied). Fairy switches EvalFile per variant.
+# its own executable gets that whole directory copied) | the flag that names its binary ("" = built
+# here, not passed). Fairy switches EvalFile per variant.
 NNUE_SRC="$SRC_DIR/../lib/engine/fairy-stockfish-14/nnue"
-SPECS=("sf-native|$SF_BIN||" "fairy-native|$FAIRY_BIN|$NNUE_SRC|" "rodent-native|$RODENT_BIN||$RODENT_DIR")
+SPECS=("sf-native|$SF_BIN|||--stockfish" "fairy-native|$FAIRY_BIN|$NNUE_SRC||--fairy" "rodent-native|$RODENT_BIN||$RODENT_DIR|")
 [ -n "$PYBIN" ] || SPECS=()   # no python-chess -> no UCI hosts, but Tetrarch below still installs
 
 installed=0
 # ${SPECS[@]+...}: under set -u, macOS's stock bash 3.2 calls an EMPTY array unbound, so a Tetrarch-only
 # install (no python-chess) died here before Tetrarch was registered (audit 3.1.330 NATIVEB-1).
 for spec in ${SPECS[@]+"${SPECS[@]}"}; do
-  IFS='|' read -r slug bin nnue home <<< "$spec"
+  IFS='|' read -r slug bin nnue home flag <<< "$spec"
   if [ -z "$bin" ] || [ ! -x "$bin" ]; then
-    echo "-- skipping $slug (no binary; pass --${slug%-native} /path or install it)"; continue
+    # the flag comes from the spec: deriving it from the slug suggested --sf and --rodent, which the
+    # parser above rejects as unknown (audit 3.1.330 NATIVEB-4)
+    if [ -n "$flag" ]; then echo "-- skipping $slug (no binary; pass $flag /path or install it)"
+    else echo "-- skipping $slug (not built: build-rodent.sh needs git and a C++ compiler)"; fi
+    continue
   fi
   if [ -n "$home" ] && [ -d "$home" ]; then
     rundir="$RUNTIME_DIR/engines/$slug"; rm -rf "$rundir"; mkdir -p "$rundir"; cp -R "$home"/. "$rundir"/

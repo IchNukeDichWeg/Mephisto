@@ -2540,8 +2540,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     // host names allow no hyphens: the worker's app id and the installer's derived one must meet
     ok('the worker knows its host', /'rodent-native': \{app: 'com\.rodent_native\.host'/.test(bg));
     ok('the installer registers it, personalities/ copied beside the binary',
-       // either installer's spelling: the 4th spec field (home dir) is the rodent-iv folder
-       /"rodent-native\|[^\n]*\|\|[^\n]*(engines\/rodent-iv|\$RODENT_DIR)"/.test(inst)
+       // either installer's spelling: the 4th spec field (home dir) is the rodent-iv folder; the public one adds a 5th (its binary flag)
+       /"rodent-native\|[^\n]*\|\|[^\n]*(engines\/rodent-iv|\$RODENT_DIR)(\|[^"|\n]*)?"/.test(inst)
            && /engines\/rodent-iv/.test(inst));
 
     // the two copies of "which engines have a Personality" agree
@@ -11344,6 +11344,21 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const sh = fs.readFileSync(p, 'utf8');
         ok('NATIVEB-1: the UCI-host loop expands SPECS with the bash-3.2-safe ${SPECS[@]+...} form, since SPECS=() without python-chess',
            /\[ -n "\$PYBIN" \] \|\| SPECS=\(\)/.test(sh) && /for spec in \$\{SPECS\[@\]\+"\$\{SPECS\[@\]\}"\}; do/.test(sh) && !/for spec in "\$\{SPECS\[@\]\}"/.test(sh));
+    }
+}
+// ---- NATIVEB-4 (audit 3.1.330): the public installer's skip hint names a flag its own parser accepts ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const p = ROOT + '/native-host/install-native.sh';
+    if (!fs.existsSync(p)) console.log('ok   NATIVEB-4: skipped (install-native.sh is the public fork\'s installer)');
+    else {
+        const sh = fs.readFileSync(p, 'utf8');
+        const parsed = [...sh.matchAll(/^\s+(--[a-z-]+)\) /gm)].map(m => m[1]);
+        const specs = (sh.match(/^SPECS=\((.*)\)$/m) || ['', ''])[1];
+        const flags = [...specs.matchAll(/"[a-z-]+\|[^"]*\|(--[a-z-]*)?"/g)].map(m => m[1]).filter(Boolean);
+        ok('NATIVEB-4: each spec\'s hint flag is one the installer parses (--stockfish, --fairy), and the hint uses it',
+           JSON.stringify(flags) === '["--stockfish","--fairy"]' && flags.every(f => parsed.includes(f))
+           && /pass \$flag \/path/.test(sh) && !/--\$\{slug%-native\}/.test(sh), [flags, parsed]);
     }
 }
 // ==== END FIX CHECKS ====
