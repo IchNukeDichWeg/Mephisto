@@ -97,6 +97,13 @@ async function releaseAssets(tag) {
     return Object.fromEntries((await r.json()).assets.map(a => [a.name, (a.digest || '').replace(/^sha256:/, '')]));
 }
 const releaseDigests = async (tag) => (await releaseAssets(tag)) || {};   // --reuse: unpublished = nothing to reuse
+// the tag of the repository's "Latest" release, or null when it has none
+async function latestTag() {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {headers: {Accept: 'application/vnd.github+json'}});
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(`GitHub API ${r.status} reading the latest release`);
+    return String((await r.json()).tag_name || '');
+}
 
 // Does `assets` hold manifest entry `e` under `name`? A split file is checked part by part for presence
 // only: the manifest pins the joined bytes, which no single asset carries.
@@ -158,7 +165,17 @@ async function main() {
             console.error(`\n!! ${MANIFEST} names bytes its releases do not hold -- publish them, or rebuild with a new --tag:\n  ` + missing.join('\n  '));
             process.exit(1);
         }
-        console.log(`\n${MANIFEST} matches lib/engine (${names.length} files) and ${tags.join(', ')} hold every one`);
+        // "LATEST" MUST BE A VERSION RELEASE (audit 3.1.330 BOUNDARY-5). Every install's update check
+        // reads /releases/latest and takes its tag as the newest version. An assets release published
+        // without --latest=false becomes "Latest", `engines-v2` is no newer than anything, and every
+        // install sees no update (and caches that for 12 h) until a version release takes it back.
+        const latest = await latestTag();
+        if (latest !== null && !/^v\d+(\.\d+)*$/.test(latest)) {
+            console.error(`\n!! the repository's "Latest" release is ${latest}, not a version, and every install's update check reads it.`
+                + `\n   Mark the newest version release Latest: gh release edit v<newest> --repo ${REPO} --latest`);
+            process.exit(1);
+        }
+        console.log(`\n${MANIFEST} matches lib/engine (${names.length} files) and ${tags.join(', ')} hold every one; Latest is ${latest || 'none'}`);
         return;
     }
 
@@ -208,7 +225,8 @@ async function main() {
         console.log(`staged ${mb(e.size)}  ${n}`);
     }
     console.log(`\n${mb(staged)} staged in ${o.out} for release ${o.tag}. Publish (by hand, once):`);
-    console.log(`  gh release create ${o.tag} ${o.out}/* --repo ${REPO} --title "${o.tag}" --notes "Engine nets for the slim install. Never re-tag: the extension pins these bytes by sha256."`);
+    // --latest=false: a new release is made "Latest" by default, and the update check reads Latest (BOUNDARY-5)
+    console.log(`  gh release create ${o.tag} ${o.out}/* --repo ${REPO} --title "${o.tag}" --latest=false --notes "Engine nets for the slim install. Never re-tag: the extension pins these bytes by sha256."`);
 }
 
 main().catch(e => { console.error('build-engines-manifest:', e.message); process.exit(1); });

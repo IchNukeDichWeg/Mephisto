@@ -14,8 +14,9 @@ both zips. The loader (`src/offscreen/model-fetch.js`) tries the bundled file fi
 
 ## Every release
 
-1. Check the manifest still matches `lib/engine`, and that every tag it names is published with
-   those exact bytes (release-zips.sh does this and stops if not; it reads the GitHub API):
+1. Check the manifest still matches `lib/engine`, that every tag it names is published with
+   those exact bytes, and that the repository's Latest release is a version, not an assets release
+   (release-zips.sh does this and stops if not; it reads the GitHub API):
 
        node tools/release/build-engines-manifest.mjs --check
 
@@ -46,7 +47,11 @@ both zips. The loader (`src/offscreen/model-fetch.js`) tries the bundled file fi
 2. Commit the new `src/offscreen/engine-assets.json` together with the `lib/engine` change.
 3. Publish the staged files once (the script prints the exact command):
 
-       gh release create engines-v2 ../engines-v2/* --title engines-v2 --notes "..."
+       gh release create engines-v2 ../engines-v2/* --title engines-v2 --latest=false --notes "..."
+
+   `--latest=false` matters: GitHub makes a new release "Latest" by default, and every install's
+   update check reads Latest as the newest version. An assets release there hides every update until
+   the next version release takes it back (`--check` refuses while it is so).
 
    This has to be done BEFORE the version that needs it ships. A slim install asking for a tag
    that does not exist yet gets HTTP 404 and no engine; `--check` (and so release-zips.sh) refuses

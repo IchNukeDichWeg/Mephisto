@@ -11082,6 +11082,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('BOUNDARY-2: both new strings exist in all 14 locales', langs.length === 14 && langs.every(l => loc(l)['panel.native_host_old'] && loc(l)['panel.native_host_old_short']));
     ok('BOUNDARY-2: the README tells updaters to re-run the native installer', /After \*\*updating\*\* Mephisto, re-run the install command/.test(fs.readFileSync(ROOT + '/README.md', 'utf8')));
 })().catch(e => { fails++; console.log('FAIL BOUNDARY-2 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 BOUNDARY-5: an assets release is never published as the repository's "Latest" ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rd = fs.readFileSync(ROOT + '/tools/release/README.md', 'utf8'), bm = fs.readFileSync(ROOT + '/tools/release/build-engines-manifest.mjs', 'utf8');
+    const creates = rd.split('\n').filter(l => /gh release create (engines|models)-v/.test(l));
+    ok('BOUNDARY-5: every documented assets-release command passes --latest=false', creates.length >= 1 && creates.every(l => /--latest=false/.test(l)), creates);
+    ok('BOUNDARY-5: ...and so does the command the manifest builder prints', /console\.log\(`  gh release create \$\{o\.tag\}[^`]*--latest=false/.test(bm));
+    ok('BOUNDARY-5: --check (the release-zips gate) stops when Latest is not a version tag',
+       /releases\/latest`/.test(bm) && /if \(latest !== null && !\/\^v\\d\+\(\\\.\\d\+\)\*\$\/\.test\(latest\)\) \{[\s\S]{0,300}process\.exit\(1\)/.test(bm));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
