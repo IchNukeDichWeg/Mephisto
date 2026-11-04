@@ -359,6 +359,9 @@ const MephistoUpdater = (function () {
     async function stagingStale(dir, staging, raw) {
         let mk;
         try { mk = JSON.parse(new TextDecoder().decode(raw)); } catch (e) { return 'the staging marker is not readable'; }
+        // valid JSON that is not a marker ('null', a list with no paths) read `mk.from` off null or
+        // could never be finished: unreadable too (audit 3.1.330 follow-up L29)
+        if (!Array.isArray(mk?.paths)) return 'the staging marker is not readable';
         const now = await installedVersion(dir);
         if (now && (mk.from ? now !== mk.from && now !== mk.version : isNewer(now, mk.version))) {
             return `the folder now holds v${now}; the staged update was v${mk.version}`;
@@ -463,11 +466,13 @@ const MephistoUpdater = (function () {
         if (!staging) throw fail('MPH-U14');
         const raw = await readFileAt(staging, STAGED_MARKER);
         if (!raw) throw fail('MPH-U15', null, 'no staging marker');
-        const {version, paths} = JSON.parse(new TextDecoder().decode(raw));
         // SYSB-1: a staging the folder has moved past is not an interrupted update any more, it is
-        // old code. Dropped, so the next Install starts clean.
+        // old code. Dropped, so the next Install starts clean. Checked BEFORE the marker is unpacked:
+        // a corrupt marker threw an uncoded SyntaxError here, and stagingStale already answers it
+        // (audit 3.1.330 follow-up L29).
         const stale = await stagingStale(dir, staging, raw);
         if (stale) { await removeEntry(dir, STAGING); throw fail('MPH-U14', null, stale); }
+        const {version, paths} = JSON.parse(new TextDecoder().decode(raw));
 
         onStatus(`Reading the staged v${version}…`);
         const files = [];

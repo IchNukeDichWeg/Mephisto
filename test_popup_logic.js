@@ -3053,7 +3053,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        stagedLoop > 0 && marker > stagedLoop && marker < inst.indexOf('backupCurrent('));
     ok('updater: finishing and "interrupted update" both require the marker, and install exactly the files it lists',
        /pendingInstall\(\) \{[\s\S]{0,300}readFileAt\(staging, STAGED_MARKER\)/.test(u)
-       && /finishStaged\([\s\S]{0,500}readFileAt\(staging, STAGED_MARKER\)[\s\S]{0,200}const \{version, paths\} = JSON\.parse/.test(u));
+       && /finishStaged\([\s\S]{0,500}readFileAt\(staging, STAGED_MARKER\)[\s\S]{0,700}const \{version, paths\} = JSON\.parse/.test(u));
 }
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
@@ -11883,6 +11883,48 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and a control covered by our panel gets one direct click, no coordinate click into the panel',
        JSON.stringify(run({panel: true}, {ok: true})) === '{"cdp":0,"clicks":1}', run({panel: true}, {ok: true}));
 }
+// ---- L29 (audit 3.1.330 follow-up): a corrupt staging marker is a coded error and is dropped, never a bare SyntaxError ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const upSrc = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const enc = (s) => new TextEncoder().encode(s);
+    const mkdir = () => {
+        const kids = new Map();
+        return {kind: 'directory', kids, name: 'Mephisto', queryPermission: async () => 'granted', requestPermission: async () => 'granted',
+            getDirectoryHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = mkdir()); if (!k || k.kind !== 'directory') throw new Error('NotFoundError'); return k; },
+            getFileHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = {kind: 'file', bytes: new Uint8Array()}); if (!k || k.kind !== 'file') throw new Error('NotFoundError'); const f = k;
+                return {getFile: async () => ({size: f.bytes.length, arrayBuffer: async () => f.bytes.slice().buffer, text: async () => new TextDecoder().decode(f.bytes)}),
+                        createWritable: async () => { let buf; return {write: async (b) => { buf = b; }, close: async () => { f.bytes = new Uint8Array(buf); }}; }}; },
+            removeEntry: async (n) => { if (!kids.delete(n)) throw new Error('NotFoundError'); }};
+    };
+    const put = async (root, path, text) => { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p, {create: true}); const w = await (await d.getFileHandle(n, {create: true})).createWritable(); await w.write(enc(text)); await w.close(); };
+    const load = (root) => {
+        const idbReq = (val) => { const q = {}; setTimeout(() => { q.result = val; q.onsuccess && q.onsuccess(); }); return q; };
+        const indexedDB = {open: () => idbReq({transaction: () => ({objectStore: () => ({get: () => idbReq(root), put: () => idbReq(), delete: () => idbReq()})}), close() {}})};
+        const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Set, JSON, Promise, setTimeout, indexedDB,
+            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'}), sendMessage: (m, cb) => cb({latest: '3.1.330', newer: false})},
+                     permissions: {contains: async () => true}, storage: {local: {get: async () => ({auto_update: true}), set: async () => {}}}}});
+        c.self = c;
+        vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+        vm.runInContext(upSrc.replace('const MephistoUpdater =', 'var MephistoUpdater =').replace(/\nif \(typeof module[\s\S]*$/, ''), c);
+        return vm.runInContext('MephistoUpdater', c);
+    };
+    const caught = async (p) => { try { await p; return null; } catch (e) { return e; } };
+    const folder = async (marker) => {
+        const r = mkdir();
+        await put(r, 'manifest.json', JSON.stringify({name: 'Mephisto Chess Extension', version: '3.1.330'}));
+        await put(r, '.mephisto-staging/.mephisto-staged.json', marker);
+        return r;
+    };
+    const r1 = await folder('{"version":"3.1.331","paths":["manif');   // cut off mid-write
+    const e1 = await caught(load(r1).finishStaged());
+    ok('L29: finishing a staging whose marker is corrupt is a coded MPH-U.. error, not a SyntaxError',
+       !!e1 && /^MPH-U1[45]$/.test(e1.code || '') && !r1.kids.has('.mephisto-staging'), [e1 && e1.code, e1 && e1.name, e1 && e1.message]);
+    const r2 = await folder('null');
+    const e2 = await caught(load(r2).install());
+    ok('...and Install over a marker that parses to null drops it and carries on instead of a TypeError',
+       !e2 && !r2.kids.has('.mephisto-staging'), e2 && [e2.code, e2.name, e2.message]);
+})().catch(e => { fails++; console.log('FAIL L29 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
