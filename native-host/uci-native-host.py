@@ -56,12 +56,22 @@ def _read_sibling(name):
         return text or None
     return None
 
+# What to do about a broken setup differs by OS (audit 3.1.330 follow-up L37). Only macOS and Linux
+# have an installer for this host; on Windows the README's native-engine steps are done by hand, so
+# "re-run the native installer" named nothing there.
+def _setup_hint(what):
+    if sys.platform == 'win32':
+        return {'path': f"write the engine's full path into {_SLUG}.path beside this host (README, native engines, Windows step 1)",
+                'nets': 'fetch them with fetch-fairy-nets.py (README, native engines, Windows step 5)'}[what]
+    return {'path': 're-run the native installer (see the README)',
+            'nets': 're-run the installer to fetch the nets'}[what]
+
 def _resolve_engine():
     path = _read_sibling(f'{_SLUG}.path')
     if path and os.path.isfile(path):
         return path
-    _dbg(f"no usable {_SLUG}.path ({path!r}); giving up")
-    raise SystemExit(f"{_SLUG}: engine path missing -- re-run the native installer (see the README)")
+    _dbg(f"no usable {_SLUG}.path ({path!r}); giving up -- {_setup_hint('path')}")
+    raise SystemExit(f"{_SLUG}: engine path missing -- {_setup_hint('path')}")
 
 _NNUE_DIR = _read_sibling(f'{_SLUG}.nnue-dir')
 
@@ -248,7 +258,7 @@ def _apply_variant_net(variant):
         _set_if_declared('Use NNUE', True)
         _dbg(f"EvalFile -> {hits[0]}")
     else:
-        _dbg(f"no net for {prefix} in {_NNUE_DIR} -- classical eval (re-run the installer to fetch the nets)")
+        _dbg(f"no net for {prefix} in {_NNUE_DIR} -- classical eval ({_setup_hint('nets')})")
 
 def do_analyse(data, mid):
     global request_counter, current_analysis

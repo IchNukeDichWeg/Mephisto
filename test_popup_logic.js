@@ -11537,6 +11537,41 @@ print(json.dumps(out))`;
            r && r[1] && /^Tetrarch stopped responding: /.test(r[1].error || '') && /MemoryError: search table too large for this machine/.test(r[1].error), r && r[1]);
     }
 })();
+// ---- audit 3.1.330 follow-up L37: the native host's setup hints name what exists on each OS (no installer on Windows) ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    // _resolve_engine (+ its helper) and _apply_variant_net lifted out with ast; no .path, no net in the nets folder
+    const py = `import ast, glob, json, os, sys, types
+tree = ast.parse(open(sys.argv[1], encoding='utf-8-sig').read())
+body = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ('_setup_hint', '_resolve_engine', '_apply_variant_net')]
+out = {}
+for plat in ('win32', 'darwin', 'linux'):
+    logs = []
+    ns = {'sys': types.SimpleNamespace(platform=plat), 'os': os, 'glob': glob, '_SLUG': 'sf-native', '_dbg': logs.append,
+          '_read_sibling': lambda name: None, '_NNUE_DIR': '/nonexistent-nets', '_set_if_declared': lambda k, v: None}
+    exec(compile(ast.Module(body=body, type_ignores=[]), sys.argv[1], 'exec'), ns)
+    try:
+        ns['_resolve_engine'](); exit_text = None
+    except SystemExit as e:
+        exit_text = str(e)
+    ns['_apply_variant_net']('crazyhouse')
+    out[plat] = [exit_text, logs]
+print(json.dumps(out))`;
+    const r = await pyRun(['-I', '-B', '-c', py, ROOT + '/native-host/uci-native-host.py'], {encoding: 'utf8'});
+    if (r.error) console.log('ok   L37: skipped (no python3 here)');
+    else {
+        let res = {}; try { res = JSON.parse(r.stdout); } catch (e) { res = {err: (r.stderr || '').slice(-300)}; }
+        const w = res.win32 || [], m = res.darwin || [];
+        ok('L37: on Windows a missing engine path says to write sf-native.path, not to re-run an installer that does not exist there',
+           /sf-native\.path/.test(w[0] || '') && !/installer/.test(w[0] || '') && (w[1] || []).some(l => /sf-native\.path beside this host/.test(l)), w);
+        ok('L37: ...and a missing variant net points at fetch-fairy-nets.py', (w[1] || []).some(l => /no net for crazyhouse.*fetch-fairy-nets\.py/.test(l)), w[1]);
+        ok('L37: macOS and Linux keep "re-run the native installer"', /re-run the native installer/.test(m[0] || '')
+           && /re-run the native installer/.test((res.linux || [])[0] || '') && (m[1] || []).some(l => /no net for crazyhouse.*re-run the installer/.test(l)), [m, res.linux]);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
