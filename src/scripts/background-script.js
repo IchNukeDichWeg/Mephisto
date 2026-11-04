@@ -2223,15 +2223,16 @@ const PUZZLE_PAGE_URL = (url) => /^https?:\/\/(www\.)?(chess\.com|lichess\.org)\
 // body from a tab that was still genuinely attached and streaming, and nothing ever re-armed it:
 // capture went silently dark for the rest of the session (audit finding #8, 2026-08-26). Module
 // top-level runs on every worker start, so the reconciliation happens exactly when the state was
-// lost. Over-inclusion is harmless: onEvent only fires for OUR attachments.
+// lost. A puzzle tab is adopted only while the capture is wanted: an attached puzzle tab can also be
+// one Autoplay clicked in, or one whose capture was switched off (Network disabled, still attached),
+// and adopting it with the capture off only gets it stopped later (audit 3.1.329 SYS-4).
 try {
-  chrome.debugger.getTargets((targets) => {
+  chrome.debugger.getTargets(async (targets) => {
     if (chrome.runtime.lastError) return;
-    for (const t of targets || []) {
-      if (!t.attached || !t.tabId) continue;
-      attached.add(t.tabId);
-      if (PUZZLE_PAGE_URL(t.url || '')) puzzleNetTabs.add(t.tabId);
-    }
+    const ours = (targets || []).filter(t => t.attached && t.tabId);
+    for (const t of ours) attached.add(t.tabId);
+    if (!(await puzzleNetWanted())) return;
+    for (const t of ours) if (PUZZLE_PAGE_URL(t.url || '')) puzzleNetTabs.add(t.tabId);
   });
 } catch (e) { /* no debugger permission granted yet */ }
 
@@ -2267,8 +2268,11 @@ chrome.tabs?.onUpdated?.addListener(async (tabId, info, tab) => {
   try { await puzzleNetEnable(tabId); } catch (e) { /* the user can decline the attachment */ }
 });
 
+// Network.enable is sent on every puzzle page load, even for a tab already in the set. Being in the
+// set does not prove Network is on there: the restart reconciliation above adopts attached puzzle
+// tabs without knowing, and the early return this had then kept capture dark in that tab for good
+// (audit 3.1.329 SYS-4). Enabling an enabled domain is a no-op.
 async function puzzleNetEnable(tabId) {
-  if (puzzleNetTabs.has(tabId)) return;
   await cdpAttach(tabId);
   await new Promise((res) => chrome.debugger.sendCommand({tabId}, 'Network.enable', {}, () => {
     void chrome.runtime.lastError; res();

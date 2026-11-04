@@ -6922,6 +6922,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && /if \(msg\.cdpWarm\) \{[\s\S]{0,600}?cdpInputTabs\.add\(tabId\);\s*cdpAttach\(tabId\)/.test(b)
        && /onDetach\?\.addListener\(\(src\) => \{\s*if \(src\.tabId\) \{[^\n]*cdpInputTabs\.delete\(src\.tabId\)/.test(b));
 }
+// ---- audit 3.1.329 SYS-4: a puzzle tab already in the set still gets Network.enable ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const i = b.indexOf('async function puzzleNetEnable(tabId) {'), j = b.indexOf('\n}\n', i) + 3;
+    const cmds = [];
+    const c = vm.createContext({puzzleNetTabs: new Set([7]), cdpAttach: async () => {},
+        chrome: {runtime: {}, debugger: {sendCommand: (t, m, p, cb) => { cmds.push([t.tabId, m]); cb(); }}}});
+    vm.runInContext(b.slice(i, j), c);
+    vm.runInContext('puzzleNetEnable(7)', c).then(() => {
+        ok('SYS-4: a tab the restart reconciliation adopted is sent Network.enable on the next puzzle load',
+           JSON.stringify(cmds) === '[[7,"Network.enable"]]' && c.puzzleNetTabs.has(7), cmds);
+    });
+    ok('SYS-4: the restart reconciliation adopts puzzle tabs only while the capture is wanted',
+       /getTargets\(async \(targets\) => \{[\s\S]{0,300}?if \(!\(await puzzleNetWanted\(\)\)\) return;\s*for \(const t of ours\) if \(PUZZLE_PAGE_URL\(t\.url \|\| ''\)\) puzzleNetTabs\.add\(t\.tabId\);/.test(b));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
