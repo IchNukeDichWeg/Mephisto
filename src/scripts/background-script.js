@@ -446,8 +446,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg.bgTrace) {
     const t = new Date().toISOString().slice(11, 23);
     console.log(`[bg ${t}] ${msg.bgTrace.from} |`, ...msg.bgTrace.args);
-    const body = `${msg.bgTrace.from} | ` + msg.bgTrace.args
-      .map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+    const body = traceLineBody(msg.bgTrace.from, msg.bgTrace.args);
     // COLLAPSE A REPEAT INTO A COUNT instead of spending a slot on it. Auto-Next alone writes one
     // line every few seconds forever, and a 200-line ring made of that is a ring holding nothing:
     // a wrong move reported minutes later arrived with every line around it already flushed, which
@@ -813,6 +812,15 @@ async function saveStartup() {
 // couple of hundred KB at worst -- small enough to paste, long enough to contain the cause.
 const TRACE_RING = 200;
 const traceRing = [];
+// The extension id comes out HERE, at the one door every trace line passes, not at each caller. A
+// panel exception's stack frames read chrome-extension://<id>/src/popup/popup.js:..., and the
+// "PANEL THREW" line sent them unchanged into a report meant for public issues; on an unpacked
+// install the id is derived from the folder path, a stable per-install identifier (audit 3.1.329
+// PAGE-4). Same strip as the content script's scrapeFailLabel.
+function traceLineBody(from, args) {
+  return (`${from} | ` + args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' '))
+    .replace(/chrome-extension:\/\/[a-p]{32}\//g, '');
+}
 
 // What goes in: enough to explain a failure, and nothing that identifies you. The extension id, the
 // full URL and the query string are all deliberately left out -- this is meant to be pasteable into

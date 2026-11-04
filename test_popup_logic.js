@@ -7002,6 +7002,21 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('PAGE-3: a scrape storm on a game page logs the route shape, not the game id',
        logged.length === 1 && logged[0][1].path === '/game/live/<id>' && !/123456789/.test(line), logged);
 }
+// ---- audit 3.1.329 PAGE-4: no trace line keeps the extension id ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const i = b.indexOf('function traceLineBody('), j = b.indexOf('\n}\n', i) + 3;
+    const c = vm.createContext({});
+    if (i >= 0) vm.runInContext(b.slice(i, j), c);
+    const id = 'abcdefghijklmnopabcdefghijklmnop';
+    const line = i < 0 ? '' : c.traceLineBody('panel', ['PANEL THREW', {on: 'fen', error: 'x is undefined',
+        at: `at on_new_pos (chrome-extension://${id}/src/popup/popup.js:5702:5) | at chrome-extension://${id}/src/popup/popup.js:13597:20`}]);
+    ok('PAGE-4: a PANEL THREW stack keeps file, line and column but loses the extension id',
+       line.startsWith('panel | PANEL THREW {') && !line.includes(id) && !line.includes('chrome-extension://') && line.includes('src/popup/popup.js:5702:5'), line);
+    ok('PAGE-4: the bgTrace branch builds its ring line through traceLineBody',
+       /if \(msg\.bgTrace\) \{[\s\S]{0,300}?const body = traceLineBody\(msg\.bgTrace\.from, msg\.bgTrace\.args\);/.test(b));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
