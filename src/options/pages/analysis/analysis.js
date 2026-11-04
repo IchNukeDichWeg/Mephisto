@@ -104,23 +104,11 @@ function threeCheckCounts(fen) {
 // The promoted-piece mark "~" after a piece letter (Q~, the Fairy/lichess crazyhouse spelling) is
 // lifted the same way, into the node's promoted squares: chess.js read the "~" as a placement
 // character and shifted the rest of the rank, and the FEN box did not even recognise such a FEN
-// as one (X1-2).
+// as one (X1-2). Core.liftPromoted is shared with Game Review (audit 3.1.330 REVIEWB-1).
 function liftHoldings(fen) {
-    let promoted = '';
-    const placement = /^\S+/.exec(fen)?.[0] || '';
-    if (placement.includes('~')) {
-        const squares = [];
-        placement.replace(/\[[a-zA-Z]*\]$/, '').split('/').forEach((row, r) => {
-            let file = 0;
-            for (const ch of row) {
-                if (/\d/.test(ch)) file += +ch;
-                else if (ch === '~') squares.push('abcdefgh'[file - 1] + (8 - r));
-                else file++;
-            }
-        });
-        promoted = squares.join(',');
-        fen = fen.replace(placement, placement.replace(/~/g, ''));
-    }
+    const lifted = Core.liftPromoted(fen);
+    const promoted = lifted.promoted.join(',');
+    fen = lifted.fen;
     const held = /\[([a-zA-Z]*)\]/.exec(fen);
     if (!held) return {holdings: {w: '', b: ''}, promoted, fen};
     return {holdings: {w: (held[1].match(/[A-Z]/g) || []).join('').toLowerCase(),
@@ -166,18 +154,9 @@ function engineFen(pos) {
         // Promoted pieces carry their "~" mark (Q~), the spelling Fairy writes after a promotion
         // and reads back. Without it Fairy took a promoted queen for a real one and pocketed it as
         // a queen when captured, not as the pawn it was (measured on Fairy-Stockfish 14.0.1; X1-7).
+        // Core.markPromoted is shared with Game Review (audit 3.1.330 REVIEWB-1).
         const marks = (pos.promoted || '').split(',').filter(Boolean);
-        if (marks.length) {
-            parts[0] = parts[0].split('/').map((row, r) => {
-                let file = 0, out = '';
-                for (const ch of row) {
-                    if (/\d/.test(ch)) { file += +ch; out += ch; continue; }
-                    out += ch + (marks.includes('abcdefgh'[file] + (8 - r)) ? '~' : '');
-                    file++;
-                }
-                return out;
-            }).join('/');
-        }
+        if (marks.length) parts[0] = Core.markPromoted(parts[0], marks);
         const held = (pos.holdings?.w || '').toUpperCase() + (pos.holdings?.b || '').toLowerCase();
         parts[0] = `${parts[0]}[${held}]`;
         return parts.join(' ');

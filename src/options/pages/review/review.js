@@ -185,6 +185,9 @@ function buildPositions(game, variant = 'chess') {
     const checks = {w: 3, b: 3};
     let promoted = [];
     if (startFen && variant === 'crazyhouse') {
+        // a "Q~" promoted mark in the start FEN: lifted onto the promoted squares, since chess.js
+        // reads the "~" as a placement character and shifts the rest of the rank (audit 3.1.330 REVIEWB-1)
+        ({promoted, fen: startFen} = Core.liftPromoted(startFen));
         const held = /\[([a-zA-Z]*)\]/.exec(startFen);
         if (held) {
             hold = {w: (held[1].match(/[A-Z]/g) || []).join('').toLowerCase(),
@@ -203,7 +206,9 @@ function buildPositions(game, variant = 'chess') {
     const efenOf = () => {
         if (variant === 'crazyhouse') {
             const parts = chess.fen().split(' ');
-            parts[0] += `[${hold.w.toUpperCase()}${hold.b}]`;
+            // promoted pieces carry Fairy's "~" mark, or a capture of one is searched as pocketing
+            // the piece instead of a pawn (audit 3.1.330 REVIEWB-1; the Analysis page's X1-7)
+            parts[0] = Core.markPromoted(parts[0], promoted) + `[${hold.w.toUpperCase()}${hold.b}]`;
             return parts.join(' ');
         }
         if (variant === '3check') {

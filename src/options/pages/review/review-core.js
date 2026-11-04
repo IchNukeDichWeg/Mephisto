@@ -784,6 +784,42 @@ function parseInfo(line) {
     return out;
 }
 
+// ---- crazyhouse promoted pieces ---------------------------------------------------------------
+// Fairy-Stockfish (and lichess) write a promoted piece with a "~" after its letter (Q~). This
+// chess.js reads the "~" as a placement character and shifts the rest of the rank, and keeps no
+// promoted flag of its own, so the pages track promoted SQUARES themselves: liftPromoted takes the
+// marks off a loaded FEN (pockets in brackets may follow the placement), markPromoted writes them
+// back onto the placement the engine is sent. Without the mark Fairy takes a promoted queen for a
+// real one and pockets it as a queen when captured, not the pawn it was (measured on
+// Fairy-Stockfish 14.0.1: [Nnp] with the mark, [Nqn] without). Analysis and Game Review both call
+// these, so the two pages cannot drift apart again (audit 3.1.330 REVIEWB-1).
+function liftPromoted(fen) {
+    const placement = /^\S+/.exec(fen)?.[0] || '';
+    if (!placement.includes('~')) return {promoted: [], fen};
+    const promoted = [];
+    placement.replace(/\[[a-zA-Z]*\]$/, '').split('/').forEach((row, r) => {
+        let file = 0;
+        for (const ch of row) {
+            if (/\d/.test(ch)) file += +ch;
+            else if (ch === '~') promoted.push('abcdefgh'[file - 1] + (8 - r));
+            else file++;
+        }
+    });
+    return {promoted, fen: fen.replace(placement, placement.replace(/~/g, ''))};
+}
+function markPromoted(placement, squares) {
+    if (!squares || !squares.length) return placement;
+    return placement.split('/').map((row, r) => {
+        let file = 0, out = '';
+        for (const ch of row) {
+            if (/\d/.test(ch)) { file += +ch; out += ch; continue; }
+            out += ch + (squares.includes('abcdefgh'[file] + (8 - r)) ? '~' : '');
+            file++;
+        }
+        return out;
+    }).join('/');
+}
+
 // What the page and the test ladder actually call. parseGame/splitGames/parseTags/stripVariations
 // and the three statistics helpers stay internal: they are steps of the functions below, and an
 // export with no caller is surface that has to keep working for nobody.
@@ -792,6 +828,7 @@ root.MephistoReviewCore = {
     toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
     accuracyFor, indicators, evidence, estimate, parseInfo, clamp,
     NAG_FOR_CLASS, annotatedPgn, plyMove, lichessStudyId, lichessRequest, lichessResultUrl, lichessFailure,
+    liftPromoted, markPromoted,
 };
 
 })(typeof self !== 'undefined' ? self : globalThis);

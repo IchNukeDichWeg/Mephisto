@@ -8827,6 +8827,38 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...the worker answers the ask from storage',
        /if \(msg\.visionThreads\) \{\s*chrome\.storage\.local\.get\('vision_threads'\)[\s\S]{0,200}sendResponse\(\{raw: [\s\S]{0,200}return true;/.test(bg));
 })().catch(e => { fails++; console.log('FAIL CONTEXT-1 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 REVIEWB-1: Game Review's crazyhouse engine FEN marks promoted pieces (Q~), and a Q~ start FEN loads ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    let res = null;
+    try {
+        vm.runInContext("const Core = self.MephistoReviewCore; const RV_FAIRY_ONLY = ['crazyhouse'];\n"
+            + rj.slice(rj.indexOf('function threeCheckCounts'), rj.indexOf('// Seconds spent')), c);
+        const efens = (pgn) => vm.runInContext(`buildPositions(Core.parsePgn(${JSON.stringify(pgn)})[0], 'crazyhouse').positions.map(p => p.efen)`, c);
+        // b7xa8=Q: Fairy-Stockfish 14.0.1 itself answers "Q~6k/8/8/8/8/8/8/K7[R] b - - 0 1" for this line
+        const promo = efens('[Variant "Crazyhouse"]\n[SetUp "1"]\n[FEN "r6k/1P6/8/8/8/8/8/K7[] w - - 0 1"]\n\n1. bxa8=Q Kh7 2. Qb7 *');
+        const fen = 'r1bqkbnr/pppp1ppp/2n1p3/3Q~4/8/8/PPPP1PPP/RNB1KBNR[Nn] b KQkq - 0 1';
+        const loaded = efens(`[Variant "Crazyhouse"]\n[SetUp "1"]\n[FEN "${fen}"]\n\n1... exd5 2. N@c3 *`);
+        res = {promo, loaded};
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('REVIEWB-1: after b7xa8=Q the review sends the engine Fairy\'s own FEN, the promoted queen marked, and the mark follows the queen',
+       JSON.stringify(res?.promo) === JSON.stringify(['r6k/1P6/8/8/8/8/8/K7[] w - - 0 1', 'Q~6k/8/8/8/8/8/8/K7[R] b - - 0 1',
+           'Q~7/7k/8/8/8/8/8/K7[R] w - - 1 2', '8/1Q~5k/8/8/8/8/8/K7[R] b - - 2 2']), res);
+    ok('...a start FEN with Q~ replays from the right board, keeps the mark, and capturing that queen pockets a pawn',
+       JSON.stringify(res?.loaded) === JSON.stringify(['r1bqkbnr/pppp1ppp/2n1p3/3Q~4/8/8/PPPP1PPP/RNB1KBNR[Nn] b KQkq - 0 1',
+           'r1bqkbnr/pppp1ppp/2n5/3p4/8/8/PPPP1PPP/RNB1KBNR[Nnp] w KQkq - 0 2', 'r1bqkbnr/pppp1ppp/2n5/3p4/8/2N5/PPPP1PPP/RNB1KBNR[np] b KQkq - 1 2']), res);
+    ok('...Analysis and Review share one copy of the mark logic (Core.liftPromoted / Core.markPromoted)',
+       /Core\.liftPromoted\(/.test(rj) && /Core\.markPromoted\(/.test(rj)
+       && /Core\.liftPromoted\(/.test(fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8'))
+       && /Core\.markPromoted\(/.test(fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8')));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
