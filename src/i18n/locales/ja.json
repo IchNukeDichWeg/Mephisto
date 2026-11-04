@@ -564,6 +564,7 @@
   "set.style_drawish": "引き分け志向",
   "set.style_ultra": "超攻撃的",
   "set.style_disrespect": "挑発",
+  "panel.elo_not_applied": "フルパワー - このエンジンにはElo設定がありません",
   "set.tb_show": "テーブルベース表示",
   "set.tb_show_both": "両方",
   "set.tb_show_tb": "テーブルベースのみ",

@@ -564,6 +564,7 @@
   "set.style_drawish": "Empate",
   "set.style_ultra": "Ultra atacante",
   "set.style_disrespect": "Desrespeito",
+  "panel.elo_not_applied": "Força máxima - este motor não tem ajuste de Elo",
   "set.tb_show": "Exibição da tablebase",
   "set.tb_show_both": "Ambos",
   "set.tb_show_tb": "Apenas tablebase",

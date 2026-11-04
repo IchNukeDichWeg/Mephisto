@@ -564,6 +564,7 @@
   "set.style_drawish": "Nulle",
   "set.style_ultra": "Ultra offensif",
   "set.style_disrespect": "Irrespectueux",
+  "panel.elo_not_applied": "Pleine puissance - ce moteur n'a pas de réglage Elo",
   "set.tb_show": "Affichage de la tablebase",
   "set.tb_show_both": "Les deux",
   "set.tb_show_tb": "Tablebase seule",

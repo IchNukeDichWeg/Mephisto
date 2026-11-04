@@ -564,6 +564,7 @@
   "set.style_drawish": "Remisartig",
   "set.style_ultra": "Ultra-Angriff",
   "set.style_disrespect": "Respektlos",
+  "panel.elo_not_applied": "Volle Stärke - diese Engine hat keine Elo-Einstellung",
   "set.tb_show": "Endspieldatenbank-Anzeige",
   "set.tb_show_both": "Beide",
   "set.tb_show_tb": "Nur Datenbank",

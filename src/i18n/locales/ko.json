@@ -564,6 +564,7 @@
   "set.style_drawish": "무승부 지향",
   "set.style_ultra": "초공격적",
   "set.style_disrespect": "도발",
+  "panel.elo_not_applied": "최대 강도 - 이 엔진에는 Elo 설정이 없습니다",
   "set.tb_show": "테이블베이스 표시",
   "set.tb_show_both": "둘 다",
   "set.tb_show_tb": "테이블베이스만",

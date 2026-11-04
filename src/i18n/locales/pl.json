@@ -564,6 +564,7 @@
   "set.style_drawish": "Remisowy",
   "set.style_ultra": "Ultra atakujacy",
   "set.style_disrespect": "Brak szacunku",
+  "panel.elo_not_applied": "Pełna siła - ten silnik nie ma ustawienia Elo",
   "set.tb_show": "Wyświetlanie tablicy końcówek",
   "set.tb_show_both": "Oba",
   "set.tb_show_tb": "Tylko tablica",

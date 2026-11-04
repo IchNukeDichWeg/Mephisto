@@ -12013,6 +12013,65 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('L19: another port prints a NOTE at startup', /if args\.port != 9090:\s*\n\s*print\(f'NOTE: the extension only calls port 9090/.test(py));
     ok('L19: a port in use no longer advises moving to another port', !/Try another port/.test(py) && /except SystemExit as ex:/.test(py));
 }
+// ---- audit 3.1.330 follow-up L38: remote-engine.py reports the options its engine did not take, and the panel stops
+// showing an Elo cap the engine has no UCI_Elo for (Lc0 played at full strength under a "1500" label) ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // 1. the server, over two stand-in UCI engines: one without UCI_Elo (like Lc0), one with it (like Stockfish)
+    const py = `import importlib.util, json, os, sys, tempfile
+try:
+    import flask, chess.engine
+except ImportError:
+    print('null'); sys.exit(0)
+ENG = '''import sys
+OPTS = %r
+for l in sys.stdin:
+    l = l.strip()
+    if l == "uci":
+        print("id name stand-in"); [print(o) for o in OPTS]; print("option name MultiPV type spin default 1 min 1 max 50"); print("uciok")
+    elif l == "isready": print("readyok")
+    elif l == "quit": break
+    sys.stdout.flush()
+'''
+src = sys.argv[1]; d = tempfile.mkdtemp(); out = {}
+for name, opts in (('noelo', []), ('elo', ['option name UCI_LimitStrength type check default false',
+                                         'option name UCI_Elo type spin default 1350 min 1350 max 2850'])):
+    eng = os.path.join(d, name + '.py'); open(eng, 'w').write(ENG % (opts,))
+    sys.argv = ['remote-engine.py', eng]
+    spec = importlib.util.spec_from_file_location('re_l38_' + name, src); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+    m.engine = chess.engine.SimpleEngine.popen_uci([sys.executable, '-E', eng])
+    r = m.app.test_client().post('/configure', json={'MultiPV': 3, 'UCI_LimitStrength': True, 'UCI_Elo': 1500})
+    out[name] = [r.status_code, (r.get_json() or {}).get('refused_options')]
+    m.engine.quit()
+print(json.dumps(out))`;
+    const r = await new Promise(res => require('child_process').execFile('python3', ['-E', '-B', '-c', py, ROOT + '/src/scripts/remote-engine.py'],
+        {encoding: 'utf8', timeout: 60000, cwd: require('os').tmpdir()}, (e, stdout, stderr) => res({e, stdout, stderr})));
+    let got = null; try { got = JSON.parse(String(r.stdout).trim().split('\n').pop()); } catch (e) { got = (r.stderr || String(r.e)).slice(-300); }
+    if (got === null) console.log('ok   L38: server half skipped (no python3 with flask + python-chess here)');
+    else {
+        ok('L38: an engine with no UCI_Elo gets the cap refused in the /configure answer', got?.noelo?.[0] === 200
+           && JSON.stringify([...(got.noelo[1] || [])].sort()) === '["UCI_Elo","UCI_LimitStrength"]', got);
+        ok('L38: ...and an engine that has it refuses nothing', got?.elo?.[0] === 200 && JSON.stringify(got.elo[1]) === '[]', got);
+    }
+    // 2. the panel: the label follows the answer, only for the Remote Engine and only while a cap is set
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const label = {textContent: ''}, slider = {value: '0', max: '1'};
+    const c = vm.createContext({i18n: (k, d) => d, PANEL_ROOT: {getElementById: (id) => id === 'qs_elo_val' ? label : id === 'qs_elo' ? slider : null},
+        config: {engine: 'remote', elo: 1500}, remote_elo_refused: false});
+    vm.runInContext(cut('const ELO_RANGE = {', 'let turn = ') + cut('function engine_elo() {', 'function abandon_search() {')
+        + ';var remote_elo_refused = false;', c);
+    const note = c.note_remote_elo || (() => {});
+    note({refused_options: ['UCI_LimitStrength', 'UCI_Elo']});
+    ok('L38: a refused cap shows full strength, not the cap', /no Elo setting/.test(label.textContent), label.textContent);
+    note({refused_options: []});
+    ok('L38: ...and a cap the engine took shows its number again', label.textContent === 1500 || label.textContent === '1500', label.textContent);
+    note({refused_options: ['UCI_Elo']}); note({});
+    ok('L38: an older remote-engine.py (no list) leaves the label as it was', /no Elo setting/.test(label.textContent), label.textContent);
+    vm.runInContext('config.engine = "sf18-native"; sync_elo_slider();', c);
+    ok('L38: another engine never shows the Remote Engine\'s refusal', String(label.textContent) === '1500', label.textContent);
+    ok('L38: both configures that carry the cap read the answer', (s.match(/\.then\(note_remote_elo\)/g) || []).length === 2);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

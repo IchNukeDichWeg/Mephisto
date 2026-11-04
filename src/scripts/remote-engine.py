@@ -71,16 +71,17 @@ args = parser.parse_args()
 def set_option(key, value):
     # Apply one already-parsed engine option. `value` keeps its native type (str from the CLI, but
     # int/bool from the extension's JSON - e.g. Hash:512, UCI_LimitStrength:true) so python-chess
-    # gets the type it expects. Never crashes the server on a bad option.
+    # gets the type it expects. Never crashes the server on a bad option. Returns False when the engine
+    # did not take it (not declared, or refused), so /configure can say so.
     key = str(key).strip()
     if not key:
-        return
+        return True
     engine_options[key] = value
     if key.lower() in MANAGED_OPTIONS:
-        return  # python-chess manages these itself; setting them directly would fight it
+        return True  # python-chess manages these itself; setting them directly would fight it
     if key not in engine.options:
         print(f"ignoring option '{key}' - this engine doesn't offer it")
-        return
+        return False
     # A number outside the engine's own range is clamped to it (audit 3.1.330 SWALLOW-2): python-chess
     # refuses it outright, and the panel sends UCI_LimitStrength just before UCI_Elo, so a cap of 3000
     # on an engine whose UCI_Elo stops at 2850 left it limited at its DEFAULT Elo (1350 on Stockfish
@@ -104,6 +105,8 @@ def set_option(key, value):
         engine.configure({key: value})
     except Exception as ex:
         print(f"couldn't set {key} = {value}: {ex}")
+        return False
+    return True
 
 
 def apply_option(opt):
@@ -313,9 +316,13 @@ def configure():
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
             return {'error': 'expected a JSON object in the request body'}, 400
-        for (key, value) in data.items():
-            set_option(key, value)
-        return config()
+        # The keys the engine did not take ride back beside the options. An engine with no UCI_Elo
+        # (Lc0) played at full strength while the panel showed the cap; this is how the panel learns
+        # it did not apply (audit 3.1.330 follow-up L38).
+        refused = [key for (key, value) in data.items() if not set_option(key, value)]
+        out = config()
+        out['refused_options'] = refused
+        return out
 
 
 @app.route('/config', methods=['GET'])

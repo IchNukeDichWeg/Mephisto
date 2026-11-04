@@ -564,6 +564,7 @@
   "set.style_drawish": "Drawish",
   "set.style_ultra": "Ultra attacking",
   "set.style_disrespect": "Disrespect",
+  "panel.elo_not_applied": "Full strength - this engine has no Elo setting",
   "set.tb_show": "Tablebase Display",
   "set.tb_show_both": "Both",
   "set.tb_show_tb": "Tablebase only",

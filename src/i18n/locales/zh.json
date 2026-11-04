@@ -564,6 +564,7 @@
   "set.style_drawish": "和棋倾向",
   "set.style_ultra": "极限进攻",
   "set.style_disrespect": "挑衅",
+  "panel.elo_not_applied": "全力 - 此引擎没有 Elo 设置",
   "set.tb_show": "残局库显示",
   "set.tb_show_both": "两者",
   "set.tb_show_tb": "仅残局库",

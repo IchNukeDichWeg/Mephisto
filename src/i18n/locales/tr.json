@@ -564,6 +564,7 @@
   "set.style_drawish": "Beraberlik",
   "set.style_ultra": "Asiri saldirgan",
   "set.style_disrespect": "Saygisiz",
+  "panel.elo_not_applied": "Tam güç - bu motorun Elo ayarı yok",
   "set.tb_show": "Tablebase gösterimi",
   "set.tb_show_both": "İkisi de",
   "set.tb_show_tb": "Yalnızca tablebase",

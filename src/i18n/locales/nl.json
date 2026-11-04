@@ -564,6 +564,7 @@
   "set.style_drawish": "Remiseachtig",
   "set.style_ultra": "Ultra aanvallend",
   "set.style_disrespect": "Respectloos",
+  "panel.elo_not_applied": "Volle sterkte - deze engine heeft geen Elo-instelling",
   "set.tb_show": "Weergave van de tablebase",
   "set.tb_show_both": "Beide",
   "set.tb_show_tb": "Alleen tablebase",

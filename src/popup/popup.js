@@ -204,6 +204,7 @@ let premove_tracker = {fen: '', lines: {}}; // per-multipv reply stability while
 let search_threads_set = null; // last Threads value pushed to the engine; opponent-turn search is capped unless Pondering
 let search_multipv_set = null; // last MultiPV pushed to the WASM engine, so an unchanged width is not re-sent
 let remote_multipv_set = null; // last MultiPV pushed to a NATIVE host (it stores options; a native analyse also carries it)
+let remote_elo_refused = false; // the HTTP Remote Engine's engine took no Elo cap (no UCI_Elo, e.g. Lc0); see note_remote_elo
 let premove_lines = 2; // top-N lines premove tracks/certifies; widened to the ponder width while pondering (see ponder_line_count)
 let prog = 0;
 let last_eval = {fen: '', activeLines: 0, lines: []};
@@ -1912,7 +1913,7 @@ async function initialize_engine(reuseWarm = false) {
                     ? {"UCI_LimitStrength": true, "UCI_Elo": engine_elo()} : {"UCI_LimitStrength": false}),
             // Always sent for Rodent, '---' included: the host keeps the last configure it was given.
             ...(RODENT_ENGINES.includes(config.engine) ? {"Personality": config.rodent_personality} : {}),
-        }).catch(on_remote_error);
+        }).then(note_remote_elo).catch(on_remote_error);
         remote_multipv_set = effective_multipv(); // baseline just configured; don't re-push it
     } else {
         // STOP BEFORE THE PREAMBLE. Boot no longer awaits this init (v3.1.250), so a scraped
@@ -2086,7 +2087,21 @@ function sync_elo_slider() {
     // a cap typed on the Settings page need not sit on a slider stop (1500 is between 1470 and
     // 1520): the label says the number in force, not the stop the thumb snapped to
     const eloLabel = PANEL_ROOT.getElementById('qs_elo_val');
-    if (eloLabel && config.elo > 0 && config.elo < FULL_STRENGTH_ELO) eloLabel.textContent = engine_elo();
+    if (eloLabel && config.elo > 0 && config.elo < FULL_STRENGTH_ELO) {
+        eloLabel.textContent = (config.engine === 'remote' && remote_elo_refused)
+            ? i18n('panel.elo_not_applied', 'Full strength - this engine has no Elo setting') : engine_elo();
+    }
+}
+// THE REMOTE ENGINE SAYS WHETHER THE CAP TOOK. Behind remote-engine.py can be any UCI engine, and one
+// with no UCI_Elo (Lc0) played at full strength while the label above showed the cap (audit 3.1.330
+// follow-up L38, the second half of SWALLOW-2). Its /configure answer lists the keys the engine did
+// not take; called only with the answer to a configure that carried the cap. An older
+// remote-engine.py sends no list, and the label stays as it was.
+function note_remote_elo(reply) {
+    if (config.engine !== 'remote' || !Array.isArray(reply?.refused_options)) return;
+    const cap = config.elo > 0 && config.elo <= (ELO_RANGE[config.engine] || [1320, 3190])[1];
+    remote_elo_refused = cap && reply.refused_options.some(k => k === 'UCI_Elo' || k === 'UCI_LimitStrength');
+    sync_elo_slider();
 }
 function paint_elo_slider() {
     const eloSlider = PANEL_ROOT.getElementById('qs_elo'), eloLabel = PANEL_ROOT.getElementById('qs_elo_val');
@@ -11066,7 +11081,7 @@ function watch_config_changes() {
                     const cap = config.elo > 0 && config.elo <= (ELO_RANGE[config.engine] || [1320, 3190])[1];
                     if (is_remote()) {
                         request_remote_configure(cap ? {UCI_LimitStrength: true, UCI_Elo: engine_elo()}
-                                                     : {UCI_LimitStrength: false}).catch(() => {});
+                                                     : {UCI_LimitStrength: false}).then(note_remote_elo).catch(() => {});
                     } else {
                         send_engine_uci(`setoption name UCI_LimitStrength value ${cap}`);
                         if (cap) send_engine_uci(`setoption name UCI_Elo value ${engine_elo()}`);

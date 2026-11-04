@@ -564,6 +564,7 @@
   "set.style_drawish": "ड्रॉ-मुखी",
   "set.style_ultra": "अति आक्रामक",
   "set.style_disrespect": "अनादर",
+  "panel.elo_not_applied": "पूरी ताकत - इस इंजन में Elo सेटिंग नहीं है",
   "set.tb_show": "टेबलबेस प्रदर्शन",
   "set.tb_show_both": "दोनों",
   "set.tb_show_tb": "केवल टेबलबेस",

@@ -564,6 +564,7 @@
   "set.style_drawish": "Tablas",
   "set.style_ultra": "Ultra atacante",
   "set.style_disrespect": "Falta de respeto",
+  "panel.elo_not_applied": "Fuerza completa - este motor no tiene ajuste de Elo",
   "set.tb_show": "Visualización de la tablebase",
   "set.tb_show_both": "Ambos",
   "set.tb_show_tb": "Solo tablebase",

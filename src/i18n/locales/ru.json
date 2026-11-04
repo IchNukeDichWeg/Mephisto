@@ -564,6 +564,7 @@
   "set.style_drawish": "Ничейный",
   "set.style_ultra": "Ультраатакующий",
   "set.style_disrespect": "Неуважение",
+  "panel.elo_not_applied": "Полная сила - у этого движка нет настройки Elo",
   "set.tb_show": "Отображение таблиц окончаний",
   "set.tb_show_both": "Оба",
   "set.tb_show_tb": "Только таблицы",
