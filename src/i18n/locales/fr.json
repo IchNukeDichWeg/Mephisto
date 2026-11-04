@@ -787,6 +787,7 @@
   "err.E06": "Le moteur en ligne n'a pas pu répondre. Vérifiez votre connexion internet ou choisissez un autre moteur dans les paramètres.",
   "err.E08": "Le Fairy-Stockfish natif ne peut pas analyser {variant} : son hôte n'a pas d'échiquier pour cette variante. Choisissez le Fairy-Stockfish intégré dans les paramètres.",
   "err.E09": "{program} n'a pas répondu en {seconds} secondes, la requête a donc été abandonnée. Vérifiez sa fenêtre pour voir s'il y a des erreurs, ou relancez-le.",
+  "err.E10": "Chrome n'a pas laissé Mephisto cliquer dans cet onglet ({detail}), le coup n'a donc pas été joué. La cause est en général le cadre d'une autre extension sur la page ou une stratégie du navigateur. Jouez le coup vous-même, ou réessayez avec les autres extensions désactivées.",
   "err.N01": "Impossible de télécharger un fichier de modèle que cette version n'inclut pas. Vérifiez votre connexion internet et réessayez.",
   "err.N02": "Le téléchargement du modèle a été interrompu ou n'a pas la bonne taille. Réessayez.",
   "err.N03": "Le modèle téléchargé a échoué à la vérification d'intégrité et a été écarté. Réessayez ; si cela échoue encore, installez le zip complet.",

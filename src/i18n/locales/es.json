@@ -787,6 +787,7 @@
   "err.E06": "El motor en línea no pudo responder. Comprueba tu conexión a internet o elige otro motor en los ajustes.",
   "err.E08": "Fairy-Stockfish nativo no puede analizar {variant}: su host no tiene tablero para esa variante. Elige el Fairy-Stockfish integrado en los ajustes.",
   "err.E09": "{program} no respondió en {seconds} segundos, así que se descartó la solicitud. Revisa su ventana por si hay errores o reinícialo.",
+  "err.E10": "Chrome no ha dejado que Mephisto haga clic en esta pestaña ({detail}), así que la jugada no se ha hecho. Suele deberse al marco de otra extensión en la página o a una directiva del navegador. Haz la jugada tú mismo o prueba con las demás extensiones desactivadas.",
   "err.N01": "No se pudo descargar un archivo de modelo que esta versión no incluye. Comprueba tu conexión a internet e inténtalo de nuevo.",
   "err.N02": "La descarga del modelo se cortó o tiene un tamaño incorrecto. Inténtalo de nuevo.",
   "err.N03": "El modelo descargado no superó la comprobación de integridad y se descartó. Inténtalo de nuevo; si sigue fallando, instala el zip completo.",

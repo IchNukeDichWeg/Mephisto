@@ -736,6 +736,7 @@ prepares. A code is never reused: a retired one stays retired.
 | `MPH-E07` | Tetrarch (four-player chess) is not installed. | Follow the [Four-player chess](#four-player-chess) setup. |
 | `MPH-E08` | The native Fairy-Stockfish was asked for Duck, Minihouse, Seirawan or Chaturanga. Its host builds positions with python-chess, which has no board for those four. | Pick the built-in Fairy-Stockfish for these variants. |
 | `MPH-E09` | `remote-engine.py` (or `mephisto-clicker.py`) took more than 28 seconds to answer, so the request was dropped before Chrome's 30-second limit could stop the extension's background worker. | Check that program's window for errors, or restart it. |
+| `MPH-E10` | Chrome refused to attach its debugger to the game tab, so Autoplay could not click (Chrome's reason is in the brackets). Usually another extension's frame in the page (a password manager, a writing assistant) or a browser policy. The move is not retried on that position. | Play the move yourself, or try with other extensions switched off. |
 
 ### Model and net downloads (first use of an engine)
 

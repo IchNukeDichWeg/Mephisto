@@ -787,6 +787,7 @@
   "err.E06": "Silnik online nie mógł odpowiedzieć. Sprawdź połączenie z internetem lub wybierz w ustawieniach inny silnik.",
   "err.E08": "Natywny Fairy-Stockfish nie może analizować wariantu {variant}: jego host nie ma planszy dla tego wariantu. Wybierz w ustawieniach wbudowany Fairy-Stockfish.",
   "err.E09": "{program} nie odpowiedział w ciągu {seconds} sekund, więc żądanie zostało porzucone. Sprawdź, czy w jego oknie nie ma błędów, albo uruchom go ponownie.",
+  "err.E10": "Chrome nie pozwolił Mephisto kliknąć w tej karcie ({detail}), więc ruch nie został wykonany. Zwykle powodem jest ramka innego rozszerzenia na stronie albo zasada przeglądarki. Wykonaj ruch sam albo spróbuj z wyłączonymi innymi rozszerzeniami.",
   "err.N01": "Nie udało się pobrać pliku modelu, którego ta wersja nie zawiera. Sprawdź połączenie z internetem i spróbuj ponownie.",
   "err.N02": "Pobieranie modelu zostało przerwane albo ma zły rozmiar. Spróbuj ponownie.",
   "err.N03": "Pobrany model nie przeszedł kontroli integralności i został odrzucony. Spróbuj ponownie; jeśli nadal się nie uda, zainstaluj pełny zip.",

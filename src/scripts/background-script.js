@@ -687,7 +687,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     const account = () => ({workerMs: Date.now() - workerT0, disp: cdpCalls - calls0, dispMs: cdpTotalMs - total0});
     cdpClick(tabId, msg.x, msg.y, msg.travelMs)
       .then(() => sendResponse({ok: true, ...account()}))
-      .catch(e => sendResponse({error: String(e), ...account()}));
+      .catch(e => sendResponse({error: String(e), refused: !!e?.attachRefused, ...account()}));
     return true;
   }
   if (msg.cdpDrag) {
@@ -701,7 +701,8 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         ?? ((fromOwnExtensionPage && Number.isInteger(msg.tabId)) ? msg.tabId : undefined);
     if (!tabId) { sendResponse({error: 'no sender tab'}); return; }
     cdpDrag(tabId, msg.x1, msg.y1, msg.x2, msg.y2, msg.travelMs)
-        .then(() => sendResponse({ok: true})).catch(e => sendResponse({error: String(e)}));
+        .then(() => sendResponse({ok: true}))
+        .catch(e => sendResponse({error: String(e), refused: !!e?.attachRefused}));
     return true;
   }
   // Same tab rules as cdpClick, but attaches only -- no input. A move calls this before it measures
@@ -2153,7 +2154,12 @@ function cdpAttach(tabId) {
     chrome.debugger.attach({tabId}, '1.3', () => {
       // "Another debugger is already attached" is fine -- we stay attached after the first click
       if (chrome.runtime.lastError && !/already attached/i.test(chrome.runtime.lastError.message)) {
-        return reject(new Error(chrome.runtime.lastError.message));
+        // Marked so the click relay can say "refused" rather than "failed": an attach Chrome turns
+        // down (another extension's frame in the page, a policy) fails the same way every time, so
+        // the move must not be re-issued in a loop (audit 3.1.330 SWALLOW-1).
+        const err = new Error(chrome.runtime.lastError.message);
+        err.attachRefused = true;
+        return reject(err);
       }
       attached.add(tabId);
       setTimeout(resolve, ATTACH_SETTLE_MS);

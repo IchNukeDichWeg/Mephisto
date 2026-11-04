@@ -8533,6 +8533,71 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('CLICKA-5: with nothing half-clicked the move is a bare from->to', JSON.stringify(c.clicks) === JSON.stringify(['e2', 'e4']), c.clicks);
     })();
 }
+// ---- audit 3.1.330 SWALLOW-1: a debugger click Chrome refuses is shown (MPH-E10) and not re-issued in a loop ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const REFUSAL = 'Cannot access a chrome-extension:// URL of different extension';
+    // worker: a refused attach is marked, and the click and drag answers carry it
+    const bsrc = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const ai = bsrc.indexOf('function cdpAttach(tabId) {');
+    const b = vm.createContext({setTimeout, Promise, Error, lastError: null});
+    vm.runInContext(`const attached = new Set(), ATTACH_SETTLE_MS = 0;
+        const chrome = {runtime: {}, debugger: {attach(t, v, cb) { chrome.runtime.lastError = lastError; cb(); chrome.runtime.lastError = null; }}};
+        ${bsrc.slice(ai, bsrc.indexOf('\n}\n', ai) + 3)}`, b);
+    (async () => {
+        b.lastError = {message: REFUSAL};
+        const e = await vm.runInContext('cdpAttach(7)', b).then(() => null, (x) => x);
+        ok('SWALLOW-1: an attach Chrome refuses rejects with attachRefused and Chrome\'s text', e && e.attachRefused === true && e.message === REFUSAL, e && e.message);
+        b.lastError = {message: 'Another debugger is already attached to the tab'};
+        ok('SWALLOW-1: "already attached" is still a success', await vm.runInContext('cdpAttach(8)', b).then(() => true, () => false));
+    })();
+    ok('SWALLOW-1: the worker\'s cdpClick and cdpDrag answers say when the attach was refused',
+       (bsrc.match(/sendResponse\(\{error: String\(e\), refused: !!e\?\.attachRefused/g) || []).length === 2);
+
+    // panel: a refused answer is said on the panel with its code and answered as a refusal; a plain error is not
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (from) => { const a = psrc.indexOf(from); return psrc.slice(a, psrc.indexOf('\n}\n', a) + 3); };
+    const p = vm.createContext({console: {log() {}, warn() {}}, Date, String, Promise, idle: null, answer: null,
+        document: {hidden: false}});
+    vm.runInContext(`var idle_hold_until = 0, MY_TAB_ID = 5, IS_CONTENT_SCRIPT = true;
+        const chrome = {runtime: {sendMessage: async () => answer}};
+        function set_idle_reason(t) { idle = t; } function bgTrace() {}
+        const err_line = (code, vars) => code + ': ' + (vars ? vars.detail : '');
+        ${cut('function debugger_refused(err) {')}
+        ${cut('async function do_debugger_click(id, x, y, travelMs) {')}
+        ${cut('function resolve_click_tab(tabId) {')}
+        ${cut('async function dispatch_drag_event(x1, y1, x2, y2, tabId, travelMs, backend) {')}`, p);
+    (async () => {
+        p.answer = {error: 'Error: ' + REFUSAL, refused: true, workerMs: 3};
+        const r = await vm.runInContext('do_debugger_click(5, 10, 10, 0)', p);
+        ok('SWALLOW-1: a refused click comes back as a refusal and the panel says MPH-E10 with Chrome\'s reason',
+           r && r.clickRefused && p.idle === 'MPH-E10: ' + REFUSAL && vm.runInContext('idle_hold_until', p) > Date.now(), {r, idle: p.idle});
+        p.idle = null;
+        const d = await vm.runInContext('dispatch_drag_event(1, 1, 2, 2, 5, 0, false)', p);
+        ok('SWALLOW-1: so does a refused drag', d && d.clickRefused && /^MPH-E10/.test(p.idle || ''), {d, idle: p.idle});
+        p.idle = null; p.answer = {error: 'Error: Detached while handling command.'};
+        const r2 = await vm.runInContext('do_debugger_click(5, 10, 10, 0)', p);
+        ok('SWALLOW-1: a click error that is not a refused attach stays a logged failure (verify and retry handle it)',
+           r2 && !r2.clickRefused && p.idle === null, {r2, idle: p.idle});
+    })();
+
+    // page: the refusal ends the move, and failed() does not re-push it
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const bi = csrc.indexOf('function backendRefused(r) {');
+    const fi = csrc.indexOf('const failed = (e) => {');
+    const c = vm.createContext({console: {log() {}, warn() {}}, Date, Error, pushes: 0});
+    vm.runInContext(`var backendDownUntil = 0, BACKEND_RETRY_MS = 30000, lastPushKey = 'k', lastDisplayKey = 'k', resumePush = false;
+        function schedulePush() { pushes++; }
+        ${csrc.slice(bi, csrc.indexOf('\n}\n', bi) + 3)}
+        ${csrc.slice(fi, csrc.indexOf('\n        };\n', fi) + 11)}`, c);
+    const thrown = (() => { try { vm.runInContext(`backendRefused({clickRefused: 'x'})`, c); return null; } catch (e) { return e; } })();
+    ok('SWALLOW-1: the page turns a refused click into a rejection marked clickRefused', thrown && thrown.clickRefused === true);
+    vm.runInContext('failed(' + 'Object.assign(new Error("click refused: x"), {clickRefused: true}))', c);
+    ok('SWALLOW-1: a refused click is not re-pushed, so the move is not re-played in a loop',
+       c.pushes === 0 && vm.runInContext('resumePush', c) === false && vm.runInContext('lastPushKey', c) === 'k');
+    vm.runInContext('failed(new Error("backend click refused"))', c);
+    ok('SWALLOW-1: any other failed click still re-pushes the position as a resume', c.pushes === 1 && vm.runInContext('resumePush', c) === true);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

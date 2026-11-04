@@ -328,6 +328,10 @@ function handleExtensionMessage(response, sender, sendResponse) {
         // unplayed answer until the opponent moved (C5). Same recovery as the mismatch abort.
         const failed = (e) => {
             console.warn('Mephisto: automove failed:', e);
+            // A click Chrome refuses is refused the same way on every retry, so re-pushing only
+            // replayed the move every few seconds until the clock ran out. The panel shows the reason;
+            // the next position (the move played by hand) tries again (audit 3.1.330 SWALLOW-1).
+            if (e?.clickRefused) return;
             lastPushKey = lastDisplayKey = null;
             resumePush = true;
             schedulePush();
@@ -5390,6 +5394,9 @@ let backendDownUntil = 0;
 const useBackend = () => !!config.python_autoplay_backend && Date.now() >= backendDownUntil && tabActive();
 function backendRefused(r) {
     if (r?.backendFailed) { backendDownUntil = Date.now() + BACKEND_RETRY_MS; throw new Error('backend click refused'); }
+    // Chrome refused the debugger for this tab. The panel has said so; the throw ends the move here,
+    // and `clickRefused` tells the automove's failed() not to re-push it (audit 3.1.330 SWALLOW-1).
+    if (r?.clickRefused) { const e = new Error(`click refused: ${r.clickRefused}`); e.clickRefused = true; throw e; }
     return r;
 }
 function toClickXY(x, y) {

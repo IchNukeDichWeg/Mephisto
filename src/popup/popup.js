@@ -12688,6 +12688,18 @@ function backend_refused(e) {
     return {backendFailed: true};
 }
 
+// Chrome would not attach its debugger to the game tab (another extension's frame in the page, a
+// policy), so the click never happened. It used to be logged and answered like a click, and Autoplay
+// re-played the same move every few seconds with nothing on the panel (audit 3.1.330 SWALLOW-1).
+// Said here, held like the backend notice, and answered as a refusal so the page does not re-issue it.
+function debugger_refused(err) {
+    console.warn('Mephisto: Chrome refused the debugger click:', err);
+    bgTrace('debugger click refused', {e: String(err)});
+    set_idle_reason(err_line('MPH-E10', {detail: String(err).replace(/^Error: /, '').slice(0, 120)}));
+    idle_hold_until = Date.now() + 10000;
+    return {clickRefused: String(err)};
+}
+
 async function dispatch_click_event(x, y, tabId, travelMs, sentAt, backend) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
         // NaN/undefined coords (e.g. a crazyhouse drop move) serialize badly and the debugger rejects them
@@ -12715,6 +12727,7 @@ async function dispatch_drag_event(x1, y1, x2, y2, tabId, travelMs, backend) {
     const id = await resolve_click_tab(tabId);
     try {
         const r = await chrome.runtime.sendMessage({cdpDrag: true, tabId: id, x1, y1, x2, y2, travelMs});
+        if (r && r.refused) return debugger_refused(r.error);
         if (r && r.error) console.warn('CDP drag failed:', r.error);
     } catch (e) {
         console.warn('CDP drag failed:', e);
@@ -12766,6 +12779,7 @@ async function do_debugger_click(id, x, y, travelMs) {
         const askedAt = Date.now();
         const r = await chrome.runtime.sendMessage({cdpClick: true, tabId: id, x, y, travelMs,
                                                     sentAt: askedAt});
+        if (r && r.refused) return {...debugger_refused(r.error), roundMs: Date.now() - askedAt};
         if (r && r.error) console.warn('CDP click failed:', r.error);
         // roundMs - workerMs = the two message hops plus whatever kept THIS realm from resuming.
         return {roundMs: Date.now() - askedAt, workerMs: r?.workerMs, disp: r?.disp, dispMs: r?.dispMs};

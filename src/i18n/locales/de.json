@@ -787,6 +787,7 @@
   "err.E06": "Die Online-Engine konnte nicht antworten. Prüfe deine Internetverbindung oder wähle in den Einstellungen eine andere Engine.",
   "err.E08": "Das native Fairy-Stockfish kann {variant} nicht analysieren: sein Host hat kein Brett für diese Variante. Wähle dafür in den Einstellungen das eingebaute Fairy-Stockfish.",
   "err.E09": "{program} hat nicht innerhalb von {seconds} Sekunden geantwortet, deshalb wurde die Anfrage verworfen. Prüfe sein Fenster auf Fehler oder starte es neu.",
+  "err.E10": "Chrome hat Mephisto in diesem Tab nicht klicken lassen ({detail}), deshalb wurde der Zug nicht gespielt. Meist ist der Rahmen einer anderen Erweiterung auf der Seite oder eine Browser-Richtlinie die Ursache. Spiele den Zug selbst oder versuche es mit ausgeschalteten anderen Erweiterungen.",
   "err.N01": "Eine Modelldatei, die dieser Build nicht enthält, konnte nicht heruntergeladen werden. Prüfe deine Internetverbindung und versuche es erneut.",
   "err.N02": "Der Modell-Download wurde abgebrochen oder hat die falsche Größe. Versuche es erneut.",
   "err.N03": "Das heruntergeladene Modell hat die Integritätsprüfung nicht bestanden und wurde verworfen. Versuche es erneut; schlägt es weiter fehl, installiere das vollständige Zip.",
