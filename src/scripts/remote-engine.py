@@ -9,6 +9,7 @@
 #   python remote-engine.py fairy-stockfish -o UCI_Variant:crazyhouse -p 9090
 
 import argparse
+import json
 import sys
 import threading
 
@@ -323,10 +324,15 @@ def config():
 
 @app.errorhandler(Exception)
 def on_unexpected_error(e):
-    # Let Flask handle its own HTTP errors (404, the 400s above, ...); turn anything else into a
-    # clean JSON error the extension can show, instead of an HTML traceback page.
+    # Flask's own HTTP errors (a wrong route or method) answer in JSON too, keeping their status and
+    # headers (Allow on a 405). As Flask's HTML page the panel read them as "something other than
+    # remote-engine.py is answering" (MPH-E03), which sent people to look for another program on the
+    # port (audit 3.1.330 follow-up L18). Anything else becomes a clean JSON 500, never a traceback page.
     if isinstance(e, HTTPException):
-        return e
+        resp = e.get_response()
+        resp.set_data(json.dumps({'error': f'{e.code} {e.name}: {e.description}'}))
+        resp.content_type = 'application/json'
+        return resp
     print(f"unexpected error: {e}")
     return {'error': f'internal error: {e}'}, 500
 

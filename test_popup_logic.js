@@ -11974,6 +11974,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and the drag ghost of that queen carries alt="" so the browser draws no broken-image glyph',
        ghost && ghost.src === '' && ghost.alt === '', ghost && {src: ghost.src, alt: ghost.alt});
 }
+// ---- audit 3.1.330 follow-up L18: remote-engine.py answers a wrong route or method in JSON, so the panel does not
+// call it "something other than remote-engine.py" (MPH-E03 stays for HTML from a foreign server) ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // Flask's test client; no engine is started, since a 404/405 never reaches one. Not -I: flask is often a
+    // user-site install, which -I hides; -E and a temp cwd keep the environment and the tree out of the imports.
+    const py = `import importlib.util, json, sys
+try:
+    import flask, chess
+except ImportError:
+    print('null'); sys.exit(0)
+src = sys.argv[1]; sys.argv = ['remote-engine.py', 'no-engine']
+spec = importlib.util.spec_from_file_location('re_l18', src); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+c = m.app.test_client(); out = []
+for meth, url in (('post', '/nope'), ('get', '/analyse')):
+    r = getattr(c, meth)(url)
+    out.append([r.status_code, r.content_type, r.get_json(silent=True), r.headers.get('Allow', '')])
+print(json.dumps(out))`;
+    const r = await new Promise(res => require('child_process').execFile('python3', ['-E', '-B', '-c', py, ROOT + '/src/scripts/remote-engine.py'],
+        {encoding: 'utf8', timeout: 60000, cwd: require('os').tmpdir()}, (e, stdout, stderr) => res({e, stdout, stderr})));
+    let got = null; try { got = JSON.parse(r.stdout); } catch (e) { got = (r.stderr || String(r.e)).slice(-300); }
+    if (got === null) console.log('ok   L18: skipped (no python3 with flask + python-chess here)');
+    else {
+        const [nf, na] = Array.isArray(got) ? got : [[], []];
+        ok('L18: a wrong route answers 404 as JSON with an error', nf[0] === 404 && /json/.test(nf[1]) && /^404 Not Found/.test(nf[2]?.error || ''), got);
+        ok('L18: a wrong method answers 405 as JSON and keeps its Allow header', na[0] === 405 && /json/.test(na[1]) && /^405 /.test(na[2]?.error || '') && /POST/.test(na[3]), got);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
