@@ -3481,8 +3481,11 @@ class ReviewPage {
         const rvModeSync = () => {
             const variant = String(cfg('rv_variant') || 'chess');
             // the chess.com paths speak standard chess only: any other game type forces 'own'
+            // ...on SCREEN, never saved. Writing it lost the user's classifier for good after one
+            // Chess960 or variant paste (audit 3.1.330 REVIEWA-8, the REVIEW-10 rule for the engine
+            // select). No run reads rv_mode: each mode has its own button, hidden with its block.
             let m = cfg('rv_mode') || 'own';
-            if (variant !== 'chess' && m !== 'own') { m = 'own'; setCfg('rv_mode', 'own'); }
+            if (variant !== 'chess') m = 'own';
             const sel = $('rv_mode');
             if (sel) {
                 if (sel.value !== m) sel.value = m;

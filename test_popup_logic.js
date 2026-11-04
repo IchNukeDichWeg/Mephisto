@@ -10374,6 +10374,49 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEWA-7: on page open the preset is synced only after the box is filled',
        fill > 0 && presetCalls.length >= 1 && presetCalls.every(i => i > fill), [fill, presetCalls]);
 }
+// ---- audit 3.1.330 REVIEWA-8: a non-chess Game type shows Mephisto's engine without saving it over the user's mode ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    // The real rvModeSync over the real page: every .rv-mode block and [data-for] row of review.html
+    // becomes an element spanning its source range; an id is on screen when neither it nor any
+    // enclosing block is hidden.
+    const mkEl = (tag, at, end) => {
+        const cls = new Set(((tag.match(/class="([^"]*)"/) || [])[1] || '').split(/\s+/).filter(Boolean));
+        return {at, end, tag, get value() { return this._v || ''; }, set value(v) { this._v = v; }, classList: {toggle(c, on) { on ? cls.add(c) : cls.delete(c); }, add(c) { cls.add(c); },
+                                          remove(c) { cls.delete(c); }, contains: (c) => cls.has(c)},
+                dataset: {mode: (tag.match(/data-mode="([^"]*)"/) || [])[1], for: (tag.match(/data-for="([^"]*)"/) || [])[1]},
+                hasAttribute: (a) => new RegExp('\\s' + a + '[\\s=>]').test(tag), options: [...(tag.startsWith('<select') ? html.slice(at).split('</select>')[0].matchAll(/<option value="([^"]*)"/g) : [])].map(m => ({value: m[1], disabled: false}))};
+    };
+    const closeOf = (at) => {   // matching </div> of the <div at `at`
+        const re = /<div\b|<\/div>/g; re.lastIndex = at + 4; let depth = 1, m;
+        while ((m = re.exec(html))) { depth += m[0] === '</div>' ? -1 : 1; if (!depth) return m.index; }
+        return html.length;
+    };
+    const blocks = [...html.matchAll(/<div\b[^>]*>/g)].filter(m => /class="[^"]*\brv-mode\b|data-for=/.test(m[0]))
+        .map(m => mkEl(m[0], m.index, closeOf(m.index)));
+    const byId = {};
+    const $ = (id) => {
+        if (byId[id]) return byId[id];
+        const m = new RegExp(`<[a-z]+\\b[^>]*\\bid="${id}"[^>]*>`).exec(html);
+        return m ? (byId[id] = mkEl(m[0], m.index, m.index)) : null;
+    };
+    const shown = (id) => { const e = $(id); return !!e && !e.classList.contains('hidden')
+        && blocks.every(b => !(b.at <= e.at && e.at < b.end) || !b.classList.contains('hidden')); };
+    const store = {rv_variant: 'chess960', rv_mode: 'local', rv_engine: 'sf19'};
+    const ms = rj.indexOf('        const rvModeSync = () => {'), me = rj.indexOf('\n        };\n', ms) + 11;
+    const c = vm.createContext({String, cfg: (k) => store[k], setCfg: (k, v) => { store[k] = v; }, $,
+        document: {querySelectorAll: (q) => q === '.rv-mode' ? blocks.filter(b => b.dataset.mode) : blocks.filter(b => b.dataset.for)},
+        RV_FAIRY_ONLY: [], RV_FAIRY_ENGINE: 'fairy', rvChessVariant: () => 'chess'});
+    vm.runInContext(rj.slice(ms, me) + '\n        rvModeSync();\n', c);
+    ok('REVIEWA-8: a Chess960 game shows Mephisto\'s engine (the classifier is chess-only)',
+       $('rv_mode').value === 'own' && shown('rv_run') && !shown('rv_ee_run'), [$('rv_mode').value, shown('rv_run'), shown('rv_ee_run')]);
+    ok('REVIEWA-8: ...without overwriting the saved choice', store.rv_mode === 'local', store.rv_mode);
+    store.rv_variant = 'chess'; vm.runInContext('rvModeSync()', c);
+    ok('REVIEWA-8: back on Chess the classifier the user chose is on screen again',
+       $('rv_mode').value === 'local' && shown('rv_ee_run') && !shown('rv_run'), [$('rv_mode').value, shown('rv_ee_run')]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
