@@ -2342,8 +2342,8 @@ function scrapePosition() {
 }
 
 // Has this chess.com game ENDED? Only positive evidence counts, because a wrong "ended" in a live
-// game brings back the history-board click of 3.1.328 SCRAPE-2, while a wrong "live" only costs
-// history review. Two signs, neither on the repo's fixture (a game in progress): the game-over modal
+// game brings back the history-board click of 3.1.328 SCRAPE-2 and holds every Autoplay click
+// (moveHeldBack, audit 3.1.330 SCRAPEA-1), while a wrong "live" only costs history review. Two signs, neither on the repo's fixture (a game in progress): the game-over modal
 // (the class GRIND_SITES matches), or a result in the move list's text, which no SAN can contain.
 // ponytail: unmeasured markup; if neither sign shows on a finished page this stays "live", as before.
 const RESULT_IN_TEXT = /(^|\s)(1-0|0-1|1\/2-1\/2|½-½)(\s|$)/;
@@ -5564,6 +5564,12 @@ function chesscomViewingHistory() {
 function moveHeldBack() {
     if (!config.autoplay && !pendingManual) return 'autoplay';
     if (!config.background_play && !tabActive()) return 'hidden';
+    // A FINISHED chess.com game is review, not play. Since 3.1.329 SCRAPE-3 the scrape follows the
+    // viewed move there, so a stepped-back position with our side to move was analysed and, once the
+    // 5 s history hold ran out, Autoplay clicked a move onto the finished game's board (audit 3.1.330
+    // SCRAPEA-1). The same positive-evidence test as the scrape; a move asked for by hand still goes.
+    if (!pendingManual && site === 'chesscom' && !isChesscomVariants() && CC_GAME_PATH.test(location.pathname)
+        && chesscomGameOver()) return 'over';
     return null;
 }
 
@@ -5692,7 +5698,7 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         const held = moveHeldBack();
         if (held) {
             bgLog('DROPPED after the think', {move, held});
-            lastAimed = `${move}->NOT CLICKED (${held === 'hidden' ? 'tab went inactive' : 'Autoplay switched off'} during the think)`;
+            lastAimed = `${move}->NOT CLICKED (${held === 'hidden' ? 'tab went inactive' : held === 'over' ? 'the game is over' : 'Autoplay switched off'} during the think)`;
             if (held === 'hidden') deferredWhileHidden = true;   // resumeIfDeferred re-issues it on return
             return false;
         }

@@ -4373,7 +4373,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const i = csrc.indexOf('function moveHeldBack()');
     const c = vm.createContext({});
-    vm.runInContext('var config = {autoplay: true, background_play: false}, pendingManual = false, active = true; const tabActive = () => active;' + csrc.slice(i, csrc.indexOf('\n}\n', i) + 3), c);
+    vm.runInContext('var site = \'lichess\', config = {autoplay: true, background_play: false}, pendingManual = false, active = true; const tabActive = () => active;' + csrc.slice(i, csrc.indexOf('\n}\n', i) + 3), c);
     const held = (o) => vm.runInContext(`config.autoplay = ${o.ap}; config.background_play = ${!!o.bg}; pendingManual = ${!!o.manual}; active = ${o.active !== false}; moveHeldBack()`, c);
     ok('a move still wanted plays', held({ap: true}) === null);
     ok('Autoplay switched off during the think stops it', held({ap: false}) === 'autoplay');
@@ -7901,6 +7901,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const dup = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
         ok(`${f}: no top-level function is declared twice`, dup.length === 0, dup);
     }
+}
+// ---- audit 3.1.330 SCRAPEA-1: Autoplay never clicks onto a FINISHED chess.com game's board ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const r = s.indexOf('const RESULT_IN_TEXT ='), re = s.indexOf('\n}\n', r) + 3;
+    const i = s.indexOf('function moveHeldBack()'), ie = s.indexOf('\n}\n', i) + 3;
+    let modal = false;
+    const c = vm.createContext({site: 'chesscom', location: {pathname: '/game/live/123'}, CC_GAME_PATH: /^\/(game|play)(\/|$)/,
+        isChesscomVariants: () => false, tabActive: () => true, listText: ' 1. e4 e5 2. Nf3 ',
+        document: {querySelector: (sel) => (modal && /game-over-modal/.test(sel)) ? {} : null}});
+    c.knownMoveContainer = () => ({textContent: c.listText});
+    try {
+        vm.runInContext('var config = {autoplay: true, background_play: false}, pendingManual = false;'
+            + s.slice(r, re) + s.slice(i, ie), c);
+    } catch (e) { console.log('slice threw: ' + e.message); }
+    const held = (manual = false) => { try { return vm.runInContext(`pendingManual = ${manual}; moveHeldBack()`, c); } catch (e) { return 'threw ' + e.message; } };
+    ok('SCRAPEA-1: a live chess.com game with Autoplay on still plays', held() === null, held());
+    c.listText = ' 1. e4 e5 2. Nf3 1-0 ';
+    ok('SCRAPEA-1: a result in the move list holds the Autoplay click', held() === 'over', held());
+    c.listText = ' 1. e4 e5 2. Nf3 '; modal = true;
+    ok('SCRAPEA-1: ...and so does the game-over modal', held() === 'over', held());
+    ok('SCRAPEA-1: a move asked for by hand still goes', held(true) === null, held(true));
+    c.location.pathname = '/analysis/game/live/123';
+    ok('SCRAPEA-1: only a /game or /play page is gated', held() === null, held());
+    c.location.pathname = '/game/live/123'; c.isChesscomVariants = () => true;
+    ok('SCRAPEA-1: ...not the variants boards', held() === null, held());
+    c.isChesscomVariants = () => false; c.site = 'lichess';
+    ok('SCRAPEA-1: ...nor another site', held() === null, held());
+    ok('SCRAPEA-1: the not-clicked trace names a finished game', /held === 'over' \? 'the game is over'/.test(s));
 }
 // ==== END FIX CHECKS ====
 
