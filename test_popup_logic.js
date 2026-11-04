@@ -738,7 +738,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
     vm.runInContext('var config = {variant: "chess"}; var last_eval = {}; var last_pos = {};\n'
         + 'function line_cp_ours(l) { return l.cp; }\n'
-        + pj.slice(pj.indexOf('// ---- CONTEMPT: the dial for a game you have to WIN'), pj.indexOf('function humanize_pick(best) {')), c);
+        + pj.slice(pj.indexOf('// ---- CONTEMPT: the dial for a game you have to WIN'), pj.indexOf('function humanize_pick(best')), c);
     const setup = (cfg, fen, moves, lines, startFen) => {
         c.config = {variant: 'chess', ...cfg};
         c.last_eval = {fen, lines};
@@ -879,7 +879,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     // contempt block, which is where the board is built.
     vm.runInContext('var config = {variant: "chess"}; var last_eval = {}; var last_pos = {};\n'
         + 'function line_cp_ours(l) { return l.cp; }\nfunction send_to_active_tab() {}\n'
-        + pj.slice(pj.indexOf('// ---- CONTEMPT: the dial for a game you have to WIN'), pj.indexOf('function humanize_pick(best) {'))
+        + pj.slice(pj.indexOf('// ---- CONTEMPT: the dial for a game you have to WIN'), pj.indexOf('function humanize_pick(best'))
         + pj.slice(pj.indexOf('// ---- ENDING A GAME THAT IS OVER'), pj.indexOf("// ---- THE PLAYER BOOK: somebody's openings")), c);
     const run = (cfg, scores, fullmove = 40, proved = null) => {
         c.config = cfg;
@@ -6374,6 +6374,45 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         await vm.runInContext('humanChain', c);
         ok('...a net still loading when Xiangqi is picked is disposed once it lands', c.made.join() === 'disposed' && vm.runInContext('human', c) === null, [c.made, vm.runInContext('human === null', c)]);
     })().catch(e => { fails++; console.log('FAIL ANALYSIS-6 check threw: ' + (e && e.stack || e)); });
+}
+// ---- audit 3.1.329 PLAY-1: a book or tablebase move leaves Err Like Your Rating's rolled error owed ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fnS = (n) => { const i = s.indexOf(`function ${n}(`); return s.slice(i, s.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({console: {log() {}, warn() {}}, Math, Date, Map, String, parseInt, Number, Infinity});
+    // humanize_pick, real, with Err Like Your Rating's real debt arithmetic; the roll is stubbed to a
+    // mistake (class 3) on the second line, which is what Humanize would have played
+    vm.runInContext(`var config = {humanize: true, variant: 'chess', maia3_elo: 1500, engine: 'stockfish'};
+        var turn = 'w', last_our_eval = null, humanize_roll = {r: 50}, hz_where_state = null, hz_match_state = null, hz_think_rhythm = null;
+        var last_eval = {fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 12', lastMove: 'e7e6',
+            lines: [{move: 'g1f3', pv: 'g1f3', score: 30}, {move: 'a2a3', pv: 'a2a3', score: -150}]};
+        const HZ_WIN_CP = 300, HZ_PUNISH_CP = 200, HZ_MATCH_DEFAULT = true, ONE_PASS_ENGINES = [], HUMAN_TIME_MEAN = {};
+        ${s.slice(s.indexOf('const HZ_MATCH_LABEL'), s.indexOf('\n', s.indexOf('const HZ_MATCH_LABEL')))}
+        ${s.slice(s.indexOf('const HZ_DEBT_PAY'), s.indexOf('\n', s.indexOf('const HZ_DEBT_PAY')))}
+        ${fnS('hz_match_with_debt')}${fnS('hz_match_settle')}
+        function line_cp_ours(l) { return l.score; } function win_percent(cp) { return 50 + cp / 10; }
+        function Chess() { return {moves: () => ['a', 'b']}; }
+        function first_move() { return false; } function in_opening() { return false; } function hz_opening_ok() { return true; }
+        function premove_reply_playable() { return true; } function humanize_rates_now() { return {}; } function hz_maia_probs() { return null; }
+        function humanize_flag(k, d) { return d; } function humanize_thresholds() { return {blunder: 1000, inaccuracy: 50, fourth: 20}; }
+        function hz_natural_hang() { return true; } function hz_hangs() { return false; } function hz_exposure() { return null; }
+        function hz_win_floor() { return -Infinity; } function hz_mate_in() { return null; } function hz_simplify_hold() { return false; }
+        function humanize_target() { return null; } function humanize_game_run() { return null; } function is_one_pass() { return false; }
+        function humanize_tc_inputs() { return null; } function hz_match_shares() { return [0.5, 0.2, 0.15, 0.1, 0.05]; }
+        function hz_punish_keep() { return 1; } function hz_type_classifier() { return null; } function hz_type_mix() { return null; }
+        function hz_hidden_of() { return false; } function hz_drop_class() { return 3; } function complexity_k() { return 1; }
+        function clock_budget_ms() { return null; } function hz_clock_rail(t) { return t; } function in_time_trouble() { return false; }
+        function hz_match_pick(cands) { return {cand: cands[1], rolled: 3, played: 3}; }
+        ${fnS('humanize_pick')}`, c);
+    const run = (decided) => { vm.runInContext('hz_match_state = null', c); const p = vm.runInContext(`humanize_pick('g1f3', ${decided})`, c); return {p, debt: vm.runInContext('hz_match_state.debt', c)}; };
+    const free = run(false), book = run(true);
+    ok('PLAY-1 control: with no book move the rolled mistake is played and paid', free.p.move === 'a2a3' && free.p.category === 'mistake' && free.debt[3] < 0, [free.p.move, free.p.category, free.debt]);
+    ok('PLAY-1: when a book or tablebase move will be played, the mistake is owed (debt up), not booked as played',
+       Math.abs(book.debt[3] - 0.1) < 1e-9 && book.debt[2] > 0 && book.debt[4] > 0, book.debt);
+    ok('...no deviation and no error label for that move', book.p.move === 'g1f3' && book.p.category === 'top engine', [book.p.move, book.p.category]);
+    ok('...wired: on_engine_best_move tells humanize_pick when book or tablebase wins',
+       /const pick = humanize_pick\(best, !!\(tb_ok \|\| book_ok\)\);\s*if \(tb_ok \|\| book_ok\) pick\.move = played;/.test(s));
 }
 // ==== END FIX CHECKS ====
 

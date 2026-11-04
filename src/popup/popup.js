@@ -2510,7 +2510,6 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 if (tb_ok && tb !== best) console.log(`Tablebase: playing ${tb} over ${best} (solved position)`);
                 if (!tb_ok && played !== best) console.log(`Book: playing ${played} over ${best} (weighted random)`);
                 if ((config.humanize || clock_aware()) && !config.puzzle_mode) {
-                    const pick = humanize_pick(best);
                     // tb_ok must be explicit here: now that the readout substitutes the tablebase
                     // move into `best`, played === best on a tablebase hit -- and without this,
                     // humanize's roll could override a SOLVED position's move
@@ -2518,7 +2517,10 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                     // the clock. Contempt and Playstyle only replace the engine's own move: Humanize's
                     // pick had already settled Err Like Your Rating's debt as played, so a style
                     // swapping out its error left the game cleaner than the rating (audit 3.1.328 PLAY-3).
+                    // Humanize is TOLD the move is overridden, so a rolled error is booked as owed, not
+                    // as played, and the countdown does not label the book move with it (audit 3.1.329 PLAY-1).
                     const book_ok = !!book && premove_reply_playable(last_eval.fen, book);
+                    const pick = humanize_pick(best, !!(tb_ok || book_ok));
                     if (tb_ok || book_ok) pick.move = played;
                     else if (pick.move === best && played !== best) pick.move = played;
                     if (pick.move !== best) console.log(`Humanize: playing ${pick.move} over ${best}`);
@@ -8464,7 +8466,10 @@ function humanize_rates_now(fen, log = false) {
     return hz_scale_rates(rates, mult);
 }
 
-function humanize_pick(best) {
+// overridden: a book or tablebase move will be played whatever this picks (on_engine_best_move). The
+// roll still runs, so Err Like Your Rating books its error as owed, not as paid, and no deviation
+// or error label comes back for a move that is not the one played (audit 3.1.329 PLAY-1).
+function humanize_pick(best, overridden = false) {
     const fen = last_eval.fen;
     const lines = (last_eval.lines || []).filter(l => l && l.move && l.pv);
     const bestLine = lines.find(l => l.move === best) || lines[0];
@@ -8601,6 +8606,8 @@ function humanize_pick(best) {
             const res = (!simplifyHold && Math.random() < keep) ? hz_match_pick(cands, shares, r / 100, Math.random, maiaWhich ? probs : null,
                                                                typeOf, hz_type_mix(elo), (u) => hz_hidden_of(shallow, u))
                                                : {cand: null, rolled: 0, played: 0};
+            // a book or tablebase move wins this move: the rolled error is not played, so it stays owed
+            if (overridden) { res.cand = null; res.played = 0; }
             hz_match_state = {debt: hz_match_settle(hz_match_state.debt, base, res.played), fullmove};
             if (res.cand && res.cand.move !== best) {
                 cand = res.cand;
@@ -8610,7 +8617,8 @@ function humanize_pick(best) {
                 category = 'guard held';
             }
             console.log(`Humanize match ${elo}: rolled ${HZ_MATCH_LABEL[res.rolled]} (${(shares[res.rolled] * 100).toFixed(1)}%), `
-                + (cand ? `played ${cand.move} at -${cand.drop.toFixed(1)}% win` : `played ${best}`));
+                + (overridden ? 'a book or tablebase move is played, the error is owed'
+                   : cand ? `played ${cand.move} at -${cand.drop.toFixed(1)}% win` : `played ${best}`));
         } else {
             // Each non-top category is a (lo, hi] centipawn band whose edges the user sets in the options
             // page (Move-Quality Thresholds); pick a random alternative whose loss falls in the rolled
@@ -8643,6 +8651,7 @@ function humanize_pick(best) {
                 category = 'guard held';
             }
         }
+        if (overridden) { cand = null; category = 'top engine'; }   // the book/tablebase move is played instead
         if (cand && playable(cand.move)) move = cand.move;
         else if (category !== 'guard held') category = 'top engine'; // top slice / pool empty / not playable
         if (category === 'guard held') console.log(`Humanize: a guard kept ${best} (deviation would hang material, throw a win, skip a punish or a winning trade)`);
