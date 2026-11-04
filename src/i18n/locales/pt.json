@@ -247,7 +247,7 @@
   "set.sec.updates": "Atualizações",
   "set.automatic_updates": "Atualizações automáticas",
   "set.tip.chrome_never_updates_an_unpacked": "O Chrome nunca atualiza uma extensão que carregaste tu, por isso o Mephisto pode fazê-lo: descarrega o pequeno arquivo de atualização da sua página de versões e escreve-o diretamente na pasta desta extensão. Ao ativar isto, o Chrome pede permissão para descarregar apenas desse repositório - nada é instalado sem premires Instalar.",
-  "set.note.updates_are_applied_in_place": "As atualizações são aplicadas <b>no lugar</b>, e é esse o objetivo: o teu ID de extensão nunca muda, os hosts nativos que instalaste continuam a funcionar e os motores incluídos ficam intactos - a transferência tem cerca de <b>6 MB</b> em vez de 585. Escolhe uma vez a pasta que carregaste como extensão descompactada; o Chrome guarda-a. Depois de uma atualização, recarrega os separadores de jogo que tinhas abertos.",
+  "set.note.updates_are_applied_in_place": "As atualizações são aplicadas <b>no lugar</b>, e é esse o objetivo: o teu ID de extensão nunca muda, os hosts nativos que instalaste continuam a funcionar e os motores incluídos ficam intactos - a transferência tem cerca de <b>7 MB</b>. Escolhe uma vez a pasta que carregaste como extensão descompactada; o Chrome guarda-a. Depois de uma atualização, recarrega os separadores de jogo que tinhas abertos.",
   "set.note.updates_permission_scope": "A permissão cobre apenas as transferências de versões deste projeto. Desligar isto devolve-a.",
   "set.check_for_updates": "Procurar atualizações",
   "set.choose_extension_folder": "Escolher pasta da extensão",

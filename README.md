@@ -679,7 +679,7 @@ prepares. A code is never reused: a retired one stays retired.
 | `MPH-U06` | GitHub, or the extension's own release lookup, did not answer. | Check your connection and try again. Updating by hand still works. |
 | `MPH-U07` | The newest release has no update archive attached. | Download the full zip from the Releases page. |
 | `MPH-U08` | GitHub answered the download with an HTTP error (the status is in the console). | Wait a minute and try again. |
-| `MPH-U09` | The download is the ~585 MB full archive, not the ~7 MB update one. It is refused before it is read into memory. | Update by hand with the full zip. |
+| `MPH-U09` | The download is the full archive (it holds `lib/engine`), not the ~7 MB update one. It is refused before anything is written. | Update by hand with the full zip. |
 | `MPH-U10` | The archive is damaged: not a zip, a bad record, an unsupported compression method, or a file that inflated to the wrong size. The folder was not touched. | Try again; if it repeats, install the full zip and report the code with the console line. |
 | `MPH-U11` | The archive is intact but is not the release it was published as: a missing core file, a wrong version, or a path outside the extension. The folder was not touched. | Try again later, or install the full zip. |
 | `MPH-U12` | Roll back was pressed with no backup on disk. | Nothing to do; a backup exists only after an update installed through this feature. |

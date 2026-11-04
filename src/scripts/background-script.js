@@ -969,8 +969,8 @@ async function updateCheck(force = false) {
     if (res.ok) {
       const json = await res.json();
       const latest = String(json.tag_name || '').replace(/^v/, '');
-      // The update archive is taken BY NAME. "the smaller of the two assets" would quietly start a
-      // 585 MB download the day a release ships only the full one.
+      // The update archive is taken BY NAME. "the smaller of the two assets" would quietly start the
+      // full download the day a release ships only the full one.
       const asset = (json.assets || []).find(a => a.name === `mephisto-${latest}-update.zip`);
       // The one-line story of the release, for the "what changed" note shown once after an update.
       // The notes always open with a bold headline sentence, so the first non-empty line is it --

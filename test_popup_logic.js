@@ -10999,6 +10999,47 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SYSB-3: the README archive table says when the update zip is the wrong one',
        /`mephisto-<version>-update\.zip` \|[^\n]*skipped a release whose notes say it needs the full zip[^\n]*use the full zip then/.test(readme));
 })().catch(e => { fails++; console.log('FAIL SYSB-3 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 SYSB-4: MPH-U09 and the Settings note describe the ~12 MB slim full zip, not a 585 MB one ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const enc = (s) => new TextEncoder().encode(s);
+    // A stored (method 0) zip, the shape readZip reads: local headers, central directory, end record.
+    const zipOf = (entries) => {
+        const parts = [], cds = []; let off = 0;
+        for (const [name, text] of entries) {
+            const n = enc(name), d = enc(text), lh = new DataView(new ArrayBuffer(30));
+            lh.setUint32(0, 0x04034b50, true); lh.setUint32(18, d.length, true); lh.setUint32(22, d.length, true); lh.setUint16(26, n.length, true);
+            const cd = new DataView(new ArrayBuffer(46));
+            cd.setUint32(0, 0x02014b50, true); cd.setUint32(20, d.length, true); cd.setUint32(24, d.length, true); cd.setUint16(28, n.length, true); cd.setUint32(42, off, true);
+            parts.push(new Uint8Array(lh.buffer), n, d); cds.push(new Uint8Array(cd.buffer), n); off += 30 + n.length + d.length;
+        }
+        const cdLen = cds.reduce((a, b) => a + b.length, 0), end = new DataView(new ArrayBuffer(22));
+        end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true); end.setUint32(12, cdLen, true); end.setUint32(16, off, true);
+        const all = [...parts, ...cds, new Uint8Array(end.buffer)], out = new Uint8Array(all.reduce((a, b) => a + b.length, 0));
+        let p = 0; for (const a of all) { out.set(a, p); p += a.length; }
+        return out.buffer;
+    };
+    const upSrc = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise,
+        chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'})}, storage: {local: {get: async () => ({}), set: async () => {}}}}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+    vm.runInContext(upSrc.replace('const MephistoUpdater =', 'var MephistoUpdater =').replace(/\nif \(typeof module[\s\S]*$/, ''), c);
+    const U = vm.runInContext('MephistoUpdater', c);
+    const P = 'Mephisto-1.0.0/';
+    const full = zipOf([[P + 'manifest.json', JSON.stringify({version: '1.0.0'})], [P + 'src/popup/popup.js', 'x'], [P + 'src/scripts/content-script.js', 'x'],
+                        [P + 'lib/chess.js', 'x'], [P + 'lib/engine/stockfish-19/sf_19.js', 'x']]);
+    let e = null; try { await U._readUpdateArchive(full, '1.0.0'); } catch (x) { e = x; }
+    ok('SYSB-4: a small full archive (it holds lib/engine) passes the size cap and is refused on its contents with MPH-U09', full.byteLength < 64 * 1024 * 1024 && e && e.code === 'MPH-U09', e && e.message);
+    const readme = fs.readFileSync(ROOT + '/README.md', 'utf8'), row = (readme.match(/^\| `MPH-U09` \|.*$/m) || [''])[0];
+    ok('SYSB-4: the README MPH-U09 row names the full archive by its lib/engine, not a 585 MB size, and says it is refused before anything is written',
+       /lib\/engine/.test(row) && !/585/.test(row) && /before anything is written/.test(row), row);
+    const bad = fs.readdirSync(ROOT + '/src/i18n/locales').filter(f => {
+        const v = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8'))['set.note.updates_are_applied_in_place'] || '';
+        return /585/.test(v) || !/<b>7 (MB|Mo|МБ)<\/b>/.test(v); });
+    ok('SYSB-4: no locale\'s Updates note compares the download with 585 MB any more; each says about 7 MB', bad.length === 0, bad);
+    ok('SYSB-4: ...nor does the page\'s own fallback text', !/585/.test(fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8')));
+})().catch(e => { fails++; console.log('FAIL SYSB-4 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -24,9 +24,10 @@
 // in place keeps the id, so every native-messaging manifest naming it keeps working. Re-installing
 // from a fresh zip into a new folder is what breaks that, and is what this exists to avoid.
 //
-// ONLY THE UPDATE ARCHIVE IS EVER APPLIED. mephisto-<v>-update.zip is about six megabytes; the full
-// one is 585 and would have to be held in memory to be read. The full archive is refused, twice --
-// once on Content-Length and once on its contents.
+// ONLY THE UPDATE ARCHIVE IS EVER APPLIED. mephisto-<v>-update.zip is about seven megabytes. The full
+// one is refused: it carries lib/engine, which an update must not touch. Since the slim split it is
+// ~12 MB, so it passes the size checks and is caught on its contents (audit 3.1.330 SYSB-4); the
+// Content-Length check is only a cap on whatever else might be attached under the update's name.
 const MephistoUpdater = (function () {
     const REPO = 'IchNukeDichWeg/Mephisto';
     // Deliberately narrow: the release-download path of ONE repository, not github.com. The second
@@ -41,7 +42,7 @@ const MephistoUpdater = (function () {
         'https://release-assets.githubusercontent.com/*',
     ];
     const DB = 'mephisto-updater', STORE = 'h', KEY = 'root';
-    const MAX_ZIP = 64 * 1024 * 1024; // the update archive is ~6 MB; the full one is 585
+    const MAX_ZIP = 64 * 1024 * 1024; // the update archive is ~7 MB
     // Every failure the user can see carries an MPH-U.. code (the registry is in i18n/i18n.js, which
     // the worker and the options page both load). What the user is shown is the translated message;
     // the file name or status that explains it rides along as `detail`, for the console only.
@@ -204,7 +205,7 @@ const MephistoUpdater = (function () {
     }
 
     // Everything is parsed, inflated and checked BEFORE a single byte is written. A half-applied
-    // update is an extension that will not load, and the recovery for that is the 585 MB download --
+    // update is an extension that will not load, and the recovery for that is the full download --
     // so a bad archive has to fail while the folder is still untouched.
     async function readUpdateArchive(buf, version) {
         const prefix = `Mephisto-${version}/`;
@@ -225,7 +226,7 @@ const MephistoUpdater = (function () {
         for (const need of ['manifest.json', 'src/popup/popup.js', 'src/scripts/content-script.js', 'lib/chess.js']) {
             if (!have.has(need)) throw fail('MPH-U11', null, `the archive is missing ${need}`);
         }
-        // The full archive would apply perfectly well here and take 585 MB of memory to do it.
+        // The full archive (the slim one, ~12 MB, passes both size checks) would write lib/engine.
         // Refuse it by the one directory that tells the two apart.
         if ([...have].some(p => p.startsWith('lib/engine/'))) {
             throw fail('MPH-U09', null, 'the archive holds lib/engine/, so it is the full one');
@@ -551,7 +552,7 @@ const MephistoUpdater = (function () {
         onStatus(`Downloading v${rel.latest}…`);
         const res = await fetch(rel.asset, {credentials: 'omit'});
         if (!res.ok) throw fail('MPH-U08', {status: res.status});
-        // Checked before buffering, so a mis-named full archive costs one header rather than 585 MB.
+        // Checked before buffering, so an oversized asset costs one header rather than its download.
         if (+res.headers.get('content-length') > MAX_ZIP) throw fail('MPH-U09', null, 'far too big to be the update archive');
         const buf = await res.arrayBuffer();
         if (buf.byteLength > MAX_ZIP) throw fail('MPH-U09', null, 'far too big to be the update archive');
