@@ -9837,6 +9837,26 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const sus = psrc.slice(psrc.indexOf('    suspend: () => {'), psrc.indexOf('PANEL_BOOTED = false;', psrc.indexOf('    suspend: () => {')));
     ok('CLICKB-3: closing the panel drops the kept engine set too', /engine_hint_arrows = \[\];/.test(sus));
 }
+// ---- audit 3.1.330 CLICKB-4: a panel docked Right does not sit under the page's scrollbar ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const body = src.slice(src.indexOf('function applyPanelStyle()'), src.indexOf('function readOverlayBox()'));
+    const run = (dock) => {
+        const wrap = {style: {opacity: '1', left: '12px', right: 'auto'}, getBoundingClientRect: () => ({width: 300, left: 12})};
+        // innerWidth 1000 includes a 17 px classic scrollbar: the visible viewport is 983 px wide
+        const c = {panelOpacity: 100, panelDock: dock, window: {innerWidth: 1000}, PANEL_OVERLAY_ID: 'p', RESTORE_BADGE_ID: 'b',
+            document: {documentElement: {clientWidth: 983}}, overlayEl: (id) => id === 'p' ? wrap : null};
+        vm.runInNewContext(body + ';applyPanelStyle();', c);
+        return wrap.style;
+    };
+    const r = run('right');
+    ok('CLICKB-4: Dock Right pins the panel with right: 0, so its edge is the viewport\'s, not the scrollbar\'s',
+       r.right === '0px' && r.left === 'auto', r);
+    const l = run('left'), f = run('free');
+    ok('CLICKB-4: Dock Left and free placement are unchanged',
+       l.left === '0px' && l.right === 'auto' && f.left === '12px' && f.right === 'auto', [l, f]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

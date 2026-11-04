@@ -703,10 +703,14 @@ function applyPanelStyle() {
     // Minimized is opacity 0: written here on any resize, it came back as an unclickable ghost.
     if (!overlayEl(RESTORE_BADGE_ID)) wrap.style.opacity = String(Math.max(40, Math.min(100, panelOpacity)) / 100);
     if (panelDock === 'free') return;
-    const w = wrap.getBoundingClientRect().width;
+    // Right docks with `right: 0`, not a left of innerWidth - width: innerWidth counts a classic
+    // vertical scrollbar, so the panel's last 15-17 px (the resize grip, part of the close button)
+    // sat under it on Windows. A fixed box's right edge resolves against the viewport WITHOUT the
+    // scrollbar, as the undocked default's does, and it stays docked when a scrollbar comes or goes
+    // with no resize event (audit 3.1.330 CLICKB-4).
+    if (panelDock === 'right') { wrap.style.left = 'auto'; wrap.style.right = '0px'; return; }
     wrap.style.right = 'auto';
-    wrap.style.left = panelDock === 'left' ? '0px'
-                    : `${Math.max(0, Math.round(window.innerWidth - w))}px`;
+    wrap.style.left = '0px';
 }
 
 function readOverlayBox() {
