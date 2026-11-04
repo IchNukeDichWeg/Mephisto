@@ -11767,6 +11767,28 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const t1 = await tb('T'), t2 = await tb('T'), t3 = await tb('U');
     ok('...the toolbar popup\'s warm (no sender tab) keys on the docId it forwards', t1.refused && t2.skipped && t3.refused, [t1, t2, t3]);
 })();
+// ---- L9 (audit 3.1.330 follow-up): two reads waiting on the first vision-model download both hear its progress ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const vsrc = fs.readFileSync(ROOT + '/src/offscreen/vision.js', 'utf8').replace(/^import .*$/gm, '').replace(/^export /gm, '');
+    const vctx = vm.createContext({console: {log() {}}, performance: {now: () => 0}, readyEnv: async () => {},
+        fetch: async () => { throw new Error('stop after the load'); },
+        fetchModel: async (dir, file, note) => { for (const pct of [10, 60]) { await new Promise(r => setTimeout(r, 15)); note(`mephisto-download ${file} ${pct} 100`); } return new ArrayBuffer(4); },
+        ort: {InferenceSession: {create: async () => ({})}}});
+    vm.runInContext(vsrc, vctx);
+    const recognize = vm.runInContext('recognize', vctx);
+    const a = [], b = [], later = [];
+    const pa = recognize({dataUri: 'data:,', clientId: '1'}, (m) => a.push(m));
+    await new Promise(r => setTimeout(r, 5));
+    const pb = recognize({dataUri: 'data:,', clientId: '2'}, (m) => b.push(m));
+    await Promise.allSettled([pa, pb]);
+    ok('L9: the read that started the download still hears it after a second tab starts reading',
+       a.filter(m => /bbox\.onnx/.test(m)).length === 2 && a.some(m => /position\.onnx/.test(m)), a);
+    ok('...and the second read hears the rest of it too', b.some(m => /position\.onnx 60/.test(m)), b);
+    await Promise.allSettled([recognize({dataUri: 'data:,', clientId: '3'}, (m) => later.push(m))]);
+    ok('...a read after the load hears nothing, and no listener is kept once its read has its models',
+       later.length === 0 && vm.runInContext('typeof readNotes === "undefined" || readNotes.size === 0', vctx), later);
+})().catch(e => { fails++; console.log('FAIL L9 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

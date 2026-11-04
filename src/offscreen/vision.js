@@ -27,10 +27,16 @@ let bboxSession = null, posSession = null;
 // Progress goes to the console AND to the panel that asked (set per read in recognize): a first read
 // on a slim install downloads ~75 MB, and with the notes only in this document's console the panel
 // showed nothing for all of it (audit 3.1.330 ENGINEB-3).
-let readNote = null;
+// EVERY READ WAITING ON THE LOAD HEARS IT. One module-level listener sent all of it to whichever read
+// asked last, so with two tabs reading during the first download the first tab's panel went silent
+// (audit 3.1.330 follow-up L9). Each read is in the set only while it waits for the models.
+const readNotes = new Set();
 async function session(file) {
     return ort.InferenceSession.create(
-        new Uint8Array(await fetchModel('/lib/engine/vision', file, (m) => { console.log(`[vision] ${m}`); readNote?.(m); })));
+        new Uint8Array(await fetchModel('/lib/engine/vision', file, (m) => {
+            console.log(`[vision] ${m}`);
+            for (const f of readNotes) { try { f(m); } catch (e) { /* one panel's fault */ } }
+        })));
 }
 
 // One promise for every caller. The session checks ran before the awaits, so a second read started
@@ -533,8 +539,8 @@ function uriHash(s) {
 // with_panel_hidden() in popup.js. A follow read passes the box it already knows and needs none of
 // this.
 export async function recognize({dataUri, crop, clientId}, onNote) {
-    if (onNote) readNote = onNote;
-    await ready();
+    if (onNote) readNotes.add(onNote);
+    try { await ready(); } finally { if (onNote) readNotes.delete(onNote); }
     const t0 = performance.now();
     if (!crop && lastResult && uriHash(dataUri) === lastUriHash) {
         uriHits++;
