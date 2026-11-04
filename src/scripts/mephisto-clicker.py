@@ -1,8 +1,11 @@
+import ctypes
+import ctypes.util
+import sys
 from random import random
 
 import pyautogui
 import argparse
-from flask import Flask, request
+from flask import Flask, abort, request
 from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
@@ -52,13 +55,55 @@ def _error_as_json(e):
     return {'error': f'{type(e).__name__}: {e}'}, 500
 
 
-SCREEN_W, SCREEN_H = pyautogui.size()
+def _display_test():
+    # ON ANY DISPLAY, NOT THE PRIMARY ONE. The issue #36 clamp cut every point to pyautogui.size(),
+    # which is the primary display only on Windows and macOS, while the extension sends virtual-desktop
+    # coordinates (window.screenX spans every display). A board on a second display was clicked at the
+    # primary display's edge, on whatever app sat there, and the clicker still answered OK (audit
+    # 3.1.330 NATIVEA-1). These ask the OS whether a display holds the point, in the same space
+    # pyautogui moves in. On X11 the root window pyautogui.size() reads already spans every monitor.
+    try:
+        if sys.platform == 'win32':
+            class POINT(ctypes.Structure):
+                _fields_ = [('x', ctypes.c_long), ('y', ctypes.c_long)]
+            monitor_from_point = ctypes.windll.user32.MonitorFromPoint
+            monitor_from_point.argtypes = [POINT, ctypes.c_uint32]
+            monitor_from_point.restype = ctypes.c_void_p
+            return lambda x, y: bool(monitor_from_point(POINT(x, y), 0))   # 0 = MONITOR_DEFAULTTONULL
+        if sys.platform == 'darwin':
+            class CGPoint(ctypes.Structure):
+                _fields_ = [('x', ctypes.c_double), ('y', ctypes.c_double)]
+            cg = ctypes.CDLL(ctypes.util.find_library('CoreGraphics'))
+            cg.CGGetDisplaysWithPoint.argtypes = [CGPoint, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint32),
+                                                  ctypes.POINTER(ctypes.c_uint32)]
+            cg.CGGetDisplaysWithPoint.restype = ctypes.c_int32
+
+            def on_mac_display(x, y):
+                ids, n = (ctypes.c_uint32 * 16)(), ctypes.c_uint32(0)
+                return cg.CGGetDisplaysWithPoint(CGPoint(x, y), 16, ids, ctypes.byref(n)) == 0 and n.value > 0
+            return on_mac_display
+    except (AttributeError, OSError, TypeError) as e:
+        print(f'NOTE: cannot list the displays ({e}); clicks are limited to the primary display.')
+    return lambda x, y: pyautogui.onScreen(x, y)
+
+
+on_a_display = _display_test()
+
+
+def _target(data, kx, ky):
+    # A point off every display is refused rather than moved to an edge: the 400 makes the panel play
+    # the move with its own clicks, where a clamped click landed on another window (issue #36 §2 asked
+    # only that a bad caller cannot drive clicks off into the void).
+    try:
+        x, y = int(data[kx]), int(data[ky])
+    except (KeyError, TypeError, ValueError, OverflowError):
+        abort(400, f'bad or missing coordinates {kx}, {ky}')
+    if not on_a_display(x, y):
+        abort(400, f'({x}, {y}) is not on any display, so it was not clicked')
+    return x, y
 
 
 def perform_click(x, y):
-    # Clamp to the screen so a bad caller can't drive clicks off into the void (issue #36 §2).
-    x = max(0, min(int(x), SCREEN_W - 1))
-    y = max(0, min(int(y), SCREEN_H - 1))
     duration = (args.drag_variance * random() + args.drag_time) / 1000
     pyautogui.moveTo(x, y, duration=duration)
     pyautogui.mouseDown()
@@ -75,15 +120,15 @@ def perform_move(x0, y0, x1, y1):
 
 @app.route('/performClick', methods=['POST'])
 def perform_click_api():
-    data = request.get_json()
-    perform_click(data.get('x'), data.get('y'))
+    data = request.get_json(silent=True) or {}
+    perform_click(*_target(data, 'x', 'y'))
     return 'OK'
 
 
 @app.route('/performMove', methods=['POST'])
 def perform_move_api():
-    data = request.get_json()
-    perform_move(data.get('x0'), data.get('y0'), data.get('x1'), data.get('y1'))
+    data = request.get_json(silent=True) or {}
+    perform_move(*_target(data, 'x0', 'y0'), *_target(data, 'x1', 'y1'))
     return 'OK'
 
 

@@ -9634,6 +9634,17 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            ['--port', '--drag-time', '--drag-var'].every(f => new RegExp(`'${f}'[^\\n]*type=int`).test(py)));
     })();
 }
+// ---- audit 3.1.330 NATIVEA-1: the Python clicker no longer folds a second display onto the primary's edge ----
+// (behaviour is run by a stubbed-pyautogui script outside the suite; these pin the source shape)
+{
+    const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
+    const py = fs.readFileSync(ROOT + '/src/scripts/mephisto-clicker.py', 'utf8');
+    ok('NATIVEA-1: no clamp to pyautogui.size() (the primary display only)', !/pyautogui\.size\(\)\s*\n/.test(py) && !/min\(int\(x\), SCREEN_W/.test(py));
+    ok('NATIVEA-1: the OS is asked whether any display holds the point (Windows and macOS)',
+       /MonitorFromPoint/.test(py) && /CGGetDisplaysWithPoint/.test(py));
+    ok('NATIVEA-1: a point on no display is refused (400), so the panel plays the move with its own clicks',
+       /abort\(400, f'\(\{x\}, \{y\}\) is not on any display/.test(py));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
