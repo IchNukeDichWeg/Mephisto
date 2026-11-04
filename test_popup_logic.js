@@ -12212,6 +12212,26 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const note = f.indexOf("lichess_note_response(r, 'archive')"), thr = f.indexOf('if (!r.ok) throw');
     ok('fetchArchivePgn notes a lichess 429/503 before it throws on the failed status', note > 0 && thr > 0 && note < thr, {note, thr});
 }
+// ---- L48 (audit 3.1.330 follow-up): a 404 for the player is "no such player", answered like no games; 5xx and network failures stay errors ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const cut = (from, to) => { const a = bg.indexOf(from), b = bg.indexOf(to, a); return (a < 0 || b < 0) ? '' : bg.slice(a, b); };
+    // `ans` is the status every request gets, or 'net' for a fetch that throws
+    const w = vm.createContext({ans: 404, archiveFetch: async () => { if (w.ans === 'net') throw new Error('Failed to fetch'); return {ok: false, status: w.ans, json: async () => ({message: 'x'})}; },
+        lichess_blocked: () => false, lichess_note_response() {}, encodeURIComponent, Promise, Error, Math, Map, Date, String, Array});
+    vm.runInContext(cut('function capMap(', '// Somebody\'s recent public games') + cut('async function fetchArchivePgn(', 'async function streamerLookup('), w);
+    const ask = (fn, site, ans) => { w.ans = ans; return vm.runInContext(`${fn}({site: '${site}', username: 'NoSuchPlayer'})`, w); };
+    (async () => {
+        for (const site of ['lichess', 'chesscom']) {
+            const prep = await ask('oppPrepLookup', site, 404), book = await ask('playerBookLookup', site, 404);
+            ok(`L48: ${site} answering 404 for the player is an empty game list for Opponent Prep and the Player Book, not an error`,
+               Array.isArray(prep.games) && !prep.games.length && !prep.error && Array.isArray(book.games) && !book.games.length && !book.error, [prep, book]);
+            const down = await ask('playerBookLookup', site, 503), net = await ask('oppPrepLookup', site, 'net');
+            ok(`...while a 503 or a network failure from ${site} is still an error`, !!down.error && !down.games && !!net.error && !net.games, [down, net]);
+        }
+    })().catch(e => { fails++; console.log('FAIL L48 checks threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
