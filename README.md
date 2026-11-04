@@ -313,7 +313,7 @@ free. Nothing about the software changed, the measurement did.
 - **Endgame tablebase** - at ≤7 pieces the position is solved, so it outranks engine and book. Point it at your own
   Syzygy files and it answers off disk, offline - **Download tables** fetches them into that folder from lichess's
   own server, your choice of **3-4-5 men (0.9 GB), 6 men (149 GB) or both**, and **WDL, DTZ or both** (WDL says
-  won/drawn/lost, DTZ is what converts a win and is most of the size). Anything already there with the right size
+  won/drawn/lost, DTZ is what converts a win and is most of the size; DTZ only works beside the WDL files). Anything already there with the right size
   is skipped, so a stopped download resumes. The lichess lookup is the fallback. Wins *convert*: moves follow
   lila-tablebase's own sort, and at ≤5 men the readout counts the mate. Off by default.
 - **Tablebase Display** - at ≤7 pieces the engine and the tablebase both answer, and they answer different kinds of

@@ -12320,6 +12320,13 @@ print(json.dumps(out))`;
            r && r[1] && !r[1].ok && /^Tetrarch stopped during configure: /.test(r[1].error || '') && /ValueError: no FFA tables in this build/.test(r[1].error), r && r[1]);
     }
 })();
+// ---- audit 3.1.330 follow-up L44: the README's tablebase download line says DTZ needs WDL ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rd = fs.readFileSync(ROOT + '/README.md', 'utf8');
+    const line = rd.slice(rd.indexOf('**WDL, DTZ or both**'), rd.indexOf('**WDL, DTZ or both**') + 260);
+    ok('L44: the README offers "WDL, DTZ or both" and says DTZ only works beside the WDL files', /DTZ only works beside the WDL files/.test(line), line.slice(0, 200));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
