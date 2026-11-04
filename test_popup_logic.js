@@ -3472,7 +3472,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('an Appearance change (pieces, board, coordinates, dark mode) rebuilds an open panel', /if \(\['pieces', 'board', 'coordinates', 'dark_mode'\]\.some\(k => k in changes[\s\S]{0,90}\{\s*return panel_reload\(\);/.test(psrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const r = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
-    ok('Game Review: starting a run takes the previous game\'s report off the screen', /async function onRun\(\) \{[\s\S]{0,1500}?\['rv-report', 'rv-indicators',[^\]]*\]\) \$\(id\)\?\.classList\.add\('hidden'\);\s*if \(is4pcGame/.test(r)); }
+    ok('Game Review: starting a run takes the previous game\'s report off the screen', /async function onRun\(\) \{[\s\S]{0,1500}?\['rv-report', 'rv-indicators',[^\]]*\]\) \$\(id\)\?\.classList\.add\('hidden'\);[\s\S]{0,1000}?if \(is4pcGame/.test(r)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const i = psrc.indexOf('function on_remote_error('), fn = psrc.slice(i, psrc.indexOf('\n}\n', i) + 3);
     // the real registry and the panel's real err_* helpers, so the line shown is the coded one
@@ -7431,6 +7431,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('X1-3: NativeEngine.dispose rejects the analyse it was waiting on ("engine disposed"), instead of leaving it pending forever',
        got === 'rejected: engine disposed', got);
 })().catch(e => { fails++; console.log('FAIL X1-3 check threw: ' + (e && e.stack || e)); });
+// ---- X1-4: a four-player run turns Export and Fit off with the old report, as the two-player lane does ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rj.indexOf('async function onRun() {'), b = rj.indexOf('\n}\n', a) + 3;
+    const els = {};
+    const c = vm.createContext({console, Promise, Error, String, seen: null,
+        $: (id) => (els[id] = els[id] || {disabled: false, value: '', classList: {add() {}, remove() {}}}),
+        cfg: (k) => (k === 'rv_variant' ? '4pc' : false), note() {},
+        run4pcReview: () => { c.seen = {report: vm.runInContext('report', c), exp: els.rv_export.disabled, fit: els.rv_fit.disabled}; }});
+    els.rv_export = {disabled: false, classList: {add() {}, remove() {}}};   // a two-player report is on screen: Export is live
+    els.rv_fit = {disabled: false, classList: {add() {}, remove() {}}};
+    vm.runInContext('var running = false, cancel = false, is4pcGame = true, batchInputText = "", report = {game: "A"}, batchReports = null;\n'
+        + 'var games = [{id: 1}];\n' + rj.slice(a, b), c);
+    vm.runInContext('onRun()', c).then(() => {
+        ok('X1-4: a four-player run starts with no report and Export and Fit off (a click there did nothing)',
+           c.seen && c.seen.report === null && c.seen.exp === true && c.seen.fit === true, c.seen);
+    });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

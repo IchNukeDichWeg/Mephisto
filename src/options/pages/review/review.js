@@ -2552,17 +2552,16 @@ async function onRun() {
     // returned above this and left the old two-player report around the new 4-player section, with
     // Export, Share and the arrow keys still acting on it (audit 3.1.328 REVIEW-6).
     for (const id of ['rv-report', 'rv-indicators', 'rv-human', 'rv-strength', 'rv-batch']) $(id)?.classList.add('hidden');
-    if (is4pcGame || String(cfg('rv_variant')) === '4pc') {
-        report = null; batchReports = null;   // nothing left for Export, Share or the arrow keys
-        return run4pcReview();
-    }
-    // ...AND THE OLD REPORT GOES WITH IT here too. This lane kept it: Export stayed enabled and
+    // ...AND THE OLD REPORT GOES WITH IT. The two-player lane kept it: Export stayed enabled and
     // exported game A as an empty shell (its hidden sections are left out of the clone), and a run
     // that ended with no result brought game A back on a revisit beside the new run's PGN text
-    // (audit 3.1.329 REVIEW-3). renderReport turns Export and Fit back on for a new result.
-    report = null; batchReports = null;
+    // (audit 3.1.329 REVIEW-3). renderReport turns Export and Fit back on for a new result. Before
+    // the four-player branch too: it dropped the report but left both buttons live beside Run, and
+    // a four-player report has neither, so a click did nothing (X1-4).
+    report = null; batchReports = null;   // nothing left for Export, Share or the arrow keys
     if ($('rv_export')) $('rv_export').disabled = true;
     if ($('rv_fit')) $('rv_fit').disabled = true;
+    if (is4pcGame || String(cfg('rv_variant')) === '4pc') return run4pcReview();
     const batch = cfg('rv_batch') && games.length > 1;
     const list = batch ? games : [selectedGame()];
     if (batch) batchInputText = $('rv_pgn')?.value || '';
