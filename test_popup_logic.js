@@ -6273,6 +6273,39 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        word('chess', '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1', 'b')[0] === 'Stalemate'
        && JSON.stringify(word('3check', 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3', 'w')) === '["Checkmate",-100000]');
 }
+// ---- audit 3.1.329 ANALYSIS-3: the engine swap note on a variant change survives the reload ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = an.indexOf(a), j = an.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return an.slice(i, j); };
+    const el = {textContent: '', className: ''};
+    const conf = {};
+    const c = vm.createContext({el, conf, loadLine: ['Position loaded.']});
+    vm.runInContext(`const $ = (id) => (id === 'an_status' ? el : null);
+        const cfg = (k) => conf[k]; const setCfg = (k, v) => { conf[k] = v; }; const anVariant = () => conf.an_variant;
+        const ENGINES = [{id: 'sf18-native', label: 'Stockfish 18 (native)', kind: 'native'}, {id: 'stockfish-18-nnue', label: 'Stockfish 18', kind: 'wasm'},
+                         {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish', kind: 'wasm'}];
+        const FAIRY_ONLY = ['crazyhouse']; const FAIRY_ENGINE = 'fairy-stockfish-14-nnue';
+        function syncBandRow() {} function reloadEngine() {} function reloadEngine2() {}
+        function loadFromInput() { status(...loadLine); }
+        ${cut('function status(', '\n}\n')}
+        }
+        ${cut('const NATIVE_960_WASM', 'let engineChain')}
+        ${cut('function onVariantChange(', '// One box takes either')}`, c);
+    Object.assign(conf, {an_variant: 'fischerandom', an_engine: 'sf18-native', an_engine2: ''});
+    c.onVariantChange(false);
+    ok('ANALYSIS-3: native engine + Chess960: the swap note is on the status line after the reload, with the load line after it',
+       el.textContent === 'Stockfish 18 (native) cannot castle in Chess960; using Stockfish 18 here. Position loaded.' && el.className === 'an-status', [el.textContent, el.className]);
+    Object.assign(conf, {an_variant: 'crazyhouse', an_engine: 'stockfish-18-nnue'});
+    c.loadLine = ['illegal move in the PGN: Qxx9', 'err'];
+    c.onVariantChange(false);
+    ok('...a Fairy switch note too, and a load error keeps its error colour',
+       /^Engine switched to Fairy-Stockfish: only it plays crazyhouse\. illegal move/.test(el.textContent) && el.className === 'an-status an-err', [el.textContent, el.className]);
+    Object.assign(conf, {an_variant: 'chess', an_engine: 'sf18-native'});
+    c.loadLine = [''];
+    c.onVariantChange(false);
+    ok('...no swap, no note: the load line stands alone', el.textContent === '' && el.className === 'an-status', [el.textContent, el.className]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -474,12 +474,16 @@ function setVariant(v) {
 // loader exists to catch.
 function onVariantChange(quiet) {
     const v = anVariant();
+    // The notes are written AFTER loadFromInput: every one of its branches sets its own status line
+    // synchronously ("Position loaded.", "Loaded N moves.", or '' for the start position), so a note
+    // set before it never painted and the engine swap was silent (audit 3.1.329 ANALYSIS-3).
+    const notes = [];
     if (FAIRY_ONLY.includes(v)) {
         if (cfg('an_engine') !== FAIRY_ENGINE) {
             setCfg('an_engine', FAIRY_ENGINE);
             const es = $('an_engine_select');
             if (es) es.value = FAIRY_ENGINE;
-            if (!quiet) status(`Engine switched to Fairy-Stockfish: only it plays ${v}.`);
+            if (!quiet) notes.push(`Engine switched to Fairy-Stockfish: only it plays ${v}.`);
         }
         if (cfg('an_engine2') && cfg('an_engine2') !== FAIRY_ENGINE) {
             setCfg('an_engine2', '');
@@ -489,12 +493,18 @@ function onVariantChange(quiet) {
     }
     if (!quiet) for (const k of ['an_engine', 'an_engine2']) {
         const id = cfg(k), use = engineFor(id);
-        if (use !== id) status(`${ENGINES.find(e => e.id === id)?.label || id} cannot castle in Chess960; using ${ENGINES.find(e => e.id === use)?.label || use} here.`);
+        if (use !== id) notes.push(`${ENGINES.find(e => e.id === id)?.label || id} cannot castle in Chess960; using ${ENGINES.find(e => e.id === use)?.label || use} here.`);
     }
     syncBandRow();
     reloadEngine2();
     reloadEngine();   // clears the eval caches and re-analyses via go(cursor)
     loadFromInput();  // reload whatever is in the box under the new rules (empty box = start position)
+    if (notes.length) {
+        // the load's own line (and its error colour) is kept after the notes, not replaced
+        const el = $('an_status');
+        const kind = / an-(\w+)$/.exec(el?.className || '')?.[1];
+        status([...notes, el?.textContent || ''].filter(Boolean).join(' '), kind);
+    }
 }
 
 // One box takes either: a FEN is placement data followed by a side to move, anything else is a game.
