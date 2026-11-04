@@ -6687,6 +6687,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('REVIEW-2: after one worker fails the other takes no further position', e4 && !e4.replayFailed && calls.a === 1 && calls.b === 1, [calls, e4 && e4.message]);
     })();
 }
+// ---- audit 3.1.329 REVIEW-3: a new run drops the old report, so Export and a revisit cannot show it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rj.indexOf('async function onRun() {'), b = rj.indexOf('\n}\n', a) + 3;
+    const run = (batch, runReview) => {
+        const els = {};
+        const c = vm.createContext({console, Promise, Error, String, notes: [], seenDuringRun: null,
+            $: (id) => (els[id] = els[id] || {disabled: false, value: 'B', classList: {add() {}, remove() {}}, scrollIntoView() {}}),
+            cfg: (k) => (k === 'rv_batch' ? batch : k === 'rv_variant' ? 'chess' : false), note: (t, e) => c.notes.push([t, !!e]),
+            progress() {}, renderReport() {}, renderBatch() {}, disposeRig() {}, gameText: () => 'B', run4pcReview() {}, startRig: async () => ({}),
+            selectedGame: () => ({id: 'B'}), runReview: async (g) => { c.seenDuringRun = {report: vm.runInContext('report', c), exp: els.rv_export.disabled}; return runReview(g); }});
+        els.rv_export = {disabled: false, classList: {add() {}, remove() {}}};   // game A's report is on screen: Export is live
+        els.rv_fit = {disabled: false, classList: {add() {}, remove() {}}};
+        vm.runInContext('var running = false, cancel = false, is4pcGame = false, batchInputText = "", report = {game: "A", pgnText: "A"}, batchReports = [{game: "A"}];\n'
+            + 'var games = [{id: 1}, {id: 2}];\n' + rj.slice(a, b), c);
+        return vm.runInContext('onRun()', c).then(() => ({c, els}));
+    };
+    Promise.all([
+        run(false, async () => { throw new Error('Move 3. Nf6 is not legal'); }),
+        run(true, async () => { throw Object.assign(new Error('Move 3. Nf6 is not legal'), {replayFailed: true}); }),
+    ]).then(([single, batch]) => {
+        ok('REVIEW-3: during the run game A is gone and Export and Fit are off',
+           single.c.seenDuringRun.report === null && single.c.seenDuringRun.exp === true && single.els.rv_fit.disabled === true, single.c.seenDuringRun);
+        ok('REVIEW-3: a failed single run leaves no report and Export off',
+           vm.runInContext('report', single.c) === null && single.els.rv_export.disabled === true, [vm.runInContext('report', single.c), single.els.rv_export.disabled]);
+        ok('REVIEW-3: a batch where every game was skipped leaves no report for a revisit to bring back',
+           vm.runInContext('report === null && batchReports === null', batch.c) && batch.els.rv_export.disabled === true);
+    });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

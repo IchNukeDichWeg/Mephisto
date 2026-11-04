@@ -2556,6 +2556,13 @@ async function onRun() {
         report = null; batchReports = null;   // nothing left for Export, Share or the arrow keys
         return run4pcReview();
     }
+    // ...AND THE OLD REPORT GOES WITH IT here too. This lane kept it: Export stayed enabled and
+    // exported game A as an empty shell (its hidden sections are left out of the clone), and a run
+    // that ended with no result brought game A back on a revisit beside the new run's PGN text
+    // (audit 3.1.329 REVIEW-3). renderReport turns Export and Fit back on for a new result.
+    report = null; batchReports = null;
+    if ($('rv_export')) $('rv_export').disabled = true;
+    if ($('rv_fit')) $('rv_fit').disabled = true;
     const batch = cfg('rv_batch') && games.length > 1;
     const list = batch ? games : [selectedGame()];
     if (batch) batchInputText = $('rv_pgn')?.value || '';
