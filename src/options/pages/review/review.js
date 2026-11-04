@@ -736,8 +736,11 @@ async function run4pcReview() {
     if ($('rv4_head')) $('rv4_head').textContent = 'Replaying the game with the Tetrarch engine\u2026';
     try {
         // The budget the page already offers. Tetrarch takes a movetime; a depth limit means
-        // something different in its search, so the time row is what is honoured here.
-        const movetime = cfg('rv_limit_kind') === 'depth' ? 1000 : Math.max(50, +cfg('rv_limit_value') || 1000);
+        // something different in its search, so the time row is what is honoured here. A Depth
+        // budget (the row is put on Time for 4-player, syncBudgetFor4pc) searches the Time budget
+        // the row would show, not a fixed 1 s nothing on screen named (audit 3.1.330 follow-up L25).
+        const movetime = cfg('rv_limit_kind') === 'depth' ? Math.max(50, storedFor('time'))
+                                                          : Math.max(50, +cfg('rv_limit_value') || 1000);
         fourpcReport = await M.runReview(text, {
             movetime,
             isCancelled: () => cancel,
@@ -3014,6 +3017,28 @@ function syncDepthPreset() {
     sel.value = [...sel.options].some(o => o.value === now) ? now : '';
 }
 
+// TETRARCH SEARCHES BY TIME. run4pcReview sends a movetime: a depth means something else in a
+// four-player search, chess.com's rungs (18-26) would run for hours there, and the host cannot stop a
+// search once it is sent. The Budget row still said "Depth 24" in 4-player while every position got a
+// fixed 1 s (audit 3.1.330 follow-up L25), so in 4-player the row is put on Time, the budget the run
+// really sends, and Depth is greyed out. Back on another game type a Depth this replaced returns (this
+// page visit only; rv_limit_depth keeps the number either way). A Time picked by hand stays Time.
+let budgetKindBefore4pc = null;
+function syncBudgetFor4pc(fourPc) {
+    const sel = document.getElementById('rv_limit_kind');
+    if (!sel) return;
+    const depthOpt = [...sel.options].find(o => o.value === 'depth');
+    if (depthOpt) depthOpt.disabled = fourPc;
+    let to = null;
+    if (fourPc && sel.value === 'depth') { budgetKindBefore4pc = 'depth'; to = 'time'; }
+    else if (!fourPc && budgetKindBefore4pc) { if (sel.value === 'time') to = budgetKindBefore4pc; budgetKindBefore4pc = null; }
+    if (!to) return;
+    sel.value = to;
+    setCfg('rv_limit_kind', to);
+    syncLimitUi();
+    syncDepthPreset();
+}
+
 // `typing`: an `input` event mid-entry. The value is stored but NOT written back: clamping and
 // rounding the half-typed number in place turned a typed `0` into `0.1` at once and `1.5` into 15 or
 // 0.6 depending on how Chrome reports `1.` (audit 3.1.328 REVIEW-7). An unparseable partial stores
@@ -3523,6 +3548,7 @@ class ReviewPage {
             }
             const fourPc = variant === '4pc';
             $('rv_4pc_note')?.classList.toggle('hidden', !fourPc);
+            syncBudgetFor4pc(fourPc);   // the Budget row says what a 4-player run searches (follow-up L25)
             if (!fourPc) $('rv-4pc')?.classList.add('hidden');
             // Run stays ENABLED for 4pc -- it has a review now (run4pcReview). This line used to
             // grey the button out from the "cannot be replayed" era, which made the whole lane

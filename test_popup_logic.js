@@ -6752,7 +6752,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ENGINES: [{id: 'sf19-native', label: 'Stockfish 19 (native)', kind: 'native'}, {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish 14 (WASM)', kind: 'wasm'}],
         nativeAvailable: null, esc: (s) => s, cfg: (k) => store[k], setCfg: (k, v) => { writes.push(k); store[k] = v; },
         $: (id) => (id === 'rv_engine' ? sel : null), document: {querySelectorAll: () => []},
-        RV_FAIRY_ONLY: ['crazyhouse', '3check'], RV_FAIRY_ENGINE: 'fairy-stockfish-14-nnue', syncLimitUi() {}, nativeHostAvailable: async () => true});
+        RV_FAIRY_ONLY: ['crazyhouse', '3check'], RV_FAIRY_ENGINE: 'fairy-stockfish-14-nnue', syncLimitUi() {}, syncBudgetFor4pc() {}, nativeHostAvailable: async () => true});
     vm.runInContext(fnOf('function rvChessVariant() {') + fnOf('function updateEngineOptions() {')
         + rj.slice(ms, me) + '\n        rvModeSync();\n' + rj.slice(is, ie), c);
     ok('REVIEW-4: with crazyhouse saved, a fresh page shows Fairy-Stockfish in Review with', sel.value === 'fairy-stockfish-14-nnue', sel.value);
@@ -10136,7 +10136,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const ms = rj.indexOf('        const rvModeSync = () => {'), me = rj.indexOf('\n        };\n', ms) + 11;
     const c = vm.createContext({String, cfg: (k) => store[k], setCfg: (k, v) => { store[k] = v; }, $,
         document: {querySelectorAll: (q) => q === '.rv-mode' ? blocks.filter(b => b.dataset.mode) : blocks.filter(b => b.dataset.for)},
-        RV_FAIRY_ONLY: [], RV_FAIRY_ENGINE: 'fairy', rvChessVariant: () => 'chess'});
+        RV_FAIRY_ONLY: [], RV_FAIRY_ENGINE: 'fairy', rvChessVariant: () => 'chess', syncBudgetFor4pc() {}});
     vm.runInContext(rj.slice(ms, me) + '\n        rvModeSync();\n', c);
     ok('REVIEWA-1: 4-player shows the Analyse and Stop buttons', shown('rv_run') && shown('rv_stop'), [shown('rv_run'), shown('rv_stop')]);
     ok('REVIEWA-1: ...and the Budget row run4pcReview reads its movetime from', shown('rv_limit_kind') && shown('rv_limit_num'));
@@ -10180,7 +10180,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const ms = rj.indexOf('        const rvModeSync = () => {'), me = rj.indexOf('\n        };\n', ms) + 11;
     const c = vm.createContext({String, cfg: (k) => store[k], setCfg: (k, v) => { store[k] = v; }, $,
         document: {querySelectorAll: (q) => q === '.rv-mode' ? blocks.filter(b => b.dataset.mode) : blocks.filter(b => b.dataset.for)},
-        RV_FAIRY_ONLY: [], RV_FAIRY_ENGINE: 'fairy', rvChessVariant: () => 'chess'});
+        RV_FAIRY_ONLY: [], RV_FAIRY_ENGINE: 'fairy', rvChessVariant: () => 'chess', syncBudgetFor4pc() {}});
     vm.runInContext(rj.slice(ms, me) + '\n        rvModeSync();\n', c);
     ok('REVIEWA-2: Review with the classifier shows Stop beside its own run button', shown('rv_stop') && shown('rv_ee_run'), [shown('rv_stop'), shown('rv_ee_run')]);
     ok('REVIEWA-2: ...but not Analyse game, which starts a different review', !shown('rv_run'));
@@ -10408,7 +10408,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const ms = rj.indexOf('        const rvModeSync = () => {'), me = rj.indexOf('\n        };\n', ms) + 11;
     const c = vm.createContext({String, cfg: (k) => store[k], setCfg: (k, v) => { store[k] = v; }, $,
         document: {querySelectorAll: (q) => q === '.rv-mode' ? blocks.filter(b => b.dataset.mode) : blocks.filter(b => b.dataset.for)},
-        RV_FAIRY_ONLY: [], RV_FAIRY_ENGINE: 'fairy', rvChessVariant: () => 'chess'});
+        RV_FAIRY_ONLY: [], RV_FAIRY_ENGINE: 'fairy', rvChessVariant: () => 'chess', syncBudgetFor4pc() {}});
     vm.runInContext(rj.slice(ms, me) + '\n        rvModeSync();\n', c);
     ok('REVIEWA-8: a Chess960 game shows Mephisto\'s engine (the classifier is chess-only)',
        $('rv_mode').value === 'own' && shown('rv_run') && !shown('rv_ee_run'), [$('rv_mode').value, shown('rv_run'), shown('rv_ee_run')]);
@@ -11652,6 +11652,44 @@ print(json.dumps(out))`;
     const tier = vm.runInContext('report && report.ccrStrength', ccr.c);
     ok('L24: ...and keeps its strength tier for the revisit\'s header', tier === 'Standard', tier);
 })();
+// ---- audit 3.1.330 follow-up L25: in 4-player the Budget row shows the time the review really searches ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head); return a < 0 ? '' : rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    // a stored Depth 24 budget and a Time budget of 2 s, with the real Budget-row functions
+    const opts = [{value: 'depth', disabled: false}, {value: 'time', disabled: false}];
+    const els = {rv_limit_kind: {value: 'depth', options: opts}, rv_limit_num: {value: '24'}, rv_limit_value: {value: ''},
+        rv_depth_preset: {value: '24', style: {}, options: ['', '18', '22', '24', '26'].map(value => ({value}))}};
+    const store = {rv_limit_kind: 'depth', rv_limit_value: 24, rv_limit_depth: 24, rv_limit_time: 2000};
+    const c = vm.createContext({Math, String, isFinite, parseFloat, parseInt, $: (id) => els[id], document: {getElementById: (id) => els[id]},
+        cfg: (k) => store[k], setCfg: (k, v) => { store[k] = v; }, updateEngineOptions() {}, DEPTH_DEFAULT: 20, TIME_DEFAULT_MS_UI: 500,
+        PER_KIND_KEY: {depth: 'rv_limit_depth', time: 'rv_limit_time'}, storedFor: (k) => store[k === 'depth' ? 'rv_limit_depth' : 'rv_limit_time']});
+    const helper = rj.indexOf('let budgetKindBefore4pc');
+    vm.runInContext(fn('function syncDepthPreset() {') + fn('function syncLimitUi(')
+        + (helper < 0 ? '' : rj.slice(helper, rj.indexOf('\n}\n', helper) + 3)), c);
+    ok('L25: 4-player puts the Budget row on Time, the time it searches (2 s), with Depth greyed out',
+       helper > 0 && (vm.runInContext('syncBudgetFor4pc(true)', c), els.rv_limit_kind.value === 'time' && store.rv_limit_kind === 'time'
+                      && els.rv_limit_num.value === '2' && store.rv_limit_value === 2000 && opts[0].disabled === true),
+       [els.rv_limit_kind.value, els.rv_limit_num.value, store.rv_limit_value, opts[0].disabled]);
+    // the movetime run4pcReview sends, read from its own line, for a Depth budget and a Time one
+    const r4 = fn('async function run4pcReview() {');
+    const m0 = r4.indexOf('const movetime = '), stmt = r4.slice(m0, r4.indexOf(';\n', m0) + 1);
+    const mt = (kind, value) => { store.rv_limit_kind = kind; store.rv_limit_value = value;
+                                  return vm.runInContext(`(() => { ${stmt} return movetime; })()`, c); };
+    ok('L25: a Depth budget that reaches the 4-player run searches the Time budget, not a hidden 1 s',
+       mt('depth', 24) === 2000 && mt('time', 3000) === 3000, [mt('depth', 24), mt('time', 3000)]);
+    store.rv_limit_kind = 'time'; store.rv_limit_value = 2000;
+    if (helper > 0) vm.runInContext('syncBudgetFor4pc(false)', c);
+    ok('L25: ...and back on two-player chess the Depth 24 budget it replaced returns',
+       els.rv_limit_kind.value === 'depth' && store.rv_limit_kind === 'depth' && els.rv_limit_num.value === '24'
+       && store.rv_limit_value === 24 && opts[0].disabled === false && els.rv_depth_preset.value === '24',
+       [els.rv_limit_kind.value, els.rv_limit_num.value, store.rv_limit_value, opts[0].disabled, els.rv_depth_preset.value]);
+    // a Time picked by hand (no 4-player switch behind it) is left alone
+    els.rv_limit_kind.value = 'time'; store.rv_limit_kind = 'time';
+    if (helper > 0) vm.runInContext('syncBudgetFor4pc(false)', c);
+    ok('L25: ...and a Time budget chosen by hand is not turned into Depth', els.rv_limit_kind.value === 'time' && store.rv_limit_kind === 'time');
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
