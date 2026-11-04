@@ -455,7 +455,11 @@ const MephistoUpdater = (function () {
         const files = [];
         for (const p of paths) {
             const bytes = await readFileAt(staging, p);
-            if (!bytes) throw fail('MPH-U15', null, `the staged update is missing ${p}`);
+            // A marked staging that lost a file (deleted, quarantined, a sync placeholder) can never
+            // be finished, and while its marker stands every Install came back here and repeated
+            // this error, so "download it again" never downloaded (audit 3.1.330 SYSB-2). Drop it
+            // first: the next Install then really downloads.
+            if (!bytes) { await removeEntry(dir, STAGING); throw fail('MPH-U15', null, `the staged update is missing ${p}`); }
             files.push({path: p, bytes});
         }
         // An interrupted install already took a backup. Only take one if it did not get that far,
@@ -554,8 +558,15 @@ const MephistoUpdater = (function () {
             JSON.stringify({version: rel.latest, from: installed.version, paths: files.map(f => f.path)})));
 
         // 2. BACK UP what is about to be replaced, so this is undoable.
+        // ONCE PER UPDATE (SYSB-2). That re-download follows a run of this same update that was cut
+        // off: its backup is the good copy of the old version, while the folder may already be half
+        // written by it. Backing that up again would replace the only copy Roll Back has.
         onStatus(`Backing up v${installed.version}…`);
-        const bk = await backupCurrent(dir, installed.version, files.map(f => f.path), onStatus, rel.latest);
+        let prev = null;
+        try { prev = JSON.parse(new TextDecoder().decode(await readFileAt(dir, `${BACKUP}/manifest.json`))); } catch (e) { /* none */ }
+        const bk = prev && prev.version === installed.version && prev.to === rel.latest
+            ? {saved: (prev.saved || []).length, added: (prev.added || []).length}
+            : await backupCurrent(dir, installed.version, files.map(f => f.path), onStatus, rel.latest);
 
         // 3. PUT IN PLACE. Written from memory rather than re-read from staging -- same bytes, half
         // the I/O. Staging still earns its keep: it is the on-disk proof that the whole version

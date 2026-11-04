@@ -10814,6 +10814,78 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /JSON\.stringify\(\{version: rel\.latest, from: installed\.version, paths:/.test(upSrc) && /backupCurrent\(dir, installed\.version, files\.map\(f => f\.path\), onStatus, rel\.latest\)/.test(upSrc)
        && /JSON\.stringify\(\{version, to, saved, added,/.test(upSrc));
 })().catch(e => { fails++; console.log('FAIL SYSB-1 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 SYSB-2: a staged update with a missing file is dropped, so Install downloads again (and keeps the good backup) ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const upSrc = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const enc = (s) => new TextEncoder().encode(s), dec = (b) => new TextDecoder().decode(b);
+    // An in-memory FileSystemDirectoryHandle: enough of the API for the updater's read/write/remove.
+    const mkdir = () => {
+        const kids = new Map();
+        const d = {kind: 'directory', kids,
+            getDirectoryHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = mkdir()); if (!k || k.kind !== 'directory') throw new Error('NotFoundError'); return k; },
+            getFileHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = {kind: 'file', bytes: new Uint8Array()}); if (!k || k.kind !== 'file') throw new Error('NotFoundError'); const f = k;
+                return {getFile: async () => ({size: f.bytes.length, arrayBuffer: async () => f.bytes.slice().buffer, text: async () => dec(f.bytes)}),
+                        createWritable: async () => { let buf; return {write: async (b) => { buf = b; }, close: async () => { f.bytes = new Uint8Array(buf); }}; }}; },
+            removeEntry: async (n) => { if (!kids.delete(n)) throw new Error('NotFoundError'); },
+            queryPermission: async () => 'granted', requestPermission: async () => 'granted', name: 'Mephisto'};
+        return d;
+    };
+    const put = async (root, path, text) => { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p, {create: true}); const w = await (await d.getFileHandle(n, {create: true})).createWritable(); await w.write(enc(text)); await w.close(); };
+    const get = async (root, path) => { try { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p); return dec(new Uint8Array(await (await (await d.getFileHandle(n)).getFile()).arrayBuffer())); } catch (e) { return null; } };
+    const load = (root, rel, zip) => {
+        const idbReq = (val) => { const q = {}; setTimeout(() => { q.result = val; q.onsuccess && q.onsuccess(); }); return q; };
+        const indexedDB = {open: () => idbReq({transaction: () => ({objectStore: () => ({get: () => idbReq(root), put: () => idbReq(), delete: () => idbReq()})}), close() {}})};
+        const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise, setTimeout, indexedDB, DecompressionStream,
+            fetch: async () => ({ok: true, status: 200, headers: {get: () => String(zip.byteLength)}, arrayBuffer: async () => zip}),
+            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'}), sendMessage: (m, cb) => cb(rel || {latest: '9.9.9', newer: false})},
+                     permissions: {contains: async () => true}, storage: {local: {get: async () => ({auto_update: true}), set: async () => {}}}}});
+        c.self = c;
+        vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+        vm.runInContext(upSrc.replace('const MephistoUpdater =', 'var MephistoUpdater =').replace(/\nif \(typeof module[\s\S]*$/, ''), c);
+        return vm.runInContext('MephistoUpdater', c);
+    };
+    const GLUE = 'src/offscreen/engine-glue.txt';
+    const man = (v) => JSON.stringify({name: 'Mephisto Chess Extension', version: v});
+    // A stored (method 0) zip, the shape readZip reads: local headers, central directory, end record.
+    const zipOf = (entries) => {
+        const parts = [], cds = []; let off = 0;
+        for (const [name, text] of entries) {
+            const n = enc(name), d = enc(text), lh = new DataView(new ArrayBuffer(30));
+            lh.setUint32(0, 0x04034b50, true); lh.setUint32(18, d.length, true); lh.setUint32(22, d.length, true); lh.setUint16(26, n.length, true);
+            const cd = new DataView(new ArrayBuffer(46));
+            cd.setUint32(0, 0x02014b50, true); cd.setUint32(20, d.length, true); cd.setUint32(24, d.length, true); cd.setUint16(28, n.length, true); cd.setUint32(42, off, true);
+            parts.push(new Uint8Array(lh.buffer), n, d); cds.push(new Uint8Array(cd.buffer), n); off += 30 + n.length + d.length;
+        }
+        const cdLen = cds.reduce((a, b) => a + b.length, 0), end = new DataView(new ArrayBuffer(22));
+        end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true); end.setUint32(12, cdLen, true); end.setUint32(16, off, true);
+        const all = [...parts, ...cds, new Uint8Array(end.buffer)], out = new Uint8Array(all.reduce((a, b) => a + b.length, 0));
+        let p = 0; for (const a of all) { out.set(a, p); p += a.length; }
+        return out.buffer;
+    };
+    const caught = async (p) => { try { await p; return null; } catch (e) { return e; } };
+    const V = '3.1.331', P = `Mephisto-${V}/`;
+    const zip = zipOf([[P + 'manifest.json', man(V)], [P + 'src/popup/popup.js', 'x'], [P + 'src/scripts/content-script.js', 'x'], [P + 'lib/chess.js', 'x'],
+                       [P + GLUE, 'g1\n'], [P + 'src/a.js', 'B']]);
+    // v3.1.330 -> v3.1.331 was cut off while putting files in place: src/a.js is already the new one,
+    // the manifest (written last) still says 3.1.330, the backup holds the real 3.1.330. Then a staged
+    // file went missing.
+    const r = mkdir();
+    await put(r, 'manifest.json', man('3.1.330')); await put(r, GLUE, 'g1\n'); await put(r, 'src/a.js', 'B');
+    await put(r, '.mephisto-backup/manifest.json', JSON.stringify({version: '3.1.330', to: V, saved: ['src/a.js', GLUE], added: []}));
+    await put(r, '.mephisto-backup/3.1.330/src/a.js', 'OLD'); await put(r, '.mephisto-backup/3.1.330/' + GLUE, 'g1\n');
+    await put(r, '.mephisto-staging/manifest.json', man(V)); await put(r, '.mephisto-staging/' + GLUE, 'g1\n');
+    await put(r, '.mephisto-staging/.mephisto-staged.json', JSON.stringify({version: V, from: '3.1.330', paths: ['manifest.json', GLUE, 'src/a.js']}));
+    const U = load(r, {latest: V, newer: true, asset: 'https://example.invalid/u.zip'}, zip);
+    const e1 = await caught(U.finishStaged());
+    ok('SYSB-2: finishing a staging that lost a file is MPH-U15 and drops the staging', e1 && e1.code === 'MPH-U15' && !r.kids.has('.mephisto-staging'), [e1 && e1.code, e1 && e1.message]);
+    const e2 = await caught(U.install());
+    ok('SYSB-2: ...so Install Update then downloads and installs, as the message says', (await get(r, 'manifest.json')) === man(V) && (await get(r, 'src/a.js')) === 'B', e2 && (e2.code || e2.message));
+    ok('SYSB-2: ...and keeps the backup the cut-off run took, the real v3.1.330, instead of backing up the half-written folder',
+       (await get(r, '.mephisto-backup/3.1.330/src/a.js')) === 'OLD', await get(r, '.mephisto-backup/3.1.330/src/a.js'));
+    await U.rollback();
+    ok('SYSB-2: ...so Roll Back still restores the old code', (await get(r, 'src/a.js')) === 'OLD');
+})().catch(e => { fails++; console.log('FAIL SYSB-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
