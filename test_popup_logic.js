@@ -6225,6 +6225,37 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('...the line is translated: err.E08 is in en.json with the {variant} slot', /\{variant\}/.test(en['err.E08'] || ''));
     })();
 }
+// ---- audit 3.1.329 ANALYSIS-1: a crazyhouse PGN's [FEN] tag keeps its pockets when it is read back ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a), j = aj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return aj.slice(i, j); };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    c.box = {value: ''};
+    let res = null;
+    try {
+        vm.runInContext(`const Core = self.MephistoReviewCore; let nodeSeq = 0, treeRoot = null, treeNode = null, cursor = 0;
+            const anVariant = () => 'crazyhouse'; const $ = (id) => (id === 'an_pgn' ? box : null); function status() {}
+            const evalCache = new Map(), evalCache2 = new Map(), humanCache = new Map(), bandCache = new Map();
+            function relinkLine() {} function buildBoard() {} function renderMoves() {} function renderPockets() {} function go() {}
+            function setCfg() {} function onVariantChange() {} const PGN_VARIANTS = {crazyhouse: 'crazyhouse'};
+            ${cut('function threeCheckCounts', '// crazyhouse only')}
+            ${cut('function mkNode', '// the flat view')}
+            ${cut('function loadFromInput', '// The line as it stands')}`, c);
+        const fen = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R[Nq] w KQkq - 0 1';
+        const load = (text) => { c.box.value = text; vm.runInContext('loadFromInput()', c); return vm.runInContext('treeRoot', c); };
+        const pgnRoot = load(`[Variant "Crazyhouse"]\n[SetUp "1"]\n[FEN "${fen}"]\n\n1. N@d5 Q@h4 *`);
+        res = {root: pgnRoot.holdings, afterDrop: pgnRoot.children[0]?.holdings, fen: pgnRoot.fen, fenBox: load(fen).holdings};
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('ANALYSIS-1: the PGN branch lifts the [Nq] pocket out of the [FEN] tag onto the root, and a drop spends it',
+       JSON.stringify(res) === JSON.stringify({root: {w: 'n', b: 'q'}, afterDrop: {w: '', b: 'q'},
+           fen: 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 1', fenBox: {w: 'n', b: 'q'}}), res);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
