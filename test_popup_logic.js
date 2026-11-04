@@ -5249,22 +5249,6 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('boardPlace measures through clickableBoardBounds (ChessBase has no board element)', vm.runInContext('boardPlace()', c) === '10,20,400,400white', vm.runInContext('boardPlace()', c));
     ok('the hint key measures the same way', /const r = region \? null : clickableBoardBounds\(\);/.test(s));
 }
-// ---- audit 3.1.328 SCRAPE-1: a chess.com 960 start is read from the board at move 0 ----
-{
-    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
-    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
-    const i = s.indexOf('let seen960Start = null;'), j = s.indexOf('function readStartPos(url) {');
-    const c = vm.createContext({DEFAULT_POSITION: 'STD', Date, written: [], board: 'RNB960', startPosKey: () => 'k',
-        writeStartPos: (k, v) => c.written.push([k, v.position]), scrapePositionPuz: () => { if (c.board === 'throw') throw new Error('x'); return c.board; }});
-    vm.runInContext(s.slice(i, j) + ';this.seen = () => seen960Start;', c);
-    vm.runInContext('capture960Start(); capture960Start();', c);
-    ok('960 at move 0: the board is kept as the start, written once', c.seen() === 'RNB960' && c.written.length === 1, [c.seen(), c.written]);
-    c.board = 'throw'; vm.runInContext('capture960Start()', c);
-    ok('a torn read keeps what was captured', c.seen() === 'RNB960');
-    c.board = 'STD'; vm.runInContext('capture960Start()', c);
-    ok('a standard array clears it (position 518, or the next game)', c.seen() === null);
-    ok('the var scrape falls back to the captured start off lichess', /\|\| \(site !== 'lichess' && seen960Start\) \|\| DEFAULT_POSITION/.test(s));
-}
 // ---- audit 3.1.328 SCRAPE-2: a chess.com game with Autoplay on is scraped to the latest move ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
@@ -6491,6 +6475,57 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('OPT-1: Four-player Mode, Help Mode and Autoplay changed on the Settings page clear the 4PC dedupe, so the board on screen is analysed again',
        got.mode === '' && got.help === '' && got.auto === '' && c.pushed === 3, {got, pushed: c.pushed});
     ok('...an unrelated live key leaves it alone', change('manual_mode', true) === 'FEN4');
+}
+// ---- audit 3.1.329 SCRAPE-2: only a real Chess960 start is captured off lichess (replaces the 3.1.328 SCRAPE-1 block) ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const d = s.indexOf('const DEFAULT_POSITION ='), de = s.indexOf(';', d) + 1;
+    const i = s.indexOf('let seen960Start = null;'), j = s.indexOf('function readStartPos(url) {');
+    const c = vm.createContext({Date, written: [], board: null, startPosKey: () => 'k', isChesscomVariants: () => false,
+        writeStartPos: (k, v) => c.written.push([k, v.position]), scrapePositionPuz: () => { if (c.board === 'throw') throw new Error('x'); return c.board; }});
+    try { vm.runInContext(s.slice(d, de) + s.slice(i, j) + ';this.seen = () => seen960Start;', c); } catch (e) { console.log('slice threw: ' + e.message); }
+    // a chess.com scrape: h-file first, any turn, maybe a last-move token. `moves` edits the board.
+    const scrape = (back, moves = {}, turn = 'b', extra = '') => {
+        const b = {};
+        for (let f = 0; f < 8; f++) {
+            const F = 'abcdefgh'[f];
+            b[F + '1'] = back[f]; b[F + '2'] = 'P'; b[F + '7'] = 'p'; b[F + '8'] = back[f].toLowerCase();
+        }
+        for (const [sq, pc] of Object.entries(moves)) { if (pc) b[sq] = pc; else delete b[sq]; }
+        let out = turn + '*****';
+        for (const sq of Object.keys(b).sort((x, y) => y[0].localeCompare(x[0]) || y[1] - x[1])) {
+            const pc = b[sq];
+            out += `${pc === pc.toUpperCase() ? 'w' : 'b'}-${pc.toLowerCase()}-${sq}*****`;
+        }
+        return out + extra;
+    };
+    const cap = (str) => { c.board = str; try { vm.runInContext('capture960Start()', c); } catch (e) { return 'threw ' + e.message; } return null; };
+    const seen = () => { try { return c.seen(); } catch (e) { return 'threw'; } };
+    const DP = vm.runInContext('DEFAULT_POSITION', c);
+    cap(scrape('NRKBBQRN'));
+    const first = seen();
+    ok('960 at move 0: the board is kept, in DEFAULT_POSITION\'s order with White to move, written once',
+       typeof first === 'string' && first.startsWith('w*****b-n-a8*****b-r-b8*****') && /w-n-h1\*\*\*\*\*$/.test(first) && c.written.length === 1, [first, c.written.length]);
+    cap(scrape('NRKBBQRN'));
+    ok('...the same start again is not rewritten', c.written.length === 1, c.written.length);
+    cap(scrape('NRKBBQRN', {e7: null, e5: 'p'}, 'w'));
+    ok('Black premoved e5 before White moved (list still empty): not a start, the capture is kept', seen() === first && c.written.length === 1, seen());
+    cap(scrape('NRKBBQRN', {e2: null, e4: 'P'}, 'b', 'lm-e2e4*****'));
+    ok('White\'s first move painted before the list has it: not a start', seen() === first && c.written.length === 1, seen());
+    cap(scrape('NRKBBQRN', {h1: null, g3: 'N'}));
+    ok('a knight out from the back rank: not a start', seen() === first);
+    cap('throw');
+    ok('a torn read keeps what was captured', seen() === first);
+    cap(scrape('BNBRKNRQ'));   // bishops on a1 and c1: the same colour
+    ok('bishops on one colour: not a 960 start', seen() === first);
+    cap(scrape('KRNBBNRQ'));
+    ok('king outside the rooks: not a 960 start', seen() === first);
+    cap(scrape('RNBQKBNR'));
+    ok('position 518 scraped h-file first is filed as exactly DEFAULT_POSITION, replacing the older start',
+       seen() === DP && c.written.length === 2 && c.written[1][1] === DP, [seen(), c.written.length]);
+    ok('the var scrape only uses a stored start off lichess when it is a 960 start',
+       /\(\(site === 'lichess'\) \? stored : chess960Start\(puzBoard\(stored\)\)\)\s*\|\| \(site !== 'lichess' && seen960Start\) \|\| DEFAULT_POSITION/.test(s));
 }
 // ==== END FIX CHECKS ====
 

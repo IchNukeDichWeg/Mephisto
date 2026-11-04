@@ -2278,7 +2278,10 @@ function scrapePosition() {
         prefix += 'var***';
         if (config.variant === 'fischerandom') {
             if (site !== 'lichess' && !getMoveRecords()?.length) capture960Start();
-            const startPos = readStartPos(startPosKey())?.position
+            // Off lichess only capture960Start files a start, and 3.1.329 filed boards already past
+            // move 0 (audit 3.1.329 SCRAPE-2): a stored one that is not a 960 start is not used.
+            const stored = readStartPos(startPosKey())?.position;
+            const startPos = ((site === 'lichess') ? stored : chess960Start(puzBoard(stored)))
                 || (site !== 'lichess' && seen960Start) || DEFAULT_POSITION;
             res = startPos + '&*****';
         }
@@ -4553,15 +4556,63 @@ function startPosKey() {
 // threw or landed somewhere else (audit 3.1.328 SCRAPE-1). At move 0 the board IS the start, so it
 // is read there and kept, under the page's key and in this document, because chess.com can change
 // the URL once the game begins. A game joined after move 0 still has no start to read.
+//
+// ONLY A REAL 960 START IS KEPT. "The move list is empty" is not "no move was played": chess.com
+// draws a premove on its destination square, and the list can lag the board (on Play Computer it
+// does not exist until move 1). Every new reading used to overwrite the start, so a board already a
+// move in was filed, persisted under the href, and the SAN replay threw on that move for the whole
+// game (audit 3.1.329 SCRAPE-2). Any first move breaks a pawn rank or empties a back-rank square, so
+// the shape test below is exactly "nothing has moved"; anything else keeps the last good capture.
 let seen960Start = null;
 function capture960Start() {
     let p;
     try { p = scrapePositionPuz(); } catch (e) { return; }   // still animating in: the next scrape retries
-    if (!p) return;
-    if (p === DEFAULT_POSITION) { seen960Start = null; return; }   // position 518, or a new game's board
-    if (p === seen960Start) return;
-    seen960Start = p;
-    writeStartPos(startPosKey(), {position: p, timestamp: Date.now()});
+    const start = chess960Start(puzBoard(p));
+    if (!start || start === seen960Start) return;
+    seen960Start = start;   // position 518 included: it IS this game's start, and replaces an older one
+    writeStartPos(startPosKey(), {position: start, timestamp: Date.now()});
+}
+
+// A scraped piece string ("w*****b-r-a8*****...") -> {square: 'K'|'p'|...}, or null. The turn and
+// any lm-/cr-/mc- token are not pieces and are dropped.
+function puzBoard(str) {
+    if (!str) return null;
+    const board = {};
+    for (const t of String(str).split('*****').slice(1)) {
+        const m = /^([wb])-([pnbrqk])-([a-h][1-8])$/.exec(t);
+        if (!m) continue;
+        if (board[m[3]]) return null;   // two pieces on one square: not a board
+        board[m[3]] = (m[1] === 'w') ? m[2].toUpperCase() : m[2];
+    }
+    return board;
+}
+
+// {square: piece} -> the start in DEFAULT_POSITION's own token order and turn, or null when the
+// board is not a Chess960 start: 32 pieces, both pawn ranks full, both back ranks full and mirrored,
+// one K and Q and two each of R/B/N, bishops on opposite colours, king between the rooks. The fixed
+// order makes position 518 compare equal to DEFAULT_POSITION (chess.com scrapes h-file first).
+function chess960Start(board) {
+    if (!board || Object.keys(board).length !== 32) return null;
+    let back = '';
+    for (const f of 'abcdefgh') {
+        const w = board[f + '1'];
+        if (board[f + '2'] !== 'P' || board[f + '7'] !== 'p' || !/^[RNBQK]$/.test(w || '')
+            || board[f + '8'] !== w.toLowerCase()) return null;
+        back += w;
+    }
+    const n = c => back.split(c).length - 1;
+    if (n('K') !== 1 || n('Q') !== 1 || n('R') !== 2 || n('B') !== 2 || n('N') !== 2) return null;
+    if ((back.indexOf('B') + back.lastIndexOf('B')) % 2 === 0) return null;
+    const k = back.indexOf('K');
+    if (!(back.indexOf('R') < k && k < back.lastIndexOf('R'))) return null;
+    let out = 'w*****';
+    for (const [rank, row] of [[8, back.toLowerCase()], [7, 'pppppppp'], [2, 'PPPPPPPP'], [1, back]]) {
+        for (let i = 0; i < 8; i++) {
+            const pc = row[i];
+            out += `${pc === pc.toUpperCase() ? 'w' : 'b'}-${pc.toLowerCase()}-${'abcdefgh'[i]}${rank}*****`;
+        }
+    }
+    return out;
 }
 
 function readStartPos(url) {
