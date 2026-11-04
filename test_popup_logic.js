@@ -12002,6 +12002,17 @@ print(json.dumps(out))`;
         ok('L18: a wrong method answers 405 as JSON and keeps its Allow header', na[0] === 405 && /json/.test(na[1]) && /^405 /.test(na[2]?.error || '') && /POST/.test(na[3]), got);
     }
 })();
+// ---- audit 3.1.330 follow-up L19: remote-engine.py says the extension only calls 9090 (help, startup, port in use) ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const py = fs.readFileSync(ROOT + '/src/scripts/remote-engine.py', 'utf8');
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const relayed = [...bg.matchAll(/'http:\/\/localhost:(\d+)\/(?:configure|analyse)'/g)].map(m => m[1]);
+    ok('L19: the worker relays the Remote Engine on 9090 only (what the messages below promise)', relayed.length === 2 && relayed.every(p => p === '9090'), relayed);
+    ok('L19: --port help says the extension only calls 9090', /'--port'[\s\S]{0,200}The extension only calls 9090/.test(py));
+    ok('L19: another port prints a NOTE at startup', /if args\.port != 9090:\s*\n\s*print\(f'NOTE: the extension only calls port 9090/.test(py));
+    ok('L19: a port in use no longer advises moving to another port', !/Try another port/.test(py) && /except SystemExit as ex:/.test(py));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

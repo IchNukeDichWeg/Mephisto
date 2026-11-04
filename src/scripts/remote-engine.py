@@ -60,8 +60,11 @@ parser = argparse.ArgumentParser(description='A backend to remotely communicate 
 parser.add_argument('executable', action='store', help='The path to the UCI chess engine executable.')
 parser.add_argument('--option', '-o', dest='options', action='append',
                     help='Options to configure the engine, as NAME:VALUE (e.g. -o Hash:128).')
+# The extension only ever calls 9090: the worker's relay allowlist (background-script.js BACKEND_URLS)
+# pins it, so any other port is for testing by hand (audit 3.1.330 follow-up L19, as the clicker's --port).
 parser.add_argument('--port', '-p', dest='port', action='store', type=int, default=9090,
-                    help='The port to run the server on. (default: 9090)')
+                    help='The port to run the server on. The extension only calls 9090, so any other '
+                         'port is for testing by hand. (default: 9090)')
 args = parser.parse_args()
 
 
@@ -354,6 +357,8 @@ if __name__ == '__main__':
     engine = start_engine(args.executable)
     for option in args.options or []:
         apply_option(option)
+    if args.port != 9090:
+        print(f'NOTE: the extension only calls port 9090; on port {args.port} it cannot reach this server.')
     print(f"Mephisto remote engine ready at http://localhost:{args.port}")
     print("In the extension, set Engine = \"Remote Engine\". Keep this window open while you play.")
     print("Press Ctrl+C here to stop.")
@@ -364,7 +369,14 @@ if __name__ == '__main__':
     except OSError as ex:
         sys.exit(f"Couldn't start the server on port {args.port}:\n    {ex}\n"
                  f"That port may already be in use (is this script already running?). "
-                 f"Try another port, e.g. -p 9091.")
+                 f"Stop whatever holds it: the extension only calls port 9090.")
+    except SystemExit as ex:
+        # Werkzeug reports a port in use itself, advises "a different port" and exits, so the OSError
+        # branch above never sees it. The extension cannot follow the server to another port.
+        if ex.code not in (None, 0):
+            print("The extension only calls port 9090: free that port rather than moving this server.",
+                  file=sys.stderr)
+        raise
     finally:
         if engine is not None:
             engine.quit()
