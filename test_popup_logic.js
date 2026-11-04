@@ -9752,6 +9752,65 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('CLICKB-1: a page checkbox does not block the hotkeys, a page text field does',
        press('e', checkbox) === 'eval_bar' && press('e', {tagName: 'INPUT', type: 'email'}) === '' && press('e', {tagName: 'TEXTAREA'}) === '');
 }
+// ---- audit 3.1.330 PAGEA-5: typing in the panel is stopped before the page's capture listeners ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const man = JSON.parse(fs.readFileSync(ROOT + '/manifest.json', 'utf8'));
+    const entry = man.content_scripts.find(x => (x.js || []).includes('src/scripts/key-guard.js'));
+    ok('PAGEA-5: key-guard.js runs at document_start in the isolated world on every page the panel can open on',
+       !!entry && entry.run_at === 'document_start' && !entry.world && entry.matches.includes('<all_urls>')
+       && !entry.all_frames, entry);
+    // key-guard.js, real file: window CAPTURE listeners for every type the root stops, all calling the hook
+    const reg = [];
+    const g = vm.createContext({window: {addEventListener: (t, f, cap) => reg.push([t, f, cap])}});
+    g.self = g;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/key-guard.js', 'utf8'), g);
+    const rootTypes = ['keydown', 'keyup', 'keypress', 'beforeinput', 'input', 'paste', 'cut', 'copy',
+                       'compositionstart', 'compositionupdate', 'compositionend'];
+    ok('PAGEA-5: every key, text, clipboard and composition type is guarded on window in the capture phase',
+       rootTypes.every(t => reg.some(r => r[0] === t && r[2] === true)), reg.map(r => r[0]));
+    let hooked = 0; g.MephistoPanelTextGuard = () => { hooked++; };
+    reg.forEach(r => r[1]({}));
+    ok('PAGEA-5: ...each one hands the event to the content script, and does nothing before it loads',
+       hooked === reg.length && (() => { delete g.MephistoPanelTextGuard; try { reg[0][1]({}); return true; } catch (_) { return false; } })());
+    // the hook, real source (typing test + guard)
+    const ts = cs.indexOf('function isTextEntry(el) {'), gs = cs.indexOf('const PANEL_EVENT_FIELDS');
+    const ge = cs.indexOf('\n};\n', gs) + 4;
+    const host = {tagName: 'DIV'}, root = {activeElement: null};
+    const c = vm.createContext({overlayHost: host, overlayRoot: root});
+    c.self = c;
+    vm.runInContext(cs.slice(ts, cs.indexOf('\n}\n', ts) + 3) + cs.slice(gs, ge), c);
+    function FakeEvent(type, init) { Object.assign(this, init); this.type = type; this.defaultPrevented = false; }
+    FakeEvent.prototype.preventDefault = function () { this.defaultPrevented = true; };
+    const send = (o, focused, onCopy) => {
+        const got = [];
+        root.activeElement = focused ? {...focused, dispatchEvent: (ev) => { got.push(ev); onCopy && onCopy(ev); }} : null;
+        const e = new FakeEvent(o.type || 'keydown', {isTrusted: true, target: host, bubbles: true, cancelable: true,
+            composed: true, key: 'Enter', ctrlKey: false, ...o});
+        e.constructor = FakeEvent; e.stopped = false; e.stopImmediatePropagation = () => { e.stopped = true; };
+        c.MephistoPanelTextGuard(e);
+        return {e, got};
+    };
+    const fen = {tagName: 'INPUT', type: 'text'};
+    let r = send({}, fen);
+    ok('PAGEA-5: a key typed into the panel FEN box is stopped at window, before any page capture listener', r.e.stopped);
+    ok('PAGEA-5: ...and the FEN box still gets it, as a copy that cannot leave the panel',
+       r.got.length === 1 && r.got[0].key === 'Enter' && r.got[0].composed === false && r.got[0].bubbles === true, r.got);
+    r = send({}, fen, (ev) => ev.preventDefault());
+    ok('PAGEA-5: the panel cancelling the copy (Enter applies the FEN) cancels the original', r.e.defaultPrevented);
+    r = send({type: 'paste', clipboardData: {text: '8/8/8/8/8/8/8/K6k w - - 0 1'}}, {tagName: 'TEXTAREA'});
+    ok('PAGEA-5: a paste into a panel field is stopped and handed back with its clipboard data',
+       r.e.stopped && r.got[0]?.clipboardData?.text?.startsWith('8/8'));
+    r = send({type: 'input', data: 'k', inputType: 'insertText'}, {tagName: 'INPUT', type: 'number'});
+    ok('PAGEA-5: input events carry e.data to the panel only', r.e.stopped && r.got[0]?.data === 'k' && r.got[0]?.inputType === 'insertText');
+    ok('PAGEA-5: keys with a panel checkbox or button focused go on to the page untouched (CLICKB-1)',
+       [{tagName: 'INPUT', type: 'checkbox'}, {tagName: 'BUTTON'}, null].every(f => { const x = send({}, f); return !x.e.stopped && !x.got.length; }));
+    ok('PAGEA-5: an event the page dispatched itself at the host is never handed to the panel',
+       (() => { const x = send({isTrusted: false}, fen); return !x.e.stopped && !x.got.length; })());
+    ok('PAGEA-5: a key whose target is not the panel host is none of our business',
+       (() => { const x = send({target: {tagName: 'INPUT'}}, fen); return !x.e.stopped && !x.got.length; })());
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -75,6 +75,15 @@
       ],
       "world": "MAIN",
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/scripts/key-guard.js"
+      ],
+      "run_at": "document_start"
     }
   ],
   "options_ui": {

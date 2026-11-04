@@ -648,6 +648,31 @@ function overlayEl(id) {
     return overlayRoot ? overlayRoot.querySelector(`#${id}`) : null;
 }
 
+// The capture-phase half of the root's stop, called from key-guard.js, whose window capture
+// listeners are registered at document_start and so run before any the page adds. The root's
+// bubble-phase stop comes after every page capture listener, which still read the typed keys, e.data
+// and pasted text (audit 3.1.330 PAGEA-5). A trusted event from the host while a text field in the
+// panel has focus is stopped here, before the page sees it, and a non-composed copy is handed to
+// that field, so the panel's own listeners (Enter in the FEN box) still run and cannot leak it
+// again. The original keeps its default action (the text still goes in); a copy whose
+// preventDefault was called cancels it. Untrusted events are left alone: a page could dispatch one at
+// the host to drive the panel through this hand-back.
+const PANEL_EVENT_FIELDS = ['view', 'detail', 'which', 'key', 'code', 'location', 'repeat', 'isComposing',
+    'ctrlKey', 'shiftKey', 'altKey', 'metaKey', 'keyCode', 'charCode', 'data', 'inputType', 'dataTransfer',
+    'clipboardData'];
+self.MephistoPanelTextGuard = (e) => {
+    if (!e.isTrusted || !overlayHost || e.target !== overlayHost) return;
+    const f = overlayRoot?.activeElement;
+    if (!isTextEntry(f)) return;
+    e.stopImmediatePropagation();
+    const init = {bubbles: e.bubbles, cancelable: e.cancelable, composed: false};
+    for (const k of PANEL_EVENT_FIELDS) if (k in e) init[k] = e[k];
+    let copy;
+    try { copy = new e.constructor(e.type, init); } catch (_) { return; }
+    f.dispatchEvent(copy);
+    if (copy.defaultPrevented) e.preventDefault();
+};
+
 // Opacity and the dock edge ride in the SAME per-site record as the geometry, because they are the
 // same kind of fact: where and how this panel sits on THIS site. They are deliberately not in
 // chrome.storage with the settings -- a panel parked on the right of lichess has no business moving
