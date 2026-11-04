@@ -90,6 +90,35 @@ def _display_test():
 on_a_display = _display_test()
 
 
+def _mac_event_access():
+    # MACOS DROPS THE CLICKS WITHOUT A WORD. Until the app running this script is allowed under
+    # Privacy & Security > Accessibility, the OS discards every synthetic mouse event, pyautogui raises
+    # nothing, and the clicker answered OK to clicks that never happened while Autoplay re-sent the
+    # move forever (audit 3.1.330 SWALLOW-9). Returns (check, ask): whether events may be posted now,
+    # and a call that raises the OS permission prompt. Elsewhere, or where macOS cannot tell, as before.
+    if sys.platform == 'darwin':
+        try:
+            cg = ctypes.CDLL(ctypes.util.find_library('CoreGraphics'))
+            check, ask = cg.CGPreflightPostEventAccess, cg.CGRequestPostEventAccess   # macOS 10.15+
+            check.restype = ask.restype = ctypes.c_bool
+            return (lambda: bool(check())), ask
+        except (AttributeError, OSError, TypeError):
+            pass
+    return (lambda: True), (lambda: True)
+
+
+may_post_events, ask_post_events = _mac_event_access()
+MAC_ACCESS_TEXT = ('macOS does not let this program control the mouse. Allow the app running mephisto-clicker.py '
+                   'under System Settings > Privacy & Security > Accessibility, then restart it.')
+
+
+@app.before_request
+def _refuse_without_event_access():
+    # a 503 makes the panel play the move with its own clicks and show this text
+    if request.path.startswith('/perform') and not may_post_events():
+        return {'error': MAC_ACCESS_TEXT}, 503
+
+
 def _target(data, kx, ky):
     # A point off every display is refused rather than moved to an edge: the 400 makes the panel play
     # the move with its own clicks, where a clamped click landed on another window (issue #36 §2 asked
@@ -156,4 +185,7 @@ if __name__ == '__main__':
     if args.port != 8080:
         # the worker's relay allowlist (background-script.js BACKEND_URLS) pins 8080 (audit 3.1.330 CLICKA-4)
         print(f'NOTE: the extension only calls port 8080; on port {args.port} it cannot reach this server.')
+    if not may_post_events():
+        print('WARNING: ' + MAC_ACCESS_TEXT)
+        ask_post_events()   # macOS shows its own prompt that opens the right settings page
     app.run(host='127.0.0.1', port=args.port)  # loopback only - never expose on the LAN

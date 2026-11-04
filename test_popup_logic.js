@@ -9693,6 +9693,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const py = fs.readFileSync(ROOT + '/src/scripts/mephisto-clicker.py', 'utf8');
     ok('CLICKA-3: the clicker has the /performDrag route, a held-button drag', /@app\.route\('\/performDrag'/.test(py) && /pyautogui\.dragTo\(/.test(py));
 }
+// ---- audit 3.1.330 SWALLOW-9: a Mac clicker without Accessibility refuses instead of answering OK ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const py = fs.readFileSync(ROOT + '/src/scripts/mephisto-clicker.py', 'utf8');
+    ok('SWALLOW-9: the clicker asks macOS whether it may post mouse events', /CGPreflightPostEventAccess/.test(py));
+    ok('SWALLOW-9: ...and refuses every click route with a 503 when it may not',
+       /request\.path\.startswith\('\/perform'\) and not may_post_events\(\):\s*\n\s*return \{'error': MAC_ACCESS_TEXT\}, 503/.test(py));
+    const m = py.match(/MAC_ACCESS_TEXT = \(((?:'[^']*'\s*)+)\)/);
+    const text = m ? m[1].replace(/'\s*'/g, '').replace(/^'|'$/g, '') : '';
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = s.indexOf('async function backend_clicked('), b = s.indexOf('async function request_backend_click(', a);
+    const c = vm.createContext({JSON, String, Error});
+    vm.runInContext(s.slice(a, b), c);
+    c.backend_clicked({ok: false, status: 503, text: async () => JSON.stringify({error: text})}).then(
+        () => ok('SWALLOW-9: a 503 is a refusal', false),
+        (e) => ok('SWALLOW-9: the panel carries the whole Accessibility text, not a cut-off part',
+                  text.length > 100 && e.backendStatus === 503 && e.backendReason === 'HTTP 503: ' + text, e.backendReason));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

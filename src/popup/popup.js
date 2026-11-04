@@ -12932,7 +12932,7 @@ async function backend_clicked(res) {
     if (!res.ok) {
         // the clicker answers {"error": ...}; anything else (an old copy's HTML 500 page) is not shown
         let detail = '';
-        try { detail = String(JSON.parse(await res.text())?.error || '').slice(0, 160); } catch (e) { /* not JSON */ }
+        try { detail = String(JSON.parse(await res.text())?.error || '').slice(0, 240); } catch (e) { /* not JSON */ }
         const err = new Error(`mephisto-clicker.py answered HTTP ${res.status}${detail ? ': ' + detail : ''}`);
         err.backendStatus = res.status;
         err.backendReason = `HTTP ${res.status}${detail ? ': ' + detail : ''}`;
