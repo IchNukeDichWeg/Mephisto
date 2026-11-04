@@ -4662,7 +4662,8 @@ function capture960Start() {
 // list lagging it) the scrape fell back to the PREVIOUS game's capture (audit 3.1.329 X3-1). The
 // sign used is the move list emptying: within one game it only shrinks by takebacks, and a takeback
 // to move 0 shows the start again, which the same scrape re-captures. So the capture is dropped when
-// a list that held moves reads empty; a missed move 0 then gets no start rather than a wrong one.
+// a list that held moves reads empty and the board does not show the same game (boardFrom960Start);
+// a missed move 0 then gets no start rather than a wrong one.
 // ponytail: a game left at move 0 (aborted) followed by one whose move 0 is missed never shows a
 // list with moves in between, so that one pair still falls back to the older capture.
 //
@@ -4677,7 +4678,7 @@ let seen960Plies = 0;   // the move list's length at the last 960 scrape
 function forget960OnNewGame(plies) {
     const m = ONE_GAME_PATH.exec(location.pathname);
     const page = m ? location.pathname.slice(0, m.index + m[0].length).replace(/\/$/, '') : null;
-    if (seen960Plies > 0 && plies === 0) seen960Start = null;
+    if (seen960Plies > 0 && plies === 0 && !boardFrom960Start(seen960Start)) seen960Start = null;
     if (seen960Page === null && page != null && chess960Start(puzBoard(seen960Start))
         && !chess960Start(puzBoard(readStartPos(startPosKey())?.position))) {
         writeStartPos(startPosKey(), {position: seen960Start, timestamp: Date.now()});
@@ -4685,6 +4686,25 @@ function forget960OnNewGame(plies) {
     if (seen960Page != null && page !== seen960Page) seen960Start = null;
     seen960Page = page;
     seen960Plies = plies;
+}
+
+// ONE EMPTY READ IS NOT A NEW GAME BY ITSELF. The list can read empty for one scrape mid-game (it
+// re-mounts, e.g. on the lobby -> game page URL change), and dropping the start then replayed the rest
+// of a game on a page naming no game from the standard array, and skipped the lobby filing (audit
+// 3.1.330 SCRAPEA-2). So the board has the last word: true = the board on screen is still the game
+// `start` began. A capture means play has gone on (a new game's array holds 32 pieces). With 32, two
+// different 960 starts differ on at least two files, so four home squares; a game's own first plies,
+// a premove or a lagging list move at most three. An unreadable board says nothing: the old drop.
+// ponytail: an uncaptured game more than three plies in, read empty once, still loses its start.
+function boardFrom960Start(start) {
+    const home = puzBoard(start);
+    let board;
+    try { board = isChesscomVariants() ? variants960Board() : puzBoard(scrapePositionPuz()); } catch (e) { return false; }
+    if (!home || !board) return false;
+    if (Object.keys(board).length < 32) return true;
+    let off = 0;
+    for (const sq in home) if (board[sq] !== home[sq]) off++;
+    return off < 4;
 }
 
 // A scraped piece string ("w*****b-r-a8*****...") -> {square: 'K'|'p'|...}, or null. The turn and

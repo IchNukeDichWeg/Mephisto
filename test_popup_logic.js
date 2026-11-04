@@ -7932,6 +7932,71 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SCRAPEA-1: ...nor another site', held() === null, held());
     ok('SCRAPEA-1: the not-clicked trace names a finished game', /held === 'over' \? 'the game is over'/.test(s));
 }
+// ---- audit 3.1.330 SCRAPEA-2: one empty read of the move list mid-game keeps the Chess960 start ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const lru = fs.readFileSync(ROOT + '/lib/lru.min.js', 'utf8');
+    const branch = cut("if (config.variant === 'fischerandom') {", "\n        const moves = getMoveRecords();");
+    // a chess.com scrape (h-file first) of the start `back`, edited by {square: piece | null}
+    const board = (back, edits = {}) => {
+        const b = {};
+        for (let f = 0; f < 8; f++) {
+            const F = 'abcdefgh'[f];
+            b[F + '1'] = back[f]; b[F + '2'] = 'P'; b[F + '7'] = 'p'; b[F + '8'] = back[f].toLowerCase();
+        }
+        for (const [sq, pc] of Object.entries(edits)) { if (pc) b[sq] = pc; else delete b[sq]; }
+        let out = 'b*****';
+        for (const sq of Object.keys(b).sort((x, y) => y[0].localeCompare(x[0]) || y[1] - x[1])) {
+            const pc = b[sq];
+            out += `${pc === pc.toUpperCase() ? 'w' : 'b'}-${pc.toLowerCase()}-${sq}*****`;
+        }
+        return out;
+    };
+    let saved = [];
+    const doc = () => {
+        const c = vm.createContext({Date, site: 'chesscom', config: {variant: 'fischerandom'}, location: {pathname: '/', search: '', href: ''},
+            siteValues: {cache: saved}, saveSiteValue: (k, v) => { saved = v; }, isChesscomVariants: () => false, moves: [], cur: '',
+            getMoveRecords: () => c.moves, scrapePositionPuz: () => { if (c.cur === 'throw') throw new Error('torn'); return c.cur; }});
+        try {
+            vm.runInContext(lru + ';\n' + cut('const DEFAULT_POSITION =', '\n\n') + cut('function loadStartPosCache()', '// --- GRIND MODE')
+                + ';startPosCache = loadStartPosCache();\nthis.scrape = () => { let res; ' + branch + ' return res; };', c);
+        } catch (e) { console.log('slice threw: ' + e.message); }
+        c.go = (path, plies, cur) => {
+            c.location.pathname = path; c.location.href = 'https://www.chess.com' + path;
+            c.moves = Array(plies).fill('m'); if (cur !== undefined) c.cur = cur;
+            try { return c.scrape().split('&*****')[0]; } catch (e) { return 'threw ' + e.message; }
+        };
+        return c;
+    };
+    const d = doc();
+    const DP = vm.runInContext('DEFAULT_POSITION', d);
+    const A = d.go('/play/computer', 0, board('NRKBBQRN'));
+    ok('SCRAPEA-2: Play Computer, move 0: the start is captured', A.startsWith('w*****b-n-a8*****b-r-b8*****b-k-c8'), A);
+    const mid = board('NRKBBQRN', {e2: null, d7: null, e4: null, d5: null, d4: 'P', f3: 'N', g1: null});   // pieces traded
+    d.go('/play/computer', 14, mid);
+    ok('SCRAPEA-2: a mid-game empty read (pieces traded) keeps the start', d.go('/play/computer', 0) === A, d.go('/play/computer', 0));
+    ok('SCRAPEA-2: ...and the game goes on from it once the list is back', d.go('/play/computer', 15) === A, d.go('/play/computer', 15));
+    const early = board('NRKBBQRN', {e2: null, e4: 'P', e7: null, e5: 'p'});   // 1.e4 e5, nothing traded
+    d.go('/play/computer', 2, early);
+    ok('SCRAPEA-2: an empty read two plies in (32 pieces, the same start) keeps it too',
+       d.go('/play/computer', 0) === A && d.go('/play/computer', 3) === A, d.go('/play/computer', 3));
+    d.go('/play/computer', 4, mid);
+    ok('SCRAPEA-2: an unreadable board on the emptied list still drops it, as before', d.go('/play/computer', 0, 'throw') === DP && d.go('/play/computer', 5, mid) === DP);
+    // X3-1 still holds: a new game with a premove on its move-0 board drops the old start
+    const e = doc();
+    const B = e.go('/play/computer', 0, board('QRKRBBNN'));
+    e.go('/play/computer', 20, mid);
+    ok('SCRAPEA-2: a new game\'s start with a premove on it still drops the old one',
+       B !== DP && e.go('/play/computer', 0, board('NRKBBQRN', {d2: null, d4: 'P'})) === DP && e.go('/play/computer', 3) === DP);
+    // lobby -> game page with the list re-mounting empty on that first scrape (X3-2's filing)
+    const f = doc();
+    const C = f.go('/play/online', 0, board('RKRNNQBB'));
+    f.go('/play/online', 1, board('RKRNNQBB', {f2: null, f4: 'P'}));
+    ok('SCRAPEA-2: the list re-mounting empty on the URL change keeps the lobby start', f.go('/game/live/9001', 0) === C, f.go('/game/live/9001', 0));
+    ok('SCRAPEA-2: ...and files it, so a reload of the game reads it back', doc().go('/game/live/9001', 6) === C, doc().go('/game/live/9001', 6));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
