@@ -9645,6 +9645,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('NATIVEA-1: a point on no display is refused (400), so the panel plays the move with its own clicks',
        /abort\(400, f'\(\{x\}, \{y\}\) is not on any display/.test(py));
 }
+// ---- audit 3.1.330 BOUNDARY-4: Python-clicker coordinates are physical pixels on Windows ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = s.indexOf('const BACKEND_RETRY_MS'), b = s.indexOf('function getRandomSampledXY(');
+    // screenX 200, chrome bar 80 DIP above a 900-DIP viewport; the point is 100,50 CSS px into the page
+    const at = (platform, dpr, zoom, uaPlatform) => {
+        const c = vm.createContext({Date, config: {python_autoplay_backend: true}, tabActive: () => true, refreshPageZoom: () => {},
+            page_zoom: zoom, navigator: {platform, userAgentData: uaPlatform ? {platform: uaPlatform} : undefined},
+            window: {screenX: 200, screenY: 40, outerHeight: 80 + 900 * zoom, innerHeight: 900, devicePixelRatio: dpr}});
+        try { vm.runInContext(s.slice(a, b) + ';this.f = toClickXY;', c); return c.f(100, 50).map(v => Math.round(v * 1000) / 1000); }
+        catch (e) { return 'threw ' + e.message; }
+    };
+    ok('BOUNDARY-4: Windows at 150% scaling clicks in physical pixels', JSON.stringify(at('Win32', 1.5, 1)) === '[450,255]', at('Win32', 1.5, 1));
+    ok('BOUNDARY-4: ...with the page zoomed to 125% too (devicePixelRatio 1.875)', JSON.stringify(at('Win32', 1.875, 1.25)) === '[487.5,273.75]', at('Win32', 1.875, 1.25));
+    ok('BOUNDARY-4: ...found through userAgentData as well', JSON.stringify(at('', 1.25, 1, 'Windows')) === '[375,212.5]', at('', 1.25, 1, 'Windows'));
+    ok('BOUNDARY-4: Windows at 100% is unchanged', JSON.stringify(at('Win32', 1, 1)) === '[300,170]', at('Win32', 1, 1));
+    ok('BOUNDARY-4: a Retina Mac stays in points (both sides use them)', JSON.stringify(at('MacIntel', 2, 1)) === '[300,170]', at('MacIntel', 2, 1));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

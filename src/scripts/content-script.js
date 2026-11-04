@@ -5449,11 +5449,19 @@ function backendRefused(r) {
     if (r?.clickRefused) { const e = new Error(`click refused: ${r.clickRefused}`); e.clickRefused = true; throw e; }
     return r;
 }
+// WINDOWS CLICKS IN PHYSICAL PIXELS. pyautogui calls SetProcessDPIAware() on import, so the clicker
+// moves in physical pixels, while screenX, outerHeight and the page box here are DIPs. At 125% or 150%
+// display scaling every click landed short, up and to the left of its square, answered OK (audit
+// 3.1.330 BOUNDARY-4). devicePixelRatio is the OS scale times the page zoom. One factor for the whole
+// point is exact when every display has the same scale; mixed scales across displays are not handled.
+// macOS uses points on both sides; Linux is left as it was (not measured).
+const BACKEND_PHYSICAL_PX = /^Win/.test(globalThis.navigator?.userAgentData?.platform || globalThis.navigator?.platform || '');
 function toClickXY(x, y) {
     if (!useBackend()) return [x, y];
     refreshPageZoom();   // for the next click: a zoom set before the backend was switched on
     const topBarHeight = window.outerHeight - window.innerHeight * page_zoom;   // both in screen pixels
-    return [window.screenX + x * page_zoom, window.screenY + topBarHeight + y * page_zoom];
+    const k = BACKEND_PHYSICAL_PX ? (window.devicePixelRatio || 1) / (page_zoom || 1) : 1;
+    return [(window.screenX + x * page_zoom) * k, (window.screenY + topBarHeight + y * page_zoom) * k];
 }
 
 function getRandomSampledXY(bounds, range = 0.8) {
