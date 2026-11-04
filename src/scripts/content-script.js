@@ -947,8 +947,8 @@ function removeOverlay() {
 // eval bar, badge, user-arrow labels) and stop the scraping its config push started, as closing the
 // floating panel does. Left alone they stayed on the board, frozen on the old position, until the
 // page reloaded (audit 3.1.330 CLICKB-2 = PAGEA-2). An open floating panel owns them and is left
-// alone. Not removeOverlay(): its suspend() on this tab's never-booted panel copy would dispose the
-// shared 'toolbar' engine client.
+// alone. Not removeOverlay(): this tab's own panel copy is not the one that closed, so there is
+// nothing of its to suspend or cancel.
 chrome.runtime.onConnect.addListener((port) => {
     if (port.name !== 'mephisto-toolbar-popup') return;
     port.onDisconnect.addListener(() => {
@@ -962,6 +962,11 @@ chrome.runtime.onConnect.addListener((port) => {
         for (const kind of ['hint', 'bar', 'moveClass']) overlayFollow(kind, null);
         clearInterval(userArrowTimer); userArrowTimer = null;
         drawUserArrows([]);
+        // ...and the host they were drawn in, as removeOverlay does: the cleared overlays left an
+        // empty attribute-less div and its closed root in the site's body for the rest of the tab
+        // (audit 3.1.330 follow-up L13, PAGEA-1's other way in). The next draw builds a fresh one.
+        // A screen-select veil the popup started keeps it: its own tear-down clears dragVeil.
+        if (!dragVeil) { overlayHost?.remove(); overlayHost = null; overlayRoot = null; }
         positionObserver?.disconnect(); positionObserver = null;
         clearTimeout(pushDebounce); pushDebounce = null;
     });

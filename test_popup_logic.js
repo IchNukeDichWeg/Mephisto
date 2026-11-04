@@ -9220,6 +9220,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const c = vm.createContext({calls: [], listeners: [], panelOpen, PANEL_OVERLAY_ID: 'p', clearInterval() {}, clearTimeout() {},
             chrome: {runtime: {lastError: null, onConnect: {addListener: f => c.listeners.push(f)}}}});
         vm.runInContext(`var userArrowTimer = 1, positionObserver = {disconnect() { calls.push('observer'); }}, pushDebounce = null;
+            var dragVeil = null, overlayHost = null, overlayRoot = null;   // L13: the disconnect also drops the host
             function overlayEl(id) { return panelOpen ? {} : null; }
             function dropPendingOverlay(k) { calls.push('drop ' + k); }
             function clearEvalBar() { calls.push('bar'); } function clearHintArrow() { calls.push('hint'); }
@@ -11711,6 +11712,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         vm.runInContext("PANEL_BOOTED = true; ENGINE_CLIENT = '42'; P.suspend()", c);
         ok('...while a booted panel still disposes its own client and its :m2 on close',
            sent.includes('42 dispose') && sent.includes('42:m2 dispose') && !sent.some(s => /^toolbar/.test(s)), sent);
+    }
+}
+// ---- L13 (audit 3.1.330 follow-up): a closed toolbar popup takes the overlay host div out of the site's body too ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const s = csrc.indexOf('chrome.runtime.onConnect.addListener((port) => {\n    if (port.name !== \'mephisto-toolbar-popup\') return;');
+    const e = csrc.indexOf('\n});\n', s) + 5;
+    if (s < 0) { fails++; console.log('FAIL L13: could not slice the toolbar-popup port listener'); }
+    else {
+        const run = (veil, panelOpen) => {
+            let onConn, onDisc; const host = {removed: 0, remove() { this.removed++; }};
+            const c = vm.createContext({chrome: {runtime: {lastError: null, onConnect: {addListener: (f) => onConn = f}}}, clearInterval() {}, clearTimeout() {}});
+            c.host = host;
+            vm.runInContext(`var overlayHost = host, overlayRoot = {}, dragVeil = ${veil ? '{}' : 'null'}, userArrowTimer = null, positionObserver = null, pushDebounce = null;
+                var PANEL_OVERLAY_ID = 'p'; function overlayEl(id) { return ${panelOpen ? '{}' : 'null'}; }
+                function dropPendingOverlay() {} function clearEvalBar() {} function clearHintArrow() {} function clearMoveClass() {}
+                function overlayFollow() {} function drawUserArrows() {}
+                ${csrc.slice(s, e)}`, c);
+            onConn({name: 'mephisto-toolbar-popup', onDisconnect: {addListener: (f) => onDisc = f}});
+            onDisc();
+            return {removed: host.removed, host: vm.runInContext('overlayHost === null && overlayRoot === null', c)};
+        };
+        const a = run(false, false), b = run(true, false), d = run(false, true);
+        ok('L13: the popup\'s disconnect removes the host div and forgets it, so the next draw builds a fresh one', a.removed === 1 && a.host, a);
+        ok('...but keeps it while a screen-select veil is up, and leaves an open floating panel\'s host alone',
+           b.removed === 0 && !b.host && d.removed === 0 && !d.host, [b, d]);
     }
 }
 // ==== END FIX CHECKS ====
