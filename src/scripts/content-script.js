@@ -2855,11 +2855,19 @@ function onProbeAnnounce(e) {
 // AND ONLY THAT HOST'S PROBE. Gating by host still let TakeTakeTake and ChessBase answer a `puz`
 // announce, the one type that replies on the caller's chosen name, so a page script could run an
 // install check there long after the probes' own announce window (audit 3.1.328 PAGE-6).
+// AND ONLY ON A PUZZLE ROUTE. The probe is registered for puzzle routes only since 3.1.330, so on a
+// game page no probe announces and the reply above was the one thing a page could detect: one
+// synthetic `puz` announce during a rated game told it Read Solutions was on (audit 3.1.330 PAGEB-1,
+// PAGEA-3). Read from the URL the document loaded with, as the probe's registration is. The routes
+// are isPuzzlePage()'s, which cannot be called here (`site` is set at load); a test pins the two.
+const PUZ_ROUTE_AT_LOAD = /(^|\.)lichess\.org$/.test(location.hostname)
+    ? /^\/(training|storm|racer|streak)(\/|$)/ : /^\/(puzzles|lessons\/practice|daily|daily-chess-puzzle)(\/|$)/;
 const PROBE_TYPES = /(^|\.)taketaketake\.com$/.test(location.hostname) ? ['tt']
     : location.hostname === 'tactics.chessbase.com' ? ['cb'] : ['puz'];
 if (/(^|\.)taketaketake\.com$/.test(location.hostname) || location.hostname === 'tactics.chessbase.com') {
     document.addEventListener('m9', onProbeAnnounce);
-} else if (/^(www\.)?(chess\.com|lichess\.org)$/.test(location.hostname)) {
+} else if (/^(www\.)?(chess\.com|lichess\.org)$/.test(location.hostname)
+        && PUZ_ROUTE_AT_LOAD.test(location.pathname || '')) {
     chrome.storage.local.get('puzzle_capture', ({puzzle_capture: v}) => {
         if (v === 'true') document.addEventListener('m9', onProbeAnnounce);
     });

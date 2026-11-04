@@ -4998,7 +4998,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const document = {addEventListener: (n, f) => added.push([n, f]), dispatchEvent: (ev) => fired.push(ev.type)};
         const chrome = {storage: {local: {get: (k, cb) => cb(stored)}}};
         vm.runInNewContext(`let ttState, ttSid = null, cbState, cbSid = null, puzSid = null; ${body}`,
-            {document, chrome, location: {hostname}, config: null, CustomEvent: class { constructor(t) { this.type = t; } }, acceptPuzzleCaptures() {}, schedulePush() {}});
+            // on a puzzle route: lichess and chess.com listen on those only (3.1.330 PAGEB-1)
+            {document, chrome, location: {hostname, pathname: /lichess/.test(hostname) ? '/training' : '/puzzles'}, config: null, CustomEvent: class { constructor(t) { this.type = t; } }, acceptPuzzleCaptures() {}, schedulePush() {}});
         const rdv = added.find(x => x[0] === 'm9');
         if (rdv) for (const s of ['a', 'b']) rdv[1]({detail: JSON.stringify({t: 'puz', s})});
         return {listens: !!rdv, fired, added: added.length};
@@ -9301,6 +9302,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('PAGEB-3: a tab still on a puzzle page with the capture wanted is watched',
        fine.inSet && fine.stopped.length === 0 && fine.cmds.join() === 'Network.enable', fine);
 })().catch(e => { fails++; console.log('FAIL PAGEB-3 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 PAGEB-1 / PAGEA-3: the m9 rendezvous is not answered on lichess/chess.com game pages ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = cs.indexOf('let ttState = null, ttSid = null;'), b = cs.indexOf('// --- captured puzzle solutions', a);
+    // a page script's own announce, the install check: does anything answer on the name it chose?
+    const answers = (url) => {
+        const u = new URL(url), listening = [], sent = [];
+        const c = vm.createContext({location: {hostname: u.hostname, pathname: u.pathname}, JSON, puzSid: null, config: null,
+            schedulePush() {}, acceptPuzzleCaptures() {}, CustomEvent: function (n) { this.type = n; },
+            chrome: {storage: {local: {get: (k, cb) => cb({puzzle_capture: 'true'})}}},
+            document: {addEventListener: (n, f) => listening.push([n, f]), dispatchEvent: (e) => sent.push(e.type)}});
+        vm.runInContext(cs.slice(a, b), c);
+        for (const [n, f] of listening.slice()) if (n === 'm9') f({detail: JSON.stringify({t: 'puz', s: 'zz'})});
+        return sent.includes('zzr');
+    };
+    const i = cs.indexOf('function isPuzzlePage() {'), j = cs.indexOf('\n}\n', i) + 3;
+    const isPuz = (url) => { const u = new URL(url); const c = vm.createContext({site: /lichess/.test(u.host) ? 'lichess' : 'chesscom', location: {pathname: u.pathname}}); vm.runInContext(cs.slice(i, j), c); return vm.runInContext('isPuzzlePage()', c); };
+    const games = ['https://lichess.org/abcdEFGH', 'https://lichess.org/', 'https://lichess.org/tv', 'https://lichess.org/analysis',
+        'https://www.chess.com/game/live/123456789', 'https://www.chess.com/game/daily/123', 'https://www.chess.com/play/online'];
+    const puzzles = ['https://lichess.org/training', 'https://lichess.org/training/mateIn2', 'https://lichess.org/storm', 'https://lichess.org/racer/abcd',
+        'https://lichess.org/streak', 'https://www.chess.com/puzzles/rated', 'https://www.chess.com/puzzles/rush', 'https://chess.com/puzzles',
+        'https://www.chess.com/lessons/practice/foo', 'https://www.chess.com/daily-chess-puzzle', 'https://www.chess.com/daily'];
+    const answered = games.filter(answers);
+    ok('PAGEB-1: with Read Solutions on, no lichess or chess.com game page answers a page\'s own puz announce', answered.length === 0, answered);
+    const missed = puzzles.filter(u => !answers(u));
+    ok('PAGEB-1: every puzzle route still takes the probe\'s announce', missed.length === 0, missed);
+    const disagree = [...games, ...puzzles].filter(u => answers(u) !== isPuz(u));
+    ok('PAGEB-1: the load-time route gate agrees with isPuzzlePage()', disagree.length === 0, disagree);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
