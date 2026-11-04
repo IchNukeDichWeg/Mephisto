@@ -315,7 +315,12 @@ function incrementFromTimeControl(tc) {
 // hands the same pair to every game, which is most of what makes a batch cheaper than N single runs.
 async function runReview(game, rig, onProgress) {
     const opts = rig.opts;
-    const {positions, moves} = buildPositions(game, opts.variant || 'chess');
+    // A REPLAY FAILURE IS MARKED AS ONE: it is the only error a batch may skip and go on from, since
+    // no engine has been asked anything yet (audit 3.1.329 REVIEW-2, see onRun).
+    let replayed;
+    try { replayed = buildPositions(game, opts.variant || 'chess'); }
+    catch (e) { throw Object.assign(e instanceof Error ? e : new Error(String(e)), {replayFailed: true}); }
+    const {positions, moves} = replayed;
     fillThinkTime(moves, incrementFromTimeControl(game.tags.TimeControl));
 
     let total = positions.length + (rig.human ? moves.length : 0);
@@ -334,10 +339,15 @@ async function runReview(game, rig, onProgress) {
     // "position 7 of 103" would jump around and read like a bug.
     const pool = (rig.engines && rig.engines.length) ? rig.engines : [rig.engine];
     let nextPos = 0;
+    // ONE WORKER FAILED, SO THE PASS HAS: the others take no further position. They only checked
+    // `cancel`, so the surviving worker of a failed game went on searching that game's positions on
+    // the shared engines while the run moved on (audit 3.1.329 REVIEW-2).
+    let poolFailed = false;
     const enginePass = (async () => {
         let searched = 0;
         const worker = async (e) => {
             for (;;) {
+                if (poolFailed) return;
                 const i = nextPos++;
                 if (i >= positions.length) return;
                 if (cancel) throw new Error('stopped');
@@ -346,7 +356,9 @@ async function runReview(game, rig, onProgress) {
                 // would otherwise sit on "starting the engine" for the whole of it.
                 onProgress(done / total, `position ${searched + 1} of ${positions.length}`);
                 // efen: the engine's dialect of the position (crazyhouse pockets, 3check counts)
-                const r = await e.analyse(p.efen || p.fen, p.turn);
+                let r;
+                try { r = await e.analyse(p.efen || p.fen, p.turn); }
+                catch (err) { poolFailed = true; throw err; }
                 p.lines = r.lines;
                 p.depth = r.depth;
                 searched++;
@@ -2557,6 +2569,7 @@ async function onRun() {
         progress(0, 'starting the engine');
         rig = await startRig();
         const done = [], skipped = [];
+        let engineFailure = null;
         for (let g = 0; g < list.length; g++) {
             if (cancel) break;
             const label = batch ? `game ${g + 1} of ${list.length} - ` : '';
@@ -2573,7 +2586,13 @@ async function onRun() {
                 // ONE GAME THAT WILL NOT REPLAY IS SKIPPED, NOT FATAL. A Chess960 or crazyhouse game
                 // among forty fetched standard ones threw here and took every finished game with it,
                 // under a message that did not say which game failed (audit 3.1.328 REVIEW-4).
-                if (batch && !cancel) { skipped.push(`game ${g + 1} (${String(e.message || e)})`); continue; }
+                // ONLY A REPLAY. An engine that fails inside a game (a silent WASM worker, a native
+                // timeout) fails every game after it the same way, each after its full backstop, with
+                // a bar that looks stuck; so an engine failure ends the batch, as it did before the
+                // skip, and keeps the games already finished (audit 3.1.329 REVIEW-2).
+                const what = `game ${g + 1} (${String(e.message || e)})`;
+                if (batch && !cancel && e.replayFailed) { skipped.push(what); continue; }
+                if (batch && !cancel && done.length) { engineFailure = what; break; }
                 throw e;
             }
             built.pgnText = gameText(list[g]);
@@ -2601,7 +2620,9 @@ async function onRun() {
         renderReport();
         renderBatch();
         progress(1, batch ? `${done.length} games analysed` : 'done');
-        if (skipped.length) note(`Skipped ${skipped.length} of ${list.length}: ${skipped.join('; ')}`
+        if (engineFailure) note(`The engine failed in ${engineFailure} - stopped after ${done.length} of ${list.length} games.`
+                                + (skipped.length ? ` Skipped before that: ${skipped.join('; ')}` : ''), true);
+        else if (skipped.length) note(`Skipped ${skipped.length} of ${list.length}: ${skipped.join('; ')}`
                                  + (done.length + skipped.length < list.length ? ' - then stopped.' : ''), true);
         else if (done.length < list.length) note(`Stopped after ${done.length} of ${list.length} games.`);
         $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});

@@ -4786,7 +4786,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
 const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
     ok('a Stop inside a game ends the loop when a game is finished, and says how far it got',
-       /catch \(e\) \{[\s\S]{0,200}?if \(cancel && done\.length\) break;[\s\S]{0,500}?throw e;/.test(src)
+       /catch \(e\) \{[\s\S]{0,200}?if \(cancel && done\.length\) break;[\s\S]{0,1200}?throw e;/.test(src)
        && /else if \(done\.length < list\.length\) note\(`Stopped after/.test(src));
 }
 // ---- OPT-10: Search Time has a floor everywhere ----
@@ -5646,7 +5646,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
             $: () => el(), note: (t, err) => c.notes.push([t, !!err]), progress() {}, startRig: async () => ({}), disposeRig() {},
             cfg: k => (k === 'rv_batch' ? true : k === 'rv_variant' ? 'chess' : false), gameText: g => g.id, eeCached: async () => null,
             renderReport: () => { c.rendered++; }, renderBatch() {}, selectedGame: () => null,
-            runReview: async (g) => { if (bad.includes(g.id)) throw new Error('Move 3. Nf6 is not legal'); return {id: g.id}; }});
+            runReview: async (g) => { if (bad.includes(g.id)) throw Object.assign(new Error('Move 3. Nf6 is not legal'), {replayFailed: true}); return {id: g.id}; }});
         vm.runInContext('var running = false, cancel = false, is4pcGame = false, batchReports = null, report = null; var games = [{id: 1}, {id: 2}, {id: 3}];\n' + rv.slice(a, b), c);
         return vm.runInContext('onRun()', c).then(() => c);
     };
@@ -6639,6 +6639,53 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-1: closing one worker shuts its host only, and its key is dropped',
        hosts[0].closed && !hosts[1].closed && Object.keys(c.popupPortsByName).filter(k => k.startsWith('sf-native#options')).length === 3,
        [hosts.map(h => h.closed), Object.keys(c.popupPortsByName)]);
+}
+// ---- audit 3.1.329 REVIEW-2: a batch skips only a game that will not replay; an engine failure ends it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head), b = rj.indexOf('\n}\n', a) + 3; return rj.slice(a, b); };
+    const el = () => ({disabled: false, value: '', classList: {add() {}, remove() {}, toggle() {}}, scrollIntoView() {}});
+    const els = {};
+    const mk = (extra, withRunReview = false) => {
+        const c = vm.createContext({console, Promise, setTimeout, Error, String, Object, Math,
+            $: (id) => (els[id] = els[id] || el()), cfg: (k) => ({rv_batch: true, rv_explain: false, rv_variant: 'chess', rv_book: false}[k]),
+            note: (t, err) => { c.notes.push([t, !!err]); }, progress() {}, renderReport() {}, renderBatch() {}, disposeRig() {}, gameText: () => '',
+            run4pcReview() {}, selectedGame: () => c.games[0], notes: [], ...extra});
+        vm.runInContext('var running = false, cancel = false, report = null, batchReports = null, batchInputText = "", is4pcGame = false;\n'
+            + fn('async function onRun() {') + (withRunReview ? '\n' + fn('async function runReview(game, rig, onProgress) {') : ''), c);
+        return c;
+    };
+    (async () => {
+        // the batch loop: game 2's engine fails; game 3 must never be asked
+        const asked = [];
+        const c = mk({games: [{n: 1}, {n: 2}, {n: 3}], startRig: async () => ({}),
+            runReview: async (g) => { asked.push(g.n); if (g.n === 2) throw new Error('the native host did not answer this position'); return {n: g.n}; }});
+        await c.onRun();
+        ok('REVIEW-2: an engine failure ends the batch: the next game is not started', asked.join() === '1,2', asked);
+        ok('...the finished game is kept as the report and the note names the failure',
+           c.report && c.report.n === 1 && c.notes.some(([t, e]) => e && /engine failed in game 2 \(the native host did not answer/.test(t)), [c.report, c.notes]);
+        // a replay failure is still skipped and the batch goes on
+        asked.length = 0;
+        const c2 = mk({games: [{n: 1}, {n: 2}, {n: 3}], startRig: async () => ({}),
+            runReview: async (g) => { asked.push(g.n); if (g.n === 2) throw Object.assign(new Error('Invalid move: Nf9'), {replayFailed: true}); return {n: g.n}; }});
+        await c2.onRun();
+        ok('REVIEW-2: a game that will not replay is still skipped, and the batch goes on', asked.join() === '1,2,3' && c2.report.n === 3
+           && c2.notes.some(([t]) => /Skipped 1 of 3: game 2 \(Invalid move: Nf9\)/.test(t)), [asked, c2.notes]);
+        // the real runReview marks a replay failure, and only that
+        const c3 = mk({buildPositions: () => { throw new Error('Invalid move: Nf9'); }}, true);
+        let e3 = null; try { await c3.runReview({tags: {}}, {opts: {}}, () => {}); } catch (e) { e3 = e; }
+        ok('REVIEW-2: runReview tags a replay failure as one', e3 && e3.replayFailed === true && /Nf9/.test(e3.message), e3 && e3.message);
+        // the pool: one worker fails, the other takes no further position
+        const calls = {a: 0, b: 0};
+        const ea = {analyse: async () => { calls.a++; throw new Error('engine disposed'); }};
+        const eb = {analyse: async () => { calls.b++; await new Promise(r => setTimeout(r, 5)); return {lines: [], depth: 1}; }};
+        const positions = Array.from({length: 6}, () => ({fen: 'x', turn: 'w'}));
+        const c4 = mk({buildPositions: () => ({positions, moves: []}), fillThinkTime() {}, incrementFromTimeControl: () => 0}, true);
+        let e4 = null; try { await c4.runReview({tags: {}}, {opts: {}, engines: [ea, eb]}, () => {}); } catch (e) { e4 = e; }
+        await new Promise(r => setTimeout(r, 60));
+        ok('REVIEW-2: after one worker fails the other takes no further position', e4 && !e4.replayFailed && calls.a === 1 && calls.b === 1, [calls, e4 && e4.message]);
+    })();
 }
 // ==== END FIX CHECKS ====
 
