@@ -2200,7 +2200,30 @@ async function onBookFile(e) {
     }
 }
 
-function keyOf(fen) { return String(fen).split(' ').slice(0, 4).join(' '); }
+// A book position's key: placement, turn, castling and the en-passant square ONLY when a pawn of
+// the side to move stands beside it (the polyglotKey rule). This chess.js writes the square after
+// every double step, lichess, python-chess and Stockfish write '-' unless a capture is possible, so
+// a JSON book from any of them missed every position after 1.e4, 1.d4, 1...c5 (audit 3.1.330
+// ANALYSISB-4). Board and book keys both pass through here, so they agree whichever wrote them.
+function keyOf(fen) {
+    const [placement = '', turn = '', castling = '', ep = '-'] = String(fen).trim().split(/\s+/);
+    let keep = '-';
+    if (/^[a-h][36]$/.test(ep)) {
+        const rows = placement.split('/');                 // rows[0] is rank 8
+        const at = (f, r) => {
+            let i = 0;
+            for (const ch of rows[8 - r] || '') {
+                if (ch >= '1' && ch <= '8') { i += +ch; continue; }
+                if (i === f) return ch;
+                i++;
+            }
+            return '';
+        };
+        const f = ep.charCodeAt(0) - 97, r = turn === 'w' ? +ep[1] - 1 : +ep[1] + 1, pawn = turn === 'w' ? 'P' : 'p';
+        if (at(f - 1, r) === pawn || at(f + 1, r) === pawn) keep = ep;
+    }
+    return [placement, turn, castling, keep].join(' ');
+}
 
 // Distinct positions in a sorted Polyglot buffer: one pass comparing each 64-bit key as two 32-bit
 // halves, so counting allocates nothing (no BigInt, no Map) whatever the book's size.

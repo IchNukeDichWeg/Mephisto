@@ -10573,6 +10573,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('ANALYSISB-3: ...and 1.e4 shows its reply', els.an_book_lines?.innerHTML === '<e7e5 100%>', els.an_book_lines?.innerHTML);
     })();
 }
+// ---- audit 3.1.330 ANALYSISB-4: a JSON book written by another tool finds positions after a double pawn push ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (from, to) => { const a = an.indexOf(from), b = an.indexOf(to, a); return (a < 0 || b < 0) ? '' : an.slice(a, b); };
+    const els = {};
+    const el = (id) => els[id] || (els[id] = {id, textContent: '', innerHTML: '', classList: {toggle() {}}});
+    const c = vm.createContext({console, $: el, cfg: (k) => k === 'an_book', anVariant: () => 'chess', status: (t) => { c.said = t; },
+        positions: [], cursor: 0, sanOf: (fen, uci) => uci, wireLineClicks: () => {},
+        lineRow: (i, col, san) => `<${san}>`, Core: {clamp: (x) => x, parsePgn: () => []}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    try { vm.runInContext('var bookMoves = null; const lookupPolyglot = () => [];\n' + cut('async function onBookFile(e)', '// ---- move list'), c); }
+    catch (e) { console.log('slice threw: ' + e.message); }
+    // keys as lichess / python-chess / Stockfish write them: '-' unless a capture is possible
+    const book = {
+        'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1': ['c7c5', 'e7e5'],
+        'rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2': ['g1f3'],
+        'rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3': ['e5f6'],
+    };
+    const board = new c.Chess();
+    const after = (...sans) => { const g = new c.Chess(); sans.forEach(s => g.move(s)); return g.fen(); };
+    const show = (fen) => { c.positions = [{fen}]; try { c.renderBook(); } catch (e) { return 'threw ' + e.message; } return els.an_book_lines?.innerHTML; };
+    (async () => {
+        try { await c.onBookFile({target: {files: [{name: 'repertoire.json', text: async () => JSON.stringify(book)}], value: 'x'}}); }
+        catch (e) { c.said = 'threw ' + e.message; }
+        ok('ANALYSISB-4: after 1.e4 (board FEN names e3) the book written with "-" answers', show(after('e4')) === '<c7c5><e7e5>', show(after('e4')));
+        ok('ANALYSISB-4: ...and after 1.e4 c5 too', show(after('e4', 'c5')) === '<g1f3>', show(after('e4', 'c5')));
+        ok('ANALYSISB-4: an en-passant square a pawn CAN take still keys the position (1.e4 d5 2.e5 f5: exf6 e.p.)',
+           show(after('e4', 'd5', 'e5', 'f5')) === '<e5f6>', show(after('e4', 'd5', 'e5', 'f5')));
+        ok('ANALYSISB-4: the key drops an en-passant square no pawn can take and keeps one it can (board and book keys alike)',
+           /^[^ ]+ b KQkq -$/.test(c.keyOf(after('e4'))) && /f6$/.test(c.keyOf(after('e4', 'd5', 'e5', 'f5'))), c.keyOf(after('e4')));
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
