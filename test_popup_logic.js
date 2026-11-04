@@ -6439,6 +6439,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        clr > s.indexOf("return;   // deliberately WITHOUT promoting incoming_push_key") && clr > s.indexOf('function on_new_pos(')
        && clr < s.indexOf('last_eval = {fen, activeLines: 0'));
 }
+// ---- audit 3.1.329 CLICK-3: a 4PC move held back is held before the from-click only ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = s.indexOf('function simulateMove4PC('), j = s.indexOf('\n}\n', i) + 3;
+    const c = vm.createContext({console: {warn() {}}, Math, RegExp, Promise, clicks: [], asks: [],
+        window: {innerHeight: 800}, DOMRect: function (x, y, w, h) { Object.assign(this, {x, y, width: w, height: h, left: x, top: y}); }});
+    vm.runInContext(`var config = {think_time: 0, think_variance: 0, move_time: 0, move_variance: 0}, moveGen = 1, deferredWhileHidden = false, heldAt = [];
+        function dropMove() {} function bgLogAlways() {} async function warmClicker() {} function promiseTimeout() { return Promise.resolve(); }
+        function fourPCGeometry() { return {size: 10}; } function fourPCSquareXY(sq) { return {x: sq.charCodeAt(0), y: parseInt(sq.slice(1))}; }
+        async function promote4PC() {}
+        async function simulateClickSquare(r) { clicks.push(r.x); }
+        function moveHeldBack() { asks.push(clicks.length); return heldAt.includes(clicks.length) ? 'hidden' : null; }
+        ${s.slice(i, j)}`, c);
+    (async () => {
+        // the tab goes hidden after the from-click: the pair is finished, nothing is deferred
+        vm.runInContext('heldAt = [1]', c);
+        await vm.runInContext(`simulateMove4PC('d2d4', 0, 1)`, c);
+        ok('CLICK-3: hidden between the clicks, the 4PC move still completes both clicks and is not deferred (no half-played move)',
+           c.clicks.length === 2 && vm.runInContext('deferredWhileHidden', c) === false && c.asks.join() === '0', {clicks: c.clicks, asks: c.asks});
+        // hidden before the from-click: nothing is clicked, and the move is deferred for the return
+        c.clicks.length = 0; c.asks.length = 0;
+        vm.runInContext('heldAt = [0]', c);
+        await vm.runInContext(`simulateMove4PC('d2d4', 0, 1)`, c);
+        ok('...hidden after the think, before the from-click: no click, deferred for resumeIfDeferred',
+           c.clicks.length === 0 && vm.runInContext('deferredWhileHidden', c) === true, {clicks: c.clicks});
+    })().catch(e => { fails++; console.log('FAIL CLICK-3 check threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

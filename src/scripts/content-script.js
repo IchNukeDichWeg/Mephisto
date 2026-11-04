@@ -3490,6 +3490,10 @@ function simulateMove4PC(move, think = null, sessionGen = undefined) {
         await warmClicker();
         await promiseTimeout(think != null ? think : config.think_time + Math.random() * config.think_variance);
         const total = config.move_time + Math.random() * config.move_variance;
+        // Asked before the FROM-click only, like the 8x8 path: once the piece is picked up, the pair is
+        // finished. Held back between the two, the piece stayed selected, and the re-issue on return
+        // clicked it again, which deselects it, so the move never landed (audit 3.1.329 CLICK-3).
+        let pickedUp = false;
         const click = async (sq, travel) => {
             if (superseded()) {
                 bgLogAlways('4PC move superseded: click abandoned', {move, sq, sessionGen, moveGen});
@@ -3497,17 +3501,20 @@ function simulateMove4PC(move, think = null, sessionGen = undefined) {
             }
             // Autoplay switched off, or the tab left, during the think: the 8x8 path's PAGE-5 check,
             // which this lane never called, so it clicked anyway (audit 3.1.328 CLICK-3).
-            const held = moveHeldBack();
-            if (held) {
-                bgLogAlways('4PC move held back after the think', {move, sq, held});
-                if (held === 'hidden') deferredWhileHidden = true;   // resumeIfDeferred re-issues it
-                return false;
+            if (!pickedUp) {
+                const held = moveHeldBack();
+                if (held) {
+                    bgLogAlways('4PC move held back after the think', {move, sq, held});
+                    if (held === 'hidden') deferredWhileHidden = true;   // resumeIfDeferred re-issues it
+                    return false;
+                }
             }
             const r = rectOf(sq);
             if (!r) { console.warn(`Mephisto: 4PC square '${sq}' vanished mid-move`); return false; }
             bgLogAlways('4PC click', {sq, x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2),
                                 size: Math.round(r.width), vh: window.innerHeight});
             await simulateClickSquare(r, 0.8, travel);
+            pickedUp = true;
             return true;
         };
         if (await click(m[1], total * 0.25) === false) return;
