@@ -434,6 +434,8 @@
   "set.storage": "Pamięć: {used} zajęte{idb} - z {quota} dostępnych dla tego profilu przeglądarki.",
   "panel.tetrarch_setup": "Tetrarch nie jest jeszcze zainstalowany - zobacz sekcję „Four-player chess” w README, jak skonfigurować go na macOS, Linuksie i Windows",
   "panel.incomplete_install": "Brak silników - masz pobranie tylko z aktualizacją. Pobierz pełny zip.",
+  "panel.native_host_old": "Natywny host jest nieaktualny - uruchom ponownie instalator natywnych hostów (w Windows skopiuj ponownie pliki hosta), a potem odśwież stronę.",
+  "panel.native_host_old_short": "host nieaktualny: uruchom ponownie instalator",
   "panel.msg.puzzle_rating": "Ranking {r}",
   "panel.msg.fourpc_to_play": "Na ruchu: {seat}, najlepszy ruch to {move}",
   "panel.msg.mate_in": "Mat w {n}",

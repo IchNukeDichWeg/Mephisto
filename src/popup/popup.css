@@ -1191,6 +1191,7 @@ body.mephisto-compact #alt-lines {
 }
 #engine-health.ok { background: #35c46a; }
 #engine-health.down { background: #e5534b; }
+#engine-health.old { background: #e0a526; }   /* answers, but an out-of-date copy (BOUNDARY-2) */
 /* (the health dot keeps its right:198 in compact -- quick-settings is still there, trimmed) */
 
 /* A variant chess.js can't replay: say so rather than showing a confident wrong analysis. */

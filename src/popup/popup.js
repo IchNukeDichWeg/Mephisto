@@ -6987,10 +6987,13 @@ async function refresh_engine_health() {
     el.className = 'probing';
     el.title = 'Checking the native host…';
     const want = config.engine; // a switch mid-probe must not let a stale result paint the new engine
-    const ok = await native_host_available(native_port_name());
+    const frame = await native_host_probe(native_port_name());
     if (config.engine !== want) return;
-    el.className = ok ? 'ok' : 'down';
-    el.title = ok ? 'Native host is responding' : 'Native host not responding - run native-host/install.sh once';
+    const ok = !!frame, old = ok && native_host_outdated(frame);   // BOUNDARY-2
+    if (old) bgTrace('native host out of date', {engine: want, protocol: frame.protocol ?? 'none', want: NATIVE_HOST_PROTOCOL});
+    el.className = old ? 'old' : ok ? 'ok' : 'down';
+    el.title = old ? i18n('panel.native_host_old', 'Native host out of date - re-run the native-host installer (on Windows, copy the host files again), then reload the page.')
+        : ok ? 'Native host is responding' : 'Native host not responding - run native-host/install.sh once';
 }
 
 // The status line under the buttons. A variant chess.js can't replay would otherwise sit there
@@ -9182,8 +9185,10 @@ async function run_self_test() {
     const engineOK = !!(last_eval.lines && last_eval.lines[0] && last_eval.lines[0].pv);
     let nativePart = '', nativeOK = true;
     if (NATIVE_ENGINES.includes(config.engine)) {
-        nativeOK = await native_host_available(native_port_name());
-        nativePart = nativeOK ? ' · Native ✓' : ' · Native ✗ (run native-host/install.sh)';
+        const frame = await native_host_probe(native_port_name());
+        nativeOK = !!frame && !native_host_outdated(frame);   // BOUNDARY-2: an old host is not a pass
+        nativePart = nativeOK ? ' · Native ✓' : frame ? ` · Native ✗ (${i18n('panel.native_host_old_short', 'host out of date: re-run the installer')})`
+            : ' · Native ✗ (run native-host/install.sh)';
     }
     const mark = (b) => b ? '✓' : '✗';
     // The feature rows, but only the ones that apply here -- a self-test that lists three switched-off
@@ -10708,11 +10713,24 @@ function needs_fairy_engine(v) {
 // Is a native host actually installed? Open a throwaway port to it and `ping` (the host answers that
 // WITHOUT launching the engine); any reply means installed, a 'fatal'/disconnect means not. ~1s cap.
 function native_host_available(portName) {
+    return native_host_probe(portName).then(Boolean);
+}
+// THE HOST IS A COPY (audit 3.1.330 BOUNDARY-2). The installer copies each host out of the extension
+// folder and Chrome runs that copy, so updating the extension never updates a host: the host fixes
+// of 3.1.328-3.1.330 (supersession frames, engine relaunch, BOM path files) never reached installs
+// made before them, and the dot showed those hosts healthy. Every host now reports its `protocol` in
+// the ping; below this, or none (any host from before the field), it is out of date. Bump together
+// with HOST_PROTOCOL in every native-host/*-host.py: the installer copies them all in one run, so one
+// number covers them, and the suite pins that they agree.
+const NATIVE_HOST_PROTOCOL = 1;
+const native_host_outdated = (frame) => !(Number(frame && frame.protocol) >= NATIVE_HOST_PROTOCOL);
+// The ping's answer frame, or false when no host answered.
+function native_host_probe(portName) {
     return new Promise(resolve => {
         let done = false, port;
         const finish = (ok) => { if (done) return; done = true; try { port.disconnect(); } catch (e) { /* */ } resolve(ok); };
         try { port = chrome.runtime.connect({name: portName}); } catch (e) { return resolve(false); }
-        port.onMessage.addListener(frame => finish(!frame.fatal)); // a non-fatal frame = the host answered
+        port.onMessage.addListener(frame => finish(!frame.fatal && frame)); // a non-fatal frame = the host answered
         port.onDisconnect.addListener(() => finish(false));
         try { port.postMessage({id: -1, cmd: 'ping'}); } catch (e) { return finish(false); }
         setTimeout(() => finish(false), 1000);

@@ -30,6 +30,11 @@ both zips. The loader (`src/offscreen/model-fetch.js`) tries the bundled file fi
 
 3. Upload both zips to the version's release as before.
 
+4. If any `native-host/*-host.py` changed its contract, bump `HOST_PROTOCOL` in every host and
+   `NATIVE_HOST_PROTOCOL` in `src/popup/popup.js` together, and say in the notes to re-run the native
+   installer. Installed hosts are copies that no update touches; the panel shows a host below that
+   number as out of date (amber dot).
+
 ## Only when a net or model changes
 
 1. Rebuild the manifest. A file whose bytes are already on an existing assets release keeps that

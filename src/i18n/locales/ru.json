@@ -434,6 +434,8 @@
   "set.storage": "Хранилище: занято {used}{idb} - из {quota}, доступных этому профилю браузера.",
   "panel.tetrarch_setup": "Tetrarch ещё не установлен - см. раздел «Four-player chess» в README о настройке на macOS, Linux и Windows",
   "panel.incomplete_install": "Движки отсутствуют - у вас загрузка только с обновлением. Скачайте полный zip.",
+  "panel.native_host_old": "Нативный хост устарел - запустите установщик нативных хостов ещё раз (в Windows скопируйте файлы хоста заново), затем перезагрузите страницу.",
+  "panel.native_host_old_short": "хост устарел: запустите установщик ещё раз",
   "panel.msg.puzzle_rating": "Рейтинг {r}",
   "panel.msg.fourpc_to_play": "Ход: {seat}, лучший ход - {move}",
   "panel.msg.mate_in": "Мат в {n}",

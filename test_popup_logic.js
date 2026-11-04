@@ -11040,6 +11040,48 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SYSB-4: no locale\'s Updates note compares the download with 585 MB any more; each says about 7 MB', bad.length === 0, bad);
     ok('SYSB-4: ...nor does the page\'s own fallback text', !/585/.test(fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8')));
 })().catch(e => { fails++; console.log('FAIL SYSB-4 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 BOUNDARY-2: an installed native host older than the panel's protocol is shown as out of date ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const want = +((psrc.match(/const NATIVE_HOST_PROTOCOL = (\d+);/) || [])[1]);
+    ok('BOUNDARY-2: the panel declares the host protocol it expects', want >= 1, want);
+    // every host the installer copies reports the same number in its ping
+    const hosts = fs.readdirSync(ROOT + '/native-host').filter(f => /-host\.py$/.test(f));
+    const off = hosts.filter(f => {
+        const s = fs.readFileSync(ROOT + '/native-host/' + f, 'utf8');
+        return +((s.match(/^HOST_PROTOCOL = (\d+)$/m) || [])[1]) !== want || !/'ok': True, 'protocol': HOST_PROTOCOL\}/.test(s);
+    });
+    ok('BOUNDARY-2: every native-host/*-host.py reports HOST_PROTOCOL in its ping, equal to the panel\'s', hosts.length >= 2 && off.length === 0, off);
+    // the real probe + health dot, against a fake port answering a given ping frame
+    const a = psrc.indexOf('function native_host_available('), b = psrc.indexOf('\n}\n', psrc.indexOf('function native_host_probe(')) + 3;
+    const r0 = psrc.indexOf('async function refresh_engine_health('), r1 = psrc.indexOf('\n}\n', r0) + 3;
+    const dot = async (reply) => {
+        const el = {style: {}, className: '', title: ''}, traced = [];
+        const c = vm.createContext({Promise, Number, Boolean, setTimeout, console,
+            PANEL_ROOT: {getElementById: () => el}, NATIVE_ENGINES: ['sf19-native'], config: {engine: 'sf19-native'},
+            native_port_name: () => 'sf19-native', i18n: (k, d) => d, bgTrace: (...x) => traced.push(x),
+            chrome: {runtime: {connect: () => { const l = {}; return {
+                onMessage: {addListener: (f) => { l.msg = f; }}, onDisconnect: {addListener: (f) => { l.dis = f; }},
+                postMessage: () => setTimeout(() => reply ? l.msg(reply) : l.dis()), disconnect() {}}; }}}});
+        vm.runInContext(psrc.slice(a, b) + psrc.slice(r0, r1), c);
+        await vm.runInContext('refresh_engine_health()', c);
+        return {cls: el.className, title: el.title, traced: traced.length};
+    };
+    const cur = await dot({id: -1, ok: true, protocol: want}), old = await dot({id: -1, ok: true}), lower = await dot({id: -1, ok: true, protocol: want - 1});
+    const none = await dot(null), fatal = await dot({fatal: 'gone'});
+    ok('BOUNDARY-2: a host that reports the expected protocol is green', cur.cls === 'ok', cur);
+    ok('BOUNDARY-2: a host from before the field (ping answers {ok:true}) is amber with "re-run the installer", and traced',
+       old.cls === 'old' && /re-run the native-host installer/.test(old.title) && old.traced === 1, old);
+    ok('BOUNDARY-2: ...and so is one reporting a lower protocol', lower.cls === 'old', lower);
+    ok('BOUNDARY-2: no host is still red', none.cls === 'down' && fatal.cls === 'down', [none, fatal]);
+    ok('BOUNDARY-2: the self-test does not pass an out-of-date host', /nativeOK = !!frame && !native_host_outdated\(frame\);/.test(psrc));
+    ok('BOUNDARY-2: the amber dot has its colour', /#engine-health\.old \{ background: #[0-9a-f]{6}; \}/.test(fs.readFileSync(ROOT + '/src/popup/popup.css', 'utf8')));
+    const loc = (l) => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + l + '.json', 'utf8'));
+    const langs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => f.slice(0, -5));
+    ok('BOUNDARY-2: both new strings exist in all 14 locales', langs.length === 14 && langs.every(l => loc(l)['panel.native_host_old'] && loc(l)['panel.native_host_old_short']));
+    ok('BOUNDARY-2: the README tells updaters to re-run the native installer', /After \*\*updating\*\* Mephisto, re-run the install command/.test(fs.readFileSync(ROOT + '/README.md', 'utf8')));
+})().catch(e => { fails++; console.log('FAIL BOUNDARY-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

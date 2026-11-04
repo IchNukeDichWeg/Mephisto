@@ -519,6 +519,9 @@ your **extension ID** from `chrome://extensions` with Developer mode on.
 > ⚠️ An unpacked extension's id **changes when you reload it**. If native engines stop working after a reload, re-run
 > the install command with the new id.
 
+> After **updating** Mephisto, re-run the install command as well (on Windows, copy the host files again): the hosts
+> are copies, and an update does not touch them. The panel's engine dot turns amber while a host is out of date.
+
 **macOS**
 ```bash
 brew install stockfish fairy-stockfish

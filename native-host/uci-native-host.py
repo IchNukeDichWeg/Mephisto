@@ -439,11 +439,17 @@ def do_tbprobe(data):
     except (_s.MissingTableError, KeyError) as e:
         return {'error': f'missing table: {e}'}
 
+# THE HOST'S PROTOCOL REVISION (audit 3.1.330 BOUNDARY-2). The installer COPIES this file out of the
+# extension, so updating the extension never updates the host Chrome runs. `ping` reports this
+# number; the panel calls a host below its NATIVE_HOST_PROTOCOL (or one that reports none) out of date
+# and says to re-run the installer. Bump it in every native-host/*-host.py and in popup.js together.
+HOST_PROTOCOL = 1
+
 def handle(msg):
     mid = msg.get('id')
     try:
         if msg.get('cmd') == 'ping':
-            send_message({'id': mid, 'ok': True})  # host is installed & alive; does NOT open the engine
+            send_message({'id': mid, 'ok': True, 'protocol': HOST_PROTOCOL})  # installed & alive; does NOT open the engine
         elif msg.get('cmd') == 'analyse':
             send_message({'id': mid, **do_analyse(msg, mid), 'done': True})
         elif msg.get('cmd') == 'configure':

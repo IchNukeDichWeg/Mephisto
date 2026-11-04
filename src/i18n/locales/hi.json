@@ -434,6 +434,8 @@
   "set.storage": "स्टोरेज: {used} उपयोग में{idb} - इस ब्राउज़र प्रोफ़ाइल के लिए उपलब्ध {quota} में से।",
   "panel.tetrarch_setup": "Tetrarch अभी इंस्टॉल नहीं है - macOS, Linux और Windows पर सेटअप के लिए README का «Four-player chess» खंड देखें",
   "panel.incomplete_install": "इंजन गायब हैं - आपके पास केवल-अपडेट डाउनलोड है। पूरा zip लें।",
+  "panel.native_host_old": "नेटिव होस्ट पुराना है - नेटिव-होस्ट इंस्टॉलर फिर से चलाएँ (Windows पर होस्ट फ़ाइलें दोबारा कॉपी करें), फिर पेज रीलोड करें।",
+  "panel.native_host_old_short": "होस्ट पुराना है: इंस्टॉलर फिर से चलाएँ",
   "panel.msg.puzzle_rating": "रेटिंग {r}",
   "panel.msg.fourpc_to_play": "{seat} की चाल, सर्वोत्तम चाल है {move}",
   "panel.msg.mate_in": "{n} चालों में शह-मात",

@@ -292,6 +292,12 @@ def do_pgn4(data):
     return {'tags': game.tags, 'mode': str(game.mode), 'setup': game.setup,
             'variant': game.variant, 'frames': frames, 'terminations': terminations}
 
+# THE HOST'S PROTOCOL REVISION (audit 3.1.330 BOUNDARY-2). The installer COPIES this file out of the
+# extension, so updating the extension never updates the host Chrome runs. `ping` reports this
+# number; the panel calls a host below its NATIVE_HOST_PROTOCOL (or one that reports none) out of date
+# and says to re-run the installer. Bump it in every native-host/*-host.py and in popup.js together.
+HOST_PROTOCOL = 1
+
 def handle(msg):
     mid = msg.get('id')
     cmd = msg.get('cmd')
@@ -307,7 +313,7 @@ def handle(msg):
             send_message({'id': mid, **do_configure(msg)})
         elif cmd == 'ping':
             # the panel's engine-health probe: answer WITHOUT launching the engine
-            send_message({'id': mid, 'ok': True})
+            send_message({'id': mid, 'ok': True, 'protocol': HOST_PROTOCOL})
         else:
             send_message({'id': mid, 'error': f"unknown cmd {cmd!r}"})
     except Exception as e:
