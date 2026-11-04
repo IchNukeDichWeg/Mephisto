@@ -302,6 +302,12 @@ function applyGame(initial) {
             if (engine2) { try { engine2.dispose?.(); } catch (e) { /* */ } engine2 = null; }
             if (human) { try { human.dispose?.(); } catch (e) { /* */ } human = null; humanKey = null; }
         }, () => {});
+        // A human build already loading runs on humanChain, not analyseChain: the dispose above found
+        // `human` still null and the net was assigned afterwards (ANALYSIS-6). Queued behind it, this
+        // one sees what it landed.
+        humanChain = humanChain.then(() => {
+            if (largeGame() && human) { try { human.dispose?.(); } catch (e) { /* */ } human = null; humanKey = null; }
+        }, () => {});
         bandRun++;   // see reloadHuman
         showLargeGame(g, largeOpts);
     } else if (!initial) {
@@ -935,6 +941,11 @@ async function reloadHuman() {
     syncBandRow();
     humanCache.clear();
     bandCache.clear();
+    // NO HUMAN NET UNDER SHOGI OR XIANGQI. Populating the form fires this (the human selects' change)
+    // before applyGame stands the chess side down, so opening the page with one saved loaded the net
+    // and ran a ratings sweep on the hidden chess board (audit 3.1.329 ANALYSIS-6). Switching back
+    // to chess rebuilds it on the first position asked about.
+    if (largeGame()) return;
     // MAIA 3 IS ONE NET WITH A DIAL: a band change retunes the LIVE engine (SelfElo/OppoElo, the
     // same pair the sweep sends) instead of disposing it and reloading 92MB -- which is what the
     // panel has done since v3.1.280, and what this page did not. The rebuild was also the hang:
@@ -1935,7 +1946,8 @@ function schedulePrefetch() {
         prefetchTimer = null;
         const kind = cfg('an_human');
         const next = positions[cursor + 1];
-        if (!kind || !next) return;
+        // a prefetch armed on the chess board must not sweep it once shogi/xiangqi hides it (ANALYSIS-6)
+        if (!kind || !next || largeGame()) return;
         if (bandCache.has(bandKey(next.fen, kind))) return;
         const run = bandRun;                       // a newer visible sweep supersedes this one
         queueSweep(() => sweepBands(next, kind, run, null).catch(() => null));

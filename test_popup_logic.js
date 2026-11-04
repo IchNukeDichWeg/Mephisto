@@ -6341,6 +6341,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         return vm.runInContext('sweepBands({fen: "y", turn: "w"}, "maia3", bandRun, null)', c);
     }).then(r => ok('...with the run still current, a null still means "no shared net": one private net sweeps', !!r && c.built === 1 && r[600]?.[0]?.uci === 'e2e4', [r, c.built]));
 }
+// ---- audit 3.1.329 ANALYSIS-6: no human net or ratings sweep under a saved Shogi / Xiangqi game ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const fn = (head) => { const a = an.indexOf(head), b = an.indexOf('\n}\n', a) + 3; if (a < 0) throw new Error('slice ' + head); return an.slice(a, b); };
+    const c = vm.createContext({Promise, game: 'shogi', asked: 0, swept: 0, made: []});
+    vm.runInContext(`let bandRun = 0, human = null, humanKey = null, engine = null, engine2 = null, analyseChain = Promise.resolve(), humanChain = Promise.resolve();
+        const cursor = 0, positions = [{fen: 'start', turn: 'w'}], humanCache = new Map(), bandCache = new Map(), CFG = {an_band: 1500};
+        const cfg = (k) => (k === 'an_human' ? 'maia3' : k === 'an_game' ? game : 1500);
+        const $ = () => null; function syncBandRow() {} function stopMatch() {} async function stopSearch() {} function showLargeGame() {}
+        function largeOpts() {} function hideLargeGame() {} function takesRating() { return true; } function ratingFor(k, b) { return b; }
+        function renderHumanLines() {} function render() {} function status() {}
+        function ensureHuman() { asked++; return Promise.resolve({}); } async function humanFor() {} function renderBands() { swept++; }
+        ${fn('function largeGame()')}
+        ${fn('function applyGame(')}
+        ${fn('async function reloadHuman()')}`, c);
+    (async () => {
+        await vm.runInContext('reloadHuman()', c);
+        ok('ANALYSIS-6: the human selects firing on a Shogi page load build no net and run no sweep', c.asked === 0 && c.swept === 0, [c.asked, c.swept]);
+        c.game = 'chess';
+        await vm.runInContext('reloadHuman()', c);
+        ok('...on chess the same change still builds the model and draws the bands', c.asked === 1 && c.swept === 1, [c.asked, c.swept]);
+        // a build already loading when the game switches to Xiangqi: it lands after applyGame's dispose ran
+
+        vm.runInContext('humanChain = new Promise(r => { landHuman = () => { human = {dispose() { made.push("disposed"); }}; humanKey = "maia3|1500"; r(human); }; })', c);
+        const land = vm.runInContext('landHuman', c);
+        c.game = 'xiangqi';
+        vm.runInContext('applyGame(true)', c);
+        await vm.runInContext('analyseChain', c);
+        land();
+        await vm.runInContext('humanChain', c);
+        ok('...a net still loading when Xiangqi is picked is disposed once it lands', c.made.join() === 'disposed' && vm.runInContext('human', c) === null, [c.made, vm.runInContext('human === null', c)]);
+    })().catch(e => { fails++; console.log('FAIL ANALYSIS-6 check threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
