@@ -85,6 +85,11 @@
                 if (!dragGhost && Math.hypot(e.clientX - dragX, e.clientY - dragY) > 4) {
                     const src = pieceUrl(pos[dragFrom]);
                     dragGhost = document.createElement('img');
+                    // A piece the map lacks is still in `pos`, so it can be dragged, and with no theme
+                    // in-page (PAGEA-6) its src is '': without an alt the ghost drew the browser's
+                    // broken-image glyph under the pointer. alt='' draws nothing, as on the board
+                    // (audit 3.1.330 follow-up L20).
+                    dragGhost.alt = '';
                     dragGhost.src = src;
                     const sz = host.clientWidth ? Math.floor(host.clientWidth / 8) : 40;
                     dragGhost.style.cssText = `position:fixed;width:${sz}px;height:${sz}px;` +

@@ -11949,6 +11949,31 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const d = await run(rel('v3.1.331'), list);
     ok('...and a normal Latest costs one request, as before', d.latest === '3.1.331' && d.asked.length === 1, d.asked);
 })().catch(e => { fails++; console.log('FAIL L28 checks threw: ' + (e && e.stack || e)); });
+// ---- L20 (audit 3.1.330 follow-up): dragging a piece the in-page map lacks shows no broken-image ghost ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pb = fs.readFileSync(ROOT + '/src/scripts/panel-board.js', 'utf8');
+    // just enough DOM for render() and the drag: elements record attributes, children and listeners
+    const el = (tag) => ({tag, style: {}, classList: [], children: [], on: {}, className: '',
+        appendChild(c) { this.children.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; }, remove() { this.gone = true; }});
+    const imgs = [];
+    const host = el('div'); host.clientWidth = 400;
+    Object.defineProperty(host, 'innerHTML', {set() { host.children = []; }});
+    const win = {};
+    const c = vm.createContext({Math, requestAnimationFrame() {}, window: {addEventListener: (t, f) => { win[t] = f; }, removeEventListener() {}},
+        document: {createElement: (t) => { const e = el(t); if (t === 'img') imgs.push(e); return e; }, body: el('body')}});
+    c.self = c;
+    vm.runInContext(pb, c);
+    // in-page: no theme, and a map that lacks the white queen
+    c.MephistoBoard(host, {position: '4k3/8/8/8/8/8/8/3QK3', pieceTheme: '', pieceMap: {wK: 'data:k', bK: 'data:k'}, onMove: () => true});
+    const d1 = host.children[0].children[7].children[3];   // rank 1, d-file, white at the bottom
+    ok('L20: the board draws nothing for the queen the map lacks', d1.children.filter(x => x.tag === 'img').length === 0);
+    d1.on.pointerdown({button: 0, clientX: 10, clientY: 10, preventDefault() {}});
+    win.pointermove({clientX: 40, clientY: 40});
+    const ghost = imgs[imgs.length - 1];
+    ok('...and the drag ghost of that queen carries alt="" so the browser draws no broken-image glyph',
+       ghost && ghost.src === '' && ghost.alt === '', ghost && {src: ghost.src, alt: ghost.alt});
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
