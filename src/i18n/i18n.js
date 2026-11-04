@@ -141,6 +141,16 @@ function apply(scope) {
 // Errors that cross a message channel as plain text (the offscreen document's model downloads reach
 // the panel as String(error)) carry just the code at the front of their message; the panel looks the
 // code up here, so those messages take no {placeholders} -- the technical detail stays in the console.
+// THE NATIVE-HOST SETUP STEP DEPENDS ON THE OS (audit 3.1.330 follow-up L42). macOS and Linux run an
+// installer script; Windows has none for the engine hosts (the README's Windows steps are done by
+// hand), so text naming the script sent a Windows user to a file that is not there. The script's name
+// stays out of these strings: the README names it. Read once at load, in the panel, the options pages
+// and the worker alike (each has a navigator).
+const ON_WINDOWS = (() => {
+    try { const n = root.navigator; return /^win/i.test((n && ((n.userAgentData && n.userAgentData.platform) || n.platform)) || ''); }
+    catch (e) { return false; }
+})();
+
 const ERRORS = Object.freeze(Object.fromEntries([
     ['MPH-U01', 'err.U01', 'That folder has no manifest.json. Pick the folder you loaded in chrome://extensions (Load unpacked).'],
     ['MPH-U02', 'err.U02', 'That isn\'t Mephisto\'s folder. Pick the folder you loaded in chrome://extensions (Load unpacked).'],
@@ -178,7 +188,9 @@ const ERRORS = Object.freeze(Object.fromEntries([
     ['MPH-T06', 'err.T06', 'Out of space in that folder, so the download stopped. Free some room or choose a smaller set.'],
     ['MPH-T07', 'err.T07', 'The tablebase folder cannot be used ({detail}). Choose the folder again.'],
 
-    ['MPH-E01', 'err.E01', 'The native engine host is not installed or not running. Run native-host/install-native.sh once (see the README), then reload this page.'],
+    ['MPH-E01', ON_WINDOWS ? 'err.E01_win' : 'err.E01', ON_WINDOWS
+        ? 'The native engine host is not installed or not running. Set it up once with the README\'s Windows steps, then reload this page.'
+        : 'The native engine host is not installed or not running. Run the native-host installer once (see the README), then reload this page.'],
     ['MPH-E02', 'panel.msg.remote_unreachable', 'Remote Engine: nothing is answering on localhost:9090. Start remote-engine.py, or pick another engine.'],
     ['MPH-E03', 'err.E03', 'Something other than remote-engine.py is answering on localhost:9090. Stop it, or start remote-engine.py there.'],
     ['MPH-E04', 'panel.msg.engine_keeps_crashing', 'Engine keeps crashing - pick a different engine in Settings.'],
@@ -245,10 +257,21 @@ function errMsg(e) {
     return raw;
 }
 
+// The setup step for this OS, as a phrase to follow a dash ("... - <step>"): first install, and
+// bringing an installed host up to date (follow-up L42, see ON_WINDOWS).
+function nativeSetup() {
+    return ON_WINDOWS ? t('native.setup_win', 'set it up once with the README\'s Windows steps')
+        : t('native.setup', 'run the native-host installer once (see the README)');
+}
+function nativeUpdate() {
+    return ON_WINDOWS ? t('native.update_win', 'copy the host files again (the README\'s Windows steps)')
+        : t('native.update', 're-run the native-host installer');
+}
+
 root.MephistoI18n = {
     LANGUAGES, LANG_CODES, DEFAULT_LANG,
     t, apply, use, setStrings, setFallback, fetchLocale, format,
-    ERRORS, errText, errMsg, fail,
+    ERRORS, errText, errMsg, fail, nativeSetup, nativeUpdate,
     get lang() { return current; },
 };
 

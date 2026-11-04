@@ -731,7 +731,7 @@ prepares. A code is never reused: a retired one stays retired.
 
 | Code | What happened | What to do |
 |---|---|---|
-| `MPH-E01` | The native engine host is not installed, was removed, or could not start. | Run `native-host/install-native.sh` once (see [Full-power native engines](#full-power-native-engines-optional)), then reload the page. Hosts are per browser. |
+| `MPH-E01` | The native engine host is not installed, was removed, or could not start. | Run `native-host/install-native.sh` once (on Windows, the manual steps; see [Full-power native engines](#full-power-native-engines-optional)), then reload the page. Hosts are per browser. |
 | `MPH-E02` | The Remote Engine is selected but nothing answers on `localhost:9090`. | Start `remote-engine.py`, or pick another engine. |
 | `MPH-E03` | Something answers on `localhost:9090` that is not `remote-engine.py` (it returned HTML, not JSON). | Stop it or start `remote-engine.py` there. |
 | `MPH-E04` | The in-browser engine crashed three times in a row. | Pick a different engine in Settings. |

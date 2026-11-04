@@ -462,7 +462,9 @@ class NativeEngine {
             else p.resolve(frame);
         });
         this.port.onDisconnect.addListener(() => {
-            const err = new Error('the native host disconnected -- run native-host/install.sh once');
+            // the setup step for this OS: Windows has no installer script (audit 3.1.330 follow-up L42)
+            const err = new Error('the native host disconnected -- '
+                + (self.MephistoI18n?.nativeSetup?.() || 'run the native-host installer once (see the README)'));
             for (const {reject} of this.pending.values()) reject(err);
             this.pending.clear();
             this.port = null;

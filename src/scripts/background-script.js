@@ -1246,10 +1246,10 @@ async function tbInfoForSettings() {
   tbHostApp = undefined;                 // a just-installed host should be found NOW, not next SW life
   delete tbMenByFolder[folder];
   const app = await tbHost();
-  if (!app) return {error: 'no native engine host installed - run native-host/install-native.sh once'};
+  if (!app) return {error: 'no native engine host installed - ' + MephistoI18n.nativeSetup()};   // follow-up L42: per OS
   const r = await tbNative(app, {cmd: 'tbinfo', path: folder});
   if (r?.error?.startsWith('unknown cmd')) {
-    return {error: 'the installed native host predates tablebase probing - re-run native-host/install-native.sh'};
+    return {error: 'the installed native host predates tablebase probing - ' + MephistoI18n.nativeUpdate()};
   }
   return r;
 }
@@ -2751,7 +2751,7 @@ function ensureNative(name) {
     console.warn(`[uci] ${name} native host DISCONNECTED`,
                  chrome.runtime.lastError ? chrome.runtime.lastError.message : '(no error given)');
     const why = `${label} native host unavailable` + (err ? ` (${err.message})` : '') +
-      ' - run native-host/install-native.sh once (see the README).';
+      ` - ${MephistoI18n.nativeSetup()}.`;   // the setup step for this OS (audit 3.1.330 follow-up L42)
     for (const p of peers()) { try { p.postMessage({fatal: why}); } catch (e) { /* */ } }
   });
   return np;

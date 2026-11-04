@@ -12327,6 +12327,30 @@ print(json.dumps(out))`;
     const line = rd.slice(rd.indexOf('**WDL, DTZ or both**'), rd.indexOf('**WDL, DTZ or both**') + 260);
     ok('L44: the README offers "WDL, DTZ or both" and says DTZ only works beside the WDL files', /DTZ only works beside the WDL files/.test(line), line.slice(0, 200));
 }
+// ---- audit 3.1.330 follow-up L42: native-host setup text fits the OS (Windows has no installer script) and names no script ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8');
+    const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+    const load = (navigator) => { const c = vm.createContext({TypeError, Error, Object, String, RegExp, navigator}); c.self = c;
+        try { vm.runInContext(src, c); c.MephistoI18n.setFallback(en); } catch (e) { return null; } return c.MephistoI18n; };
+    const run = (I, f) => { try { return f(I); } catch (e) { return 'threw ' + e.message; } };
+    const win = load({userAgentData: {platform: 'Windows'}, platform: 'Win32'}), winOld = load({platform: 'Win32'}), mac = load({userAgentData: {platform: 'macOS'}, platform: 'MacIntel'}), none = load(undefined);
+    const e01 = (I) => run(I, I => I.errText('MPH-E01'));
+    ok('L42: on Windows MPH-E01 says to follow the README\'s Windows steps (there is no installer script there)',
+       /Windows steps/.test(e01(win)) && e01(win) === e01(winOld) && !/installer|\.sh/.test(e01(win)), e01(win));
+    ok('L42: ...on macOS/Linux it says to run the installer, without naming the script', /native-host installer/.test(e01(mac)) && !/\.sh/.test(e01(mac)) && e01(none) === e01(mac), e01(mac));
+    ok('L42: ...each OS\'s registry English is en.json\'s text', win && mac && en[win.ERRORS['MPH-E01'].key] === win.ERRORS['MPH-E01'].en && en[mac.ERRORS['MPH-E01'].key] === mac.ERRORS['MPH-E01'].en
+       && win.ERRORS['MPH-E01'].key !== mac.ERRORS['MPH-E01'].key);
+    ok('L42: nativeSetup/nativeUpdate give the per-OS step', run(win, I => I.nativeSetup()) === en['native.setup_win'] && run(mac, I => I.nativeSetup()) === en['native.setup']
+       && run(win, I => I.nativeUpdate()) === en['native.update_win'] && run(mac, I => I.nativeUpdate()) === en['native.update'], [run(win, I => I.nativeSetup()), run(mac, I => I.nativeUpdate())]);
+    const dir = ROOT + '/src/i18n/locales', keys = ['err.E01', 'err.E01_win', 'native.setup', 'native.setup_win', 'native.update', 'native.update_win', 'panel.native_host_down', 'set.tip.tb_path'];
+    const bad = fs.readdirSync(dir).flatMap(f => { const l = JSON.parse(fs.readFileSync(dir + '/' + f, 'utf8')); return keys.filter(k => !l[k] || /install\.sh/.test(l[k]) || (k === 'panel.native_host_down' && !/\{hint\}/.test(l[k]))).map(k => f + ' ' + k); });
+    ok('L42: every locale has the new keys, and none of the setup texts names install.sh', bad.length === 0, bad);
+    const code = ['/src/popup/popup.js', '/src/scripts/background-script.js', '/src/options/util/engines.js', '/src/options/pages/settings/general/general.html']
+        .flatMap(f => fs.readFileSync(ROOT + f, 'utf8').split('\n').filter(l => !/^\s*\/\//.test(l) && /run native-host\/install\.sh|re-run native-host\/install\.sh|needs native-host\/install\.sh|run its installer once/.test(l)).map(l => f + ': ' + l.trim().slice(0, 80)));
+    ok('L42: no panel, worker or options message names the script any more (they go through the per-OS step)', code.length === 0, code);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

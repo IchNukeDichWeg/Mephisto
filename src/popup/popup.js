@@ -7008,7 +7008,7 @@ async function refresh_engine_health() {
     if (old) bgTrace('native host out of date', {engine: want, protocol: frame.protocol ?? 'none', want: NATIVE_HOST_PROTOCOL});
     el.className = old ? 'old' : ok ? 'ok' : 'down';
     el.title = old ? i18n('panel.native_host_old', 'Native host out of date - re-run the native-host installer (on Windows, copy the host files again), then reload the page.')
-        : ok ? 'Native host is responding' : 'Native host not responding - run native-host/install.sh once';
+        : ok ? 'Native host is responding' : i18n('panel.native_host_down', 'Native host not responding - {hint}', {hint: native_setup_hint()});
 }
 
 // The status line under the buttons. A variant chess.js can't replay would otherwise sit there
@@ -9203,7 +9203,7 @@ async function run_self_test() {
         const frame = await native_host_probe(native_port_name());
         nativeOK = !!frame && !native_host_outdated(frame);   // BOUNDARY-2: an old host is not a pass
         nativePart = nativeOK ? ' · Native ✓' : frame ? ` · Native ✗ (${i18n('panel.native_host_old_short', 'host out of date: re-run the installer')})`
-            : ' · Native ✗ (run native-host/install.sh)';
+            : ` · Native ✗ (${native_setup_hint()})`;
     }
     const mark = (b) => b ? '✓' : '✗';
     // The feature rows, but only the ones that apply here -- a self-test that lists three switched-off
@@ -9312,7 +9312,7 @@ function health_rows(state) {
     row('Settings received', !!st.config, st.config ? '' : 'the page script never got its settings');
     row('Engine loaded', !!st.engine, st.engineName || 'no engine has answered yet');
     row('Native host', st.usesNative ? !!st.nativeUp : null,
-        st.usesNative ? (st.nativeUp ? st.engineName : 'the host is not answering -- run its installer once')
+        st.usesNative ? (st.nativeUp ? st.engineName : 'the host is not answering -- ' + native_setup_hint())
                       : 'not needed for this engine');
     return rows.concat(feature_rows(st));
 }
@@ -10749,6 +10749,11 @@ function native_host_available(portName) {
 // number covers them, and the suite pins that they agree.
 const NATIVE_HOST_PROTOCOL = 1;
 const native_host_outdated = (frame) => !(Number(frame && frame.protocol) >= NATIVE_HOST_PROTOCOL);
+// The setup step for this OS, never the installer script's name: Windows has no script for the engine
+// hosts (audit 3.1.330 follow-up L42). Never throws, like i18n().
+function native_setup_hint() {
+    try { return MephistoI18n.nativeSetup(); } catch (e) { return 'run the native-host installer once (see the README)'; }
+}
 // The ping's answer frame, or false when no host answered.
 function native_host_probe(portName) {
     return new Promise(resolve => {
