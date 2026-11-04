@@ -268,6 +268,14 @@ def analyse():
             time_limit = chess.engine.Limit(depth=depth, time=time_ms / 1000)
         else:
             time_limit = chess.engine.Limit(time=time_ms / 1000)
+        # The width the request carries wins over the stored one. The panel sends a changed width as a
+        # /configure beside this request, and the two run on separate threads that only meet at
+        # engine_lock, so either can go first: measured with Stockfish, 9 of 20 searches sent with no
+        # gap after their configure came back at the OLD width (audit 3.1.330 follow-up L17).
+        # Stored too, so a later request without the key keeps it.
+        width = data.get('multipv')
+        if isinstance(width, int) and not isinstance(width, bool) and width > 0:
+            engine_options['MultiPV'] = width
         try:
             multipv = int(engine_options.get('MultiPV', 1))
         except (TypeError, ValueError):

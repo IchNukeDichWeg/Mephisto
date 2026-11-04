@@ -7136,7 +7136,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     // the HTTP request itself carries `nodes` (remote-engine.py reads it: nodes > depth > time)
     const r = psrc.indexOf('async function request_remote_analysis('), re = psrc.indexOf('\n}\n', r) + 3;
     const rc = vm.createContext({posted: []});
-    vm.runInContext(`var config = {engine: 'remote'};
+    vm.runInContext(`var config = {engine: 'remote'}; var remote_multipv_set = null;
         function uses_native() { return false; } function uses_cloud() { return false; }
         async function call_backend(url, data) { posted.push([url, data]); return {}; }
         function parse_backend_json(x) { return x; }
@@ -9445,7 +9445,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     c.self = c;
     vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
     c.MephistoI18n.setFallback(JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8')));
-    vm.runInContext(`var config = {engine: 'remote'}; var chrome = {runtime: {sendMessage: async () => answer}};
+    vm.runInContext(`var config = {engine: 'remote'}; var remote_multipv_set = null; var chrome = {runtime: {sendMessage: async () => answer}};
         function uses_native() { return false; } function uses_cloud() { return false; }
         function update_best_move(t) { shown.push(t); } function toggle_calculating() {}
         ${psrc.slice(e1, e2)} ${fn('async function call_backend(')} ${fn('async function parse_backend_json(')}
@@ -12109,6 +12109,59 @@ print(json.dumps(r))`;
     ok('L35: the 4PC failure shows MPH-E05 with that detail, not a bare "Engine error"',
        /: err_line\('MPH-E05', \{detail: native_error_detail\(e\)\}\)\);/.test(cut('function on_new_pos_4pc(', '\nfunction native_host_missing('))
        && !/i18n\('panel\.engine_error', 'Engine error'\)/.test(cut('function on_new_pos_4pc(', '\nfunction native_host_missing(')));
+})();
+// ---- audit 3.1.330 follow-up L17: the HTTP Remote Engine's search carries its own MultiPV, so a configure beside it
+// cannot lose the race and leave the first search at the old width ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // 1. the server: a recording stand-in for python-chess's engine, so no engine process is needed
+    const py = `import importlib.util, json, sys, types
+try:
+    import flask, chess
+except ImportError:
+    print('null'); sys.exit(0)
+src = sys.argv[1]; sys.argv = ['remote-engine.py', 'no-engine']
+spec = importlib.util.spec_from_file_location('re_l17', src); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+seen = []
+class Search:
+    multipv = []
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def __iter__(self): return iter(())
+    def wait(self): return types.SimpleNamespace(move=None)
+    def stop(self): pass
+def analysis(board, limit, multipv=1): seen.append(multipv); return Search()
+opt = types.SimpleNamespace(min=1, max=500)   # both spellings: python-chess's options are case-insensitive
+m.engine = types.SimpleNamespace(options={'MultiPV': opt, 'multipv': opt}, analysis=analysis)
+m.engine_options['MultiPV'] = 1                     # what the last /configure stored
+c = m.app.test_client(); fen = chess.STARTING_FEN
+c.post('/analyse', json={'fen': fen, 'time': 50, 'multipv': 4})   # the new width rides on the request
+c.post('/analyse', json={'fen': fen, 'time': 50})                 # a request without it keeps the newest width
+c.post('/analyse', json={'fen': fen, 'time': 50, 'multipv': True}) # not a width
+print(json.dumps(seen))`;
+    const r = await new Promise(res => require('child_process').execFile('python3', ['-E', '-B', '-c', py, ROOT + '/src/scripts/remote-engine.py'],
+        {encoding: 'utf8', timeout: 60000, cwd: require('os').tmpdir()}, (e, stdout, stderr) => res({e, stdout, stderr})));
+    let got = null; try { got = JSON.parse(String(r.stdout).trim().split('\n').pop()); } catch (e) { got = (r.stderr || String(r.e)).slice(-300); }
+    if (got === null) console.log('ok   L17: server half skipped (no python3 with flask + python-chess here)');
+    else ok('L17: remote-engine.py searches at the width the request carries over its stored MultiPV, and keeps it',
+            JSON.stringify(got) === '[4,4,4]', got);
+    // 2. the panel: /analyse carries the width the configure beside it pushes
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = s.indexOf('async function request_remote_analysis('), j = s.indexOf('\n}\n', i) + 3;
+    const c = vm.createContext({posted: []});
+    vm.runInContext(`var config = {engine: 'remote'}; var remote_multipv_set = 5;
+        function uses_native() { return false; } function uses_cloud() { return false; }
+        async function call_backend(url, data) { posted.push([url, data]); return {}; }
+        function parse_backend_json(x) { return x; } ${s.slice(i, j)}`, c);
+    await vm.runInContext(`request_remote_analysis('startfen', 300, 'e2e4')`, c);
+    ok('L17: the HTTP /analyse request carries multipv', (c.posted[0] || [])[1]?.multipv === 5, c.posted[0]);
+    vm.runInContext('remote_multipv_set = null', c); c.posted.length = 0;
+    await vm.runInContext(`request_remote_analysis('startfen', 300, 'e2e4')`, c);
+    ok('L17: ...and leaves the key out when no width is known (the server keeps its own)', c.posted[0] && !('multipv' in JSON.parse(JSON.stringify(c.posted[0][1]))), c.posted[0]);
+    // 3. the panel's own Humanize switch takes the Multi Lines path (the HTTP search waits for the configure there)
+    const h = s.indexOf("if (key === 'humanize') {"), blk = s.slice(h, s.indexOf('\n            }\n', h));
+    ok('L17: the panel\'s Humanize switch re-searches through search_again_at_new_width', h > 0 && /search_again_at_new_width\(\);/.test(blk)
+       && !/request_remote_configure\(/.test(blk), blk.slice(0, 200));
 })();
 // ==== END FIX CHECKS ====
 

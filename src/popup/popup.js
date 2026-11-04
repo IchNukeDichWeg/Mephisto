@@ -1300,14 +1300,10 @@ function init_quick_settings() {
                 // humanize picks among alternative lines, so it needs MultiPV headroom; re-apply
                 // the line count (which drops back to config.multiple_lines when it's turned off,
                 // so the engine stops searching the wide list) and restart under the new setting.
-                abandon_search();
-                if (is_remote()) {
-                    remote_multipv_set = effective_multipv();
-                    request_remote_configure({MultiPV: remote_multipv_set}).catch(() => { remote_multipv_set = null; });
-                } else {
-                    send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
-                }
-                last_eval.fen = '';
+                // The same path as a Multi Lines change (audit 3.1.330 follow-up L17): on the HTTP Remote
+                // Engine the search waits for the configure, where it raced it before and could run at
+                // the old width; everywhere else the position is searched again at once.
+                search_again_at_new_width();
             }
             if (['help_mode', 'autoplay', 'clock_mode', 'mirror_mode', 'manual_mode'].includes(key)) {
                 // Turning Autoplay ON while an unbounded analysis is ALREADY running on this position
@@ -6072,10 +6068,11 @@ function on_new_pos(fen, startFen, moves) {
                     .then(fresh(on_remote_result)).catch(fresh(on_remote_error)).finally(settle);
             }
         };
-        // A native analyse carries the width itself (request_remote_analysis), and the host stores it
-        // before it numbers the search, so the configure below finds nothing to change there and cuts
-        // nothing. It is still sent: remote-engine.py and hosts from before 3.1.329 read MultiPV only
-        // from their stored options. FIRE AND FORGET, never awaited.
+        // A native or HTTP Remote analyse carries the width itself (request_remote_analysis), and the
+        // host stores it before it numbers the search, so the configure below finds nothing to change
+        // there and cuts nothing. It is still sent: hosts from before 3.1.329, and a remote-engine.py
+        // from before audit 3.1.330 follow-up L17, read MultiPV only from their stored options. FIRE
+        // AND FORGET, never awaited.
         //
         // It was awaited at first, to avoid a race: the host handles each message on its own thread
         // and they only serialise on the engine lock, so a configure sent alongside an analyse can
@@ -13740,12 +13737,16 @@ async function request_remote_analysis(fen, time, moves = null, depth = null, no
     }
     // `nodes` too: remote-engine.py has read it since S5 (nodes > depth > time, `time` the ceiling),
     // but it was never sent, so Analysis Limit = nodes searched the time alone (audit 3.1.329 NATIVE-1).
+    // `multipv` as on the native lane: the configure that pushes a new width is served on another
+    // thread, and without the key this search could run first at the old width (audit 3.1.330
+    // follow-up L17). An older remote-engine.py ignores it and still gets the configure.
     return call_backend('http://localhost:9090/analyse', {
         fen: fen,
         moves: moves,
         time: time,
         depth: depth,
         nodes: nodes,
+        multipv: remote_multipv_set ?? undefined,
     }).then(parse_backend_json);
 }
 
