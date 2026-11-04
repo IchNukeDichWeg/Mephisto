@@ -310,9 +310,48 @@ const MephistoUpdater = (function () {
         try { await root.removeEntry(name, {recursive: true}); } catch (e) { /* not there */ }
     }
 
+    // DOES THE FOLDER STILL HOLD WHAT A BACKUP OR A STAGING WAS MADE FOR? (audit 3.1.330 SYSB-1) Both
+    // only ever touch the code; lib/engine and lib/ort stay as they are. MPH-U16 sends users to extract
+    // the full zip by hand, which leaves .mephisto-backup and .mephisto-staging behind, and a later
+    // Roll Back or Finish then wrote old code over the new engine glue (the U16 mismatch run the other
+    // way) and put an old engine-glue.txt back, so every later update was refused. So each one is
+    // offered only while the folder holds one of its two versions (the old manifest stays until the
+    // very last write, so an interrupted put-in-place still counts) and the same glue id as its files.
+    // A backup or marker from before `to`/`from` were recorded has the glue check only, plus, for a
+    // staging, "not older than what is installed".
+    const glueId = (b) => b ? new TextDecoder().decode(b).trim() : '';
+    async function installedVersion(dir) {
+        try { return JSON.parse(new TextDecoder().decode(await readFileAt(dir, 'manifest.json'))).version || null; } catch (e) { return null; }
+    }
+    const vparts = (v) => String(v || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
+    function isNewer(a, b) {
+        const [x, y] = [vparts(a), vparts(b)];
+        for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+        return false;
+    }
+    async function glueMoved(dir, thenId) {
+        const now = glueId(await readFileAt(dir, GLUE));
+        return now && thenId && now !== thenId ? `the engine glue on disk is now ${now}, not ${thenId}` : null;
+    }
+    async function backupStale(dir, backup, m) {
+        const now = await installedVersion(dir);
+        if (now && m.to && now !== m.to && now !== m.version) return `the folder now holds v${now}, not v${m.to}`;
+        return glueMoved(dir, glueId(await readFileAt(backup, `${m.version}/${GLUE}`)));
+    }
+    async function stagingStale(dir, staging, raw) {
+        let mk;
+        try { mk = JSON.parse(new TextDecoder().decode(raw)); } catch (e) { return 'the staging marker is not readable'; }
+        const now = await installedVersion(dir);
+        if (now && (mk.from ? now !== mk.from && now !== mk.version : isNewer(now, mk.version))) {
+            return `the folder now holds v${now}; the staged update was v${mk.version}`;
+        }
+        return glueMoved(dir, glueId(await readFileAt(staging, GLUE)));
+    }
+
     // One generation, deliberately. Two would double the disk for a case nobody has ever wanted:
     // what you want back is the version that was working ten minutes ago, not four versions ago.
-    async function backupCurrent(dir, version, paths, onStatus) {
+    // `to` is the version being installed over it (SYSB-1 above).
+    async function backupCurrent(dir, version, paths, onStatus, to) {
         await removeEntry(dir, BACKUP);
         const backup = await dir.getDirectoryHandle(BACKUP, {create: true});
         const gen = await backup.getDirectoryHandle(version, {create: true});
@@ -325,7 +364,7 @@ const MephistoUpdater = (function () {
             if (++n % 40 === 0) onStatus(`Backing up… ${n}/${paths.length}`);
         }
         await writeFile(backup, 'manifest.json', new TextEncoder().encode(
-            JSON.stringify({version, saved, added, at: new Date().toISOString()}, null, 2)));
+            JSON.stringify({version, to, saved, added, at: new Date().toISOString()}, null, 2)));
         return {saved: saved.length, added: added.length};
     }
 
@@ -338,6 +377,7 @@ const MephistoUpdater = (function () {
             const raw = await readFileAt(backup, 'manifest.json');
             if (!raw) return null;
             const m = JSON.parse(new TextDecoder().decode(raw));
+            if (await backupStale(dir, backup, m)) return null;   // SYSB-1: not for what is installed now
             return {version: m.version, files: (m.saved || []).length, at: m.at};
         } catch (e) {
             return null;
@@ -357,6 +397,8 @@ const MephistoUpdater = (function () {
         const m = JSON.parse(new TextDecoder().decode(raw));
         const gen = await backup.getDirectoryHandle(m.version).catch(() => null);
         if (!gen) throw fail('MPH-U13', null, `the backup of v${m.version} is missing`);
+        const stale = await backupStale(dir, backup, m);   // SYSB-1: nothing here applies any more
+        if (stale) throw fail('MPH-U12', null, stale);
 
         onStatus(`Reading the backup of v${m.version}…`);
         const restore = [];
@@ -385,7 +427,7 @@ const MephistoUpdater = (function () {
         try {
             const staging = await dir.getDirectoryHandle(STAGING);
             const raw = await readFileAt(staging, STAGED_MARKER);   // incomplete staging is not finishable
-            if (!raw) return null;
+            if (!raw || await stagingStale(dir, staging, raw)) return null;   // SYSB-1
             return {version: JSON.parse(new TextDecoder().decode(raw)).version};
         } catch (e) {
             return null;
@@ -404,6 +446,10 @@ const MephistoUpdater = (function () {
         const raw = await readFileAt(staging, STAGED_MARKER);
         if (!raw) throw fail('MPH-U15', null, 'no staging marker');
         const {version, paths} = JSON.parse(new TextDecoder().decode(raw));
+        // SYSB-1: a staging the folder has moved past is not an interrupted update any more, it is
+        // old code. Dropped, so the next Install starts clean.
+        const stale = await stagingStale(dir, staging, raw);
+        if (stale) { await removeEntry(dir, STAGING); throw fail('MPH-U14', null, stale); }
 
         onStatus(`Reading the staged v${version}…`);
         const files = [];
@@ -417,7 +463,7 @@ const MephistoUpdater = (function () {
         // only copy of the version being restored to.
         if (!(await rollbackInfo())) {
             const installed = await verifyFolder(dir);
-            await backupCurrent(dir, installed.version, paths, onStatus);
+            await backupCurrent(dir, installed.version, paths, onStatus, version);
         }
         let n = 0;
         for (const f of manifestLast(files)) {
@@ -467,8 +513,12 @@ const MephistoUpdater = (function () {
         // backup and replaced it with a backup of the mixed folder, so Roll back restored a broken
         // build. A fully staged update is completed from its staging copy instead, which keeps the
         // existing backup.
+        // ...unless the folder has moved past it (SYSB-1): then it is old code, dropped, and this is a
+        // normal install.
         const staged = await dir.getDirectoryHandle(STAGING).catch(() => null);
-        if (staged && await readFileAt(staged, STAGED_MARKER)) return finishStaged(onStatus);
+        const marker = staged && await readFileAt(staged, STAGED_MARKER);
+        if (marker && !(await stagingStale(dir, staged, marker))) return finishStaged(onStatus);
+        if (marker) await removeEntry(dir, STAGING);
         const installed = await verifyFolder(dir); // re-checked every run, not only when it was picked
 
         onStatus('Checking for a newer release…');
@@ -501,11 +551,11 @@ const MephistoUpdater = (function () {
             if (++n % 40 === 0 || n === files.length) onStatus(`Staging… ${n}/${files.length}`);
         }
         await writeFile(staging, STAGED_MARKER, new TextEncoder().encode(
-            JSON.stringify({version: rel.latest, paths: files.map(f => f.path)})));
+            JSON.stringify({version: rel.latest, from: installed.version, paths: files.map(f => f.path)})));
 
         // 2. BACK UP what is about to be replaced, so this is undoable.
         onStatus(`Backing up v${installed.version}…`);
-        const bk = await backupCurrent(dir, installed.version, files.map(f => f.path), onStatus);
+        const bk = await backupCurrent(dir, installed.version, files.map(f => f.path), onStatus, rel.latest);
 
         // 3. PUT IN PLACE. Written from memory rather than re-read from staging -- same bytes, half
         // the I/O. Staging still earns its keep: it is the on-disk proof that the whole version

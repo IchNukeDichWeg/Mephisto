@@ -3584,7 +3584,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const u = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
     ok('Install finishes an interrupted update from its staged copy instead of starting over (which replaced the good backup)',
-       /if \(staged && await readFileAt\(staged, STAGED_MARKER\)\) return finishStaged\(onStatus\);\s*const installed = await verifyFolder\(dir\);/.test(u)); }
+       /const marker = staged && await readFileAt\(staged, STAGED_MARKER\);\s*if \(marker && !\(await stagingStale\(dir, staged, marker\)\)\) return finishStaged\(onStatus\);\s*if \(marker\) await removeEntry\(dir, STAGING\);\s*const installed = await verifyFolder\(dir\);/.test(u)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
     ok('Settings: the Engine dropdown is an ordinary row under an ordinary heading, in the wide column',
@@ -10729,6 +10729,91 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('CONTEXT-3: a local answer still reads "(local)"', /\(local\)$/.test(label({category: 'win', dtz: 13, source: 'local'})));
     })();
 }
+// ---- audit 3.1.330 SYSB-1: Roll Back / Finish are not offered over a folder that moved on (a hand install of the full zip) ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const upSrc = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const enc = (s) => new TextEncoder().encode(s), dec = (b) => new TextDecoder().decode(b);
+    // An in-memory FileSystemDirectoryHandle: enough of the API for the updater's read/write/remove.
+    const mkdir = () => {
+        const kids = new Map();
+        const d = {kind: 'directory', kids,
+            getDirectoryHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = mkdir()); if (!k || k.kind !== 'directory') throw new Error('NotFoundError'); return k; },
+            getFileHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = {kind: 'file', bytes: new Uint8Array()}); if (!k || k.kind !== 'file') throw new Error('NotFoundError'); const f = k;
+                return {getFile: async () => ({size: f.bytes.length, arrayBuffer: async () => f.bytes.slice().buffer, text: async () => dec(f.bytes)}),
+                        createWritable: async () => { let buf; return {write: async (b) => { buf = b; }, close: async () => { f.bytes = new Uint8Array(buf); }}; }}; },
+            removeEntry: async (n) => { if (!kids.delete(n)) throw new Error('NotFoundError'); },
+            queryPermission: async () => 'granted', requestPermission: async () => 'granted', name: 'Mephisto'};
+        return d;
+    };
+    const put = async (root, path, text) => { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p, {create: true}); const w = await (await d.getFileHandle(n, {create: true})).createWritable(); await w.write(enc(text)); await w.close(); };
+    const get = async (root, path) => { try { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p); return dec(new Uint8Array(await (await (await d.getFileHandle(n)).getFile()).arrayBuffer())); } catch (e) { return null; } };
+    const load = (root) => {
+        const idbReq = (val) => { const q = {}; setTimeout(() => { q.result = val; q.onsuccess && q.onsuccess(); }); return q; };
+        const indexedDB = {open: () => idbReq({transaction: () => ({objectStore: () => ({get: () => idbReq(root), put: () => idbReq(), delete: () => idbReq()})}), close() {}})};
+        const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise, setTimeout, indexedDB,
+            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'}), sendMessage: (m, cb) => cb({latest: '9.9.9', newer: false})},
+                     permissions: {contains: async () => true}, storage: {local: {get: async () => ({auto_update: true}), set: async () => {}}}}});
+        c.self = c;
+        vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+        vm.runInContext(upSrc.replace('const MephistoUpdater =', 'var MephistoUpdater =').replace(/\nif \(typeof module[\s\S]*$/, ''), c);
+        return vm.runInContext('MephistoUpdater', c);
+    };
+    const GLUE = 'src/offscreen/engine-glue.txt';
+    const man = (v) => JSON.stringify({name: 'Mephisto Chess Extension', version: v});
+    // A one-click A -> B left a backup of A (and, interrupted, a staging of B); glue g1 on both.
+    const folder = async ({now, glueNow, to, from}) => {
+        const root = mkdir();
+        await put(root, 'manifest.json', man(now)); await put(root, GLUE, glueNow + '\n'); await put(root, 'src/a.js', 'NEW');
+        await put(root, '.mephisto-backup/manifest.json', JSON.stringify(Object.assign({version: '3.1.330', saved: ['src/a.js', GLUE], added: []}, to ? {to} : {})));
+        await put(root, '.mephisto-backup/3.1.330/src/a.js', 'OLD'); await put(root, '.mephisto-backup/3.1.330/' + GLUE, 'g1\n');
+        await put(root, '.mephisto-staging/manifest.json', man('3.1.331')); await put(root, '.mephisto-staging/' + GLUE, 'g1\n'); await put(root, '.mephisto-staging/src/a.js', 'B');
+        await put(root, '.mephisto-staging/.mephisto-staged.json', JSON.stringify(Object.assign({version: '3.1.331', paths: ['manifest.json', GLUE, 'src/a.js']}, from ? {from} : {})));
+        return root;
+    };
+    const caught = async (p) => { try { await p; return null; } catch (e) { return e; } };
+    // the legitimate states: the update went in (B), or it stopped mid-write (the manifest still says A)
+    for (const now of ['3.1.331', '3.1.330']) {
+        const r = await folder({now, glueNow: 'g1', to: '3.1.331', from: '3.1.330'}), U = load(r);
+        ok(`SYSB-1: with the folder at v${now} (the update, or an interrupted one) Roll Back and Finish are still offered`,
+           (await U.rollbackInfo())?.version === '3.1.330' && (await U.pendingInstall())?.version === '3.1.331');
+    }
+    // the hand install of a full zip C that changed the glue: both are stale
+    {
+        const r = await folder({now: '3.1.332', glueNow: 'g2', to: '3.1.331', from: '3.1.330'}), U = load(r);
+        ok('SYSB-1: after a hand install of v3.1.332 Roll Back and Finish Interrupted Update are not offered', (await U.rollbackInfo()) === null && (await U.pendingInstall()) === null);
+        const e = await caught(U.rollback());
+        ok('SYSB-1: ...and a Roll Back pressed anyway is refused (MPH-U12) with nothing written: the new code and its glue id stay',
+           e && e.code === 'MPH-U12' && (await get(r, 'src/a.js')) === 'NEW' && (await get(r, GLUE)).trim() === 'g2', [e && e.code, e && e.message]);
+        const f = await caught(U.finishStaged());
+        ok('SYSB-1: ...a Finish pressed anyway is MPH-U14, writes nothing, and drops the stale staging',
+           f && f.code === 'MPH-U14' && (await get(r, 'src/a.js')) === 'NEW' && !r.kids.has('.mephisto-staging'), [f && f.code, f && f.message]);
+    }
+    {
+        const r = await folder({now: '3.1.332', glueNow: 'g2', to: '3.1.331', from: '3.1.330'}), U = load(r);
+        const res = await U.install();
+        ok('SYSB-1: Install over a stale staging drops it and runs a normal update check instead of finishing old code over the new glue',
+           res && res.already === true && (await get(r, 'src/a.js')) === 'NEW' && !r.kids.has('.mephisto-staging'), res);
+    }
+    // the same, with a backup and marker written before `to`/`from` existed: the glue check alone catches it
+    {
+        const r = await folder({now: '3.1.332', glueNow: 'g2'}), U = load(r);
+        ok('SYSB-1: an older backup and marker (no to/from) are judged by the glue id: g1 under g2 is not offered',
+           (await U.rollbackInfo()) === null && (await U.pendingInstall()) === null);
+    }
+    {
+        const r = await folder({now: '3.1.332', glueNow: 'g1'}), U = load(r);
+        ok('SYSB-1: ...and an older marker for a version below the installed one is not offered either', (await U.pendingInstall()) === null);
+    }
+    // same glue, hand-installed v3.1.332: the recorded versions catch it
+    {
+        const r = await folder({now: '3.1.332', glueNow: 'g1', to: '3.1.331', from: '3.1.330'}), U = load(r);
+        ok('SYSB-1: a hand install with the same glue is caught by the recorded versions', (await U.rollbackInfo()) === null && (await U.pendingInstall()) === null);
+    }
+    ok('SYSB-1: install() records the version it installs over (marker `from`, backup `to`)',
+       /JSON\.stringify\(\{version: rel\.latest, from: installed\.version, paths:/.test(upSrc) && /backupCurrent\(dir, installed\.version, files\.map\(f => f\.path\), onStatus, rel\.latest\)/.test(upSrc)
+       && /JSON\.stringify\(\{version, to, saved, added,/.test(upSrc));
+})().catch(e => { fails++; console.log('FAIL SYSB-1 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
