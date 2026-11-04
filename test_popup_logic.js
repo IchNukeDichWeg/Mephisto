@@ -11604,6 +11604,54 @@ print(json.dumps(out))`;
     ok('L40: a PGN that stops on an illegal move leaves the loaded game\'s tree in place', res?.kept === true, res);
     ok('L41: ...and the page\'s own line reaches the user', JSON.stringify(res?.said) === JSON.stringify(['illegal move in the PGN: a6', 'err']), res?.said);
 }
+// ---- audit 3.1.330 follow-up L24: a classifier or chess.com review that lands on another options page ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    // the real click handler, by its registration statement; `away()` drops the Review DOM mid-run
+    const handler = (head) => { const a = rj.indexOf(head); return a < 0 ? '' : rj.slice(a, rj.indexOf('\n        });\n', a) + 12); };
+    const fn = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    const el = () => ({value: '', textContent: '', disabled: false, classList: {add() {}, remove() {}, toggle() {}},
+                       scrollIntoView() {}, addEventListener(ev, f) { this.click = f; }});
+    const run = async (src, ids, extra) => {
+        let els = Object.fromEntries(ids.map(id => [id, el()]));
+        if (els.rv_ccr_strength) els.rv_ccr_strength.value = 'Standard';
+        const away = () => { els = {}; };
+        const c = vm.createContext({console: {warn() {}}, JSON, Math, String, $: (id) => els[id] || null,
+            running: false, cancel: false, report: null, batchReports: null, renderBatch() {}, progress() {}, ...extra(away)});
+        vm.runInContext(src, c);
+        let thrown = null;
+        try { await els[ids[0]].click(); } catch (e) { thrown = String(e); }
+        return {c, thrown};
+    };
+
+    // chess.com's classifier: the run ends while another options page is open
+    const said = [];
+    const ee = await run(handler("$('rv_ee_run')?.addEventListener('click', async () => {"),
+        ['rv_ee_run', 'rv_run', 'rv_stop'], (away) => ({
+            games: [{tags: {}}], eeSay: (t, bad) => said.push([t, !!bad]), eeCached: async () => ({}), eeSync() {},
+            selectedGame: () => ({tags: {}}), eeTier: () => ({movetime: 1000, build: 'x', label: 'Card'}),
+            sfCached: async () => ({}), buildPositions: () => ({positions: [], moves: []}),
+            sfSearch: async () => away(), EE_MULTIPV: 2, EE_DEPTH: 10,
+            cfg: () => false, lookupOpening: async () => ({}), assemble: () => ({}), sfNiceName: () => 'SF',
+            SF16_BUILD: 'y', eeRun: async () => ({}), eeCommands: () => [], eeElo: () => null, applyEeVerdict() {},
+            gameText: () => '', renderReport() {}, eeEngineLabel: () => '', eeInstalled: 1, disposeRig() {}}));
+    ok('L24: a classifier run that ends on another options page keeps its success, not a TypeError',
+       !ee.thrown && said.length > 0 && /^Classified by/.test(said[said.length - 1][0]) && !said.some(s => s[1]), said);
+
+    // chess.com Game Review online: the answer lands while another options page is open
+    const ccr = await run(handler("$('rv_ccr_run')?.addEventListener('click', async () => {") + fn('function renderCcrReport('),
+        ['rv_ccr_run', 'rv_game_select', 'rv_ccr_out', 'rv_ccr_status', 'rv_ccr_strength', 'rv_ccr_copy',
+         'rv_ccr_save', 'rv_ccr_ticket', 'rv_pgn', 'rv-report', 'rv_export', 'rv_fit'], (away) => ({
+            games: [{}], gameText: () => '1. e4 e5 *', ccrConsent: async () => true, buildCcrGame: () => ({}),
+            chrome: {runtime: {sendMessage: async () => { away(); return {decoded: {review: {moves: [{}]}}}; }}},
+            buildCcrReport: () => ({ccr: true, ccrStrength: null, moves: []}), renderCcrReview: () => '',
+            ccrJson: '', ccrLastError: '', ccrLastDetail: '', MephistoI18n: {errText: (k) => k},
+            renderHeader() {}, renderCards() {}, renderGraph() {}, renderMoves() {}, ensureBoard() {}, showPly() {}}));
+    ok('L24: a chess.com review answered on another options page does not throw', !ccr.thrown, ccr.thrown);
+    const tier = vm.runInContext('report && report.ccrStrength', ccr.c);
+    ok('L24: ...and keeps its strength tier for the revisit\'s header', tier === 'Standard', tier);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

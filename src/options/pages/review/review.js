@@ -2907,6 +2907,9 @@ function applyEeProse(built, verdict) {
 function renderCcrReport(strengthLabel) {
     if (!report) return;
     report.ccrStrength = strengthLabel || null;
+    // the label is kept above; the drawing waits for the revisit, whose renderReport comes back here
+    // (no Review DOM: the answer landed on another options page; audit 3.1.330 follow-up L24)
+    if (!$('rv-report')) return;
     $('rv-report').classList.remove('hidden');
     $('rv_export').disabled = true;                                    // no engine export
     $('rv_fit').disabled = true;                                       // no cp losses to fit
@@ -3298,7 +3301,10 @@ class ReviewPage {
                 const how = sf ? 'their engine and their classifier'
                     : `their classifier, our engine (${eeEngineLabel()})`;
                 eeSay(`Classified by ${how}, v${eeInstalled}.`);   // the game's sentence renders in the header
-                $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});
+                // optional: a run that ends while another options page is open has no report to scroll
+                // to, and the TypeError sent a finished classification into the catch as an error
+                // (audit 3.1.330 follow-up L24, the REVIEWA-6 class)
+                $('rv-report')?.scrollIntoView({behavior: 'smooth', block: 'start'});
             } catch (e) {
                 eeSay(cancel ? 'Stopped.' : String(e.message || e), !cancel);
                 progress(0, '');
@@ -3330,7 +3336,10 @@ class ReviewPage {
             btn.disabled = true;
             const was = btn.textContent;
             btn.textContent = 'Asking…';
-            say(`Sent to chess.com (${$('rv_ccr_strength').value}). The game leaves this machine now; waiting on their answer…`);
+            // Read before the round trip: the answer can land while another options page is open, where
+            // this select is gone and reading it threw, so the report lost its tier (follow-up L24).
+            const tier = $('rv_ccr_strength').value;
+            say(`Sent to chess.com (${tier}). The game leaves this machine now; waiting on their answer…`);
             out.classList.add('hidden');
             $('rv_ccr_copy').classList.add('hidden');
             $('rv_ccr_save').classList.add('hidden');
@@ -3348,7 +3357,7 @@ class ReviewPage {
                 if (res) console.warn('Mephisto chess.com review:', res.error);
                 say(res ? (res.code ? MephistoI18n.errText(res.code) : res.error) : MephistoI18n.errText('MPH-R03'),
                     true, res?.error);
-                if (res?.sentB64) { ccrJson = JSON.stringify(res, null, 2); out.textContent = ccrJson; out.classList.remove('hidden'); $('rv_ccr_save').classList.remove('hidden'); } return; }
+                if (res?.sentB64) { ccrJson = JSON.stringify(res, null, 2); out.textContent = ccrJson; out.classList.remove('hidden'); $('rv_ccr_save')?.classList.remove('hidden'); } return; }
             // v2 answers in PROTOBUF frames, not JSON: dump them as base64 so the shape can be
             // decoded offline. A clean close with no frames is the Origin/auth signal.
             const n = res.frames?.length || 0;
@@ -3366,15 +3375,15 @@ class ReviewPage {
                     batchReports = null;
                     report = built;
                     renderBatch();
-                    renderCcrReport($('rv_ccr_strength').value);
-                    $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});
+                    renderCcrReport(tier);
+                    $('rv-report')?.scrollIntoView({behavior: 'smooth', block: 'start'});
                     out.classList.add('hidden');
                 } else {
                     out.textContent = renderCcrReview(review, pgn);
                     out.classList.remove('hidden');
                 }
-                $('rv_ccr_copy').classList.remove('hidden');
-                $('rv_ccr_save').classList.remove('hidden');
+                $('rv_ccr_copy')?.classList.remove('hidden');
+                $('rv_ccr_save')?.classList.remove('hidden');
                 const rt = review.ratings && review.ratings.white != null
                     ? `, ~${review.ratings.white}/${review.ratings.black} rating` : '';
                 say(`Reviewed by chess.com via your logged-in tab${rt}. The board below is playable; Save for the raw protobuf.`
@@ -3389,8 +3398,8 @@ class ReviewPage {
             }
             out.textContent = ccrJson;
             out.classList.remove('hidden');
-            $('rv_ccr_copy').classList.remove('hidden');
-            $('rv_ccr_save').classList.remove('hidden');
+            $('rv_ccr_copy')?.classList.remove('hidden');
+            $('rv_ccr_save')?.classList.remove('hidden');
         });
         $('rv_ccr_copy')?.addEventListener('click', async (e) => {
             try { await navigator.clipboard.writeText(ccrJson || ''); e.target.textContent = 'Copied ✓'; }
