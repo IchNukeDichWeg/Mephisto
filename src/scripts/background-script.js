@@ -2743,7 +2743,7 @@ chrome.runtime.onConnect.addListener(port => {
   // page runs two of one engine at once: the review pool (Engines at once, default 2) and Analysis
   // with the same native engine as Engine and Second engine. On one shared `#options` process the
   // host lets each newer analyse stop the running one, so the review's two workers cancelled each
-  // other until "another tab is using this native engine" and Analysis's first column stopped at
+  // other until "Another tab or page is using this native engine" and Analysis's first column stopped at
   // once (audit 3.1.329 REVIEW-1, ANALYSIS-7). The port is the engine instance, so it is the key.
   const fromOptions = /\/src\/options\//.test(port.sender?.url || '');
   const name = fromOptions ? `${port.name}#options${++optionsPortSeq}` : port.name;
