@@ -3445,8 +3445,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         ok('...and the refusal is the coded one, naming the setting (MPH-S03)', /^MPH-S03: .*"elo"/.test(b.text), b.text);
     })(); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // Lines moved into search_again_at_new_width, which re-searches on every engine (audit 3.1.330 ENGINEA-3)
     ok('changing Lines, Threads or Memory in the panel restarts the search so it applies now, stop first',
-       /if \(!is_remote\(\) && \(key === 'threads' \|\| key === 'memory' \|\| key === 'multiple_lines'\)\) \{\s*abandon_search\(\);\s*search_same_position\(\);/.test(psrc)); }
+       /if \(!is_remote\(\) && \(key === 'threads' \|\| key === 'memory'\)\) \{\s*abandon_search\(\);\s*search_same_position\(\);/.test(psrc)
+       && /function search_again_at_new_width\(\) \{\s*abandon_search\(\);\s*if \(!is_remote\(\)\) \{ queue_engine_option\('MultiPV', effective_multipv\(\)\); search_same_position\(\); return; \}/.test(psrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const pf = (name) => { const i = psrc.indexOf(`function ${name}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
     const c = vm.createContext({});
@@ -9462,6 +9464,45 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const good = await ask(200, {bestmove: 'e2e4', lines: []});
         ok('...a normal answer is returned as before', good.res && good.res.bestmove === 'e2e4', good);
     })().catch(e => { fails++; console.log('FAIL ENGINEA-2 checks threw: ' + (e && e.stack || e)); });
+}
+// ---- audit 3.1.330 ENGINEA-3 / OPT-2: a new Multi Lines (or Humanize) width re-searches the position on screen ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function search_again_at_new_width('), fn = i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3);
+    const c = vm.createContext({log: []});
+    vm.runInContext(`var config = {engine: 'sf18-native'}, PANEL_BOOTED = true, last_eval = {fen: 'P'}, remote_multipv_set = 1, release = null;
+        const NATIVE_ENGINES = ['sf18-native'], CLOUD_ENGINES = ['cloud-chessapi'];
+        function uses_native() { return NATIVE_ENGINES.includes(config.engine); } function uses_cloud() { return CLOUD_ENGINES.includes(config.engine); }
+        function is_remote() { return config.engine === 'remote' || uses_native() || uses_cloud(); }
+        function effective_multipv() { return 5; }
+        function abandon_search() { log.push('abandon'); }
+        function search_same_position() { log.push('search'); }
+        function queue_engine_option(n, v) { log.push('queue ' + n + ' ' + v); }
+        function request_remote_configure(o) { log.push('configure ' + JSON.stringify(o)); return new Promise(r => { release = r; }); }
+        ${fn}`, c);
+    const run = (engine) => { c.log.length = 0; vm.runInContext(`config.engine = '${engine}'; last_eval.fen = 'P'; search_again_at_new_width()`, c); return c.log.slice(); };
+    (async () => {
+        let l = '';
+        try { l = run('sf18-native').join(','); } catch (e) { l = 'threw ' + e.message; }
+        ok('ENGINEA-3: a native engine drops the old answer, configures the width and searches the same position again',
+           l === 'abandon,configure {"MultiPV":5},search' && vm.runInContext('remote_multipv_set', c) === 5, l);
+        try { l = run('remote').join(','); } catch (e) { l = 'threw ' + e.message; }
+        ok('...the HTTP Remote Engine configures first and does not search before the configure lands', l === 'abandon,configure {"MultiPV":5}', l);
+        vm.runInContext('release({})', c); await new Promise(r => setTimeout(r, 0));
+        ok('...and searches once it has', c.log.join(',') === 'abandon,configure {"MultiPV":5},search', c.log);
+        try { run('remote'); } catch (e) { /* reported above */ }
+        vm.runInContext(`last_eval.fen = 'Q'; release({})`, c); await new Promise(r => setTimeout(r, 0));
+        ok('...but not if the position moved on meanwhile (that position is already searched at the new width)', !c.log.includes('search'), c.log);
+        try { l = run('sf19').join(','); } catch (e) { l = 'threw ' + e.message; }
+        ok('...a WASM engine queues MultiPV and searches again, as the stepper always did', l === 'abandon,queue MultiPV 5,search', l);
+        // the wiring: the panel stepper (any engine) and the Settings-page listener (multiple_lines and humanize)
+        const st = psrc.slice(psrc.indexOf("['qs_lines', 'multiple_lines'"), psrc.indexOf('// engine settings that genuinely need a full re-init'));
+        ok('...the panel Lines stepper calls it on every engine', /if \(key === 'multiple_lines'\) \{[^}]*search_again_at_new_width\(\);/.test(st), null);
+        const ls = psrc.slice(psrc.indexOf('function watch_config_changes('), psrc.indexOf('function update_tb_show_row('));
+        ok('OPT-2: a Settings-page Multi Lines or Humanize change calls it in the open panel',
+           /if \(key === 'multiple_lines' \|\| key === 'humanize'\) search_again_at_new_width\(\);/.test(ls), null);
+    })().catch(e => { fails++; console.log('FAIL ENGINEA-3 checks threw: ' + (e && e.stack || e)); });
 }
 // ==== END FIX CHECKS ====
 

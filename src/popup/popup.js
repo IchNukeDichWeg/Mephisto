@@ -1403,12 +1403,7 @@ function init_quick_settings() {
                 // the Playstyle row follows Multi Lines; the storage listener cannot do it for this
                 // change, because config already holds the value it would compare (audit 3.1.328 OPT-4)
                 update_playstyle_row();
-                if (is_remote()) {
-                    remote_multipv_set = effective_multipv();
-                    request_remote_configure({MultiPV: remote_multipv_set}).catch(() => { remote_multipv_set = null; });
-                } else {
-                    queue_engine_option('MultiPV', effective_multipv());
-                }
+                search_again_at_new_width();
             }
             if (is_remote() && (key === 'threads' || key === 'memory')) {
                 // A native host stops the running search to apply them and reports it superseded, so
@@ -1419,8 +1414,9 @@ function init_quick_settings() {
             // is no next one until the position changes. Lines 3 -> 5 left three rows on screen for
             // as long as you watched, and Threads / Memory sat unsent the same way. Restart the
             // search on the same position so the change applies now (stop first, as always: a
-            // setoption under a running search wedges the WASM engine).
-            if (!is_remote() && (key === 'threads' || key === 'memory' || key === 'multiple_lines')) {
+            // setoption under a running search wedges the WASM engine). Multi Lines does the same
+            // inside search_again_at_new_width, on every engine.
+            if (!is_remote() && (key === 'threads' || key === 'memory')) {
                 abandon_search();
                 search_same_position();
             }
@@ -2136,6 +2132,25 @@ function search_same_position() {
     last_eval.fen = '';
     fen_request_inflight = false;
     if (setup_fen) on_new_pos(setup_fen, setup_fen, ''); else request_fen();
+}
+
+// A NEW LINE COUNT HAS TO REACH THE SEARCH ON SCREEN, on every engine and from either place it is set
+// (audit 3.1.330 ENGINEA-3 / OPT-2). On a native or Remote engine the panel stepper only configured
+// the host, which cuts a RUNNING search and reports it superseded; an analysis that had already ended
+// (8 s native, the move budget at Lines > 1, always on the HTTP Remote) had nothing to cut, so the old
+// rows stayed until the position changed. A Settings-page change was only stored. So the answer at
+// the old width is dropped and the same position searched again. A native analyse carries the width
+// itself, so it goes at once; remote-engine.py reads MultiPV only from its stored options and serves
+// the two requests on separate threads, so there the search waits for the configure (the relay's
+// timeout bounds that wait).
+function search_again_at_new_width() {
+    abandon_search();
+    if (!is_remote()) { queue_engine_option('MultiPV', effective_multipv()); search_same_position(); return; }
+    const fen = last_eval.fen;
+    const again = () => { if (PANEL_BOOTED && last_eval.fen === fen) search_same_position(); };
+    remote_multipv_set = effective_multipv();
+    const configured = request_remote_configure({MultiPV: remote_multipv_set}).catch(() => { remote_multipv_set = null; });
+    if (config.engine === 'remote') configured.then(again); else again();
 }
 
 // ONE HOST PROCESS PER ENGINE, so another tab's analyse or a configure stops our search, and its
@@ -10903,6 +10918,9 @@ function watch_config_changes() {
                 // three and let the next evaluation redraw whichever are still switched on
                 if (key === 'eval_bar' || key === 'eval_history' || key === 'live_stats') request_clear_eval_bar();
                 if (key === 'multiple_lines' || key === 'variant') update_playstyle_row();
+                // the width the engine is asked for, as the panel's own Lines stepper and Humanize
+                // switch do: only stored, it reached the engine at the next position (audit 3.1.330 OPT-2)
+                if (key === 'multiple_lines' || key === 'humanize') search_again_at_new_width();
                 if (key === 'live_stats' || key === 'live_classify' || key === 'class_on_board'
                     || key === 'opp_alert') ensure_classifier();
                 if (key === 'tablebase') { tablebase_data = null; update_tb_show_row(); }   // a stale answer must not survive
