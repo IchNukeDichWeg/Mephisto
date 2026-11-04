@@ -800,14 +800,20 @@ function maybeCheckStreamer() {
     const name = opponentUsername();
     if (!name || name === streamerAsked) return;
     streamerAsked = name;
+    // A FAILED LOOKUP UN-LATCHES. streamerAsked is set before the ask and nothing else resets it,
+    // so an error answer (lichess cooling down, a 429, a worker that died mid-ask) used to end the
+    // checks on that opponent for the life of the page, rematches included, while the worker
+    // carefully never caches a failure (audit 3.1.330 SWALLOW-4). "Not live" is an answer and stays.
+    const unlatch = () => { if (streamerAsked === name) streamerAsked = null; };
     try {
         chrome.runtime.sendMessage({streamerLookup: {site, username: name}}, (res) => {
             void chrome.runtime.lastError;
-            if (!res || res.error || !res.live) return;
+            if (!res || res.error) { unlatch(); return; }
+            if (!res.live) return;
             bgLog('opponent is streaming');   // no name: the trace ring goes into public bug reports
             sendToPanel({streamerNotice: true, username: name, channel: res.channel || null});
         });
-    } catch (e) { /* worker asleep; the next game asks again */ }
+    } catch (e) { unlatch(); /* worker asleep; the next push asks again */ }
 }
 
 let hideOppMatched = null;   // last match count, for the diagnostics; null = never applied

@@ -8280,6 +8280,62 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            past.games && past.games.length === 40 && past.games[39] === 'm5-49' && past.games[0] === 'm5-10', past.games?.length ?? past.error);
     })();
 }
+// ---- audit 3.1.330 SWALLOW-4: a failed Opponent Prep / Streamer Alert lookup does not latch the opponent ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // a clock the test moves, so the checks hold with the 2-minute failure cooldown (SWALLOW-4b) in place
+    let T = 1e12;
+    const later = () => { T += 3 * 60 * 1000; };
+    const cut = (s, from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    // Opponent Prep: the real maybe_opponent_prep, the worker answering from `answers` in order
+    const prep = vm.createContext({Date: {now: () => T}, config: {opp_prep: true}, detected_prefix: 'li', answers: [], asked: 0, built: [],
+        chrome: {runtime: {lastError: undefined, sendMessage: (m, cb) => { prep.asked++; cb(prep.answers.shift()); }}},
+        build_opp_prep_book: (n) => prep.built.push(n), update_best_move: () => {}});
+    try {
+        vm.runInContext(cut(psrc, 'const OPP_PREP_MIN_CLOCK_S', 'function opp_prep_long_enough()')
+            + cut(psrc, 'function opp_prep_long_enough()', '// ONE BUILDER, TWO FEATURES') + ';game_max_clock_s = 900;', prep);
+    } catch (e) { console.log('opp prep slice threw: ' + e.message); }
+    const ask = (n) => vm.runInContext(`maybe_opponent_prep(${JSON.stringify(n)})`, prep);
+    prep.answers = [{error: 'lichess cooling down'}, {games: [{white: 'Bob'}]}, {games: []}];
+    try {
+        ask('Bob');
+        later();
+        ask('Bob');
+        ok('SWALLOW-4: Opponent Prep asks again after an error answer, and builds the book from the retry',
+           prep.asked === 2 && prep.built.length === 1, {asked: prep.asked, built: prep.built});
+        ask('Bob');
+        ok('SWALLOW-4: ...and once answered, the same opponent is not asked again', prep.asked === 2, prep.asked);
+        prep.answers = [undefined];
+        ask('Eve');
+        prep.answers = [{games: []}];
+        later();
+        ask('Eve');
+        ok('SWALLOW-4: a worker that never answered (no response) un-latches too', prep.asked === 4, prep.asked);
+    } catch (e) { ok('SWALLOW-4: opp prep ran', false, e.message); }
+    // Streamer Alert: the real maybeCheckStreamer in the content script
+    const st = vm.createContext({Date: {now: () => T}, config: {streamer_alert: true}, site: 'lichess', who: 'Bob', answers: [], asked: 0, notices: [],
+        opponentUsername: () => st.who, bgLog: () => {}, sendToPanel: (m) => st.notices.push(m),
+        chrome: {runtime: {lastError: undefined, sendMessage: (m, cb) => {
+            st.asked++; const a = st.answers.shift(); if (a === 'throw') throw new Error('Extension context invalidated'); cb(a); }}}});
+    try {
+        vm.runInContext(cut(csrc, 'let streamerAsked = null;', 'let hideOppMatched'), st);
+    } catch (e) { console.log('streamer slice threw: ' + e.message); }
+    const chk = () => vm.runInContext('maybeCheckStreamer()', st);
+    st.answers = [{error: 'lichess answered 429'}, {live: true, channel: 'c'}];
+    try {
+        chk(); later(); chk();
+        ok('SWALLOW-4: the Streamer Alert asks again after an error answer and shows the notice from the retry',
+           st.asked === 2 && st.notices.length === 1, {asked: st.asked, notices: st.notices.length});
+        st.answers = [{live: false}];
+        st.who = 'Eve'; chk(); chk();
+        ok('SWALLOW-4: "not live" is an answer: the same opponent is not asked again', st.asked === 3, st.asked);
+        st.answers = ['throw', {live: false}];
+        st.who = 'Max'; chk(); later(); chk();
+        ok('SWALLOW-4: a send that throws un-latches too', st.asked === 5, st.asked);
+    } catch (e) { ok('SWALLOW-4: streamer check ran', false, e.message); }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -11845,7 +11845,14 @@ function maybe_opponent_prep(name) {
     if (!site) return;
     chrome.runtime.sendMessage({oppPrepLookup: {site, username: name}}, (res) => {
         void chrome.runtime.lastError;
-        if (!res || res.error || !Array.isArray(res.games)) return;
+        // A FAILED LOOKUP UN-LATCHES, as the Player Book's does: opp_prep_for is set before the
+        // ask, so returning here left it set and `name === opp_prep_for` refused every retry for the
+        // rest of the game -- one "lichess cooling down", 429 or sleeping worker cost the whole
+        // game's prep, undoing the worker's never-cache-a-failure rule (audit 3.1.330 SWALLOW-4).
+        if (!res || res.error || !Array.isArray(res.games)) {
+            if (opp_prep_for === name) opp_prep_for = '';
+            return;
+        }
         if (opp_prep_for !== name) return;              // a new opponent while we waited
         build_opp_prep_book(name, res.games);
         update_best_move(null);                          // the label can appear without a new search
