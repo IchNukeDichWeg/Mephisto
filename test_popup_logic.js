@@ -6744,6 +6744,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     store.rv_variant = 'chess'; vm.runInContext('rvModeSync()', c);
     ok('...and back on Chess the stored engine shows again', sel.value === 'sf19-native', sel.value);
 }
+// ---- audit 3.1.329 SYS-1 / ENGINE-4: a screen read keeps the offscreen document open ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The whole offscreen host on a simulated clock, with no engine client (a native/cloud/Remote
+    // panel): a recognition that takes 45 s (a first-use model download) must not be closed under.
+    const src = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8').replace(/import\(/g, '__imp(');
+    let now = 0; const timers = [];
+    const tick = () => new Promise(r => setImmediate(r));
+    const mk = (fn, ms, iv) => { const t = {at: now + ms, fn, iv}; timers.push(t); return t; };
+    const advance = async (ms) => { await tick(); const end = now + ms;
+        for (;;) { timers.sort((a, b) => a.at - b.at); const t = timers[0]; if (!t || t.at > end) break;
+            now = t.at; if (t.iv) t.at += t.iv; else timers.shift(); t.fn(); await tick(); } now = end; await tick(); };
+    let listener, closedAt = null; const answers = [];
+    const c = {console: {log() {}}, Date: {now: () => now},
+        setTimeout: (f, ms) => mk(f, ms, 0), setInterval: (f, ms) => mk(f, ms, ms),
+        clearTimeout: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
+        clearInterval: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
+        window: {close() { if (closedAt === null) closedAt = now; }},
+        __imp: async () => ({recognize: (a) => new Promise(r => mk(() => r({fen: 'x', id: a.id}), a.ms, 0))}),
+        chrome: {runtime: {sendMessage: () => {}, onMessage: {addListener: (f) => listener = f}}}};
+    vm.createContext(c); vm.runInContext(src, c);
+    await advance(10000);
+    listener({recognizeBoard: {id: 1, ms: 45000}}, {}, (r) => answers.push(r));
+    await advance(40000);                                  // 50 s after load, the read still going
+    ok('SYS-1: no close while a screen read is in flight past the 30 s idle mark', closedAt === null, closedAt);
+    await advance(10000);
+    ok('...the read answers', answers.length === 1 && answers[0].id === 1, answers);
+    // Follow Screen: a read every 500 ms for a minute keeps it open throughout
+    for (let i = 0; i < 120; i++) { listener({recognizeBoard: {id: 2, ms: 200}}, {}, (r) => answers.push(r)); await advance(500); }
+    ok('...a minute of back-to-back reads keeps it open', closedAt === null && answers.length === 121, [closedAt, answers.length]);
+    const last = now;
+    await advance(31000);
+    ok('...and it still closes 30 s after the last read ends', closedAt !== null && closedAt - last >= 29000 && closedAt - last <= 30500, [closedAt, last]);
+})().catch(e => { fails++; console.log('FAIL SYS-1 offscreen checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

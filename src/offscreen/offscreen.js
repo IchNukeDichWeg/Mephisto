@@ -168,7 +168,12 @@ let idleTimer = null;
 // is still starting, and the panel gets a ready engine that vanishes. Caught in testing, not in
 // the wild, and only because the search that followed used no CPU at all.
 const loading = new Set();
-const busy = () => Object.keys(clients).length > 0 || loading.size > 0;
+// A screen read in flight counts too. With a native, cloud or Remote engine there is no client here,
+// so the idle timer armed at load closed the document 30 s in, mid-read: Follow Screen lost a read
+// and rebuilt both recogniser sessions every 30 s, and a first-use model download slower than that
+// could never finish (audit 3.1.329 SYS-1 / ENGINE-4).
+let recognizing = 0;
+const busy = () => Object.keys(clients).length > 0 || loading.size > 0 || recognizing > 0;
 function maybeGoIdle() {
     clearTimeout(idleTimer);
     if (busy()) return;
@@ -326,10 +331,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // Screenshot -> FEN. Lives here because onnxruntime-web is already set up in this document and
     // the .onnx bytes are same-origin. Async, so keep the channel open with `return true`.
     if (msg && msg.recognizeBoard) {
+        recognizing++;
+        clearTimeout(idleTimer);   // not idle while reading (busy() also says so when the timer fires)
         import('/src/offscreen/vision.js')
             .then(m => m.recognize(msg.recognizeBoard))
             .then(sendResponse)
-            .catch(e => sendResponse({error: String(e)}));
+            .catch(e => sendResponse({error: String(e)}))
+            .finally(() => { recognizing--; maybeGoIdle(); });
         return true;
     }
     // WHAT THE HOST ACTUALLY HOLDS. The panel can only report its own side -- "I asked for a search
