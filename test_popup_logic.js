@@ -7743,6 +7743,13 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /res = scrapePositionPuz\(\);\s*const stated = \(site === 'lichess'\) \? statedStartOnBoard\(res\) : null;\s*if \(stated\) \{[^}]*prefix \+= 'var\*\*\*';\s*res = stated \+ '&\*\*\*\*\*\?';/.test(csrc)
        && /\{position: fromPage, timestamp: Date\.now\(\), stated: true\}/.test(csrc) && /\{position: atStart, timestamp: Date\.now\(\), stated: true\}/.test(csrc));
 }
+// ---- audit 3.1.330 SCRAPEB-3: ChessBase Tactics is a puzzle page, so Puzzle Mode (and Auto-Next) stays on there ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = csrc.indexOf('function isPuzzlePage() {'), j = csrc.indexOf('\n}\n', i) + 3;
+    const isPuz = (site, pathname) => { const x = vm.createContext({site, location: {pathname}}); vm.runInContext(csrc.slice(i, j), x); return vm.runInContext('isPuzzlePage()', x); };
+    ok('SCRAPEB-3: tactics.chessbase.com is a puzzle page, like BlitzTactics', isPuz('chessbase', '/') === true && isPuz('blitztactics', '/') === true, isPuz('chessbase', '/'));
+    ok('SCRAPEB-3: game pages still are not', isPuz('lichess', '/abcd1234') === false && isPuz('chesscom', '/game/live/1') === false && isPuz('taketaketake', '/') === false);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

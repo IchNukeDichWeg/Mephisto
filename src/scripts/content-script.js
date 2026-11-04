@@ -2444,6 +2444,9 @@ function isPuzzlePage() {
     // /daily is the Daily Puzzle (/daily-chess-puzzle redirects there); daily GAMES live under /game/daily
     if (site === 'chesscom') return /^\/(puzzles|lessons\/practice|daily|daily-chess-puzzle)(\/|$)/.test(path);
     if (site === 'blitztactics') return true; // the whole site is puzzles
+    // tactics.chessbase.com too. As `false` the panel switched an auto-enabled Puzzle Mode off there,
+    // and Auto-Next's ChessBase Solve button answers only to Puzzle Mode (audit 3.1.330 SCRAPEB-3).
+    if (site === 'chessbase') return true;
     return false;
 }
 
