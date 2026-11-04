@@ -7191,6 +7191,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     })().catch(e => { fails++; console.log('FAIL ENGINE-1 relay checks threw: ' + (e && e.stack || e)); })
         .finally(() => { held.forEach(res => res.destroy()); server.close(); server.closeAllConnections?.(); }));
 }
+// ---- NATIVE-3 (audit 3.1.329): an update zip is refused over an install with other engine glue ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const upSrc = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise,
+        chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'})}, storage: {local: {get: async () => ({}), set: async () => {}}}}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+    vm.runInContext(upSrc.replace('const MephistoUpdater =', 'var MephistoUpdater =').replace(/\nif \(typeof module[\s\S]*$/, ''), c);
+    const U = vm.runInContext('MephistoUpdater', c);
+    const enc = (s) => new TextEncoder().encode(s);
+    const glueFile = U._GLUE;
+    const shipped = glueFile && fs.existsSync(ROOT + '/' + glueFile) ? fs.readFileSync(ROOT + '/' + glueFile, 'utf8').trim() : '';
+    const files = (id) => [{path: 'manifest.json', bytes: enc('{}')}].concat(id === null ? [] : [{path: glueFile, bytes: enc(id + '\n')}]);
+    const thrown = (f) => { try { f(); return null; } catch (e) { return e; } };
+    ok('NATIVE-3: the glue id ships in src/ (both zips carry it, lib/engine is not in the update zip) and holds a 40-hex hash',
+       /^src\//.test(glueFile || '') && /^[0-9a-f]{40}$/.test(shipped), [glueFile, shipped]);
+    const skip = thrown(() => U._checkGlue(enc('aaaa\n'), files('bbbb')));
+    ok('NATIVE-3: an update built for other glue than the installed one is MPH-U16, naming both ids in the console detail',
+       skip && skip.code === 'MPH-U16' && /aaaa/.test(skip.message) && /bbbb/.test(skip.message), skip && skip.message);
+    ok('...an update that carries no glue id over an install that has one is refused too',
+       (thrown(() => U._checkGlue(enc('aaaa'), files(null))) || {}).code === 'MPH-U16');
+    ok('...the same glue passes, whitespace aside', thrown(() => U._checkGlue(enc('aaaa\r\n'), files('aaaa'))) === null);
+    ok('...an install from before the glue id has nothing to compare and is let through', thrown(() => U._checkGlue(null, files('bbbb'))) === null);
+    const inst = upSrc.slice(upSrc.indexOf('async function install('), upSrc.indexOf('// 1. STAGE.'));
+    ok('NATIVE-3: install() checks the glue against the installed folder after reading the archive and before staging anything',
+       /const files = await readUpdateArchive\(buf, rel\.latest\);\s*checkGlue\(await readFileAt\(dir, GLUE\), files\);/.test(inst));
+    const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+    ok('...MPH-U16 is registered and translated', c.MephistoI18n.ERRORS['MPH-U16'] && /full zip/.test(en['err.U16'] || ''));
+    const rz = fs.readFileSync(ROOT + '/tools/release/release-zips.sh', 'utf8');
+    ok('NATIVE-3: the release script recomputes the glue id from the tree, refuses a stale one, and checks both zips carry the file',
+       /GLUE_FILE=src\/offscreen\/engine-glue\.txt/.test(rz) && /GLUE_ID="\$\(git ls-tree -r "\$REF" -- lib\/engine lib\/ort/.test(rz)
+       && /git show "\$REF:\$GLUE_FILE"[\s\S]{0,80}= "\$GLUE_ID" \]/.test(rz) && /need=\([^)]*"\$GLUE_FILE"\)/.test(rz));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

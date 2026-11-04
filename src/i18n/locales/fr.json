@@ -766,6 +766,7 @@
   "err.U13": "La sauvegarde est incomplète, rien n'a donc été restauré.",
   "err.U14": "Il n'y a aucune mise à jour interrompue à terminer.",
   "err.U15": "La mise à jour préparée est incomplète. Appuyez sur « Installer la mise à jour » pour la télécharger à nouveau.",
+  "err.U16": "Cette version a été construite pour d'autres fichiers de moteur que ceux de cette installation, et une mise à jour ne peut pas les apporter. Téléchargez le zip complet depuis la page Releases et installez-le à la main.",
   "err.P01": "C'est le fichier compressé. Décompressez-le d'abord (unzstd lichess_db_puzzle.csv.zst), puis choisissez le .csv.",
   "err.P02": "L'import de la base de problèmes a échoué. Ce qui a déjà été importé est conservé ; relancez-le pour continuer.",
   "err.P03": "Aucun problème n'a été reconnu dans ce fichier. Choisissez lichess_db_puzzle.csv ou un CSV de problèmes Chess.com.",

@@ -766,6 +766,7 @@
   "err.U13": "Die Sicherung ist unvollständig, deshalb wurde nichts wiederhergestellt.",
   "err.U14": "Es gibt kein unterbrochenes Update, das abgeschlossen werden könnte.",
   "err.U15": "Das bereitgestellte Update ist unvollständig. Klicke auf „Update installieren“, um es erneut herunterzuladen.",
+  "err.U16": "Dieses Release wurde für andere Engine-Dateien gebaut, als diese Installation hat, und ein Update kann sie nicht mitbringen. Lade das vollständige Zip von der Releases-Seite herunter und installiere es von Hand.",
   "err.P01": "Das ist die komprimierte Datei. Entpacke sie zuerst (unzstd lichess_db_puzzle.csv.zst) und wähle dann die .csv.",
   "err.P02": "Der Import der Taktik-Datenbank ist fehlgeschlagen. Bereits Importiertes bleibt erhalten; starte ihn erneut, um fortzufahren.",
   "err.P03": "In dieser Datei wurden keine Taktikaufgaben erkannt. Wähle lichess_db_puzzle.csv oder eine Chess.com-Aufgaben-CSV.",

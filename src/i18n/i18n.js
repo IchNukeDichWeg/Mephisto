@@ -157,6 +157,7 @@ const ERRORS = Object.freeze(Object.fromEntries([
     ['MPH-U13', 'err.U13', 'The backup is incomplete, so nothing was restored.'],
     ['MPH-U14', 'err.U14', 'There is no interrupted update to finish.'],
     ['MPH-U15', 'err.U15', 'The staged update is incomplete. Press Install Update to download it again.'],
+    ['MPH-U16', 'err.U16', 'This release was built for different engine files than this install has, and an update cannot bring them. Download the full zip from the Releases page and install it by hand.'],
 
     ['MPH-P01', 'err.P01', 'That is the compressed file. Decompress it first (unzstd lichess_db_puzzle.csv.zst), then pick the .csv.'],
     ['MPH-P02', 'err.P02', 'The puzzle import failed. What was already imported is kept; run it again to continue.'],

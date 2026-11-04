@@ -242,6 +242,24 @@ const MephistoUpdater = (function () {
         return out;
     }
 
+    // THE ENGINE GLUE AN UPDATE NEEDS (audit 3.1.329 NATIVE-3). The update zip leaves lib/engine and
+    // lib/ort out, so it is only safe over an install that already has the glue its code was built
+    // against. The release script checked that only against the PREVIOUS release, so an install that
+    // skipped a glue-changing release got new code on old glue, which fails like missing glue
+    // (MPH-N04). engine-glue.txt names the glue (a hash the release script recomputes from the tree)
+    // and ships in both zips, so a mismatch is refused here, before anything is staged, however many
+    // releases apart the two are. An install from before the file has nothing to compare: let through,
+    // as every update was before.
+    const GLUE = 'src/offscreen/engine-glue.txt';
+    function checkGlue(installedBytes, files) {
+        if (!installedBytes) return;
+        const id = (b) => new TextDecoder().decode(b).trim();
+        const want = id(installedBytes);
+        const f = files.find(x => x.path === GLUE);
+        const got = f ? id(f.bytes) : '';
+        if (got !== want) throw fail('MPH-U16', null, `the installed engine glue is ${want}, the update was built for ${got || 'none'}`);
+    }
+
     // --- staged, recoverable install --------------------------------------------------------------
     // TRUE ATOMICITY IS NOT AVAILABLE, and it is worth being plain about why: the extension id comes
     // from its folder path, so the folder cannot be swapped out from under itself the way a normal
@@ -469,6 +487,7 @@ const MephistoUpdater = (function () {
 
         onStatus('Reading the archive…');
         const files = await readUpdateArchive(buf, rel.latest);
+        checkGlue(await readFileAt(dir, GLUE), files);
         const keyed = carryKey(files.find(f => f.path === 'manifest.json').bytes, installed);
         if (keyed) files.find(f => f.path === 'manifest.json').bytes = keyed;
 
@@ -513,7 +532,7 @@ const MephistoUpdater = (function () {
         rollback, rollbackInfo, pendingInstall, finishStaged,
         // exported for the test suite, which drives them against a real archive and a stub directory
         _readZip: readZip, _extract: extract, _readUpdateArchive: readUpdateArchive,
-        _writeFile: writeFile, _carryKey: carryKey,
+        _writeFile: writeFile, _carryKey: carryKey, _checkGlue: checkGlue, _GLUE: GLUE,
         _readFileAt: readFileAt, _removeFileAt: removeFileAt, _backupCurrent: backupCurrent,
         _STAGING: STAGING, _BACKUP: BACKUP, _STAGED_MARKER: STAGED_MARKER,
     };

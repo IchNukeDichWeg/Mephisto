@@ -6,7 +6,9 @@
 # --glue-changed lib/engine or lib/ort changed since the previous release outside the nets. The update
 #                zip leaves those trees out and the updater refuses an archive that has them, so
 #                updated installs would keep the old glue: say in the notes that this release needs
-#                the full zip. Without the flag such a change stops the build.
+#                the full zip. Without the flag such a change stops the build. The new glue also
+#                needs a new src/offscreen/engine-glue.txt (the build prints the line to write),
+#                which is what makes the updater refuse the update zip on any older glue.
 # --no-harness   cut the zips without the fixture harness (puppeteer not available here). Said out loud
 #                because the harness is a gate: without the flag, a harness that cannot run stops the
 #                build rather than waving it through on one warning line.
@@ -68,6 +70,17 @@ if [ -n "$PREV" ] && ! git diff --quiet "$PREV" "$REF" -- lib/engine lib/ort "${
     fi
 fi
 
+# THE GLUE ID TRAVELS WITH THE CODE (audit 3.1.329 NATIVE-3). The diff above spans one release step,
+# so an install that skipped a --glue-changed release updated straight to new code on old glue with
+# no warning. $GLUE_FILE names the glue this code was built against: a hash of $REF's lib/engine +
+# lib/ort listing with the nets left out, as above. It ships in both zips, and the updater refuses an
+# update whose id differs from the installed one (MPH-U16: install the full zip), however many
+# releases were skipped. Recomputed here, so a glue change without a new id stops the build.
+GLUE_FILE=src/offscreen/engine-glue.txt
+GLUE_ID="$(git ls-tree -r "$REF" -- lib/engine lib/ort | { grep -Ev '\.(nnue|onnx)(\.part[0-9]+)?$' || true; } | git hash-object --stdin)"
+[ "$(git show "$REF:$GLUE_FILE" 2>/dev/null | tr -d '[:space:]')" = "$GLUE_ID" ] \
+    || { echo "!! $GLUE_FILE does not name $REF's engine glue -- run: echo $GLUE_ID > $GLUE_FILE, commit it, and start again" >&2; exit 1; }
+
 # THE LOGIC SUITE GATES THE BUILD: it exits non-zero on any failed check.
 echo "logic suite gate..."
 node test_popup_logic.js > /dev/null || { echo "LOGIC SUITE FAILED -- no release (node test_popup_logic.js | grep ^FAIL)" >&2; exit 1; }
@@ -120,7 +133,7 @@ trap 'rm -f "$listing_full" "$listing_upd"' EXIT
 unzip -l "$OUT/mephisto-$V.zip"        > "$listing_full"
 unzip -l "$OUT/mephisto-$V-update.zip" > "$listing_upd"
 
-need=(manifest.json src/popup/popup.js src/scripts/content-script.js lib/chess.js lib/lru.min.js "$MANIFEST")
+need=(manifest.json src/popup/popup.js src/scripts/content-script.js lib/chess.js lib/lru.min.js "$MANIFEST" "$GLUE_FILE")
 for f in "${need[@]}"; do
     grep -Fq "Mephisto-$V/$f" "$listing_upd" \
         || { echo "!! update archive is missing $f -- refusing to ship it"; exit 1; }

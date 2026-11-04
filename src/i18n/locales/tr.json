@@ -766,6 +766,7 @@
   "err.U13": "Yedek eksik, bu yüzden hiçbir şey geri yüklenmedi.",
   "err.U14": "Tamamlanacak yarım kalmış bir güncelleme yok.",
   "err.U15": "Hazırlanan güncelleme eksik. Yeniden indirmek için «Güncellemeyi yükle»ye bas.",
+  "err.U16": "Bu sürüm, bu kurulumdakinden farklı motor dosyaları için hazırlandı ve bir güncelleme bunları getiremez. Releases sayfasından tam zip'i indir ve elle kur.",
   "err.P01": "Bu sıkıştırılmış dosya. Önce aç (unzstd lichess_db_puzzle.csv.zst), sonra .csv'yi seç.",
   "err.P02": "Problem veritabanı içe aktarımı başarısız oldu. Önceden aktarılanlar korunur; devam etmek için yeniden çalıştır.",
   "err.P03": "Bu dosyada hiçbir problem tanınmadı. lichess_db_puzzle.csv ya da bir Chess.com problem CSV'si seç.",

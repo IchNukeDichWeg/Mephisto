@@ -766,6 +766,7 @@
   "err.U13": "A cópia de segurança está incompleta, por isso nada foi restaurado.",
   "err.U14": "Não há nenhuma atualização interrompida para terminar.",
   "err.U15": "A atualização preparada está incompleta. Carrega em «Instalar atualização» para a transferir de novo.",
+  "err.U16": "Esta versão foi feita para ficheiros de motor diferentes dos desta instalação, e uma atualização não os pode trazer. Transfere o zip completo da página Releases e instala-o manualmente.",
   "err.P01": "Esse é o ficheiro comprimido. Descomprime-o primeiro (unzstd lichess_db_puzzle.csv.zst) e escolhe depois o .csv.",
   "err.P02": "A importação da base de problemas falhou. O que já foi importado fica guardado; executa-a de novo para continuar.",
   "err.P03": "Nenhum problema foi reconhecido nesse ficheiro. Escolhe lichess_db_puzzle.csv ou um CSV de problemas do Chess.com.",

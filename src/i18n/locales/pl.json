@@ -766,6 +766,7 @@
   "err.U13": "Kopia zapasowa jest niekompletna, więc nic nie przywrócono.",
   "err.U14": "Nie ma przerwanej aktualizacji do dokończenia.",
   "err.U15": "Przygotowana aktualizacja jest niekompletna. Naciśnij „Zainstaluj aktualizację”, aby pobrać ją ponownie.",
+  "err.U16": "To wydanie zbudowano dla innych plików silnika niż te w tej instalacji, a aktualizacja nie może ich dostarczyć. Pobierz pełny zip ze strony Releases i zainstaluj go ręcznie.",
   "err.P01": "To plik skompresowany. Najpierw go rozpakuj (unzstd lichess_db_puzzle.csv.zst), a potem wybierz plik .csv.",
   "err.P02": "Import bazy zadań nie powiódł się. To, co już zaimportowano, zostaje; uruchom import ponownie, aby kontynuować.",
   "err.P03": "W tym pliku nie rozpoznano żadnych zadań. Wybierz lichess_db_puzzle.csv lub plik CSV z zadaniami Chess.com.",
