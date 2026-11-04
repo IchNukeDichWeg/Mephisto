@@ -10056,6 +10056,52 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...wired: on_engine_best_move notes the move it hands to request_automove, after book, tablebase and style have had their say',
        /if \(pick\.move !== best\) console\.log\(`Humanize: playing \$\{pick\.move\} over \$\{best\}`\);\s*hz_note_played\(pick\.move\);/.test(s));
 }
+// ---- audit 3.1.330 PLAYA-3: the Player Book plays only in standard chess, and is built only from standard games ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const c = {console: {log() {}, warn() {}}};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext('var config = {}; var last_eval = {fen: ""}; var detected_prefix = "li";\n'
+        + 'function our_side() { return "white"; }\nfunction notate(fen, uci) { return uci; }\nfunction update_best_move() {}\n'
+        + 'var chrome = {runtime: {sendMessage() {}, lastError: null}};\nvar MephistoConfig = {get: () => null, set() {}};\n'
+        + pj.slice(pj.indexOf('const OPP_PREP_MIN_CLOCK_S'), pj.indexOf('// ---- TWO ENGINES AT ONCE')), c);
+    const fen = new c.Chess('chess').fen();
+    const START = fen.split(' ').slice(0, 2).join(' ');
+    vm.runInContext(`player_book = new Map(Object.entries(${JSON.stringify({[START]: {e2e4: 3}})}));`, c);
+    const at = (variant) => { c.config = {player_book: true, player_book_user: 'me', variant}; return c.player_book_pick(fen); };
+    ok('PLAYA-3: the Player Book plays its move in standard chess', at('chess') === 'e2e4' && at(undefined) === 'e2e4', [at('chess'), at(undefined)]);
+    ok('...and nothing in Atomic, Three-check, King of the Hill, Antichess or Chess960, whose first positions share the key',
+       ['atomic', '3check', 'kingofthehill', 'antichess', 'fischerandom'].every(v => at(v) === null));
+
+    // the worker side: which archive games reach the book
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const ctx = vm.createContext({});
+    vm.runInContext(bg.slice(bg.indexOf('function splitPgnGames('), bg.indexOf('\n}\n', bg.indexOf('function splitPgnGames(')) + 3), ctx);
+    const pgn = (tags, moves) => tags.map(([k, v]) => `[${k} "${v}"]`).join('\n') + `\n\n${moves} 1-0`;
+    const blob = [
+        pgn([['White', 'std'], ['Black', 'x'], ['Variant', 'Standard'], ['Result', '1-0']], '1. e4 e5'),
+        pgn([['White', 'cc'], ['Black', 'x'], ['Result', '1-0']], '1. d4 d5'),
+        pgn([['White', 'c960'], ['Black', 'x'], ['Variant', 'Chess960'], ['SetUp', '1'], ['FEN', 'bqnbrkrn/pppppppp/8/8/8/8/PPPPPPPP/BQNBRKRN w KQkq - 0 1'], ['Result', '1-0']], '1. g3 g6'),
+        pgn([['White', 'odds'], ['Black', 'x'], ['SetUp', '1'], ['FEN', 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBN1 w Qkq - 0 1'], ['Result', '1-0']], '1. e4 e5'),
+        pgn([['White', 'fp'], ['Black', 'x'], ['Variant', 'From Position'], ['Result', '1-0']], '1. Nf3 Nf6'),
+        pgn([['White', 'atom'], ['Black', 'x'], ['Variant', 'Atomic'], ['Result', '1-0']], '1. Nf3 d5'),
+    ].join('\n\n');
+    const kept = vm.runInContext(`splitPgnGames(${JSON.stringify(blob)})`, ctx).map(g => g.white);
+    ok('PLAYA-3: the archive split keeps standard games (tagged Standard or untagged) and drops Chess960, odds, From Position and variant games',
+       kept.join() === 'std,cc', kept);
+    const a = bg.indexOf('async function fetchArchivePgn('), b = bg.indexOf('async function oppPrepLookup(', a);
+    const files = {'arch': {archives: ['m1']}, 'm1': {games: [{pgn: 'g1', rules: 'chess'}, {pgn: 'g2', rules: 'threecheck'}, {pgn: 'g3', rules: 'kingofthehill'}, {pgn: 'g4'}, {pgn: 'g5', rules: 'chess960'}]}};
+    const fx = vm.createContext({
+        archiveFetch: async (u) => { const k = u.includes('/games/archives') ? 'arch' : u; return {ok: true, json: async () => files[k]}; },
+        lichess_blocked: () => false, lichess_note_response: () => {}, encodeURIComponent, Promise, Error, Math,
+    });
+    vm.runInContext(bg.slice(a, b), fx);
+    vm.runInContext(`fetchArchivePgn('chesscom', 'x', 40).then(t => { out = t.split('\\n\\n'); })`, fx);
+    setTimeout(() => ok('...and a chess.com month keeps only games whose rules are chess', (fx.out || []).join() === 'g1,g4', fx.out), 0);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

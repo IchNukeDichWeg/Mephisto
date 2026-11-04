@@ -12461,6 +12461,10 @@ function maybe_player_book() {
 // side to move, so a position where it is their move is simply not in our half of the book.
 function player_book_at(fen) {
     if (!config.player_book || !player_book || !fen) return null;
+    // STANDARD CHESS ONLY, like the explorer and the .bin book: the book is standard games replayed from
+    // the standard start, and Atomic, Three-check, King of the Hill and Antichess start from the same
+    // array, so their first positions matched and Autoplay played those moves unvetoed (audit 3.1.330 PLAYA-3)
+    if (config.variant && config.variant !== 'chess') return null;
     const [placement, turn] = String(fen).split(' ');
     if (((turn === 'w') ? 'white' : 'black') !== our_side()) return null;
     const at = player_book.get(`${placement} ${turn}`);

@@ -2775,6 +2775,11 @@ function splitPgnGames(text) {
         const white = /\[White\s+"([^"]*)"/.exec(chunk)?.[1] || '';
         const black = /\[Black\s+"([^"]*)"/.exec(chunk)?.[1] || '';
         if (!white && !black) continue;
+        // STANDARD GAMES FROM THE STANDARD START ONLY. The panel replays every game from the normal
+        // array as standard chess, so a Chess960, odds or From Position game (SetUp/FEN) or a variant
+        // game put moves made in other positions or under other rules into the books (audit 3.1.330 PLAYA-3).
+        const variant = /\[Variant\s+"([^"]*)"/.exec(chunk)?.[1];
+        if ((variant && !/^standard$/i.test(variant)) || /\[SetUp\s+"1"\]/.test(chunk) || /\[FEN\s+"/.test(chunk)) continue;
         // movetext = everything after the tag block, stripped of comments, NAGs, variations and
         // move numbers. What is left is SAN, which is what the panel replays.
         const body = chunk.replace(/\[[^\]]*\]\s*/g, ' ')
@@ -2856,7 +2861,8 @@ async function fetchArchivePgn(site, user, max) {
             fetched[i] = await archiveFetch(urls[i]).then(r => r.ok ? r.json() : null).catch(() => null);
         const month = fetched[i];
         if (!month) throw new Error('chess.com archive unavailable');
-        parts.unshift(...(month.games || []).filter(g => g.pgn).map(g => g.pgn));
+        // chess.com's own rules field: a Three-check or King of the Hill PGN need not say so in a tag (PLAYA-3)
+        parts.unshift(...(month.games || []).filter(g => g.pgn && (g.rules || 'chess') === 'chess').map(g => g.pgn));
         if (parts.length >= max) break;   // the cut the serial loop made: same games out, one RTT in
     }
     return parts.slice(-max).join('\n\n');
