@@ -415,7 +415,12 @@ const MephistoUpdater = (function () {
         if (!backup) throw fail('MPH-U12');
         const raw = await readFileAt(backup, 'manifest.json');
         if (!raw) throw fail('MPH-U13', null, 'the backup is missing its manifest');
-        const m = JSON.parse(new TextDecoder().decode(raw));
+        // A manifest cut off mid-write threw a bare SyntaxError here, and one that parsed to null a
+        // TypeError: neither carried a code. Unreadable is incomplete, and nothing is touched
+        // (audit 3.1.330 follow-up L47, the rollback twin of L29).
+        let m = null;
+        try { m = JSON.parse(new TextDecoder().decode(raw)); } catch (e) { /* below */ }
+        if (typeof m?.version !== 'string') throw fail('MPH-U13', null, 'the backup manifest is not readable');
         const gen = await backup.getDirectoryHandle(m.version).catch(() => null);
         if (!gen) throw fail('MPH-U13', null, `the backup of v${m.version} is missing`);
         const stale = await backupStale(dir, backup, m);   // SYSB-1: nothing here applies any more

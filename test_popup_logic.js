@@ -12163,6 +12163,45 @@ print(json.dumps(seen))`;
     ok('L17: the panel\'s Humanize switch re-searches through search_again_at_new_width', h > 0 && /search_again_at_new_width\(\);/.test(blk)
        && !/request_remote_configure\(/.test(blk), blk.slice(0, 200));
 })();
+// ---- L47 (audit 3.1.330 follow-up): Roll Back over an unreadable backup manifest is a coded error and restores nothing ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const upSrc = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const enc = (s) => new TextEncoder().encode(s);
+    const mkdir = () => {
+        const kids = new Map();
+        return {kind: 'directory', kids, name: 'Mephisto', queryPermission: async () => 'granted', requestPermission: async () => 'granted',
+            getDirectoryHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = mkdir()); if (!k || k.kind !== 'directory') throw new Error('NotFoundError'); return k; },
+            getFileHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = {kind: 'file', bytes: new Uint8Array()}); if (!k || k.kind !== 'file') throw new Error('NotFoundError'); const f = k;
+                return {getFile: async () => ({size: f.bytes.length, arrayBuffer: async () => f.bytes.slice().buffer, text: async () => new TextDecoder().decode(f.bytes)}),
+                        createWritable: async () => { let buf; return {write: async (b) => { buf = b; }, close: async () => { f.bytes = new Uint8Array(buf); }}; }}; },
+            removeEntry: async (n) => { if (!kids.delete(n)) throw new Error('NotFoundError'); }};
+    };
+    const put = async (root, path, text) => { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p, {create: true}); const w = await (await d.getFileHandle(n, {create: true})).createWritable(); await w.write(enc(text)); await w.close(); };
+    const load = (root) => {
+        const idbReq = (val) => { const q = {}; setTimeout(() => { q.result = val; q.onsuccess && q.onsuccess(); }); return q; };
+        const indexedDB = {open: () => idbReq({transaction: () => ({objectStore: () => ({get: () => idbReq(root), put: () => idbReq(), delete: () => idbReq()})}), close() {}})};
+        const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Set, JSON, Promise, setTimeout, indexedDB,
+            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'}), sendMessage: (m, cb) => cb({latest: '3.1.330', newer: false})},
+                     permissions: {contains: async () => true}, storage: {local: {get: async () => ({auto_update: true}), set: async () => {}}}}});
+        c.self = c;
+        vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+        vm.runInContext(upSrc.replace('const MephistoUpdater =', 'var MephistoUpdater =').replace(/\nif \(typeof module[\s\S]*$/, ''), c);
+        return vm.runInContext('MephistoUpdater', c);
+    };
+    const caught = async (p) => { try { await p; return null; } catch (e) { return e; } };
+    for (const [label, text] of [['cut off mid-write', '{"version":"3.1.329","saved":["src/a'], ['parsed to null', 'null']]) {
+        const r = mkdir();
+        await put(r, 'manifest.json', JSON.stringify({name: 'Mephisto Chess Extension', version: '3.1.330'}));
+        await put(r, 'src/a.js', 'NEW');
+        await put(r, '.mephisto-backup/manifest.json', text);
+        await put(r, '.mephisto-backup/3.1.329/src/a.js', 'OLD');
+        const e = await caught(load(r).rollback());
+        const a = await (await (await (await r.getDirectoryHandle('src')).getFileHandle('a.js')).getFile()).text();
+        ok(`L47: Roll Back with a backup manifest ${label} is MPH-U13, restores nothing and keeps the backup`,
+           !!e && e.code === 'MPH-U13' && a === 'NEW' && r.kids.has('.mephisto-backup'), [e && e.code, e && e.name, a]);
+    }
+})().catch(e => { fails++; console.log('FAIL L47 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
