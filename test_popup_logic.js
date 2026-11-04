@@ -12550,6 +12550,19 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('L55: the README\'s after-updating note no longer says to copy the host files on Windows',
        /After \*\*updating\*\* Mephisto, re-run the install command as well \(on Windows, redo its Windows steps\)/.test(fs.readFileSync(ROOT + '/README.md', 'utf8')));
 })();
+// ---- audit 3.1.330 follow-up L3: the ponder width is not narrowed by a board-move count in Crazyhouse ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function ponder_line_count('), c = vm.createContext({}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext('var config = {};' + psrc.slice(i, psrc.indexOf('\n}\n', i) + 3), c);
+    const w = (variant, fen) => vm.runInContext(`config.variant = ${JSON.stringify(variant)}; ponder_line_count(${JSON.stringify(fen)}, null)`, c);
+    // black in check from a8: one king step on the board, but the knight in hand can block on b8-g8
+    const zh = 'R6k/6p1/8/8/8/8/8/K7[n] b - - 0 1', std = 'R6k/6p1/8/8/8/8/8/K7 b - - 0 1';
+    ok('L3: one board move with drops in hand keeps the full ponder width in Crazyhouse', w('crazyhouse', zh) === 5, w('crazyhouse', zh));
+    ok('...a real forced move in standard chess still narrows it to 1', w('chess', std) === 1, w('chess', std));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

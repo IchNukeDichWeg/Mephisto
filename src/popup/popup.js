@@ -3904,7 +3904,9 @@ function premove_instant_reply(new_fen, new_moves) {
 function ponder_line_count(fen, lastUci) {
     try {
         const legal = new Chess(config.variant, fen).moves({verbose: true});
-        if (legal.length <= 2) return Math.max(1, legal.length);
+        // Not counted in Crazyhouse: this chess.js lists no drops, so one king step out of a check a
+        // drop could block read as forced and pondered a single line (audit 3.1.330 follow-up L3).
+        if (legal.length <= 2 && config.variant !== 'crazyhouse') return Math.max(1, legal.length);
         const ourDest = /^[a-h][1-8][a-h][1-8]/.test(lastUci || '') ? lastUci.slice(2, 4) : null;
         if (ourDest && legal.some(m => m.to === ourDest && m.captured)) return 2; // recapture likely
         return 5;
