@@ -13815,6 +13815,12 @@ self.MephistoPanel = {
     // is a different thing and was a real bug when it lost your board -- that behaviour stays.
     suspend: () => {
         clearInterval(fen_poll_timer); fen_poll_timer = null;
+        // A panel that is not up has nothing to close. Every chess tab loads this file, and in a tab
+        // whose floating panel never booted ENGINE_CLIENT is still 'toolbar', the toolbar popup's own
+        // client id: that tab's pagehide or the closeOverlay broadcast ran stop_current_engine here and
+        // disposed 'toolbar' and 'toolbar:m2' in the offscreen host, killing an open toolbar popup's
+        // engine (audit 3.1.330 follow-up L12). A panel already suspended tore all of this down then.
+        if (!PANEL_BOOTED) return;
         try { abandon_search(); } catch (e) { /* ignore */ }
         try { dispose_threat_human(); } catch (e) { /* ignore */ }
         try { ua_dispose(); user_arrows = []; ua_last_sent = ''; } catch (e) { /* ignore */ }

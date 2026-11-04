@@ -11690,6 +11690,29 @@ print(json.dumps(out))`;
     if (helper > 0) vm.runInContext('syncBudgetFor4pc(false)', c);
     ok('L25: ...and a Time budget chosen by hand is not turned into Depth', els.rv_limit_kind.value === 'time' && store.rv_limit_kind === 'time');
 }
+// ---- L12 (audit 3.1.330 follow-up): a chess tab whose panel never booted does not dispose the toolbar popup's engine ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const slice = (a, b) => { const s = src.indexOf(a); const e = src.indexOf(b, s); return s < 0 || e < 0 ? '' : src.slice(s, e); };
+    const sus = slice('    suspend: () => {', '\n    // Header king-switch tap');
+    const stop = slice('function stop_current_engine() {', '\nfunction native_bg() {');
+    const m2 = slice('function maia2_client() {', '\n// Fire the second inference');
+    if (!sus || !stop || !m2) { fails++; console.log('FAIL L12: could not slice suspend / stop_current_engine / maia2_dispose'); }
+    else {
+        const sent = [];
+        const c = vm.createContext({chrome: {runtime: {sendMessage: (m) => sent.push(m.clientId + ' ' + m.cmd)}}, clearInterval() {}, clearTimeout() {}});
+        vm.runInContext(`var PANEL_BOOTED = false, ENGINE_CLIENT = 'toolbar', fen_poll_timer = null, maia2 = null, native_bg_port = null,
+            native_bg_port_name = null, engine_ready = false, last_init_fp = null, engine_hint_arrows = [], user_arrows = [], ua_last_sent = '',
+            setup_fen = null, snap_crop = null, setup_view = null, turn_override = null, turn_detected_prev = null;
+            function abandon_search() {} function dispose_threat_human() {} function ua_dispose() {} function snap_follow_stop() {} function stash_setup_state() {}
+            ${stop}\n${m2}\nvar P = {${sus}};`, c);
+        vm.runInContext('P.suspend()', c);
+        ok('L12: suspend() in a never-booted copy (ENGINE_CLIENT still "toolbar") sends nothing to the offscreen host', sent.length === 0, sent);
+        vm.runInContext("PANEL_BOOTED = true; ENGINE_CLIENT = '42'; P.suspend()", c);
+        ok('...while a booted panel still disposes its own client and its :m2 on close',
+           sent.includes('42 dispose') && sent.includes('42:m2 dispose') && !sent.some(s => /^toolbar/.test(s)), sent);
+    }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
