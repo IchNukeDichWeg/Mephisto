@@ -7750,6 +7750,29 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SCRAPEB-3: tactics.chessbase.com is a puzzle page, like BlitzTactics', isPuz('chessbase', '/') === true && isPuz('blitztactics', '/') === true, isPuz('chessbase', '/'));
     ok('SCRAPEB-3: game pages still are not', isPuz('lichess', '/abcd1234') === false && isPuz('chesscom', '/game/live/1') === false && isPuz('taketaketake', '/') === false);
 }
+// ---- audit 3.1.330 SCRAPEB-4: a BlitzTactics pieces-only scrape ships the last move for the ep right too ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = s.indexOf('function scrapePositionPuz()'), j = s.indexOf('\nfunction boardShowsBlack', i);
+    const sq = (f, r) => ({style: {transform: `translate(${(f - 1) * 50}px, ${(8 - r) * 50}px)`}});
+    const pc = (c, t, f, r) => ({classList: Object.assign([c, t], {contains: () => false}), style: sq(f, r).style});
+    let hl = [sq(4, 7), sq(4, 5)], orient = 'white';
+    const ctx = vm.createContext({site: 'blitztactics', isAnimating: () => false, animationStalled: () => false,
+        getBoard: () => ({getBoundingClientRect: () => ({width: 400})}), getOrientation: () => orient, getTurn: () => 'w',
+        getPieces: () => [pc('white', 'king', 5, 1), pc('black', 'king', 5, 8), pc('black', 'pawn', 4, 5), pc('white', 'pawn', 5, 5)],
+        getLastMoveHighlights: () => hl, document: {querySelector: () => null}, Math, Number, String});
+    vm.runInContext(s.slice(i, j), ctx);
+    const r1 = vm.runInContext('scrapePositionPuz()', ctx);
+    ok('SCRAPEB-4: BlitzTactics, d7-d5 just played (.move-from/.move-to) ships lm-d7d5', /lm-d7d5\*{5}$/.test(r1), r1);
+    hl = [sq(4, 5), sq(4, 4)];
+    const r2 = vm.runInContext('scrapePositionPuz()', ctx);
+    ok('SCRAPEB-4: ...a highlight whose destination is empty ships none', !/lm-/.test(r2), r2);
+    // drawn from Black's side the same screen squares name the mirrored board squares (pieces too)
+    orient = 'black'; hl = [sq(4, 7), sq(4, 5)];
+    const r3 = vm.runInContext('scrapePositionPuz()', ctx);
+    ok('SCRAPEB-4: ...and on a board drawn from Black\'s side the squares follow the orientation', /lm-e2e4\*{5}$/.test(r3) && /b-p-e4/.test(r3), r3);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

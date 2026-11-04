@@ -2571,8 +2571,10 @@ function scrapePositionPuz() {
         // The last move, as chess.com's branch ships it, so the popup can declare an en-passant right.
         // Storm and Racer have no move list, so without it an ep capture never existed for the engine
         // (audit 3.1.328 SCRAPE-4). Same transform math as the pieces; only when the destination is
-        // occupied and the origin empty, so a half-painted board declares nothing.
-        if (site === 'lichess') {
+        // occupied and the origin empty, so a half-painted board declares nothing. BlitzTactics too: its
+        // puzzles are the same pieces-only scrape, and its .move-from/.move-to carry the transform
+        // getTurn already matches against the pieces (audit 3.1.330 SCRAPEB-4).
+        if (site === 'lichess' || site === 'blitztactics') {
             try {
                 const sqOf = el => {
                     const t = el?.style?.transform || '';
