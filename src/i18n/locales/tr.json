@@ -465,6 +465,7 @@
   "panel.msg.drop_by_hand": "En iyi hamle bir taş yerleştirmek ({move}). Otomatik oynatma eldeki taşları yerleştiremez: kendiniz oynayın.",
   "panel.msg.backend_down": "Python otomatik oynatma arka ucu localhost:8080 üzerinde yanıt vermiyor, bu yüzden hamleler normal tıklamalarla yapılıyor. mephisto-clicker.py dosyasını başlatın veya ayarı kapatın.",
   "panel.msg.backend_error": "mephisto-clicker.py bir hatayla yanıt verdi ({reason}), bu yüzden hamleler şimdilik normal tıklamalarla yapılıyor. Ayrıntılar betiğin penceresinde görünür.",
+  "panel.msg.backend_old": "Çalışan mephisto-clicker.py sürükleme desteği olmayan eski bir kopya, bu yüzden bu hamle normal tıklamalarla yapıldı. Onu bu sürümün src/scripts klasöründen yeniden başlatın.",
   "panel.msg.resign_failed": "Otomatik terk burada terk düğmesini bulamadı, bu yüzden oyun devam ediyor.",
   "panel.msg.net_failed": "Ağ bu konuma yanıt veremedi. Neden tanılama bölümünde.",
   "panel.msg.native_busy": "Başka bir sekme veya sayfa bu yerel motoru kullanıyor. Onu kapatın veya burada başka bir motor seçin.",

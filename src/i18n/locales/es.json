@@ -465,6 +465,7 @@
   "panel.msg.drop_by_hand": "La mejor jugada es una colocación ({move}). El juego automático no puede colocar piezas de la reserva: juégala tú.",
   "panel.msg.backend_down": "El backend de Python para el juego automático no responde en localhost:8080, así que las jugadas usan clics normales. Inicia mephisto-clicker.py o desactiva el ajuste.",
   "panel.msg.backend_error": "mephisto-clicker.py respondió con un error ({reason}), así que por ahora las jugadas usan clics normales. Su ventana muestra los detalles.",
+  "panel.msg.backend_old": "El mephisto-clicker.py en ejecución es una copia antigua sin soporte para arrastrar, así que esta jugada usó clics normales. Reinícialo desde la carpeta src/scripts de esta versión.",
   "panel.msg.resign_failed": "El abandono automático no encontró aquí el botón de abandonar, así que la partida continúa.",
   "panel.msg.net_failed": "La red no pudo responder a esta posición. El diagnóstico indica la causa.",
   "panel.msg.native_busy": "Otra pestaña o página está usando este motor nativo. Ciérrala o elige otro motor aquí.",

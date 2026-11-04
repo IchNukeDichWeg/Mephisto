@@ -465,6 +465,7 @@
   "panel.msg.drop_by_hand": "Le meilleur coup est un parachutage ({move}). Le jeu automatique ne peut pas placer de pièces de la réserve : jouez-le vous-même.",
   "panel.msg.backend_down": "Le backend Python du jeu automatique ne répond pas sur localhost:8080, les coups passent donc par des clics normaux. Lancez mephisto-clicker.py ou désactivez le réglage.",
   "panel.msg.backend_error": "mephisto-clicker.py a répondu par une erreur ({reason}), les coups passent donc pour l'instant par des clics normaux. Sa fenêtre en donne le détail.",
+  "panel.msg.backend_old": "Le mephisto-clicker.py en cours d'exécution est une ancienne copie sans glisser-déposer, ce coup est donc passé par des clics normaux. Relancez-le depuis le dossier src/scripts de cette version.",
   "panel.msg.resign_failed": "L'abandon automatique n'a pas trouvé le bouton d'abandon ici, la partie continue donc.",
   "panel.msg.net_failed": "Le réseau n'a pas pu répondre à cette position. Le diagnostic en donne la cause.",
   "panel.msg.native_busy": "Un autre onglet ou une autre page utilise ce moteur natif. Fermez-le ou choisissez un autre moteur ici.",

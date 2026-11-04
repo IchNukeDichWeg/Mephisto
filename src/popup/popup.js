@@ -12812,7 +12812,11 @@ function backend_refused(e) {
     bgTrace('backend click refused', {e: String(e)});
     // A clicker that ANSWERED with an error is running: "Start mephisto-clicker.py" sent the user
     // looking for a problem that was not there (audit 3.1.330 SWALLOW-8). Its own reason is shown.
-    set_idle_reason(e && e.backendStatus
+    // A 404 is a copy started before /performDrag existed (audit 3.1.330 CLICKA-3): updating the
+    // extension replaces the file, not the process that is already running it.
+    set_idle_reason(e && e.backendStatus === 404
+        ? i18n('panel.msg.backend_old', 'The running mephisto-clicker.py is an older copy without drag support, so this move used normal clicks. Restart it from this version\'s src/scripts folder.')
+        : e && e.backendStatus
         ? i18n('panel.msg.backend_error', 'mephisto-clicker.py answered with an error ({reason}), so moves are using normal clicks for now. Its window shows the details.',
                {reason: e.backendReason})
         : i18n('panel.msg.backend_down', 'Python Autoplay Backend is not answering on localhost:8080, so moves are using normal clicks. Start mephisto-clicker.py, or switch the setting off.'));
@@ -12850,10 +12854,11 @@ async function dispatch_drag_event(x1, y1, x2, y2, tabId, travelMs, backend) {
         console.warn(`Ignoring drag with invalid coordinates: (${x1}, ${y1}) -> (${x2}, ${y2})`);
         return;
     }
-    // The python clicker moves the real mouse and has no drag verb, so fall back to the two clicks
-    // it does have. That path is unchanged and still works everywhere click-click works.
+    // A real drag, not two clicks: the content script asks for a drag exactly on the boards where
+    // click-click does not play (mustDrag), and two backend clicks answered OK there while the move
+    // looped (audit 3.1.330 CLICKA-3). travelMs carries the content script's drag floor.
     if (backend) {
-        try { await request_backend_click(x1, y1); await request_backend_click(x2, y2); return; }
+        try { await request_backend_drag(x1, y1, x2, y2, travelMs); return; }
         catch (e) { return backend_refused(e); }
     }
     const id = await resolve_click_tab(tabId);
@@ -12942,6 +12947,10 @@ async function request_backend_click(x, y) {
 
 async function request_backend_move(x0, y0, x1, y1) {
     return call_backend('http://localhost:8080/performMove', {x0: x0, y0: y0, x1: x1, y1: y1}).then(backend_clicked);
+}
+
+async function request_backend_drag(x0, y0, x1, y1, ms) {
+    return call_backend('http://localhost:8080/performDrag', {x0, y0, x1, y1, ms: Number.isFinite(ms) ? ms : 0}).then(backend_clicked);
 }
 
 // Both the HTTP "Remote Engine" and the serverless native engines speak the same request/response

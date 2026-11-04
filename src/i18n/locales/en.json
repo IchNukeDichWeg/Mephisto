@@ -464,6 +464,7 @@
   "panel.msg.drop_by_hand": "The best move is a drop ({move}). Autoplay cannot place pieces from the pocket: play it yourself.",
   "panel.msg.backend_down": "Python Autoplay Backend is not answering on localhost:8080, so moves are using normal clicks. Start mephisto-clicker.py, or switch the setting off.",
   "panel.msg.backend_error": "mephisto-clicker.py answered with an error ({reason}), so moves are using normal clicks for now. Its window shows the details.",
+  "panel.msg.backend_old": "The running mephisto-clicker.py is an older copy without drag support, so this move used normal clicks. Restart it from this version's src/scripts folder.",
   "panel.msg.resign_failed": "Auto Resign could not find the resign button here, so the game goes on.",
   "panel.msg.net_failed": "The net could not answer this position. Diagnostics has the cause.",
   "panel.msg.native_busy": "Another tab or page is using this native engine. Close it, or pick another engine here.",

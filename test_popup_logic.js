@@ -9664,6 +9664,35 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('BOUNDARY-4: Windows at 100% is unchanged', JSON.stringify(at('Win32', 1, 1)) === '[300,170]', at('Win32', 1, 1));
     ok('BOUNDARY-4: a Retina Mac stays in points (both sides use them)', JSON.stringify(at('MacIntel', 2, 1)) === '[300,170]', at('MacIntel', 2, 1));
 }
+// ---- audit 3.1.330 CLICKA-3: a drag on the Python backend is one drag, not two clicks ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const c = vm.createContext({console: {warn: () => {}}, Date, JSON, String, Error, TypeError, Number, idle_hold_until: 0, shown: '', calls: [], status: 200,
+        bgTrace: () => {}, set_idle_reason: (t) => { c.shown = t; },
+        i18n: (k, d, v) => v ? String(d).replace(/\{(\w+)\}/g, (m, n) => (n in v ? v[n] : m)) : d,
+        call_backend: async (url, data) => { c.calls.push([url.replace('http://localhost:8080', ''), data]); return {ok: c.status < 300, status: c.status, text: async () => ''}; }});
+    vm.runInContext(cut('function backend_refused(', 'async function dispatch_click_event(')
+        + cut('async function dispatch_drag_event(', 'function resolve_click_tab(')
+        + cut('async function backend_clicked(', '// Both the HTTP "Remote Engine"'), c);
+    (async () => {
+        const r = await c.dispatch_drag_event(10, 20, 30, 40, 7, 250, true);
+        ok('CLICKA-3: the backend gets ONE /performDrag with both points and the drag floor',
+           JSON.stringify(c.calls) === JSON.stringify([['/performDrag', {x0: 10, y0: 20, x1: 30, y1: 40, ms: 250}]]) && r === undefined, c.calls);
+        c.calls = []; c.status = 404;
+        const old = await c.dispatch_drag_event(10, 20, 30, 40, 7, 250, true);
+        ok('CLICKA-3: a running clicker without /performDrag (404) is a refusal, so the move is played by CDP',
+           !!(old && old.backendFailed) && c.calls.length === 1, {old, calls: c.calls});
+        ok('CLICKA-3: ...and the panel says to restart the older copy', /older copy without drag support/.test(c.shown), c.shown);
+        const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+        ok('CLICKA-3: that line is translated', !!en['panel.msg.backend_old']);
+    })().catch(e => { fails++; console.log('FAIL CLICKA-3 checks threw: ' + (e && e.stack || e)); });
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    ok('CLICKA-3: the worker relays /performDrag', /BACKEND_URLS = \[[^\]]*'http:\/\/localhost:8080\/performDrag'/.test(b));
+    const py = fs.readFileSync(ROOT + '/src/scripts/mephisto-clicker.py', 'utf8');
+    ok('CLICKA-3: the clicker has the /performDrag route, a held-button drag', /@app\.route\('\/performDrag'/.test(py) && /pyautogui\.dragTo\(/.test(py));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -118,6 +118,17 @@ def perform_move(x0, y0, x1, y1):
     perform_click(x1, y1)
 
 
+def perform_drag(x0, y0, x1, y1, ms=0):
+    # ONE GESTURE: press on the piece, carry it with the button held, release on the target. Boards
+    # that ignore click-click (chess.com /variants/ captures, ChessBase's dragOnly board) got two
+    # clicks from this backend, answered OK, and the move looped until the clock ran out (audit
+    # 3.1.330 CLICKA-3). The carry lasts at least `ms`, the floor the content script asks for
+    # (DRAG_MIN_MS there: a snapped drag dropped captures), capped so a bad value cannot hold the mouse.
+    pyautogui.moveTo(x0, y0, duration=(args.drag_variance * random() + args.drag_time) / 1000)
+    carry = max((args.drag_variance * random() + args.drag_time) / 1000, min(max(ms, 0), 2000) / 1000)
+    pyautogui.dragTo(x1, y1, duration=carry, button='left')
+
+
 @app.route('/performClick', methods=['POST'])
 def perform_click_api():
     data = request.get_json(silent=True) or {}
@@ -129,6 +140,15 @@ def perform_click_api():
 def perform_move_api():
     data = request.get_json(silent=True) or {}
     perform_move(*_target(data, 'x0', 'y0'), *_target(data, 'x1', 'y1'))
+    return 'OK'
+
+
+@app.route('/performDrag', methods=['POST'])
+def perform_drag_api():
+    data = request.get_json(silent=True) or {}
+    ms = data.get('ms')
+    perform_drag(*_target(data, 'x0', 'y0'), *_target(data, 'x1', 'y1'),
+                 ms if isinstance(ms, (int, float)) and ms == ms else 0)
     return 'OK'
 
 

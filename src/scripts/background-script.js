@@ -645,11 +645,12 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   // page's isolated world, so its own fetch to localhost ran under the SITE's origin and CORS: a JSON
   // POST needs a preflight that neither mephisto-clicker.py nor remote-engine.py answers, and every
   // call failed with "Failed to fetch" with the server running (likely the error in GitHub issue 2).
-  // The worker holds host_permissions for both ports. Only these four endpoints are relayed, so a
+  // The worker holds host_permissions for both ports. Only these endpoints are relayed, so a
   // content script cannot be turned into a general localhost proxy.
   if (msg.backendFetch) {
     const {url, data} = msg.backendFetch;
     const BACKEND_URLS = ['http://localhost:8080/performClick', 'http://localhost:8080/performMove',
+                          'http://localhost:8080/performDrag',
                           'http://localhost:9090/configure', 'http://localhost:9090/analyse'];
     if (!BACKEND_URLS.includes(url)) { sendResponse({error: `not a backend endpoint: ${url}`}); return; }
     // UNDER CHROME'S 30 s FETCH LIMIT. Chrome ends an extension worker whose fetch() response takes

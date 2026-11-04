@@ -465,6 +465,7 @@
   "panel.msg.drop_by_hand": "De beste zet is een drop ({move}). Automatisch spelen kan geen stukken uit de reserve plaatsen: speel hem zelf.",
   "panel.msg.backend_down": "De Python-backend voor automatisch spelen antwoordt niet op localhost:8080, dus zetten gebruiken normale klikken. Start mephisto-clicker.py of zet de instelling uit.",
   "panel.msg.backend_error": "mephisto-clicker.py antwoordde met een fout ({reason}), dus zetten gebruiken voorlopig normale klikken. Het venster van het script toont de details.",
+  "panel.msg.backend_old": "De draaiende mephisto-clicker.py is een oudere kopie zonder slepen, dus deze zet gebruikte normale klikken. Start hem opnieuw vanuit de map src/scripts van deze versie.",
   "panel.msg.resign_failed": "Automatisch opgeven kon hier de opgeefknop niet vinden, dus de partij gaat door.",
   "panel.msg.net_failed": "Het net kon deze stelling niet beantwoorden. De oorzaak staat in de diagnose.",
   "panel.msg.native_busy": "Een ander tabblad of andere pagina gebruikt deze native engine. Sluit die, of kies hier een andere engine.",

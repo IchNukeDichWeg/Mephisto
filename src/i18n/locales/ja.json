@@ -465,6 +465,7 @@
   "panel.msg.drop_by_hand": "最善手は打ち駒です（{move}）。自動着手は持ち駒を打てません。ご自分で指してください。",
   "panel.msg.backend_down": "Python 自動対局バックエンドが localhost:8080 で応答しないため、通常のクリックで指しています。mephisto-clicker.py を起動するか、設定をオフにしてください。",
   "panel.msg.backend_error": "mephisto-clicker.py がエラーを返したため ({reason})、当面は通常のクリックで指しています。詳細はそのウィンドウに表示されます。",
+  "panel.msg.backend_old": "実行中の mephisto-clicker.py はドラッグに対応していない古いコピーのため、この手は通常のクリックで指しました。このバージョンの src/scripts フォルダから起動し直してください。",
   "panel.msg.resign_failed": "自動投了はここで投了ボタンを見つけられなかったため、対局を続けます。",
   "panel.msg.net_failed": "ネットはこの局面に答えられませんでした。原因は診断情報にあります。",
   "panel.msg.native_busy": "別のタブまたはページがこのネイティブエンジンを使用しています。閉じるか、ここで別のエンジンを選んでください。",

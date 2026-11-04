@@ -465,6 +465,7 @@
   "panel.msg.drop_by_hand": "最佳着法是放置棋子（{move}）。自动走子无法放置持驹，请自行走这一步。",
   "panel.msg.backend_down": "Python 自动走棋后端在 localhost:8080 上没有响应,因此改用普通点击走棋。请启动 mephisto-clicker.py,或关闭此设置。",
   "panel.msg.backend_error": "mephisto-clicker.py 返回了错误({reason}),因此暂时改用普通点击走棋。详情见它的窗口。",
+  "panel.msg.backend_old": "正在运行的 mephisto-clicker.py 是不支持拖动的旧副本,因此这步棋改用普通点击。请从此版本的 src/scripts 文件夹重新启动它。",
   "panel.msg.resign_failed": "自动认输在此处找不到认输按钮,因此对局继续。",
   "panel.msg.net_failed": "网络无法回答此局面。原因见诊断信息。",
   "panel.msg.native_busy": "另一个标签页或页面正在使用此本地引擎。请关闭它,或在此处选择其他引擎。",

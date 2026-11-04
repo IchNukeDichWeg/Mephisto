@@ -465,6 +465,7 @@
   "panel.msg.drop_by_hand": "최선의 수는 드롭입니다({move}). 자동 두기는 보유 기물을 놓을 수 없습니다. 직접 두세요.",
   "panel.msg.backend_down": "Python 자동 플레이 백엔드가 localhost:8080에서 응답하지 않아 일반 클릭으로 수를 둡니다. mephisto-clicker.py를 실행하거나 설정을 끄세요.",
   "panel.msg.backend_error": "mephisto-clicker.py가 오류로 응답해서({reason}) 당분간 일반 클릭으로 수를 둡니다. 자세한 내용은 그 창에 표시됩니다.",
+  "panel.msg.backend_old": "실행 중인 mephisto-clicker.py는 드래그를 지원하지 않는 이전 사본이라 이 수는 일반 클릭으로 두었습니다. 이 버전의 src/scripts 폴더에서 다시 실행하세요.",
   "panel.msg.resign_failed": "자동 기권이 여기서 기권 버튼을 찾지 못해 대국을 계속합니다.",
   "panel.msg.net_failed": "넷이 이 포지션에 답하지 못했습니다. 원인은 진단 정보에 있습니다.",
   "panel.msg.native_busy": "다른 탭이나 페이지가 이 네이티브 엔진을 사용 중입니다. 닫거나 여기서 다른 엔진을 고르세요.",
