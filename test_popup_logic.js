@@ -8628,6 +8628,50 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('ENGINEB-1: a line sent while the newer load runs is queued for it, not a third respawned load', inits === 2, inits);
     ok('...and the newer load gets its whole queue in order', got.filter(([n]) => n === 2).map(([, l]) => l).join('|') === 'isready|position startpos|go depth 5', got);
 })().catch(e => { fails++; console.log('FAIL ENGINEB-1 offscreen checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 ENGINEB-2: a superseded WASM load says nothing under the client id ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The whole offscreen host on a simulated clock. Client 5: a Stockfish net download that reports
+    // progress and then fails, superseded at 100 ms by a switch to SF 11. Client 6: a Fairy load whose
+    // variant handshake answers after the switch, and does not list the variant asked for.
+    const src = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8').replace(/await import\(/g, 'await __imp(');
+    let now = 1e6; const timers = [];
+    const tick = () => new Promise(r => setImmediate(r));
+    const mk = (fn, ms, iv) => { const t = {at: now + ms, fn, iv}; timers.push(t); return t; };
+    const advance = async (ms) => { await tick(); const end = now + ms;
+        for (;;) { timers.sort((a, b) => a.at - b.at); const t = timers[0]; if (!t || t.at > end) break;
+            now = t.at; if (t.iv) t.at += t.iv; else timers.shift(); t.fn(); await tick(); } now = end; await tick(); };
+    let listener; const out = [];
+    const engine = (path) => { const e = {getRecommendedNnue: (i) => (i === 0 && /sf_18/.test(path) ? 'nn-x.nnue' : null), setNnueBuffer() {},
+        uci: (l) => { if (l === 'uci') mk(() => { e.listen('option name UCI_Variant type combo default chess var chess'); e.listen('uciok'); }, 150, 0); }};
+        return e; };
+    const c = {console: {log() {}}, Date: {now: () => now},
+        setTimeout: (f, ms) => mk(f, ms, 0), setInterval: (f, ms) => mk(f, ms, ms),
+        clearTimeout: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
+        window: {close() {}},
+        __imp: async (path) => /model-fetch/.test(path)
+            ? {fetchModel: (base, file, note) => new Promise((res, rej) => {
+                mk(() => note(`mephisto-download ${file} 1 10`), 50, 0);
+                mk(() => note(`mephisto-download ${file} 5 10`), 150, 0);
+                mk(() => rej(new Error('MPH-N03: nn-x.nnue failed its SHA-256 check')), 200, 0); })}
+            : {default: () => new Promise(r => mk(() => r(engine(path)), 10, 0))},
+        chrome: {runtime: {sendMessage: (m) => out.push([now, m]), onMessage: {addListener: (f) => listener = f}}}};
+    vm.createContext(c); vm.runInContext(src, c);
+    const msg = (id, o) => listener({toOffscreen: true, clientId: id, ...o}, {}, () => {});
+    const t0 = now;
+    msg('5', {cmd: 'init', engine: 'stockfish-18-nnue'});
+    msg('6', {cmd: 'init', engine: 'fairy-stockfish-14-nnue', variant: 'atomic'});
+    await advance(100);
+    msg('5', {cmd: 'init', engine: 'stockfish-11-hce'});
+    msg('6', {cmd: 'init', engine: 'stockfish-11-hce'});
+    await advance(400);
+    const after = (id) => out.filter(([t, m]) => t > t0 + 100 && m.clientId === id).map(([, m]) => m.kind === 'line' ? m.line : m.kind);
+    ok('ENGINEB-2: the replaced load\'s download progress and its failure do not reach the engine that replaced it',
+       JSON.stringify(after('5')) === JSON.stringify(['ready']), after('5'));
+    ok('...nor its "not a variant this engine has" note', JSON.stringify(after('6')) === JSON.stringify(['ready']), after('6'));
+    ok('...and the stale failure does not hold back a respawn', vm.runInContext("loadFailedAt['5']", c) === undefined);
+    ok('...while the live load\'s own progress still shows', out.some(([t, m]) => t <= t0 + 100 && m.clientId === '5' && /mephisto-download nn-x.nnue 1 10/.test(m.line || '')));
+})().catch(e => { fails++; console.log('FAIL ENGINEB-2 offscreen checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

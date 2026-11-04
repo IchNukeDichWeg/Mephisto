@@ -200,7 +200,13 @@ function maybeGoIdle() {
 const RELOAD_BACKOFF_MS = 30000;
 const loadFailedAt = {};
 function startEngine(clientId, ...args) {
-    return initEngine(clientId, ...args).catch(e => {
+    const run = initEngine(clientId, ...args);
+    const gen = epoch[clientId];   // initEngine bumped it synchronously, before its first await
+    return run.catch(e => {
+        // A load a newer init or a dispose replaced failed for an engine nobody wants any more: its
+        // error shown over the healthy replacement, the 30 s respawn block and an ':m2' dispose all
+        // belonged to that dead load (audit 3.1.330 ENGINEB-2).
+        if (epoch[clientId] !== gen) return;
         loadFailedAt[clientId] = Date.now();
         send(clientId, {kind: 'error', error: String(e)});
     });
@@ -223,6 +229,11 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
     // True once a newer init (or a dispose) has superseded this load. Checked after every await, and
     // again immediately before publishing, since that is the moment that would do the damage.
     const superseded = () => epoch[clientId] !== gen;
+    // Everything a WASM load says before it is published goes through this, for the reason `emit`
+    // below gives for the Maia family: a replaced load's download progress, its Fairy handshake and
+    // its "unsupported variant" note otherwise land under the same client id as the engine that
+    // replaced it (audit 3.1.330 ENGINEB-2).
+    const say = (payload) => { if (!superseded()) send(clientId, payload); };
     // Same rule as disposeClient: stop, never quit. A superseded load is usually not searching yet,
     // but `quit` cannot reap these workers either (they have no terminate) -- the document close is
     // what does that, and it needs this engine to be quiet, not half torn down.
@@ -272,8 +283,8 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
     const module = await import(enginePath);
     const engine = await module.default();
     if (superseded()) return abandon(engine);
-    engine.listen = (line) => send(clientId, {kind: 'line', line});
-    engine.onError = (e) => send(clientId, {kind: 'error', error: String(e)});
+    engine.listen = (line) => say({kind: 'line', line});
+    engine.onError = (e) => say({kind: 'error', error: String(e)});
     // NOTE: do NOT publish to clients[] yet. The panel no longer waits for us, so uci can arrive
     // mid-load; while we're unpublished it queues, and a 'go' can't reach an engine whose NNUE
     // isn't in yet (it would search with no net). Publish + flush together, below.
@@ -298,13 +309,13 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
                     if (/^uciok/.test(line || '')) { clearTimeout(done); engine.listen = prev; resolve(found); }
                 };
             });
+            if (superseded()) return abandon(engine);   // and do not start its net download
             if (declared.length && !declared.includes(variant)) {
-                send(clientId, {kind: 'line',
-                    line: `info string mephisto-unsupported-variant ${variant}`});
+                say({kind: 'line', line: `info string mephisto-unsupported-variant ${variant}`});
             }
             engine.uci(`setoption name UCI_Variant value ${variant}`);
             const net = variantNnueMap[variant] || variantNnueMap['chess'];
-            const note = (m) => send(clientId, {kind: 'line', line: `info string ${m}`});
+            const note = (m) => say({kind: 'line', line: `info string ${m}`});
             // Fairy's nets live one level down in nnue/, unlike mainline SF's, which sit beside the
             // .js. Fetching them from `base` missed every one of them: the .partN probe missed too,
             // and remoteNetUrl only serves official nn-<hash> nets, so this THREW -- before the
@@ -315,7 +326,7 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
         } else {
             const nets = [];
             for (let i = 0; ; i++) { const n = engine.getRecommendedNnue(i); if (!n || nets.includes(n)) break; nets.push(n); }
-            const note = (m) => send(clientId, {kind: 'line', line: `info string ${m}`});
+            const note = (m) => say({kind: 'line', line: `info string ${m}`});
             for (let i = 0; i < nets.length; i++) {
                 engine.setNnueBuffer(new Uint8Array(await fetchNnue(base, nets[i], note)), i);
             }
