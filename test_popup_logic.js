@@ -7376,6 +7376,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...a quiet Fairy switch stays quiet (the Engine select itself shows Fairy-Stockfish)',
        el.textContent === 'Loaded 12 moves.' && conf.an_engine === 'fairy-stockfish-14-nnue', [el.textContent, conf.an_engine]);
 }
+// ---- X1-2: a crazyhouse FEN with a promoted-piece mark (Q~) loads as a FEN, and the mark is kept ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a), j = aj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return aj.slice(i, j); };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    c.box = {value: ''};
+    c.st = [];
+    let res = null;
+    try {
+        vm.runInContext(`const Core = self.MephistoReviewCore; let nodeSeq = 0, treeRoot = null, treeNode = null, cursor = 0;
+            const anVariant = () => 'crazyhouse'; const $ = (id) => (id === 'an_pgn' ? box : null); function status(t, k) { st.push([t, k]); }
+            const evalCache = new Map(), evalCache2 = new Map(), humanCache = new Map(), bandCache = new Map();
+            function relinkLine() {} function buildBoard() {} function renderMoves() {} function renderPockets() {} function go() {}
+            function setCfg() {} function onVariantChange() {} const PGN_VARIANTS = {crazyhouse: 'crazyhouse'};
+            ${cut('function threeCheckCounts', '// crazyhouse only')}
+            ${cut('function mkNode', '// the flat view')}
+            ${cut('function loadFromInput', '// The line as it stands')}`, c);
+        const fen = 'r1bqkbnr/pppp1ppp/2n1p3/3Q~4/8/8/PPPP1PPP/RNB1KBNR[Nn] b KQkq - 0 1';
+        const load = (text) => { c.st.length = 0; c.box.value = text; vm.runInContext('treeRoot = null; loadFromInput()', c); return vm.runInContext('treeRoot', c); };
+        const fr = load(fen);
+        const fenRes = {status: c.st[0]?.[0], fen: fr?.fen, promoted: fr?.promoted, holdings: fr?.holdings};
+        const pr = load(`[Variant "Crazyhouse"]\n[SetUp "1"]\n[FEN "${fen}"]\n\n1... exd5 *`);
+        res = {fenRes, pgnRoot: pr?.promoted, afterCapture: pr?.children[0]?.holdings};
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('X1-2: the FEN box takes a crazyhouse FEN with "Q~": loaded as a position, the mark lifted onto the node, the placement intact',
+       JSON.stringify(res?.fenRes) === JSON.stringify({status: 'Position loaded.', fen: 'r1bqkbnr/pppp1ppp/2n1p3/3Q4/8/8/PPPP1PPP/RNB1KBNR b KQkq - 0 1',
+           promoted: 'd5', holdings: {w: 'n', b: 'n'}}), res);
+    ok('...the same FEN in a PGN [FEN] tag keeps the mark, and capturing the promoted queen pockets a pawn',
+       res?.pgnRoot === 'd5' && JSON.stringify(res?.afterCapture) === JSON.stringify({w: 'n', b: 'np'}), res);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

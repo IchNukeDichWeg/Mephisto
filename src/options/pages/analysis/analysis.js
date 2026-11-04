@@ -101,12 +101,31 @@ function threeCheckCounts(fen) {
 // tracked on the node instead. Both the FEN box and a PGN's [FEN] tag go through it: Copy PGN writes
 // the bracketed FEN, and a reader that skipped the lift reloaded the line with empty pockets
 // (audit 3.1.329 ANALYSIS-1).
+// The promoted-piece mark "~" after a piece letter (Q~, the Fairy/lichess crazyhouse spelling) is
+// lifted the same way, into the node's promoted squares: chess.js read the "~" as a placement
+// character and shifted the rest of the rank, and the FEN box did not even recognise such a FEN
+// as one (X1-2).
 function liftHoldings(fen) {
+    let promoted = '';
+    const placement = /^\S+/.exec(fen)?.[0] || '';
+    if (placement.includes('~')) {
+        const squares = [];
+        placement.replace(/\[[a-zA-Z]*\]$/, '').split('/').forEach((row, r) => {
+            let file = 0;
+            for (const ch of row) {
+                if (/\d/.test(ch)) file += +ch;
+                else if (ch === '~') squares.push('abcdefgh'[file - 1] + (8 - r));
+                else file++;
+            }
+        });
+        promoted = squares.join(',');
+        fen = fen.replace(placement, placement.replace(/~/g, ''));
+    }
     const held = /\[([a-zA-Z]*)\]/.exec(fen);
-    if (!held) return {holdings: {w: '', b: ''}, fen};
+    if (!held) return {holdings: {w: '', b: ''}, promoted, fen};
     return {holdings: {w: (held[1].match(/[A-Z]/g) || []).join('').toLowerCase(),
                        b: (held[1].match(/[a-z]/g) || []).join('')},
-            fen: fen.replace(/\[[a-zA-Z]*\]/, '')};
+            promoted, fen: fen.replace(/\[[a-zA-Z]*\]/, '')};
 }
 function newChess(fen) { return fen === undefined ? new Chess(anVariant()) : new Chess(anVariant(), fen); }
 
@@ -536,8 +555,8 @@ function loadFromInput() {
             }
             if (!v) status(`Variant "${tagged[1]}" is not one this board can play -- loading as standard.`, 'err');
         }
-        if (/^[rnbqkpRNBQKP1-8/]+(\[[a-zA-Z]*\])?\s+[wb]\s/.test(text)) {
-            let {holdings, fen: fenText} = liftHoldings(text);
+        if (/^[rnbqkpRNBQKP1-8/~]+(\[[a-zA-Z]*\])?\s+[wb]\s/.test(text)) {
+            let {holdings, promoted, fen: fenText} = liftHoldings(text);
             const parts = fenText.split(/\s+/);
             // chess.js does NOT reliably throw on junk, so the shape is checked before it is handed over
             if ((parts[0] || '').split('/').length !== 8 || parts.length < 4) {
@@ -557,18 +576,18 @@ function loadFromInput() {
             if (anVariant() === '3check') ({left: checksLeft, fen: fenText} = threeCheckCounts(fenText));
             const c = newChess(fenText);
             treeRoot = mkNode(c.fen(), c.turn(), null, null, null,
-                              {holdings, promoted: '', checksLeft});
+                              {holdings, promoted, checksLeft});
             treeNode = treeRoot;
             status('Position loaded.');
         } else {
             const game = Core.parsePgn(text)[0];
             if (!game) throw new Error('no game found in that text');
-            let start = game.startFen || undefined, checksLeft = {w: 3, b: 3}, holdings = {w: '', b: ''};
-            if (start) ({holdings, fen: start} = liftHoldings(start));
+            let start = game.startFen || undefined, checksLeft = {w: 3, b: 3}, holdings = {w: '', b: ''}, promoted = '';
+            if (start) ({holdings, promoted, fen: start} = liftHoldings(start));
             if (start && anVariant() === '3check') ({left: checksLeft, fen: start} = threeCheckCounts(start));
             const c = newChess(start);
             treeRoot = mkNode(c.fen(), c.turn(), null, null, null,
-                              {holdings, promoted: '', checksLeft});
+                              {holdings, promoted, checksLeft});
             let at = treeRoot;
             for (const rec of game.moves) {
                 const san = typeof rec === 'string' ? rec : rec.san;
