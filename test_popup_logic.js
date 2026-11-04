@@ -1734,6 +1734,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         hctx.MephistoPanel = {isBooted: () => booted, hotkey: (a) => {
             calls.push(a); if (a === 'panic') booted = false; return a !== 'manual_play'; }};
         vm.runInContext(cs.slice(hs, cs.indexOf('\n}\n', hs) + 3), hctx);
+        const ts = cs.indexOf('function isTextEntry(el) {');   // the listener's typing test (audit 3.1.330 CLICKB-1)
+        vm.runInContext(cs.slice(ts, cs.indexOf('\n}\n', ts) + 3), hctx);
         vm.runInContext(cs.slice(ls, le), hctx);
         const press = (o) => {
             calls = []; booted = true;
@@ -9710,6 +9712,45 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         () => ok('SWALLOW-9: a 503 is a refusal', false),
         (e) => ok('SWALLOW-9: the panel carries the whole Accessibility text, not a cut-off part',
                   text.length > 100 && e.backendStatus === 503 && e.backendReason === 'HTTP 503: ' + text, e.backendReason));
+}
+// ---- audit 3.1.330 CLICKB-1: a clicked panel checkbox or select does not kill the hotkeys ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // the root stop: real getOverlayRoot (and the typing test beside it) against a fake closed root
+    const a = cs.indexOf('function getOverlayRoot()'), b = cs.indexOf('// look up one of our overlay nodes', a);
+    const handlers = {};
+    const root = {activeElement: null, addEventListener: (t, f) => { (handlers[t] ||= []).push(f); }};
+    const c = vm.createContext({overlayRoot: null, overlayHost: null,
+        document: {createElement: () => ({isConnected: true, attachShadow: () => root}), body: {appendChild() {}}}});
+    vm.runInContext(cs.slice(a, b) + '; getOverlayRoot();', c);
+    const fire = (type, focused) => { root.activeElement = focused; let stopped = false; for (const f of handlers[type] || []) f({stopPropagation: () => { stopped = true; }}); return stopped; };
+    const checkbox = {tagName: 'INPUT', type: 'checkbox'}, select = {tagName: 'SELECT'}, range = {tagName: 'INPUT', type: 'range'};
+    ok('CLICKB-1: keys pass the root while a panel checkbox, select or slider has focus',
+       [checkbox, select, range].every(f => !fire('keydown', f) && !fire('keyup', f)));
+    ok('CLICKB-1: ...and still stop in a text, number or search box, a textarea or contenteditable',
+       [{tagName: 'INPUT', type: 'text'}, {tagName: 'INPUT', type: 'number'}, {tagName: 'INPUT', type: 'search'},
+        {tagName: 'TEXTAREA'}, {tagName: 'DIV', isContentEditable: true}].every(f => fire('keydown', f)));
+    ok('CLICKB-1: the input event a checkbox or select fires still stays in the panel',
+       fire('input', checkbox) && fire('input', select));
+    // the hotkey listener itself, real source
+    const ls = cs.indexOf("document.addEventListener('keydown', (e) => {\n    if (!self.MephistoPanel?.isBooted?.()) return;");
+    const le = cs.indexOf('\n}, true);', ls) + 10, ts = cs.indexOf('function isTextEntry(el) {');
+    let handler = null, calls = [];
+    const host = {tagName: 'DIV'}, hroot = {activeElement: null};
+    const h = vm.createContext({overlayHost: host, overlayRoot: hroot, hotkeyString: (e) => e.key,
+        MephistoConfig: {hotkeys: () => ({eval_bar: 'e', panic: 'x'}), hotkeyMacros: () => []},
+        MephistoPanel: {isBooted: () => true, hotkey: (x) => { calls.push(x); return true; }},
+        document: {addEventListener: (t, f) => { if (t === 'keydown') handler = f; }}});
+    h.self = h;
+    vm.runInContext(cs.slice(ts, cs.indexOf('\n}\n', ts) + 3) + cs.slice(ls, le), h);
+    const press = (key, target, focused) => { calls = []; hroot.activeElement = focused || null;
+        handler({key, target, preventDefault() {}, stopPropagation() {}}); return calls.join(','); };
+    ok('CLICKB-1: e fires after a click on a Quick Settings checkbox (focus held inside the panel)', press('e', host, checkbox) === 'eval_bar');
+    ok('CLICKB-1: Panic fires with a panel select focused', press('x', host, select) === 'panic');
+    ok('CLICKB-1: typing in the panel FEN box still fires nothing', press('e', host, {tagName: 'INPUT', type: 'text'}) === '');
+    ok('CLICKB-1: a page checkbox does not block the hotkeys, a page text field does',
+       press('e', checkbox) === 'eval_bar' && press('e', {tagName: 'INPUT', type: 'email'}) === '' && press('e', {tagName: 'TEXTAREA'}) === '');
 }
 // ==== END FIX CHECKS ====
 

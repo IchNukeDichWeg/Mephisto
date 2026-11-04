@@ -517,14 +517,14 @@ self.MephistoHotkeyString = hotkeyString;
 document.addEventListener('keydown', (e) => {
     if (!self.MephistoPanel?.isBooted?.()) return; // no in-page panel -> don't swallow the site's keys
     const t = e.target;
-    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return; // typing
+    if (isTextEntry(t)) return; // typing
     // ...but a key pressed inside OUR panel never looks like typing from out here: the shadow root is
     // mode:'closed', so the event is retargeted to the host DIV and composedPath() stops there. The
     // test above therefore passed for every keystroke into the panel's own FEN box, and typing a FEN
     // fired a hotkey per character. We hold the closed root, so ask it who actually has focus.
     if (t === overlayHost) {
         const focused = overlayRoot?.activeElement;
-        if (focused && (focused.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(focused.tagName))) return;
+        if (isTextEntry(focused)) return;
     }
     const pressed = hotkeyString(e);
     const bindings = MephistoConfig.hotkeys();
@@ -616,13 +616,31 @@ function getOverlayRoot() {
     // The text events are composed too: a page listener for paste read a pasted FEN from
     // clipboardData, and beforeinput/input carried every typed character in e.data (audit 3.1.329
     // PAGE-5). Same stop, same gate.
+    // The KEY gate is text entry only (isTextEntry): a clicked Quick Settings checkbox or a chosen
+    // panel select keeps focus, and counting those as typing swallowed every key, the site's and
+    // our own Panic included, until the page was clicked (audit 3.1.330 CLICKB-1, measured). The
+    // text events keep the wider gate: a checkbox or select fires `input` too, and the site has no
+    // use for it.
     const root = overlayRoot;
-    for (const type of ['keydown', 'keyup', 'keypress', 'beforeinput', 'input', 'paste', 'cut', 'copy',
+    for (const type of ['keydown', 'keyup', 'keypress']) root.addEventListener(type, (e) => {
+        if (isTextEntry(root.activeElement)) e.stopPropagation();
+    });
+    for (const type of ['beforeinput', 'input', 'paste', 'cut', 'copy',
                         'compositionstart', 'compositionupdate', 'compositionend']) root.addEventListener(type, (e) => {
         const f = root.activeElement;
         if (f && (f.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName))) e.stopPropagation();
     });
     return overlayRoot;
+}
+
+// Does a key pressed on this element type text? Text-like inputs, textareas and contenteditable
+// only. A checkbox, radio, range, button or select holds focus after a click but takes no text,
+// so the hotkeys and the site's keys must keep working there (audit 3.1.330 CLICKB-1). A missing
+// `type` is the DOM default, text.
+function isTextEntry(el) {
+    if (!el) return false;
+    if (el.isContentEditable || el.tagName === 'TEXTAREA') return true;
+    return el.tagName === 'INPUT' && /^(text|search|url|email|password|number|tel)$/i.test(el.type || 'text');
 }
 
 // look up one of our overlay nodes inside the shadow root (replaces document.getElementById)
