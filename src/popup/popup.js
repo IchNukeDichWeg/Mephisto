@@ -938,7 +938,17 @@ async function initPanel(root, tabId) {
     };
     // Only the toolbar popup needs the runtime listener; in-page, content-script.js calls
     // PANEL_MSG_HANDLER directly (runtime.sendMessage can't cross to a sibling content script).
-    if (!IS_CONTENT_SCRIPT) chrome.runtime.onMessage.addListener(PANEL_MSG_HANDLER);
+    // The click/drag/warm branches return a Promise the content script AWAITS (it paces the from- and
+    // to-clicks). Chrome 152 honours a Promise returned from onMessage (measured), but a build without
+    // that support closes the channel at once, so the await rejects after the from-click and the move
+    // is never finished; the manifest sets no minimum_chrome_version. sendResponse + `return true`
+    // works on every build (audit 3.1.330 STUBS-1, hardening). Everything else still answers nothing.
+    if (!IS_CONTENT_SCRIPT) chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+        const r = PANEL_MSG_HANDLER(msg, sender);
+        if (!r || typeof r.then !== 'function') return;
+        r.then(v => sendResponse(v), e => sendResponse({error: String(e?.message || e)}));
+        return true;
+    });
 
     // FALLBACK poll only: the content-script pushes positions event-driven (MutationObserver);
     // this slow poll just heals a missed push (e.g. a mutation the observer filter skipped).

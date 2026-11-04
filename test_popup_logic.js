@@ -9069,6 +9069,37 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            res?.inpage?.tab === 7 && res.inpage.client === '7', res);
     })();
 }
+// ---- audit 3.1.330 STUBS-1 (hardening): the toolbar popup answers an awaited click through sendResponse ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = s.indexOf('if (!IS_CONTENT_SCRIPT) chrome.runtime.onMessage.addListener(');
+    const b = s.indexOf('// FALLBACK poll only', a);
+    const c = vm.createContext({IS_CONTENT_SCRIPT: false, listeners: [],
+        chrome: {runtime: {onMessage: {addListener: f => c.listeners.push(f)}}}});
+    (async () => {
+        let res;
+        try {
+            vm.runInContext(`var PANEL_MSG_HANDLER = (m) => m.click ? Promise.resolve({reachedMs: 5})
+                : m.bad ? Promise.reject(new Error('boom')) : undefined;
+                ${s.slice(a, b)}`, c);
+            const L = c.listeners[0];
+            // what a build without Promise support does: only sendResponse after `return true` reaches the sender
+            const send = (msg) => new Promise(done => {
+                let answered = false;
+                const kept = L(msg, {tab: {id: 1}}, v => { answered = true; done({kept: true, v}); });
+                if (kept && typeof kept.then === 'function') kept.catch(() => {});   // the old listener's own rejection
+                if (kept !== true) setTimeout(() => answered || done({kept: false}), 20);
+            });
+            res = {n: c.listeners.length, click: await send({click: true}), bad: await send({bad: true}),
+                   push: await send({fenresponse: true})};
+        } catch (e) { res = {err: String(e.message || e)}; }
+        ok('STUBS-1: a click answered by Promise is kept open and the result goes back through sendResponse',
+           res?.n === 1 && res.click?.kept === true && res.click.v?.reachedMs === 5, res);
+        ok('STUBS-1: a failing dispatch still answers, with the error', res?.bad?.kept === true && res.bad.v?.error === 'boom', res);
+        ok('STUBS-1: a push that answers nothing does not hold the channel open', res?.push?.kept === false, res);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
