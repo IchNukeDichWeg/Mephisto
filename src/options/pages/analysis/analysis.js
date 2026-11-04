@@ -2241,7 +2241,11 @@ function renderBook() {
     const wrap = $('an_book_wrap'), host = $('an_book_lines'), meta = $('an_book_meta');
     if (!wrap || !host) return;
     const pos = positions[cursor];
-    const on = !!(cfg('an_book') && bookMoves && pos);
+    // A book is standard-chess theory (Polyglot keys and the PGN reader are standard chess), and a
+    // variant's opening shares placement, turn and castling with it, so its moves showed as "Book
+    // moves" under Crazyhouse or Atomic. Standard only, like renderExtras and the panel's own book
+    // (audit 3.1.330 ANALYSISB-5); Chess960 is out too, its castling is not the book's.
+    const on = !!(cfg('an_book') && bookMoves && pos && anVariant() === 'chess');
     wrap.classList.toggle('hidden', !on);
     if (!on) return;
     // a .bin is keyed by the format's own hash; a PGN/JSON book is keyed by the position text

@@ -10607,6 +10607,29 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            /^[^ ]+ b KQkq -$/.test(c.keyOf(after('e4'))) && /f6$/.test(c.keyOf(after('e4', 'd5', 'e5', 'f5'))), c.keyOf(after('e4')));
     })();
 }
+// ---- audit 3.1.330 ANALYSISB-5: the Analysis book is standard chess only ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (from, to) => { const a = an.indexOf(from), b = an.indexOf(to, a); return (a < 0 || b < 0) ? '' : an.slice(a, b); };
+    const els = {};
+    const el = (id) => els[id] || (els[id] = {id, textContent: '', innerHTML: '', classList: {hidden: false, toggle(k, v) { this.hidden = !!v; }}});
+    const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const c = vm.createContext({console, $: el, cfg: (k) => k === 'an_book' || k === 'an_variant' ? (k === 'an_book' ? true : c.variant) : null,
+        positions: [{fen: START}], cursor: 0, sanOf: (fen, uci) => uci, wireLineClicks: () => {},
+        lineRow: (i, col, san) => `<${san}>`, Core: {clamp: (x) => x}, variant: 'chess'});
+    try {
+        vm.runInContext(cut('function anVariant()', '\n') + '\nconst lookupPolyglot = () => [];\nvar bookMoves = {name: "b.json", entries: new Map()};\n'
+            + cut('function keyOf(fen)', '// ---- move list'), c);
+        vm.runInContext(`bookMoves.entries.set(keyOf('${START}'), [{uci: 'e2e4', weight: 1}]);`, c);
+    } catch (e) { console.log('slice threw: ' + e.message); }
+    const show = (v) => { c.variant = v; els.an_book_lines && (els.an_book_lines.innerHTML = ''); try { c.renderBook(); } catch (e) { return 'threw ' + e.message; }
+        return els.an_book_wrap?.classList.hidden ? 'hidden' : els.an_book_lines?.innerHTML; };
+    ok('ANALYSISB-5: standard chess shows the book move', show('chess') === '<e2e4>', show('chess'));
+    for (const v of ['crazyhouse', '3check', 'kingofthehill', 'atomic', 'fischerandom']) {
+        ok(`ANALYSISB-5: ${v} hides the standard-chess book at the same placement`, show(v) === 'hidden', show(v));
+    }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
