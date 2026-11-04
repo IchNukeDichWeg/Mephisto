@@ -6938,8 +6938,11 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
     const i = b.indexOf('async function puzzleNetEnable(tabId) {'), j = b.indexOf('\n}\n', i) + 3;
     const cmds = [];
+    // the tab is still on a puzzle page and the capture still wanted after the attach (3.1.330 PAGEB-3 re-reads both)
     const c = vm.createContext({puzzleNetTabs: new Set([7]), cdpAttach: async () => {},
-        chrome: {runtime: {}, debugger: {sendCommand: (t, m, p, cb) => { cmds.push([t.tabId, m]); cb(); }}}});
+        puzzleNetWanted: async () => true, PUZZLE_PAGE_URL: () => true, puzzleNetStop: () => {},
+        chrome: {runtime: {}, tabs: {get: async (id) => ({id, url: 'https://lichess.org/storm'})},
+            debugger: {sendCommand: (t, m, p, cb) => { cmds.push([t.tabId, m]); cb(); }}}});
     vm.runInContext(b.slice(i, j), c);
     vm.runInContext('puzzleNetEnable(7)', c).then(() => {
         ok('SYS-4: a tab the restart reconciliation adopted is sent Network.enable on the next puzzle load',
@@ -9271,6 +9274,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SYSA-1: switching it off still stops the watched tabs and attaches nothing',
        off.enabled.length === 0 && off.stopped.join() === '5', off);
 })().catch(e => { fails++; console.log('FAIL SYSA-1 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 PAGEB-3: a capture attach that outlived its page or its setting is undone ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const i = b.indexOf('async function puzzleNetEnable(tabId) {'), j = b.indexOf('\n}\n', i) + 3;
+    const pu = b.indexOf('const PUZZLE_ROUTES = {'), pv = b.indexOf('let puzProbeChain', pu);
+    // the tab's URL and the setting as they are AFTER the attach settle
+    const run = async (urlAfter, wantAfter) => {
+        const stopped = [], cmds = [];
+        const c = vm.createContext({URL, Promise, puzzleNetTabs: new Set(), cdpAttach: async () => {},
+            puzzleNetWanted: async () => wantAfter, puzzleNetStop: (id) => stopped.push(id),
+            chrome: {runtime: {}, tabs: {get: async (id) => ({id, url: urlAfter})},
+                debugger: {sendCommand: (t, m, p, cb) => { cmds.push(m); cb(); }}}});
+        vm.runInContext(b.slice(pu, pv).replace(/^const /gm, 'var ') + b.slice(i, j), c);
+        await vm.runInContext('puzzleNetEnable(7)', c);
+        return {inSet: c.puzzleNetTabs.has(7), stopped, cmds};
+    };
+    const left = await run('https://www.chess.com/game/live/123', true);
+    ok('PAGEB-3: a tab that left puzzle pages during the attach settle is stopped, not watched',
+       !left.inSet && left.stopped.join() === '7', left);
+    const off = await run('https://www.chess.com/puzzles/rush', false);
+    ok('PAGEB-3: a capture switched off during the attach settle is stopped, not watched',
+       !off.inSet && off.stopped.join() === '7', off);
+    const fine = await run('https://www.chess.com/puzzles/rush', true);
+    ok('PAGEB-3: a tab still on a puzzle page with the capture wanted is watched',
+       fine.inSet && fine.stopped.length === 0 && fine.cmds.join() === 'Network.enable', fine);
+})().catch(e => { fails++; console.log('FAIL PAGEB-3 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

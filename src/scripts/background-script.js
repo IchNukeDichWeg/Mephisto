@@ -2354,11 +2354,18 @@ chrome.tabs?.onUpdated?.addListener(async (tabId, info, tab) => {
 // set does not prove Network is on there: the restart reconciliation above adopts attached puzzle
 // tabs without knowing, and the early return this had then kept capture dark in that tab for good
 // (audit 3.1.329 SYS-4). Enabling an enabled domain is a no-op.
+//
+// The page and the setting are read AGAIN after the attach settle. Both teardowns (leaving puzzle
+// pages, switching the capture off) act only on tabs already in the set, and the tab joins it only
+// here, so a tab that left within that half second, or a capture switched off in it, stayed attached
+// and read on a game page until its next navigation (audit 3.1.330 PAGEB-3).
 async function puzzleNetEnable(tabId) {
   await cdpAttach(tabId);
   await new Promise((res) => chrome.debugger.sendCommand({tabId}, 'Network.enable', {}, () => {
     void chrome.runtime.lastError; res();
   }));
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (!tab || !PUZZLE_PAGE_URL(tab.url || '') || !(await puzzleNetWanted())) { puzzleNetStop(tabId); return; }
   puzzleNetTabs.add(tabId);
 }
 
