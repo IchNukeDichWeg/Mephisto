@@ -1482,7 +1482,15 @@ function render() {
 // "still searching": "thinking…" for ever under "depth 0 · done", and a level bar for the mated
 // side (audit 3.1.328 ANALYSIS-2). The rules decide mate and stalemate here; a search that finished
 // with nothing to say (a variant's own ending, which this chess.js does not know) says "game over".
+// ONLY WHERE "NO MOVES" MEANS MATE OR DRAW. chess.js tests "no legal moves, in check or not", which
+// is the standard rule: an Antichess side with no pieces left, or Horde's White with none, has no
+// king and no moves and read "Stalemate" with a 0.0 bar although that side had won or lost; Atomic
+// and Racing Kings end on other conditions, Crazyhouse can answer a check with a drop chess.js does
+// not generate, and King of the Hill can be over by the hill (audit 3.1.329 ANALYSIS-2). Three-check
+// keeps the standard meaning (a third check is a win the engine reports itself).
+const GAME_OVER_BY_RULES = ['chess', 'fischerandom', '3check'];
 function gameOverAt(pos) {
+    if (!GAME_OVER_BY_RULES.includes(anVariant())) return null;
     try {
         const c = newChess(pos.fen);
         if (c.isCheckmate()) return {word: 'Checkmate', cp: pos.turn === 'w' ? -Core.MATE_CP : Core.MATE_CP};

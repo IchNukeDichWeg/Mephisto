@@ -6256,6 +6256,23 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        JSON.stringify(res) === JSON.stringify({root: {w: 'n', b: 'q'}, afterDrop: {w: '', b: 'q'},
            fen: 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 1', fenBox: {w: 'n', b: 'q'}}), res);
 }
+// ---- audit 3.1.329 ANALYSIS-2: an Antichess or Horde win is not read as "Stalemate" ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const c = {console, variant: 'chess'}; c.self = c; vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    Object.assign(c, {anVariant: () => c.variant, Core: {MATE_CP: 100000}});
+    vm.runInContext(an.slice(an.indexOf('function newChess('), an.indexOf('\n', an.indexOf('function newChess('))) + '\n'
+        + an.slice(an.indexOf('// A FINISHED POSITION SAYS SO.'), an.indexOf('function renderEval(')), c);
+    const word = (variant, fen, turn) => { c.variant = variant; return [c.emptyColumnWord({fen, turn}, true), c.gameOverAt({fen, turn})?.cp ?? null]; };
+    ok('ANALYSIS-2: Antichess, the side to move has no pieces: "game over", no 0.0',
+       JSON.stringify(word('antichess', '8/8/8/8/8/8/8/7q w - - 0 1', 'w')) === '["game over",null]', word('antichess', '8/8/8/8/8/8/8/7q w - - 0 1', 'w'));
+    ok('...Horde with White wiped out: the same', JSON.stringify(word('horde', 'rnbqkbnr/pppppppp/8/8/8/8/8/8 w kq - 0 1', 'w')) === '["game over",null]');
+    ok('...standard stalemate and a Three-check mate still say so',
+       word('chess', '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1', 'b')[0] === 'Stalemate'
+       && JSON.stringify(word('3check', 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3', 'w')) === '["Checkmate",-100000]');
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
