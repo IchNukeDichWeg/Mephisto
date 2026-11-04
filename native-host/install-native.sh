@@ -17,7 +17,7 @@
 #            release). Without them the native Fairy plays on its classical eval.
 #
 # --tetrarch : path to a Tetrarch checkout, for four-player chess (see the README). Looked for
-#            beside this repo's parent folder if omitted, and skipped entirely if not found.
+#            beside the Mephisto folder (in the same parent folder) if omitted, and skipped if not found.
 #
 # Requires python3 with python-chess for the Stockfish/Fairy hosts:  python3 -m pip install chess
 # (Tetrarch needs neither -- it speaks raw UCI over a pipe.)

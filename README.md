@@ -603,7 +603,8 @@ Then, from the Mephisto folder:
 native-host/install-native.sh --ext-id YOUR_EXTENSION_ID --tetrarch /path/to/Tetrarch
 ```
 
-Drop `--tetrarch` if the checkout sits beside Mephisto's parent folder - that's where the installer looks.
+Drop `--tetrarch` if the checkout sits beside the Mephisto folder (in the same parent folder) - that's where the
+installer looks.
 
 **Windows** - the C core has to be built as a DLL and Chrome finds hosts through the registry, so there is a
 PowerShell installer instead. Install [MSYS2](https://www.msys2.org), then from its **MINGW64** shell:
@@ -622,8 +623,8 @@ That produces `build\tetrarch.dll`. Then, from PowerShell in the Mephisto folder
 powershell -ExecutionPolicy Bypass -File native-host\install-tetrarch.ps1 -ExtId YOUR_EXTENSION_ID
 ```
 
-Add `-Tetrarch C:\path\to\Tetrarch` if the checkout isn't beside Mephisto's parent folder. No administrator rights
-needed; Python 3 must be on `PATH`.
+Add `-Tetrarch C:\path\to\Tetrarch` if the checkout isn't beside the Mephisto folder (in the same parent folder). No
+administrator rights needed; Python 3 must be on `PATH`.
 
 > The Windows path is **built and symbol-checked but not yet run on a real Windows machine**. If something
 > misbehaves, [please open an issue](https://github.com/IchNukeDichWeg/Mephisto/issues/new/choose) - see

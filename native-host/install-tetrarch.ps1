@@ -11,7 +11,8 @@
                 from the extension FOLDER PATH, so reloading does not change it (measured: the same
                 folder loaded into two fresh profiles gets the same id). Re-run this only if you move
                 or re-extract the extension somewhere else.
-    -Tetrarch : the Tetrarch checkout. Looked for beside this repo's parent folder if omitted.
+    -Tetrarch : the Tetrarch checkout. Looked for beside the Mephisto folder (in the same parent
+                folder) if omitted.
 
     Build the engine core first (MSYS2 / mingw-w64):  cd Tetrarch; ./setup.sh
 #>

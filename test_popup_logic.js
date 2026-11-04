@@ -11375,6 +11375,17 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            head && head === inner && head === rd, [head, inner, rd]);
     }
 }
+// ---- NATIVEB-3 (audit 3.1.330): the README says where the public installers look for Tetrarch: beside the Mephisto folder ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const readme = fs.readFileSync(ROOT + '/README.md', 'utf8'), ps1 = fs.readFileSync(ROOT + '/native-host/install-tetrarch.ps1', 'utf8');
+    // install-tetrarch.ps1: $src is native-host/, its parent the Mephisto folder, and ITS parent holds Tetrarch
+    ok('NATIVEB-3: install-tetrarch.ps1 looks in the Mephisto folder\'s own parent folder',
+       /\$Tetrarch = Join-Path \(Split-Path -Parent \(Split-Path -Parent \$src\)\) 'Tetrarch'/.test(ps1));
+    ok('...and the README and the installer header say "beside the Mephisto folder", not "beside Mephisto\'s parent folder"',
+       !/beside Mephisto's parent folder/.test(readme) && (readme.match(/beside the Mephisto folder \(in the same parent folder\)/g) || []).length === 2
+       && !/beside this repo's parent folder/.test(ps1) && /beside the Mephisto folder \(in the same parent\s+folder\)/.test(ps1));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
