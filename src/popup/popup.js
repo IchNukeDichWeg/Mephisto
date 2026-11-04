@@ -6932,8 +6932,8 @@ function panel_reload() {
 // cause is a RELOADED EXTENSION with the game tab still open: reloading orphans every content script
 // already injected, and the orphan cannot be messaged again. The popup then polls into the void and
 // sits on "No Chess Game Detected" forever -- which reads as a broken scraper rather than a page that
-// needs reloading. This is toolbar-popup-only by nature: the floating panel IS the content script, so
-// it cannot be orphaned away from itself.
+// needs reloading. This counter is the toolbar popup's detector; the floating panel IS the content
+// script and is orphaned WITH it, which stop_if_orphaned catches (audit 3.1.330 STUBS-4).
 //
 // The error was deliberately swallowed (it is expected on non-chess tabs), so this counts instead:
 // a couple of consecutive failures is a dead relay, one is just a tab that isn't ready.
@@ -10797,6 +10797,29 @@ function revive_if_engine_silent() {
     request_fen();
 }
 setInterval(revive_if_engine_silent, 2000);
+
+// AN EXTENSION RELOAD ORPHANS THE IN-PAGE PANEL TOO. One-click Update, Roll back, Finish and a
+// chrome://extensions reload all cut this content-script world off from the worker: chrome.runtime.id
+// goes undefined and every engine line, click and setting write throws "Extension context
+// invalidated" into a catch that reads it as a sleeping worker. The panel stayed up, cycled "The
+// engine went quiet" through rebuilds that could never land, and dropped every setting changed in it,
+// without ever saying to reload (audit 3.1.330 STUBS-4 = SWALLOW-5). Closing it as the X button does
+// stops all of that; the reload line is pinned so nothing later overwrites it. The toolbar popup page
+// needs none of this: the reload closes it.
+function extension_context_lost() {
+    if (!IS_CONTENT_SCRIPT) return false;
+    try { return !chrome.runtime?.id; } catch (e) { return true; }
+}
+function stop_if_orphaned() {
+    if (!PANEL_BOOTED || !extension_context_lost()) return;
+    console.warn('Mephisto: the extension was reloaded or updated -- this panel is cut off until the page reloads');
+    try { self.MephistoPanel.suspend(); } catch (e) { PANEL_BOOTED = false; }
+    const why = i18n('panel.reload_the_page', 'Reload this page - the extension was updated');
+    idle_hold_until = Infinity;   // set_idle_reason('') can no longer clear it
+    set_idle_reason(why);
+    set_detection_status(why);
+}
+setInterval(stop_if_orphaned, 2000);
 
 // A REMOVED KEY MEANS "BACK TO THE DEFAULT", and Restore Defaults and Import both work by removing.
 // The live path below can only adopt a value it is handed, so an open panel kept playing on the old

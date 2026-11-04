@@ -9100,6 +9100,32 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('STUBS-1: a push that answers nothing does not hold the channel open', res?.push?.kept === false, res);
     })();
 }
+// ---- audit 3.1.330 STUBS-4 = SWALLOW-5: an in-page panel orphaned by an extension reload says so and stops ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = s.indexOf('function extension_context_lost()'), b = s.indexOf('setInterval(stop_if_orphaned', a);
+    const run = (isCs, runtime) => {
+        const c = vm.createContext({IS_CONTENT_SCRIPT: isCs, chrome: {runtime}, console: {warn() {}}, suspended: 0, idle: '', status: ''});
+        c.self = c;
+        try {
+            vm.runInContext(`var PANEL_BOOTED = true, idle_hold_until = 0;
+                function set_idle_reason(t) { if (!t && Date.now() < idle_hold_until) return; idle = t; }
+                function set_detection_status(t) { status = t; }
+                self.MephistoPanel = {suspend() { suspended++; PANEL_BOOTED = false; }};
+                ${a < 0 || b < 0 ? 'function stop_if_orphaned() {}' : s.slice(a, b)}`, c);
+            vm.runInContext('stop_if_orphaned(); stop_if_orphaned(); set_idle_reason("");', c);
+            return {suspended: c.suspended, idle: c.idle, status: c.status, booted: vm.runInContext('PANEL_BOOTED', c)};
+        } catch (e) { return {err: String(e.message || e)}; }
+    };
+    const dead = run(true, {});                     // an orphaned content script: chrome.runtime.id is gone
+    ok('STUBS-4: an in-page panel cut off by an extension reload closes once and says to reload the page',
+       dead.suspended === 1 && dead.booted === false && /Reload this page/.test(dead.idle) && /Reload this page/.test(dead.status), dead);
+    const live = run(true, {id: 'x'});
+    ok('STUBS-4: a live content script is left alone', live.suspended === 0 && live.booted === true && live.idle === '', live);
+    const popup = run(false, {});
+    ok('STUBS-4: the toolbar popup page is not judged by this check', popup.suspended === 0 && popup.booted === true, popup);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
