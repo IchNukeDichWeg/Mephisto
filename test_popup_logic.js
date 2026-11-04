@@ -9126,6 +9126,68 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const popup = run(false, {});
     ok('STUBS-4: the toolbar popup page is not judged by this check', popup.suspended === 0 && popup.booted === true, popup);
 }
+// ---- audit 3.1.330 CONTEXT-4 + SYSA-2: toolbar-popup diagnostics read the tab, not the popup page ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const cut = (t, from, to) => { const a = t.indexOf(from), b = t.indexOf(to, a); return (a < 0 || b < 0) ? '' : t.slice(a, b); };
+    const ID = 'abcdefghijklmnopabcdefghijklmnop';
+    // the real copy_diagnostics in the toolbar popup page; `answer` is what the tab's content script sends back
+    const popupCtx = (answer) => new Promise(done => {
+        const c = vm.createContext({IS_CONTENT_SCRIPT: false, MY_TAB_ID: 5, location: {hostname: ID, pathname: '/src/popup/popup.html'},
+            config: {engine: 'x'}, PANEL_ROOT: {getElementById: () => null}, idle_reason_text: '', search_state: () => '',
+            last_eval: {fen: ''}, last_puzzle_answer: '', copy_text: async () => true,
+            chrome: {runtime: {lastError: null, sendMessage: (m) => done(m.diagnostics)},
+                     tabs: {sendMessage: (id, m, cb) => setTimeout(() => {
+                         if (answer) cb(m.diagContext ? answer : undefined);
+                         else { c.chrome.runtime.lastError = {message: 'Receiving end does not exist.'}; cb(); c.chrome.runtime.lastError = null; }
+                     }, 0)}}});
+        try { vm.runInContext(cut(s, 'const DIAG_ROUTE_WORDS', 'function is_remote()') + ';copy_diagnostics(() => {});', c); }
+        catch (e) { done({err: String(e.message || e)}); }
+        setTimeout(() => done({err: 'no report sent'}), 200);
+    });
+    // the real content-script branch, answering for a lichess game page
+    const csAnswer = () => {
+        const branch = cut(cs, 'if (response.diagContext) {', '\n    if (response.queryfen)');
+        let got = null;
+        try {
+            const c = vm.createContext({site: 'lichess', location: {pathname: '/abcdEFGH1234'}});
+            c.self = c; c.MephistoContent = {status: () => 'config=yes  site=lichess'};
+            vm.runInContext(`this.h = (response, sendResponse) => { ${branch} };`, c);
+            c.h({diagContext: true}, r => { got = r; });
+        } catch (e) { got = {err: String(e.message || e)}; }
+        return got;
+    };
+    // the real buildDiagnostics, with the id in a header field
+    const bgReport = async () => {
+        const c = vm.createContext({chrome: {runtime: {id: ID, getManifest: () => ({version: '1', name: 'M'})},
+                permissions: {getAll: async () => ({origins: []})}, storage: {local: {get: async () => ({})}}},
+            navigator: {userAgent: 'Chrome/152.0', platform: 'Mac'}, nativePorts: {}, traceRing: [],
+            checkBundledAssets: async () => ({ok: true}), offscreenStat: async () => 'ok', workerLoadLine: () => ''});
+        vm.runInContext(cut(bg, 'async function buildDiagnostics', 'let bundledAssets = null;'), c);
+        return (await c.buildDiagnostics({site: ID, path: '/x', content: `chrome-extension://${ID}/a.js`})).report;
+    };
+    (async () => {
+        let res;
+        try {
+            const tab = csAnswer();
+            res = {tab, live: await popupCtx(tab), dead: await popupCtx(null)};
+            const rep = await bgReport();
+            res.bgLeak = rep.includes(ID);
+        } catch (e) { res = {err: String(e.message || e)}; }
+        ok('SYSA-2: the content script answers the popup with its site, path and status',
+           res?.tab?.site === 'lichess' && res.tab.path === '/abcdEFGH1234' && /config=yes/.test(res.tab.content), res?.tab);
+        ok('SYSA-2: a toolbar-popup report names the tab\'s site and route, never the extension id or the popup file',
+           res?.live?.site === 'lichess (toolbar popup)' && res.live.path === '/<id>' && !JSON.stringify(res.live).includes(ID), res?.live);
+        ok('CONTEXT-4: ...and carries the live tab\'s content status instead of "no page script"',
+           /config=yes/.test(res?.live?.content || ''), res?.live);
+        ok('CONTEXT-4: a tab that cannot answer says so, still without the id',
+           res?.dead?.site === 'toolbar popup' && /did not answer/.test(res.dead.content) && !JSON.stringify(res.dead).includes(ID), res?.dead);
+        ok('SYSA-2: the worker strips the extension id from every field of the report', res?.bgLeak === false, res);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

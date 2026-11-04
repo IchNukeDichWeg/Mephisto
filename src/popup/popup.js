@@ -13233,10 +13233,28 @@ function diagnostics_path_shape(path) {
     return String(path || '').split('/').map(s => (!s || DIAG_ROUTE_WORDS.has(s.toLowerCase())) ? s : '<id>').join('/');
 }
 
-function copy_diagnostics(onDone = () => {}) {
+// THE TOOLBAR POPUP IS NOT THE PAGE. It is an extension page with no content script in it, so `site`
+// is undeclared there and location.hostname is the extension id, the per-install identifier the
+// report must never carry (audit 3.1.330 SYSA-2), the path was the popup's own file, and
+// self.MephistoContent never exists, so every report said "no page script" for a live tab (CONTEXT-4).
+// The tab answers those three itself; a tab that cannot answer is reported as such.
+function diagnostics_page_context(cb) {
+    const none = {site: 'toolbar popup', path: '', content: 'no page script (the tab did not answer)'};
+    const ask = tabId => chrome.tabs.sendMessage(tabId, {diagContext: true}, r => {
+        if (chrome.runtime.lastError || !r || typeof r.content !== 'string') return cb(none);
+        cb({site: `${r.site || 'UNSET'} (toolbar popup)`, path: String(r.path || ''), content: r.content});
+    });
+    try {
+        if (MY_TAB_ID) return ask(MY_TAB_ID);
+        chrome.tabs.query({active: true, currentWindow: true}, tabs => tabs[0]?.id ? ask(tabs[0].id) : cb(none));
+    } catch (e) { cb(none); }
+}
+
+function copy_diagnostics(onDone = () => {}, page = null) {
+        if (!IS_CONTENT_SCRIPT && !page) return diagnostics_page_context(p => copy_diagnostics(onDone, p));
         const ctx = {
-            site: (typeof site !== 'undefined' && site) || location.hostname,
-            path: diagnostics_path_shape(location.pathname),   // route words only: never an id
+            site: page ? page.site : ((typeof site !== 'undefined' && site) || location.hostname),
+            path: diagnostics_path_shape(page ? page.path : location.pathname),   // route words only: never an id
             engine: config.engine,
             detection: PANEL_ROOT.getElementById('game-detection')?.textContent || '',
             reason: idle_reason_text,
@@ -13254,7 +13272,7 @@ function copy_diagnostics(onDone = () => {}) {
                 .filter(k => config[k]).join(' ') || 'none on',
             // The page-side script's own view. Without this a dead content script and a page with no
             // board produce byte-identical reports.
-            content: (() => { try { return self.MephistoContent?.status?.() || 'no page script'; }
+            content: page ? page.content : (() => { try { return self.MephistoContent?.status?.() || 'no page script'; }
                               catch (e) { return 'status threw: ' + (e && e.message); } })(),
             // The two halves of a wrong move, which no report carried until one went unexplained:
             // WHICH answer was chosen and where it came from, and (in `content`, as lastAimed) which

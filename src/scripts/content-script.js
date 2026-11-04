@@ -207,6 +207,14 @@ function handleExtensionMessage(response, sender, sendResponse) {
         sendResponse(puzzleCaptureFor(response.puzzleCaptureFor));
         return;
     }
+    // Copy Diagnostics from the toolbar popup: the page-side fields only this world can fill. Read in
+    // the popup they were the extension id and "no page script" (audit 3.1.330 SYSA-2, CONTEXT-4).
+    if (response.diagContext) {
+        let content;
+        try { content = self.MephistoContent.status(); } catch (e) { content = 'status threw: ' + (e && e.message); }
+        sendResponse({site: site || '', path: location.pathname, content});
+        return;
+    }
     if (response.queryfen) {
         // ALWAYS answer so the popup's in-flight poll guard clears immediately -- otherwise a poll
         // sent while we're mid-move (or before config) gets no reply and the board freezes for up

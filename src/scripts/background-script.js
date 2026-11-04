@@ -907,7 +907,9 @@ async function buildDiagnostics(ctx = {}) {
     `--- last ${traceRing.length} trace lines ---`,
     ...traceRing.map(l => `${l.t} ${l.body}` + (l.n > 1 ? `  (x${l.n}, last shown)` : '')),
   ].filter(l => l !== null);
-  return {report: lines.join('\n')};
+  // The id must not reach the report through ANY field, not only the trace lines traceLineBody
+  // cleans: the toolbar popup's `site` line carried it bare (audit 3.1.330 SYSA-2).
+  return {report: lines.join('\n').split(chrome.runtime.id).join('<extension id>')};
 }
 
 let bundledAssets = null;
