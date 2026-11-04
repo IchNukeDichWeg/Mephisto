@@ -53,6 +53,9 @@ window.chrome = {
         getManifest: () => ({version: 'harness'}),
         sendMessage: (m, cb) => { if (cb) cb({}); },
         onMessage: {addListener() {}},
+        // the toolbar popup's port listener (CLICKB-2): without it the top-level call threw and the
+        // rest of content-script.js never ran in the harness
+        onConnect: {addListener() {}},
         connect: () => ({onMessage: {addListener() {}}, onDisconnect: {addListener() {}},
                         postMessage() {}, disconnect() {}}),
     },
