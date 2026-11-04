@@ -2895,11 +2895,16 @@ async function fetchArchivePgn(site, user, max) {
                               + `?max=${max}&perfType=blitz,rapid,classical`,
                               {headers: {Accept: 'application/x-chess-pgn'}});
         lichess_note_response(r, 'archive');
+        // A 404 HERE IS "NO SUCH PLAYER", an answer like no games: as an error it was asked again
+        // every two minutes for a mistyped name. Only the status decides; other failures stay
+        // errors (audit 3.1.330 follow-up L48).
+        if (r.status === 404) return '';
         if (!r.ok) throw new Error(`lichess answered ${r.status}`);
         return await r.text();
     }
+    // a 404 for the player's archive list is "no such player": no archives, not a failure (L48)
     const arch = await archiveFetch(`https://api.chess.com/pub/player/${encodeURIComponent(user.toLowerCase())}/games/archives`)
-        .then(r => r.ok ? r.json() : null).catch(() => null);
+        .then(r => r.ok ? r.json() : r.status === 404 ? {archives: []} : null).catch(() => null);
     // chess.com serves ONE FILE PER MONTH, so how far back to reach depends on how many games are
     // wanted -- forty is a month or two, two hundred is half a year for most people.
     const months = Math.max(2, Math.ceil(max / 40));
