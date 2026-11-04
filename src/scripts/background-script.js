@@ -1785,7 +1785,13 @@ async function buildPanelAssets(board) {
     // Matches EVERY `body.mephisto-*` state class, not just dark: a rule left as a bare `body.…`
     // would escape the rehome and style the SITE's <body> instead of our panel.
     css = css.replace(/\bbody\.mephisto-/g, '#mephisto-panel-body.mephisto-')
-             .replace(/html,\s*body/g, '#mephisto-panel-body');
+             .replace(/html,\s*body/g, '#mephisto-panel-body')
+    // `:root, :host` carries the light palette. A :host rule styles the HOST DIV itself, which sits
+    // in the site's body, so the page read all nine --mp-* values off it with getComputedStyle
+    // (audit 3.1.330 PAGEA-1). `:host > *` is every top-level node of the shadow root instead (the
+    // panel, its tooltip, the shortcut sheet), so everything inside inherits the same values and the
+    // host's own computed style carries none.
+             .replace(/:root,\s*:host\b/g, ':host > *');
     // Inline every url() asset (the wood/marble/newspaper board textures). Injected into the page's
     // shadow root, a path like /res/chessboards/wood.jpeg would resolve against the SITE (404), and a
     // chrome-extension:// URL would leak our id via Resource Timing. So ship the bytes.

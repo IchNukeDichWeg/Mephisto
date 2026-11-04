@@ -9857,6 +9857,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('CLICKB-4: Dock Left and free placement are unchanged',
        l.left === '0px' && l.right === 'auto' && f.left === '12px' && f.right === 'auto', [l, f]);
 }
+// ---- audit 3.1.330 PAGEA-1: the page cannot read the panel palette off the host div, and close takes the host away ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bsrc = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const i = bsrc.indexOf('async function buildPanelAssets(board) {');
+    const c = vm.createContext({panelAssetCache: null, TEXTURED_THEMES: ['wood', 'marble', 'newspaper'],
+        PANEL_CSS: ['src/popup/popup.css', 'lib/chessboard/chessboard.min.css', 'lib/materialize/materialize.min.css'],
+        text: async (p) => fs.readFileSync(ROOT + '/' + p, 'utf8'), inlineCssUrls: async (css) => css});
+    vm.runInContext(bsrc.slice(i, bsrc.indexOf('\n}\n', i) + 3), c);
+    (async () => {
+        const css = ((await vm.runInContext('buildPanelAssets(null)', c)).css || '').replace(/\/\*[\s\S]*?\*\//g, '');
+        const hostRules = [...css.matchAll(/(^|[},])\s*([^{}]*:host[^{}]*)\{/g)].map(m => m[2].trim());
+        ok('PAGEA-1: no in-page rule styles the host div itself (every :host selector reaches into the root)',
+           css.length > 1000 && hostRules.every(sel => sel.split(',').every(s => !/:host/.test(s) || /:host\s*>/.test(s))), hostRules);
+        const light = /:host > \*\s*\{([^}]*)\}/.exec(css);
+        ok('PAGEA-1: ...and the light palette still reaches the panel, set on the root\'s top-level nodes',
+           !!light && /--mp-bg:\s*#ffffff/.test(light[1]) && /--mp-on:\s*#2f7d41/.test(light[1]), light && light[0].slice(0, 80));
+    })();
+    // removeOverlay, real source: the host div leaves the site's body
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const r = csrc.indexOf('function removeOverlay() {');
+    let removed = 0;
+    const host = {remove() { removed++; }};
+    const noop = () => {};
+    const k = vm.createContext({overlayHost: host, overlayRoot: {}, dragVeil: null, overlayOpenGen: 0, overlayListeners: null,
+        self: {}, overlayEl: () => null, dropPendingOverlay: noop, clearEvalBar: noop, clearHintArrow: noop, clearMoveClass: noop,
+        overlayFollow: noop, userArrowTimer: null, drawUserArrows: noop, positionObserver: null, pushDebounce: null,
+        PANEL_OVERLAY_ID: 'p', RESTORE_BADGE_ID: 'b', clearInterval: noop, clearTimeout: noop});
+    vm.runInContext(csrc.slice(r, csrc.indexOf('\n}\n', r) + 3) + 'removeOverlay();', k);
+    ok('PAGEA-1: closing the panel (X or panic) removes the host div and forgets its root',
+       removed === 1 && k.overlayHost === null && k.overlayRoot === null, [removed, k.overlayHost === null]);
+    k.overlayHost = host; k.overlayRoot = {}; k.dragVeil = {};
+    vm.runInContext('removeOverlay();', k);
+    ok('PAGEA-1: ...but not while a screen-select veil is still up in it', removed === 1 && k.overlayHost === host);
+    ok('PAGEA-1: a draw after the close builds a fresh host', /if \(overlayRoot && overlayHost && overlayHost\.isConnected\) return overlayRoot;/.test(csrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

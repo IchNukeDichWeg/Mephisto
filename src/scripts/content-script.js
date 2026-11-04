@@ -931,6 +931,11 @@ function removeOverlay() {
     for (const kind of ['hint', 'bar', 'moveClass']) overlayFollow(kind, null);
     clearInterval(userArrowTimer); userArrowTimer = null;   // nobody to rate them for now
     drawUserArrows([]);
+    // The host div and its closed root go too: a closed panel, or the panic key, left them in the
+    // site's body for the rest of the tab, with the panel's stylesheet and tooltip still inside
+    // (audit 3.1.330 PAGEA-1). The next draw or open builds a fresh one (getOverlayRoot). Kept only
+    // while a screen-select veil is up: its own Esc/mouseup tear-down is what clears dragVeil.
+    if (!dragVeil) { overlayHost?.remove(); overlayHost = null; overlayRoot = null; }
     // The next config push starts it again. Left running, a closed panel scraped once per mutation
     // burst and sent each result to the worker, which kept it awake.
     positionObserver?.disconnect(); positionObserver = null;
