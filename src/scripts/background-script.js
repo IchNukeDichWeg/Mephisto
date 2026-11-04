@@ -2205,10 +2205,25 @@ async function puzzleNetWanted() {
 // document_start script. A registration from an older version with the whole-site matches is
 // narrowed in place.
 const PUZ_PROBE_ID = 'pz';
-const PUZ_PROBE_MATCHES = [
-  ...['training', 'storm', 'racer', 'streak'].map(r => `*://lichess.org/${r}*`),
-  ...['www.chess.com', 'chess.com'].flatMap(h => ['puzzles', 'lessons/practice', 'daily'].map(r => `*://${h}/${r}*`)),
-];
+// ONE route table for the probe registration and for the debugger capture's PUZZLE_PAGE_URL below.
+// The capture kept a regex of its own without lichess /streak and chess.com /daily, so it never
+// attached on Puzzle Streak or the Daily Puzzle, and its navigate-away detach took those for other
+// sites (audit 3.1.329 X2-1). A test pins both against the content script's isPuzzlePage().
+// /daily is chess.com's Daily Puzzle; daily GAMES live under /game/daily.
+const PUZZLE_ROUTES = {
+  'lichess.org': ['training', 'storm', 'racer', 'streak'],
+  'www.chess.com': ['puzzles', 'lessons/practice', 'daily', 'daily-chess-puzzle'],
+  'chess.com': ['puzzles', 'lessons/practice', 'daily', 'daily-chess-puzzle'],
+};
+// A match pattern is a prefix, so a route another one already covers (daily-chess-puzzle) adds none.
+const PUZ_PROBE_MATCHES = Object.entries(PUZZLE_ROUTES).flatMap(([h, rs]) =>
+  rs.filter(r => !rs.some(o => o !== r && r.startsWith(o))).map(r => `*://${h}/${r}*`));
+const PUZZLE_PAGE_URL = (url) => {
+  let u;
+  try { u = new URL(url); } catch (e) { return false; }
+  const rs = /^https?:$/.test(u.protocol) && PUZZLE_ROUTES[u.hostname];
+  return !!rs && rs.some(r => u.pathname === '/' + r || u.pathname.startsWith('/' + r + '/'));
+};
 let puzProbeChain = Promise.resolve();   // one at a time: a quick off-on must not race its own register
 function syncPuzProbe() {
   puzProbeChain = puzProbeChain.then(async () => {
@@ -2244,9 +2259,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
     puzzleNetWanted().then(want => { if (!want) for (const id of [...puzzleNetTabs]) puzzleNetStop(id); });
   }
 });
-
-const PUZZLE_PAGE_URL = (url) => /^https?:\/\/(www\.)?(chess\.com|lichess\.org)\//.test(url)
-    && /\/(puzzles|training|storm|racer|lessons\/practice)\b/.test(url);
 
 // AN MV3 WORKER RESTART EMPTIES THESE SETS, BUT THE DEBUGGER ATTACHMENT SURVIVES -- it belongs to
 // the extension, not to this worker instance. After a restart the onEvent guard below dropped every

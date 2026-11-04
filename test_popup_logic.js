@@ -7284,6 +7284,32 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /os\.makedirs\(dest, exist_ok=True\)/.test(f) && /os\.path\.samefile\(dest, own\)[\s\S]{0,200}?return 1/.test(f)
        && f.indexOf('os.makedirs(dest, exist_ok=True)') < f.indexOf('os.listdir(dest)'));
 }
+// ---- audit 3.1.329 X2-1: the debugger capture and the probe use the puzzle routes isPuzzlePage() does ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = b.indexOf("const PUZ_PROBE_ID = 'pz';"), e = b.indexOf('\nlet puzProbeChain', a);
+    const c = vm.createContext({URL});
+    try { vm.runInContext(b.slice(a, e) + ';this.page = PUZZLE_PAGE_URL; this.M = PUZ_PROBE_MATCHES;', c); } catch (err) { console.log('slice threw: ' + err.message); }
+    const toRe = (p) => { const m = p.match(/^\*:\/\/([^/]+)(\/.*)$/); return new RegExp('^https?://' + m[1].replace(/\./g, '\\.') + m[2].replace(/[.?+]/g, '\\$&').replace(/\*/g, '.*') + '$'); };
+    const i = cs.indexOf('function isPuzzlePage() {'), j = cs.indexOf('\n}\n', i) + 3;
+    const isPuz = (url) => { const u = new URL(url); const x = vm.createContext({site: /lichess/.test(u.host) ? 'lichess' : 'chesscom', location: {pathname: u.pathname}}); vm.runInContext(cs.slice(i, j), x); return vm.runInContext('isPuzzlePage()', x); };
+    const urls = ['https://lichess.org/training', 'https://lichess.org/training/mateIn2', 'https://lichess.org/storm', 'https://lichess.org/racer/abcd',
+        'https://lichess.org/streak', 'https://lichess.org/streak?x=1', 'https://www.chess.com/puzzles/rated', 'https://www.chess.com/puzzles/rush', 'https://chess.com/puzzles',
+        'https://www.chess.com/lessons/practice/foo', 'https://www.chess.com/daily-chess-puzzle', 'https://www.chess.com/daily', 'https://www.chess.com/daily/2026-11-04',
+        'https://lichess.org/abcdEFGH', 'https://lichess.org/', 'https://lichess.org/tv', 'https://www.chess.com/game/live/123456789',
+        'https://www.chess.com/game/daily/123', 'https://www.chess.com/play/online', 'https://www.chess.com/home',
+        'https://www.chess.com/member/someone/puzzles', 'https://www.chess.com/stats/puzzles/someone', 'https://lichess.org/abcd?from=/training'];
+    const page = (u) => { try { return c.page(u); } catch (err) { return 'threw'; } };
+    const wrongPage = urls.filter(u => page(u) !== isPuz(u));
+    ok('X2-1: the capture\'s puzzle-page test agrees with isPuzzlePage() (Puzzle Streak and the Daily Puzzle included, no game page)',
+       wrongPage.length === 0 && page('https://lichess.org/streak') === true && page('https://www.chess.com/daily') === true, wrongPage);
+    const M = c.M || [];
+    const wrongProbe = urls.filter(u => M.some(p => toRe(p).test(u)) !== isPuz(u));
+    ok('X2-1: ...and so does the probe registration, from the same table', M.length > 0 && wrongProbe.length === 0, wrongProbe);
+    ok('X2-1: not a page URL is not a puzzle page', page('') === false && page('chrome://extensions') === false && page('https://lichess.org.evil.test/training') === false);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
