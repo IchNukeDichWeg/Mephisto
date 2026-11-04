@@ -228,7 +228,14 @@ class AnalysisPage extends SettingsPage {
         // again from depth 1. Only the model that changed is reloaded now.
         $('an_human_select')?.addEventListener('change', () => { syncBandRow(); reloadHuman(); });
         $('an_band_select')?.addEventListener('change', () => reloadHuman());
-        $('an_engine_select')?.addEventListener('change', () => reloadEngine());
+        $('an_engine_select')?.addEventListener('change', () => {
+            reloadEngine();
+            // Picking a native engine on a Chess960 board swaps it to the WASM build just as a variant
+            // change does, but only that door said so: the select read the native engine while the
+            // first column, whose header names no engine, ran the WASM one (audit 3.1.330 ANALYSISA-4).
+            const note = swapNote(cfg('an_engine'));
+            if (note) status(note);
+        });
         this.registerFormElement('an_game', 'Game:', 'select', CFG.an_game);
         $('an_game_select')?.addEventListener('change', () => applyGame());
         this.registerFormElement('an_variant', 'Variant:', 'select', CFG.an_variant);
@@ -557,8 +564,8 @@ function onVariantChange(quiet) {
     // native engine while the column runs the WASM build, so this line is the only sign of the swap.
     // A pasted PGN with [Variant "Chess960"] comes through here quietly and swapped silently.
     for (const k of ['an_engine', 'an_engine2']) {
-        const id = cfg(k), use = engineFor(id);
-        if (use !== id) notes.push(`${ENGINES.find(e => e.id === id)?.label || id} cannot castle in Chess960; using ${ENGINES.find(e => e.id === use)?.label || use} here.`);
+        const note = swapNote(cfg(k));
+        if (note) notes.push(note);
     }
     syncBandRow();
     reloadEngine2();
@@ -570,6 +577,13 @@ function onVariantChange(quiet) {
         const kind = / an-(\w+)$/.exec(el?.className || '')?.[1];
         status([...notes, el?.textContent || ''].filter(Boolean).join(' '), kind);
     }
+}
+
+// The line for an engine engineFor() swaps on this board, '' for one it runs as picked. Given on a
+// variant change and on an Engine pick alike (audit 3.1.330 ANALYSISA-4).
+function swapNote(id) {
+    const use = engineFor(id);
+    return use === id ? '' : `${ENGINES.find(e => e.id === id)?.label || id} cannot castle in Chess960; using ${ENGINES.find(e => e.id === use)?.label || use} here.`;
 }
 
 // One box takes either: a FEN is placement data followed by a side to move, anything else is a game.

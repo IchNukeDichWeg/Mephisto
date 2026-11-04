@@ -8216,6 +8216,29 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...an untagged game keeps the pick and its Chess960 swap note',
        res?.plain?.variant === 'fischerandom' && res.plain.status === 'Stockfish 18 (native) cannot castle in Chess960; using Stockfish 18 here. Loaded 3 moves.', res?.plain);
 }
+// ---- audit 3.1.330 ANALYSISA-4: picking a native engine on a Chess960 board says it runs the WASM build ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a), j = aj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return aj.slice(i, j); };
+    const c = vm.createContext({conf: {}, said: [], reloads: 0, handlers: {}});
+    let res = null;
+    try {
+        vm.runInContext(`const $ = (id) => ({addEventListener: (ev, f) => { handlers[id] = f; }});
+            const cfg = (k) => conf[k]; const anVariant = () => conf.an_variant;
+            function status(t, k) { said.push([t, k]); } function reloadEngine() { reloads++; }
+            const ENGINES = [{id: 'sf18-native', label: 'Stockfish 18 (native)', kind: 'native'}, {id: 'stockfish-18-nnue', label: 'Stockfish 18', kind: 'wasm'}];
+            ${cut('const NATIVE_960_WASM', 'let engineChain')}
+            ${aj.includes('function swapNote(') ? cut('function swapNote(', '// One box takes either') : ''}
+            ${cut("$('an_engine_select')?.addEventListener('change', ", "this.registerFormElement('an_game'")}`, c);
+        const pick = (variant, engine) => { c.said.length = 0; Object.assign(c.conf, {an_variant: variant, an_engine: engine}); c.handlers.an_engine_select(); return c.said.slice(); };
+        res = {c960: pick('fischerandom', 'sf18-native'), std: pick('chess', 'sf18-native'), wasm: pick('fischerandom', 'stockfish-18-nnue'), reloads: c.reloads};
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('ANALYSISA-4: native Stockfish picked on Chess960: the status line names the WASM build that runs',
+       JSON.stringify(res?.c960) === JSON.stringify([['Stockfish 18 (native) cannot castle in Chess960; using Stockfish 18 here.', null]]), res);
+    ok('...on standard chess, or a WASM pick on Chess960, nothing is said; every pick still reloads the engine',
+       res?.std?.length === 0 && res.wasm?.length === 0 && res.reloads === 3, res);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
