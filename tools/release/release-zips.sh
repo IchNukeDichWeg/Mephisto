@@ -36,8 +36,12 @@ MANIFEST=src/offscreen/engine-assets.json
 
 # THE GATES TEST THE WORKING TREE AND THE ZIPS ARCHIVE $REF, so the two must be the same code: a clean
 # tree with $REF checked out. Otherwise the suites pass or fail on code that is not what ships.
-[ -z "$(git status --porcelain --untracked-files=no)" ] \
-    || { echo "!! uncommitted changes -- the gates would test code the zips do not carry" >&2; exit 1; }
+# UNTRACKED FILES COUNT TOO (audit 3.1.329 NATIVE-2): a new script or module nobody `git add`ed is read
+# from disk by every gate below and left out of both zips by `git archive`, so the build passed and
+# the install failed to load it. Ignored files (.gitignore) are still not listed.
+DIRTY="$(git status --porcelain)"
+[ -z "$DIRTY" ] \
+    || { echo "!! uncommitted or untracked files -- the gates would test code the zips do not carry:" >&2; echo "$DIRTY" >&2; exit 1; }
 [ "$(git rev-parse HEAD)" = "$(git rev-parse "$REF^{commit}")" ] \
     || { echo "!! HEAD is not $REF -- check out $REF first, the gates test the working tree" >&2; exit 1; }
 
