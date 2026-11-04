@@ -2599,7 +2599,7 @@ chrome.action.onClicked.addListener(function (tab) {
 // (connectNative() from a content script is torn down by Chrome). A persistent Port pipes BOTH ways
 // so a host can STREAM many frames per request (one per search depth) to the panel: panel Port <->
 // this worker <-> native stdio port. Keyed by port name so each engine gets its own host. The
-// default WASM engines need none of this; native engines require native-host/install-native.sh.
+// default WASM engines need none of this; native engines need a host set up once (per OS, see the README).
 function nativeTrace(dir, name, frame) {
   try {
     const t = new Date().toISOString().slice(11, 23);
@@ -2622,7 +2622,7 @@ const NATIVE_HOSTS = {
   'sf-native': {app: 'com.sf_native.host', label: 'Stockfish (native)'},
   'fairy-native': {app: 'com.fairy_native.host', label: 'Fairy-Stockfish (native)'},
   'rodent-native': {app: 'com.rodent_native.host', label: 'Rodent IV (native)'},
-  // four-player chess -- see native-host/install-native.sh --tetrarch and the README
+  // four-player chess -- setup per OS is in the README's four-player section
   'tetrarch-native': {app: 'com.tetrarch.host', label: 'Tetrarch (4-player)'},
 };
 const nativePorts = {};              // port name -> native stdio Port
