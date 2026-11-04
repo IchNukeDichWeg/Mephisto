@@ -6306,6 +6306,23 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     c.onVariantChange(false);
     ok('...no swap, no note: the load line stands alone', el.textContent === '' && el.className === 'an-status', [el.textContent, el.className]);
 }
+// ---- audit 3.1.329 ANALYSIS-4: the tablebase line is cleared while a new position's lookup is out ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const a = an.indexOf('async function renderExtras('), b = an.indexOf('\n}\n', a) + 3;
+    const tbEl = {textContent: 'Tablebase: mate in 7 - Kd6'};
+    const pending = [];
+    const c = vm.createContext({tbEl, pending, positions: [{fen: 'K7/8/8/8/8/8/8/k6q b - - 0 1'}], cursor: 0, tbCache: new Map(), TB_MAX_MEN: 7,
+        chrome: {runtime: {sendMessage: (m, cb) => pending.push(cb), lastError: null}}});
+    vm.runInContext(`const $ = (id) => (id === 'an_tb' ? tbEl : null); const anVariant = () => 'chess';
+        const pieceCount = () => 3; const sanOf = () => 'Qh8'; const tbWords = () => 'win';
+        ${an.slice(a, b)}`, c);
+    const p = c.renderExtras(c.positions[0]);
+    ok('ANALYSIS-4: a cache miss blanks the old verdict before the lookup answers', pending.length === 1 && tbEl.textContent === '', [pending.length, tbEl.textContent]);
+    pending[0]({category: 'win', moves: [{uci: 'h1h8'}]});
+    p.then(() => ok('...and the answer, when it lands, is written', tbEl.textContent === 'Tablebase: win - Qh8', tbEl.textContent));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

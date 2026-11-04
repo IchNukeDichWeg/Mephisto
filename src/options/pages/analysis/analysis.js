@@ -2015,6 +2015,10 @@ async function renderExtras(pos) {
     if (tbEl) {
         if (pieceCount(pos.fen) > TB_MAX_MEN) { tbEl.textContent = ''; return; }
         if (!tbCache.has(pos.fen)) {
+            // the line still holds the PREVIOUS position's verdict and move; for the round trip (up
+            // to the worker's 4 s abort, on every revisit of a failing position) it read as this
+            // one's (audit 3.1.329 ANALYSIS-4)
+            tbEl.textContent = '';
             const res = await new Promise(resolve => {
                 try {
                     chrome.runtime.sendMessage({tablebaseLookup: {fen: pos.fen, variant: 'chess'}}, (r) => {
