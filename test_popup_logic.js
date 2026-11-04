@@ -8056,6 +8056,62 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     f.go('/game/live/111', 4, board('NRKBBQRN', {e2: null, e4: 'P'}));
     ok('SCRAPEA-3: a takeback to move 0 on A\'s own page is still A', f.go('/game/live/111', 0, board('NRKBBQRN')) === A && f.go('/game/live/111', 1) === A);
 }
+// ---- audit 3.1.330 ANALYSISA-1: the panel's own Copy PGN tags load under their rules on Analysis and Review ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a), j = aj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return aj.slice(i, j); };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    c.box = {value: ''};
+    c.st = [];
+    c.conf = {an_variant: 'chess'};
+    let res = null;
+    try {
+        // onVariantChange is stood in by what it does here: re-enter loadFromInput under the new rules
+        vm.runInContext(`const Core = self.MephistoReviewCore; let nodeSeq = 0, treeRoot = null, treeNode = null, cursor = 0;
+            const anVariant = () => conf.an_variant; const $ = (id) => (id === 'an_pgn' ? box : null); function status(t, k) { st.push([t, k]); }
+            const evalCache = new Map(), evalCache2 = new Map(), humanCache = new Map(), bandCache = new Map();
+            function relinkLine() {} function buildBoard() {} function renderMoves() {} function renderPockets() {} function go() {}
+            function setCfg(k, v) { conf[k] = v; } function onVariantChange() { loadFromInput(); }
+            ${cut('const PGN_VARIANTS = {', '\n};\n')}
+};
+            ${cut('function threeCheckCounts', '// crazyhouse only')}
+            ${cut('function mkNode', '// the flat view')}
+            ${cut('function loadFromInput', '// The line as it stands')}`, c);
+        const load = (from, text) => { c.conf.an_variant = from; c.st.length = 0; c.box.value = text; vm.runInContext('loadFromInput()', c);
+            return {variant: c.conf.an_variant, last: c.st[c.st.length - 1]}; };
+        res = {
+            three: load('chess', '[Variant "3check"]\n\n1. e4 e5 2. Bc4 Nc6 3. Bxf7+ *'),
+            std: load('crazyhouse', '[Variant "chess"]\n\n1. e4 e5 2. Nf3 *'),
+            duck: load('crazyhouse', '[Variant "duck"]\n\n1. e4 e5 2. Nf3 *'),
+            duckStd: load('chess', '[Variant "duck"]\n\n1. e4 e5 2. Nf3 *'),
+            lichess: load('chess', '[Variant "Three-check"]\n\n1. e4 e5 2. Bc4 Nc6 3. Bxf7+ *'),
+        };
+        res.checks = vm.runInContext('treeRoot.children[0].children[0].children[0].children[0].children[0].checksLeft', c);
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('ANALYSISA-1: a panel Copy PGN tagged "3check" loads as Three-check, the check counted',
+       res?.three?.variant === '3check' && JSON.stringify(res.three.last) === JSON.stringify(['Loaded 5 moves.', null])
+       && JSON.stringify(res.checks) === JSON.stringify({w: 2, b: 3}), res);
+    ok('...one tagged "chess" loads as standard from a Crazyhouse board',
+       res?.std?.variant === 'chess' && JSON.stringify(res.std.last) === JSON.stringify(['Loaded 3 moves.', null]), res?.std);
+    ok('...an unknown tag really switches to standard, and its warning survives the load line',
+       res?.duck?.variant === 'chess' && res.duckStd?.variant === 'chess'
+       && JSON.stringify(res.duck.last) === JSON.stringify(['Variant "duck" is not one this board can play -- loading as standard. Loaded 3 moves.', 'err'])
+       && JSON.stringify(res.duckStd.last) === JSON.stringify(res.duck.last), [res?.duck, res?.duckStd]);
+    ok('...the lichess spelling still maps', res?.lichess?.variant === '3check', res?.lichess);
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rv.indexOf('const RV_PGN_VARIANTS = {'), b = rv.indexOf('};', a) + 2;
+    const rmap = vm.runInNewContext(rv.slice(a, b).replace('const RV_PGN_VARIANTS =', '(').replace(/};$/, '})'));
+    const amap = vm.runInContext('PGN_VARIANTS', c);
+    const ids = ['chess', 'fischerandom', 'crazyhouse', '3check', 'kingofthehill', 'antichess', 'atomic', 'horde', 'racingkings'];
+    ok('...every variant id the panel writes maps to itself on Analysis and on Review',
+       ids.every(id => amap?.[id] === id && rmap[id] === id), ids.map(id => [id, amap?.[id], rmap[id]]));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -60,6 +60,9 @@ const RV_PGN_VARIANTS = {
     // lichess's custom-start games: standard rules, and the [FEN] tag already carries the start. It
     // read as "which this page cannot review" and then reviewed fine (audit 3.1.328 REVIEW-16).
     'from position': 'chess',
+    // the panel's own Copy PGN writes its config ids: "chess" and "3check" were answered with "which
+    // this page cannot review" (audit 3.1.330 ANALYSISA-1)
+    'chess': 'chess', '3check': '3check',
 };
 
 // chess.com's 4-player games carry their MODE in the Variant tag ("Teams", "FFA"), not the words

@@ -500,6 +500,10 @@ const PGN_VARIANTS = {
     'threecheck': '3check', 'three check': '3check', 'king of the hill': 'kingofthehill',
     'kingofthehill': 'kingofthehill', 'antichess': 'antichess', 'giveaway': 'antichess',
     'atomic': 'atomic', 'horde': 'horde', 'racing kings': 'racingkings', 'racingkings': 'racingkings',
+    // the panel's own Copy PGN writes its config ids; "chess" and "3check" were missing, so its
+    // Three-check games loaded as standard and its standard games under whatever variant the board
+    // was on (audit 3.1.330 ANALYSISA-1). lichess's custom-start games are standard rules too.
+    'chess': 'chess', '3check': '3check', 'from position': 'chess',
 };
 
 function setVariant(v) {
@@ -557,21 +561,30 @@ function onVariantChange(quiet) {
 function loadFromInput() {
     const text = ($('an_pgn')?.value || '').trim();
     if (!text) return loadStart();
+    // An unknown tag's warning is put IN FRONT of the load's own line: written on its own it was
+    // overwritten by "Loaded N moves." in this same call, so nothing said the tag was not understood
+    // (audit 3.1.330 ANALYSISA-1).
+    let warn = '';
+    const say = (t, kind) => status(warn ? `${warn} ${t}`.trim() : t, warn ? 'err' : kind);
     try {
         // a [Variant] tag decides the rules BEFORE anything is replayed -- a Crazyhouse game read
         // under standard rules dies on its first drop, which is exactly the game this page could
         // not open before
         const tagged = /\[Variant\s+"([^"]+)"\]/.exec(text);
         if (tagged) {
-            const v = PGN_VARIANTS[tagged[1].trim().toLowerCase()];
-            if (v && v !== anVariant()) {
+            const known = PGN_VARIANTS[tagged[1].trim().toLowerCase()];
+            // an unknown tag (the panel's Duck, Seirawan, ...) is loaded as standard for real: it
+            // fell through to the board's current variant, a Crazyhouse board replaying a standard
+            // game with pockets filling (audit 3.1.330 ANALYSISA-1)
+            const v = known || 'chess';
+            if (v !== anVariant()) {
                 setCfg('an_variant', v);
                 const sel = $('an_variant_select');
                 if (sel) sel.value = v;
                 onVariantChange(true);
                 return;    // onVariantChange re-enters loadFromInput under the new rules
             }
-            if (!v) status(`Variant "${tagged[1]}" is not one this board can play -- loading as standard.`, 'err');
+            if (!known) warn = `Variant "${tagged[1]}" is not one this board can play -- loading as standard.`;
         }
         if (/^[rnbqkpRNBQKP1-8/~]+(\[[a-zA-Z]*\])?\s+[wb]\s/.test(text)) {
             let {holdings, promoted, fen: fenText} = liftHoldings(text);
@@ -596,7 +609,7 @@ function loadFromInput() {
             treeRoot = mkNode(c.fen(), c.turn(), null, null, null,
                               {holdings, promoted, checksLeft});
             treeNode = treeRoot;
-            status('Position loaded.');
+            say('Position loaded.');
         } else {
             const game = Core.parsePgn(text)[0];
             if (!game) throw new Error('no game found in that text');
@@ -620,12 +633,12 @@ function loadFromInput() {
             // half-copied game silently
             let n = 0;
             for (let x = treeRoot; x.children[0]; x = x.children[0]) n++;
-            status(n === 0 ? 'No moves were understood in that text.'
+            say(n === 0 ? 'No moves were understood in that text.'
                  : n < 3 ? `Only ${n} move${n === 1 ? '' : 's'} understood -- check the text.`
                  : `Loaded ${n} moves.`, n === 0 ? 'err' : undefined);
         }
     } catch (e) {
-        return status(String(e.message || e), 'err');
+        return say(String(e.message || e), 'err');
     }
     relinkLine();
     evalCache.clear(); evalCache2.clear(); humanCache.clear(); bandCache.clear();
