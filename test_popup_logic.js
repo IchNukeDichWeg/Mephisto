@@ -5438,10 +5438,10 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
     const i = b.indexOf('function puzzleNetStop(tabId) {'), j = b.indexOf('\n}\n', i) + 3;
     const cmds = [];
-    const c = vm.createContext({puzzleNetTabs: new Set([7]), chrome: {runtime: {}, debugger: {sendCommand: (t, m) => cmds.push([t.tabId, m])}}});
+    const c = vm.createContext({puzzleNetTabs: new Set([7]), cdpInputTabs: new Set([7]), chrome: {runtime: {}, debugger: {sendCommand: (t, m) => cmds.push([t.tabId, m])}}});
     vm.runInContext(b.slice(i, j), c);
     vm.runInContext('puzzleNetStop(7)', c);
-    ok('puzzleNetStop: Network off and the tab out of the set, debugger kept', c.puzzleNetTabs.size === 0 && JSON.stringify(cmds) === '[[7,"Network.disable"]]', cmds);
+    ok('puzzleNetStop on a tab Autoplay clicked in: Network off and the tab out of the set, debugger kept', c.puzzleNetTabs.size === 0 && JSON.stringify(cmds) === '[[7,"Network.disable"]]', cmds);
     ok('a change to any of the three keys stops watched tabs when capture is no longer wanted; a reload does too',
        /changes\.puzzle_mode \|\| changes\.puzzle_capture \|\| changes\.puzzle_capture_cdp\)\) \{\s*puzzleNetWanted\(\)\.then\(want => \{ if \(!want\) for \(const id of \[\.\.\.puzzleNetTabs\]\) puzzleNetStop\(id\); \}\);/.test(b)
        && /if \(!\(await puzzleNetWanted\(\)\)\) \{ if \(puzzleNetTabs\.has\(tabId\)\) puzzleNetStop\(tabId\); return; \}/.test(b));
@@ -6903,6 +6903,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...a failed :m2 load drops the client, so the kick/answer count starts over',
        /if \(msg\.clientId === maia2_client\(\)\) \{ if \(msg\.kind === 'line'\) maia2_on_line\(msg\.line\); else if \(msg\.kind === 'error'\) maia2_dispose\(\); return; \}/.test(psrc));
 })().catch(e => { fails++; console.log('FAIL PLAY-2 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.329 PAGE-1: switching the debugger capture off detaches a tab only the capture used ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const fn = (name) => { const i = b.indexOf(`function ${name}(tabId) {`); return b.slice(i, b.indexOf('\n}\n', i) + 3); };
+    const cmds = [], detached = [];
+    const c = vm.createContext({puzzleNetTabs: new Set([7, 8]), attached: new Set([7, 8]), cdpInputTabs: new Set([8]), lastPos: new Map(),
+        chrome: {runtime: {}, debugger: {sendCommand: (t, m) => cmds.push([t.tabId, m]), detach: (t) => detached.push(t.tabId)}}});
+    vm.runInContext(fn('puzzleNetStop') + fn('puzzleNetDetach'), c);
+    vm.runInContext('puzzleNetStop(7); puzzleNetStop(8)', c);
+    ok('PAGE-1: a tab only the capture attached is detached when the capture stops', detached.join() === '7' && !c.attached.has(7), detached);
+    ok('PAGE-1: a tab Autoplay clicked in keeps its attachment with Network off', c.attached.has(8) && JSON.stringify(cmds) === '[[8,"Network.disable"]]' && c.puzzleNetTabs.size === 0, cmds);
+    const click = b.slice(b.indexOf('function cdpClick('), b.indexOf('function cdpClick(') + 300);
+    const drag = b.slice(b.indexOf('function cdpDrag('), b.indexOf('function cdpDrag(') + 300);
+    ok('PAGE-1: cdpClick, cdpDrag and cdpWarm mark the tab as used by Autoplay; a detach clears the mark',
+       /cdpInputTabs\.add\(tabId\)/.test(click) && /cdpInputTabs\.add\(tabId\)/.test(drag)
+       && /if \(msg\.cdpWarm\) \{[\s\S]{0,600}?cdpInputTabs\.add\(tabId\);\s*cdpAttach\(tabId\)/.test(b)
+       && /onDetach\?\.addListener\(\(src\) => \{\s*if \(src\.tabId\) \{[^\n]*cdpInputTabs\.delete\(src\.tabId\)/.test(b));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

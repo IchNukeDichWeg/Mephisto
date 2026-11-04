@@ -705,6 +705,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         && typeof sender.url === 'string' && sender.url.startsWith(`chrome-extension://${chrome.runtime.id}/`);
     const tabId = sender.tab?.id ?? ((own && Number.isInteger(msg.tabId)) ? msg.tabId : undefined);
     if (!tabId) { sendResponse({error: 'no sender tab'}); return; }
+    cdpInputTabs.add(tabId);
     cdpAttach(tabId).then(() => sendResponse({ok: true})).catch(e => sendResponse({error: String(e)}));
     return true;
   }
@@ -1797,6 +1798,12 @@ async function buildPieces(pieceSet, pieceExt) {
 
 // --- Trusted CDP click (moved here from the panel; content scripts can't use chrome.debugger) -----
 const attached = new Set();
+// Tabs whose attachment Autoplay's own input has used (cdpClick, cdpDrag, cdpWarm). Switching the
+// debugger capture off detaches every OTHER tab at once: the capture made that attachment alone,
+// and keeping it left the "being debugged" bar on the tab for its whole life, on every site it
+// visited afterwards (audit 3.1.329 PAGE-1). Lost on a worker restart, so a tab Autoplay clicked in
+// before the restart is detached too; its next click attaches again, which is the safe direction.
+const cdpInputTabs = new Set();
 const lastPos = new Map(); // tabId -> {x, y}: where the synthetic cursor was left after the last click
 const cdpSleep = (ms) => new Promise(r => setTimeout(r, ms));
 // A mouseMoved IS NOT ACKED UNTIL THE PAGE PAINTS A FRAME. Blink hands pointer-move events to the
@@ -2031,6 +2038,7 @@ const ATTACH_SETTLE_MS = 450;
 function cdpClick(tabId, x, y, travelMs = 0) {
   return new Promise((resolve, reject) => {
     if (!tabId) return reject(new Error('no tabId'));
+    cdpInputTabs.add(tabId);
     const target = {tabId};
     const send = async () => {
       try {
@@ -2077,6 +2085,7 @@ function cdpClick(tabId, x, y, travelMs = 0) {
 function cdpDrag(tabId, x1, y1, x2, y2, travelMs = 0) {
   return new Promise((resolve, reject) => {
     if (!tabId) return reject(new Error('no tabId'));
+    cdpInputTabs.add(tabId);
     const target = {tabId};
     const send = async () => {
       let pressed = false, released = false;
@@ -2137,7 +2146,7 @@ function cdpAttach(tabId) {
   });
 }
 chrome.debugger.onDetach?.addListener((src) => {
-  if (src.tabId) { attached.delete(src.tabId); lastPos.delete(src.tabId); puzzleNetTabs.delete(src.tabId); moveStalled.delete(src.tabId); }
+  if (src.tabId) { attached.delete(src.tabId); cdpInputTabs.delete(src.tabId); lastPos.delete(src.tabId); puzzleNetTabs.delete(src.tabId); moveStalled.delete(src.tabId); }
 });
 
 // --- reading puzzle payloads over the debugger -----------------------------------------------------
@@ -2226,9 +2235,12 @@ try {
   });
 } catch (e) { /* no debugger permission granted yet */ }
 
-// The capture off, the tab kept: Network off and the tab out of the set, but the debugger stays
-// attached, because Autoplay's clicks may be using the same attachment.
+// The capture off, the tab kept. An attachment only the capture used is dropped with it: once the
+// tab is out of puzzleNetTabs the navigate-away detach below never looks at it again, so the bar
+// stayed up for the life of the tab (audit 3.1.329 PAGE-1). One Autoplay's clicks have used stays
+// attached with Network off, as every click attachment does.
 function puzzleNetStop(tabId) {
+  if (!cdpInputTabs.has(tabId)) return puzzleNetDetach(tabId);
   puzzleNetTabs.delete(tabId);
   try { chrome.debugger.sendCommand({tabId}, 'Network.disable', {}, () => void chrome.runtime.lastError); } catch (e) { /* gone */ }
 }
@@ -2236,6 +2248,7 @@ function puzzleNetStop(tabId) {
 function puzzleNetDetach(tabId) {
   puzzleNetTabs.delete(tabId);
   attached.delete(tabId);
+  cdpInputTabs.delete(tabId);
   lastPos.delete(tabId);
   try { chrome.debugger.detach({tabId}, () => void chrome.runtime.lastError); } catch (e) { /* gone */ }
 }
