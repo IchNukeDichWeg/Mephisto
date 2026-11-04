@@ -733,8 +733,9 @@ async function initPanel(root, tabId) {
             // and permanent time trouble. One clock-less push can be a bad read, so the old value is
             // only dropped once it is more than a few seconds stale.
             else if (last_clocks && Date.now() - last_clocks.at > 3000) last_clocks = null;
-            // Maia-2 with "use opponent's rating": the page's own number wins over the box
-            if (config.engine === 'maia2' && response.oppRating > 0) set_maia2_oppo(response.oppRating);
+            // Maia-2 with "use opponent's rating": the page's own number wins over the box. Not
+            // stored: it belongs to this tab's game (see set_maia2_oppo)
+            if (config.engine === 'maia2' && response.oppRating > 0) set_maia2_oppo(response.oppRating, false);
             // The longest clock reading this game is the closest thing to a base time the panel
             // can see, and it is what Opponent Prep gates on: a 3+0 blitz never reaches five
             // minutes, a 15+10 does on move one. Robust to joining a game late, which a scraped
@@ -10919,7 +10920,11 @@ function mark_autoplay_overridden() {
 }
 
 // Maia-2's opponent rating, from its box or from the page: tell the net, drop the stale answer.
-function set_maia2_oppo(v) {
+// Only the box's value is stored. A page rating is this tab's opponent: stored, it reached every
+// other open panel through the live-config listener, which adopted it and re-asked its own page,
+// whose different rating was stored back -- two Maia-2 games rewrote each other's OppoElo forever,
+// abandoning every search (audit 3.1.329 ENGINE-3).
+function set_maia2_oppo(v, store = true) {
     v = Math.max(600, Math.min(2800, Math.round(v / 50) * 50));
     const box = PANEL_ROOT?.getElementById?.('qs_maia2_oppo');
     if (box) box.value = String(v);
@@ -10928,7 +10933,7 @@ function set_maia2_oppo(v) {
     // NOT `save`: that is a const inside init_quick_settings, so calling it from here threw a
     // ReferenceError after config had changed -- no setoption, nothing stored, and the fen
     // response carrying the rating was dropped with it (audit 3.1.328 OPT-1)
-    MephistoConfig.set('maia2_oppo_elo', JSON.stringify(v));
+    if (store) MephistoConfig.set('maia2_oppo_elo', JSON.stringify(v));
     if (config.engine === 'maia2') {
         send_engine_uci(`setoption name OppoElo value ${v}`);
         abandon_search();

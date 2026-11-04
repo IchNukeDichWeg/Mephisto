@@ -4059,7 +4059,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...the page reads lichess\'s <rating> off the top player row, and only sends it while Maia-2 is the engine',
        vm.runInContext('opponentRating()', dc) === 2893
        && (csrc.match(/oppRating: config\??\.engine === 'maia2' \? opponentRating\(\) : null/g) || []).length === 2
-       && /if \(config\.engine === 'maia2' && response\.oppRating > 0\) set_maia2_oppo\(response\.oppRating\);/.test(psrc));
+       && /if \(config\.engine === 'maia2' && response\.oppRating > 0\) set_maia2_oppo\(response\.oppRating, false\);/.test(psrc));
     const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
     ok('Play Like Rating is a settings row on the maia3_elo key, live in an open panel, worded in all 14 locales',
@@ -6821,6 +6821,43 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const dead = run([[2000, L('info depth 3 nodes 900')], [2001, L('bestmove d2d4')]], {load: false});
     ok('...while a stop owed with no load running is still written off after STOP_FLUSH_MS',
        JSON.stringify(dead) === JSON.stringify(['info depth 3 nodes 900', 'bestmove d2d4']), dead);
+}
+// ---- audit 3.1.329 ENGINE-3: a page-read Maia-2 opponent rating stays in its own panel ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = psrc.indexOf('function set_maia2_oppo('), b = psrc.indexOf('\n}\n', a) + 3;
+    // Two panels sharing one config store. The other panel's live-config listener adopts a stored
+    // maia2_oppo_elo, abandons and re-asks its page, whose push carries ITS opponent's rating.
+    const store = {}, writes = [], panels = [];
+    const mkPanel = (name, pageRating) => {
+        const p = {name, pageRating, abandons: 0, sent: []};
+        p.c = vm.createContext({config: {engine: 'maia2', maia2_oppo_elo: 1500}, PANEL_ROOT: null, last_eval: {fen: 'x'},
+            MephistoConfig: {set: (k, v) => { if (store[k] === v) return; store[k] = v; writes.push([name, v]); queue.push([name, k, v]); }},
+            send_engine_uci: (l) => p.sent.push(l), abandon_search: () => { p.abandons++; }, push_config() {}});
+        vm.runInContext(psrc.slice(a, b), p.c);
+        p.pagePush = () => vm.runInContext(`set_maia2_oppo(${pageRating}, false)`, p.c);
+        panels.push(p); return p;
+    };
+    const queue = [];
+    const A = mkPanel('A', 1600), B = mkPanel('B', 2000);
+    A.pagePush(); B.pagePush();
+    for (let i = 0; queue.length && i < 50; i++) {
+        const [from, k, v] = queue.shift();
+        for (const p of panels) if (p.name !== from) {
+            vm.runInContext(`config.${k} = ${JSON.parse(v)}`, p.c); p.abandons++; p.pagePush();   // adopt, abandon, re-ask the page
+        }
+    }
+    ok('ENGINE-3: two Maia-2 panels with different page ratings write nothing to the shared store and stop re-searching',
+       writes.length === 0 && queue.length === 0 && A.abandons === 1 && B.abandons === 1, {writes: writes.length, A: A.abandons, B: B.abandons});
+    ok('...each panel keeps its own opponent\'s rating and tells its net',
+       vm.runInContext('config.maia2_oppo_elo', A.c) === 1600 && vm.runInContext('config.maia2_oppo_elo', B.c) === 2000
+       && A.sent.join() === 'setoption name OppoElo value 1600' && B.sent.join() === 'setoption name OppoElo value 2000', [A.sent, B.sent]);
+    vm.runInContext('set_maia2_oppo(1750)', A.c);   // typed into the box
+    ok('...a rating typed into the box is still stored', store.maia2_oppo_elo === '1750', store);
+    ok('...the page path passes store=false and the box path stores',
+       /response\.oppRating > 0\) set_maia2_oppo\(response\.oppRating, false\);/.test(psrc)
+       && /box\.addEventListener\('change', \(\) => set_maia2_oppo\(parseInt\(box\.value\) \|\| 1500\)\);/.test(psrc));
 }
 // ==== END FIX CHECKS ====
 
