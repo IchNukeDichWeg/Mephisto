@@ -10265,6 +10265,48 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     r = await run(0);
     ok('REVIEWA-4: engine 1 failing is disposed before the error is thrown', r.err && r.made[0].disposed && r.made.length === 1, [String(r.err), r.made.map(e => e.disposed)]);
 })().catch(e => { fails++; console.log('FAIL REVIEWA-4 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 REVIEWA-5: Stop during the strength estimate says so, the report does not read as finished ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    // the real strengthPass, Stop pressed on the third move of the sweep
+    const moves = Array.from({length: 8}, (_, i) => ({uci: 'e2e4', ply: i, color: i % 2 ? 'b' : 'w'}));
+    const positions = moves.map(() => ({fen: 'x', turn: 'w'}));
+    let asked = 0;
+    const human = {send() {}, analyse: async () => { if (++asked === 3) vm.runInContext('cancel = true', sc); return {lines: [{pv: ['e2e4'], prob: 0.5}]}; }};
+    const sc = vm.createContext({Math, Number, String, cfg: (k) => (k === 'rv_human' ? 'maia3' : k === 'rv_strength' ? true : 1500),
+        takesRating: () => true, ratingSteps: () => [1100, 1500, 1900], ratingFor: () => 1500, MAIA_BANDS: [],
+        STRENGTH_MULTIPV: 64, strengthBands: () => [1100, 1500, 1900], strengthUsable: (m) => !!m.uci, Core: {gamePhases: () => []}, strengthForSide: () => null, makeEngine() { throw new Error('no'); }});
+    vm.runInContext('var cancel = false;' + fn('async function strengthPass('), sc);
+    const prog = {plan() {}, tick() {}};
+    const res = await sc.strengthPass(positions, moves, prog, {opts: {variant: 'chess'}, human});
+    ok('REVIEWA-5: a Stop inside the strength sweep is marked as a stop, not "no estimate"', res === null && prog.stopped === true, [res, prog.stopped]);
+    const prog2 = {plan() {}, tick() {}};
+    vm.runInContext('cancel = false', sc); asked = -100;
+    await sc.strengthPass(positions, moves, prog2, {opts: {variant: 'chess'}, human});
+    ok('REVIEWA-5: ...and a sweep that ran to the end is not', !prog2.stopped && asked > -100 + 20, asked);
+    ok('REVIEWA-5: runReview carries the stop onto the built report',
+       /built\.strength = await strengthPass\(positions, moves, sprog, rig\);[\s\S]{0,300}?if \(sprog\.stopped\) built\.strengthStopped = true;/.test(rj));
+    // the real onRun: single game and the last game of a batch end with a note that says so
+    const a = rj.indexOf('async function onRun() {'), b = rj.indexOf('\n}\n', a) + 3;
+    const run = (batch) => {
+        const els = {};
+        const c = vm.createContext({console, Promise, Error, String, notes: [],
+            $: (id) => (els[id] = els[id] || {disabled: false, value: 'B', classList: {add() {}, remove() {}}, scrollIntoView() {}}),
+            cfg: (k) => (k === 'rv_batch' ? batch : k === 'rv_variant' ? 'chess' : false), note: (t, e) => c.notes.push(t),
+            progress() {}, renderReport() {}, renderBatch() {}, disposeRig() {}, gameText: () => 'B', run4pcReview() {}, startRig: async () => ({}),
+            selectedGame: () => ({id: 'B'}),
+            runReview: async (g) => { if (g.id === 2 || !batch) { vm.runInContext('cancel = true', c); return {strengthStopped: true}; } return {}; }});
+        vm.runInContext('var running = false, cancel = false, is4pcGame = false, batchInputText = "", report = null, batchReports = null;\n'
+            + 'var games = [{id: 1}, {id: 2}];\n' + rj.slice(a, b), c);
+        return vm.runInContext('onRun()', c).then(() => c.notes.filter(Boolean));
+    };
+    const single = await run(false), batch = await run(true);
+    ok('REVIEWA-5: a single game stopped in its strength pass says the estimate did not finish',
+       single.some(t => /strength estimate did not finish/.test(t)), single);
+    ok('REVIEWA-5: ...and so does the last game of a batch', batch.some(t => /strength estimate did not finish/.test(t)), batch);
+})().catch(e => { fails++; console.log('FAIL REVIEWA-5 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

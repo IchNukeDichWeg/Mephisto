@@ -426,10 +426,14 @@ async function runReview(game, rig, onProgress) {
     // exclusions silently did nothing and every move counted, which is a different measurement than
     // the one the page describes.
     const built = assemble(game, positions, moves, book, opts);
-    built.strength = await strengthPass(positions, moves, {
+    const sprog = {
         plan: (n) => { total += n; },
         tick: (what) => { done++; onProgress(done / total, what); },
-    }, rig);
+    };
+    built.strength = await strengthPass(positions, moves, sprog, rig);
+    // A Stop inside the sweep is not "no estimate": onRun says so, or the report read as finished
+    // with the status left on "Stopping after this position..." (audit 3.1.330 REVIEWA-5).
+    if (sprog.stopped) built.strengthStopped = true;
     return built;
 }
 
@@ -500,7 +504,7 @@ async function strengthPass(positions, moves, prog, rig) {
             }
         }
         for (let bi = 0; bi < bands.length; bi++) {
-            if (cancel) return null;
+            if (cancel) { prog.stopped = true; return null; }
             const band = bands[bi];
             let e = shared;
             if (!e) {
@@ -513,7 +517,7 @@ async function strengthPass(positions, moves, prog, rig) {
                 e.send(`setoption name OppoElo value ${band}`);
             }
             for (let k = 0; k < usable.length; k++) {
-                if (cancel) { if (!shared) e.dispose?.(); return null; }
+                if (cancel) { if (!shared) e.dispose?.(); prog.stopped = true; return null; }
                 const {m, i} = usable[k];
                 prog.tick(`rating ${band}: move ${k + 1} of ${usable.length}`);
                 let lines = [];
@@ -2657,7 +2661,9 @@ async function onRun() {
                                 + (skipped.length ? ` Skipped before that: ${skipped.join('; ')}` : ''), true);
         else if (skipped.length) note(`Skipped ${skipped.length} of ${list.length}: ${skipped.join('; ')}`
                                  + (done.length + skipped.length < list.length ? ' - then stopped.' : ''), true);
-        else if (done.length < list.length) note(`Stopped after ${done.length} of ${list.length} games.`);
+        else if (done.length < list.length) note(`Stopped after ${done.length} of ${list.length} games.`
+            + (done[done.length - 1].strengthStopped ? ' The last one has no strength estimate: it was stopped before it finished.' : ''));
+        else if (done[done.length - 1].strengthStopped) note('Stopped: the strength estimate did not finish, so this report has none.');
         $('rv-report').scrollIntoView({behavior: 'smooth', block: 'start'});
     } catch (e) {
         if (cancel) note('Stopped.');
