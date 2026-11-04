@@ -11830,12 +11830,24 @@ let game_max_clock_s = 0;
 let opp_prep_for = '';              // the opponent we already asked about
 let opp_prep_book = null;           // 'placement turn' -> {uci: count} from THEIR games, their colour
 let opp_prep_games = 0;
+// A FAILED LOOKUP WAITS BEFORE IT ASKS AGAIN (audit 3.1.330 SWALLOW-3/4). Un-latching on failure is
+// what lets a 429 or a sleeping worker recover, but on its own the very next position asked again: a
+// player whose archive keeps failing (a month that always times out, chess.com's 429 on parallel
+// requests) had every month downloaded again on every push, which hammers the API and keeps the 429
+// going. Two minutes is long next to a move and short next to a rapid game, so the retry still lands
+// while the opening is on the board. Opponent Prep and the Player Book share it.
+const LOOKUP_RETRY_MS = 2 * 60 * 1000;
+let opp_prep_failed = null;         // {who, at}: the last Opponent Prep lookup that failed
+function lookup_cooling(failed, who) {
+    return !!failed && failed.who === who && Date.now() - failed.at < LOOKUP_RETRY_MS;
+}
 
 function opp_prep_long_enough() { return game_max_clock_s >= OPP_PREP_MIN_CLOCK_S; }
 
 function maybe_opponent_prep(name) {
     if (!config.opp_prep || !opp_prep_long_enough()) return;
     if (!/^[\w.-]{2,30}$/.test(name) || name === opp_prep_for) return;
+    if (lookup_cooling(opp_prep_failed, name)) return;   // failed under LOOKUP_RETRY_MS ago
     opp_prep_for = name;
     opp_prep_book = null;
     opp_prep_games = 0;
@@ -11851,8 +11863,10 @@ function maybe_opponent_prep(name) {
         // game's prep, undoing the worker's never-cache-a-failure rule (audit 3.1.330 SWALLOW-4).
         if (!res || res.error || !Array.isArray(res.games)) {
             if (opp_prep_for === name) opp_prep_for = '';
+            opp_prep_failed = {who: name, at: Date.now()};
             return;
         }
+        if (opp_prep_failed?.who === name) opp_prep_failed = null;
         if (opp_prep_for !== name) return;              // a new opponent while we waited
         build_opp_prep_book(name, res.games);
         update_best_move(null);                          // the label can appear without a new search
@@ -12176,6 +12190,7 @@ const PLAYER_BOOK_MIN = 2;        // played at least twice: once is an accident,
 let player_book = null;           // 'placement turn' -> {uci: count}, that player's moves only
 let player_book_for = '';         // site|user|filter we already asked about, so we ask once
 let player_book_games = 0;
+let player_book_failed = null;    // {who: key, at}: the last lookup that failed (see LOOKUP_RETRY_MS)
 
 // "name", "lichess:name", "chesscom:name" -> {site, name}. A bare name means the site you are on,
 // which is the common case and the one nobody should have to spell out. null when there is nothing
@@ -12229,6 +12244,7 @@ function maybe_player_book() {
     if (!who) return;
     const key = `${who.site}|${who.name.toLowerCase()}|${config.player_book_wins ? 'wins' : 'all'}`;
     if (key === player_book_for) return;
+    if (lookup_cooling(player_book_failed, key)) return;   // failed under LOOKUP_RETRY_MS ago
     player_book_for = key;
     player_book = null;
     player_book_games = 0;
@@ -12246,9 +12262,11 @@ function maybe_player_book() {
         // or an archive that was briefly down, must not cost the book for the whole session.
         if (!res || res.error || !Array.isArray(res.games)) {
             if (player_book_for === key) player_book_for = '';
+            player_book_failed = {who: key, at: Date.now()};
             console.warn('Mephisto: player book lookup failed -', res?.error || 'no response');
             return;
         }
+        if (player_book_failed?.who === key) player_book_failed = null;
         if (player_book_for !== key) return;          // the setting changed while we waited
         const built = build_moves_book(res.games, who.name,
                                        {maxPly: PLAYER_BOOK_MAX_PLY, winsOnly: !!config.player_book_wins});

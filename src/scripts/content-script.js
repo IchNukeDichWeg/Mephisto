@@ -795,20 +795,31 @@ function opponentRating() {
     return null;
 }
 let streamerAsked = null;   // one lookup per opponent, not per scrape
+// A FAILED LOOKUP WAITS BEFORE IT ASKS AGAIN (audit 3.1.330 SWALLOW-4): the un-latch below lets a 429
+// or a sleeping worker recover, and this keeps an opponent whose lookup keeps failing from being
+// asked on every config push, which would only prolong a rate limit. Same two minutes as the panel's
+// LOOKUP_RETRY_MS: long next to a push, short next to a game.
+const STREAMER_RETRY_MS = 2 * 60 * 1000;
+let streamerFailed = null;  // {name, at}: the last lookup that failed
 function maybeCheckStreamer() {
     if (!config.streamer_alert) return;
     const name = opponentUsername();
     if (!name || name === streamerAsked) return;
+    if (streamerFailed?.name === name && Date.now() - streamerFailed.at < STREAMER_RETRY_MS) return;
     streamerAsked = name;
     // A FAILED LOOKUP UN-LATCHES. streamerAsked is set before the ask and nothing else resets it,
     // so an error answer (lichess cooling down, a 429, a worker that died mid-ask) used to end the
     // checks on that opponent for the life of the page, rematches included, while the worker
     // carefully never caches a failure (audit 3.1.330 SWALLOW-4). "Not live" is an answer and stays.
-    const unlatch = () => { if (streamerAsked === name) streamerAsked = null; };
+    const unlatch = () => {
+        if (streamerAsked === name) streamerAsked = null;
+        streamerFailed = {name, at: Date.now()};
+    };
     try {
         chrome.runtime.sendMessage({streamerLookup: {site, username: name}}, (res) => {
             void chrome.runtime.lastError;
             if (!res || res.error) { unlatch(); return; }
+            if (streamerFailed?.name === name) streamerFailed = null;
             if (!res.live) return;
             bgLog('opponent is streaming');   // no name: the trace ring goes into public bug reports
             sendToPanel({streamerNotice: true, username: name, channel: res.channel || null});

@@ -8380,6 +8380,67 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('SWALLOW-6: an hour-long request is kept for its hour plus ten minutes, then swept', kept && !c.nativeRequestOwner.has(longOuter), kept);
     } catch (e) { ok('SWALLOW-6: relay ran', false, e.message); }
 }
+// ---- audit 3.1.330 SWALLOW-3/4 (4b): a failed archive or streamer lookup waits two minutes before asking again ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (s, from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    let T = 1e12;
+    const MIN = 60 * 1000;
+    // the panel: Opponent Prep and the Player Book, a worker that answers from `answers` in order
+    const p = vm.createContext({Date: {now: () => T}, console: {log() {}, warn() {}}, JSON, Object, Map,
+        config: {opp_prep: true, player_book: true, player_book_user: 'lichess:Bob', player_book_wins: false},
+        detected_prefix: 'li', answers: [], asked: [], MephistoConfig: {get: () => null, set() {}},
+        chrome: {runtime: {lastError: undefined, sendMessage: (m, cb) => { p.asked.push(Object.keys(m)[0]); cb(p.answers.shift()); }}},
+        build_opp_prep_book() {}, build_moves_book: () => ({book: new Map(), used: 1}), update_best_move() {}});
+    try {
+        vm.runInContext(cut(psrc, 'const OPP_PREP_MIN_CLOCK_S', 'function opp_prep_long_enough()')
+            + cut(psrc, 'function opp_prep_long_enough()', '// ONE BUILDER, TWO FEATURES')
+            + cut(psrc, 'const PLAYER_BOOK_MAX_PLY', '// What that player played here') + ';game_max_clock_s = 900;', p);
+    } catch (e) { console.log('SWALLOW-4b panel slice threw: ' + e.message); }
+    const n = (k) => p.asked.filter(x => x === k).length;
+    try {
+        const prep = (who) => vm.runInContext(`maybe_opponent_prep(${JSON.stringify(who)})`, p);
+        p.answers = [{error: 'chess.com archive unavailable'}];
+        prep('Bob');
+        prep('Bob'); T += MIN; prep('Bob');
+        ok('SWALLOW-4b: after a failed Opponent Prep lookup, the next pushes within two minutes do not ask again',
+           n('oppPrepLookup') === 1, n('oppPrepLookup'));
+        p.answers = [{games: []}];
+        prep('Eve');
+        ok('SWALLOW-4b: ...another opponent is not held by Bob\'s cooldown', n('oppPrepLookup') === 2, n('oppPrepLookup'));
+        p.answers = [{games: [{white: 'Bob'}]}];
+        T += 1.5 * MIN; prep('Bob');
+        ok('SWALLOW-4b: ...and after two minutes Bob is asked once more', n('oppPrepLookup') === 3, n('oppPrepLookup'));
+        prep('Bob');
+        ok('SWALLOW-4b: ...an answer latches as before', n('oppPrepLookup') === 3, n('oppPrepLookup'));
+
+        const book = () => vm.runInContext('maybe_player_book()', p);
+        p.answers = [{error: 'chess.com archive unavailable'}];
+        book(); book(); T += MIN; book();
+        ok('SWALLOW-4b: a failed Player Book lookup is not repeated on every position for two minutes',
+           n('playerBookLookup') === 1, n('playerBookLookup'));
+        p.answers = [{games: [{white: 'Bob'}]}];
+        T += 1.5 * MIN; book(); book();
+        ok('SWALLOW-4b: ...then asks once more, and an answer latches', n('playerBookLookup') === 2, n('playerBookLookup'));
+    } catch (e) { ok('SWALLOW-4b: panel lookups ran', false, e.message); }
+
+    // the content script: the Streamer Alert
+    const st = vm.createContext({Date: {now: () => T}, config: {streamer_alert: true}, site: 'lichess', who: 'Bob', answers: [], asked: 0,
+        opponentUsername: () => st.who, bgLog() {}, sendToPanel() {},
+        chrome: {runtime: {lastError: undefined, sendMessage: (m, cb) => { st.asked++; cb(st.answers.shift()); }}}});
+    try { vm.runInContext(cut(csrc, 'let streamerAsked = null;', 'let hideOppMatched'), st); } catch (e) { console.log('SWALLOW-4b streamer slice threw: ' + e.message); }
+    try {
+        const chk = () => vm.runInContext('maybeCheckStreamer()', st);
+        st.answers = [{error: 'lichess answered 429'}];
+        chk(); chk(); T += MIN; chk();
+        ok('SWALLOW-4b: a failed streamer lookup is not repeated on every config push for two minutes', st.asked === 1, st.asked);
+        st.answers = [{live: false}];
+        T += 1.5 * MIN; chk(); chk();
+        ok('SWALLOW-4b: ...then asks once more, and "not live" latches', st.asked === 2, st.asked);
+    } catch (e) { ok('SWALLOW-4b: streamer check ran', false, e.message); }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
