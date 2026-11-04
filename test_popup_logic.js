@@ -7513,6 +7513,37 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('X2-3: leaving the game for the lobby drops it: a lobby game joined mid-game is not given it', go('/play/online', true) === DP);
     ok('X2-3: back on a game page that filed its start, that start is read again', go('/game/live/333', true).startsWith('w*****b-b-a8*****b-q-b8'));
 }
+// ---- X1-6: capturing the last promoted piece leaves no promoted square behind ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a), j = aj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return aj.slice(i, j); };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    c.box = {value: ''};
+    let res = null;
+    try {
+        vm.runInContext(`const Core = self.MephistoReviewCore; let nodeSeq = 0, treeRoot = null, treeNode = null, cursor = 0;
+            const anVariant = () => 'crazyhouse'; const $ = (id) => (id === 'an_pgn' ? box : null); function status() {}
+            const evalCache = new Map(), evalCache2 = new Map(), humanCache = new Map(), bandCache = new Map();
+            function relinkLine() {} function buildBoard() {} function renderMoves() {} function renderPockets() {} function go() {}
+            function setCfg() {} function onVariantChange() {} const PGN_VARIANTS = {crazyhouse: 'crazyhouse'};
+            ${cut('function threeCheckCounts', '// crazyhouse only')}
+            ${cut('function mkNode', '// the flat view')}
+            ${cut('function loadFromInput', '// The line as it stands')}`, c);
+        // a promoted queen on d5, taken by the e6 pawn; then the pawn that took it moves on to d4
+        c.box.value = '[Variant "Crazyhouse"]\n[SetUp "1"]\n[FEN "r1bqkbnr/pppp1ppp/2n1p3/3Q~4/8/8/PPPP1PPP/RNB1KBNR[Nn] b KQkq - 0 1"]\n\n1... exd5 2. N@c3 d4 *';
+        vm.runInContext('loadFromInput()', c);
+        const r = vm.runInContext('treeRoot', c);
+        res = {root: r.promoted, afterCapture: r.children[0]?.promoted, afterPawnMove: r.children[0]?.children[0]?.children[0]?.promoted};
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('X1-6: once the only promoted piece is captured no square stays marked, and the capturing pawn does not carry a mark on',
+       JSON.stringify(res) === JSON.stringify({root: 'd5', afterCapture: '', afterPawnMove: ''}), res);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

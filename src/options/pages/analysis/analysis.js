@@ -133,10 +133,13 @@ function newChess(fen) { return fen === undefined ? new Chess(anVariant()) : new
 // no pockets of its own (verified: fen() never carries holdings and any drop is accepted). Captures
 // add to the capturer's pocket -- a captured PROMOTED piece goes back as a pawn, which is why the
 // promoted squares ride along -- and a drop spends one.
+// `??` for the promoted list, not `||`: capturing the last promoted piece leaves it '', and with
+// `||` the child took the parent's list back, so that square stayed marked and the next piece
+// captured on it was pocketed as a pawn (X1-6).
 function mkNode(fen, turn, san, uci, parent, extra = {}) {
     return {fen, turn, san, uci, parent, children: [], id: ++nodeSeq,
             holdings: extra.holdings || (parent ? parent.holdings : {w: '', b: ''}),
-            promoted: extra.promoted || (parent ? parent.promoted : ''),
+            promoted: extra.promoted ?? (parent ? parent.promoted : ''),
             checksLeft: extra.checksLeft || (parent ? parent.checksLeft : {w: 3, b: 3})};
 }
 
