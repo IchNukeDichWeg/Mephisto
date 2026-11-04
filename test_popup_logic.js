@@ -11210,6 +11210,40 @@ print(json.dumps(sent))`;
            JSON.stringify(sent) === JSON.stringify([['UCI_LimitStrength', true], ['UCI_Elo', 2850], ['UCI_Elo', 1350], ['UCI_Elo', 2000], ['Hash', 1024], ['Hash', 64]]), sent);
     }
 })();
+// ---- SWALLOW-2 (audit 3.1.330): remote-engine.py clamps an Elo cap (any spin) to the engine's own min/max instead of dropping it ----
+// (run end to end: remote-engine.py over a stand-in engine with Stockfish 14.1's ranges, /configure and -o; this runs the same function)
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // run asynchronously: a blocking spawnSync here holds the event loop while the timer-raced async
+    // checks above (the CDP click rig's 1500 ms settle) are waiting, and fails them on a loaded machine
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    const py = `import ast, json, sys, types
+tree = ast.parse(open(sys.argv[1], encoding='utf-8-sig').read())
+body = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'set_option']
+sent = []
+def configure(d):
+    k, v = next(iter(d.items())); o = opts[k]
+    if o.type == 'spin' and not (o.min <= int(v) <= o.max): raise ValueError('out of range')   # what python-chess does
+    sent.append([k, v])
+spin = lambda lo, hi: types.SimpleNamespace(type='spin', min=lo, max=hi)
+opts = {'UCI_Elo': spin(1350, 2850), 'Skill Level': spin(0, 20), 'UCI_LimitStrength': types.SimpleNamespace(type='check', min=None, max=None)}
+ns = {'engine': types.SimpleNamespace(options=opts, configure=configure), 'engine_options': {}, 'print': lambda *a: None,
+      'MANAGED_OPTIONS': ['uci_chess960', 'uci_variant', 'multipv', 'ponder']}
+exec(compile(ast.Module(body=body, type_ignores=[]), sys.argv[1], 'exec'), ns)
+for k, v in (('UCI_LimitStrength', True), ('UCI_Elo', 3000), ('UCI_Elo', 1320), ('UCI_Elo', 2200), ('Skill Level', '25'), ('Skill Level', '15')):
+    ns['set_option'](k, v)
+print(json.dumps([sent, ns['engine_options']]))`;
+    const r = await pyRun(['-I', '-B', '-c', py, ROOT + '/src/scripts/remote-engine.py'], {encoding: 'utf8'});
+    if (r.error) console.log('ok   SWALLOW-2: skipped (no python3 here)');
+    else {
+        let res = null; try { res = JSON.parse(r.stdout); } catch (e) { res = [(r.stderr || '').slice(-300)]; }
+        ok('SWALLOW-2: an Elo cap of 3000 on a 1350-2850 engine is set at 2850 (1320 at 1350), and a CLI "-o Skill Level:25" at 20',
+           JSON.stringify(res[0]) === JSON.stringify([['UCI_LimitStrength', true], ['UCI_Elo', 2850], ['UCI_Elo', 1350], ['UCI_Elo', 2200], ['Skill Level', 20], ['Skill Level', '15']]), res);
+        ok('...while /config still reports the value the panel sent', res[1] && res[1].UCI_Elo === 2200 && res[1]['Skill Level'] === '15', res);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

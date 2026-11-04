@@ -77,6 +77,25 @@ def set_option(key, value):
     if key not in engine.options:
         print(f"ignoring option '{key}' - this engine doesn't offer it")
         return
+    # A number outside the engine's own range is clamped to it (audit 3.1.330 SWALLOW-2): python-chess
+    # refuses it outright, and the panel sends UCI_LimitStrength just before UCI_Elo, so a cap of 3000
+    # on an engine whose UCI_Elo stops at 2850 left it limited at its DEFAULT Elo (1350 on Stockfish
+    # 11) while the panel showed 3000.
+    opt = engine.options[key]
+    if getattr(opt, 'type', None) == 'spin' and not isinstance(value, bool):
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            number = None
+        if number is not None:
+            clamped = number
+            if opt.max is not None:
+                clamped = min(clamped, opt.max)
+            if opt.min is not None:
+                clamped = max(clamped, opt.min)
+            if clamped != number:
+                print(f"{key} = {value} is outside this engine's range {opt.min}-{opt.max} - using {clamped}")
+                value = clamped
     try:
         engine.configure({key: value})
     except Exception as ex:
