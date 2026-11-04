@@ -11244,6 +11244,45 @@ print(json.dumps([sent, ns['engine_options']]))`;
         ok('...while /config still reports the value the panel sent', res[1] && res[1].UCI_Elo === 2200 && res[1]['Skill Level'] === '15', res);
     }
 })();
+// ---- REGRESS-2 (audit 3.1.330): a fresh native host opens its engine at the first configure's Threads/Hash, not all cores and 2048 MB ----
+// (run end to end through the real host over a stand-in engine that logs its setoption lines; this runs the same two functions)
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // run asynchronously: a blocking spawnSync here holds the event loop while the timer-raced async
+    // checks above (the CDP click rig's 1500 ms settle) are waiting, and fails them on a loaded machine
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    const py = `import ast, json, sys, threading, types
+tree = ast.parse(open(sys.argv[1], encoding='utf-8-sig').read())
+body = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ('get_engine', 'do_configure')]
+log = []
+class SE:
+    @staticmethod
+    def popen_uci(path, **kw):
+        log.append(['open']); return types.SimpleNamespace()
+ns = {'engine': None, '_engine_dead': lambda e: False, '_engine_init_lock': threading.Lock(), 'engine_lock': threading.Lock(),
+      'request_lock': threading.Lock(), 'current_analysis': None, 'configure_cut': None, '_dbg': lambda m: None,
+      'chess': types.SimpleNamespace(engine=types.SimpleNamespace(SimpleEngine=SE)), '_ENGINE_PATH': 'sf', 'engine_options': {},
+      'FULL_THREADS': 18, 'FULL_HASH_MB': 2048, 'sys': types.SimpleNamespace(platform='darwin'), 'os': __import__('os'),
+      '_set_if_declared': lambda k, v: log.append(['open-set', k, v]), '_apply_variant_net': lambda v: None,
+      '_apply_option': lambda k, v: log.append(['set', k, v])}
+exec(compile(ast.Module(body=body, type_ignores=[]), sys.argv[1], 'exec'), ns)
+ns['do_configure']({'options': {'MultiPV': 1, 'Threads': 2, 'Hash': 64}})
+ns['do_configure']({'options': {'Threads': 4, 'Hash': 128}})
+print(json.dumps(log))`;
+    const r = await pyRun(['-I', '-B', '-c', py, ROOT + '/native-host/uci-native-host.py'], {encoding: 'utf8'});
+    if (r.error) console.log('ok   REGRESS-2: skipped (no python3 here)');
+    else {
+        let log = null; try { log = JSON.parse(r.stdout); } catch (e) { log = (r.stderr || '').slice(-300); }
+        const opened = Array.isArray(log) ? log.filter(x => x[0] === 'open-set' && x[1] !== 'UCI_ShowWDL') : [];
+        ok('REGRESS-2: the engine is opened once, at the first configure\'s Threads 2 / Hash 64 (no 18-thread / 2048 MB start)',
+           Array.isArray(log) && log.filter(x => x[0] === 'open').length === 1
+           && JSON.stringify(opened) === JSON.stringify([['open-set', 'Threads', 2], ['open-set', 'Hash', 64]]), log);
+        ok('...and a later configure on the open engine still applies its new Threads/Hash',
+           Array.isArray(log) && JSON.stringify(log.slice(-2)) === JSON.stringify([['set', 'Threads', 4], ['set', 'Hash', 128]]), log);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

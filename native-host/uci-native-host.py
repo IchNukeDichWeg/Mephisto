@@ -347,12 +347,21 @@ def do_analyse(data, mid):
 
 def do_configure(data):
     global configure_cut
+    options = data.get('options') or {}
+    # The FIRST open takes this configure's Threads/Hash, not all cores and 2048 MB (audit 3.1.330
+    # REGRESS-2): each options-page port has its own host, so a 4-worker review opened four engines at
+    # about 8 GB before shrinking them. Never seeded once open: nothing would apply the value.
+    with _engine_init_lock:
+        if engine is None:
+            for key in ('Threads', 'Hash'):
+                value = options.get(key)
+                if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+                    engine_options.setdefault(key, value)
     get_engine()  # a configure is a real use -> open the engine (a ping never gets here)
     # S4: stop the outstanding search BEFORE taking engine_lock, mirroring do_analyse's pre-lock
     # stale.stop() -- without this a Threads/Hash change queues behind whatever search is running.
     # The search it stops was not answered: configure_cut marks its frame superseded, and the panel
     # searches the position again.
-    options = data.get('options') or {}
     with request_lock:
         # Nothing to change -> nothing to stop: the panel re-sends a width the analyse carried.
         if all(k in engine_options and engine_options[k] == v for k, v in options.items()):
