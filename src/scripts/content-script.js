@@ -5051,7 +5051,6 @@ function grindClick(el) {
 // path is the one Grind Mode already took -- capture the real markup from a live game and match the
 // one hook in it that carries meaning.
 const END_ACTION_GAP_MS = 5000;   // never twice in a breath, whatever arrives from the panel
-const END_ACTION_VERIFY_MS = 400; // how long the trusted click gets before the element is clicked itself
 let endActionAt = 0;
 
 // chess.com hangs its in-game controls off utility classes, so the class fragment is tried first
@@ -5079,25 +5078,37 @@ const END_ACTION_SITES = {
     },
 };
 
-// A TRUSTED CLICK FIRST, THEN THE ELEMENT'S OWN -- and the second one is not optional here.
+// A TRUSTED CLICK OR THE ELEMENT'S OWN -- and the second one is not optional here.
 // grindClick (above) verifies by asking whether the end-of-game box is still on screen, which is the
 // right check for ITS button and useless for this one. Measured in a live game: the coordinate click
 // landed on OUR OWN PANEL, which sits exactly over lichess's control row, the game carried on, and
 // grindClick's fallback never fired because there was no `.follow-up` box to see. These are ordinary
-// buttons with ordinary listeners, so nothing here needs the click to be trusted -- if the control is
-// still in the document a moment later, the click went somewhere else and the element gets it direct.
+// buttons with ordinary listeners, so nothing here needs the click to be trusted.
+// ONE CLICK, NEVER TWO. This used to send the trusted click and then click the element itself
+// whenever it was still in the document 400 ms later, taking "still there" for "the click missed".
+// A control that stays mounted behind its own confirm (a chess.com modal over the resign button, a
+// draw button that only changes its label) then got a second, untrusted click every time, which can
+// close the confirm it just opened or offer twice (audit 3.1.330 follow-up L15). So the page is asked
+// BEFORE clicking where a click at the centre would land: on the control (or inside it) the trusted
+// click is the only one, and the element is clicked directly only when the worker reports that click
+// failed; anywhere else (our panel over the row) the coordinate click would hit the wrong thing, so
+// the element gets the one click direct.
 function pressControl(el) {
     const r = el.getBoundingClientRect();
-    if (r.width && r.height) {
-        try {
-            chrome.runtime.sendMessage({cdpClick: true, x: r.left + r.width / 2, y: r.top + r.height / 2, travelMs: 0},
-                () => void chrome.runtime.lastError);
-        } catch (e) { /* silent by design */ }
-    }
-    setTimeout(() => {
-        if (!document.contains(el)) return;          // it worked: the row has already been replaced
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const direct = () => {
+        if (!document.contains(el)) return;          // gone already: nothing left to press
         try { el.click(); } catch (e) { /* silent by design */ }
-    }, END_ACTION_VERIFY_MS);
+    };
+    let hit = null;
+    try { if (r.width && r.height) hit = document.elementFromPoint(x, y); } catch (e) { /* treated as covered */ }
+    if (!hit || !(hit === el || el.contains(hit))) { direct(); return; }
+    try {
+        chrome.runtime.sendMessage({cdpClick: true, x, y, travelMs: 0}, (res) => {
+            void chrome.runtime.lastError;
+            if (!res?.ok) direct();                  // refused, failed, or no worker: the click never happened
+        });
+    } catch (e) { direct(); }
 }
 
 // The panel withholds the move once it resigns, so a resign that did not happen left the game sitting

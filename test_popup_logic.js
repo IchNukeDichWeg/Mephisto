@@ -11859,6 +11859,30 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            p.asked === 1 && !('player_book_cache' in p.STORE), {asked: p.asked, store: Object.keys(p.STORE)});
     })();
 }
+// ---- L15 (audit 3.1.330 follow-up): a game control gets ONE click, even when it stays mounted behind its confirm ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const s = cs.indexOf('\nfunction pressControl('), e = cs.indexOf('\n}\n', s);
+    // the control never leaves the document (a chess.com button behind its modal); `top` is what sits at its centre
+    const run = (top, answer) => {
+        const c = vm.createContext({cdp: 0, clicks: 0, END_ACTION_VERIFY_MS: 400, setTimeout: (f) => f(), console: {}});
+        const el = {getBoundingClientRect: () => ({left: 10, top: 10, width: 40, height: 20}), click: () => { c.clicks++; }, contains: (n) => n === el || n === 'icon'};
+        c.el = el;
+        c.document = {contains: () => true, elementFromPoint: () => top === 'el' ? el : top};
+        c.chrome = {runtime: {lastError: undefined, sendMessage: (m, cb) => { c.cdp++; cb && cb(answer); }}};
+        vm.runInContext(cs.slice(s, e + 3), c);
+        vm.runInContext('pressControl(el)', c);
+        return {cdp: c.cdp, clicks: c.clicks};
+    };
+    ok('L15: a control on top that stays mounted gets the trusted click only, no untrusted second click',
+       JSON.stringify(run('el', {ok: true})) === '{"cdp":1,"clicks":0}', run('el', {ok: true}));
+    ok('...a hit on the control\'s own icon counts as the control', JSON.stringify(run('icon', {ok: true})) === '{"cdp":1,"clicks":0}', run('icon', {ok: true}));
+    ok('...a trusted click the worker could not make falls back to one direct click',
+       JSON.stringify(run('el', {error: 'refused', refused: true})) === '{"cdp":1,"clicks":1}', run('el', {error: 'x'}));
+    ok('...and a control covered by our panel gets one direct click, no coordinate click into the panel',
+       JSON.stringify(run({panel: true}, {ok: true})) === '{"cdp":0,"clicks":1}', run({panel: true}, {ok: true}));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
