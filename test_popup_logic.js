@@ -9811,6 +9811,32 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('PAGEA-5: a key whose target is not the panel host is none of our business',
        (() => { const x = send({target: {tagName: 'INPUT'}}, fen); return !x.e.stopped && !x.got.length; })());
 }
+// ---- audit 3.1.330 CLICKB-3: an early book answer does not bring back the last position's engine arrows ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fnSrc = (head) => { const i = psrc.indexOf(head); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const onpA = psrc.indexOf('function on_new_pos(');
+    const clr = psrc.indexOf('if (config.help_mode) request_clear_hint(); // position changed', onpA);
+    const sixty = psrc.indexOf('const ply_count', clr);   // the clear and its neighbours, up to the new-game reset
+    const sent = [];
+    const c = vm.createContext({config: {help_mode: true}, explorer_data: null, last_eval: {fen: 'A'},
+        engine_hint_arrows: [], snap_region: () => null, user_color: (k, d) => d,
+        request_draw_hint: (a) => sent.push(a.map(x => x.move)), request_clear_hint: () => sent.push('clear'),
+        last_capture_from: () => null, clear_next_move_eta() {}, humanize_roll: null, premove_tracker: null,
+        startFen: null, fen: 'B', moves: ''});
+    vm.runInContext(`const BOOK_COLORS = ['#14b8a6'];` + fnSrc('function book_arrow_specs(fen) {') + fnSrc('function push_hint_arrows() {'), c);
+    // position A: the engine's first line drew e2e4 for the site board
+    vm.runInContext(`engine_hint_arrows = [{move: 'e2e4', width: 0.25, color: '#000'}];`, c);
+    // the move lands: position B. on_new_pos's clear (real source), then the book answer for B beats the engine
+    vm.runInContext(psrc.slice(clr, sixty), c);
+    vm.runInContext(`last_eval = {fen: 'B'}; explorer_data = {fen: 'B', moves: [{uci: 'g8f6', white: 5, draws: 1, black: 2}]}; push_hint_arrows();`, c);
+    const last = sent[sent.length - 1];
+    ok('CLICKB-3: the book answer for the new position sends only its own arrows, not the old engine set',
+       sent[0] === 'clear' && JSON.stringify(last) === '["g8f6"]', sent);
+    const sus = psrc.slice(psrc.indexOf('    suspend: () => {'), psrc.indexOf('PANEL_BOOTED = false;', psrc.indexOf('    suspend: () => {')));
+    ok('CLICKB-3: closing the panel drops the kept engine set too', /engine_hint_arrows = \[\];/.test(sus));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

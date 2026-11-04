@@ -5744,6 +5744,11 @@ function on_new_pos(fen, startFen, moves) {
     clear_next_move_eta(); // the countdown belonged to the position that just changed
     humanize_roll = null;  // and so did any pre-rolled humanize outcome
     if (config.help_mode) request_clear_hint(); // position changed; last hint is stale
+    // ...and so is the engine set kept for the book re-send. draw_moves only replaces it once this
+    // position has a first line, so a book answer landing before that (a cached explorer position,
+    // the Remote Engine's whole search, an engine still loading its net) re-sent the PREVIOUS
+    // position's engine arrows onto the new board (audit 3.1.330 CLICKB-3).
+    engine_hint_arrows = [];
     // WHERE THEY JUST CAPTURED, which is what makes our next move a recapture -- and a recapture is
     // the one move a human plays without thinking. Replaying the list is the only honest way to know
     // (a move list carries no capture flag), and it is a handful of moves on a chess.js board.
@@ -13717,6 +13722,7 @@ self.MephistoPanel = {
         try { abandon_search(); } catch (e) { /* ignore */ }
         try { dispose_threat_human(); } catch (e) { /* ignore */ }
         try { ua_dispose(); user_arrows = []; ua_last_sent = ''; } catch (e) { /* ignore */ }
+        engine_hint_arrows = [];   // a reopen must not re-send the closed panel's engine arrows (audit 3.1.330 CLICKB-3)
         setup_fen = null; snap_crop = null; setup_view = null;
         try { snap_follow_stop(); } catch (e) { /* ignore */ }
         try { stash_setup_state(); } catch (e) { /* ignore */ } // setup_fen is null -> clears the stash
