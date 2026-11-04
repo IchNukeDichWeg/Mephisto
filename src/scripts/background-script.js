@@ -2275,10 +2275,30 @@ chrome.storage.onChanged.addListener((changes, area) => {
   // Any of the three switched off stops the debugger capture on tabs already watched. Only the probe
   // registration followed the setting, so an attached puzzle tab kept having its puzzle responses
   // read and injected into the page as m7 events until it left puzzle pages (audit 3.1.328 SYS-3).
+  // Switched back on, it re-arms tabs already on a puzzle page (puzzleNetRearm).
   if (area === 'local' && (changes.puzzle_mode || changes.puzzle_capture || changes.puzzle_capture_cdp)) {
-    puzzleNetWanted().then(want => { if (!want) for (const id of [...puzzleNetTabs]) puzzleNetStop(id); });
+    puzzleNetWanted().then(want => {
+      if (!want) for (const id of [...puzzleNetTabs]) puzzleNetStop(id);
+      else puzzleNetRearm();
+    });
   }
 });
+
+// The only other way in is a puzzle page load finishing, so a tab already on a puzzle page when the
+// capture was switched on stayed uncaptured until a reload: a Rush/Storm/Racer run is one page for
+// the whole run, and Puzzle Mode's auto-switch stops the capture whenever another board tab is
+// viewed and turns it back on when the puzzle tab is. Its solutions then came from the database or
+// the engine with nothing said (audit 3.1.330 SYSA-1, PAGEB-2). Enabling an armed tab is a no-op.
+function puzzleNetRearm() {
+  try {
+    chrome.tabs.query({}, (tabs) => {
+      if (chrome.runtime.lastError) return;
+      for (const t of tabs || []) {
+        if (t.id != null && PUZZLE_PAGE_URL(t.url || '')) puzzleNetEnable(t.id).catch(() => { /* declined */ });
+      }
+    });
+  } catch (e) { /* no tabs API in this context */ }
+}
 
 // AN MV3 WORKER RESTART EMPTIES THESE SETS, BUT THE DEBUGGER ATTACHMENT SURVIVES -- it belongs to
 // the extension, not to this worker instance. After a restart the onEvent guard below dropped every

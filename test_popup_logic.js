@@ -5453,7 +5453,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext('puzzleNetStop(7)', c);
     ok('puzzleNetStop on a tab Autoplay clicked in: Network off and the tab out of the set, debugger kept', c.puzzleNetTabs.size === 0 && JSON.stringify(cmds) === '[[7,"Network.disable"]]', cmds);
     ok('a change to any of the three keys stops watched tabs when capture is no longer wanted; a reload does too',
-       /changes\.puzzle_mode \|\| changes\.puzzle_capture \|\| changes\.puzzle_capture_cdp\)\) \{\s*puzzleNetWanted\(\)\.then\(want => \{ if \(!want\) for \(const id of \[\.\.\.puzzleNetTabs\]\) puzzleNetStop\(id\); \}\);/.test(b)
+       /changes\.puzzle_mode \|\| changes\.puzzle_capture \|\| changes\.puzzle_capture_cdp\)\) \{\s*puzzleNetWanted\(\)\.then\(want => \{\s*if \(!want\) for \(const id of \[\.\.\.puzzleNetTabs\]\) puzzleNetStop\(id\);/.test(b)
        && /if \(!\(await puzzleNetWanted\(\)\)\) \{ if \(puzzleNetTabs\.has\(tabId\)\) puzzleNetStop\(tabId\); return; \}/.test(b));
 }
 // ---- audit 3.1.328 SYS-4: an offscreen document with no client arms its idle close at load ----
@@ -9238,6 +9238,39 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            res?.panel?.calls?.length === 0 && res?.other?.calls?.length === 0, res);
     })();
 }
+// ---- audit 3.1.330 SYSA-1 / PAGEB-2: switching the debugger capture on re-arms tabs already on a puzzle page ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const li = b.indexOf('chrome.storage.onChanged.addListener((changes, area) => {\n  if (area === \'local\' && changes.puzzle_capture) syncPuzProbe();');
+    const lj = b.indexOf('\n});\n', li) + 5;
+    const ri = b.indexOf('function puzzleNetRearm() {');
+    const rearm = ri < 0 ? '' : b.slice(ri, b.indexOf('\n}\n', ri) + 3);
+    const pu = b.indexOf('const PUZZLE_ROUTES = {'), pv = b.indexOf('let puzProbeChain', pu);
+    const run = async (want, tabs) => {
+        const enabled = [], stopped = [];
+        let listener = null;
+        const c = vm.createContext({console, Promise, URL,
+            puzzleNetTabs: new Set([5]), syncPuzProbe: () => {},
+            puzzleNetWanted: async () => want,
+            puzzleNetStop: (id) => stopped.push(id),
+            puzzleNetEnable: async (id) => { enabled.push(id); },
+            chrome: {runtime: {}, storage: {onChanged: {addListener: (f) => { listener = f; }}},
+                tabs: {query: (q, cb) => cb(tabs)}}});
+        vm.runInContext(b.slice(pu, pv).replace(/^const /gm, 'var ') + rearm + b.slice(li, lj), c);
+        listener({puzzle_capture_cdp: {newValue: want ? 'true' : 'false'}}, 'local');
+        for (let k = 0; k < 5; k++) await new Promise(r => setTimeout(r, 0));
+        return {enabled, stopped};
+    };
+    const tabs = [{id: 1, url: 'https://www.chess.com/puzzles/rush'}, {id: 2, url: 'https://lichess.org/storm'},
+        {id: 3, url: 'https://www.chess.com/game/live/123'}, {id: 4, url: 'https://lichess.org/abcdEFGH'}];
+    const on = await run(true, tabs);
+    ok('SYSA-1: switching the capture on attaches every tab already on a puzzle page, and no other',
+       on.enabled.join() === '1,2' && on.stopped.length === 0, on);
+    const off = await run(false, tabs);
+    ok('SYSA-1: switching it off still stops the watched tabs and attaches nothing',
+       off.enabled.length === 0 && off.stopped.join() === '5', off);
+})().catch(e => { fails++; console.log('FAIL SYSA-1 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
