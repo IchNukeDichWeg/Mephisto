@@ -8336,6 +8336,50 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('SWALLOW-4: a send that throws un-latches too', st.asked === 5, st.asked);
     } catch (e) { ok('SWALLOW-4: streamer check ran', false, e.message); }
 }
+// ---- audit 3.1.330 SWALLOW-6: an hour-long native analysis keeps its owner past the ten-minute sweep ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const sw = bg.slice(bg.indexOf('const NATIVE_OWNER_MAX_AGE_MS'), bg.indexOf('// THE WORKER\'S OWN LOAD'));
+    const a = bg.indexOf('function ensureNative(name) {'), b = bg.indexOf('// ===== IS THE OPPONENT STREAMING?', a);
+    const hosts = [], listeners = [];
+    let T = 1e12;
+    const mkPort = (name, url) => { const p = {name, sender: {url}, sent: [], postMessage(m) { p.sent.push(m); }, onDisconnect: {addListener(f) { p.bye = f; }}, onMessage: {addListener(f) { p.hear = f; }}}; return p; };
+    const c = vm.createContext({NATIVE_HOSTS: {'sf-native': {app: 'com.x.sf', label: 'Stockfish'}}, nativePorts: {}, popupPortsByName: {}, nativeRequestOwner: new Map(),
+        nativeSeq: 0, nativeFramesIn: 0, nativeFramesRecent: [], nativeFramesOut: 0, nativeTrace() {}, console, Math, Date: {now: () => T},
+        chrome: {runtime: {lastError: null, onConnect: {addListener: (f) => listeners.push(f)},
+            connectNative: (app) => { const h = {app, got: [], postMessage(m) { h.got.push(m); }, onMessage: {addListener(f) { h.emit = f; }}, onDisconnect: {addListener() {}}, disconnect() {}}; hosts.push(h); return h; }}}});
+    try { vm.runInContext(sw + bg.slice(a, b), c); } catch (e) { console.log('SWALLOW-6 slice threw: ' + e.message); }
+    try {
+        const analysis = mkPort('sf-native', 'chrome-extension://id/src/options/options.html#analysis');
+        const panel = mkPort('sf-native', 'https://lichess.org/abc');
+        listeners[0](analysis); listeners[0](panel);
+        analysis.hear({id: 7, cmd: 'analyse', fen: 'x', time: 3600000});   // the startInfinite request
+        const outer = hosts[0].got[0].id;
+        T += 11 * 60 * 1000;                                                // eleven minutes on one position
+        panel.hear({id: 1, cmd: 'analyse', fen: 'y', time: 300});           // any native traffic sweeps
+        hosts[0].emit({id: outer, info: {depth: 41, pv: ['e2e4']}});
+        ok('SWALLOW-6: after 11 minutes the Analysis page still gets its info frames, under its own id',
+           analysis.sent.length === 1 && analysis.sent[0].id === 7 && analysis.sent[0].info.depth === 41, analysis.sent);
+        hosts[0].emit({id: outer, lines: [], bestmove: 'e2e4'});
+        ok('SWALLOW-6: ...and the terminal frame, which spends the owner', analysis.sent.length === 2 && analysis.sent[1].id === 7
+           && !c.nativeRequestOwner.has(outer), analysis.sent.length);
+        // the leak guard still holds for a short request whose host never answered
+        const shortOuter = hosts[1].got[0].id;
+        T += 11 * 60 * 1000;
+        panel.hear({id: 2, cmd: 'analyse', fen: 'z', time: 300});
+        ok('SWALLOW-6: a 300 ms request nobody answered is still swept after ten minutes', !c.nativeRequestOwner.has(shortOuter), [...c.nativeRequestOwner.keys()]);
+        // and an hour-long one is swept once its own hour (plus the ten minutes) is gone
+        analysis.hear({id: 8, cmd: 'analyse', fen: 'x', time: 3600000});
+        const longOuter = hosts[0].got[1].id;
+        T += 69 * 60 * 1000;
+        panel.hear({id: 3, cmd: 'analyse', fen: 'z', time: 300});
+        const kept = c.nativeRequestOwner.has(longOuter);
+        T += 2 * 60 * 1000;
+        panel.hear({id: 4, cmd: 'analyse', fen: 'z', time: 300});
+        ok('SWALLOW-6: an hour-long request is kept for its hour plus ten minutes, then swept', kept && !c.nativeRequestOwner.has(longOuter), kept);
+    } catch (e) { ok('SWALLOW-6: relay ran', false, e.message); }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

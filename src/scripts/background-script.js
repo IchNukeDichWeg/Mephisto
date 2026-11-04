@@ -2484,7 +2484,7 @@ const popupPortsByName = {};         // port name -> Set of popup Ports
 // unique to THIS worker, and the reply is renumbered back to whatever the asking panel called it. That
 // makes the routing exact instead of probable: two panels may both use id 1 and it still cannot be
 // ambiguous, which "make the panels pick different numbers" could only ever make unlikely.
-// outer id -> {port, innerId, at}
+// outer id -> {port, innerId, at, budget}
 const nativeRequestOwner = new Map();
 let nativeSeq = 0;
 
@@ -2498,11 +2498,17 @@ let nativeSeq = 0;
 // only moment that matters is when the map is about to grow. No live search runs for ten minutes
 // (the panel's own native release is rt + 6000ms), so anything older than that is dead by
 // definition. ponytail: a linear scan of a map that holds single digits in practice.
+// EXCEPT A REQUEST THAT ASKED FOR LONGER. The Analysis page's native `go infinite` stand-in asks
+// the host for an hour (NATIVE_INFINITE_MS), so after ten minutes its owner was swept: every later
+// info frame and the terminal one fell to the broadcast path under the worker's id, which no
+// NativeEngine knows, and were dropped -- the lines froze with the search still running, and the
+// next stop() waited out its 8 s race (audit 3.1.330 SWALLOW-6). So each owner carries the
+// request's own `time` budget, and is swept only once that budget plus the same ten minutes is gone.
 const NATIVE_OWNER_MAX_AGE_MS = 10 * 60 * 1000;
 
 function sweepNativeOwners(now = Date.now()) {
   for (const [id, o] of nativeRequestOwner) {
-    if (now - (o.at || 0) > NATIVE_OWNER_MAX_AGE_MS) nativeRequestOwner.delete(id);
+    if (now - (o.at || 0) > (o.budget || 0) + NATIVE_OWNER_MAX_AGE_MS) nativeRequestOwner.delete(id);
   }
 }
 // THE WORKER'S OWN LOAD, because nothing has ever reported it. A native engine's frames are relayed
@@ -2635,7 +2641,7 @@ chrome.runtime.onConnect.addListener(port => {
       if (req && req.id != null) {
         const outer = ++nativeSeq;
         sweepNativeOwners();   // the map is only ever about to grow here
-        nativeRequestOwner.set(outer, {port, innerId: req.id, at: Date.now()});
+        nativeRequestOwner.set(outer, {port, innerId: req.id, at: Date.now(), budget: Math.max(0, +req.time || 0)});
         out = {...req, id: outer};
       }
       nativeTrace('-> host', name, {...out, innerId: req && req.id});
