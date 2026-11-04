@@ -213,7 +213,14 @@ def get_engine():
             engine = None
         if engine is None:
             _dbg(f"opening engine: {_ENGINE_PATH}")
-            engine = chess.engine.SimpleEngine.popen_uci(_ENGINE_PATH)
+            # CREATE_NO_WINDOW on Windows, as tetrarch-host.py does: python-chess adds no flag of its
+            # own, so a console for the engine can open in front of the game on each launch and
+            # relaunch (audit 3.1.330 NATIVEA-4). POSIX refuses any creationflags, hence the gate.
+            popen_args = {}
+            if sys.platform == 'win32':
+                import subprocess
+                popen_args['creationflags'] = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+            engine = chess.engine.SimpleEngine.popen_uci(_ENGINE_PATH, **popen_args)
             # full-power default; the extension's configure (Threads/Hash sliders) overrides this. A
             # relaunch starts at the panel's values instead: the full 2048 MB Hash first would be the
             # very allocation that got the last process killed under memory pressure.

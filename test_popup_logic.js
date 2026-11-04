@@ -11138,6 +11138,45 @@ print(json.dumps(out))`;
            && (res['tetrarch-host.py cp1252'] || [])[1] === 1 && /Tetrarch$/.test((res['tetrarch-host.py cp1252'] || [])[0]), [res['uci-native-host.py cp1252'], res['tetrarch-host.py cp1252']]);
     }
 })();
+// ---- NATIVEA-4 (audit 3.1.330): on Windows the native host opens its engine with CREATE_NO_WINDOW, elsewhere with no flags ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // run asynchronously: a blocking spawnSync here holds the event loop while the timer-raced async
+    // checks above (the CDP click rig's 1500 ms settle) are waiting, and fails them on a loaded machine
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    // get_engine lifted out with ast and run against a stub popen_uci that records its keyword arguments
+    const py = `import ast, json, subprocess, sys, threading, types
+tree = ast.parse(open(sys.argv[1], encoding='utf-8-sig').read())
+body = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'get_engine']
+out = {}
+for plat in ('win32', 'darwin', 'linux'):
+    seen = []
+    class SE:
+        @staticmethod
+        def popen_uci(path, **kw):
+            seen.append(kw); return object()
+    chess = types.SimpleNamespace(engine=types.SimpleNamespace(SimpleEngine=SE))
+    subprocess.CREATE_NO_WINDOW = 0x08000000   # absent off Windows; the host reads it with getattr
+    ns = {'engine': None, '_engine_dead': lambda e: False, '_engine_init_lock': threading.Lock(), '_dbg': lambda m: None,
+          'chess': chess, '_ENGINE_PATH': 'sf.exe', 'engine_options': {}, 'FULL_THREADS': 1, 'FULL_HASH_MB': 16,
+          '_set_if_declared': lambda k, v: None, '_apply_variant_net': lambda v: None, '_apply_option': lambda k, v: None,
+          'sys': types.SimpleNamespace(platform=plat), 'os': __import__('os')}
+    exec(compile(ast.Module(body=body, type_ignores=[]), sys.argv[1], 'exec'), ns)
+    ns['get_engine']()
+    out[plat] = seen
+print(json.dumps(out))`;
+    const r = await pyRun(['-I', '-B', '-c', py, ROOT + '/native-host/uci-native-host.py'], {encoding: 'utf8'});
+    if (r.error) console.log('ok   NATIVEA-4: skipped (no python3 here)');
+    else {
+        let res = {}; try { res = JSON.parse(r.stdout); } catch (e) { res = {err: (r.stderr || '').slice(-300)}; }
+        ok('NATIVEA-4: on win32 the engine is opened with creationflags CREATE_NO_WINDOW',
+           JSON.stringify(res.win32) === JSON.stringify([{creationflags: 0x08000000}]), res);
+        ok('...and with no creationflags on macOS and Linux (POSIX refuses any)',
+           JSON.stringify(res.darwin) === '[{}]' && JSON.stringify(res.linux) === '[{}]', res);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
