@@ -33,6 +33,11 @@ const PIECE_VAL = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
 // job and is checked separately (the move must still be best-ish and must not lose).
 
 function sacrificesMaterial(Chess, variant, fenBefore, uci) {
+    // Antichess and atomic do not trade by these rules: in antichess giving material away is how a
+    // game is won and captures are forced, and in atomic a capture explodes both pieces and their
+    // neighbours. The swap-off below read ordinary antichess moves as sacrifices, so they could be
+    // graded Brilliant (audit 3.1.330 REVIEWB-4). No claim at all rather than a wrong one.
+    if (variant === 'antichess' || variant === 'atomic') return false;
     try {
         const c = new Chess(variant || 'chess', fenBefore);
         const from = uci.slice(0, 2), to = uci.slice(2, 4);

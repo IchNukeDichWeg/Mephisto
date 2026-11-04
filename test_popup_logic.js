@@ -8907,6 +8907,21 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and the "Name the opening" row stands down for every game type but Chess',
        /<div class="set-row set-toggle" data-for="own local" data-chess-only>\s*<div class="set-lbl">\s*<span data-i18n="rv\.opening_book"/.test(html));
 })();
+// ---- audit 3.1.330 REVIEWB-4: no sacrifice (so no Brilliant) is claimed under antichess or atomic rules ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    // 1.e3 b5: Black offers the b-pawn to the f1 bishop, which is ordinary antichess play
+    const sac = (v) => vm.runInContext(`self.MephistoClassify.sacrificesMaterial(Chess, ${JSON.stringify(v)},
+        'rnbqkbnr/pppppppp/8/8/8/4P3/PPPP1PPP/RNBQKBNR b KQkq - 0 1', 'b7b5')`, c);
+    const got = {chess: sac('chess'), antichess: sac('antichess'), atomic: sac('atomic')};
+    ok('REVIEWB-4: a pawn left en prise is material offered in chess, but antichess and atomic make no sacrifice claim',
+       got.chess === true && got.antichess === false && got.atomic === false, got);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
