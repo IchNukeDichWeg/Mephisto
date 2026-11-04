@@ -13,7 +13,7 @@
 #            macOS: brew install stockfish fairy-stockfish   |   Linux: apt/pacman, or download from
 #            stockfishchess.org and fairy-stockfish releases. Pick the build matching your CPU.
 #
-# --no-fairy-nets : do not download the Fairy nets a slim-zip install lacks (494 MB from the assets
+# --no-fairy-nets : do not download the Fairy nets a slim-zip install lacks (299 MB from the assets
 #            release). Without them the native Fairy plays on its classical eval.
 #
 # --tetrarch : path to a Tetrarch checkout, for four-player chess (see the README). Looked for

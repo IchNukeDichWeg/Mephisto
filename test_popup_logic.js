@@ -11361,6 +11361,20 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            && /pass \$flag \/path/.test(sh) && !/--\$\{slug%-native\}/.test(sh), [flags, parsed]);
     }
 }
+// ---- NATIVEB-7 (audit 3.1.330): the public installer's usage header quotes the same Fairy net size as its block comment and the README ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const p = ROOT + '/native-host/install-native.sh';
+    if (!fs.existsSync(p)) console.log('ok   NATIVEB-7: skipped (install-native.sh is the public fork\'s installer)');
+    else {
+        const sh = fs.readFileSync(p, 'utf8'), readme = fs.readFileSync(ROOT + '/README.md', 'utf8');
+        const head = (sh.match(/--no-fairy-nets : [^\n]*\((\d+) MB/) || [])[1];
+        const inner = (sh.match(/the nets \((\d+) MB\) are FETCHED/) || [])[1];
+        const rd = (readme.match(/Fairy-Stockfish nets the zip leaves out \((\d+) MB/) || [])[1];
+        ok('NATIVEB-7: --no-fairy-nets in the usage header quotes the same size as the block comment and the README',
+           head && head === inner && head === rd, [head, inner, rd]);
+    }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
