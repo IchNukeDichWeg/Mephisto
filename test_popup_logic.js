@@ -11503,6 +11503,40 @@ print(json.dumps(out))`;
     ok('L31: ...and so does the page\'s own fallback text', /WDL/.test(opt || ''), opt);
     ok('L31: the Settings tooltip no longer says either half works alone', !/Either alone works/.test(html));
 }
+// ---- audit 3.1.330 follow-up L36: a Tetrarch that dies mid-game is reported with its own stderr, not a bare "stopped responding" ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    // the real host (stdlib only) over a stand-in uci.py that starts fine and crashes on its first `go`
+    const run = `import json, os, shutil, struct, subprocess, sys, tempfile
+d = tempfile.mkdtemp(); repo = os.path.join(d, 'Tetrarch'); os.mkdir(repo)
+open(os.path.join(repo, 'uci.py'), 'w').write('''import sys
+for line in sys.stdin:
+    c = line.split()
+    if c[:1] == ['uci']: print('uciok', flush=True)
+    elif c[:1] == ['isready']: print('readyok', flush=True)
+    elif c[:1] == ['go']: raise MemoryError('search table too large for this machine')
+''')
+shutil.copy(sys.argv[1], os.path.join(d, 'tetrarch-host.py')); open(os.path.join(d, 'tetrarch-path'), 'w').write(repo + '\\n')
+env = dict(os.environ); env.pop('TETRARCH_DIR', None)
+p = subprocess.Popen([sys.executable, '-I', os.path.join(d, 'tetrarch-host.py')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
+out = []
+for m in ({'id': 1, 'cmd': 'configure', 'options': {'Mode': 'teams'}}, {'id': 2, 'cmd': 'analyse', 'setup': 'classic', 'time': 100}):
+    b = json.dumps(m).encode(); p.stdin.write(struct.pack('<I', len(b)) + b); p.stdin.flush()
+    h = p.stdout.read(4); out.append(json.loads(p.stdout.read(struct.unpack('<I', h)[0])) if len(h) == 4 else None)
+p.stdin.close(); p.wait(10); shutil.rmtree(d, ignore_errors=True)
+print(json.dumps(out))`;
+    const b = await pyRun(['-I', '-B', '-c', run, ROOT + '/native-host/tetrarch-host.py'], {encoding: 'utf8', timeout: 30000});
+    if (b.error) console.log('ok   L36: skipped (no python3 here)');
+    else {
+        let r = null; try { r = JSON.parse(b.stdout); } catch (e) { r = [null, (b.stderr || '').slice(-300)]; }
+        ok('L36: the stand-in engine starts (configure answers ok)', r && r[0] && r[0].ok === true, r && r[0]);
+        ok('L36: an engine crash mid-search answers "stopped responding" WITH its last stderr line',
+           r && r[1] && /^Tetrarch stopped responding: /.test(r[1].error || '') && /MemoryError: search table too large for this machine/.test(r[1].error), r && r[1]);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

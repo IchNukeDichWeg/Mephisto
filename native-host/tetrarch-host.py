@@ -106,12 +106,26 @@ def send_message(obj):
 engine_lock = threading.Lock()   # one search at a time; Tetrarch is single-threaded
 _proc = None
 _repo = _resolve_repo()
+_stderr_tail = collections.deque(maxlen=20)   # the running engine's last stderr lines
+_stderr_drain = None
+
+def _stderr_why():
+    """The engine's last stderr lines as one capped line ('' if none). An engine that died
+    (stdout closed) is reaped first and its drain finished, so its final traceback is in;
+    one still running is read as it stands."""
+    try:
+        _proc.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        pass
+    if _proc.poll() is not None and _stderr_drain:
+        _stderr_drain.join(2)
+    return ' | '.join(l.strip() for l in list(_stderr_tail) if l.strip())[-600:]
 
 def _start_engine():
     """Launch `python3 uci.py` with cwd = the repo root. The cwd matters: the Net
     option defaults to the RELATIVE path `nets/net-v4.nnue`, so starting anywhere
     else gives an engine that boots and then cannot load its evaluation."""
-    global _proc
+    global _proc, _stderr_tail, _stderr_drain
     if _proc and _proc.poll() is None:
         return _proc
     uci = os.path.join(_repo, 'uci.py')
@@ -129,24 +143,19 @@ def _start_engine():
                              stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, text=True, bufsize=1,
                              creationflags=flags)
-    tail = collections.deque(maxlen=20)
-    drain = threading.Thread(target=lambda f=_proc.stderr: tail.extend(f), daemon=True)
-    drain.start()
+    _stderr_tail = tail = collections.deque(maxlen=20)
+    _stderr_drain = threading.Thread(target=lambda f=_proc.stderr: tail.extend(f), daemon=True)
+    _stderr_drain.start()
     try:
         _send('uci')
         up = _read_until(lambda l: l.strip() == 'uciok', timeout=30)
     except OSError:
         up = None
-    if up is None:
-        try:
-            _proc.wait(timeout=2)   # stdout closed: let a dying engine be reaped before asking
-        except subprocess.TimeoutExpired:
-            pass
+    why = _stderr_why() if up is None else ''   # stdout closed: a dying engine is reaped first
     if up is None and _proc.poll() is None:
         _dbg("no uciok within 30 s; carrying on")   # merely slow, as before: not a dead engine
     elif up is None:
-        drain.join(2)
-        why = ' | '.join(l.strip() for l in tail if l.strip())[-600:] or 'no output'
+        why = why or 'no output'
         _dbg(f"engine did not start under {python}: {why}")
         raise RuntimeError(f"Tetrarch did not start under {python}: {why}")
     # A RELAUNCH (crash, kill) starts from the engine's defaults, while _OPTIONS still holds what the
@@ -293,7 +302,11 @@ def do_analyse(data, mid):
         if engine_error:
             raise RuntimeError(f'Tetrarch: {engine_error[0]}')
         if bm is None:
-            raise RuntimeError('Tetrarch stopped responding')
+            # with the engine's own words when it left any: a crash mid-game ends in a traceback on
+            # stderr, which the bare message dropped (audit 3.1.330 follow-up L36, as BOUNDARY-3 did
+            # for startup)
+            why = _stderr_why()
+            raise RuntimeError('Tetrarch stopped responding' + (f': {why}' if why else ''))
         parts = bm.split()
         best = parts[1] if len(parts) > 1 else None
         ordered = [lines[k] for k in sorted(lines)]
