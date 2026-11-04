@@ -6465,8 +6465,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const c = vm.createContext({JSON, console: {log() {}, warn() {}}, listener: null, pushed: 0, asked: 0,
         chrome: {storage: {onChanged: {addListener(f) { c.listener = f; }}}}});
     vm.runInContext(`var config_watch_on = false, PANEL_BOOTED = true, resync_after_config_change = false, fen_request_inflight = false, setup_fen = null;
-        var config = {fourpc_mode: 'auto', help_mode: false, autoplay: true, manual_mode: false}, last_eval = {fen: 'X'}, fourpc_last = 'FEN4';
-        const LIVE_CONFIG_KEYS = ['fourpc_mode', 'help_mode', 'autoplay', 'manual_mode'];
+        var config = {fourpc_mode: 'auto', help_mode: false, autoplay: true, manual_mode: false, clock_mode: false}, last_eval = {fen: 'X'}, fourpc_last = 'FEN4';
+        const LIVE_CONFIG_KEYS = ['fourpc_mode', 'help_mode', 'autoplay', 'manual_mode', 'clock_mode'];
         function panel_reload() {} function reload_after_reset() {} function request_clear_hint() {} function abandon_search() {}
         function sync_quick_settings() {} function keep_alive() {} function keep_alive_wanted() { return false; }
         function push_config() { pushed++; } function request_fen() { asked++; } function on_new_pos() {}
@@ -6480,7 +6480,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const got = {mode: change('fourpc_mode', 'ffa'), help: change('help_mode', true), auto: change('autoplay', false)};
     ok('OPT-1: Four-player Mode, Help Mode and Autoplay changed on the Settings page clear the 4PC dedupe, so the board on screen is analysed again',
        got.mode === '' && got.help === '' && got.auto === '' && c.pushed === 3, {got, pushed: c.pushed});
-    ok('...an unrelated live key leaves it alone', change('manual_mode', true) === 'FEN4');
+    ok('...an unrelated live key leaves it alone', change('clock_mode', true) === 'FEN4');
 }
 // ---- audit 3.1.329 SCRAPE-2: only a real Chess960 start is captured off lichess (replaces the 3.1.328 SCRAPE-1 block) ----
 {
@@ -7449,6 +7449,29 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('X1-4: a four-player run starts with no report and Export and Fit off (a click there did nothing)',
            c.seen && c.seen.report === null && c.seen.exp === true && c.seen.fit === true, c.seen);
     });
+}
+// ---- X1-5: a Manual Mode change (panel switch or Settings page) clears the 4PC dedupe, so the held position is played ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // the gate this depends on: Manual Mode holds the 4PC automove
+    ok('X1-5: the 4PC automove is gated on Manual Mode', /if \(ours && config\.autoplay && !config\.help_mode && !config\.manual_mode\) request_automove_4pc\(best\);/.test(s));
+    const i = s.indexOf('function watch_config_changes() {');
+    const c = vm.createContext({JSON, console: {log() {}, warn() {}}, listener: null,
+        chrome: {storage: {onChanged: {addListener(f) { c.listener = f; }}}}});
+    vm.runInContext(`var config_watch_on = false, PANEL_BOOTED = true, resync_after_config_change = false, fen_request_inflight = false, setup_fen = null;
+        var config = {manual_mode: true}, last_eval = {fen: 'X'}, fourpc_last = 'FEN4';
+        const LIVE_CONFIG_KEYS = ['manual_mode'];
+        function panel_reload() {} function reload_after_reset() {} function request_clear_hint() {} function abandon_search() {}
+        function sync_quick_settings() {} function keep_alive() {} function keep_alive_wanted() { return false; }
+        function push_config() {} function request_fen() {} function on_new_pos() {}
+        ${s.slice(i, s.indexOf('\n}\n', i) + 3)}
+        watch_config_changes();`, c);
+    c.listener({manual_mode: {newValue: 'false', oldValue: 'true'}}, 'local');
+    ok('X1-5: Manual Mode switched off on the Settings page clears the 4PC dedupe', vm.runInContext('fourpc_last', c) === '', vm.runInContext('fourpc_last', c));
+    // the panel's own switch: the same key list in the quick-settings change handler
+    ok('...and the panel\'s Manual Mode switch does too',
+       /if \(key === 'autoplay' \|\| key === 'help_mode' \|\| key === 'manual_mode'\) fourpc_last = '';/.test(s));
 }
 // ==== END FIX CHECKS ====
 

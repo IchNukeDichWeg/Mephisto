@@ -1227,8 +1227,10 @@ function init_quick_settings() {
             // invalidate that. Help Mode was missing here, which is exactly why its arrow never
             // appeared until someone played a move -- turning it on asked for something the dedupe
             // had already decided not to redo. Both directions, and both toggles: switching Help
-            // Mode off has to re-run too, or autoplay cannot take the move back over.
-            if (key === 'autoplay' || key === 'help_mode') fourpc_last = '';
+            // Mode off has to re-run too, or autoplay cannot take the move back over. Manual Mode is
+            // the third gate on the 4PC automove: switched off, the held position was never played
+            // until somebody moved (X1-5).
+            if (key === 'autoplay' || key === 'help_mode' || key === 'manual_mode') fourpc_last = '';
             if (key === 'eval_bar' && !elem.checked) request_clear_eval_bar();
             // the strip is drawn by drawEvalBar, so clearing and letting the next eval redraw is
             // enough -- clear_eval_bar removes both overlays and the live bar comes straight back
@@ -10875,8 +10877,9 @@ function watch_config_changes() {
                 // FOUR-PLAYER: the same keys the panel's own handlers clear fourpc_last for. The mode
                 // travels beside the FEN4, not in it, so the re-scraped board below is the same FEN4 and
                 // on_new_pos_4pc skipped it: the board on screen kept its old-rules analysis, and a Help
-                // Mode turned on showed no arrow, until somebody moved (audit 3.1.329 OPT-1).
-                if (key === 'fourpc_mode' || key === 'help_mode' || key === 'autoplay') fourpc_last = '';
+                // Mode turned on showed no arrow, until somebody moved (audit 3.1.329 OPT-1). Manual Mode
+                // gates the 4PC automove too, so turning it off left the position unplayed (X1-5).
+                if (key === 'fourpc_mode' || key === 'help_mode' || key === 'autoplay' || key === 'manual_mode') fourpc_last = '';
                 // these change the go mode / search budget -- restart under the new setting
                 // human_error is here for the width: it changes how many lines the engine is asked for
                 if (['help_mode', 'autoplay', 'clock_mode', 'mirror_mode', 'manual_mode', 'human_error',
