@@ -5565,6 +5565,12 @@ function show_puzzle_answer(uci) {
 // Stats counted the move twice and a countdown ran for a move already made (audit 3.1.328 PLAY-4).
 // Cleared on every new position, so a repetition later is played normally.
 let instant_reply_fen = null;
+// The position whose move Session Stats has already counted. A move is counted when it is SENT, and a
+// resume (tab hidden or unfocused mid-think, a board mismatch, a refused click), a held-back click and
+// a puzzle retry all re-send the same position's move: it was counted again, with a think measured
+// from the original turn start, time away included (audit 3.1.329 PLAY-3). Kept across a resume of
+// the same position, cleared by any other (below), so a repetition later counts normally.
+let session_counted_fen = null;
 
 function on_new_pos(fen, startFen, moves) {
     instant_reply_fen = null;
@@ -5581,6 +5587,7 @@ function on_new_pos(fen, startFen, moves) {
         bgTrace('puzzle misread -- ignoring this poll', {fen: String(fen).split(' ')[0]});
         return;   // deliberately WITHOUT promoting incoming_push_key: we are still on the old position
     }
+    if (fen !== last_eval.fen) session_counted_fen = null;   // last_eval is still the previous position here
     // The key travels in a LOCAL from here (see the top of this function) and is adopted only where
     // last_eval is, far below. Adopting it here was wrong and shipped a wrong move: there are two
     // early returns between this point and last_eval -- the deferred puzzle lookup is one -- so the
@@ -10010,7 +10017,11 @@ function request_automove(move, think = null, manual = false, opts = {}) {
     // and a think of 0 read "0.0s" (3.1.321 audit F10). With no turn start seen it is the delay alone.
     const delay = (think != null) ? think : timing.think_time;
     const searched = our_turn_at ? Math.max(0, Date.now() - our_turn_at) : 0;
-    if (verify) session_note_move(Number.isFinite(delay) ? searched + delay : (searched || delay));
+    // once per position: a re-send of the same position's move is not another move (PLAY-3)
+    if (verify && session_counted_fen !== last_eval.fen) {
+        session_counted_fen = last_eval.fen;
+        session_note_move(Number.isFinite(delay) ? searched + delay : (searched || delay));
+    }
     const message = (config.puzzle_mode)
         // Puzzle Mode ships the move as a one-element `pv` purely because the content-script's
         // puzzle branch takes that shape. It is ONE move: Puzzle Mode used to auto-play the engine's

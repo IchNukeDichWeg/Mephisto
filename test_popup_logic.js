@@ -1068,7 +1068,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...and the game in progress survives a reload and is read back from the store on another page',
        /2 games · 4 moves · 1\.0s avg · 70% accuracy/.test(s2.session_stats_label()), s2.session_stats_label());
     ok('only on-turn moves are counted, so a blind premove cannot drag the average',
-        /if \(verify\) session_note_move/.test(pj));
+        /if \(verify && session_counted_fen !== last_eval\.fen\) \{\s*session_counted_fen = last_eval\.fen;\s*session_note_move\(/.test(pj));
     ok('...and switching Session Stats on records the history its accuracy needs',
         /!config\.eval_history && !config\.session_stats && !classifier_wanted\(\)/.test(pj));
 }
@@ -3731,7 +3731,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...in all 14 languages', fs.readdirSync(ROOT + '/src/i18n/locales').every(f => { const d = loc(f.replace('.json', '')); return ['panel.tb.win', 'panel.tb.loss', 'panel.tb.cursed_nodtz'].every(k => typeof d[k] === 'string' && !/DTZ|\{n\}/.test(d[k])); })); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('Session Stats times a move from the start of our turn, plus the delay still to come, not the configured think alone',
-       /our_turn_at = Date\.now\(\);\s*\/\/ THEIR CLOCK IS FROZEN/.test(psrc) && /const searched = our_turn_at \? Math\.max\(0, Date\.now\(\) - our_turn_at\) : 0;\s*if \(verify\) session_note_move\(Number\.isFinite\(delay\) \? searched \+ delay : \(searched \|\| delay\)\);/.test(psrc)); }
+       /our_turn_at = Date\.now\(\);\s*\/\/ THEIR CLOCK IS FROZEN/.test(psrc) && /const searched = our_turn_at \? Math\.max\(0, Date\.now\(\) - our_turn_at\) : 0;[\s\S]{0,400}?session_note_move\(Number\.isFinite\(delay\) \? searched \+ delay : \(searched \|\| delay\)\);/.test(psrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     // PV walk: two steps forward from the page's own position, then back twice, must land on the position it started from
     const a = psrc.indexOf('let panel_line = [];'), code = psrc.slice(a, psrc.indexOf('\n}\n', psrc.indexOf('function pv_walk_forward()')) + 3);
@@ -4439,7 +4439,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     const i = psrc.indexOf('function request_automove(move, think'), j = psrc.indexOf('\n}\n', i) + 3;
     const c = vm.createContext({console: {log() {}}, sent: [], timers: [], setTimeout: (f) => { c.timers.push(f); return 1; }, clearTimeout() {}});
-    vm.runInContext(`var setup_fen = null, config = {puzzle_mode: true}, last_eval = {fen: 'A b'}, puzzle_last_sent = {}, puzzle_move_timer = null, analysed_push_key = 'k', our_turn_at = 0;
+    vm.runInContext(`var setup_fen = null, config = {puzzle_mode: true}, last_eval = {fen: 'A b'}, puzzle_last_sent = {}, puzzle_move_timer = null, analysed_push_key = 'k', our_turn_at = 0, session_counted_fen = null;
         const puzzle_key = (f) => f; const puzzle_move_delay_ms = () => 300; const bgTrace = () => {}; const our_side = () => 'black';
         const safe_deselect_square = () => null; const fresh_timing = () => ({think_time: 0}); const move_situation = () => ''; const session_note_move = () => {};
         const send_to_active_tab = (m) => sent.push(m);` + psrc.slice(i, j), c);
@@ -6413,6 +6413,31 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...no deviation and no error label for that move', book.p.move === 'g1f3' && book.p.category === 'top engine', [book.p.move, book.p.category]);
     ok('...wired: on_engine_best_move tells humanize_pick when book or tablebase wins',
        /const pick = humanize_pick\(best, !!\(tb_ok \|\| book_ok\)\);\s*if \(tb_ok \|\| book_ok\) pick\.move = played;/.test(s));
+}
+// ---- audit 3.1.329 PLAY-3: a re-sent move is counted once in Session Stats ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = s.indexOf('function request_automove(move, think'), j = s.indexOf('\n}\n', i) + 3;
+    const clr = s.indexOf('if (fen !== last_eval.fen) session_counted_fen = null;');
+    const c = vm.createContext({console: {log() {}}, Date, Number, Math, counted: [], sent: []});
+    vm.runInContext(`var setup_fen = null, config = {}, last_eval = {fen: 'P w'}, analysed_push_key = 'k', our_turn_at = 0, session_counted_fen = null;
+        const bgTrace = () => {}; const our_side = () => 'white'; const safe_deselect_square = () => null;
+        const fresh_timing = () => ({think_time: 500}); const move_situation = () => '';
+        const session_note_move = (ms) => counted.push(ms); const send_to_active_tab = (m) => sent.push(m);
+        function new_pos(fen) { ${clr > 0 ? s.slice(clr, s.indexOf('\n', clr)) : ''}
+            last_eval = {fen}; }
+        ${s.slice(i, j)}`, c);
+    vm.runInContext(`request_automove('e2e4'); new_pos('P w'); request_automove('e2e4', 800); request_automove('e2e4')`, c);
+    ok('PLAY-3: the same position\'s move sent three times (a resume, a re-push) is sent each time but counted once',
+       c.sent.length === 3 && c.counted.length === 1 && c.counted[0] === 500, {sent: c.sent.length, counted: c.counted});
+    vm.runInContext(`new_pos('Q b'); new_pos('R w'); request_automove('g1f3')`, c);
+    ok('...the next position of ours counts again', c.counted.length === 2, c.counted);
+    vm.runInContext(`new_pos('S b'); new_pos('P w'); request_automove('e2e4')`, c);
+    ok('...and a position repeated after others (a new game from the same start) counts again', c.counted.length === 3, c.counted);
+    ok('...wired: on_new_pos clears the key only for a different position, after the misread return',
+       clr > s.indexOf("return;   // deliberately WITHOUT promoting incoming_push_key") && clr > s.indexOf('function on_new_pos(')
+       && clr < s.indexOf('last_eval = {fen, activeLines: 0'));
 }
 // ==== END FIX CHECKS ====
 
