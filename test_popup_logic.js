@@ -7033,6 +7033,31 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('PAGE-5: text, clipboard and composition events from a focused panel input stop at the root', leaked.length === 0, leaked);
     ok('PAGE-5: ...and pass when nothing editable in the panel has focus', types.every(t => !fire(t, {tagName: 'BUTTON'}) && !fire(t, null)));
 }
+// ---- audit 3.1.329 PAGE-6: the clipboard fallback never writes into the site's DOM ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = src.indexOf('async function copy_text(text) {'), b = src.indexOf('\n}\n', a) + 3;
+    const run = async (inPage, panelOpen) => {
+        const site = [], shadow = [];
+        const mkHost = (log) => ({activeElement: null, appendChild: (n) => { log.push(n.value); n.remove = () => {}; }});
+        const document = {createElement: () => ({style: {}, focus() {}, select() {}}), execCommand: () => true, activeElement: null};
+        document.body = mkHost(site);
+        const c = vm.createContext({document, navigator: {clipboard: {writeText: async () => { throw new Error('denied'); }}},
+            IS_CONTENT_SCRIPT: inPage});
+        c.PANEL_ROOT = panelOpen ? mkHost(shadow) : document;
+        vm.runInContext(src.slice(a, b), c);
+        const okd = await c.copy_text('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+        return {okd, site, shadow};
+    };
+    (async () => {
+        const inPage = await run(true, true), noRoot = await run(true, false), popup = await run(false, false);
+        ok('PAGE-6: in-page the fallback textarea goes into the panel root, never the site body',
+           inPage.okd === true && inPage.site.length === 0 && inPage.shadow.length === 1, inPage);
+        ok('PAGE-6: in-page with no panel root the fallback is skipped', noRoot.okd === false && noRoot.site.length === 0, noRoot);
+        ok('PAGE-6: the toolbar popup still falls back on its own document', popup.okd === true && popup.site.length === 1, popup);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

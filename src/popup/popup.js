@@ -6620,14 +6620,25 @@ async function copy_text(text) {
         await navigator.clipboard.writeText(text);
         return true;
     } catch (e) { /* fall through */ }
+    // IN-PAGE THE FALLBACK STAYS IN THE PANEL. `document` there is the SITE's: a textarea holding the
+    // FEN, the PGN or the whole diagnostics report was appended to the site's body, where a page
+    // MutationObserver could read its value, and the copy event fired on the site's document (audit
+    // 3.1.329 PAGE-6). Inside the closed root, focused, the root's PAGE-5 listener also stops that
+    // copy event. With no panel root in-page there is nowhere private to put it, so no fallback.
+    const host = (PANEL_ROOT !== document) ? PANEL_ROOT
+        : (IS_CONTENT_SCRIPT ? null : (document.body || document.documentElement));
+    if (!host) return false;
     try {
         const ta = document.createElement('textarea');
         ta.value = text;
         ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
-        (document.body || document.documentElement).appendChild(ta);
+        const prev = PANEL_ROOT.activeElement;   // the shadow root's, or the popup page's
+        host.appendChild(ta);
+        ta.focus();
         ta.select();
         const ok = document.execCommand('copy');
         ta.remove();
+        try { prev?.focus?.(); } catch (e) { /* gone */ }
         return ok;
     } catch (e) {
         return false;
