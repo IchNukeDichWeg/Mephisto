@@ -2501,8 +2501,8 @@ function workerLoadLine() {
   ].join('  ');
 }
 
-// `name` is a relay key: the engine's port name, or `<engine>#options` for the options pages (see
-// onConnect below); the host is chosen by the engine part.
+// `name` is a relay key: the engine's port name, or `<engine>#options<n>` for an options-page port
+// (see onConnect below); the host is chosen by the engine part.
 function ensureNative(name) {
   if (nativePorts[name]) return nativePorts[name];
   const {app, label} = NATIVE_HOSTS[name.split('#')[0]];
@@ -2540,6 +2540,7 @@ function ensureNative(name) {
   return np;
 }
 
+let optionsPortSeq = 0;   // makes each options-page port its own relay key, so its own host process
 chrome.runtime.onConnect.addListener(port => {
   if (!NATIVE_HOSTS[port.name]) return;
   // THE OPTIONS PAGES GET THEIR OWN HOST PROCESS. The host keeps every option it is configured with,
@@ -2547,8 +2548,14 @@ chrome.runtime.onConnect.addListener(port => {
   // the panel's Elo cap, Skill Level or Rodent personality with nothing on screen saying so, and the
   // review's own configure reset the live game's Threads, Hash, MultiPV and variant (audit 3.1.328
   // OPT-2). Separate keys, separate processes; the panel and the toolbar popup still share one.
+  // ONE PROCESS PER OPTIONS-PAGE PORT, not per page. Each NativeEngine there is its own port, and a
+  // page runs two of one engine at once: the review pool (Engines at once, default 2) and Analysis
+  // with the same native engine as Engine and Second engine. On one shared `#options` process the
+  // host lets each newer analyse stop the running one, so the review's two workers cancelled each
+  // other until "another tab is using this native engine" and Analysis's first column stopped at
+  // once (audit 3.1.329 REVIEW-1, ANALYSIS-7). The port is the engine instance, so it is the key.
   const fromOptions = /\/src\/options\//.test(port.sender?.url || '');
-  const name = fromOptions ? `${port.name}#options` : port.name;
+  const name = fromOptions ? `${port.name}#options${++optionsPortSeq}` : port.name;
   (popupPortsByName[name] = popupPortsByName[name] || new Set()).add(port);
   port.onDisconnect.addListener(() => {
     popupPortsByName[name].delete(port);
@@ -2560,6 +2567,8 @@ chrome.runtime.onConnect.addListener(port => {
       try { nativePorts[name].disconnect(); } catch (e) { /* already gone */ }
       delete nativePorts[name];
     }
+    // a per-port key is never used again: drop it, or the `panels=` load line lists every one
+    if (fromOptions) delete popupPortsByName[name];
   });
   port.onMessage.addListener(req => {
     try {

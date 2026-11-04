@@ -6012,7 +6012,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
           review = mkPort('sf-native', 'chrome-extension://id/src/options/options.html#review');
     for (const p of [panel, popup, review]) { listeners[0](p); p.hear({id: 1, cmd: 'configure', options: {}}); }
     ok('the panel and the toolbar popup share one host; Review gets its own', hosts.length === 2 && hosts[0].got.length === 2 && hosts[1].got.length === 1
-       && Object.keys(c.nativePorts).sort().join() === 'sf-native,sf-native#options', Object.keys(c.nativePorts));
+       && Object.keys(c.nativePorts).sort().join() === 'sf-native,sf-native#options1', Object.keys(c.nativePorts));
     const en = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
     ok('an options-page native engine configures full strength, standard castling and no personality',
        /UCI_Variant: 'chess', UCI_Chess960: false, UCI_LimitStrength: false, Personality: '---',/.test(en));
@@ -6611,6 +6611,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const live = fx.slice(fx.indexOf('<wc-simple-move-list'), fx.indexOf('</wc-simple-move-list>')).replace(/<[^>]*>/g, ' ');
     let rx = null; try { rx = vm.runInContext('RESULT_IN_TEXT', c); } catch (e) { /* old code: no such check */ }
     ok('the fixture\'s game in progress reads as live', !!rx && !rx.test(live));
+}
+// ---- audit 3.1.329 REVIEW-1 + ANALYSIS-7: two native engines on one options page get two host processes ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = bg.indexOf('function ensureNative(name) {'), b = bg.indexOf('// ===== IS THE OPPONENT STREAMING?', a);
+    const hosts = [], listeners = [];
+    const mkPort = (name, url) => { const p = {name, sender: {url}, sent: [], postMessage(m) { p.sent.push(m); }, onDisconnect: {addListener(f) { p.bye = f; }}, onMessage: {addListener(f) { p.hear = f; }}}; return p; };
+    const c = vm.createContext({NATIVE_HOSTS: {'sf-native': {app: 'com.x.sf', label: 'Stockfish'}}, nativePorts: {}, popupPortsByName: {}, nativeRequestOwner: new Map(),
+        nativeSeq: 0, nativeFramesIn: 0, nativeFramesRecent: [], nativeFramesOut: 0, sweepNativeOwners() {}, nativeTrace() {}, console, Date,
+        chrome: {runtime: {lastError: null, onConnect: {addListener: (f) => listeners.push(f)},
+            connectNative: (app) => { const h = {app, got: [], closed: false, postMessage(m) { h.got.push(m); }, onMessage: {addListener(f) { h.reply = f; }}, onDisconnect: {addListener() {}}, disconnect() { h.closed = true; }}; hosts.push(h); return h; }}}});
+    vm.runInContext(bg.slice(a, b), c);
+    const page = 'chrome-extension://id/src/options/options.html#review';
+    const w0 = mkPort('sf-native', page), w1 = mkPort('sf-native', page);          // the review pool, Engines at once = 2
+    const an1 = mkPort('sf-native', 'chrome-extension://id/src/options/options.html#analysis'),
+          an2 = mkPort('sf-native', 'chrome-extension://id/src/options/options.html#analysis');   // Engine + Second engine
+    const panel = mkPort('sf-native', 'https://lichess.org/abc'), popup = mkPort('sf-native', 'chrome-extension://id/src/popup/popup.html');
+    for (const p of [w0, w1, an1, an2, panel, popup]) { listeners[0](p); p.hear({id: 1, cmd: 'analyse', fen: 'x', time: 1000}); }
+    ok('REVIEW-1: each options-page engine gets its own host process; the panel and toolbar popup still share one',
+       hosts.length === 5 && hosts.slice(0, 4).every(h => h.got.length === 1) && hosts[4].got.length === 2, hosts.map(h => h.got.length));
+    // each host's answer goes back to the port that asked, under that port's own id
+    hosts[1].reply({id: hosts[1].got[0].id, done: true, lines: []});
+    ok('REVIEW-1: an answer reaches only the worker whose host searched it', w1.sent.length === 1 && w1.sent[0].id === 1 && w0.sent.length === 0, [w0.sent, w1.sent]);
+    w0.bye();
+    ok('REVIEW-1: closing one worker shuts its host only, and its key is dropped',
+       hosts[0].closed && !hosts[1].closed && Object.keys(c.popupPortsByName).filter(k => k.startsWith('sf-native#options')).length === 3,
+       [hosts.map(h => h.closed), Object.keys(c.popupPortsByName)]);
 }
 // ==== END FIX CHECKS ====
 
