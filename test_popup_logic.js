@@ -9396,6 +9396,39 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('PAGEA-4: a refused backend click is not answered with element.click(); the button is re-armed for the next push',
        b.btn.untrusted === 0 && vm.runInContext('puzzleNextClicked', b.c) === null, {untrusted: b.btn.untrusted});
 })().catch(e => { fails++; console.log('FAIL PAGEA-4 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 ENGINEA-1: depth mode on a native host or the Remote Engine searches to the depth, not the Search Time ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // the real lines of on_new_pos's remote branch, from the Analysis Limit read to the request
+    const a = psrc.indexOf('        const limit = open_ended ? analysis_limit_value('), b = psrc.indexOf('        const send_analysis = ', a);
+    const lim = psrc.indexOf('const ANALYSIS_LIMIT_MAX'), lime = psrc.indexOf('\n}\n', psrc.indexOf('function analysis_limit_value(', lim)) + 3;
+    const consts = (psrc.match(/const (NATIVE_MAX_RT|REMOTE_HTTP_MAX_RT) = \d+;/g) || []).join(' ');
+    const c = vm.createContext({});
+    vm.runInContext(`var config = {}, tt = false; const NATIVE_ENGINES = ['sf18-native'], CLOUD_ENGINES = ['cloud-chessapi'];
+        function uses_native() { return NATIVE_ENGINES.includes(config.engine); }
+        function uses_cloud() { return CLOUD_ENGINES.includes(config.engine); }
+        function searching_by_depth() { return config.search_mode === 'depth' && config.compute_depth > 0; }
+        function in_time_trouble() { return tt; }
+        ${consts} ${psrc.slice(lim, lime)}
+        function budget(open_ended, movetime, want_multipv, startFen, moves, fen) { ${psrc.slice(a, b)} return rt; }`, c);
+    const rt = (cfg, open_ended, {movetime = 300, mpv = 1, trouble = false} = {}) => {
+        c.config = Object.assign({analysis_limit_mode: 'time', analysis_limit: 61, search_mode: 'depth', compute_depth: 25, compute_time: 300}, cfg);
+        vm.runInContext(`config = this.config; tt = ${trouble};`, c);
+        try { return vm.runInContext(`budget(${open_ended}, ${movetime}, ${mpv}, 's', '', 'f')`, c); } catch (e) { return 'threw ' + e.message; }
+    };
+    const NMAX = vm.runInContext('NATIVE_MAX_RT', c), HMAX = vm.runInContext('REMOTE_HTTP_MAX_RT', c);
+    ok('ENGINEA-1: Depth mode, Autoplay on, native host: the time sent is the native ceiling, not the 300 ms Search Time',
+       rt({engine: 'sf18-native'}, false) === NMAX, rt({engine: 'sf18-native'}, false));
+    ok('...the HTTP Remote Engine: its 25 s ceiling', rt({engine: 'remote'}, false) === HMAX, rt({engine: 'remote'}, false));
+    ok('...the bounded analysis lanes too (HTTP remote open-ended, native at Lines > 1)',
+       rt({engine: 'remote'}, true) === HMAX && rt({engine: 'sf18-native'}, true, {mpv: 3}) === NMAX);
+    ok('...in time trouble the clock cut still wins, as in the WASM lane', rt({engine: 'sf18-native'}, false, {movetime: 250, trouble: true}) === 250);
+    ok('...Time mode is unchanged: the move budget', rt({engine: 'sf18-native', search_mode: 'time'}, false, {movetime: 1200}) === 1200
+       && rt({engine: 'remote', search_mode: 'time'}, false) === 300);
+    ok('...an Analysis Limit still decides an open-ended search', rt({engine: 'remote', analysis_limit: 10}, true) === 10000);
+    ok('...a cloud engine (which takes the depth instead of a time) keeps its value', rt({engine: 'cloud-chessapi'}, false) === 300);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

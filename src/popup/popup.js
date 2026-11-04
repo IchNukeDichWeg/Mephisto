@@ -5948,6 +5948,17 @@ function on_new_pos(fen, startFen, moves) {
         // ceiling under a nodes/depth limit, or a long paced think all crossed it (audit 3.1.329 ENGINE-1).
         if (http_remote) rt = Math.min(rt, REMOTE_HTTP_MAX_RT);
         const posKey = moves ? `${startFen}|${moves}` : fen;
+        // DEPTH MODE: THE DEPTH IS THE BUDGET, the time sent beside it only the ceiling. Both hosts
+        // build Limit(depth, time) and stop at whichever comes first, and on every search bounded by
+        // the move budget `rt` was still the Search Time -- 300 ms unless someone had set it, since
+        // the stepper only edits one of the two. So Depth 25 searched 300 ms on native Stockfish and
+        // the Remote Engine while the WASM lane's `go depth` honoured it (audit 3.1.330 ENGINEA-1).
+        // The ceiling is the lane's own cap, as for an unreachable depth; in time trouble the WASM
+        // lane drops to the clock, and so does this one (movetime already holds that cut).
+        const move_budget = !open_ended || http_remote || (uses_native() && want_multipv > 1);
+        if (move_budget && limit == null && searching_by_depth() && !in_time_trouble() && !uses_cloud()) {
+            rt = http_remote ? REMOTE_HTTP_MAX_RT : NATIVE_MAX_RT;
+        }
         const send_analysis = () => {
             if (uses_native() && native_inflight === posKey) {
                 console.log('Mephisto: already analysing this position -- not issuing a second search');
