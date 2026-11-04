@@ -120,9 +120,11 @@
                 <!-- 4-player: paste a PGN4 and it is replayed by the ENGINE's own rules (the host asks
                      Tetrarch's package, which parses chess.com's PGN4), then every position is searched.
                      No human model and no strength estimate here: Maia knows one game and it is not this one. -->
-                <div id="rv_4pc_note" class="rv-status hidden">4-player chess: paste a chess.com PGN4 above and press
+                <!-- the host's setup is pointed at, not spelled: the installer differs by OS and by build
+                     (audit 3.1.330 follow-up L52) -->
+                <div id="rv_4pc_note" class="rv-status hidden" data-i18n="rv.note_4pc">4-player chess: paste a chess.com PGN4 above and press
                     Analyse game. Positions are replayed and searched by the Tetrarch engine over its native host, so the
-                    host must be installed (native-host/install.sh --tetrarch). Teams and free-for-all both review;
+                    host must be installed (see the README section "Four-player chess"). Teams and free-for-all both review;
                     FFA scores are the mover's own (not comparable across seats), and its cards count how often
                     each seat played the engine's move -- the engine prices one line in FFA today. No human model
                     or strength estimate for 4-player.</div>

@@ -296,6 +296,7 @@
   "rv.opening_book": "Opening benoemen",
   "rv.run": "Start",
   "rv.analyse": "Partij analyseren",
+  "rv.note_4pc": "Schaken met 4 spelers: plak hierboven een chess.com-PGN4 en druk op Partij analyseren. De stellingen worden nagespeeld en doorzocht door de Tetrarch-engine via zijn native host, dus de host moet geïnstalleerd zijn (zie de README-sectie “Four-player chess”). Teams en ieder-voor-zich worden allebei geanalyseerd; FFA-scores zijn van de speler aan zet zelf (niet vergelijkbaar tussen stoelen), en de kaarten tellen hoe vaak elke stoel de zet van de engine speelde -- de engine beoordeelt in FFA nu één variant. Geen menselijk model en geen sterkteschatting voor 4 spelers.",
   "rv.stop": "Stop",
   "rv.export": "Rapport exporteren",
   "rv.flip": "Draaien",

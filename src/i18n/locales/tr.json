@@ -296,6 +296,7 @@
   "rv.opening_book": "Açılışı adlandır",
   "rv.run": "Çalıştır",
   "rv.analyse": "Oyunu analiz et",
+  "rv.note_4pc": "4 oyunculu satranç: yukarıya bir chess.com PGN4'ü yapıştırın ve Oyunu analiz et'e basın. Konumlar Tetrarch motoru tarafından yerel sunucusu üzerinden yeniden oynatılıp aranır, bu yüzden sunucunun kurulu olması gerekir (README'deki «Four-player chess» bölümüne bakın). Takımlar ve herkes herkese karşı ikisi de incelenir; FFA puanları hamle yapanın kendisine aittir (koltuklar arasında karşılaştırılamaz) ve kartları her koltuğun motorun hamlesini kaç kez oynadığını sayar -- motor bugün FFA'da tek bir varyant değerlendirir. 4 oyunculu için insan modeli ya da güç tahmini yok.",
   "rv.stop": "Durdur",
   "rv.export": "Raporu dışa aktar",
   "rv.flip": "Çevir",

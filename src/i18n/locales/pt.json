@@ -296,6 +296,7 @@
   "rv.opening_book": "Nomear a abertura",
   "rv.run": "Executar",
   "rv.analyse": "Analisar partida",
+  "rv.note_4pc": "Xadrez a 4 jogadores: cola acima um PGN4 do chess.com e carrega em Analisar partida. As posições são repetidas e pesquisadas pelo motor Tetrarch através do seu host nativo, por isso o host tem de estar instalado (veja a secção «Four-player chess» do README). Equipas e todos contra todos são ambos analisados; as pontuações FFA são do próprio jogador que move (não comparáveis entre lugares), e os cartões contam quantas vezes cada lugar jogou o lance do motor -- hoje o motor avalia uma linha em FFA. Sem modelo humano nem estimativa de força para 4 jogadores.",
   "rv.stop": "Parar",
   "rv.export": "Exportar relatório",
   "rv.flip": "Virar",

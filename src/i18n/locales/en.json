@@ -310,6 +310,7 @@
   "rv.opening_book": "Name the opening",
   "rv.run": "Run",
   "rv.analyse": "Analyse game",
+  "rv.note_4pc": "4-player chess: paste a chess.com PGN4 above and press Analyse game. Positions are replayed and searched by the Tetrarch engine over its native host, so the host must be installed (see the README section \"Four-player chess\"). Teams and free-for-all both review; FFA scores are the mover's own (not comparable across seats), and its cards count how often each seat played the engine's move -- the engine prices one line in FFA today. No human model or strength estimate for 4-player.",
   "rv.stop": "Stop",
   "rv.export": "Export report",
   "rv.flip": "Flip",

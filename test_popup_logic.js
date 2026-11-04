@@ -12509,6 +12509,18 @@ print(json.dumps(out))`;
     const bad = Object.entries(locs).filter(([, l]) => !/\{hint\}/.test(l['panel.native_host_old_short'] || '')).map(([k]) => k);
     ok('L51: every locale\'s short "out of date" text takes the step as {hint}', bad.length === 0, bad);
 }
+// ---- audit 3.1.330 follow-up L52: Game Review's 4-player note points at the README, names no installer, and is translated ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    const m = /<div id="rv_4pc_note"([^>]*)>([\s\S]*?)<\/div>/.exec(html) || [];
+    const dir = ROOT + '/src/i18n/locales', locs = Object.fromEntries(fs.readdirSync(dir).map(f => [f.slice(0, -5), JSON.parse(fs.readFileSync(dir + '/' + f, 'utf8'))]));
+    ok('L52: the 4-player note names no installer script (they differ by OS and build) and points at the README section',
+       m[2] && !/install[\w-]*\.(sh|ps1)/.test(m[2]) && /README section "Four-player chess"/.test(m[2].replace(/\s+/g, ' ')), m[2] && m[2].replace(/\s+/g, ' ').slice(0, 200));
+    ok('L52: ...it is translated (data-i18n="rv.note_4pc"), and the English matches the page', /data-i18n="rv\.note_4pc"/.test(m[1] || '') && locs.en['rv.note_4pc'] === (m[2] || '').replace(/\s+/g, ' ').trim());
+    const bad = Object.entries(locs).filter(([k, l]) => !/Four-player chess/.test(l['rv.note_4pc'] || '') || /install[\w-]*\.(sh|ps1)/.test(l['rv.note_4pc']) || (k !== 'en' && l['rv.note_4pc'] === locs.en['rv.note_4pc'])).map(([k]) => k);
+    ok('L52: ...in all 14 locales, each naming the README section and no script', bad.length === 0, bad);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
