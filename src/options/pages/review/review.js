@@ -3443,8 +3443,10 @@ class ReviewPage {
         $('rv_limit_kind').value = cfg('rv_limit_kind');
         $('rv_limit_kind').addEventListener('change', () => {
             setCfg('rv_limit_kind', $('rv_limit_kind').value);
-            syncDepthPreset();
+            // AFTER the box holds this kind's number: before, the preset read the old seconds and
+            // showed Custom over a stored rung (audit 3.1.330 REVIEWA-7)
             syncLimitUi();
+            syncDepthPreset();
         });
         // THE LADDER CHESS.COM REVIEWS AT. Picking a rung switches the budget to Depth and fills the
         // box; it stores nothing of its own, so the box stays the single source of truth and a typed
@@ -3462,7 +3464,6 @@ class ReviewPage {
         });
         $('rv_limit_num')?.addEventListener('change', syncDepthPreset);
         $('rv_limit_num')?.addEventListener('input', syncDepthPreset);
-        syncDepthPreset();
         bindNumber('rv_multipv', 'rv_multipv');
         bindNumber('rv_workers', 'rv_workers');
         bindNumber('rv_threads', 'rv_threads');
@@ -3576,6 +3577,9 @@ class ReviewPage {
         rvModeSync();
         $('rv_engine').addEventListener('change', () => setCfg('rv_engine', $('rv_engine').value));
         syncLimitUi();
+        // ...and the preset from what that just wrote: synced while the box was still empty, a stored
+        // Deep (24) showed as Custom on every page open (audit 3.1.330 REVIEWA-7)
+        syncDepthPreset();
         if (!nativeAvailable) {
             const ids = ENGINES.filter(e => e.kind === 'native').map(e => e.id);
             Promise.all(ids.map(id => nativeHostAvailable(id))).then(oks => {

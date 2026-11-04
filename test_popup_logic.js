@@ -10346,6 +10346,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     r = await run(false, async () => ({moves: []}));
     ok('REVIEWA-6: a run that simply finished shows the parse note as before', r.status === '1 games read.' && !r.bad, r);
 })().catch(e => { fails++; console.log('FAIL REVIEWA-6 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 REVIEWA-7: the depth preset shows the stored rung on page open and after Time -> Depth ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    // the real syncDepthPreset, syncLimitUi and Budget kind handler over a stored depth of 24 and time of 2 s
+    const handlers = {};
+    const els = {rv_limit_kind: {value: 'time'}, rv_limit_num: {value: ''}, rv_limit_value: {value: ''},
+        rv_depth_preset: {value: '', style: {}, options: ['', '18', '22', '24', '26'].map(value => ({value}))}};
+    for (const e of Object.values(els)) e.addEventListener = (ev, f) => { (handlers[ev] = handlers[ev] || []).push(f); };
+    const store = {rv_limit_kind: 'time', rv_limit_depth: 24, rv_limit_time: 2000};
+    const c = vm.createContext({Math, String, isFinite, parseFloat, parseInt, $: (id) => els[id], document: {getElementById: (id) => els[id]},
+        cfg: (k) => store[k], setCfg: (k, v) => { store[k] = v; }, updateEngineOptions() {}, DEPTH_DEFAULT: 20, TIME_DEFAULT_MS_UI: 500,
+        PER_KIND_KEY: {depth: 'rv_limit_depth', time: 'rv_limit_time'}, storedFor: (k) => store[k === 'depth' ? 'rv_limit_depth' : 'rv_limit_time']});
+    vm.runInContext(fn('function syncDepthPreset() {') + fn('function syncLimitUi('), c);
+    const h = rj.indexOf("        $('rv_limit_kind').addEventListener('change', () => {"), he = rj.indexOf('\n        });\n', h) + 12;
+    vm.runInContext(rj.slice(h, he), c);
+    els.rv_limit_kind.value = 'depth';
+    handlers.change[0]();
+    ok('REVIEWA-7: switching Time to Depth shows the stored depth 24 as its rung, not Custom',
+       els.rv_limit_num.value === '24' && els.rv_depth_preset.value === '24', [els.rv_limit_num.value, els.rv_depth_preset.value]);
+    // page open: the preset is synced after syncLimitUi has filled the box, not before
+    const init = rj.slice(rj.indexOf('class ReviewPage {'));
+    const fill = init.indexOf("        $('rv_engine').addEventListener('change', () => setCfg('rv_engine', $('rv_engine').value));\n        syncLimitUi();\n");
+    const presetCalls = [...init.matchAll(/^ {8}syncDepthPreset\(\);$/gm)].map(m => m.index);
+    ok('REVIEWA-7: on page open the preset is synced only after the box is filled',
+       fill > 0 && presetCalls.length >= 1 && presetCalls.every(i => i > fill), [fill, presetCalls]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
