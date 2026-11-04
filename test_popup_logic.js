@@ -7773,6 +7773,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const r3 = vm.runInContext('scrapePositionPuz()', ctx);
     ok('SCRAPEB-4: ...and on a board drawn from Black\'s side the squares follow the orientation', /lm-e2e4\*{5}$/.test(r3) && /b-p-e4/.test(r3), r3);
 }
+// ---- audit 3.1.330 PLAYA-1: no blind premove in Crazyhouse, where chess.js lists no drops ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (a, b) => { const i = psrc.indexOf(a), j = psrc.indexOf(b, i); return i < 0 || j < 0 ? '' : psrc.slice(i, j); };
+    const c = vm.createContext({}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext("var config = {variant: 'crazyhouse', premove_confidence: 14}; var premove_tracker = {fen: ''};"
+        + cut('// Premove certification window.', 'function premove_reply_playable')
+        + cut('function premove_is_safe', '\n// Don\'t wait for the opponent'), c);
+    const run = (variant, expr) => vm.runInContext(`config.variant = ${JSON.stringify(variant)}; ${expr}`, c);
+    // black is in check from a8 with one king step on the board, but a knight in hand could block on b8-g8
+    const zh = 'R6k/6p1/8/8/8/8/8/K7[n] b - - 0 1', std = 'R6k/6p1/8/8/8/8/8/K7 b - - 0 1';
+    ok('PLAYA-1: the check a drop could block is not "forced" for premove_is_safe in Crazyhouse',
+       run('crazyhouse', `premove_is_safe(${JSON.stringify(zh)}, 'h8h7', 'a8a7')`) === false);
+    ok('...the same board in standard chess still is', run('chess', `premove_is_safe(${JSON.stringify(std)}, 'h8h7', 'a8a7')`) === true);
+    const line = JSON.stringify({pred: 'h8h7', reply: 'a8a7', depth: 13});
+    ok('PLAYA-1: the only-legal-move bypass does not certify a shallow pair in Crazyhouse',
+       run('crazyhouse', `premove_tracker.fen = ${JSON.stringify(zh)}; premove_certified(${line})`) === false);
+    ok('...and still does in standard chess', run('chess', `premove_tracker.fen = ${JSON.stringify(std)}; premove_certified(${line})`) === true);
+    // Qxb2+ (a capture) leaves Kxb2 as a true recapture; Qb2+ (no capture) leaves it as the lone board move
+    const hr = (variant, fen) => run(variant, `premove_human_reflex(${JSON.stringify(fen)}, 'c2b2', 'a1b2')`);
+    ok('PLAYA-1: a lone board reply is not a "forced" human reflex in Crazyhouse',
+       hr('crazyhouse', '7k/8/8/8/8/8/2q5/K7 b - - 0 1') === false, hr('crazyhouse', '7k/8/8/8/8/8/2q5/K7 b - - 0 1'));
+    ok('...it still is in standard chess', hr('chess', '7k/8/8/8/8/8/2q5/K7 b - - 0 1') === true);
+    ok('...and a true recapture still is in Crazyhouse', hr('crazyhouse', '7k/8/8/8/8/8/1Pq5/K7 b - - 0 1') === true);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

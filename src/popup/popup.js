@@ -3470,7 +3470,9 @@ function premove_certified(line) {
     // line.reply to PLAY, and the gate above rejects it for exactly that reason. A single-move
     // engine premoves only once something produces the reply: the roadmap's second inference on
     // the rules-certified future position. That mechanism plugs in here when it is built.
-    if (line.pred && premove_tracker.fen) {
+    // Not in Crazyhouse: this chess.js lists no pocket drops, so a king step out of a check the
+    // opponent could block with a drop reads as their only move (audit 3.1.330 PLAYA-1).
+    if (line.pred && premove_tracker.fen && config.variant !== 'crazyhouse') {
         try {
             const c = new Chess(config.variant, premove_tracker.fen);
             const legal = c.moves({verbose: true});
@@ -3520,6 +3522,11 @@ function premove_reply_playable(fen, uci) {
 // cancels illegal premoves). Either way it cannot fire in a wrong position.
 function premove_is_safe(fen, pred, reply) {
     const [from, to, promotion] = [reply.slice(0, 2), reply.slice(2, 4), reply[4]];
+    // CRAZYHOUSE: never. The `others` below come from this chess.js, which lists no pocket drops
+    // (and drops the pocket from the fen), so a drop that blocks a check or lands on the reply's
+    // target was never tried and the reply passed as forced or bound while it could fire after the
+    // drop (audit 3.1.330 PLAYA-1). The exact-move instant reply on our own turn is unaffected.
+    if (config.variant === 'crazyhouse') return false;
     // ...and it must be a move at all in the position it was meant for. A reply illegal after EVERY
     // opponent move -- one computed for another position -- passed the loop below as "bound to the
     // prediction" and was sent as a blind premove (audit 3.1.329 PLAY-2).
@@ -3564,7 +3571,9 @@ function premove_human_reflex(fen, pred, reply) {
         if (!predMove) return false;
         if (predMove.captured && reply.slice(2, 4) === pred.slice(2, 4)) return true; // true recapture
         c.move({from: pred.slice(0, 2), to: pred.slice(2, 4), promotion: pred[4]});
-        return c.moves().length === 1; // forced: exactly one legal reply after the predicted move
+        // forced: exactly one legal reply after the predicted move. Not countable in Crazyhouse, where
+        // this chess.js lists no drops (audit 3.1.330 PLAYA-1).
+        return config.variant !== 'crazyhouse' && c.moves().length === 1;
     } catch (e) {
         return false;
     }
