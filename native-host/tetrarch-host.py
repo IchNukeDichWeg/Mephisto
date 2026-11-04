@@ -17,7 +17,7 @@
 #
 # Engine path resolution order:
 #   1. $TETRARCH_DIR   2. a sibling file `tetrarch-path`   3. ../../../Tetrarch
-import sys, os, struct, json, queue, threading, subprocess, traceback, datetime
+import sys, os, struct, json, queue, threading, subprocess, traceback, datetime, collections
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _LOG = os.path.join(_DIR, 'host-debug.log')
@@ -49,10 +49,13 @@ def _resolve_repo():
     return os.path.abspath(os.path.join(_DIR, '..', '..', 'Tetrarch'))
 
 def _resolve_python():
-    # On Windows the unix candidates simply do not exist, so this falls through to
-    # sys.executable -- which is the interpreter the .bat shim chose, and therefore
-    # exactly the right one. `python3` is not a command there.
-    for cand in ('/opt/homebrew/bin/python3', '/usr/local/bin/python3', '/usr/bin/python3', sys.executable):
+    # THIS host's own interpreter first (audit 3.1.330 BOUNDARY-3): the installer pins the host's
+    # shebang to the python3 on PATH, the one Tetrarch's setup.sh installs numpy into, and on Windows
+    # it is the one the .bat shim chose. The fixed paths came first before, so a pyenv/conda/venv
+    # Python, or python.org's beside a Homebrew one, ran uci.py under an interpreter without numpy and
+    # every search ended in "Engine error". They stay as a fallback for an embedding with no
+    # sys.executable; `python3` is not a command on Windows.
+    for cand in (sys.executable, '/opt/homebrew/bin/python3', '/usr/local/bin/python3', '/usr/bin/python3'):
         if cand and os.path.isfile(cand):
             return cand
     return sys.executable or 'python3'
@@ -117,12 +120,35 @@ def _start_engine():
     # CREATE_NO_WINDOW: without it Windows pops a console for the engine on every
     # launch, in front of the game. Undefined on other platforms, hence the getattr.
     flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) if sys.platform == 'win32' else 0
-    _proc = subprocess.Popen([_resolve_python(), uci], cwd=_repo,
+    python = _resolve_python()
+    # stderr is KEPT (its last lines), not discarded: an engine that dies at start -- numpy missing, a
+    # Python below Tetrarch's minimum -- said why only there, and the host reported a bare
+    # "Broken pipe" on its next write (audit 3.1.330 BOUNDARY-3). Drained on a thread so a chatty
+    # engine can never block on a full pipe.
+    _proc = subprocess.Popen([python, uci], cwd=_repo,
                              stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                             stderr=subprocess.DEVNULL, text=True, bufsize=1,
+                             stderr=subprocess.PIPE, text=True, bufsize=1,
                              creationflags=flags)
-    _send('uci')
-    _read_until(lambda l: l.strip() == 'uciok', timeout=30)
+    tail = collections.deque(maxlen=20)
+    drain = threading.Thread(target=lambda f=_proc.stderr: tail.extend(f), daemon=True)
+    drain.start()
+    try:
+        _send('uci')
+        up = _read_until(lambda l: l.strip() == 'uciok', timeout=30)
+    except OSError:
+        up = None
+    if up is None:
+        try:
+            _proc.wait(timeout=2)   # stdout closed: let a dying engine be reaped before asking
+        except subprocess.TimeoutExpired:
+            pass
+    if up is None and _proc.poll() is None:
+        _dbg("no uciok within 30 s; carrying on")   # merely slow, as before: not a dead engine
+    elif up is None:
+        drain.join(2)
+        why = ' | '.join(l.strip() for l in tail if l.strip())[-600:] or 'no output'
+        _dbg(f"engine did not start under {python}: {why}")
+        raise RuntimeError(f"Tetrarch did not start under {python}: {why}")
     # A RELAUNCH (crash, kill) starts from the engine's defaults, while _OPTIONS still holds what the
     # old process was sent and do_configure skips an unchanged value -- so the panel's Mode before
     # every analyse never arrived, and a free-for-all game was searched under Teams rules with one

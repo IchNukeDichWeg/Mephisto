@@ -11283,6 +11283,44 @@ print(json.dumps(log))`;
            Array.isArray(log) && JSON.stringify(log.slice(-2)) === JSON.stringify([['set', 'Threads', 4], ['set', 'Hash', 128]]), log);
     }
 })();
+// ---- BOUNDARY-3 (audit 3.1.330): the Tetrarch host runs uci.py under its own (installer-pinned) Python, and an engine
+// that dies at start is reported with its own stderr, not a bare "Broken pipe" ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // run asynchronously: a blocking spawnSync here holds the event loop while the timer-raced async
+    // checks above (the CDP click rig's 1500 ms settle) are waiting, and fails them on a loaded machine
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    // 1. the interpreter choice, lifted out with ast: a venv/pyenv Python running the host must win over the fixed paths
+    const pick = `import ast, json, sys, types
+tree = ast.parse(open(sys.argv[1], encoding='utf-8-sig').read())
+body = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_resolve_python']
+ns = {'sys': types.SimpleNamespace(executable='/home/u/.venvs/tetrarch/bin/python'),
+      'os': types.SimpleNamespace(path=types.SimpleNamespace(isfile=lambda p: True))}
+exec(compile(ast.Module(body=body, type_ignores=[]), sys.argv[1], 'exec'), ns)
+print(json.dumps(ns['_resolve_python']()))`;
+    // 2. the real host (stdlib only) over a stand-in uci.py that dies on a missing import
+    const run = `import json, os, shutil, struct, subprocess, sys, tempfile
+d = tempfile.mkdtemp(); repo = os.path.join(d, 'Tetrarch'); os.mkdir(repo)
+open(os.path.join(repo, 'uci.py'), 'w').write('import numpy_missing_in_this_python\\n')
+shutil.copy(sys.argv[1], os.path.join(d, 'tetrarch-host.py')); open(os.path.join(d, 'tetrarch-path'), 'w').write(repo + '\\n')
+env = dict(os.environ); env.pop('TETRARCH_DIR', None)
+p = subprocess.Popen([sys.executable, '-I', os.path.join(d, 'tetrarch-host.py')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
+b = json.dumps({'id': 1, 'cmd': 'configure', 'options': {'Mode': 'teams'}}).encode(); p.stdin.write(struct.pack('<I', len(b)) + b); p.stdin.flush()
+h = p.stdout.read(4); r = json.loads(p.stdout.read(struct.unpack('<I', h)[0])) if len(h) == 4 else None
+p.stdin.close(); p.wait(10); shutil.rmtree(d, ignore_errors=True)
+print(json.dumps(r))`;
+    const a = await pyRun(['-I', '-B', '-c', pick, ROOT + '/native-host/tetrarch-host.py'], {encoding: 'utf8'});
+    if (a.error) console.log('ok   BOUNDARY-3: skipped (no python3 here)');
+    else {
+        ok('BOUNDARY-3: uci.py runs under the host\'s own interpreter before any fixed path', (a.stdout || '').trim() === '"/home/u/.venvs/tetrarch/bin/python"', [a.stdout, (a.stderr || '').slice(-200)]);
+        const b = await pyRun(['-I', '-B', '-c', run, ROOT + '/native-host/tetrarch-host.py'], {encoding: 'utf8', timeout: 30000});
+        let r = null; try { r = JSON.parse(b.stdout); } catch (e) { r = (b.stderr || '').slice(-300); }
+        ok('...and an engine that dies at start answers with its own last stderr line, not "Broken pipe"',
+           r && typeof r.error === 'string' && /^Tetrarch did not start under /.test(r.error) && /ModuleNotFoundError: No module named 'numpy_missing_in_this_python'/.test(r.error), r);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
