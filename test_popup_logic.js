@@ -7721,6 +7721,28 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        !puz('rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq - 0 3').includes('lm-')
        && !puz('rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f3 0 3').includes('lm-'));
 }
+// ---- audit 3.1.330 SCRAPEB-2: move 0 of a lichess From Position game ships the page's stated start ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from, to) => { const a = csrc.indexOf(from), b = csrc.indexOf(to, a); return (a < 0 || b < 0) ? '' : csrc.slice(a, b); };
+    const c = vm.createContext({Date, site: 'lichess', location: {pathname: '/abcd1234', search: '', href: ''}, siteValues: {cache: []}, saveSiteValue: () => {}});
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/lru.min.js', 'utf8') + ';\n' + cut('const DEFAULT_POSITION =', '\n\n')
+        + cut('function fenToPuzString(fen)', '\n}\n') + '\n}\n' + cut('function loadStartPosCache()', '// --- GRIND MODE') + ';startPosCache = loadStartPosCache();', c);
+    const START = '4k3/8/8/8/8/8/4P3/R3K3 b Q - 3 40';
+    const start = vm.runInContext(`fenToPuzString(${JSON.stringify(START)})`, c);
+    // the piece scrape of that board: turn guessed 'w', pieces in DOM order, no rights or counters
+    const scraped = 'w*****w-r-a1*****w-p-e2*****w-k-e1*****b-k-e8*****';
+    const on = (s) => { try { return vm.runInContext(`statedStartOnBoard(${JSON.stringify(s)})`, c); } catch (e) { return 'threw ' + e.message; } };
+    vm.runInContext(`writeStartPos(startPosKey(), {position: ${JSON.stringify(start)}, timestamp: 1, stated: true})`, c);
+    ok('SCRAPEB-2: at move 0 the page-stated start (Black to move, its rights and counters) replaces the piece scrape',
+       on(scraped) === start && start.startsWith('b*****') && start.includes('cr-Q*****') && start.includes('mc-3-40*****'), on(scraped));
+    ok('SCRAPEB-2: once a piece has moved the piece scrape stands', on('w*****w-r-a1*****w-p-e4*****w-k-e1*****b-k-e8*****') === null
+       && on('w*****w-r-a1*****w-p-e2*****w-k-e1*****') === null && on(null) === null);
+    vm.runInContext(`writeStartPos(startPosKey(), {position: ${JSON.stringify(start)}, timestamp: 1})`, c);
+    ok('SCRAPEB-2: a start filed from a piece scrape (a Storm board, an older entry) is never used', on(scraped) === null);
+    ok('SCRAPEB-2: the no-move-list lichess scrape ships it as a var start with no moves, and the page-read starts are marked stated',
+       /res = scrapePositionPuz\(\);\s*const stated = \(site === 'lichess'\) \? statedStartOnBoard\(res\) : null;\s*if \(stated\) \{[^}]*prefix \+= 'var\*\*\*';\s*res = stated \+ '&\*\*\*\*\*\?';/.test(csrc)
+       && /\{position: fromPage, timestamp: Date\.now\(\), stated: true\}/.test(csrc) && /\{position: atStart, timestamp: Date\.now\(\), stated: true\}/.test(csrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

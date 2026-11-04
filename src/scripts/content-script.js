@@ -2306,8 +2306,14 @@ function scrapePosition() {
                 res = scrapePositionFen();
             }
         } else {
-            prefix += 'puz***';
             res = scrapePositionPuz();
+            const stated = (site === 'lichess') ? statedStartOnBoard(res) : null;
+            if (stated) {   // a page-stated start still on the board: see statedStartOnBoard
+                prefix += 'var***';
+                res = stated + '&*****?';
+            } else {
+                prefix += 'puz***';
+            }
         }
     } else {
         prefix += 'var***';
@@ -4690,6 +4696,20 @@ function puzBoard(str) {
     return board;
 }
 
+// MOVE 0 OF A LICHESS FROM-POSITION GAME. lichess draws no move list before the first move, so the
+// scrape took the piece path, whose turn reads 'w' with no last-move highlight: a Black-to-move start
+// showed White to move, and the page's castling, counters and ep square were lost, although
+// onPositionLoad had filed the page's own start (audit 3.1.330 SCRAPEB-2). Returns that start when
+// the page stated it (`stated`, never a piece scrape: a Storm board is filed too) and the board still
+// holds exactly its pieces, else null. Once anything has moved the piece scrape stands, as before.
+function statedStartOnBoard(scraped) {
+    const entry = readStartPos(startPosKey());
+    if (!entry?.stated || !scraped) return null;
+    const a = puzBoard(scraped), b = puzBoard(entry.position);
+    if (!a || !b || Object.keys(a).length !== Object.keys(b).length) return null;
+    return Object.keys(a).every(sq => a[sq] === b[sq]) ? entry.position : null;
+}
+
 // {square: piece} -> the start in DEFAULT_POSITION's own token order and turn, or null when the
 // board is not a Chess960 start: 32 pieces, both pawn ranks full, both back ranks full and mirrored,
 // one K and Q and two each of R/B/N, bishops on opposite colours, king between the rooks. The fixed
@@ -5230,7 +5250,7 @@ function onPositionLoad(retries = 10) {
         const fromPage = readInitialFenFromPage();
         if (fromPage && fromPage !== DEFAULT_POSITION && !readStartPos(startPosKey())) {
             console.log('Mephisto: recovered this game\'s custom start position from the page');
-            writeStartPos(startPosKey(), {position: fromPage, timestamp: Date.now()});
+            writeStartPos(startPosKey(), {position: fromPage, timestamp: Date.now(), stated: true});
         }
         return;
     }
@@ -5244,7 +5264,7 @@ function onPositionLoad(retries = 10) {
         // without the data.
         const atStart = readInitialFenFromPage();
         if (site === 'lichess' && atStart && atStart !== DEFAULT_POSITION) {
-            writeStartPos(startPosKey(), {position: atStart, timestamp: Date.now()});
+            writeStartPos(startPosKey(), {position: atStart, timestamp: Date.now(), stated: true});   // stated: see statedStartOnBoard
             return;
         }
         let position;
