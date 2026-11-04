@@ -3894,7 +3894,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const clicks = [], c = vm.createContext({site: 'blitztactics', PROMO_MIN_MS: 0, console: {warn() {}}});
     let polls = 0;
     c.getPromotionSelection = () => ({getBoundingClientRect: () => (++polls < 4 ? {x: 0, y: 0, width: 0, height: 0} : {x: 575, y: 57, width: 80, height: 80})});
-    c.promiseTimeout = () => Promise.resolve(); c.simulateClickSquare = (r) => { clicks.push(r); return Promise.resolve(); };
+    // A fake clock that moves only when the loop waits: the poll continues in a microtask that runs after the
+    // rest of this synchronous suite, which took over the loop's 1.5 s deadline at a load average of 25 and
+    // left it 2 polls and no click with the code unchanged.
+    let now = 0; c.Date = {now: () => now};
+    c.promiseTimeout = (ms) => { now += ms; return Promise.resolve(); }; c.simulateClickSquare = (r) => { clicks.push(r); return Promise.resolve(); };
     vm.runInContext(csrc.slice(a, b), c);
     vm.runInContext("simulatePromotionClicks('q', 0)", c).then(() => {
         ok('the promotion click waits for a picker with a size and never clicks a 0x0 one',
