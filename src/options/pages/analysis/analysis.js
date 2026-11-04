@@ -2145,9 +2145,8 @@ function tbWords(tb) {
 }
 
 // ---- opening book -------------------------------------------------------------------------------
-// A book here is a position -> moves table. JSON and PGN are read directly. Polyglot .bin is
-// recognised and refused with the reason: decoding one needs its Zobrist key table, which comes
-// from GPL sources and is not vendored into this repo.
+// A book here is a position -> moves table. JSON and PGN are read directly. A Polyglot .bin is
+// kept as its raw bytes and answered by binary search on its Zobrist keys (see below).
 
 async function onBookFile(e) {
     const file = e.target.files?.[0];
