@@ -548,6 +548,10 @@ download `stockfish.exe`. The host takes its name from its own file name, so the
    `"type": "stdio"`, `"path"` = the `.bat`, and `"allowed_origins": ["chrome-extension://YOUR_EXTENSION_ID/"]`.
 4. Registry key `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.sf_native.host` with its default value = the
    manifest's full path (`com.fairy_native.host` for Fairy-Stockfish).
+5. Fairy-Stockfish only: fetch its nets (299 MB, each checked against the release's SHA-256) into a folder of their own,
+   outside the extension: `py -3 native-host\fetch-fairy-nets.py src\offscreen\engine-assets.json C:\fairy-nets`. Then
+   create **`fairy-native.nnue-dir`** beside the host holding that folder's full path. Without it the native Fairy
+   plays every variant on its classical evaluation.
 
 The installer registers the host for every Chromium-family browser it knows: **Chrome, Brave, Edge, Chromium,
 Vivaldi, Arc, Opera and Opera GX**, with their beta, dev and canary channels. Firefox isn't supported for

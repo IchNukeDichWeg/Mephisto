@@ -74,6 +74,14 @@ def cert_failure(ex):
 
 def main():
     manifest, dest = sys.argv[1], sys.argv[2]
+    # Run by hand on Windows (the README recipe, audit 3.1.329 NATIVE-6), so the folder may not exist
+    # yet -- and it must not be the extension's own net folder, whose nets this would prune: the WASM
+    # Fairy needs the ones the native one cannot use.
+    own = os.path.join(os.path.dirname(os.path.abspath(manifest)), '..', '..', *FAIRY_DIR.split('/'))
+    if os.path.isdir(dest) and os.path.isdir(own) and os.path.samefile(dest, own):
+        print(f'!! {dest} is the extension\'s own net folder -- pick a folder of its own for the native Fairy')
+        return 1
+    os.makedirs(dest, exist_ok=True)
     m = json.load(open(manifest, encoding='utf-8'))
     fairy = {n: e for n, e in m['files'].items() if e['dir'] == FAIRY_DIR}
     nets = {n: e for n, e in fairy.items() if native_usable(n)}

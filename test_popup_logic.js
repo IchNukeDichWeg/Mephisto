@@ -7271,6 +7271,19 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...a certificate failure names Install Certificates.command when the store is empty, and stops after the first net',
        /Install Certificates\.command/.test(f) && /if cert_failure\(ex\):[\s\S]{0,120}?print\(cert_hint\)[\s\S]{0,80}?break/.test(f));
 }
+// ---- NATIVE-6 (audit 3.1.329): the Windows recipe gives the native Fairy its nets ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const readme = fs.readFileSync(ROOT + '/README.md', 'utf8');
+    const win = readme.slice(readme.indexOf('**Windows** - native messaging'), readme.indexOf('The installer registers the host for every'));
+    ok('NATIVE-6: the Windows recipe runs fetch-fairy-nets.py and names the folder in fairy-native.nnue-dir, the file the host reads',
+       /fetch-fairy-nets\.py src\\offscreen\\engine-assets\.json/.test(win) && /fairy-native\.nnue-dir/.test(win)
+       && /_read_sibling\(f'\{_SLUG\}\.nnue-dir'\)/.test(fs.readFileSync(ROOT + '/native-host/uci-native-host.py', 'utf8')));
+    const f = fs.readFileSync(ROOT + '/native-host/fetch-fairy-nets.py', 'utf8');
+    ok('...the fetcher creates a missing folder and refuses the extension\'s own net folder (it would prune the WASM Fairy\'s nets)',
+       /os\.makedirs\(dest, exist_ok=True\)/.test(f) && /os\.path\.samefile\(dest, own\)[\s\S]{0,200}?return 1/.test(f)
+       && f.indexOf('os.makedirs(dest, exist_ok=True)') < f.indexOf('os.listdir(dest)'));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
