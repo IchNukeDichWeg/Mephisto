@@ -10970,6 +10970,35 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && /GLUE_PATHS="\$\(git ls-tree -r --name-only "\$REF" -- lib\/engine lib\/ort/.test(rz) && /need=\([^)]*"\$GLUE_LIST"/.test(rz));
     ok('NATIVEB-2: install() probes the files right after the id check', /checkGlue\(await readFileAt\(dir, GLUE\), files\);\s*await checkGlueFiles\(dir, files\);/.test(upSrc));
 })().catch(e => { fails++; console.log('FAIL NATIVEB-2 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 SYSB-3: the bundled-asset check probes every listed glue file, so an update zip extracted over old glue is noticed ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bsrc = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const i = bsrc.indexOf('let bundledAssets = null;'), j = bsrc.indexOf('\n}\n', bsrc.indexOf('async function checkBundledAssets()')) + 3;
+    const LIST = 'src/offscreen/engine-glue-files.txt';
+    const listed = fs.readFileSync(ROOT + '/' + LIST, 'utf8');
+    const run = async (disk) => {
+        const c = vm.createContext({console: {warn() {}, log() {}}, Promise, Set,
+            chrome: {runtime: {getURL: (p) => 'ext:/' + p}},
+            fetch: async (u) => { const p = u.slice(5); const has = disk.has(p);
+                return {ok: has, status: has ? 200 : 404, text: async () => p === LIST ? listed : '', body: {cancel: async () => {}}}; }});
+        vm.runInContext(bsrc.slice(i, j), c);
+        return vm.runInContext('checkBundledAssets()', c);
+    };
+    const all = new Set([LIST, 'lib/engine/maia/lc0_policy_index.json', 'lib/ort/ort.wasm.bundle.min.mjs', ...listed.split('\n').filter(Boolean)]);
+    const full = await run(all);
+    ok('SYSB-3: a complete install passes the bundled-asset check', full.ok === true && full.missing.length === 0, full);
+    // an install from before 3.1.316 with the 3.1.330 update zip extracted over it by hand: no large Fairy glue
+    const old = new Set([...all].filter(p => !p.startsWith('lib/engine/fairy-stockfish-14-large/')));
+    const r = await run(old);
+    ok('SYSB-3: an update zip extracted over glue that lacks a file this build lists is reported as missing engines (the panel says get the full zip)',
+       r.ok === false && r.missing.length === 2 && r.missing.every(p => p.startsWith('lib/engine/fairy-stockfish-14-large/')), r);
+    const none = await run(new Set([...all].filter(p => p !== LIST)));
+    ok('SYSB-3: a tree without the list still runs the two original probes', none.ok === true, none);
+    const readme = fs.readFileSync(ROOT + '/README.md', 'utf8');
+    ok('SYSB-3: the README archive table says when the update zip is the wrong one',
+       /`mephisto-<version>-update\.zip` \|[^\n]*skipped a release whose notes say it needs the full zip[^\n]*use the full zip then/.test(readme));
+})().catch(e => { fails++; console.log('FAIL SYSB-3 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

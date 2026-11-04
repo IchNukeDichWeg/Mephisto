@@ -922,16 +922,26 @@ async function checkBundledAssets() {
   if (bundledAssets) return bundledAssets;
   // Small files, one per omitted directory. A GET of an absent extension resource rejects or 404s;
   // both mean the same thing here.
-  const probes = ['lib/engine/maia/lc0_policy_index.json', 'lib/ort/ort.wasm.bundle.min.mjs'];
-  const missing = [];
-  for (const p of probes) {
+  let probes = ['lib/engine/maia/lc0_policy_index.json', 'lib/ort/ort.wasm.bundle.min.mjs'];
+  // ...AND EVERY GLUE FILE THIS BUILD NEEDS (audit 3.1.330 SYSB-3). The update zip extracted by hand
+  // over an install that skipped a glue-changing release has both files above, every glue every
+  // release has had, but not the new one, and its engines then fail like missing glue with nothing
+  // saying why. engine-glue-files.txt (in both zips, held to the tree by the release script) lists
+  // them. Headers only: each body is cancelled unread.
+  try {
+    const r = await fetch(chrome.runtime.getURL('src/offscreen/engine-glue-files.txt'));
+    if (r.ok) probes = [...new Set([...probes, ...(await r.text()).split('\n').map(s => s.trim()).filter(Boolean)])];
+  } catch (e) { /* an older tree without the list: the two probes above */ }
+  const there = await Promise.all(probes.map(async (p) => {
     try {
       const r = await fetch(chrome.runtime.getURL(p));
-      if (!r.ok) missing.push(p);
+      r.body?.cancel().catch(() => {});
+      return r.ok;
     } catch (e) {
-      missing.push(p);
+      return false;
     }
-  }
+  }));
+  const missing = probes.filter((p, i) => !there[i]);
   bundledAssets = {ok: missing.length === 0, missing};
   if (!bundledAssets.ok) {
     console.warn('Mephisto: bundled engines are missing --', missing.join(', '),

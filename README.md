@@ -75,7 +75,7 @@ Every [release](https://github.com/IchNukeDichWeg/Mephisto/releases) carries two
 | Archive | Size | Use it when |
 |---|---|---|
 | `mephisto-<version>.zip` | **~12 MB** | **First install.** Everything except the engine nets, which download on first use. |
-| `mephisto-<version>-update.zip` | **~7 MB** | **Already have it.** Code only - extract *over* your existing folder. |
+| `mephisto-<version>-update.zip` | **~7 MB** | **Already have it.** Code only - extract *over* your existing folder. Not if you skipped a release whose notes say it needs the full zip (its engine files changed): use the full zip then. |
 
 The engine nets and models (about 1 GB) are not in either archive. They live on two fixed releases,
 [`engines-v1`](https://github.com/IchNukeDichWeg/Mephisto/releases/tag/engines-v1) and
