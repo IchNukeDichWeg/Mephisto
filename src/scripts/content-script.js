@@ -4654,13 +4654,24 @@ function capture960Start() {
 // a list that held moves reads empty; a missed move 0 then gets no start rather than a wrong one.
 // ponytail: a game left at move 0 (aborted) followed by one whose move 0 is missed never shows a
 // list with moves in between, so that one pair still falls back to the older capture.
+//
+// LOBBY -> GAME PAGE FILES THE CAPTURE. A start seen on a page with no key (the lobby) was kept in
+// this document only, so once chess.com turned the URL into the game page a reload of that game had
+// nothing filed and replayed from the standard array (audit 3.1.329 X3-2). On that one change of
+// path, a held start that still passes the shape test is filed under the game page's key, unless a
+// real 960 start is already filed there: that one was read on the game page itself at move 0. A
+// list that emptied on the same scrape is a new game (above), so its old start is dropped first.
 let seen960Page;   // the one-game path at the last 960 scrape; null = a page naming no game
 let seen960Plies = 0;   // the move list's length at the last 960 scrape
 function forget960OnNewGame(plies) {
     const m = ONE_GAME_PATH.exec(location.pathname);
     const page = m ? location.pathname.slice(0, m.index + m[0].length).replace(/\/$/, '') : null;
-    if (seen960Page != null && page !== seen960Page) seen960Start = null;
     if (seen960Plies > 0 && plies === 0) seen960Start = null;
+    if (seen960Page === null && page != null && chess960Start(puzBoard(seen960Start))
+        && !chess960Start(puzBoard(readStartPos(startPosKey())?.position))) {
+        writeStartPos(startPosKey(), {position: seen960Start, timestamp: Date.now()});
+    }
+    if (seen960Page != null && page !== seen960Page) seen960Start = null;
     seen960Page = page;
     seen960Plies = plies;
 }

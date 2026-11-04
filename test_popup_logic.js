@@ -7629,6 +7629,73 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && go(4).startsWith('w*****b-q-a8*****b-r-b8'));
     ok('X3-1: a takeback to move 0 re-reads the same start', go(0, board('QRKRBBNN')).startsWith('w*****b-q-a8') && go(1).startsWith('w*****b-q-a8'));
 }
+// ---- audit 3.1.329 X3-2: a lobby Chess960 capture is filed under the game page the URL becomes ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const lru = fs.readFileSync(ROOT + '/lib/lru.min.js', 'utf8');
+    // the real var-scrape 960 branch, run as one scrape
+    const branch = cut("if (config.variant === 'fischerandom') {", "\n        const moves = getMoveRecords();");
+    const board = (back) => {
+        let out = 'b*****';
+        for (const F of 'hgfedcba') for (const r of [8, 7, 2, 1]) {
+            const k = back['abcdefgh'.indexOf(F)];
+            const pc = r === 8 ? k.toLowerCase() : r === 7 ? 'p' : r === 2 ? 'P' : k;
+            out += `${pc === pc.toUpperCase() ? 'w' : 'b'}-${pc.toLowerCase()}-${F}${r}*****`;
+        }
+        return out;
+    };
+    let saved = [];   // the site's stored cache, shared by every document
+    // a new document (a page load); doc.go(path, plies, board) is one scrape in it
+    const doc = () => {
+        const c = vm.createContext({Date, site: 'chesscom', config: {variant: 'fischerandom'}, location: {pathname: '/', search: '', href: ''},
+            siteValues: {cache: saved}, saveSiteValue: (k, v) => { saved = v; }, isChesscomVariants: () => false, moves: [], cur: '',
+            getMoveRecords: () => c.moves, scrapePositionPuz: () => c.cur});
+        try {
+            vm.runInContext(lru + ';\n' + cut('const DEFAULT_POSITION =', '\n\n') + cut('function loadStartPosCache()', '// --- GRIND MODE')
+                + ';startPosCache = loadStartPosCache();\nthis.scrape = () => { let res; ' + branch + ' return res; };', c);
+        } catch (e) { console.log('slice threw: ' + e.message); }
+        c.go = (path, plies, back) => {
+            c.location.pathname = path; c.location.href = 'https://www.chess.com' + path;
+            c.moves = Array(plies).fill('m'); if (back) c.cur = board(back);
+            try { return c.scrape().split('&*****')[0]; } catch (e) { return 'threw ' + e.message; }
+        };
+        return c;
+    };
+    const d1 = doc();
+    const DP = vm.runInContext('DEFAULT_POSITION', d1);
+    const A = d1.go('/play/online', 0, 'NRKBBQRN');
+    ok('X3-2: a lobby capture at move 0 is the start', A.startsWith('w*****b-n-a8*****b-r-b8*****b-k-c8'), A);
+    ok('X3-2: ...and is used once the URL becomes the game page', d1.go('/game/live/123', 1) === A);
+    ok('X3-2: a reload of that game reads the lobby capture back', doc().go('/game/live/123', 7) === A, doc().go('/game/live/123', 7));
+    ok('X3-2: ...under that game only', doc().go('/game/live/124', 7) === DP);
+    // a game page that already holds its own start keeps it
+    const d2 = doc();
+    const B = d2.go('/game/live/777', 0, 'BQNRKRNB');
+    const d3 = doc();
+    d3.go('/play/online', 0, 'NRKBBQRN');
+    d3.go('/game/live/777', 3);
+    ok('X3-2: a start already filed under the game page is not overwritten', doc().go('/game/live/777', 5) === B && B !== A, doc().go('/game/live/777', 5));
+    // nothing held: nothing filed
+    const d4 = doc();
+    d4.go('/play/online', 12, 'NRKBBQRN');
+    d4.go('/game/live/555', 13);
+    ok('X3-2: a lobby with no capture files nothing', doc().go('/game/live/555', 13) === DP);
+    // game page -> game page is not this case (X2-3 drops the capture there)
+    const d5 = doc();
+    d5.go('/game/live/601', 0, 'RKRNNQBB');
+    d5.go('/game/live/602', 4);
+    ok('X3-2: one game page to another files nothing', doc().go('/game/live/602', 4) === DP);
+    // the lobby's last game ended and the next one opens its game page with its move 0 missed
+    const d6 = doc();
+    d6.go('/play/online', 0, 'QRKRBBNN');
+    d6.go('/play/online', 40);
+    d6.cur = board('NRKBBQRN').replace('w-p-e2', 'w-p-e4');   // a premove on the new game's move-0 board
+    d6.go('/game/live/701', 0);
+    ok('X3-2: a list that emptied with the URL change is a new game: the old game\'s start is not filed under it',
+       doc().go('/game/live/701', 2) === DP, doc().go('/game/live/701', 2));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
