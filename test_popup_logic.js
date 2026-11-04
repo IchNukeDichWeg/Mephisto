@@ -11812,6 +11812,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('L10: the toolbar popup\'s read sends no notify token, so the worker messages no tab about the capture', tb && !('notify' in tb), tb);
     ok('...while the in-page panel, which hides for the capture, still asks for one', ip && typeof ip.notify === 'string', ip);
 })().catch(e => { fails++; console.log('FAIL L10 checks threw: ' + (e && e.stack || e)); });
+// ---- L1 (audit 3.1.330 follow-up): Storm and Racer boards are never filed as a custom start ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const s = cs.indexOf('\nfunction onPositionLoad('), e = cs.indexOf('\n}\n', s);
+    const filed = [];
+    const ctx = {console: {log() {}}, site: 'lichess', DEFAULT_POSITION: 'w*****std*****', location: {pathname: '/'},
+        getMoveRecords: () => [], readInitialFenFromPage: () => null, readStartPos: () => null,
+        scrapePositionPuz: () => 'w*****w-k-e1*****b-k-e8*****', startPosKey: () => ctx.location.pathname,
+        writeStartPos: (k, v) => filed.push(k), setTimeout() {}};
+    vm.createContext(ctx);
+    vm.runInContext(cs.slice(s, e + 3), ctx);
+    for (const p of ['/storm', '/racer/AbCd1234']) { ctx.location.pathname = p; ctx.onPositionLoad(); }
+    ok('L1: a Storm or Racer board is not filed as a From-Position start', filed.length === 0, filed);
+    ctx.location.pathname = '/abcd1234';
+    ctx.onPositionLoad();
+    ok('...while a lichess game at move 0 on a set-up board still is', JSON.stringify(filed) === '["/abcd1234"]', filed);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

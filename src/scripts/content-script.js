@@ -5412,6 +5412,11 @@ function ccPracticeCustomStart() {
 }
 
 function onPositionLoad(retries = 10) {
+    // STORM AND RACER HAVE NO CUSTOM START. They swap whole puzzle boards in with no move list, so
+    // the piece-scrape fallback below filed the first puzzle's board as a "From Position" start under
+    // /storm or /racer/<id> on every load. Nothing reads it there, but each one took a slot of the
+    // 10-entry start LRU and pushed out a real From-Position game's start (audit 3.1.330 follow-up L1).
+    if (site === 'lichess' && /^\/(storm|racer)(\/|$)/.test(location.pathname)) return;
     // Loaded mid-game (a refresh, or opening a game already in progress): the board no longer shows
     // the start, so ask the page for it. This is the only path that can recover a custom start after
     // move 0 -- without it the game is replayed from the standard position.
