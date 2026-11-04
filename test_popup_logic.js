@@ -8598,6 +8598,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext('failed(new Error("backend click refused"))', c);
     ok('SWALLOW-1: any other failed click still re-pushes the position as a resume', c.pushes === 1 && vm.runInContext('resumePush', c) === true);
 }
+// ---- audit 3.1.330 ENGINEB-1: a superseded load does not clear the newer load's "loading" mark ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The whole offscreen host on a simulated clock. Load 1 takes 100 ms, load 2 (an engine switch
+    // 10 ms later) 300 ms; a `position` sent at 200 ms, after load 1 settled but while load 2 runs.
+    const src = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8').replace(/await import\(/g, 'await __imp(');
+    let now = 1e6; const timers = [];   // a real clock reading: the 30 s respawn backoff is measured from 0
+    const tick = () => new Promise(r => setImmediate(r));
+    const mk = (fn, ms, iv) => { const t = {at: now + ms, fn, iv}; timers.push(t); return t; };
+    const advance = async (ms) => { await tick(); const end = now + ms;
+        for (;;) { timers.sort((a, b) => a.at - b.at); const t = timers[0]; if (!t || t.at > end) break;
+            now = t.at; if (t.iv) t.at += t.iv; else timers.shift(); t.fn(); await tick(); } now = end; await tick(); };
+    let listener, inits = 0; const got = [], delays = [100, 300, 300];
+    const c = {console: {log() {}}, Date: {now: () => now},
+        setTimeout: (f, ms) => mk(f, ms, 0), setInterval: (f, ms) => mk(f, ms, ms),
+        clearTimeout: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
+        window: {close() {}},
+        __imp: async () => ({default: () => { const n = ++inits; return new Promise(r => mk(() => r({
+            uci: (l) => got.push([n, l]), getRecommendedNnue: () => null, setNnueBuffer() {}}), delays[n - 1], 0)); }}),
+        chrome: {runtime: {sendMessage: () => {}, onMessage: {addListener: (f) => listener = f}}}};
+    vm.createContext(c); vm.runInContext(src, c);
+    const msg = (o) => listener({toOffscreen: true, clientId: '5', ...o}, {}, () => {});
+    msg({cmd: 'init', engine: 'stockfish-11-hce'}); await advance(10);
+    msg({cmd: 'init', engine: 'stockfish-18-nnue'}); msg({cmd: 'uci', line: 'isready'});
+    await advance(190);                                       // load 1 has settled (superseded), load 2 has not
+    msg({cmd: 'uci', line: 'position startpos'}); msg({cmd: 'uci', line: 'go depth 5'});
+    await advance(400);
+    ok('ENGINEB-1: a line sent while the newer load runs is queued for it, not a third respawned load', inits === 2, inits);
+    ok('...and the newer load gets its whole queue in order', got.filter(([n]) => n === 2).map(([, l]) => l).join('|') === 'isready|position startpos|go depth 5', got);
+})().catch(e => { fails++; console.log('FAIL ENGINEB-1 offscreen checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -167,7 +167,11 @@ let idleTimer = null;
 // on" -- without counting loads in flight, this closes the document out from under an engine that
 // is still starting, and the panel gets a ready engine that vanishes. Caught in testing, not in
 // the wild, and only because the search that followed used no CPU at all.
-const loading = new Set();
+// Keyed by client, valued by the generation of its NEWEST load: an engine switch mid-load starts a
+// second load for the same client, and the superseded first one used to clear the mark on its way
+// out while the second was still loading. The next line then took the respawn branch, threw the
+// second load's queue away and started a third (audit 3.1.330 ENGINEB-1).
+const loading = new Map();
 // A screen read in flight counts too. With a native, cloud or Remote engine there is no client here,
 // so the idle timer armed at load closed the document 30 s in, mid-read: Follow Screen lost a read
 // and rebuilt both recogniser sessions every 30 s, and a first-use model download slower than that
@@ -204,11 +208,12 @@ function startEngine(clientId, ...args) {
 
 async function initEngine(clientId, engineName, variant, maiaLevel, elos) {
     disposeClient(clientId); // also bumps the generation, so ours is the newest from here on
-    loading.add(clientId);   // ...and this document is NOT idle while we load (see maybeGoIdle)
+    const gen = epoch[clientId];
+    loading.set(clientId, gen);   // ...and this document is NOT idle while we load (see maybeGoIdle)
     try {
         return await loadEngine(clientId, engineName, variant, maiaLevel, elos);
     } finally {
-        loading.delete(clientId);
+        if (loading.get(clientId) === gen) loading.delete(clientId);   // a newer load owns the mark
         maybeGoIdle();   // a FAILED load leaves nothing behind, and this document must still be able to close
     }
 }
@@ -346,7 +351,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // the panel's half is what this exists to end.
     if (msg && msg.offscreenStat) {
         sendResponse({clients: Object.keys(clients), searching: {...searching},
-                      loading: [...loading], queued: Object.fromEntries(
+                      loading: [...loading.keys()], queued: Object.fromEntries(
                           Object.entries(pending).map(([k, v]) => [k, v.length]))});
         return true;
     }
