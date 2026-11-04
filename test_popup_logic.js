@@ -8748,6 +8748,55 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...two overlapping reads build one recogniser pair, and a failure is retried without rebuilding what loaded',
        creates === 2 && vm.runInContext('bboxSession.n === 1 && posSession.n === 2', vctx), creates);
 })().catch(e => { fails++; console.log('FAIL ENGINEB-4 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 ENGINEB-3: Read Position brings the panel back once the frame is taken, and shows the model download ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (head, end) => { const a = s.indexOf(head), b = s.indexOf(end, a); return a < 0 || b < 0 ? '' : s.slice(a, b); };
+    const code = fn('async function with_panel_hidden(', '\n}\n') + '\n}\n'
+        + fn('function download_progress_text(', '\n}\n') + '\n}\n'
+        + fn('async function snap_position(', '\n    // The recogniser reports placement only') + '\n}\n';
+    const wrap = {style: {opacity: '0.9'}}, msgs = [], listeners = new Set(), seen = {};
+    const c = vm.createContext({console, Promise, Date, Math, String, setImmediate, ENGINE_CLIENT: '7',
+        PANEL_ROOT: {getElementById: (id) => id === 'mephisto-overlay' ? wrap : id === 'setup-fen-row' ? {style: {}} : null},
+        requestAnimationFrame: (f) => setImmediate(f),
+        setup_fen_msg: (t) => msgs.push(t), i18n: (k, d, v) => d.replace(/\{(\w+)\}/g, (_, x) => v[x]),
+        err_line: (code) => code, err_code_line: () => null, request_drag_select() {}, resolve_click_tab: async () => 7,
+        chrome: {runtime: {onMessage: {addListener: (f) => listeners.add(f), removeListener: (f) => listeners.delete(f)}},
+            sendMessage: null}});
+    c.chrome.runtime.sendMessage = async (m) => {
+        seen.hiddenAtSend = wrap.style.opacity;
+        const say = (x) => { for (const f of [...listeners]) f(x); };
+        say({snapCaptured: m.captureAndRecognize.notify});           // the worker: the frame is taken
+        seen.afterCapture = wrap.style.opacity;
+        say({fromOffscreen: true, clientId: '7', kind: 'vision', line: 'info string mephisto-download position.onnx 31000000 62000000'});
+        say({fromOffscreen: true, clientId: '8', kind: 'vision', line: 'info string mephisto-download bbox.onnx 1 2'});   // another tab's read
+        await new Promise(r => setImmediate(r));
+        seen.duringRead = wrap.style.opacity;
+        return {error: 'no board found'};
+    };
+    vm.runInContext(code, c);
+    await vm.runInContext('snap_position()', c);
+    ok('ENGINEB-3: the panel is hidden for the capture', seen.hiddenAtSend === '0', seen);
+    ok('...and back as soon as the worker says the frame is taken, while the read goes on', seen.afterCapture === '0.9' && seen.duringRead === '0.9', seen);
+    ok('...the recogniser\'s download progress is shown in the read line, only for this tab\'s read',
+       msgs.includes('Downloading position.onnx: 50% of 62.0 MB (first use only)') && !msgs.some(t => /bbox/.test(t)), msgs);
+    ok('...and the read\'s listener is gone afterwards', listeners.size === 0, listeners.size);
+    ok('...the engine listener ignores a screen read\'s progress', /if \(!PANEL_BOOTED \|\| !msg \|\| !msg\.fromOffscreen\) return;\n\s*if \(msg\.kind === 'vision'\) return;/.test(s));
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    ok('...the worker tells the asking tab right after captureVisibleTab, before the recognise',
+       /captureVisibleTab\([\s\S]{0,600}chrome\.tabs\.sendMessage\(tab\.id, \{snapCaptured: notify\}[\s\S]{0,200}await ensureOffscreen\(\);[\s\S]{0,600}recognizeBoard/.test(bg));
+    // the offscreen host relays the recogniser's notes under the asking tab's id, as kind 'vision'
+    const src = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8').replace(/import\(/g, '__imp(');
+    let listener; const out = [];
+    const oc = {console: {log() {}}, Date, setTimeout: () => 0, setInterval: () => 0, clearTimeout() {}, window: {close() {}},
+        __imp: async () => ({recognize: async (a, onNote) => { onNote?.('mephisto-download bbox.onnx 5 10'); return {placement: '8/8/8/8/8/8/8/8'}; }}),
+        chrome: {runtime: {sendMessage: (m) => out.push(m), onMessage: {addListener: (f) => listener = f}}}};
+    vm.createContext(oc); vm.runInContext(src, oc);
+    await new Promise(r => listener({recognizeBoard: {dataUri: 'x', clientId: '7'}}, {}, r));
+    ok('...and the offscreen host relays the recogniser\'s progress to the asking tab as kind vision',
+       out.some(m => m.fromOffscreen && m.clientId === '7' && m.kind === 'vision' && m.line === 'info string mephisto-download bbox.onnx 5 10'), out);
+})().catch(e => { fails++; console.log('FAIL ENGINEB-3 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

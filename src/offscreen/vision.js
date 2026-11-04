@@ -24,9 +24,13 @@ let bboxSession = null, posSession = null;
 // The two vision models are 12MB and 59MB and live under lib/engine, so an update-only install has
 // neither -- screen reading looked broken rather than un-downloaded. Same fetch as the Maia nets:
 // bundled first, downloaded once and cached otherwise.
+// Progress goes to the console AND to the panel that asked (set per read in recognize): a first read
+// on a slim install downloads ~75 MB, and with the notes only in this document's console the panel
+// showed nothing for all of it (audit 3.1.330 ENGINEB-3).
+let readNote = null;
 async function session(file) {
     return ort.InferenceSession.create(
-        new Uint8Array(await fetchModel('/lib/engine/vision', file, (m) => console.log(`[vision] ${m}`))));
+        new Uint8Array(await fetchModel('/lib/engine/vision', file, (m) => { console.log(`[vision] ${m}`); readNote?.(m); })));
 }
 
 // One promise for every caller. The session checks ran before the awaits, so a second read started
@@ -528,7 +532,8 @@ function uriHash(s) {
 // panel is ours, so it steps out of the way for the one frame a detection capture needs -- see
 // with_panel_hidden() in popup.js. A follow read passes the box it already knows and needs none of
 // this.
-export async function recognize({dataUri, crop, clientId}) {
+export async function recognize({dataUri, crop, clientId}, onNote) {
+    if (onNote) readNote = onNote;
     await ready();
     const t0 = performance.now();
     if (!crop && lastResult && uriHash(dataUri) === lastUriHash) {

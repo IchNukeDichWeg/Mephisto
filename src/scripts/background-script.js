@@ -599,6 +599,10 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         const dataUri = await chrome.tabs.captureVisibleTab(tab.windowId,
                                                            {format: 'jpeg', quality: SNAP_JPEG_QUALITY});
         const tCap = Date.now() - t0;
+        // The frame is taken: a panel that hid itself for it can come back now, rather than staying
+        // invisible (and clickable) through the model download and the read (audit 3.1.330 ENGINEB-3).
+        const notify = msg.captureAndRecognize.notify;
+        if (typeof notify === 'string') chrome.tabs.sendMessage(tab.id, {snapCaptured: notify}, () => void chrome.runtime.lastError);
         await ensureOffscreen();
         const t1 = Date.now();
         // clientId: the board box is cached in the offscreen document, which serves EVERY panel, and

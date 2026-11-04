@@ -350,7 +350,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         recognizing++;
         clearTimeout(idleTimer);   // not idle while reading (busy() also says so when the timer fires)
         import('/src/offscreen/vision.js')
-            .then(m => m.recognize(msg.recognizeBoard))
+            // kind 'vision', not 'line': the panel's engine parser must never take a model download
+            // for its engine's output (audit 3.1.330 ENGINEB-3)
+            .then(m => m.recognize(msg.recognizeBoard,
+                (note) => send(msg.recognizeBoard.clientId, {kind: 'vision', line: `info string ${note}`})))
             .then(sendResponse)
             .catch(e => sendResponse({error: String(e)}))
             .finally(() => { recognizing--; maybeGoIdle(); });

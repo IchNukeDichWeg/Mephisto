@@ -1665,6 +1665,7 @@ const offscreen_engine = {
 // engine output -> existing handlers (filtered to THIS panel's engine)
 chrome.runtime.onMessage.addListener((msg) => {
     if (!PANEL_BOOTED || !msg || !msg.fromOffscreen) return;
+    if (msg.kind === 'vision') return;   // a screen read's model download, shown by snap_position
     // A failed :m2 load never answers the gos queued behind it, and the host's respawn drops them, so
     // the kick/answer count would stay shifted for the panel's life and every later answer be taken
     // for an older kick's. Start over with a fresh client instead (audit 3.1.329 PLAY-2).
@@ -5254,17 +5255,21 @@ function update_snap_follow_button() {
 //
 // Only for a DETECTION snap. A follow read passes the box it already knows, so nothing is being
 // searched for and the panel can stay where it is -- hiding it on every tick would flicker.
+// fn gets `show`, to bring the panel back as soon as the frame is captured: the round trip it wraps
+// also holds the recognition and, on first use, a ~75 MB model download (audit 3.1.330 ENGINEB-3).
 async function with_panel_hidden(fn) {
     const wrap = PANEL_ROOT.getElementById && PANEL_ROOT.getElementById('mephisto-overlay');
-    if (!wrap) return fn();                       // toolbar popup: not part of the captured tab
+    if (!wrap) return fn(() => {});               // toolbar popup: not part of the captured tab
     const before = wrap.style.opacity;
+    let shown = false;
+    const show = () => { if (!shown) { shown = true; wrap.style.opacity = before || ''; } };
     wrap.style.opacity = '0';
     // two frames: one for the style to apply, one for the compositor to have painted without it
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
-        return await fn();
+        return await fn(show);
     } finally {
-        wrap.style.opacity = before || '';
+        show();
     }
 }
 
@@ -5344,13 +5349,30 @@ async function snap_position(crop) {
     if (row) row.style.display = '';
     setup_fen_msg(i18n('panel.fen.reading', 'Reading the board from the screen…'));
     let res;
+    // The worker says when the frame is taken (snapCaptured, so a hidden panel comes back for the rest
+    // of the read) and the offscreen host relays the recogniser's download progress (kind 'vision',
+    // under the asking tab's id), which a first read on a slim install needs (audit 3.1.330 ENGINEB-3).
+    const token = `snap-${Date.now()}-${Math.random()}`;
+    let tab_id = null, show = null;
+    const on_snap_msg = (m) => {
+        if (!m) return;
+        if (m.snapCaptured === token) show?.();
+        else if (m.fromOffscreen && m.kind === 'vision' && m.clientId === String(tab_id ?? ENGINE_CLIENT)) {
+            const text = download_progress_text(m.line);
+            if (text) setup_fen_msg(text);
+        }
+    };
+    chrome.runtime.onMessage.addListener(on_snap_msg);
     try {
+        tab_id = await resolve_click_tab();
         res = crop
-            ? await chrome.runtime.sendMessage({captureAndRecognize: {crop}, tabId: await resolve_click_tab()})
-            : await with_panel_hidden(async () => chrome.runtime.sendMessage({captureAndRecognize: {}, tabId: await resolve_click_tab()}));
+            ? await chrome.runtime.sendMessage({captureAndRecognize: {crop}, tabId: tab_id})
+            : await with_panel_hidden(async (s) => { show = s; return chrome.runtime.sendMessage({captureAndRecognize: {notify: token}, tabId: tab_id}); });
     } catch (e) {
         setup_fen_msg(err_line('MPH-V02', {detail: e}));
         return;
+    } finally {
+        chrome.runtime.onMessage.removeListener(on_snap_msg);
     }
     if (!res || res.error) {
         // No board found -> offer the manual path rather than dead-ending. This is the documented
