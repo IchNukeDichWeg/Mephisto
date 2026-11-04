@@ -11,7 +11,7 @@
 # right size are kept, so a re-run (or a full-zip install, where install copied them) fetches nothing.
 # A net the manifest no longer names is deleted: the host takes the first <variant>-*.nnue, and an old
 # one left beside its replacement could sort first.
-import hashlib, json, os, sys, time, urllib.request
+import hashlib, json, os, ssl, sys, time, urllib.request
 
 FAIRY_DIR = 'lib/engine/fairy-stockfish-14/nnue'
 
@@ -43,6 +43,35 @@ def bar(done, total, start, label):
     return (f'{label} {done / 1e6:6.1f}/{total / 1e6:.1f} MB {100 * done / total:5.1f}% '
             f'{rate / 1e6:5.1f} MB/s elapsed {el:4.0f}s ETA {eta:4.0f}s')
 
+# A PYTHON WITH NO CA CERTIFICATES (audit 3.1.329 NATIVE-8). The python.org installer for macOS links
+# its own OpenSSL, which trusts only <framework>/etc/openssl/cert.pem, and that file exists only after
+# its "Install Certificates.command" has been run (it links certifi's bundle there). Without it every
+# net failed CERTIFICATE_VERIFY_FAILED, the installer said only that some nets were missing, and a
+# re-run changed nothing. An EMPTY default store is filled from certifi when it is importable (a store
+# that has certificates is left alone, so a CA a company adds to it keeps working); otherwise the
+# failure names the remedy.
+CERT_HINT = ('!! certificate verification failed: this Python has no CA certificates. On macOS with a '
+             'python.org Python, run "Install Certificates.command" in its Applications folder '
+             '(or: python3 -m pip install certifi), then re-run the installer.')
+CERT_HINT_OTHER = ('!! certificate verification failed although this Python has CA certificates: a proxy '
+                   'or antivirus that intercepts HTTPS, or a wrong system clock, is the usual cause.')
+
+def tls_context():
+    # -> (context, the hint a verification failure should print)
+    ctx = ssl.create_default_context()
+    capath = ssl.get_default_verify_paths().capath
+    if ctx.cert_store_stats().get('x509_ca', 0) or (capath and os.path.isdir(capath)):
+        return ctx, CERT_HINT_OTHER
+    try:
+        import certifi
+    except ImportError:
+        return ctx, CERT_HINT
+    print('   Fairy nets: this Python has no CA certificates of its own, using certifi\'s')
+    return ssl.create_default_context(cafile=certifi.where()), CERT_HINT_OTHER
+
+def cert_failure(ex):
+    return isinstance(ex, ssl.SSLCertVerificationError) or isinstance(getattr(ex, 'reason', None), ssl.SSLCertVerificationError)
+
 def main():
     manifest, dest = sys.argv[1], sys.argv[2]
     m = json.load(open(manifest, encoding='utf-8'))
@@ -64,6 +93,7 @@ def main():
     total = sum(e['size'] for e in need.values())
     print(f'   Fairy nets: fetching {len(need)} of {len(nets)} ({total / 1e6:.0f} MB) from the assets release')
     tty = sys.stdout.isatty()
+    ctx, cert_hint = tls_context()
     done, start, failed = 0, time.time(), []
     for i, (name, e) in enumerate(sorted(need.items()), 1):
         url = f"https://github.com/{m['repo']}/releases/download/{e['tag']}/{name}"
@@ -71,7 +101,7 @@ def main():
         label = f'   net {i}/{len(need)}'
         h, got, last = hashlib.sha256(), 0, 0.0
         try:
-            with urllib.request.urlopen(url, timeout=60) as r, open(part, 'wb') as f:
+            with urllib.request.urlopen(url, timeout=60, context=ctx) as r, open(part, 'wb') as f:
                 while True:
                     chunk = r.read(1 << 20)
                     if not chunk:
@@ -94,6 +124,10 @@ def main():
             failed.append(name)
             try: os.remove(part)
             except OSError: pass
+            if cert_failure(ex):        # every other net fails the same way: say why once, stop
+                print(cert_hint)
+                failed += sorted(need)[i:]
+                break
         done += e['size']
     if failed:
         print(f'!! {len(failed)} Fairy net(s) missing -- those variants run without a net. Re-run the installer to retry.')

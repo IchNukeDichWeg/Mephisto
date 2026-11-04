@@ -7260,6 +7260,17 @@ print(json.dumps(sorted(n.split('-', 1)[0] for n, e in m['files'].items() if e['
             r.status === 0 && out === JSON.stringify(panel), [out, panel, (r.stderr || '').slice(-200)]);
     ok('...and the four are not empty (a renamed declaration would make this check vacuous)', panel.length === 4, panel);
 }
+// ---- NATIVE-8 (audit 3.1.329): the Fairy net fetch survives a Python with no CA certificates ----
+// (run end to end against a local HTTPS server with an empty CA store; this pins the shape the run checked)
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const f = fs.readFileSync(ROOT + '/native-host/fetch-fairy-nets.py', 'utf8');
+    ok('NATIVE-8: every download uses one TLS context that falls back to certifi only when the default store is empty',
+       /urllib\.request\.urlopen\(url, timeout=60, context=ctx\)/.test(f) && /ctx, cert_hint = tls_context\(\)/.test(f)
+       && /cert_store_stats\(\)\.get\('x509_ca', 0\)/.test(f) && /create_default_context\(cafile=certifi\.where\(\)\)/.test(f));
+    ok('...a certificate failure names Install Certificates.command when the store is empty, and stops after the first net',
+       /Install Certificates\.command/.test(f) && /if cert_failure\(ex\):[\s\S]{0,120}?print\(cert_hint\)[\s\S]{0,80}?break/.test(f));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
