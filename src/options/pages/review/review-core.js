@@ -95,6 +95,11 @@ function parseGame(text) {
         if (/^\d+$/.test(tok)) continue;                   // a move number written without its dot
         if (/^(1-0|0-1|1\/2-1\/2|\*)$/.test(tok)) { movetextResult = tok; continue; }
         if (/^\.+$/.test(tok) || /^e\.?p\.?$/i.test(tok)) continue;   // stray dots, an "e.p." suffix
+        // An annotation glyph written as its own token ("e4 !", "Nf3 +-", "?!", "=", "±", "∞"):
+        // pushed as a move, "!" became the SAN "" and "+-" stayed "+-", and the whole game was
+        // rejected as an illegal move (audit 3.1.330 REVIEWB-7). A token of dashes only ("--", a
+        // null move) is left alone: skipping it would hand every later move to the other side.
+        if (/^(?!-+$)[?!+\-=/±∓⩱⩲∞□]+$/.test(tok)) continue;
         // castling written with zeros is the FIDE spelling and common in hand-typed PGNs
         const san = tok.replace(/[?!]+$/, '').replace(/^0-0-0/, 'O-O-O').replace(/^0-0/, 'O-O');
         moves.push({san, clk: null, eval: null, comment: ''});

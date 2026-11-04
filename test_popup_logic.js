@@ -8990,6 +8990,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and its settings row stands down for other game types while staying in every review mode for chess',
        !!row && /data-chess-only/.test(row[1]) && /data-for="own local online"/.test(row[1]), row && row[1]);
 })();
+// ---- audit 3.1.330 REVIEWB-7: an annotation glyph standing alone in the movetext is not read as a move ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const sans = (pgn) => c.MephistoReviewCore.parsePgn(pgn)[0].moves.map(m => m.san);
+    const a = sans('1. e4 ! e5 2. Nf3 +- Nc6 *');
+    const b = sans('1. e4 ?! e5 !! 2. Nf3 = Nc6 ± 3. Bb5 +/- a6 ∓ 4. Ba4 -+ Nf6 ∞ *');
+    ok('REVIEWB-7: "1. e4 ! e5 2. Nf3 +- Nc6" reads as the four moves it is', JSON.stringify(a) === JSON.stringify(['e4', 'e5', 'Nf3', 'Nc6']), a);
+    ok('...and so do ?!, !!, =, ±, +/-, ∓, -+ and ∞ written apart from their move',
+       JSON.stringify(b) === JSON.stringify(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6']), b);
+    const d = sans('1. e4! e5?! 2. Qh5 Nc6 3. Bc4 Nf6?? 4. Qxf7# 1-0');
+    ok('...glyphs attached to a move are still stripped, and check/mate signs on a move stay',
+       JSON.stringify(d) === JSON.stringify(['e4', 'e5', 'Qh5', 'Nc6', 'Bc4', 'Nf6', 'Qxf7#']), d);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
