@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# PROPOSED replacement for the repo-root release-zips.sh: the full archive stops carrying the nets.
+# The release builder: cuts the full and update archives behind every release gate. The full archive
+# does not carry the nets.
 #
 #   tools/release/release-zips.sh 3.1.316 [ref] [--no-harness] [--glue-changed]   # ref defaults to master
 #

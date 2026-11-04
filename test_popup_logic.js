@@ -11321,6 +11321,19 @@ print(json.dumps(r))`;
            r && typeof r.error === 'string' && /^Tetrarch did not start under /.test(r.error) && /ModuleNotFoundError: No module named 'numpy_missing_in_this_python'/.test(r.error), r);
     }
 })();
+// ---- NATIVEB-6 (audit 3.1.330): no release is cut by the pre-3.1.316 builder that skipped every gate ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rz = fs.readFileSync(ROOT + '/tools/release/release-zips.sh', 'utf8');
+    ok('NATIVEB-6: tools/release/release-zips.sh no longer calls itself a PROPOSED replacement', !/PROPOSED/.test(rz.split('\n').slice(0, 5).join('\n')));
+    const old = ROOT + '/release-zips.sh';
+    if (!fs.existsSync(old)) console.log('ok   NATIVEB-6: no repo-root release-zips.sh here');
+    else {
+        const sh = fs.readFileSync(old, 'utf8');
+        ok('NATIVEB-6: the repo-root release-zips.sh only forwards to the gated builder, it archives nothing itself',
+           /^exec "\$\(dirname "\$0"\)\/tools\/release\/release-zips\.sh" "\$@"$/m.test(sh) && !/git archive/.test(sh));
+    }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
