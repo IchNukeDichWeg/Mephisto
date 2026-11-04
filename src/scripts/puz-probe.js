@@ -1,5 +1,6 @@
 // Puzzle page-world probe (lichess, chess.com). Registered by the worker only while Puzzle Capture
-// is on (syncPuzProbe), so with the setting off none of this reaches a page.
+// is on, and only for the puzzle routes (syncPuzProbe), so with the setting off none of this reaches
+// a page, and with it on no game page gets it.
 //
 // WHAT THIS IS FOR. A puzzle has ONE scored answer, and the engine's best move is a different thing:
 // a stronger move that is not the intended one still loses the puzzle. The puzzle database answers

@@ -2182,7 +2182,18 @@ async function puzzleNetWanted() {
 // page, so it exists only while Puzzle Capture is on. As a static manifest entry it ran on every
 // lichess and chess.com page for everyone and read no setting. Reconciled at every worker start and
 // on install, so an update cannot leave the registration out of step with the setting.
+//
+// PUZZLE PAGES ONLY. Registered for whole sites it patched every live game too, with Puzzle Mode off
+// and in toolbar-popup mode, where the capture is never used (audit 3.1.329 PAGE-2). The routes are
+// the content script's isPuzzlePage(), the same set that switches Puzzle Mode on. Not gated on
+// Puzzle Mode itself: that switches on only after the first puzzle page has loaded, too late for a
+// document_start script. A registration from an older version with the whole-site matches is
+// narrowed in place.
 const PUZ_PROBE_ID = 'pz';
+const PUZ_PROBE_MATCHES = [
+  ...['training', 'storm', 'racer', 'streak'].map(r => `*://lichess.org/${r}*`),
+  ...['www.chess.com', 'chess.com'].flatMap(h => ['puzzles', 'lessons/practice', 'daily'].map(r => `*://${h}/${r}*`)),
+];
 let puzProbeChain = Promise.resolve();   // one at a time: a quick off-on must not race its own register
 function syncPuzProbe() {
   puzProbeChain = puzProbeChain.then(async () => {
@@ -2190,12 +2201,16 @@ function syncPuzProbe() {
       const {puzzle_capture: v} = await chrome.storage.local.get('puzzle_capture');
       let want = false;
       try { want = JSON.parse(v ?? 'false') === true; } catch (e) { /* not a value we wrote */ }
-      const have = (await chrome.scripting.getRegisteredContentScripts({ids: [PUZ_PROBE_ID]})).length > 0;
+      const reg = await chrome.scripting.getRegisteredContentScripts({ids: [PUZ_PROBE_ID]});
+      const have = reg.length > 0;
+      const sameMatches = have && [...(reg[0].matches || [])].sort().join() === [...PUZ_PROBE_MATCHES].sort().join();
       if (want && !have) {
         await chrome.scripting.registerContentScripts([{
-          id: PUZ_PROBE_ID, matches: ['*://lichess.org/*', '*://www.chess.com/*', '*://chess.com/*'],
+          id: PUZ_PROBE_ID, matches: PUZ_PROBE_MATCHES,
           js: ['src/scripts/puz-probe.js'], world: 'MAIN', runAt: 'document_start', persistAcrossSessions: true,
         }]);
+      } else if (want && !sameMatches) {
+        await chrome.scripting.updateContentScripts([{id: PUZ_PROBE_ID, matches: PUZ_PROBE_MATCHES}]);
       } else if (!want && have) {
         await chrome.scripting.unregisterContentScripts({ids: [PUZ_PROBE_ID]});
       }

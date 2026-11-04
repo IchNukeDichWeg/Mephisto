@@ -4952,12 +4952,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const a = src.indexOf("const PUZ_PROBE_ID = 'pz';");
     const body = src.slice(a, src.indexOf('syncPuzProbe();\nchrome.runtime.onInstalled'));
     const world = (stored, registered) => {
-        const log = [];
+        const log = []; let M = [];
         const chrome = {storage: {local: {get: async () => stored}}, scripting: {
-            getRegisteredContentScripts: async () => registered ? [{id: 'pz'}] : [],
+            getRegisteredContentScripts: async () => registered ? [{id: 'pz', matches: M}] : [],
             registerContentScripts: async (l) => { log.push(['reg', l[0]]); },
+            updateContentScripts: async (l) => { log.push(['update', l[0]]); },
             unregisterContentScripts: async () => { log.push(['unreg']); }}};
-        return {log, sync: vm.runInNewContext(body + '; syncPuzProbe', {chrome, console, Promise})};
+        const r = vm.runInNewContext(body + '; ({sync: syncPuzProbe, M: PUZ_PROBE_MATCHES})', {chrome, console, Promise});
+        M = r.M;
+        return {log, sync: r.sync};
     };
     (async () => {
         let w = world({}, false); await w.sync();
@@ -4965,9 +4968,10 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         w = world({puzzle_capture: 'false'}, true); await w.sync();
         ok('switched off: unregisters', w.log.length === 1 && w.log[0][0] === 'unreg', w.log);
         w = world({puzzle_capture: 'true'}, false); await w.sync();
-        ok('switched on: MAIN world at document_start on the two sites',
+        ok('switched on: MAIN world at document_start on the two sites\' puzzle routes, never a whole site',
            w.log.length === 1 && w.log[0][1].world === 'MAIN' && w.log[0][1].runAt === 'document_start'
-           && w.log[0][1].js[0] === 'src/scripts/puz-probe.js' && w.log[0][1].matches.length === 3, w.log);
+           && w.log[0][1].js[0] === 'src/scripts/puz-probe.js' && w.log[0][1].matches.length > 0
+           && w.log[0][1].matches.every(m => !/\.(org|com)\/\*$/.test(m)), w.log);
         w = world({puzzle_capture: 'true'}, true); await w.sync();
         ok('already right: nothing to do', w.log.length === 0, w.log);
     })().catch(e => ok('syncPuzProbe ran', false, String(e)));
@@ -6937,6 +6941,49 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     });
     ok('SYS-4: the restart reconciliation adopts puzzle tabs only while the capture is wanted',
        /getTargets\(async \(targets\) => \{[\s\S]{0,300}?if \(!\(await puzzleNetWanted\(\)\)\) return;\s*for \(const t of ours\) if \(PUZZLE_PAGE_URL\(t\.url \|\| ''\)\) puzzleNetTabs\.add\(t\.tabId\);/.test(b));
+}
+// ---- audit 3.1.329 PAGE-2: the puzzle probe is registered for the puzzle routes only ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = b.indexOf("const PUZ_PROBE_ID = 'pz';"), e = b.indexOf('\nsyncPuzProbe();\n', a);
+    const calls = [];
+    const mk = (existing) => {
+        calls.length = 0;
+        const c = vm.createContext({console, chrome: {
+            storage: {local: {get: async () => ({puzzle_capture: 'true'})}},
+            scripting: {getRegisteredContentScripts: async () => existing,
+                registerContentScripts: async (x) => calls.push(['register', x[0].matches]),
+                updateContentScripts: async (x) => calls.push(['update', x[0].matches]),
+                unregisterContentScripts: async () => calls.push(['unregister'])}}});
+        vm.runInContext(b.slice(a, e).replace(/^const /gm, 'var ').replace(/^let /gm, 'var '), c);
+        return c;
+    };
+    // Chrome match pattern -> RegExp: scheme *, exact host, path glob.
+    const toRe = (p) => { const m = p.match(/^\*:\/\/([^/]+)(\/.*)$/); return new RegExp('^https?://' + m[1].replace(/\./g, '\\.') + m[2].replace(/[.?+]/g, '\\$&').replace(/\*/g, '.*') + '$'); };
+    const i = cs.indexOf('function isPuzzlePage() {'), j = cs.indexOf('\n}\n', i) + 3;
+    const isPuz = (url) => { const u = new URL(url); const c = vm.createContext({site: /lichess/.test(u.host) ? 'lichess' : 'chesscom', location: {pathname: u.pathname}}); vm.runInContext(cs.slice(i, j), c); return vm.runInContext('isPuzzlePage()', c); };
+    const urls = ['https://lichess.org/training', 'https://lichess.org/training/mateIn2', 'https://lichess.org/storm', 'https://lichess.org/racer/abcd',
+        'https://lichess.org/streak', 'https://www.chess.com/puzzles/rated', 'https://www.chess.com/puzzles/rush', 'https://chess.com/puzzles',
+        'https://www.chess.com/lessons/practice/foo', 'https://www.chess.com/daily-chess-puzzle', 'https://www.chess.com/daily',
+        'https://lichess.org/abcdEFGH', 'https://lichess.org/', 'https://lichess.org/tv', 'https://www.chess.com/game/live/123456789',
+        'https://www.chess.com/game/daily/123', 'https://www.chess.com/play/online', 'https://www.chess.com/home'];
+    (async () => {
+        let c = mk([]);
+        await vm.runInContext('syncPuzProbe()', c);
+        const m = calls[0] && calls[0][1] || [];
+        const res = (url) => m.some(p => toRe(p).test(url));
+        const wrong = urls.filter(u => res(u) !== isPuz(u));
+        ok('PAGE-2: a fresh registration matches exactly the pages isPuzzlePage() calls puzzle pages (no game page)',
+           calls.length === 1 && calls[0][0] === 'register' && wrong.length === 0 && !res('https://www.chess.com/game/live/123456789'), wrong);
+        c = mk([{id: 'pz', matches: ['*://lichess.org/*', '*://www.chess.com/*', '*://chess.com/*']}]);
+        await vm.runInContext('syncPuzProbe()', c);
+        ok('PAGE-2: an older whole-site registration is narrowed in place', calls.length === 1 && calls[0][0] === 'update' && calls[0][1].length === m.length, calls);
+        c = mk([{id: 'pz', matches: [...m].reverse()}]);
+        await vm.runInContext('syncPuzProbe()', c);
+        ok('PAGE-2: an up-to-date registration is left alone', calls.length === 0, calls);
+    })();
 }
 // ==== END FIX CHECKS ====
 
