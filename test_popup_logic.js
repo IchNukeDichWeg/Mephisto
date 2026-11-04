@@ -8239,6 +8239,47 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...on standard chess, or a WASM pick on Chess960, nothing is said; every pick still reloads the engine',
        res?.std?.length === 0 && res.wasm?.length === 0 && res.reloads === 3, res);
 }
+// ---- audit 3.1.330 SWALLOW-3: a chess.com archive with a failed month is a failed lookup, not a partial book ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = bg.indexOf('async function fetchArchivePgn('), b = bg.indexOf('async function oppPrepLookup(', a);
+    const month = (tag, n) => ({games: Array.from({length: n}, (_, i) => ({pgn: `${tag}${i}`}))});
+    // answers[url] = list of answers in order: 'ok', a status number, or 'timeout'
+    const run = (max, answers, newest = 30) => new Promise((resolve) => {
+        const files = {m1: month('m1-', 30), m2: month('m2-', 30), m3: month('m3-', 30), m4: month('m4-', 30), m5: month('m5-', newest)};
+        const asked = [];
+        const ctx = vm.createContext({
+            archiveFetch: async (u) => {
+                if (u.includes('/games/archives')) return {ok: true, json: async () => ({archives: ['m1', 'm2', 'm3', 'm4', 'm5']})};
+                asked.push(u);
+                const ans = (answers[u] || []).shift() ?? 'ok';
+                if (ans === 'timeout') throw new Error('aborted');
+                return ans === 'ok' ? {ok: true, json: async () => files[u]} : {ok: false, status: ans, json: async () => ({})};
+            },
+            lichess_blocked: () => false, lichess_note_response: () => {}, encodeURIComponent, Promise, Error, Math,
+        });
+        vm.runInContext(bg.slice(a, b), ctx);
+        ctx.done = (r) => resolve({...r, asked});
+        vm.runInContext(`fetchArchivePgn('chesscom', 'x', ${max}).then(t => done({games: t.split('\\n\\n')}), e => done({error: String(e.message)}))`, ctx);
+    });
+    (async () => {
+        const all = await run(200, {});
+        ok('SWALLOW-3: five good months give a full book', all.games && all.games.length === 150 && all.games[149] === 'm5-29', all.error);
+        const gap = await run(200, {m5: ['timeout']});
+        ok('SWALLOW-3: the newest month timing out is a failed lookup, not a book of the other four', !!gap.error && !gap.games, gap.games?.length);
+        const mid = await run(200, {m3: [404, 404]});
+        ok('SWALLOW-3: one month refused twice (one in the middle) fails the lookup', !!mid.error, mid.games?.length);
+        const retry = await run(200, {m5: [429]});
+        ok('SWALLOW-3: a month refused with 429 is asked once more on its own, and then the book is complete',
+           retry.games && retry.games.length === 150 && retry.asked.filter(u => u === 'm5').length === 2, {n: retry.games?.length, asked: retry.asked});
+        const noRetry = await run(200, {m4: ['timeout']});
+        ok('SWALLOW-3: a timed-out month is not asked again', noRetry.asked.filter(u => u === 'm4').length === 1, noRetry.asked);
+        const past = await run(40, {m4: ['timeout']}, 50);
+        ok('SWALLOW-3: a failed month past the cut was never needed: the newest month alone fills the 40',
+           past.games && past.games.length === 40 && past.games[39] === 'm5-49' && past.games[0] === 'm5-10', past.games?.length ?? past.error);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

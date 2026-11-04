@@ -2746,7 +2746,7 @@ async function fetchArchivePgn(site, user, max) {
     // to five multi-megabyte files for PLAYER_BOOK_MAX_GAMES, so months x RTT. They are independent,
     // so they go together and the `max` cut is applied afterwards.
     const fetched = await Promise.all(urls.map(u =>
-        archiveFetch(u).then(r => r.ok ? r.json() : null).catch(() => null)));
+        archiveFetch(u).then(r => r.ok ? r.json() : false).catch(() => null)));
     const parts = [];
     // A PER-MONTH FAILURE USED TO READ AS "no games": each monthly file is swallowed with
     // `.catch(() => null)`, so a 429 across all of them returned '' -- and the callers cached that
@@ -2757,13 +2757,22 @@ async function fetchArchivePgn(site, user, max) {
     // FRONT, so the `slice(-max)` below kept the oldest month and an early-in-the-month opponent's
     // recent games were the ones dropped (audit 3.1.328 SYS-6). Prepending keeps `parts` in play
     // order, so the tail is the latest `max` games.
-    let got = 0;
-    for (const month of fetched) {
-        if (month) got++;
-        parts.unshift(...(month?.games || []).filter(g => g.pgn).map(g => g.pgn));
+    // A GAP IS A FAILURE TOO, not only all months failing (audit 3.1.330 SWALLOW-3): one failed
+    // month among five passed as a normal book, usually missing the newest month, and was cached
+    // here for 12 h and in the panel for a week. A month the server REFUSED (`false`, any HTTP
+    // status) is asked once more, alone: chess.com's PubAPI may answer parallel requests with 429
+    // but does not rate-limit serial ones. A timeout or network error (`null`) is not re-asked, as
+    // an 8 s multi-MB month would only hold the caller's channel for another 8 s. A month still
+    // missing before `max` games are in throws, so the caller caches nothing and asks again later;
+    // a month past the cut was never needed and is not checked.
+    for (let i = 0; i < fetched.length; i++) {
+        if (fetched[i] === false)
+            fetched[i] = await archiveFetch(urls[i]).then(r => r.ok ? r.json() : null).catch(() => null);
+        const month = fetched[i];
+        if (!month) throw new Error('chess.com archive unavailable');
+        parts.unshift(...(month.games || []).filter(g => g.pgn).map(g => g.pgn));
         if (parts.length >= max) break;   // the cut the serial loop made: same games out, one RTT in
     }
-    if (!got) throw new Error('chess.com archive unavailable');
     return parts.slice(-max).join('\n\n');
 }
 
