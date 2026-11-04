@@ -4595,9 +4595,17 @@ function saveStartPosCache() {
 // What a custom start is filed under. On lichess the hash follows the ply and an analysis board
 // rewrites its path as you play, and the start is only captured once per document, so a full href
 // stopped matching and the game replayed from the standard position.
+//
+// Off lichess only a page that names ONE game gets a key (null: nothing is filed or read). Only the
+// Chess960 start is filed there, and chess.com hosts game after game on /play/online or a variants
+// lobby: a 960 game joined after move 0 replayed from a PREVIOUS game's start filed under the same
+// href, which passes the 960 shape test like any start (audit 3.1.329 X2-2). Such a page keeps only
+// this document's capture (seen960Start). ponytail: game paths are /game/<id>, /game/live/<id> and
+// /variants/<slug>/game/<id> as recorded; a site naming its games otherwise just never persists one.
 let analysisStartKey = null;
+const ONE_GAME_PATH = /\/game\/(?:[a-z]+\/)?[\w-]*\d[\w-]*(?:\/|$)/i;
 function startPosKey() {
-    if (site !== 'lichess') return location.href;
+    if (site !== 'lichess') return ONE_GAME_PATH.test(location.pathname) ? location.href : null;
     const here = location.pathname + location.search;
     if (location.pathname.startsWith('/analysis')) return (analysisStartKey ||= here);
     return here;
@@ -4606,8 +4614,9 @@ function startPosKey() {
 // CHESS960 OFF LICHESS. Only lichess files a custom start (onPositionLoad), so a chess.com 960 game
 // was replayed from the standard array: the opening move was for the wrong position and later SANs
 // threw or landed somewhere else (audit 3.1.328 SCRAPE-1). At move 0 the board IS the start, so it
-// is read there and kept, under the page's key and in this document, because chess.com can change
-// the URL once the game begins. A game joined after move 0 still has no start to read.
+// is read there and kept, under the page's key (a page naming one game, see startPosKey) and in this
+// document, because chess.com can change the URL once the game begins. A game joined after move 0
+// still has no start to read.
 //
 // ONLY A REAL 960 START IS KEPT. "The move list is empty" is not "no move was played": chess.com
 // draws a premove on its destination square, and the list can lag the board (on Play Computer it
@@ -4670,11 +4679,13 @@ function chess960Start(board) {
 }
 
 function readStartPos(url) {
+    if (url == null) return undefined;   // a page with no key of its own (startPosKey)
     if (!startPosCache) startPosCache = new LRU(10);
     return startPosCache.get(url);
 }
 
 function writeStartPos(url, startPos) {
+    if (url == null) return;
     if (!startPosCache) startPosCache = new LRU(10);
     startPosCache.set(url, startPos);
     saveStartPosCache();

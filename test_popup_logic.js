@@ -5062,7 +5062,9 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     c.location.pathname = '/analysis/standard/8_b_-_-';
     ok('an analysis board keeps the key it started with', c.key() === k2, k2);
     c.site = 'chesscom';
-    ok('other sites are as they were', c.key() === c.location.href);
+    ok('other sites: no key on a page that does not name one game (audit 3.1.329 X2-2)', c.key() === null, c.key());
+    c.location.pathname = '/game/live/123456'; c.location.href = 'https://www.chess.com/game/live/123456';
+    ok('...and the href on one that does', c.key() === c.location.href, c.key());
     ok('no reader or writer is left on the href', !/StartPos\(location\.href|startPosCache\?\.get\?\.\(location\.href/.test(src));
 }
 // ---- PAGE-19: no light-DOM node carries the product name ----
@@ -7309,6 +7311,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const wrongProbe = urls.filter(u => M.some(p => toRe(p).test(u)) !== isPuz(u));
     ok('X2-1: ...and so does the probe registration, from the same table', M.length > 0 && wrongProbe.length === 0, wrongProbe);
     ok('X2-1: not a page URL is not a puzzle page', page('') === false && page('chrome://extensions') === false && page('https://lichess.org.evil.test/training') === false);
+}
+// ---- audit 3.1.329 X2-2: off lichess a Chess960 start is filed only under a page that names one game ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const lru = fs.readFileSync(ROOT + '/lib/lru.min.js', 'utf8');
+    const back = 'NRKBBQRN';
+    let board = 'b*****';   // a chess.com scrape of a 960 start, h-file first
+    for (const F of 'hgfedcba') for (const r of [8, 7, 2, 1]) {
+        const pc = r === 8 ? back['abcdefgh'.indexOf(F)].toLowerCase() : r === 7 ? 'p' : r === 2 ? 'P' : back['abcdefgh'.indexOf(F)];
+        board += `${pc === pc.toUpperCase() ? 'w' : 'b'}-${pc.toLowerCase()}-${F}${r}*****`;
+    }
+    let saved = [];   // the site's stored cache, shared by every document
+    // one document of the page at `path`: what the 960 var scrape would start from
+    const doc = (path, capture) => {
+        const c = vm.createContext({Date, site: 'chesscom', location: {pathname: path, search: '', href: 'https://www.chess.com' + path},
+            siteValues: {cache: saved}, saveSiteValue: (k, v) => { saved = v; }, isChesscomVariants: () => false, scrapePositionPuz: () => board});
+        try {
+            vm.runInContext(lru + ';\n' + cut('const DEFAULT_POSITION =', '\n\n') + cut('function loadStartPosCache()', '// --- GRIND MODE')
+                + ';startPosCache = loadStartPosCache();', c);
+            if (capture) vm.runInContext('capture960Start()', c);
+            return vm.runInContext('chess960Start(puzBoard(readStartPos(startPosKey())?.position)) || seen960Start || null', c);
+        } catch (e) { return 'threw ' + e.message; }
+    };
+    const start = doc('/play/online', true);
+    ok('X2-2: at move 0 on a page hosting many games the start is used in this document', typeof start === 'string' && start.startsWith('w*****b-n-a8'), start);
+    ok('X2-2: ...but a later document there (the next game, joined after move 0) does not inherit it', doc('/play/online', false) === null, doc('/play/online', false));
+    saved = [{key: 'https://www.chess.com/play/online', value: {position: start, timestamp: 1}}];
+    ok('X2-2: ...nor a start an older version filed under that href', doc('/play/online', false) === null);
+    saved = [];
+    doc('/game/live/123456', true);
+    ok('X2-2: a game page files its start and a reload of THAT game reads it back', doc('/game/live/123456', false) === start);
+    ok('X2-2: ...another game page does not', doc('/game/live/987654', false) === null);
+    ok('X2-2: variants game pages name one game too', doc('/variants/chess960/game/4567', true) === start && doc('/variants/chess960/game/4567', false) === start
+       && doc('/variants/chess960', false) === null);
 }
 // ==== END FIX CHECKS ====
 
