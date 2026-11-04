@@ -7241,6 +7241,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and a configure applies its options through the same _apply_option',
        /engine_options\[key\] = value\s*_apply_option\(key, value\)/.test(host) && /def _apply_option\(key, value\):[\s\S]{0,300}?_apply_variant_net/.test(host));
 }
+// ---- NATIVE-7 (audit 3.1.329): the Fairy net fetch skips exactly the variants the panel refuses natively ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const decl = src.slice(src.indexOf('const NATIVE_BOARDLESS_VARIANTS'), src.indexOf('};', src.indexOf('const NATIVE_BOARDLESS_VARIANTS')) + 1);
+    const panel = Object.keys(vm.runInNewContext('(' + decl.slice(decl.indexOf('{')) + ')')).sort();
+    // the fetcher asks python-chess, as the host does; run it when this machine can (python3 + chess)
+    const py = `import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location('f', sys.argv[1]); f = importlib.util.module_from_spec(spec); spec.loader.exec_module(f)
+if f.chess is None: print('NOCHESS'); sys.exit(0)
+m = json.load(open(sys.argv[2]))
+print(json.dumps(sorted(n.split('-', 1)[0] for n, e in m['files'].items() if e['dir'] == f.FAIRY_DIR and not f.native_usable(n)), separators=(',', ':')))`;
+    const r = require('child_process').spawnSync('python3', ['-I', '-B', '-c', py, ROOT + '/native-host/fetch-fairy-nets.py', ROOT + '/src/offscreen/engine-assets.json'], {encoding: 'utf8'});
+    const out = (r.stdout || '').trim();
+    if (r.error || out === 'NOCHESS') console.log('ok   NATIVE-7: skipped (no python3 with python-chess here)');
+    else ok('NATIVE-7: the nets the fetcher skips are exactly the variants the panel refuses for the native Fairy (MPH-E08)',
+            r.status === 0 && out === JSON.stringify(panel), [out, panel, (r.stderr || '').slice(-200)]);
+    ok('...and the four are not empty (a renamed declaration would make this check vacuous)', panel.length === 4, panel);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

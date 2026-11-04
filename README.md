@@ -534,7 +534,7 @@ python3 -m pip install chess
 native-host/install-native.sh --ext-id YOUR_EXTENSION_ID
 ```
 For Fairy-Stockfish, install it or pass `--fairy /path/to/binary`. On an install from the slim zip the installer also
-downloads the Fairy-Stockfish nets the zip leaves out (494 MB, each checked against the release's SHA-256), once;
+downloads the Fairy-Stockfish nets the zip leaves out (299 MB, each checked against the release's SHA-256), once;
 `--no-fairy-nets` skips that, and the native Fairy then plays on its classical evaluation.
 
 **Windows** - native messaging needs a registry key, so this is manual. Install Python and `pip install chess`, and

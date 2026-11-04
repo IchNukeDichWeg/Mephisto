@@ -135,10 +135,11 @@ for spec in "${SPECS[@]}"; do
   host="$RUNTIME_DIR/$slug-host.py"; rm -f "$host"; cp "$SRC_DIR/uci-native-host.py" "$host"; pin_shebang "$host"; chmod +x "$host"
   echo "$runbin" > "$RUNTIME_DIR/$slug.path"
   if [ -n "$nnue" ]; then
-    # Kept across runs, not wiped: on a slim-zip install the nets (494 MB) are FETCHED, since the zip
+    # Kept across runs, not wiped: on a slim-zip install the nets (299 MB) are FETCHED, since the zip
     # leaves them out and the extension's own copies sit in the Cache API where a host cannot see them.
     # An empty folder here made the native Fairy run every variant on its classical eval, silently.
-    # The fetcher skips nets already present and drops ones the manifest no longer names.
+    # The fetcher skips nets already present and drops ones the manifest no longer names, and the
+    # four variants the native Fairy cannot play (python-chess has no board for them: MPH-E08).
     runnnue="$RUNTIME_DIR/engines/$slug-nnue"; mkdir -p "$runnnue"
     [ -d "$nnue" ] && { cp "$nnue"/*.nnue "$runnnue"/ 2>/dev/null || true; }
     if [ "$FETCH_NETS" = 1 ]; then

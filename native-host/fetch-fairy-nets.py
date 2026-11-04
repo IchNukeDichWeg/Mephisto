@@ -15,6 +15,27 @@ import hashlib, json, os, sys, time, urllib.request
 
 FAIRY_DIR = 'lib/engine/fairy-stockfish-14/nnue'
 
+# ONLY THE NETS THE NATIVE FAIRY CAN USE (audit 3.1.329 NATIVE-7). The host builds each position with
+# chess.variant.find_variant(<variant>), and python-chess has no board for duck, chaturanga, minihouse
+# or seirawan, so the panel refuses those four for the native Fairy before any request (MPH-E08,
+# NATIVE_BOARDLESS_VARIANTS in popup.js mirrors this). Their nets were 195 MB of the 494 MB fetch.
+# Asked of python-chess itself, the same call the host makes, so the two cannot disagree; without
+# python-chess (the host could not run either) every net is kept.
+try:
+    import chess.variant
+except ImportError:
+    chess = None
+
+def native_usable(name):
+    prefix = name.split('-', 1)[0]      # <variant>-<hash>.nnue; nn-* is standard chess and Chess960
+    if prefix == 'nn' or chess is None:
+        return True
+    try:
+        chess.variant.find_variant(prefix)
+        return True
+    except ValueError:
+        return False
+
 def bar(done, total, start, label):
     el = max(time.time() - start, 1e-6)
     rate = done / el
@@ -25,11 +46,16 @@ def bar(done, total, start, label):
 def main():
     manifest, dest = sys.argv[1], sys.argv[2]
     m = json.load(open(manifest, encoding='utf-8'))
-    nets = {n: e for n, e in m['files'].items() if e['dir'] == FAIRY_DIR}
+    fairy = {n: e for n, e in m['files'].items() if e['dir'] == FAIRY_DIR}
+    nets = {n: e for n, e in fairy.items() if native_usable(n)}
+    unused = sorted(n.split('-', 1)[0] for n in fairy if n not in nets)
+    if unused:
+        print(f'   Fairy nets: skipping {", ".join(unused)} (the native Fairy cannot play those variants)')
     for f in os.listdir(dest):
         if f.endswith('.nnue') and f not in nets:
             os.remove(os.path.join(dest, f))
-            print(f'   Fairy nets: removed {f} (no longer in the manifest)')
+            why = 'a variant the native Fairy cannot play' if f in fairy else 'no longer in the manifest'
+            print(f'   Fairy nets: removed {f} ({why})')
     need = {n: e for n, e in nets.items()
             if not (os.path.isfile(os.path.join(dest, n)) and os.path.getsize(os.path.join(dest, n)) == e['size'])}
     if not need:
