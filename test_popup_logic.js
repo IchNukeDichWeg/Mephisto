@@ -12454,6 +12454,41 @@ print(json.dumps(out))`;
         ok('L50: ...and still names the keys the engine did not take (L38)', JSON.stringify(same.refused) === '["Premove"]', got);
     }
 })();
+// ---- audit 3.1.330 follow-up L54: a chess.com review still out keeps a revisited page's button off until it ends ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const handler = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n        });\n', a) + 12); };
+    // the end of onInit's revisit block, from the status-line replay to the closing brace
+    const ra = rj.indexOf("        // ...and the classifier's and chess.com's lines"), rb = rj.indexOf('\n    }\n}\n', ra) + 1;
+    const el = (id) => ({id, value: '', textContent: id === 'rv_ccr_run' ? 'Ask Chess.com' : '', disabled: false, scrollIntoView() {},
+        addEventListener(ev, f) { this.click = f; }, classList: {add() {}, remove() {}, toggle() {}, contains: () => false}});
+    const fresh = () => { const d = {}; return new Proxy(d, {get: (o, k) => (o[k] = o[k] || el(k))}); };
+    let dom = fresh(), answer;
+    const c = vm.createContext({console: {warn() {}}, JSON, Math, String, Promise, $: (id) => dom[id],
+        games: [{}], gameText: () => '1. e4 *', ccrConsent: async () => true, buildCcrGame: () => ({}), renderBatch() {},
+        MephistoI18n: {errText: (k) => k}, eeReady: Promise.resolve(),
+        chrome: {runtime: {sendMessage: () => new Promise(r => { answer = r; })}}});
+    vm.runInContext('var running = false, report = null, batchReports = null, ccrJson = "", ccrLastError = "", ccrLastDetail = "";\n'
+        + (rj.includes('let ccrInFlight') ? 'let ccrInFlight = false;\n' : '')
+        + rj.slice(rj.indexOf('const awayStatus = {};'), rj.indexOf('\n}\n', rj.indexOf('function ccrPane(')) + 3) + '\n'
+        + handler("$('rv_ccr_run')?.addEventListener('click', async () => {"), c);
+    const done = dom.rv_ccr_run.click();
+    await new Promise(r => setTimeout(r, 0));
+    // another options page, then back to Review while chess.com has not answered
+    dom = fresh();
+    vm.runInContext('(() => {\n' + rj.slice(ra, rb) + '})()', c);
+    ok('L54: a Review page revisited while a chess.com review is out shows its button disabled',
+       dom.rv_ccr_run.disabled === true, dom.rv_ccr_run.disabled);
+    answer({frames: ['AAA'], closeCode: 1000});
+    await done;
+    ok('L54: ...and enabled again, with its label, when the answer lands',
+       dom.rv_ccr_run.disabled === false && dom.rv_ccr_run.textContent === 'Ask Chess.com', [dom.rv_ccr_run.disabled, dom.rv_ccr_run.textContent]);
+    // the next revisit has no review out
+    dom = fresh();
+    vm.runInContext('(() => {\n' + rj.slice(ra, rb) + '})()', c);
+    ok('L54: ...and a later revisit leaves it enabled', dom.rv_ccr_run.disabled === false);
+})().catch(e => { fails++; console.log('FAIL L54 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

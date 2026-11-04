@@ -978,6 +978,7 @@ let eeInstalled = EE_VERSION;
 let ccrJson = '';           // the chess.com review's last raw answer
 let ccrLastError = '';      // the last chess.com error text, for the "copy error & open ticket" button
 let ccrLastDetail = '';     // ...and the technical detail the coded line leaves out, which the ticket needs
+let ccrInFlight = false;    // a chess.com review is out: a revisited page's button stays off until it ends (L54)
 
 // A one-time caution gate before the FIRST chess.com review: the game leaves the machine on the user's
 // own chess.com session, so this spells out the risk and forces a 10s wait before Accept goes live.
@@ -3393,11 +3394,16 @@ class ReviewPage {
             const game = buildCcrGame(pgn);
             if (game.error) { btn.disabled = false; btn.textContent = was; return say(game.error, true); }
             let res;
+            ccrInFlight = true;
             try {
                 res = await chrome.runtime.sendMessage({chesscomAnalyze: {game}});
             } catch (e) { res = {error: String(e.message || e)}; }
-            btn.disabled = false;
-            btn.textContent = was;
+            ccrInFlight = false;
+            // By id, not `btn`: the user may be on a new Review page by now, whose button the revisit
+            // turned off, and re-enabling the old one left that one off for good (audit 3.1.330
+            // follow-up L54).
+            const btnNow = $('rv_ccr_run');
+            if (btnNow) { btnNow.disabled = false; btnNow.textContent = was; }
             if (!res || res.error) {
                 // A coded failure shows its translated line; the worker's own text goes to the console
                 // and the ticket. An uncoded one (encode failed, nothing to send) keeps its text.
@@ -3741,6 +3747,10 @@ class ReviewPage {
         const eeSaid = awayStatus.rv_ee_status;
         if (!running && eeSaid?.text && eeSaid.report === report)
             eeReady.finally(() => { if (!running) statusLine('rv_ee_status', eeSaid.text, eeSaid.bad); });
+        // ...and a chess.com review still out: this page's button would send a second game beside it,
+        // and nothing turned it back on when the answer landed (audit 3.1.330 follow-up L54)
+        const ccrBtn = $('rv_ccr_run');
+        if (ccrInFlight && ccrBtn) { ccrBtn.disabled = true; ccrBtn.textContent = 'Asking\u2026'; }
     }
 }
 
