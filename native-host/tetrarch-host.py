@@ -236,13 +236,26 @@ def _uci_value(value):
 def do_configure(data):
     with engine_lock:
         _start_engine()
-        for key, value in (data.get('options') or {}).items():
-            if _OPTIONS.get(key) == value:
-                continue   # Setup/Mode reset the board -- never re-send an unchanged value
-            _OPTIONS[key] = value
-            _send(f"setoption name {key} value {_uci_value(value)}")
-        _send('isready')
-        _read_until(lambda l: l.strip() == 'readyok', timeout=30)
+        try:
+            for key, value in (data.get('options') or {}).items():
+                if _OPTIONS.get(key) == value:
+                    continue   # Setup/Mode reset the board -- never re-send an unchanged value
+                _OPTIONS[key] = value
+                _send(f"setoption name {key} value {_uci_value(value)}")
+            _send('isready')
+            ready = _read_until(lambda l: l.strip() == 'readyok', timeout=30)
+        except OSError:
+            ready = None   # the pipe broke: the engine is gone
+        if ready is None:
+            # An engine that died here answered {'ok': True} all the same, so the caller went on as if
+            # its options were set (audit 3.1.330 follow-up L43). Say so, with its own words; the next
+            # analyse relaunches it and re-sends every option. One merely slow to answer isready
+            # carries on, as at startup.
+            why = _stderr_why()
+            if _proc.poll() is not None:
+                _dbg(f"engine died during configure: {why or 'no output'}")
+                raise RuntimeError('Tetrarch stopped during configure' + (f': {why}' if why else ''))
+            _dbg("no readyok within 30 s after configure; carrying on")
         return {'ok': True}
 
 _request_lock = threading.Lock()

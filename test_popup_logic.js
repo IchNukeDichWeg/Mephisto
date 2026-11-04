@@ -12286,6 +12286,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('L45: ...once: the next revisit does not replay them', !dom.rv_ccr_status.textContent && !dom.rv_ee_status.textContent,
        [dom.rv_ccr_status.textContent, dom.rv_ee_status.textContent]);
 })().catch(e => { fails++; console.log('FAIL L45 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 follow-up L43: a Tetrarch that dies during configure is an error, not {ok: true} ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    // the real host (stdlib only) over a stand-in uci.py that starts fine and dies on a free-for-all Mode
+    const run = `import json, os, shutil, struct, subprocess, sys, tempfile
+d = tempfile.mkdtemp(); repo = os.path.join(d, 'Tetrarch'); os.mkdir(repo)
+open(os.path.join(repo, 'uci.py'), 'w').write('''import sys
+for line in sys.stdin:
+    c = line.split()
+    if c[:1] == ['uci']: print('uciok', flush=True)
+    elif c[:1] == ['isready']: print('readyok', flush=True)
+    elif c[:5] == ['setoption', 'name', 'Mode', 'value', 'ffa']: raise ValueError('no FFA tables in this build')
+''')
+shutil.copy(sys.argv[1], os.path.join(d, 'tetrarch-host.py')); open(os.path.join(d, 'tetrarch-path'), 'w').write(repo + '\\n')
+env = dict(os.environ); env.pop('TETRARCH_DIR', None)
+p = subprocess.Popen([sys.executable, '-I', os.path.join(d, 'tetrarch-host.py')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
+out = []
+for m in ({'id': 1, 'cmd': 'configure', 'options': {'Mode': 'teams'}}, {'id': 2, 'cmd': 'configure', 'options': {'Mode': 'ffa'}}):
+    b = json.dumps(m).encode(); p.stdin.write(struct.pack('<I', len(b)) + b); p.stdin.flush()
+    h = p.stdout.read(4); out.append(json.loads(p.stdout.read(struct.unpack('<I', h)[0])) if len(h) == 4 else None)
+p.stdin.close(); p.wait(10); shutil.rmtree(d, ignore_errors=True)
+print(json.dumps(out))`;
+    const b = await pyRun(['-I', '-B', '-c', run, ROOT + '/native-host/tetrarch-host.py'], {encoding: 'utf8', timeout: 30000});
+    if (b.error) console.log('ok   L43: skipped (no python3 here)');
+    else {
+        let r = null; try { r = JSON.parse(b.stdout); } catch (e) { r = [null, (b.stderr || '').slice(-300)]; }
+        ok('L43: a configure the engine survives still answers ok', r && r[0] && r[0].ok === true && !r[0].error, r && r[0]);
+        ok('L43: an engine that dies during configure answers an error with its last stderr line, not ok',
+           r && r[1] && !r[1].ok && /^Tetrarch stopped during configure: /.test(r[1].error || '') && /ValueError: no FFA tables in this build/.test(r[1].error), r && r[1]);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
