@@ -5350,7 +5350,7 @@ function update_snap_follow_button() {
 // also holds the recognition and, on first use, a ~75 MB model download (audit 3.1.330 ENGINEB-3).
 async function with_panel_hidden(fn) {
     const wrap = PANEL_ROOT.getElementById && PANEL_ROOT.getElementById('mephisto-overlay');
-    if (!wrap) return fn(() => {});               // toolbar popup: not part of the captured tab
+    if (!wrap) return fn(null);                   // toolbar popup: not part of the captured tab, nothing to show again
     const before = wrap.style.opacity;
     let shown = false;
     const show = () => { if (!shown) { shown = true; wrap.style.opacity = before || ''; } };
@@ -5458,7 +5458,9 @@ async function snap_position(crop) {
         tab_id = await resolve_click_tab();
         res = crop
             ? await chrome.runtime.sendMessage({captureAndRecognize: {crop}, tabId: tab_id})
-            : await with_panel_hidden(async (s) => { show = s; return chrome.runtime.sendMessage({captureAndRecognize: {notify: token}, tabId: tab_id}); });
+            // No `notify` without a hidden panel to bring back: the toolbar popup's token made the worker
+            // message the game tab, where nothing listens for it (audit 3.1.330 follow-up L10).
+            : await with_panel_hidden(async (s) => { show = s; return chrome.runtime.sendMessage({captureAndRecognize: s ? {notify: token} : {}, tabId: tab_id}); });
     } catch (e) {
         setup_fen_msg(err_line('MPH-V02', {detail: e}));
         return;

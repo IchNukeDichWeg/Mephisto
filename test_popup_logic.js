@@ -11789,6 +11789,29 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...a read after the load hears nothing, and no listener is kept once its read has its models',
        later.length === 0 && vm.runInContext('typeof readNotes === "undefined" || readNotes.size === 0', vctx), later);
 })().catch(e => { fails++; console.log('FAIL L9 checks threw: ' + (e && e.stack || e)); });
+// ---- L10 (audit 3.1.330 follow-up): the toolbar popup's Read Position asks for no snapCaptured notice ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (head, end) => { const a = s.indexOf(head), b = s.indexOf(end, a); return a < 0 || b < 0 ? '' : s.slice(a, b); };
+    const code = fn('async function with_panel_hidden(', '\n}\n') + '\n}\n'
+        + fn('function download_progress_text(', '\n}\n') + '\n}\n'
+        + fn('async function snap_position(', '\n    // The recogniser reports placement only') + '\n}\n';
+    const read = async (inPage) => {
+        const wrap = {style: {opacity: '1'}}, sent = [];
+        const c = vm.createContext({console, Promise, Date, Math, String, setImmediate, ENGINE_CLIENT: 'toolbar',
+            PANEL_ROOT: {getElementById: (id) => id === 'mephisto-overlay' ? (inPage ? wrap : null) : id === 'setup-fen-row' ? {style: {}} : null},
+            requestAnimationFrame: (f) => setImmediate(f), setup_fen_msg() {}, err_line: (code) => code, err_code_line: () => null,
+            request_drag_select() {}, resolve_click_tab: async () => 7,
+            chrome: {runtime: {onMessage: {addListener() {}, removeListener() {}}, sendMessage: async (m) => { sent.push(m); return {error: 'no board found'}; }}}});
+        vm.runInContext(code, c);
+        await vm.runInContext('snap_position()', c);
+        return sent[0]?.captureAndRecognize;
+    };
+    const tb = await read(false), ip = await read(true);
+    ok('L10: the toolbar popup\'s read sends no notify token, so the worker messages no tab about the capture', tb && !('notify' in tb), tb);
+    ok('...while the in-page panel, which hides for the capture, still asks for one', ip && typeof ip.notify === 'string', ip);
+})().catch(e => { fails++; console.log('FAIL L10 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
