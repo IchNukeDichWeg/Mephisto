@@ -6323,6 +6323,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     pending[0]({category: 'win', moves: [{uci: 'h1h8'}]});
     p.then(() => ok('...and the answer, when it lands, is written', tbEl.textContent === 'Tablebase: win - Qh8', tbEl.textContent));
 }
+// ---- audit 3.1.329 ANALYSIS-5: a sweep whose wait for the borrowed net outlived the page builds no private net ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const a = an.indexOf('let bandChain = Promise.resolve();'), b = an.indexOf('// SWEEP THE NEXT PLY', a);
+    const c = vm.createContext({Promise, Math, bandRun: 1, built: 0, human: null, bandCache: new Map(), bandKey: (f, k) => f + k, cfg: () => 1500,
+        bandSteps: () => [600, 700], takesRating: () => true, BAND_MULTIPV: 12,
+        makeEngine: () => { c.built++; return {start: async () => {}, send() {}, dispose() {}, analyse: async () => ({lines: [{pv: ['e2e4'], prob: 1}]})}; }});
+    // the page is left while the sweep waits on the human build: teardown bumps bandRun, the build hands back null
+    c.ensureHuman = async () => { c.bandRun++; return null; };
+    vm.runInContext(an.slice(a, b), c);
+    vm.runInContext('sweepBands({fen: "x", turn: "w"}, "maia3", bandRun, null)', c).then(r => {
+        ok('ANALYSIS-5: the sweep ends without building its own copy of the net', r === null && c.built === 0, [r, c.built]);
+        // the same null with the run still current (no human column) still sweeps on a private net
+        c.ensureHuman = async () => null;
+        return vm.runInContext('sweepBands({fen: "y", turn: "w"}, "maia3", bandRun, null)', c);
+    }).then(r => ok('...with the run still current, a null still means "no shared net": one private net sweeps', !!r && c.built === 1 && r[600]?.[0]?.uci === 'e2e4', [r, c.built]));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

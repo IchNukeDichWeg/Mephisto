@@ -1863,6 +1863,11 @@ async function sweepBands(pos, kind, run, onStep) {
                 borrowed = true;
                 shared.send(`setoption name MultiPV value ${BAND_MULTIPV}`);
             } else {
+                // null is ALSO what ensureHuman hands back when the page was left (or the model
+                // replaced) during the wait; read as "no shared net", that built a private 92 MB copy
+                // behind the next page and loaded it before the loop's check threw it away
+                // (audit 3.1.329 ANALYSIS-5)
+                if (run !== bandRun) return null;
                 shared = makeEngine(kind, {variant: 'chess', multipv: BAND_MULTIPV, maiaLevel: steps[0],
                                               limitKind: 'depth', limitValue: 1, threads: 1, hash: 16}, 'analysis-band');
                 await shared.start();
