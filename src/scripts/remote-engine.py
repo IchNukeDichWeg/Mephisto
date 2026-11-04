@@ -30,6 +30,9 @@ engine = None
 engine_options = {}
 request_counter = 0
 current_analysis = None  # the search running now, so a newer /analyse can stop it at once
+configure_cut = None     # the search a /configure stopped, so its answer says superseded
+requested_options = {}   # every value /configure was sent, taken or not: what "nothing to change" compares
+refused_keys = set()     # the keys the engine did not take, for a /configure that changes nothing
 engine_lock = threading.Lock()
 request_lock = threading.Lock()
 
@@ -226,7 +229,7 @@ def format_score(score, depth):
 
 @app.route('/analyse', methods=['POST'])
 def analyse():
-    global request_counter, request_lock, current_analysis
+    global request_counter, request_lock, current_analysis, configure_cut
 
     with request_lock:
         request_counter += 1
@@ -278,7 +281,7 @@ def analyse():
         # Stored too, so a later request without the key keeps it.
         width = data.get('multipv')
         if isinstance(width, int) and not isinstance(width, bool) and width > 0:
-            engine_options['MultiPV'] = width
+            engine_options['MultiPV'] = requested_options['MultiPV'] = width
         try:
             multipv = int(engine_options.get('MultiPV', 1))
         except (TypeError, ValueError):
@@ -311,10 +314,11 @@ def analyse():
                     with request_lock:
                         if current_analysis is analysis:
                             current_analysis = None
+                        cut = configure_cut is analysis
             out = format_lines(analysis.multipv, terminal, bestmove)
-            # Cut short by a newer request: say so, or the panel plays the shallow line (or a
-            # `(none)`) as an answer. Its retry fires on this flag, as with the native hosts.
-            if request_counter != request_id:
+            # Cut short by a newer request or a /configure: say so, or the panel plays the shallow line
+            # (or a `(none)`) as an answer. Its retry fires on this flag, as with the native hosts.
+            if request_counter != request_id or cut:
                 out['superseded'] = True
             return out
         except chess.engine.EngineTerminatedError:
@@ -323,14 +327,43 @@ def analyse():
 
 @app.route('/configure', methods=['POST'])
 def configure():
+    global configure_cut
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return {'error': 'expected a JSON object in the request body'}, 400
+    keys = [(str(key).strip(), value) for (key, value) in data.items()]
+    # STOP THE RUNNING SEARCH FIRST, then take the lock, as a native host supersedes its own search.
+    # Queued behind it, a new line count from the panel waited out the whole search, up to the 25 s
+    # the HTTP Remote is given (measured with Stockfish: 19.5 s behind a 20 s search), before
+    # search_again_at_new_width could search again (audit 3.1.330 follow-up L50). The search it stops
+    # was not answered: its reply says superseded and the panel searches again. Nothing to change,
+    # nothing to stop: the panel re-sends a width its /analyse already carried. A configure that lands
+    # in the few ms between a search taking the lock and registering itself still waits (as natively).
+    with request_lock:
+        if all(key in requested_options and requested_options[key] == value for (key, value) in keys):
+            out = config()
+            out['refused_options'] = [key for (key, value) in keys if key in refused_keys]
+            return out
+        stale = current_analysis
+        if stale is not None:
+            configure_cut = stale
+    if stale is not None:
+        try:
+            stale.stop()
+        except Exception:
+            pass
     with engine_lock:
-        data = request.get_json(silent=True)
-        if not isinstance(data, dict):
-            return {'error': 'expected a JSON object in the request body'}, 400
         # The keys the engine did not take ride back beside the options. An engine with no UCI_Elo
         # (Lc0) played at full strength while the panel showed the cap; this is how the panel learns
         # it did not apply (audit 3.1.330 follow-up L38).
-        refused = [key for (key, value) in data.items() if not set_option(key, value)]
+        refused = []
+        for (key, value) in keys:
+            if set_option(key, value):
+                refused_keys.discard(key)
+            else:
+                refused.append(key)
+                refused_keys.add(key)
+            requested_options[key] = value
         out = config()
         out['refused_options'] = refused
         return out

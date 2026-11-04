@@ -12393,6 +12393,63 @@ print(json.dumps(out))`;
            JSON.stringify(got?.elo) === '{"MultiPV":3,"UCI_LimitStrength":true,"UCI_Elo":2850,"Premove":null}', got);
     }
 })();
+// ---- audit 3.1.330 follow-up L50: remote-engine.py's /configure stops the running search before it takes the engine lock,
+// so a new line count does not wait out a whole search; the stopped search answers superseded ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // a stand-in engine that searches until its movetime or a `stop`, streaming info lines meanwhile
+    const py = `import importlib.util, json, os, sys, tempfile, threading, time
+try:
+    import flask, chess.engine
+except ImportError:
+    print('null'); sys.exit(0)
+ENG = '''import sys, threading, time
+stop = threading.Event()
+def search(ms):
+    t0 = time.time(); d = 0
+    while not stop.is_set() and time.time() - t0 < ms / 1000:
+        d += 1; print("info depth %d score cp 10 pv e2e4" % d, flush=True); time.sleep(0.05)
+    print("bestmove e2e4", flush=True)
+for l in sys.stdin:
+    l = l.strip()
+    if l == "uci": print("id name stand-in\\\\noption name MultiPV type spin default 1 min 1 max 50\\\\nuciok", flush=True)
+    elif l == "isready": print("readyok", flush=True)
+    elif l.startswith("go"):
+        w = l.split(); stop.clear(); threading.Thread(target=search, args=(int(w[w.index("movetime") + 1]),)).start()
+    elif l == "stop": stop.set()
+    elif l == "quit": break
+'''
+d = tempfile.mkdtemp(); eng = os.path.join(d, 'eng.py'); open(eng, 'w').write(ENG)
+src = sys.argv[1]; sys.argv = ['remote-engine.py', eng]
+spec = importlib.util.spec_from_file_location('re_l50', src); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+m.engine = chess.engine.SimpleEngine.popen_uci([sys.executable, '-E', eng])
+c = m.app.test_client(); fen = chess.STARTING_FEN; out = {}
+c.post('/configure', json={'MultiPV': 1, 'Premove': False})
+def run(kind):
+    res = {}
+    def search():
+        t0 = time.time(); res['a'] = c.post('/analyse', json={'fen': fen, 'time': 3000}).get_json(); res['at'] = time.time() - t0
+    t = threading.Thread(target=search); t.start(); time.sleep(0.4)
+    t0 = time.time(); r = c.post('/configure', json={'MultiPV': 1, 'Premove': False} if kind == 'same' else {'MultiPV': 3}).get_json()
+    ct = time.time() - t0; t.join()
+    out[kind] = {'configure_s': round(ct, 2), 'search_s': round(res['at'], 2), 'superseded': bool(res['a'].get('superseded')),
+                 'refused': r.get('refused_options')}
+run('same'); run('change')
+m.engine.quit()
+print(json.dumps(out))`;
+    const r = await new Promise(res => require('child_process').execFile('python3', ['-E', '-B', '-c', py, ROOT + '/src/scripts/remote-engine.py'],
+        {encoding: 'utf8', timeout: 60000, cwd: require('os').tmpdir()}, (e, stdout, stderr) => res({e, stdout, stderr})));
+    let got = null; try { got = JSON.parse(String(r.stdout).trim().split('\n').pop()); } catch (e) { got = (r.stderr || String(r.e)).slice(-300); }
+    if (got === null) console.log('ok   L50: skipped (no python3 with flask + python-chess here)');
+    else {
+        const ch = got?.change || {}, same = got?.same || {};
+        ok('L50: a /configure that changes something stops the 3 s search and answers at once', ch.configure_s < 1.5 && ch.search_s < 1.5, got);
+        ok('L50: ...and the stopped search answers superseded, so the panel searches again', ch.superseded === true, got);
+        ok('L50: a /configure that changes nothing leaves the search alone and still answers at once',
+           same.configure_s < 1.5 && same.search_s > 2.5 && same.superseded === false, got);
+        ok('L50: ...and still names the keys the engine did not take (L38)', JSON.stringify(same.refused) === '["Premove"]', got);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
