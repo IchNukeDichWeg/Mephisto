@@ -7348,6 +7348,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('X2-2: variants game pages name one game too', doc('/variants/chess960/game/4567', true) === start && doc('/variants/chess960/game/4567', false) === start
        && doc('/variants/chess960', false) === null);
 }
+// ---- X1-1: a PGN's [Variant "Chess960"] tag (a quiet variant change) still names the engine swap ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = an.indexOf(a), j = an.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return an.slice(i, j); };
+    const el = {textContent: '', className: ''};
+    const conf = {};
+    const c = vm.createContext({el, conf, loadLine: ['Loaded 12 moves.']});
+    vm.runInContext(`const $ = (id) => (id === 'an_status' ? el : null);
+        const cfg = (k) => conf[k]; const setCfg = (k, v) => { conf[k] = v; }; const anVariant = () => conf.an_variant;
+        const ENGINES = [{id: 'sf18-native', label: 'Stockfish 18 (native)', kind: 'native'}, {id: 'stockfish-18-nnue', label: 'Stockfish 18', kind: 'wasm'},
+                         {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish', kind: 'wasm'}];
+        const FAIRY_ONLY = ['crazyhouse']; const FAIRY_ENGINE = 'fairy-stockfish-14-nnue';
+        function syncBandRow() {} function reloadEngine() {} function reloadEngine2() {}
+        function loadFromInput() { status(...loadLine); }
+        ${cut('function status(', '\n}\n')}
+        }
+        ${cut('const NATIVE_960_WASM', 'let engineChain')}
+        ${cut('function onVariantChange(', '// One box takes either')}`, c);
+    Object.assign(conf, {an_variant: 'fischerandom', an_engine: 'sf18-native', an_engine2: ''});
+    c.onVariantChange(true);
+    ok('X1-1: a quiet change to Chess960 (PGN tag) with a native engine still shows the swap note before the load line',
+       el.textContent === 'Stockfish 18 (native) cannot castle in Chess960; using Stockfish 18 here. Loaded 12 moves.', el.textContent);
+    Object.assign(conf, {an_variant: 'crazyhouse', an_engine: 'stockfish-18-nnue'});
+    c.onVariantChange(true);
+    ok('...a quiet Fairy switch stays quiet (the Engine select itself shows Fairy-Stockfish)',
+       el.textContent === 'Loaded 12 moves.' && conf.an_engine === 'fairy-stockfish-14-nnue', [el.textContent, conf.an_engine]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

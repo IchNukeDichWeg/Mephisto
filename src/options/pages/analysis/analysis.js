@@ -497,7 +497,10 @@ function onVariantChange(quiet) {
             if (e2) e2.value = '';
         }
     }
-    if (!quiet) for (const k of ['an_engine', 'an_engine2']) {
+    // The Chess960 swap note is given even on a quiet change: the Engine select keeps showing the
+    // native engine while the column runs the WASM build, so this line is the only sign of the swap.
+    // A pasted PGN with [Variant "Chess960"] comes through here quietly and swapped silently.
+    for (const k of ['an_engine', 'an_engine2']) {
         const id = cfg(k), use = engineFor(id);
         if (use !== id) notes.push(`${ENGINES.find(e => e.id === id)?.label || id} cannot castle in Chess960; using ${ENGINES.find(e => e.id === use)?.label || use} here.`);
     }
