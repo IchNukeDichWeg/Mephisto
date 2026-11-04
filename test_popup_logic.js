@@ -11446,6 +11446,51 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('...an answer without the flag reads as before', tbEl.textContent === 'Tablebase: win - Qh8', tbEl.textContent);
     })().catch(e => { fails++; console.log('FAIL L33 check threw: ' + (e && e.stack || e)); });
 }
+// ---- audit 3.1.330 follow-up L30: the native host's tbprobe answers a WDL-only folder's verdict instead of "missing table" ----
+// (runs the host's own do_tbprobe over a stand-in KRvK set: WDL present, every DTZ lookup missing, as python-chess raises it)
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    const py = `import ast, json, sys
+try:
+    import chess, chess.syzygy as S
+except Exception:
+    print('NOCHESS'); sys.exit(0)
+tree = ast.parse(open(sys.argv[1], encoding='utf-8-sig').read())
+body = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'do_tbprobe']
+class TB:
+    def __init__(s, dtz, wdl=True): s.dtz, s.wdl = dtz, wdl
+    def probe_wdl(s, b):
+        if not s.wdl: raise S.MissingTableError('did not find wdl table KRvK')
+        return 2 if b.pieces(chess.ROOK, b.turn) else -2
+    def probe_dtz(s, b):
+        if s.dtz is None: raise S.MissingTableError('did not find dtz table KRvK')
+        return s.dtz(b)
+ns = {'_TB_CATEGORY': {2: 'win', 1: 'cursed-win', 0: 'draw', -1: 'blessed-loss', -2: 'loss'}}
+exec(compile(ast.Module(body=body, type_ignores=[]), sys.argv[1], 'exec'), ns)
+F = '8/8/8/8/8/8/R7/K6k w - - 0 1'
+out = []
+for tb in (TB(None), TB(None, wdl=False), TB(lambda b: 9 if not b.move_stack else (-5 if b.peek().uci() == 'a2a3' else -9))):
+    ns['_tb_open'] = lambda p, tb=tb: tb
+    r = ns['do_tbprobe']({'fen': F, 'path': '/x'})
+    out.append({'error': r.get('error'), 'category': r.get('category'), 'dtz': r.get('dtz'),
+                'moves': [[m['uci'], m['category'], m['dtz']] for m in r.get('moves', [])]})
+print(json.dumps(out))`;
+    const r = await pyRun(['-I', '-B', '-c', py, ROOT + '/native-host/uci-native-host.py'], {encoding: 'utf8'});
+    if (r.error || (r.stdout || '').trim() === 'NOCHESS') console.log('ok   L30: skipped (no python3 with python-chess here)');
+    else {
+        let res = null; try { res = JSON.parse(r.stdout); } catch (e) { console.log('L30 python said: ' + (r.stderr || '').slice(-300)); res = []; }
+        const [wdlOnly, noWdl, full] = res;
+        ok('L30: a folder with the KRvK .rtbw and no .rtbz answers the verdict locally (it said "missing table" and went online)',
+           wdlOnly && !wdlOnly.error && wdlOnly.category === 'win' && wdlOnly.dtz === null, wdlOnly);
+        ok('L30: ...and every move keeps its verdict, with no distance',
+           wdlOnly?.moves?.length > 0 && wdlOnly.moves.every(m => m[2] === null) && wdlOnly.moves.some(m => m[1] === 'loss'), wdlOnly && wdlOnly.moves);
+        ok('L30: a missing WDL table still fails the probe (no verdict to give)', noWdl && /missing table/.test(noWdl.error || ''), noWdl);
+        ok('L30: a full set still ranks by dtz (the shortest win first)', full && !full.error && full.moves?.[0]?.[0] === 'a2a3' && full.dtz === 9, full?.moves?.slice(0, 3));
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

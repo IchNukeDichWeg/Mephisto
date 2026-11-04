@@ -411,7 +411,7 @@ def _apply_option(key, value):
 # --- Syzygy tablebases, probed DIRECTLY (python-chess), no engine involved ------------------- #
 # The extension's local-tablebase feature: the service worker sends the user's folder path and a
 # FEN; the answer mimics the lichess tablebase API's shape ({category, dtz, moves:[...]}) so the
-# panel's existing consumer needs no second parser. Any missing table -- a 6-man position over a
+# panel's existing consumer needs no second parser. Any missing WDL table -- a 6-man position over a
 # 3-4-5 set, a half-copied folder -- raises here and returns an error, which is the worker's cue
 # to fall back to the online endpoint for that position. Castling rights are refused loudly:
 # Syzygy cannot represent them, and a silent wrong answer would outrank the engine's real move.
@@ -447,9 +447,21 @@ def do_tbprobe(data):
     if not board.is_valid():
         return {'error': 'illegal position'}
     tb = _tb_open(data.get('path'))
+
+    # A set without some DTZ table still knows the verdict (Settings offers a "WDL only" download):
+    # the distance is None, as the in-browser route answers it. The whole probe failing sent every
+    # position of a WDL-only folder online (audit 3.1.330 follow-up L30, the ANALYSISB-1 shape).
+    # A missing WDL table still fails the probe: then there is no verdict to give.
+    def dtz_or_none(b):
+        try:
+            return tb.probe_dtz(b)
+        except _s.MissingTableError as e:
+            if 'dtz table' in str(e):
+                return None
+            raise
     try:
         wdl = tb.probe_wdl(board)      # side-to-move relative, like the lichess API
-        dtz = tb.probe_dtz(board)
+        dtz = dtz_or_none(board)
         moves = []
         for mv in board.legal_moves:
             san = board.san(mv)
@@ -458,7 +470,7 @@ def do_tbprobe(data):
             # each move's verdict is from the perspective of the side to move AFTER it, exactly
             # like the lichess API (the panel picks moves[0] on that convention: a move to 'loss'
             # loses FOR THEM, i.e. what we want) -- so NO negation here
-            child_dtz = tb.probe_dtz(board)
+            child_dtz = dtz_or_none(board)
             child_wdl = tb.probe_wdl(board)
             mate = board.is_checkmate()
             stale = board.is_stalemate()
@@ -472,12 +484,15 @@ def do_tbprobe(data):
         # dtz restarts the NEXT phase, so the capture sorted behind the check that merely kept it
         # available (found live, 2026-08-25).
         rank = {'loss': 0, 'blessed-loss': 1, 'draw': 2, 'cursed-win': 3, 'win': 4, 'unknown': 5}
+        # dtz ranks only when every move has one (syzygy.js sortMovesLikeLichess): a WDL-only set
+        # counts just the zeroing moves, and a partial list put a hung rook first (ANALYSISB-1).
+        all_dtz = all(m['dtz'] is not None for m in moves)
         moves.sort(key=lambda m: (
             rank[m['category']],
             not m['checkmate'],
             not m['stalemate'],
             m['zeroing'] != (m['category'] not in ('win', 'cursed-win')),
-            -m['dtz']))
+            -m['dtz'] if all_dtz else 0))
         return {'category': _TB_CATEGORY.get(wdl, 'unknown'), 'dtz': dtz, 'moves': moves, 'source': 'local'}
     except (_s.MissingTableError, KeyError) as e:
         return {'error': f'missing table: {e}'}
