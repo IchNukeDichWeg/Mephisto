@@ -72,12 +72,14 @@ def set_option(key, value):
     # Apply one already-parsed engine option. `value` keeps its native type (str from the CLI, but
     # int/bool from the extension's JSON - e.g. Hash:512, UCI_LimitStrength:true) so python-chess
     # gets the type it expects. Never crashes the server on a bad option. Returns False when the engine
-    # did not take it (not declared, or refused), so /configure can say so.
+    # did not take it (not declared, or refused), so /configure can say so. engine_options keeps only
+    # what the engine took, at the value it took (a clamped spin as clamped): it was written before
+    # these checks, so GET /config listed UCI_Elo on an engine without one (audit 3.1.330 follow-up L49).
     key = str(key).strip()
     if not key:
         return True
-    engine_options[key] = value
     if key.lower() in MANAGED_OPTIONS:
+        engine_options[key] = value
         return True  # python-chess manages these itself; setting them directly would fight it
     if key not in engine.options:
         print(f"ignoring option '{key}' - this engine doesn't offer it")
@@ -106,6 +108,7 @@ def set_option(key, value):
     except Exception as ex:
         print(f"couldn't set {key} = {value}: {ex}")
         return False
+    engine_options[key] = value
     return True
 
 

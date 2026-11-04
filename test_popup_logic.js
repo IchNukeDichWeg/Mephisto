@@ -12351,6 +12351,48 @@ print(json.dumps(out))`;
         .flatMap(f => fs.readFileSync(ROOT + f, 'utf8').split('\n').filter(l => !/^\s*\/\//.test(l) && /run native-host\/install\.sh|re-run native-host\/install\.sh|needs native-host\/install\.sh|run its installer once/.test(l)).map(l => f + ': ' + l.trim().slice(0, 80)));
     ok('L42: no panel, worker or options message names the script any more (they go through the per-OS step)', code.length === 0, code);
 }
+// ---- audit 3.1.330 follow-up L49: remote-engine.py's GET /config lists only the options its engine took ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const py = `import importlib.util, json, os, sys, tempfile
+try:
+    import flask, chess.engine
+except ImportError:
+    print('null'); sys.exit(0)
+ENG = '''import sys
+OPTS = %r
+for l in sys.stdin:
+    l = l.strip()
+    if l == "uci":
+        print("id name stand-in"); [print(o) for o in OPTS]; print("option name MultiPV type spin default 1 min 1 max 50"); print("uciok")
+    elif l == "isready": print("readyok")
+    elif l == "quit": break
+    sys.stdout.flush()
+'''
+src = sys.argv[1]; d = tempfile.mkdtemp(); out = {}
+for name, opts in (('noelo', []), ('elo', ['option name UCI_LimitStrength type check default false',
+                                         'option name UCI_Elo type spin default 1350 min 1350 max 2850'])):
+    eng = os.path.join(d, name + '.py'); open(eng, 'w').write(ENG % (opts,))
+    sys.argv = ['remote-engine.py', eng]
+    spec = importlib.util.spec_from_file_location('re_l49_' + name, src); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+    m.engine = chess.engine.SimpleEngine.popen_uci([sys.executable, '-E', eng])
+    c = m.app.test_client()
+    c.post('/configure', json={'MultiPV': 3, 'UCI_LimitStrength': True, 'UCI_Elo': 3000, 'Premove': False})
+    cfg = c.get('/config').get_json()
+    out[name] = {k: cfg.get(k) for k in ('MultiPV', 'UCI_LimitStrength', 'UCI_Elo', 'Premove')}
+    m.engine.quit()
+print(json.dumps(out))`;
+    const r = await new Promise(res => require('child_process').execFile('python3', ['-E', '-B', '-c', py, ROOT + '/src/scripts/remote-engine.py'],
+        {encoding: 'utf8', timeout: 60000, cwd: require('os').tmpdir()}, (e, stdout, stderr) => res({e, stdout, stderr})));
+    let got = null; try { got = JSON.parse(String(r.stdout).trim().split('\n').pop()); } catch (e) { got = (r.stderr || String(r.e)).slice(-300); }
+    if (got === null) console.log('ok   L49: skipped (no python3 with flask + python-chess here)');
+    else {
+        ok('L49: an engine without UCI_Elo: /config has no Elo keys and no Premove, only what it took',
+           JSON.stringify(got?.noelo) === '{"MultiPV":3,"UCI_LimitStrength":null,"UCI_Elo":null,"Premove":null}', got);
+        ok('L49: an engine with UCI_Elo: /config has the cap at the value it took (3000 clamped to its 2850)',
+           JSON.stringify(got?.elo) === '{"MultiPV":3,"UCI_LimitStrength":true,"UCI_Elo":2850,"Premove":null}', got);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
