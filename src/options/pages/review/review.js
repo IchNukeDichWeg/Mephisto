@@ -415,7 +415,12 @@ async function runReview(game, rig, onProgress) {
     // pass is already swallowed above, and is awaited so a half-filled `moves` never reaches assemble.
     await Promise.all([enginePass.catch(e => { engineFailed = true; throw e; }), humanPass]);
 
-    const book = cfg('rv_book') ? await lookupOpening(positions) : {name: null, plies: 0};
+    // The opening table is standard chess. Crazyhouse, three-check, the hill and atomic start from
+    // the standard position and their FENs key the same way, so they hit it: the header named a
+    // chess opening and every move up to the last hit was graded Book, ungraded under the game's own
+    // rules (audit 3.1.330 REVIEWB-3). Chess960, whose starts the table does not know, goes the same way.
+    const book = cfg('rv_book') && (opts.variant || 'chess') === 'chess'
+        ? await lookupOpening(positions) : {name: null, plies: 0};
     // AFTER assemble, not before: the estimate skips book and forced moves, and those flags are set
     // BY assemble. Run earlier and `!m.isBook` reads `!undefined` -- true for everything -- so the
     // exclusions silently did nothing and every move counted, which is a different measurement than

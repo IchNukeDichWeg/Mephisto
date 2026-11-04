@@ -8875,6 +8875,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEWB-2: a promotion the opponent takes and the mover retakes is not a sacrifice (a pawn for a rook)', defended === false, defended);
     ok('...an undefended promotion taken for free still counts as material offered', loose === true, loose);
 }
+// ---- audit 3.1.330 REVIEWB-3: a variant review does not use the standard-chess opening table ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head), b = rj.indexOf('\n}\n', a) + 3; return rj.slice(a, b); };
+    // the REAL runReview, with an engine that answers at once and a table that names every game
+    const run = async (variant) => {
+        const c = vm.createContext({console, Promise, Error, Object, Math, String,
+            cfg: (k) => ({rv_book: true}[k]), note() {}, cancel: false,
+            buildPositions: () => ({positions: [{fen: 'a', turn: 'w'}, {fen: 'b', turn: 'b'}], moves: []}),
+            fillThinkTime() {}, incrementFromTimeControl: () => 0,
+            lookupOpening: async () => ({name: 'Zukertort Opening', plies: 1}),
+            assemble: (g, p, m, book) => ({book}), strengthPass: async () => null});
+        vm.runInContext(fn('async function runReview(game, rig, onProgress) {'), c);
+        const e = {analyse: async () => ({lines: [], depth: 1})};
+        try { return (await c.runReview({tags: {}}, {opts: {variant}, engine: e}, () => {})).book; }
+        catch (err) { return {err: String(err.message || err)}; }
+    };
+    const res = {chess: await run('chess'), unset: await run(undefined)};
+    for (const v of ['crazyhouse', '3check', 'kingofthehill', 'atomic', 'fischerandom']) res[v] = await run(v);
+    ok('REVIEWB-3: a standard game still gets its opening named and its book moves',
+       res.chess?.name === 'Zukertort Opening' && res.unset?.name === 'Zukertort Opening', res);
+    ok('...crazyhouse, three-check, king of the hill, atomic and Chess960 get no chess opening and no Book moves',
+       ['crazyhouse', '3check', 'kingofthehill', 'atomic', 'fischerandom'].every(v => res[v]?.name === null && res[v]?.plies === 0), res);
+    const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    ok('...and the "Name the opening" row stands down for every game type but Chess',
+       /<div class="set-row set-toggle" data-for="own local" data-chess-only>\s*<div class="set-lbl">\s*<span data-i18n="rv\.opening_book"/.test(html));
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
