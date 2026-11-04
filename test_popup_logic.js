@@ -11925,6 +11925,30 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and Install over a marker that parses to null drops it and carries on instead of a TypeError',
        !e2 && !r2.kids.has('.mephisto-staging'), e2 && [e2.code, e2.name, e2.message]);
 })().catch(e => { fails++; console.log('FAIL L29 checks threw: ' + (e && e.stack || e)); });
+// ---- L28 (audit 3.1.330 follow-up): a "Latest" release whose tag is no version is ignored by the update check ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const cut = (from, to) => { const a = bg.indexOf(from), b = bg.indexOf(to, a); return (a < 0 || b < 0) ? '' : bg.slice(a, b); };
+    const rel = (tag, extra) => ({tag_name: tag, html_url: 'u', name: tag, body: '', assets: [{name: `mephisto-${tag.replace(/^v/, '')}-update.zip`, browser_download_url: 'zip', size: 1}], ...extra});
+    const run = (latest, list) => {
+        const c = vm.createContext({AbortController, setTimeout, clearTimeout, Date, String, Array, parseInt, UPDATE_REPO: 'o/r', UPDATE_TTL_MS: 1,
+            asked: [], chrome: {runtime: {getManifest: () => ({version: '3.1.330'})}, storage: {local: {get: async () => ({}), set: async () => {}}}}});
+        c.fetch = async (u) => { c.asked.push(u.replace(/^.*\/releases/, '')); return u.endsWith('/latest') ? {ok: true, json: async () => latest} : {ok: true, json: async () => list}; };
+        vm.runInContext(cut('function versionParts(', '// Keep the last few cold starts') + bg.slice(bg.indexOf('\n}\n', bg.indexOf('async function checkBundledAssets(')) + 3, bg.indexOf('// --- Shared lichess budget')), c);
+        return vm.runInContext('updateCheck(true)', c).then(r => ({...r, asked: c.asked}));
+    };
+    const list = [rel('engines-v2'), rel('v3.1.331'), rel('v3.1.332', {prerelease: true}), rel('v3.1.330'), rel('4pc-nets')];
+    const a = await run(rel('engines-v2'), list);
+    ok('L28: an assets release marked Latest is not the version: the newest version release in the list is (v3.1.331, newer)',
+       a.latest === '3.1.331' && a.newer === true && a.asset === 'zip', {latest: a.latest, newer: a.newer});
+    const b = await run(rel('4pc-nets'), list);
+    ok('...a tag that only starts with a digit is not taken for version 4', b.latest === '3.1.331', b.latest);
+    const c = await run(rel('engines-v2'), [rel('engines-v2')]);
+    ok('...no version release at all reads as no answer, never as "vengines-v2"', c.latest === null && c.newer === false, c.latest);
+    const d = await run(rel('v3.1.331'), list);
+    ok('...and a normal Latest costs one request, as before', d.latest === '3.1.331' && d.asked.length === 1, d.asked);
+})().catch(e => { fails++; console.log('FAIL L28 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

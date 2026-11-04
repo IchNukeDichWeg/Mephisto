@@ -953,6 +953,7 @@ async function checkBundledAssets() {
   return bundledAssets;
 }
 
+const VERSION_TAG = /^v?\d+(\.\d+)*$/;   // a release tag that names a version (v3.1.330), not engines-v2
 // `force` skips the cache. Only the Updates settings page passes it, and only on a button press:
 // the panel's own notice must keep using the cache or a busy session burns the 60/hour allowance.
 async function updateCheck(force = false) {
@@ -965,12 +966,26 @@ async function updateCheck(force = false) {
   try {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 5000);
-    const res = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
+    const gh = (path) => fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases${path}`, {
       headers: {'Accept': 'application/vnd.github+json'}, signal: ctl.signal,
     });
+    const res = await gh('/latest');
+    let json = res.ok ? await res.json() : null;
+    // "LATEST" CAN BE AN ASSETS RELEASE (audit 3.1.330 follow-up L28, the extension half of
+    // BOUNDARY-5). Its tag is no version: `engines-v2` read as v0 (never newer, so a real update was
+    // reported as "up to date" and cached for 12 h, and Install said "vengines-v2 is the newest"),
+    // and a tag that starts with a digit parsed as a huge version and was offered as an update with
+    // no archive. Such a tag is ignored and the newest version release is taken from the list
+    // instead, one more request only while Latest is wrong.
+    if (json && !VERSION_TAG.test(json.tag_name || '')) {
+      const list = await gh('?per_page=30');
+      const all = list.ok ? await list.json() : [];
+      json = (Array.isArray(all) ? all : [])
+        .filter(r => r && !r.draft && !r.prerelease && VERSION_TAG.test(r.tag_name || ''))
+        .reduce((best, r) => (!best || isNewer(r.tag_name, best.tag_name)) ? r : best, null);
+    }
     clearTimeout(timer);
-    if (res.ok) {
-      const json = await res.json();
+    if (json) {
       const latest = String(json.tag_name || '').replace(/^v/, '');
       // The update archive is taken BY NAME. "the smaller of the two assets" would quietly start the
       // full download the day a release ships only the full one.
