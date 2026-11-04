@@ -3359,7 +3359,9 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
       const cut = (from, to) => csrc.slice(csrc.indexOf(from), csrc.indexOf(to));
       const c = vm.createContext({self: {MephistoPanel: {isBooted: () => c.panel}}, console: {debug() {}}, document: {contains: () => true}, bgLogAlways() {},
           chrome: {runtime: {sendMessage: () => c.pressed.push('rematch')}}, setTimeout: (f) => c.timers.push(f), clearTimeout() {},
-          puzzleNextDelayMs: () => 0, puzzleNextButton: () => ({click: () => c.pressed.push('next'), getAttribute: () => ''}),
+          // Next is pressed with a trusted click since 3.1.330 PAGEA-4; either way it counts once
+          puzzleNextDelayMs: () => 0, puzzleNextButton: () => ({click: () => c.pressed.push('next'), getAttribute: () => '', getBoundingClientRect: () => ({left: 0, top: 0, width: 1, height: 1})}),
+          simulateClickSquare: () => { c.pressed.push('next'); return Promise.resolve(); },
           grindNewGameButton: () => ({textContent: 'New'}), grindClick: () => c.pressed.push('grind'), grindCancel() {},
           rematchOffer: () => ({getBoundingClientRect: () => ({left: 0, top: 0, width: 1, height: 1}), classList: {contains: () => false}}),
           GRIND_SITES: {lichess: {box: () => ({})}}});
@@ -9366,6 +9368,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        !/CustomEvent\('m7'/.test(b) && !/addEventListener\('m7'/.test(pz) && /document\.addEventListener\(SID \+ 'c', \(e\) => \{\s*try \{ scan\(/.test(pz)
        && /puzzleNet\.forwarded\+\+;\s*puzzleNetDeliver\(src\.tabId, r\.body\);/.test(b));
 })().catch(e => { fails++; console.log('FAIL PAGEA-7 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 PAGEA-4: Puzzle Auto-Next presses Next with a trusted click, never element.click() ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = cs.indexOf('function maybeAdvancePuzzle() {'), j = cs.indexOf('\n}\n', i) + 3;
+    const run = (refuse) => {
+        const rect = {x: 100, y: 200, left: 100, top: 200, width: 80, height: 30};
+        const btn = {untrusted: 0, click() { this.untrusted++; }, getBoundingClientRect: () => rect, getAttribute: () => 'Next'};
+        const trusted = [];
+        const c = vm.createContext({Promise, document: {contains: () => true}, site: 'chesscom',
+            config: {puzzle_auto_next: true, puzzle_mode: true, autoplay: true}, puzzleNextClicked: null, puzzleNextTimer: null,
+            panelRunning: () => true, puzzleNextButton: () => btn, puzzleNextDelayMs: () => 0, bgLogAlways() {},
+            setTimeout: (f) => { f(); return 0; },
+            simulateClickSquare: (r, range, travel) => { trusted.push([r, range, travel]); return refuse ? Promise.reject(new Error('backend click refused')) : Promise.resolve({}); }});
+        vm.runInContext(cs.slice(i, j).replace(/^let /gm, 'var '), c);
+        vm.runInContext('maybeAdvancePuzzle()', c);
+        return {c, btn, trusted, rect};
+    };
+    const a = run(false);
+    await new Promise(r => setImmediate(r));
+    ok('PAGEA-4: the Next button gets one trusted click inside its own box and no element.click()',
+       a.btn.untrusted === 0 && a.trusted.length === 1 && a.trusted[0][0] === a.rect && a.trusted[0][1] <= 0.8, {untrusted: a.btn.untrusted, trusted: a.trusted.length});
+    ok('PAGEA-4: ...and that button is not pressed twice', (vm.runInContext('maybeAdvancePuzzle()', a.c), a.trusted.length === 1 && a.btn.untrusted === 0));
+    const b = run(true);
+    await new Promise(r => setImmediate(r));
+    ok('PAGEA-4: a refused backend click is not answered with element.click(); the button is re-armed for the next push',
+       b.btn.untrusted === 0 && vm.runInContext('puzzleNextClicked', b.c) === null, {untrusted: b.btn.untrusted});
+})().catch(e => { fails++; console.log('FAIL PAGEA-4 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -4038,7 +4038,16 @@ function maybeAdvancePuzzle() {
         if (!panelRunning() || !config || !config.puzzle_auto_next || !config.puzzle_mode || !config.autoplay) return;
         puzzleNextClicked = now;
         bgLogAlways('puzzle: advancing to the next one', {label: now.getAttribute('aria-label') || ''});
-        now.click();
+        // A TRUSTED CLICK, through the same path as the moves (debugger or Python backend, with the
+        // panel click-through). `now.click()` sent the page a click with isTrusted false and no
+        // pointerdown/mousedown/mouseup before it, once per puzzle, beside board moves that are all
+        // trusted (audit 3.1.330 PAGEA-4). No untrusted fallback: if the trusted click cannot be
+        // made, the puzzle stays on its end screen for you to press Next, as Autoplay's moves would
+        // not have been played either. A refused backend is benched for BACKEND_RETRY_MS, so the
+        // button is re-armed and the next push presses it over the debugger.
+        Promise.resolve(simulateClickSquare(now.getBoundingClientRect(), 0.6, 220)).catch(() => {
+            if (puzzleNextClicked === now) puzzleNextClicked = null;
+        });
     }, puzzleNextDelayMs());
 }
 
