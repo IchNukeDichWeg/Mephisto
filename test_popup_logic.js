@@ -10192,6 +10192,52 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     store.rv_variant = '4pc'; vm.runInContext('rvModeSync()', c);
     ok('REVIEWA-2: 4-player keeps Analyse and Stop', shown('rv_run') && shown('rv_stop'));
 }
+// ---- audit 3.1.330 REVIEWA-3 / REGRESS-3: Stop on a native-engine review stops, it does not re-search ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The real NativeEngine over a fake host that behaves like uci-native-host.py: a newer analyse
+    // bumps the request counter and the running one answers `superseded` with the lines it had.
+    const posted = [];
+    let held = null, listener = null;
+    const answer = (f) => Promise.resolve().then(() => listener(f));
+    const port = {
+        onMessage: {addListener: (f) => { listener = f; }}, onDisconnect: {addListener() {}},
+        postMessage: (m) => {
+            posted.push(m);
+            if (m.cmd !== 'analyse') return answer({id: m.id, ok: true});
+            if (m.time === 1) {   // the kill switch: supersede the running search
+                if (held != null) answer({id: held, superseded: true, lines: [{score: 31, pv: ['e2e4'], depth: 9}]});
+                held = null;
+                return answer({id: m.id, lines: []});
+            }
+            if (port.holdNext) { held = m.id; port.holdNext = false; return; }
+            if (port.supersedeNext) { port.supersedeNext = false; return answer({id: m.id, superseded: true, lines: []}); }
+            answer({id: m.id, lines: [{score: 20, pv: ['d2d4'], depth: 30}]});
+        },
+    };
+    const c = vm.createContext({console, Promise, Map, Error, Math, Array, Object, JSON, String, Number,
+        // the 1 s retry pause runs at once; the long backstops never fire in this test
+        setTimeout: (f, ms) => (ms <= 1000 ? setTimeout(f, 1) : 0), clearTimeout() {}, setInterval: () => 0, clearInterval() {},
+        chrome: {runtime: {connect: () => port}}});
+    c.self = c; c.MephistoReviewCore = {MATE_CP: 100000};
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8'), c);
+    const e = new c.MephistoEngines.NativeEngine('sf19-native', {limitKind: 'time', limitValue: 300000, multipv: 1, threads: 1, hash: 16});
+    await e.start();
+    const full = () => posted.filter(m => m.cmd === 'analyse' && m.time !== 1).length;
+    port.holdNext = true;
+    const run = e.analyse('8/8/8/8/8/8/8/K6k w - - 0 1', 'w');
+    await new Promise(r => setTimeout(r, 5));
+    e.stopSearch();
+    const res = await Promise.race([run, new Promise(r => setTimeout(() => r('hung'), 200))]);
+    ok('REVIEWA-3: Stop resolves the running analyse with the lines it had', res !== 'hung' && res.lines?.[0]?.pv?.[0] === 'e2e4', res);
+    ok('REVIEWA-3: ...and the stopped position is not searched again at full budget', full() === 1, full());
+    // a supersede that is not this engine's Stop (a configure cut) is still asked again
+    port.supersedeNext = true;
+    const again = await e.analyse('8/8/8/8/8/8/8/K6k w - - 0 1', 'w');
+    ok('REVIEWA-3: a supersede that was not a Stop still re-asks the position', again.lines?.[0]?.pv?.[0] === 'd2d4' && full() === 3, [again, full()]);
+    const src = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    ok('REGRESS-3: the error no longer blames another tab, which per-port hosts ruled out', !/another tab is using this native engine/.test(src));
+})().catch(e => { fails++; console.log('FAIL REVIEWA-3 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -442,6 +442,7 @@ class NativeEngine {
         this.opts = opts;
         this.seq = 0;
         this.pending = new Map();
+        this.stops = 0;   // stopSearch() calls, so analyse() can tell its own Stop from other supersedes
     }
 
     async start() {
@@ -523,14 +524,21 @@ class NativeEngine {
             time: depthMode ? NATIVE_DEPTH_CAP_MS : this.opts.limitValue,
             depth: depthMode ? this.opts.limitValue : undefined,
         });
-        // Another tab can stop this search on the shared host, and the short answer would go into
-        // the report as if it were a full one. Wait and ask again; a busy engine is an error here.
+        // A SUPERSEDED FRAME IS SHORT. Every options-page port has its own host process now, so
+        // what supersedes a search here is this engine's own stopSearch() (Stop) or a configure cut.
+        // A Stop is answered with the lines the search had: re-asking the position the user stopped
+        // searched it again at the full budget, up to five minutes a worker, before the run ended
+        // (audit 3.1.330 REVIEWA-3, REGRESS-3). Anything else is asked again, as before.
+        const stopsAtStart = this.stops;
+        const stopped = () => this.stops !== stopsAtStart;
         let frame = await ask();
         for (let tries = 0; frame.superseded && tries < 5; tries++) {
+            if (stopped()) break;
             await new Promise(r => setTimeout(r, 1000));
+            if (stopped()) break;
             frame = await ask();
         }
-        if (frame.superseded) throw new Error('another tab is using this native engine');
+        if (frame.superseded && !stopped()) throw new Error('the native engine kept abandoning this position');
         const lines = (frame.lines || []).filter(l => l.pv && l.pv.length).map(l => this.toLine(l, turn));
         return {lines, depth: lines.length ? lines[0].depth : 0, nodes: 0};
     }
@@ -603,8 +611,9 @@ class NativeEngine {
     // Interrupt a running one-shot analyse (Game Review's Stop): same kill switch as
     // startInfinite's stop() and for the same reason -- `{cmd:'stop'}` was always a silent no-op,
     // so Stop used to leave the host searching out its whole budget. The superseded request still
-    // resolves, with whatever lines it had, which is what the review path already expects.
+    // resolves, with whatever lines it had, and `stops` tells analyse() not to re-ask it.
     stopSearch() {
+        this.stops++;
         this.request('analyse', {
             fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', time: 1,
         }, {timeoutMs: 30000}).catch(() => { /* port already gone -- nothing left to stop */ });
