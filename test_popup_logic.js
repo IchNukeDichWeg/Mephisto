@@ -6859,6 +6859,50 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /response\.oppRating > 0\) set_maia2_oppo\(response\.oppRating, false\);/.test(psrc)
        && /box\.addEventListener\('change', \(\) => set_maia2_oppo\(parseInt\(box\.value\) \|\| 1500\)\);/.test(psrc));
 }
+// ---- audit 3.1.329 PLAY-2 / ENGINE-5: Maia-2 answers in the order asked; a premove reply must be legal where it was meant ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The adapter itself, run with its nets stubbed: the opening (Maia-3) net takes 60 ms to load,
+    // the Maia-2 session answers at once.
+    const m2 = fs.readFileSync(ROOT + '/src/offscreen/maia2.js', 'utf8')
+        .replace(/^import .*$/gm, '').replace(/^export /gm, '').replace("import('/src/offscreen/maia3.js')", '__imp()');
+    const files = 'abcdefgh', all = [];
+    for (let a = 0; a < 64; a++) for (let b = 0; b < 64; b++) all.push(files[a % 8] + (a / 8 + 1 | 0) + files[b % 8] + (b / 8 + 1 | 0));
+    const c = vm.createContext({console: {log() {}}, setTimeout, Promise, TextDecoder, Float32Array, Float64Array, BigInt64Array, BigInt,
+        fetchModel: async (dir, file) => new TextEncoder().encode(file.endsWith('.json') ? JSON.stringify({moves: all, elo_dict: {}}) : 'x'),
+        readyEnv: async () => {},
+        ort: {Tensor: function () {}, InferenceSession: {create: async () => ({run: async () => ({logits_maia: {data: new Float32Array(all.length)}, logits_value: {data: [0]}})})}},
+        __imp: () => new Promise(r => setTimeout(() => r({createMaia3Engine: async (listen) => ({
+            uci: (l) => { if (l === 'go') setTimeout(() => listen('bestmove h7h6'), 5); }, terminate() {}})}), 60))});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(m2, c);
+    const heard = [];
+    const eng = await vm.runInContext('createMaia2Engine', c)((l) => heard.push(l), 1500, 1500);
+    eng.uci('position fen r1bqkb1r/1ppp1ppp/p1n2n2/4p3/B3P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 5 5');   // ply 9: Maia-3's
+    eng.uci('go');
+    eng.uci('position fen r1bqk2r/1pppbppp/p1n2n2/4p3/B3P3/5N2/PPPP1PPP/RNBQ1RK1 w kq - 6 6');   // ply 10: Maia-2's
+    eng.uci('go');
+    await new Promise(r => setTimeout(r, 150));
+    const best = heard.filter(l => /^bestmove/.test(l));
+    ok('PLAY-2: an opening go still loading its net is answered before the ply-10 go asked after it',
+       best.length === 2 && best[0] === 'bestmove h7h6' && best[1] !== 'bestmove h7h6', best);
+    const legal10 = (u) => { try { vm.runInContext(`new Chess('chess', 'r1bqk2r/1pppbppp/p1n2n2/4p3/B3P3/5N2/PPPP1PPP/RNBQ1RK1 w kq - 6 6').move(${JSON.stringify(u)})`, c); return true; } catch (e) { return false; } };
+    ok('...and the ply-10 answer is for the position set before ITS go', legal10((best[1] || '').split(' ')[1]), best);
+    // premove_is_safe: a reply illegal after every opponent move is not "bound to the prediction"
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const ss = psrc.indexOf('function premove_is_safe'), se = psrc.indexOf('\n}', ss) + 2;
+    const sc = vm.createContext({}); sc.self = sc;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), sc);
+    vm.runInContext("var config = {variant: 'chess'};" + psrc.slice(ss, se), sc);
+    const safe = (fen, pred, reply) => vm.runInContext(`premove_is_safe(${JSON.stringify(fen)}, ${JSON.stringify(pred)}, ${JSON.stringify(reply)})`, sc);
+    ok('PLAY-2: a reply legal after no opponent move at all (another position\'s answer) is not safe',
+       safe('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1', 'e7e5', 'g1g5') === false);
+    ok('...a bound reply still is (the en-passant capture after a forced double step)',
+       safe('k7/p2p4/8/4P3/8/8/7K/1R5B b - - 0 1', 'd7d5', 'e5d6') === true);
+    ok('...a failed :m2 load drops the client, so the kick/answer count starts over',
+       /if \(msg\.clientId === maia2_client\(\)\) \{ if \(msg\.kind === 'line'\) maia2_on_line\(msg\.line\); else if \(msg\.kind === 'error'\) maia2_dispose\(\); return; \}/.test(psrc));
+})().catch(e => { fails++; console.log('FAIL PLAY-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

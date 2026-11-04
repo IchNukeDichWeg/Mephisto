@@ -81,6 +81,19 @@ export function plyOfFen(fen) {
 }
 
 export async function createMaia2Engine(listen, initialSelf, initialOppo) {
+    // ANSWERS IN THE ORDER ASKED. An opening position waits for the Maia-3 net to load while a ply-10+
+    // one runs this session at once, so two gos straddling ply 10 answered in reverse -- and both of
+    // the panel's clients pair answers with questions by order alone (the main one through its owed
+    // stops, the premove client by count), so each took the other's move (audit 3.1.329 ENGINE-5 /
+    // PLAY-2). Every go therefore waits for the previous one's bestmove, whichever net emits it: the
+    // opening net reports through this same callback, which is why it is wrapped here.
+    let answered = null;
+    const emit = listen;
+    listen = (line) => {
+        emit(line);
+        if (/^bestmove\b/.test(line || '') && answered) { const done = answered; answered = null; done(); }
+    };
+    let served = Promise.resolve();
     const note = (msg) => { try { listen(`info string ${msg}`); } catch (e) { /* no listener yet */ } };
     const tables = await loadTables(note);
     const Chess = self.Chess;
@@ -100,7 +113,8 @@ export async function createMaia2Engine(listen, initialSelf, initialOppo) {
     }
 
     let opening = null;   // Maia-3, built the first time an opening position is asked about
-    async function go() {
+    // the position is the one set when the go ARRIVED, not when its turn comes (see `served`)
+    async function go(fen, moves) {
         const board = position(fen, moves);
         if (plyOfFen(board.fen()) < MAIA2_FIRST_PLY) {
             // The promise is what is kept: two gos during the first load built two sessions, and only
@@ -197,7 +211,11 @@ export async function createMaia2Engine(listen, initialSelf, initialOppo) {
             // closes and the watchdog stands down on the locally-answered `isready`. `${e}` rather
             // than `e.message`, matching its siblings: a non-Error throw read "failed: undefined".
             if (s.startsWith('go')) {
-                go().catch((e) => { listen(`info string maia2 error ${e}`); listen('bestmove (none)'); });
+                const [f, m] = [fen, moves];
+                served = served.then(() => new Promise((resolve) => {
+                    answered = resolve;
+                    go(f, m).catch((e) => { listen(`info string maia2 error ${e}`); listen('bestmove (none)'); });
+                }));
                 return;
             }
             if (s === 'stop' || s === 'quit') return;   // one forward pass: there is nothing to stop

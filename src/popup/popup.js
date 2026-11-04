@@ -1653,7 +1653,10 @@ const offscreen_engine = {
 // engine output -> existing handlers (filtered to THIS panel's engine)
 chrome.runtime.onMessage.addListener((msg) => {
     if (!PANEL_BOOTED || !msg || !msg.fromOffscreen) return;
-    if (msg.clientId === maia2_client()) { if (msg.kind === 'line') maia2_on_line(msg.line); return; }
+    // A failed :m2 load never answers the gos queued behind it, and the host's respawn drops them, so
+    // the kick/answer count would stay shifted for the panel's life and every later answer be taken
+    // for an older kick's. Start over with a fresh client instead (audit 3.1.329 PLAY-2).
+    if (msg.clientId === maia2_client()) { if (msg.kind === 'line') maia2_on_line(msg.line); else if (msg.kind === 'error') maia2_dispose(); return; }
     if (msg.clientId === bench_client()) { bench_sink?.(msg); return; }   // engine-recommendation bench
     if (msg.clientId !== ENGINE_CLIENT) return;
     // A STOP CHARGED DURING A LOAD IS STILL GOING TO BE PAID. The host flushes the queued
@@ -1747,7 +1750,8 @@ function maia2_kick(line) {
     // arrives, so a long window never plays a stale move. It must be long: the first kick pays
     // the :m2 client's own net load (seconds for the Maia-3 transformer), and 5s dropped the
     // first premove opportunity of the game on exactly the engine this feature is for.
-    // Numbered, because the answers come back in order but carry no position: two kicks in flight
+    // Numbered, because the answers come back in order (Maia-2's two nets are serialised in maia2.js
+    // to keep that true, audit 3.1.329 PLAY-2) but carry no position: two kicks in flight
     // (the first paying the net load) answered the NEWEST question with the OLDEST answer, and the
     // fen check compared the current position with itself (audit 3.1.328 ENGINE-4).
     maia2.sent = (maia2.sent || 0) + 1;
@@ -3509,6 +3513,16 @@ function premove_reply_playable(fen, uci) {
 // cancels illegal premoves). Either way it cannot fire in a wrong position.
 function premove_is_safe(fen, pred, reply) {
     const [from, to, promotion] = [reply.slice(0, 2), reply.slice(2, 4), reply[4]];
+    // ...and it must be a move at all in the position it was meant for. A reply illegal after EVERY
+    // opponent move -- one computed for another position -- passed the loop below as "bound to the
+    // prediction" and was sent as a blind premove (audit 3.1.329 PLAY-2).
+    try {
+        const meant = new Chess(config.variant, fen);
+        meant.move({from: pred.slice(0, 2), to: pred.slice(2, 4), promotion: pred[4]});
+        meant.move({from, to, promotion});
+    } catch (e) {
+        return false;
+    }
     let others;
     try {
         others = new Chess(config.variant, fen).moves({verbose: true});
