@@ -2125,7 +2125,11 @@ async function renderExtras(pos) {
         if (!tb || !tb.category) { tbEl.textContent = ''; return; }
         const best = tb.moves?.[0]?.uci;
         const san = best ? sanOf(pos.fen, best) : '';
-        tbEl.textContent = `Tablebase: ${tbWords(tb)}${san && tb.category !== 'draw' ? ` - ${san}` : ''}`;
+        // A chosen local folder Chrome no longer lets the worker read answered online in silence here,
+        // while the panel says so (audit 3.1.330 CONTEXT-3, follow-up L33): the same note, same string.
+        const allow = tb.localNeedsAllow
+            ? ' ' + MephistoI18n.t('panel.tb.local_allow', '(online: the local folder needs Re-allow in Settings)') : '';
+        tbEl.textContent = `Tablebase: ${tbWords(tb)}${san && tb.category !== 'draw' ? ` - ${san}` : ''}${allow}`;
     }
 }
 

@@ -11423,6 +11423,29 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('...back on chess render() draws as before', c.extras === 1, c.extras);
     })().catch(e => { fails++; console.log('FAIL L5 check threw: ' + (e && e.stack || e)); });
 }
+// ---- audit 3.1.330 follow-up L33: Analysis's tablebase line says when the local folder needs Re-allow, as the panel does ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const a = an.indexOf('async function renderExtras('), b = an.indexOf('\n}\n', a) + 3;
+    const tbEl = {textContent: ''}, keys = [];
+    const P1 = {fen: 'K7/8/8/8/8/8/8/k6q b - - 0 1'}, P2 = {fen: 'K7/8/8/8/8/8/8/k6r b - - 0 1'};
+    const answers = {[P1.fen]: {category: 'win', moves: [{uci: 'h1h8'}], localNeedsAllow: true}, [P2.fen]: {category: 'win', moves: [{uci: 'h1h8'}]}};
+    const c = vm.createContext({tbEl, positions: [P1], cursor: 0, tbCache: new Map(), TB_MAX_MEN: 7, Promise,
+        MephistoI18n: {t: (k, d) => { keys.push(k); return '(ALLOW)'; }},
+        chrome: {runtime: {sendMessage: (m, cb) => cb(answers[m.tablebaseLookup.fen]), lastError: null}}});
+    vm.runInContext(`const $ = (id) => (id === 'an_tb' ? tbEl : null); const anVariant = () => 'chess';
+        const pieceCount = () => 3; const sanOf = () => 'Qh8'; const tbWords = () => 'win';
+        ${an.slice(a, b)}`, c);
+    (async () => {
+        await c.renderExtras(P1);
+        ok('L33: an online answer flagged localNeedsAllow carries the panel\'s Re-allow note (same i18n key)',
+           tbEl.textContent === 'Tablebase: win - Qh8 (ALLOW)' && keys.join() === 'panel.tb.local_allow', [tbEl.textContent, keys]);
+        c.positions[0] = P2;
+        await c.renderExtras(P2);
+        ok('...an answer without the flag reads as before', tbEl.textContent === 'Tablebase: win - Qh8', tbEl.textContent);
+    })().catch(e => { fails++; console.log('FAIL L33 check threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
