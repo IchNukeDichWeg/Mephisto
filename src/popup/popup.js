@@ -10928,6 +10928,17 @@ function watch_config_changes() {
                 if (key === 'live_stats' || key === 'live_classify' || key === 'class_on_board'
                     || key === 'opp_alert') ensure_classifier();
                 if (key === 'tablebase') { tablebase_data = null; update_tb_show_row(); }   // a stale answer must not survive
+                // ...and the position on screen is looked up NOW, as the panel's own switches do. The
+                // page re-pushes the same FEN after push_config, which on_new_pos's dedupe skips, so
+                // the lookups there never ran: no verdict or book arrow until the next move, and with
+                // Autoplay on that move was the engine's (audit 3.1.330 OPT-3).
+                if (key === 'tablebase' && last_eval.fen) request_tablebase(last_eval.fen);
+                if (key === 'explorer' || key === 'book_play') {
+                    explorer_out_of_book = false; explorer_empty_streak = 0;   // the latch is per game
+                    render_explorer();
+                    own_book = null;
+                    if (last_eval.fen) { request_explorer(last_eval.fen); request_own_book(last_eval.fen); }
+                }
                 // both are painted by the board's render hook; re-render once so a toggle shows now
                 if (key === 'material_balance' || key === 'square_heatmap') { try { board.resize(); } catch (e) { /* */ } }
                 // Display-only: nothing is re-searched, but the board and the evaluation line

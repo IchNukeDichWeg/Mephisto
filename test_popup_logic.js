@@ -9568,6 +9568,41 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and in the Settings page\'s NO_ELO, which stays a subset of the panel list', r.cloud.every(e => r.settings.includes(e))
        && r.settings.every(e => r.panel.includes(e)), r.settings);
 }
+// ---- audit 3.1.330 OPT-3: Tablebase, Opening Explorer or Play Book Moves turned on in Settings looks up the position on screen ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const keys = psrc.slice(psrc.indexOf('const LIVE_CONFIG_KEYS'), psrc.indexOf('\n];\n', psrc.indexOf('const LIVE_CONFIG_KEYS')) + 4);
+    const w = psrc.indexOf('function watch_config_changes('), wfn = psrc.slice(w, psrc.indexOf('\n}\n', w) + 3);
+    // the real storage listener, driven with one Settings-page change at a time
+    const c = vm.createContext({console: {log() {}, warn() {}}, asked: []});
+    vm.runInContext(`var config = {tablebase: false, explorer: false, book_play: false}, PANEL_BOOTED = true, config_watch_on = false, listener = null;
+        var last_eval = {fen: 'F'}, tablebase_data = {x: 1}, own_book = {x: 1}, explorer_out_of_book = true, explorer_empty_streak = 3;
+        var resync_after_config_change = false, setup_fen = null, fen_request_inflight = false;
+        const ARROW_COLOR_KEYS = []; const chrome = {storage: {onChanged: {addListener: (f) => { listener = f; }}}};
+        function request_tablebase(f) { asked.push('tablebase ' + f); } function request_explorer(f) { asked.push('explorer ' + f); }
+        function request_own_book(f) { asked.push('own_book ' + f); } function render_explorer() {}
+        function update_tb_show_row() {} function draw_moves() {} function update_best_move() {}
+        function sync_quick_settings() {} function keep_alive() {} function keep_alive_wanted() {} function push_config() {}
+        function request_fen() {} function on_new_pos() {}
+        ${keys} ${wfn} watch_config_changes();`, c);
+    const flip = (key, value) => {
+        c.asked.length = 0;
+        try { vm.runInContext('listener', c)({[key]: {newValue: JSON.stringify(value), oldValue: JSON.stringify(!value)}}, 'local'); }
+        catch (e) { return ['threw ' + e.message]; }
+        return c.asked.slice();
+    };
+    const tb = flip('tablebase', true);
+    ok('OPT-3: Tablebase switched on from Settings asks the tablebase about the position on screen', tb.join() === 'tablebase F', tb);
+    const ex = flip('explorer', true);
+    ok('...Opening Explorer asks the explorer and the own book, and clears the out-of-book latch',
+       ex.join() === 'explorer F,own_book F' && vm.runInContext('explorer_out_of_book === false && own_book === null', c), ex);
+    const bk = flip('book_play', true);
+    ok('...Play Book Moves the same', bk.join() === 'explorer F,own_book F', bk);
+    vm.runInContext(`last_eval.fen = ''`, c);
+    const none = flip('tablebase', false).concat(flip('explorer', false));
+    ok('...with no position on screen yet nothing is asked', none.length === 0, none);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
