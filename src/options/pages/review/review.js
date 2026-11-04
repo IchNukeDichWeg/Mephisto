@@ -2621,8 +2621,12 @@ async function onRun() {
                 throw e;
             }
             built.pgnText = gameText(list[g]);
-            // ...and, if asked, their coach's words over our numbers (see applyEeProse).
-            if (cfg('rv_explain') && !cancel) {
+            // ...and, if asked, their coach's words over our numbers (see applyEeProse). Standard
+            // chess only: eeCommands sets UCI_Variant chess and Chess960 off, so a variant or 960
+            // game handed it a board and moves (drops, king-takes-rook castles) that are not the
+            // game's, and came back as commentary about another game or a 180 s timeout per game
+            // (audit 3.1.330 REVIEWB-6).
+            if (cfg('rv_explain') && !cancel && (rig?.opts?.variant || 'chess') === 'chess') {
                 const assets = await eeCached();
                 if (!assets) built.prose = {error: 'the explanation engine is not downloaded - get it in the Chess.com classifier row'};
                 else {

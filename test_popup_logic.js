@@ -8957,6 +8957,39 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...the mating position counts as a bounded win% gap, while the cp gap (used for the sharp-move count) is kept',
        res && res.mateGap > 0 && res.mateGap <= 100 && res.cpGap === 99690, res);
 }
+// ---- audit 3.1.330 REVIEWB-6: "Explain the moves" asks chess.com's coach about standard chess games only ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head), b = rj.indexOf('\n}\n', a) + 3; return rj.slice(a, b); };
+    const el = () => ({disabled: false, value: '', classList: {add() {}, remove() {}, toggle() {}}, scrollIntoView() {}});
+    // the REAL onRun, one game, Explain on and the explanation engine downloaded
+    const run = async (variant) => {
+        const els = {}, asked = [];
+        const c = vm.createContext({console, Promise, setTimeout, Error, String, Object, Math,
+            $: (id) => (els[id] = els[id] || el()), cfg: (k) => ({rv_batch: false, rv_explain: true, rv_variant: 'chess'}[k]),
+            note() {}, progress() {}, renderReport() {}, renderBatch() {}, disposeRig() {}, gameText: () => '', run4pcReview() {},
+            games: [{tags: {}}], selectedGame: () => ({tags: {}}),
+            startRig: async () => ({opts: {variant}}),
+            runReview: async () => ({positions: [], moves: [], opts: {variant}}),
+            eeCached: async () => ({}), eeCommands: () => [], eeElo: () => 1500,
+            eeRun: async () => { asked.push(variant); return {}; }, applyEeProse: (b) => { b.prose = {ok: true}; }});
+        vm.runInContext('var running = false, cancel = false, report = null, batchReports = null, batchInputText = "", is4pcGame = false;\n'
+            + fn('async function onRun() {'), c);
+        await c.onRun();
+        const report = vm.runInContext('report', c);
+        return {asked: asked.length, prose: report ? report.prose || null : 'no report'};
+    };
+    const res = {};
+    for (const v of ['chess', 'fischerandom', 'crazyhouse', 'atomic']) res[v] = await run(v);
+    ok('REVIEWB-6: a standard game still gets chess.com\'s commentary', res.chess.asked === 1 && res.chess.prose?.ok === true, res);
+    ok('...a Chess960, crazyhouse or atomic game is never handed to the standard-chess coach',
+       ['fischerandom', 'crazyhouse', 'atomic'].every(v => res[v].asked === 0 && res[v].prose === null), res);
+    const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    const row = /<div class="set-row"([^>]*)>\s*<div class="set-lbl">\s*<span[^>]*\s+data-tooltip="Adds chess\.com's coach commentary/.exec(html);
+    ok('...and its settings row stands down for other game types while staying in every review mode for chess',
+       !!row && /data-chess-only/.test(row[1]) && /data-for="own local online"/.test(row[1]), row && row[1]);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
