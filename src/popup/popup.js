@@ -4455,54 +4455,6 @@ function explorer_enabled() {
         && !config.puzzle_mode;                            // puzzles are not book positions
 }
 
-// Fire-and-forget. Never awaited by the move path (see the note above).
-function request_explorer(fen) {
-    if (!explorer_enabled() || explorer_out_of_book) return;
-    // Same rule as the tablebase probe: silent in a hidden tab, unless Background Play says the game
-    // is still going. Otherwise a backgrounded game silently loses its book moves.
-    if (document.hidden && !config.background_play) return;
-    explorer_wanted = fen;
-    if (explorer_data?.fen === fen) return; // already have this position
-    chrome.runtime.sendMessage({explorerLookup: {fen, db: config.explorer_db || 'masters'}}, (res) => {
-        // ONLY THE ANSWER FOR THE POSITION ASKED ABOUT LAST. A slow answer for A landing after B's
-        // was stored as explorer_data and drawn under B's board until the next move, and a late
-        // empty one counted toward the out-of-book latch (audit 3.1.328 ANALYSIS-9).
-        if (fen !== explorer_wanted) return;
-        // A failed lookup must SAY so. Drawing nothing is indistinguishable from "the feature is
-        // broken" -- which is exactly how a blocked endpoint presented.
-        if (chrome.runtime.lastError || !res || res.error) {
-            explorer_error = res?.error || chrome.runtime.lastError?.message || 'no response';
-            explorer_data = null;
-            console.warn('Mephisto: explorer lookup failed -', explorer_error);
-            render_explorer();
-            return;
-        }
-        explorer_error = null;
-        if (!res.moves?.length) {
-            // Don't latch on a SINGLE empty answer. "Out of book" at move 1 is impossible, so one
-            // empty response means something is wrong with the lookup, not that the game left book
-            // -- and latching there would kill the feature for the rest of the game with no retry.
-            // Three in a row is a real exit from book; anything less retries on the next move.
-            explorer_empty_streak++;
-            console.warn(`Mephisto: explorer returned no moves for ${fen} (${explorer_empty_streak}/3)`);
-            if (explorer_empty_streak >= 3) explorer_out_of_book = true;
-            explorer_data = null;
-            render_explorer();
-            return;
-        }
-        explorer_empty_streak = 0;
-        // CASTLING AS THE ENGINE WRITES IT. The explorer can send castling as king-takes-rook (e1h1),
-        // while the engine's lines and every arrow use the king's two-square step (e1g1): the book's
-        // engine veto never found castling in the line scores, so O-O never entered the pool, and
-        // its arrow pointed at the rook (audit 3.1.330 PLAYA-5). Keyed on the san, so a rook moving
-        // into the corner keeps its uci; a no-op if the explorer already sends e1g1.
-        const castle = {e1h1: 'e1g1', e1a1: 'e1c1', e8h8: 'e8g8', e8a8: 'e8c8'};
-        const moves = res.moves.map(m => (/^O-O/.test(m?.san || '') && castle[m.uci]) ? {...m, uci: castle[m.uci]} : m);
-        explorer_data = {fen, moves, opening: res.opening || null};
-        render_explorer();
-    });
-}
-
 // ---- the user's OWN book (a Polyglot .bin imported on the settings page) ----------------------
 // It lives in the EXTENSION's IndexedDB and the service worker answers per position with one
 // binary search -- the puzzle database's architecture, because the panel's own indexedDB is the
@@ -4532,8 +4484,13 @@ function request_explorer(fen) {
     // Same rule as the tablebase probe: silent in a hidden tab, unless Background Play says the game
     // is still going. Otherwise a backgrounded game silently loses its book moves.
     if (document.hidden && !config.background_play) return;
+    explorer_wanted = fen;
     if (explorer_data?.fen === fen) return; // already have this position
     chrome.runtime.sendMessage({explorerLookup: {fen, db: config.explorer_db || 'masters'}}, (res) => {
+        // ONLY THE ANSWER FOR THE POSITION ASKED ABOUT LAST. A slow answer for A landing after B's
+        // was stored as explorer_data and drawn under B's board until the next move, and a late
+        // empty one counted toward the out-of-book latch (audit 3.1.328 ANALYSIS-9).
+        if (fen !== explorer_wanted) return;
         // A failed lookup must SAY so. Drawing nothing is indistinguishable from "the feature is
         // broken" -- which is exactly how a blocked endpoint presented.
         if (chrome.runtime.lastError || !res || res.error) {
