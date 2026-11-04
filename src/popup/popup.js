@@ -10822,6 +10822,11 @@ function watch_config_changes() {
                     }
                 }
                 if (key === 'language') load_language(value).then(apply_language);
+                // FOUR-PLAYER: the same keys the panel's own handlers clear fourpc_last for. The mode
+                // travels beside the FEN4, not in it, so the re-scraped board below is the same FEN4 and
+                // on_new_pos_4pc skipped it: the board on screen kept its old-rules analysis, and a Help
+                // Mode turned on showed no arrow, until somebody moved (audit 3.1.329 OPT-1).
+                if (key === 'fourpc_mode' || key === 'help_mode' || key === 'autoplay') fourpc_last = '';
                 // these change the go mode / search budget -- restart under the new setting
                 // human_error is here for the width: it changes how many lines the engine is asked for
                 if (['help_mode', 'autoplay', 'clock_mode', 'mirror_mode', 'manual_mode', 'human_error',
