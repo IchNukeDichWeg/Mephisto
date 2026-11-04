@@ -8471,15 +8471,14 @@ function hz_match_with_debt(shares, debt) {
     }
     const good = s[0] + s[1];
     if (good <= 0) return shares;
-    // A LARGE DEBT IS PAID OVER SEVERAL MOVES, NOT IN ONE BURST. A book or tablebase move owes its
-    // rolled error (audit 3.1.329 PLAY-1), so after 8 book moves every class sat at its 4x cap and the
-    // extras (0.84 at 1500) ate the whole good share (0.79): the first moves out of book were near-
-    // certain errors (audit 3.1.330 PLAYB-1). The debt may at most double the rating's own error rate
-    // on one move, and never take more than half the good moves. Debt sim (40-move games, every class
-    // on offer): 1500 after 8 book moves 100/73/54% errors on moves 9-11 -> 42/40/42%, the plateau of
-    // a game with no book; with no book the whole-game rates move 13.8/9.4/7.3 -> 13.5/9.3/7.2%.
-    const room = Math.min(shares[2] + shares[3] + shares[4], good / 2);
-    if (add > room) { for (let c = 2; c < 5; c++) s[c] = shares[c] + (s[c] - shares[c]) * room / add; add = room; }
+    // NO CAP ON ONE MOVE'S TOTAL EXTRA, ON PURPOSE. A book or tablebase move owes its rolled error
+    // (audit 3.1.329 PLAY-1), so after 8 book moves every class sits at its 4x cap and the first moves
+    // out of book are near-certain errors (audit 3.1.330 PLAYB-1; debt sim, every class on offer:
+    // 100/73/54% errors on moves 9-11 at 1500). v3.1.331 capped the extra at double the rating's error
+    // rate; in real play errors are scarce, the debt sits high and that cap bound on every owed move.
+    // sim-human 1500, 72 games, inaccuracies / mistakes / blunders: capped 7.30 / 2.36 / 0.56%,
+    // uncapped 10.38 / 4.47 / 1.09%, extra at most half the good moves 7.96 / 3.24 / 0.99%; players
+    // 10.0 / 6.4 / 4.6. Owner call 2026-11-04: calibration beats the post-book burst, so no cap.
     const k = Math.max(0, good - add) / good;
     s[0] *= k; s[1] *= k;
     return s;

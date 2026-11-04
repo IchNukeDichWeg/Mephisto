@@ -4186,7 +4186,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const d1 = v(`hz_match_settle(null, ${sh}, 2)`), d2 = v(`hz_match_settle(hz_match_settle(null, ${sh}, 0), ${sh}, 0)`);
     ok('debt: a played inaccuracy pays its class, unplayed errors accumulate their shares',
        near(d1[2], -0.8) && near(d1[3], 0.2) && near(d2[4], 0.4) && d1[0] === 0, {d1, d2});
-    // (a debt small enough to stay inside the total cap; audit 3.1.330 PLAYB-1 caps the sum of the extras)
+    // (one class over its 4x cap, one under it)
     const w = v(`hz_match_with_debt([0.6, 0.2, 0.1, 0.06, 0.04], [0, 0, 0, 0.06, 10])`);
     ok('...owed errors raise their class (half the debt, at most 4x its share) and come out of the good moves',
        near(w[3], 0.06 + 0.06) === false && near(w[3], 0.06 + 0.03) && near(w[4], 0.04 + 0.16) && near(w[2], 0.1)
@@ -9922,7 +9922,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            got && typeof got === 'object' && got.wK && got.bK && !('wQ' in got), got);
     })();
 }
-// ---- audit 3.1.330 PLAYB-1: a book line's owed errors are paid over several moves, not as near-certain errors right after it ----
+// ---- audit 3.1.330 PLAYB-1, cap dropped after v3.1.331: owed errors are paid at the full per-class rate, with no cap on one move's total
+// (the cap cost the 1500 calibration 10.38/4.47/1.09 -> 7.30/2.36/0.56%; owner call: calibration first) ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
@@ -9935,17 +9936,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const after = v(`hz_match_with_debt(hz_match_shares(1500), ${JSON.stringify(owed)})`);
     const err = (x) => x[2] + x[3] + x[4], good = (x) => x[0] + x[1];
     ok('PLAYB-1: the book moves still leave every error class owed (PLAY-1 kept)', owed[2] > 0.7 && owed[3] > 0.4 && owed[4] > 0.3, owed);
-    ok('PLAYB-1: the first move out of an 8-move book keeps good moves (was 0%), and errors at most double the rating\'s own rate',
-       good(after) > 0.5 && err(after) <= 2 * err(base) + 1e-9 && err(after) > 1.9 * err(base), {base, after});
-    ok('...the owed classes still get the extra in proportion, the shares sum to 1',
-       after[2] > base[2] && after[3] > base[3] && after[4] > base[4]
-       && Math.abs(after.reduce((a, b) => a + b, 0) - 1) < 1e-9 && Math.abs(after[0] / after[1] - base[0] / base[1]) < 1e-9, after);
-    // a small debt (one missed mistake) is paid exactly as before: the cap does not bind
+    // the v3.1.331 cap held errors to double the rating's rate here (good > 0.5); without it each class
+    // gets its full 4x extra and the good moves give it all up
+    ok('no cap: the first move out of an 8-move book pays each class its full extra (min of 4x its share and half its debt)',
+       [2, 3, 4].every(i => Math.abs(after[i] - (base[i] + Math.min(4 * base[i], owed[i] / 2))) < 1e-9)
+       && err(after) > 2 * err(base) && good(after) < 0.5, {base, after});
     const small = v(`hz_match_with_debt(hz_match_shares(1500), [0, 0, 0, 0.2, 0])`);
-    ok('...a small debt is untouched by the cap (half of it added to its class)', Math.abs(small[3] - (base[3] + 0.1)) < 1e-9, small);
-    // a time scramble whose error shares already exceed the good ones: good keeps at least half its mass
+    ok('...a small debt is paid as before (half of it added to its class)', Math.abs(small[3] - (base[3] + 0.1)) < 1e-9, small);
+    // a time scramble whose error shares already exceed the good ones: the debt may take all the good moves
     const scr = v(`hz_match_with_debt([0.2, 0.1, 0.3, 0.2, 0.2], [0, 0, 5, 5, 5])`);
-    ok('...where the errors already outweigh the good moves, the debt never takes more than half of them', Math.abs(good(scr) - 0.15) < 1e-9, scr);
+    ok('...where the errors already outweigh the good moves, the debt may take all of them', good(scr) < 1e-9, scr);
 }
 // ---- audit 3.1.330 PLAYB-2: a turn searched twice advances Humanize's per-move state once, and Session Stats counts it once ----
 {
