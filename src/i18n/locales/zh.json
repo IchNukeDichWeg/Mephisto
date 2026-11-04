@@ -435,7 +435,7 @@
   "set.storage": "存储: 已用 {used}{idb} - 此浏览器配置文件可用 {quota}。",
   "panel.tetrarch_setup": "尚未安装 Tetrarch - 请参阅 README 的「Four-player chess」一节了解 macOS、Linux 和 Windows 的安装方法",
   "panel.incomplete_install": "缺少引擎 - 你下载的是仅更新包。请获取完整 zip。",
-  "panel.native_host_old": "本地主机已过时 - 请重新运行本地主机安装程序（Windows 上请重新复制主机文件），然后重新加载页面。",
+  "panel.native_host_old": "本地主机已过时 - {hint}，然后重新加载页面。",
   "panel.native_host_old_short": "主机已过时：{hint}",
   "panel.native_host_down": "本地主机无响应 - {hint}",
   "native.setup": "请运行一次本地主机安装程序（见 README）",

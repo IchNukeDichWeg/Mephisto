@@ -435,7 +435,7 @@
   "set.storage": "Pamięć: {used} zajęte{idb} - z {quota} dostępnych dla tego profilu przeglądarki.",
   "panel.tetrarch_setup": "Tetrarch nie jest jeszcze zainstalowany - zobacz sekcję „Four-player chess” w README, jak skonfigurować go na macOS, Linuksie i Windows",
   "panel.incomplete_install": "Brak silników - masz pobranie tylko z aktualizacją. Pobierz pełny zip.",
-  "panel.native_host_old": "Natywny host jest nieaktualny - uruchom ponownie instalator natywnych hostów (w Windows skopiuj ponownie pliki hosta), a potem odśwież stronę.",
+  "panel.native_host_old": "Natywny host jest nieaktualny - {hint}, a potem odśwież stronę.",
   "panel.native_host_old_short": "host nieaktualny: {hint}",
   "panel.native_host_down": "Natywny host nie odpowiada - {hint}",
   "native.setup": "uruchom raz instalator natywnego hosta (zob. README)",

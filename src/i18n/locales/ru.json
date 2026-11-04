@@ -435,7 +435,7 @@
   "set.storage": "Хранилище: занято {used}{idb} - из {quota}, доступных этому профилю браузера.",
   "panel.tetrarch_setup": "Tetrarch ещё не установлен - см. раздел «Four-player chess» в README о настройке на macOS, Linux и Windows",
   "panel.incomplete_install": "Движки отсутствуют - у вас загрузка только с обновлением. Скачайте полный zip.",
-  "panel.native_host_old": "Нативный хост устарел - запустите установщик нативных хостов ещё раз (в Windows скопируйте файлы хоста заново), затем перезагрузите страницу.",
+  "panel.native_host_old": "Нативный хост устарел - {hint}, затем перезагрузите страницу.",
   "panel.native_host_old_short": "хост устарел: {hint}",
   "panel.native_host_down": "Нативный хост не отвечает - {hint}",
   "native.setup": "один раз запустите установщик нативного хоста (см. README)",

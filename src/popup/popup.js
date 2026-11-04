@@ -7007,7 +7007,9 @@ async function refresh_engine_health() {
     const ok = !!frame, old = ok && native_host_outdated(frame);   // BOUNDARY-2
     if (old) bgTrace('native host out of date', {engine: want, protocol: frame.protocol ?? 'none', want: NATIVE_HOST_PROTOCOL});
     el.className = old ? 'old' : ok ? 'ok' : 'down';
-    el.title = old ? i18n('panel.native_host_old', 'Native host out of date - re-run the native-host installer (on Windows, copy the host files again), then reload the page.')
+    // the update step per OS: "copy the host files again" was wrong for Tetrarch on Windows, whose
+    // installer is re-run (audit 3.1.330 follow-up L55)
+    el.title = old ? i18n('panel.native_host_old', 'Native host out of date - {hint}, then reload the page.', {hint: native_update_hint()})
         : ok ? 'Native host is responding' : i18n('panel.native_host_down', 'Native host not responding - {hint}', {hint: native_setup_hint()});
 }
 

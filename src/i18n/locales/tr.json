@@ -435,7 +435,7 @@
   "set.storage": "Depolama: {used} kullanımda{idb} - bu tarayıcı profiline açık {quota} içinden.",
   "panel.tetrarch_setup": "Tetrarch henüz kurulu değil - macOS, Linux ve Windows kurulumu için README'deki «Four-player chess» bölümüne bakın",
   "panel.incomplete_install": "Motorlar eksik - yalnızca güncelleme indirmesine sahipsiniz. Tam zip'i indirin.",
-  "panel.native_host_old": "Yerel sunucu güncel değil - yerel sunucu yükleyicisini yeniden çalıştır (Windows'ta sunucu dosyalarını yeniden kopyala), sonra sayfayı yeniden yükle.",
+  "panel.native_host_old": "Yerel sunucu güncel değil - {hint}, sonra sayfayı yeniden yükle.",
   "panel.native_host_old_short": "sunucu güncel değil: {hint}",
   "panel.native_host_down": "Yerel host yanıt vermiyor - {hint}",
   "native.setup": "yerel host yükleyicisini bir kez çalıştır (bkz. README)",

@@ -11065,7 +11065,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const el = {style: {}, className: '', title: ''}, traced = [];
         const c = vm.createContext({Promise, Number, Boolean, setTimeout, console,
             PANEL_ROOT: {getElementById: () => el}, NATIVE_ENGINES: ['sf19-native'], config: {engine: 'sf19-native'},
-            native_port_name: () => 'sf19-native', i18n: (k, d) => d, bgTrace: (...x) => traced.push(x),
+            native_port_name: () => 'sf19-native', i18n: (k, d, v) => v ? d.replace(/\{(\w+)\}/g, (m, x) => (x in v ? v[x] : m)) : d, bgTrace: (...x) => traced.push(x),
             chrome: {runtime: {connect: () => { const l = {}; return {
                 onMessage: {addListener: (f) => { l.msg = f; }}, onDisconnect: {addListener: (f) => { l.dis = f; }},
                 postMessage: () => setTimeout(() => reply ? l.msg(reply) : l.dis()), disconnect() {}}; }}}});
@@ -12521,6 +12521,35 @@ print(json.dumps(out))`;
     const bad = Object.entries(locs).filter(([k, l]) => !/Four-player chess/.test(l['rv.note_4pc'] || '') || /install[\w-]*\.(sh|ps1)/.test(l['rv.note_4pc']) || (k !== 'en' && l['rv.note_4pc'] === locs.en['rv.note_4pc'])).map(([k]) => k);
     ok('L52: ...in all 14 locales, each naming the README section and no script', bad.length === 0, bad);
 }
+// ---- audit 3.1.330 follow-up L55: the amber dot's "out of date" tooltip gives the per-OS update step (right for Tetrarch too) ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'), isrc = fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8');
+    const dir = ROOT + '/src/i18n/locales', locs = Object.fromEntries(fs.readdirSync(dir).map(f => [f.slice(0, -5), JSON.parse(fs.readFileSync(dir + '/' + f, 'utf8'))]));
+    // the real probe + dot (as BOUNDARY-2 runs them) with i18n.js loaded as Windows, a host reporting no protocol
+    const a = psrc.indexOf('function native_host_available('), b = psrc.indexOf('\n}\n', psrc.indexOf('function native_host_probe(')) + 3;
+    const r0 = psrc.indexOf('async function refresh_engine_health('), r1 = psrc.indexOf('\n}\n', r0) + 3;
+    const el = {style: {}, className: '', title: ''};
+    const c = vm.createContext({Promise, Number, Boolean, setTimeout, console, TypeError, Error, Object, String, RegExp, navigator: {platform: 'Win32'},
+        PANEL_ROOT: {getElementById: () => el}, NATIVE_ENGINES: ['tetrarch-native'], config: {engine: 'tetrarch-native'},
+        native_port_name: () => 'tetrarch-native', bgTrace: () => {},
+        chrome: {runtime: {connect: () => { const l = {}; return {
+            onMessage: {addListener: (f) => { l.msg = f; }}, onDisconnect: {addListener: (f) => { l.dis = f; }},
+            postMessage: () => setTimeout(() => l.msg({id: -1, ok: true})), disconnect() {}}; }}}});
+    c.self = c;
+    try {
+        vm.runInContext(isrc, c); c.MephistoI18n.setFallback(locs.en);
+        c.i18n = (k, d, v) => c.MephistoI18n.t(k, d, v);
+        vm.runInContext(psrc.slice(a, b) + psrc.slice(r0, r1), c);
+        await vm.runInContext('refresh_engine_health()', c);
+    } catch (e) { el.title = 'threw ' + e.message; }
+    ok('L55: on Windows the out-of-date tooltip gives the README\'s Windows update step, not "copy the host files" (Tetrarch re-runs its installer)',
+       el.className === 'old' && el.title === locs.en['panel.native_host_old'].replace('{hint}', locs.en['native.update_win']) && !/copy the host files/.test(el.title), el);
+    const bad = Object.entries(locs).filter(([, l]) => !/\{hint\}/.test(l['panel.native_host_old'] || '')).map(([k]) => k);
+    ok('L55: ...every locale\'s tooltip takes the step as {hint}', bad.length === 0, bad);
+    ok('L55: the README\'s after-updating note no longer says to copy the host files on Windows',
+       /After \*\*updating\*\* Mephisto, re-run the install command as well \(on Windows, redo its Windows steps\)/.test(fs.readFileSync(ROOT + '/README.md', 'utf8')));
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
