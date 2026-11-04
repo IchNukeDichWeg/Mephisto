@@ -6778,6 +6778,50 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     await advance(31000);
     ok('...and it still closes 30 s after the last read ends', closedAt !== null && closedAt - last >= 29000 && closedAt - last <= 30500, [closedAt, last]);
 })().catch(e => { fails++; console.log('FAIL SYS-1 offscreen checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.329 ENGINE-2: a stop charged during a load is not written off at readyok ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function on_engine_response(message) {');
+    const head = psrc.slice(i, psrc.indexOf('last_info_at = Date.now();   // the panel is HEARING', i));
+    const a = psrc.indexOf('chrome.runtime.onMessage.addListener((msg) => {\n    if (!PANEL_BOOTED || !msg || !msg.fromOffscreen) return;');
+    const lsn = psrc.slice(a, psrc.indexOf('\n});\n', a) + 4);
+    const run = (frames, opts) => {
+        let now = 0;
+        const c = vm.createContext({console: {log() {}, warn() {}}, Date: {now: () => now}, setNow: (t) => { now = t; }});
+        vm.runInContext(`var pending_stops = 0, stop_charged_at = 0, search_active = false, last_info_at = 0, one_pass_owed = 0, passed = [];
+            var engine_loading_since = 0, listener = null; const ENGINE_LOAD_GRACE_MS = 60000;
+            const STOP_FLUSH_MS = 1500, PANEL_BOOTED = true, ENGINE_CLIENT = '7';
+            function maia2_client() { return '7:m2'; } function bench_client() { return '7:bn'; }
+            function is_remote() { return false; } function is_one_pass() { return ${!!opts.onePass}; } function note_unsupported_variant() {}
+            function download_progress_text() { return null; } function update_best_move() {} function on_engine_error() {}
+            const chrome = {runtime: {onMessage: {addListener: (f) => { listener = f; }}}};
+            ${head} passed.push(message); }
+            ${lsn}
+            function abandon() { if (search_active) { pending_stops++; stop_charged_at = Date.now(); } search_active = false; }
+            function go() { search_active = true; if (is_one_pass()) one_pass_owed++; }`, c);
+        vm.runInContext(opts.load ? 'engine_loading_since = Date.now(); go();' : 'go();', c);   // (load starts,) go A
+        c.setNow(200); vm.runInContext('abandon(); go();', c);                            // re-search: stop + go A2 queued
+        for (const [t, f] of frames) { c.setNow(t); vm.runInContext('listener', c)(Object.assign({fromOffscreen: true, clientId: '7'}, f)); }
+        return vm.runInContext('passed', c);
+    };
+    const L = (line) => ({kind: 'line', line});
+    // a Maia adapter answers isready inside the flush, so readyok reaches the panel before 'ready'
+    const sync = run([[3000, L('readyok')], [3001, {kind: 'ready'}], [3010, L('info depth 1 score cp 0 nodes 1 pv a2a3')],
+                      [3011, L('bestmove a2a3')], [3200, L('info depth 1 score cp 30 nodes 1 pv e2e4')], [3201, L('bestmove e2e4')]],
+                     {load: true, onePass: true});
+    ok('ENGINE-2: readyok 2.8 s after a stop charged mid-load does not write the stop off; the stopped bestmove is eaten',
+       JSON.stringify(sync) === JSON.stringify(['info depth 1 score cp 30 nodes 1 pv e2e4', 'bestmove e2e4']), sync);
+    // a WASM Stockfish: 'ready' first, readyok only after a slow ucinewgame (hash clear)
+    const slow = run([[3000, {kind: 'ready'}], [5000, L('readyok')], [5010, L('info depth 1 nodes 0')],
+                      [5011, L('bestmove a2a3')], [5400, L('info depth 9 nodes 90000')], [5401, L('bestmove e2e4')]], {load: true});
+    ok('...and a readyok that comes 2 s after ready does not either',
+       JSON.stringify(slow) === JSON.stringify(['info depth 9 nodes 90000', 'bestmove e2e4']), slow);
+    // no load: a stop that will never be flushed is still written off on time
+    const dead = run([[2000, L('info depth 3 nodes 900')], [2001, L('bestmove d2d4')]], {load: false});
+    ok('...while a stop owed with no load running is still written off after STOP_FLUSH_MS',
+       JSON.stringify(dead) === JSON.stringify(['info depth 3 nodes 900', 'bestmove d2d4']), dead);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

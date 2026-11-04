@@ -1655,6 +1655,14 @@ chrome.runtime.onMessage.addListener((msg) => {
     if (msg.clientId === maia2_client()) { if (msg.kind === 'line') maia2_on_line(msg.line); return; }
     if (msg.clientId === bench_client()) { bench_sink?.(msg); return; }   // engine-recommendation bench
     if (msg.clientId !== ENGINE_CLIENT) return;
+    // A STOP CHARGED DURING A LOAD IS STILL GOING TO BE PAID. The host flushes the queued
+    // `...isready, position, go A, stop, position, go A2` in one go once the net is in, and the first
+    // frame back is `readyok` (a Maia adapter answers it inside the flush, before 'ready'), not an
+    // `info string`. With the stop owed for longer than STOP_FLUSH_MS that frame wrote the debt off,
+    // and go A's zero-depth bestmove was then taken as the answer (audit 3.1.329 ENGINE-2). So the
+    // load itself, its 'ready' and the `readyok` that ends the preamble all restart the flush clock.
+    if (pending_stops > 0 && ((engine_loading_since && Date.now() - engine_loading_since < ENGINE_LOAD_GRACE_MS)
+                              || (msg.kind === 'line' && msg.line === 'readyok'))) stop_charged_at = Date.now();
     if (msg.kind === 'ready') { engine_loading_since = 0; last_info_at = Date.now(); return; }
     if (msg.kind === 'line') on_engine_response(msg.line);
     else if (msg.kind === 'error') on_engine_error(msg.error);
