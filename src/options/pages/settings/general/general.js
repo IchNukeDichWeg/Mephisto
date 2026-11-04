@@ -573,6 +573,11 @@ class GeneralSettings extends SettingsPage {
             if (el) { el.textContent = t || ''; el.style.color = bad ? 'var(--mp-bad, #c0392b)' : ''; }
         };
         const notifyWorker = () => { try { chrome.runtime.sendMessage({tbChanged: true}); } catch (e) { /* SW asleep */ } };
+        // The in-browser prober stops at 5 men (background-script.js TB_JS_MAX_MEN, audit 3.1.330
+        // ANALYSISB-2): a folder holding 6-7 man tables must not read as answering those here.
+        const bigNote = (men) => Object.keys(men || {}).some(n => +n > 5)
+            ? ' ' + MephistoI18n.t('set.tb_big_online', '6- and 7-man tables are too large to read in the browser: those positions use the native host path below, or the online lookup.')
+            : '';
         const sync = async () => {
             const perm = await self.MephistoTbStore.permission();
             $('tb_forget')?.classList.toggle('hidden', perm === 'missing');
@@ -585,7 +590,7 @@ class GeneralSettings extends SettingsPage {
                 const inv = await self.MephistoTbStore.inventory().catch(() => null);
                 if (!inv || !inv.tables) { say(MephistoI18n.errText('MPH-T01'), true); return; }
                 const men = Object.keys(inv.men).sort().map(n => `${n}-man: ${inv.men[n]}`).join(', ');
-                say(`${inv.tables} tables (${men}). Endgame Tablebase answers from this folder first, in-browser.`);
+                say(`${inv.tables} tables (${men}). Endgame Tablebase answers from this folder first, in-browser.` + bigNote(inv.men));
             }
         };
         $('tb_choose')?.addEventListener('click', async () => {
@@ -614,7 +619,8 @@ class GeneralSettings extends SettingsPage {
                 if (!res.tables) { say(MephistoI18n.errText('MPH-T01'), true); return; }
                 const men = Object.keys(res.men).sort().map(n => `${n}-man: ${res.men[n]}`).join(', ');
                 const how = res.route === 'browser' ? 'in-browser' : 'via the native host';
-                say(`${res.tables} tables (${men}). Endgame Tablebase answers from this folder first, ${how}.`);
+                say(`${res.tables} tables (${men}). Endgame Tablebase answers from this folder first, ${how}.`
+                    + (res.route === 'browser' ? bigNote(res.men) : ''));
             });
         });
         // ---- DOWNLOAD THE TABLES --------------------------------------------------------------

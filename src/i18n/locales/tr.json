@@ -652,6 +652,7 @@
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "yalnızca WDL",
   "set.tb_kind_dtz": "yalnızca DTZ",
+  "set.tb_big_online": "6 ve 7 taşlı tablolar tarayıcıda okunamayacak kadar büyük: bu konumlar aşağıdaki yerel ana bilgisayar yolunu ya da çevrimiçi sorguyu kullanır.",
   "rv.custom": "Özel",
   "rv.preset_fast": "Hızlı - derinlik 18",
   "rv.preset_standard": "Standart - derinlik 22",

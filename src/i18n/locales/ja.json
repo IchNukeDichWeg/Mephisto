@@ -652,6 +652,7 @@
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "WDL のみ",
   "set.tb_kind_dtz": "DTZ のみ",
+  "set.tb_big_online": "6駒・7駒のテーブルは大きすぎてブラウザ内では読み込めません。これらの局面は下のネイティブホスト用パスか、オンライン検索を使います。",
   "rv.custom": "カスタム",
   "rv.preset_fast": "高速 - 深さ18",
   "rv.preset_standard": "標準 - 深さ22",

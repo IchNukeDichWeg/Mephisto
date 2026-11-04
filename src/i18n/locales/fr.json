@@ -652,6 +652,7 @@
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "WDL seulement",
   "set.tb_kind_dtz": "DTZ seulement",
+  "set.tb_big_online": "Les tables à 6 et 7 pièces sont trop volumineuses pour être lues dans le navigateur : ces positions passent par le chemin de l'hôte natif ci-dessous ou par la recherche en ligne.",
   "rv.custom": "Personnalisé",
   "rv.preset_fast": "Rapide - profondeur 18",
   "rv.preset_standard": "Standard - profondeur 22",

@@ -652,6 +652,7 @@
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "WDL only",
   "set.tb_kind_dtz": "DTZ only",
+  "set.tb_big_online": "6- and 7-man tables are too large to read in the browser: those positions use the native host path below, or the online lookup.",
   "rv.custom": "Custom",
   "rv.preset_fast": "Fast - depth 18",
   "rv.preset_standard": "Standard - depth 22",

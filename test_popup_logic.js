@@ -10499,6 +10499,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            && pick({category: 'win', dtz: null, source: 'online', moves: [mv('a2a3', 'loss', null)]}) === 'a2a3');
     })();
 }
+// ---- audit 3.1.330 ANALYSISB-2: the in-browser prober never reads a 6-7 man table whole into the worker ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const cut = (s, from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const c = vm.createContext({console: {log() {}, warn() {}}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/syzygy.js', 'utf8'), c);
+    // a folder holding a full 3-6 man set (every table present); stand-in tables (none in the repo),
+    // every read counted
+    const reads = [];
+    c.MephistoSyzygy.Tablebase.prototype.addBuffer = function (file) {
+        const k = file.slice(0, -5), t = {probeWdlTable: () => 0, probeDtzTable: () => [0, 1]};
+        (file.endsWith('.rtbw') ? this.wdl : this.dtz)[k] = t;
+        (file.endsWith('.rtbw') ? this.wdl : this.dtz)[c.MephistoSyzygy.normalizeTablename(k, true)] = t;
+    };
+    c.MephistoTbStore = {permission: async () => 'granted', readTable: async (f) => { reads.push(f); return new ArrayBuffer(8); },
+        inventory: async () => ({tables: 510, men: {3: 5, 6: 365}, names: {has: () => true}})};
+    try { vm.runInContext(cut(bg, 'let tbJs = null;', '// --- Local Syzygy probing') + '\nthis.probe = tablebaseBrowserLocal;', c); }
+    catch (e) { console.log('slice threw: ' + e.message); }
+    (async () => {
+        let six = 'unset';
+        try { six = await c.probe('1rr5/8/8/8/8/8/RR6/K6k w - - 0 1'); } catch (e) { six = 'threw ' + e.message; }
+        ok('ANALYSISB-2: a 6-man position over a folder holding 6-man tables is not probed in-browser', six === null, six);
+        ok('ANALYSISB-2: ...and reads no table file into the worker', reads.length === 0, reads);
+        let three = null;
+        try { three = await c.probe('8/8/8/8/8/8/R7/K6k w - - 0 1'); } catch (e) { three = 'threw ' + e.message; }
+        ok('ANALYSISB-2: a 3-5 man position over the same folder is still read and answered here', reads.includes('KRvK.rtbw') && three && three.category, {reads, three});
+    })();
+    // Settings must not claim the folder answers 6-7 man positions in-browser
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+    ok('ANALYSISB-2: the folder status names the 6-7 man limit (in every status line that says in-browser)',
+       (gj.match(/bigNote\(/g) || []).length === 2 && !!en['set.tb_big_online']);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

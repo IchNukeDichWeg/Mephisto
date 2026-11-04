@@ -652,6 +652,7 @@
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "solo WDL",
   "set.tb_kind_dtz": "solo DTZ",
+  "set.tb_big_online": "Las tablas de 6 y 7 piezas son demasiado grandes para leerlas en el navegador: esas posiciones usan la ruta del host nativo de abajo o la consulta en línea.",
   "rv.custom": "Personalizado",
   "rv.preset_fast": "Rápido - profundidad 18",
   "rv.preset_standard": "Estándar - profundidad 22",

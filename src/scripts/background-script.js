@@ -1040,6 +1040,12 @@ const TABLEBASE_CACHE_MAX = 300;
 // Blob reads instead of whole-file buffers.)
 let tbJs = null;             // {tb, names, maxMen, loaded} -- per worker life
 const TB_JS_LOAD_CAP = 64;   // missing-table retries per probe; each loads exactly one file
+// Each table is read WHOLE into this worker and kept. A 3-4-5 file is single-digit MB, but a 6-man
+// one runs to hundreds of MB and more: one probe loads the root's pair plus its children's, which
+// fails the allocation (and the lookup goes online anyway) or grows the extension by GBs mid-game
+// (audit 3.1.330 ANALYSISB-2). So 6-7 man positions go to the native host or online. Upgrade path:
+// block-sliced Blob reads instead of whole-file buffers, then lift this.
+const TB_JS_MAX_MEN = 5;
 
 function tbBrowserReset() { tbJs = null; }
 
@@ -1059,6 +1065,7 @@ async function tablebaseBrowserLocal(fen) {
     if (castling !== '-') return null;   // Syzygy has no notion of castling rights
     const men = (placement.match(/[a-zA-Z]/g) || []).length;
     if (men > 7) return null;
+    if (men > TB_JS_MAX_MEN) return null;   // ANALYSISB-2: too large to read whole, see above
     const ctx = await tbBrowserEnsure();
     if (!ctx || men > ctx.maxMen) return null;
     for (let round = 0; round < TB_JS_LOAD_CAP; round++) {
