@@ -625,17 +625,24 @@ function loadFromInput() {
             if (start) ({holdings, promoted, fen: start} = liftHoldings(start));
             if (start && anVariant() === '3check') ({left: checksLeft, fen: start} = threeCheckCounts(start));
             const c = newChess(start);
-            treeRoot = mkNode(c.fen(), c.turn(), null, null, null,
-                              {holdings, promoted, checksLeft});
-            let at = treeRoot;
+            // Built in a local and adopted only once every move replayed: assigned up front, a failed
+            // load left treeRoot on the partial game while the board and `positions` kept the old one,
+            // and the next move-list redraw showed the wreck (audit 3.1.330 follow-up L40).
+            const root = mkNode(c.fen(), c.turn(), null, null, null,
+                                {holdings, promoted, checksLeft});
+            let at = root;
             for (const rec of game.moves) {
                 const san = typeof rec === 'string' ? rec : rec.san;
-                const mv = c.move(san);
+                // chess.js THROWS on an illegal SAN ("Invalid move: X") rather than returning null, so
+                // the page's own line never showed (follow-up L41); either way it is this message
+                let mv = null;
+                try { mv = c.move(san); } catch (e) { /* illegal here */ }
                 if (!mv) throw new Error(`illegal move in the PGN: ${san}`);
                 const child = mkNode(c.fen(), c.turn(), mv.san, uciOfMove(mv), at, nodeExtras(at, mv));
                 at.children.push(child);
                 at = child;
             }
+            treeRoot = root;
             treeNode = treeRoot;
             // the parser is lenient by design, so say what it understood rather than loading a
             // half-copied game silently

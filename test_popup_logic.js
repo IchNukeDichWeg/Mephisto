@@ -11572,6 +11572,38 @@ print(json.dumps(out))`;
            && /re-run the native installer/.test((res.linux || [])[0] || '') && (m[1] || []).some(l => /no net for crazyhouse.*re-run the installer/.test(l)), [m, res.linux]);
     }
 })();
+// ---- audit 3.1.330 follow-up L40/L41: a PGN with an illegal move keeps the loaded game and says "illegal move in the PGN" ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a), j = aj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return aj.slice(i, j); };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    c.box = {value: ''};
+    c.st = [];
+    let res = null;
+    try {
+        vm.runInContext(`const Core = self.MephistoReviewCore; let nodeSeq = 0, treeRoot = null, treeNode = null, cursor = 0;
+            const anVariant = () => 'chess'; const $ = (id) => (id === 'an_pgn' ? box : null); function status(t, k) { st.push([t, k]); }
+            const evalCache = new Map(), evalCache2 = new Map(), humanCache = new Map(), bandCache = new Map();
+            function relinkLine() {} function buildBoard() {} function renderMoves() {} function renderPockets() {} function go() {}
+            function setCfg() {} function onVariantChange() {} const PGN_VARIANTS = {};
+            ${cut('function newChess', '\n')}
+            ${cut('function threeCheckCounts', '// crazyhouse only')}
+            ${cut('function mkNode', '// the flat view')}
+            ${cut('function loadFromInput', '// The line as it stands')}`, c);
+        const load = (text) => { c.st.length = 0; c.box.value = text; vm.runInContext('loadFromInput()', c); return vm.runInContext('[treeRoot, treeNode]', c); };
+        const [good] = load('1. e4 e5 2. Nf3 Nc6 3. Bb5 a6');
+        const [root, node] = load('1. e4 f6 2. Qh5 a6');
+        res = {kept: root === good && node === good, said: c.st[0]};
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('L40: a PGN that stops on an illegal move leaves the loaded game\'s tree in place', res?.kept === true, res);
+    ok('L41: ...and the page\'s own line reaches the user', JSON.stringify(res?.said) === JSON.stringify(['illegal move in the PGN: a6', 'err']), res?.said);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
