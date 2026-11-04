@@ -8859,6 +8859,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && /Core\.liftPromoted\(/.test(fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8'))
        && /Core\.markPromoted\(/.test(fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8')));
 }
+// ---- audit 3.1.330 REVIEWB-2: a promotion stakes the pawn it was, so a defended promotion is not a queen sacrifice ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    const sac = (fen, uci) => vm.runInContext(`self.MephistoClassify.sacrificesMaterial(Chess, 'chess', ${JSON.stringify(fen)}, ${JSON.stringify(uci)})`, c);
+    // 1.b8=Q Rxb8 2.Rxb8: White gives a pawn and wins a rook
+    const defended = sac('2r4k/1P6/8/8/8/8/8/1R4K1 w - - 0 1', 'b7b8q');
+    // the same promotion with nothing to recapture really does give the pawn away
+    const loose = sac('2r4k/1P6/8/8/8/8/8/6K1 w - - 0 1', 'b7b8q');
+    ok('REVIEWB-2: a promotion the opponent takes and the mover retakes is not a sacrifice (a pawn for a rook)', defended === false, defended);
+    ok('...an undefended promotion taken for free still counts as material offered', loose === true, loose);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

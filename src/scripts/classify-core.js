@@ -39,14 +39,18 @@ function sacrificesMaterial(Chess, variant, fenBefore, uci) {
         const mover = c.get(from);
         const mv = c.move({from, to, promotion: uci[4]});
         if (!mv) return false;
-        // promotions confuse a naive swap; treat the promoted piece as what stands there
+        // promotions confuse a naive swap; what a promoted piece stakes is set below (onSquare)
         const standing = c.get(to);
         if (!standing || !mover) return false;
         // What the move won outright, from the MOVE, not the destination square: en passant takes a
         // pawn that never stood on it, so an ep pawn trade read as a pawn given away and could be
         // graded Brilliant (3.1.321 audit F14).
         let gain = mv.captured ? PIECE_VAL[mv.captured] : 0;
-        let onSquare = PIECE_VAL[standing.type];              // what is now exposed there
+        // What is now exposed there. A promoted piece stakes only the PAWN it was: losing the new
+        // queen to a rook that is then recaptured trades a pawn for a rook, but counted at 9 every
+        // routine defended promotion read as a queen sacrifice and was graded Brilliant
+        // (audit 3.1.330 REVIEWB-2).
+        let onSquare = mv.promotion ? PIECE_VAL.p : PIECE_VAL[standing.type];
         // cheapest opponent capture of that square, then our cheapest recapture, alternating
         let side = 'them';
         const balance = [];
