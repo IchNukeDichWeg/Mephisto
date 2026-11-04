@@ -4030,7 +4030,15 @@ function clamp_compute_time(ms) { return Math.max(50, +ms || 0); }
 function tablebase_pick(fen) {
     if (!tablebase_enabled()) return null;
     if (tablebase_data?.fen !== fen) return null;      // stale or never answered
-    const best = tablebase_data.moves?.[0]?.uci;
+    // A WDL-only local set answers with no distance (audit 3.1.330 ANALYSISB-1): the moves are
+    // ranked by verdict only, and forcing one each ply can shuffle a won ending into a 50-move
+    // draw or pick the shortest defence. Outside a drawn root or a mate on the board the engine
+    // plays; the verdict label still shows.
+    const moves = tablebase_data.moves || [];
+    const top = moves[0];
+    if (tablebase_data.source === 'local' && moves.some(m => m.dtz == null && m.dtm == null)
+        && !top?.checkmate && tablebase_data.category !== 'draw') return null;
+    const best = top?.uci;
     return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(best ?? '') ? best : null;
 }
 

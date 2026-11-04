@@ -197,6 +197,10 @@ function recalcKey(pieces, mirror = false) {
 }
 
 class MissingTableError extends Error {}
+// A DTZ table the caller has said the set does NOT hold (a "WDL only" download). Deliberately not a
+// MissingTableError: that one means "load this file and retry", this one means "answer without a
+// distance" (audit 3.1.330 ANALYSISB-1).
+class DtzAbsentError extends Error {}
 
 /* === table files ============================================================================== */
 
@@ -970,6 +974,9 @@ class Tablebase {
         this.Chess = ChessCtor;
         this.wdl = {};   // normalized name -> WdlTable (registered under key AND mirrored key)
         this.dtz = {};
+        // normalized names of DTZ tables the set lacks: a WDL-only folder still answers the verdict,
+        // with dtz null, instead of the whole probe failing over to lichess (audit 3.1.330 ANALYSISB-1)
+        this.absentDtz = new Set();
     }
 
     // filename e.g. "KQvK.rtbw"; buffer is the whole file
@@ -1068,6 +1075,7 @@ class Tablebase {
     probeDtzTable(board, wdl) {
         const key = calcKey(board);
         const table = this.dtz[key];
+        if (!table && this.absentDtz.has(normalizeTablename(key))) throw new DtzAbsentError(`no dtz table ${key} in this set`);
         if (!table) throw new MissingTableError(`did not find dtz table ${key}`);
         return table.probeDtzTable(board, wdl);
     }
@@ -1185,8 +1193,13 @@ class Tablebase {
         const board = new ShimBoard(this.Chess, fen);
         if (board.castlingRights()) throw new Error('castling rights: syzygy cannot represent them');
 
+        // A set without some DTZ table still knows the verdict: the distance is null, which every
+        // reader shows as "no count" rather than as a count of zero (audit 3.1.330 ANALYSISB-1).
+        const dtzOrNull = (b) => {
+            try { return this.probeDtz(b); } catch (e) { if (e instanceof DtzAbsentError) return null; throw e; }
+        };
         const wdl = this.probeWdl(board);
-        const dtz = this.probeDtz(board);
+        const dtz = dtzOrNull(board);
 
         const moves = [];
         for (const mv of board.allMoves()) {
@@ -1194,7 +1207,7 @@ class Tablebase {
             let childWdl, childDtz, mate, stale;
             try {
                 childWdl = this.probeWdl(board);
-                childDtz = this.probeDtz(board);
+                childDtz = dtzOrNull(board);
                 mate = board.isCheckmate();
                 stale = board.allMoves().length === 0 && !mate;
             } finally {
@@ -1224,17 +1237,21 @@ function sortMovesLikeLichess(moves) {
     // zeroing is preferred for loss/blessed-loss/draw children and avoided when we are losing
     const preferZeroing = (m) => m.category !== 'win' && m.category !== 'cursed-win';
     const allDtm = moves.length > 0 && moves.every(m => typeof m.dtm === 'number');
+    // A WDL-only set leaves dtz null on most moves (audit 3.1.330 ANALYSISB-1). null read as 0, and
+    // the few moves that do carry a count are the immediate captures, so either way a partial list
+    // ranked a losing side's rook-hanging move first. dtz ranks only when every move has one.
+    const allDtz = moves.every(m => typeof m.dtz === 'number');
     moves.sort((a, b) =>
         (rank[a.category] - rank[b.category])
         || ((b.checkmate ? 1 : 0) - (a.checkmate ? 1 : 0))
         || ((b.stalemate ? 1 : 0) - (a.stalemate ? 1 : 0))
         || (allDtm ? (b.dtm - a.dtm) : 0)
         || (((b.zeroing === preferZeroing(b)) ? 1 : 0) - ((a.zeroing === preferZeroing(a)) ? 1 : 0))
-        || (b.dtz - a.dtz));
+        || (allDtz ? (b.dtz - a.dtz) : 0));
     return moves;
 }
 
-const api = {Tablebase, ShimBoard, MissingTableError, isTablename, normalizeTablename, tableDependencies, calcKey, sortMovesLikeLichess, TBW_MAGIC, TBZ_MAGIC};
+const api = {Tablebase, ShimBoard, MissingTableError, DtzAbsentError, isTablename, normalizeTablename, tableDependencies, calcKey, sortMovesLikeLichess, TBW_MAGIC, TBZ_MAGIC};
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 else self.MephistoSyzygy = api;
 

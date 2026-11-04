@@ -1068,6 +1068,10 @@ async function tablebaseBrowserLocal(fen) {
         const m = /did not find (wdl|dtz) table (\w+)/.exec(String(e && e.message));
         if (!m) throw e;
         const file = self.MephistoSyzygy.normalizeTablename(m[2]) + (m[1] === 'wdl' ? '.rtbw' : '.rtbz');
+        // A "WDL only" download (Settings offers it) has no .rtbz at all. Returning null here sent
+        // every position to lichess with no word; mark the table absent and answer the verdict
+        // with dtz null instead (audit 3.1.330 ANALYSISB-1).
+        if (m[1] === 'dtz' && !ctx.names.has(file)) { ctx.tb.absentDtz.add(self.MephistoSyzygy.normalizeTablename(m[2])); continue; }
         if (!ctx.names.has(file) || ctx.loaded.has(file)) return null;  // the folder lacks it -> online
         ctx.tb.addBuffer(file, await MephistoTbStore.readTable(file));
         ctx.loaded.add(file);
@@ -1143,11 +1147,13 @@ async function tablebaseLocal(fen) {
 // re-rank with the full lila key -- dtm outranks dtz there, so play maximizes the mate count
 // exactly like lichess's own moves[0]. Only for <=5 men (no dtm exists beyond that anywhere),
 // only when lichess is reachable and not cooling down, and every failure leaves the local
-// answer untouched.
+// answer untouched. A local answer from a WDL-only set (dtz null, ANALYSISB-1) borrows lichess's
+// dtz the same way, at any size lichess serves, so online it ranks as well as before.
 async function tbMergeOnlineDtm(local, fen, path) {
   try {
     const men = (fen.split(' ')[0].match(/[a-zA-Z]/g) || []).length;
-    if (men > 5 || lichess_blocked()) return;
+    const noDtz = local.dtz == null || local.moves.some(m => m.dtz == null);
+    if ((men > 5 && !noDtz) || lichess_blocked()) return;
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 4000);
     let online;
@@ -1158,12 +1164,15 @@ async function tbMergeOnlineDtm(local, fen, path) {
     } finally {
       clearTimeout(timer);
     }
-    if (!online || typeof online.dtm !== 'number' || !Array.isArray(online.moves)) return;
-    local.dtm = online.dtm;
-    const byUci = new Map(online.moves.map(m => [m.uci, m.dtm]));
+    if (!online || !Array.isArray(online.moves)) return;
+    const byUci = new Map(online.moves.map(m => [m.uci, m]));
+    const withDtm = typeof online.dtm === 'number';
+    if (withDtm) local.dtm = online.dtm;
+    if (local.dtz == null && typeof online.dtz === 'number') local.dtz = online.dtz;
     for (const m of local.moves) {
-      const d = byUci.get(m.uci);
-      if (typeof d === 'number') m.dtm = d;
+      const o = byUci.get(m.uci);
+      if (withDtm && typeof o?.dtm === 'number') m.dtm = o.dtm;
+      if (m.dtz == null && typeof o?.dtz === 'number') m.dtz = o.dtz;
     }
     self.MephistoSyzygy.sortMovesLikeLichess(local.moves);
   } catch (e) { /* offline / aborted: the local answer stands alone */ }

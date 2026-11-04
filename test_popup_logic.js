@@ -10446,6 +10446,59 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext('(() => {\n' + rj.slice(ra, rb) + '})()', c);
     ok('REVIEWA-9: not when the Game type has moved on to Chess', c.drawn.length === 0);
 })().catch(e => { fails++; console.log('FAIL REVIEWA-9 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 ANALYSISB-1: a WDL-only tablebase folder answers locally instead of silently going online ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (s, from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const c = vm.createContext({console: {log() {}, warn() {}}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/syzygy.js', 'utf8'), c);
+    // no real table files in the repo: a stand-in KRvK WDL table (the side with the rook wins), loaded
+    // through the worker's own lazy loader, and a folder that holds the .rtbw only (a "WDL only" download)
+    c.MephistoSyzygy.Tablebase.prototype.addBuffer = function (file) {
+        if (!file.endsWith('.rtbw')) throw new Error('stub holds WDL only');
+        const t = {probeWdlTable: (b) => (b.squaresOf(4, true).length ? 1 : -1) * (b.turnWhite() ? 2 : -2)};
+        this.wdl.KRvK = this.wdl.KvKR = t;
+    };
+    c.MephistoTbStore = {permission: async () => 'granted', readTable: async () => new ArrayBuffer(8),
+        inventory: async () => ({tables: 1, men: {3: 1}, names: new Set(['KRvK.rtbw'])})};
+    try { vm.runInContext(cut(bg, 'let tbJs = null;', '// --- Local Syzygy probing') + '\nthis.probe = tablebaseBrowserLocal;', c); }
+    catch (e) { console.log('slice threw: ' + e.message); }
+    // the ranking with a partial dtz list (most moves null, the immediate capture counted)
+    const S = c.MephistoSyzygy;
+    const ranked = S ? S.sortMovesLikeLichess([{uci: 'e6e7', category: 'win', dtz: null, zeroing: false},
+                                               {uci: 'h1h3', category: 'win', dtz: 1, zeroing: false}]).map(m => m.uci) : [];
+    // the panel's pick over each kind of answer
+    const pc = vm.createContext({config: {tablebase: true, variant: 'chess'}, tablebase_data: null});
+    try { vm.runInContext(cut(pj, 'const TABLEBASE_VARIANTS', '// men on the board') + cut(pj, 'function tablebase_pick(fen)', '// WHICH OF THE TWO ANSWERS'), pc); }
+    catch (e) { console.log('slice threw: ' + e.message); }
+    const F = '8/8/8/8/8/8/R7/K6k w - - 0 1';
+    const pick = (data) => { pc.tablebase_data = {fen: F, ...data}; try { return pc.tablebase_pick(F); } catch (e) { return 'threw ' + e.message; } };
+    const mv = (uci, category, dtz, extra) => ({uci, category, dtz, ...extra});
+    (async () => {
+        let r = null;
+        try { r = await c.probe(F); } catch (e) { r = 'threw ' + e.message; }
+        ok('ANALYSISB-1: a folder with KRvK.rtbw and no .rtbz answers KRvK locally (it went to lichess)', r && r.category === 'win', r);
+        ok('ANALYSISB-1: ...with no distance rather than a made-up one', r && r.dtz === null && r.moves?.every(m => m.dtz === null || m.dtz === 0), r && r.moves);
+        ok('ANALYSISB-1: ...and every move keeps its verdict (rook moves win, the rook hung next to the king draws)',
+           r && r.moves?.find(m => m.uci === 'a2a3')?.category === 'loss' && r.moves?.find(m => m.uci === 'a2h2')?.category === 'draw'
+           && r.moves?.[0]?.category === 'loss', r && r.moves?.slice(0, 3));
+        ok('ANALYSISB-1: a partial dtz list does not rank the one counted move (a hung rook, dtz 1) first', ranked[0] === 'e6e7', ranked);
+        ok('ANALYSISB-1: a local win with no distance does not dictate the move (the engine plays)',
+           pick({category: 'win', dtz: null, source: 'local', moves: [mv('a2a3', 'loss', null), mv('a2h2', 'draw', 0)]}) === null);
+        ok('ANALYSISB-1: ...nor a local loss with no distance',
+           pick({category: 'loss', dtz: null, source: 'local', moves: [mv('a1b1', 'win', null), mv('a1a2', 'win', 1)]}) === null);
+        ok('ANALYSISB-1: a mate on the board and a drawn root are still played from the verdict alone',
+           pick({category: 'win', dtz: null, source: 'local', moves: [mv('a2a8', 'loss', null, {checkmate: true}), mv('a2a3', 'loss', null)]}) === 'a2a8'
+           && pick({category: 'draw', dtz: 0, source: 'local', moves: [mv('a1b1', 'draw', 0), mv('a1a2', 'win', null)]}) === 'a1b1');
+        ok('ANALYSISB-1: full local answers and online answers pick moves[0] as before',
+           pick({category: 'win', dtz: 13, source: 'local', moves: [mv('a1b1', 'loss', -12), mv('a2h2', 'draw', 0)]}) === 'a1b1'
+           && pick({category: 'win', dtz: null, source: 'online', moves: [mv('a2a3', 'loss', null)]}) === 'a2a3');
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
