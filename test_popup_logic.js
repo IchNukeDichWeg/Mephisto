@@ -8441,6 +8441,47 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('SWALLOW-4b: ...then asks once more, and "not live" latches', st.asked === 2, st.asked);
     } catch (e) { ok('SWALLOW-4b: streamer check ran', false, e.message); }
 }
+// ---- audit 3.1.330 CLICKA-1: a 4PC `resume` push of the same position re-issues the held move ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const ri = s.indexOf("if (typeof response.dom === 'string' && response.dom.startsWith('4PC:')) {");
+    const route = s.slice(ri, s.indexOf('\n            }\n', ri) + 15);
+    const fi = s.indexOf('function on_new_pos_4pc(payload) {');
+    const fn = s.slice(fi, s.indexOf('\n}\n', fi) + 3);
+    const di = s.indexOf('function fourpc_drain() {');
+    const drain = s.slice(di, s.indexOf('\n}\n', di) + 3);
+    const c = vm.createContext({console: {log() {}, warn() {}}, Promise, Number, Math, sent: []});
+    vm.runInContext(`var config = {autoplay: true, help_mode: false, manual_mode: false, compute_time: 300, multiple_lines: 1};
+        var fourpc_last = '', fourpc_busy = false, fourpc_pending = null, board4pc = null;
+        const FOURPC_SEAT_NAME = {R: 'Red', B: 'Blue', Y: 'Yellow', G: 'Green'};
+        const PANEL_ROOT = {getElementById() { return null; }};
+        function clear_idle_reason() {} function show_4pc_board() {} function set_detection_status() {}
+        function is_fourpc_engine() { return true; } function update_best_move() {} function update_evaluation() {}
+        function request_remote_configure() { return Promise.resolve(); } function effective_multipv() { return 1; }
+        function toggle_calculating() {} function format_nps() { return ''; } function fourpc_arrow_specs() { return []; }
+        function render_alt_lines_4pc() {} function update_eval_bar_4pc() {} function request_draw_hint() {}
+        function request_clear_hint() {} function request_console_log() {} function err_line() { return ''; }
+        function native_host_missing() { return false; }
+        function native_send() { return Promise.resolve({bestmove: 'd2d4', lines: []}); }
+        function request_automove_4pc(m) { sent.push(m); }
+        ${drain}
+        ${fn}
+        function route(response) { (() => { ${route} })(); }`, c);
+    const push = {dom: '4PC:R:teams:R-0,0,0,0-1,1,1,1-1,1,1,1-0,0,0,0-0-x', fenresponse: true};
+    (async () => {
+        const tick = () => new Promise(r => setTimeout(r, 0));
+        vm.runInContext('route', c)(push); await tick(); await tick();
+        ok('CLICKA-1: the first 4PC push of our turn is played', c.sent.length === 1, c.sent);
+        vm.runInContext('route', c)(push); await tick(); await tick();
+        ok('CLICKA-1: a plain repeat of the same position is still deduped', c.sent.length === 1, c.sent);
+        vm.runInContext('route', c)(Object.assign({resume: true}, push)); await tick(); await tick();
+        ok('CLICKA-1: a resume of the same position (move held for a hidden tab) searches and re-issues the move', c.sent.length === 2, c.sent);
+        vm.runInContext('config.autoplay = false', c);
+        vm.runInContext('route', c)(Object.assign({resume: true}, push)); await tick(); await tick();
+        ok('CLICKA-1: with Autoplay off a resume does not bypass the dedupe', c.sent.length === 2, c.sent);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

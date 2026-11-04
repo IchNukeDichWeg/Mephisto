@@ -755,6 +755,11 @@ async function initPanel(root, tabId) {
             // FOUR-PLAYER: the payload is a FEN4, not anything chess.js can parse. Route it out of
             // the normal pipeline before the parse that would throw on it.
             if (typeof response.dom === 'string' && response.dom.startsWith('4PC:')) {
+                // A `resume` re-pushes the SAME position (a move held for a hidden tab, or a refused
+                // click), and on_new_pos_4pc dedupes on fourpc_last, so the held move was never
+                // searched or re-issued and our seat sat to move until the clock ran out. Same bypass
+                // as the 8x8 resume below (audit 3.1.330 CLICKA-1).
+                if (response.resume && config.autoplay) fourpc_last = '';
                 on_new_pos_4pc(response.dom.slice(4));
                 return;
             }
