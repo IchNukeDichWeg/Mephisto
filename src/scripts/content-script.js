@@ -5596,6 +5596,9 @@ let pendingManual = false;   // this move was asked for by hand, so Autoplay bei
 // wait, which matters in bullet. Only lichess shows the selection in the DOM, so only there is a
 // lead click known to be needed; on a board with nothing selected it would cause what it prevents.
 let halfClicked = null;
+// The from-click of the session in flight, settled (never rejected) once it lands or fails, so a
+// superseding move can wait for it before deciding its lead click (audit 3.1.330 CLICKA-5).
+let fromClickInFlight = null;
 function leftSelected(move) {
     const sq = halfClicked;
     halfClicked = null;
@@ -5779,6 +5782,16 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         // can't reach, so clicking it only ever deselects -- never moves anything. ONLY on a RETRY:
         // simulateMoveVerified passes deselect=null on the first attempt (a bare from->to). Retries
         // are rare, so its short lead click sits OUTSIDE the move_time budget on purpose.
+        // THE FIRST ATTEMPT DECIDES ITS LEAD CLICK HERE, after the think, not on arrival: a superseded
+        // premove whose from-click was still in flight when the real move arrived set halfClicked only
+        // after the arrival read, so the real from-click deselected that piece and the move cost the
+        // 1.5 s verify wait anyway (audit 3.1.330 CLICKA-5). Wait (bounded) for that click to land first.
+        // null only: a premove sequence or a pv passes `false`, which has never taken a lead click.
+        if (deselect == null) {
+            if (fromClickInFlight) await Promise.race([fromClickInFlight, promiseTimeout(1500)]);
+            if (sessionGen !== undefined && sessionGen !== moveGen) return false;
+            deselect = leftSelected(move);
+        }
         if (/^[a-h][1-8]$/.test(deselect ?? '')) {
             await simulateClickSquare(getBoundsFromCoords(deselect), 0.8, 80);
             await promiseTimeout(40 + Math.random() * 90);
@@ -5843,11 +5856,18 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         // as user-interactive; the extension's service worker is not, and under load it stops
         // resuming between awaits (measured: workerMs 1466 with only 132ms of it inside
         // chrome.debugger). A deadline kept on this side survives that; one kept there does not.
-        await simulateClickSquare(getBoundsFromCoords(move.substring(0, 2)), 0.8, pathA);
-        // Recorded the moment the from-click lands, not when this session finds it was superseded:
-        // the real move reads it synchronously at its start, before this session resumes from the
-        // await below, so a flag set on discovery was always read as empty (audit 3.1.328 CLICK-2).
-        halfClicked = move.substring(0, 2);
+        let fromDone;
+        const fromFlight = fromClickInFlight = new Promise(r => { fromDone = r; });
+        try {
+            await simulateClickSquare(getBoundsFromCoords(move.substring(0, 2)), 0.8, pathA);
+            // Recorded the moment the from-click lands, not when this session finds it was superseded:
+            // a superseding move reads it before this session resumes from the await below, so a flag
+            // set on discovery was always read as empty (audit 3.1.328 CLICK-2).
+            halfClicked = move.substring(0, 2);
+        } finally {
+            fromDone();
+            if (fromClickInFlight === fromFlight) fromClickInFlight = null;
+        }
         const dueSecond = approachMs - (Date.now() - started);
         if (dueSecond > 0) await promiseTimeout(dueSecond);
         // the pause between the clicks is the widest window for a supersede -- check again
@@ -5941,7 +5961,8 @@ async function simulateMoveVerified(move, deselect, verify, think = null, retrie
     // selection -- which is precisely what makes an attempt FAIL -- so spend it only on a retry, not
     // on every move (see performSimulatedMoveClicks). `before !== null` == we're in the retry
     // recursion, since the first call always enters with the default null.
-    const ds = (before !== null) ? deselect : leftSelected(move);
+    // The first attempt's lead click is decided at click time (see performSimulatedMoveClicks).
+    const ds = (before !== null) ? deselect : null;
     // A BLIND premove (verify=false) is clicked while it is NOT our turn: the site queues it and it
     // won't appear in the move list until the opponent moves. Verifying/retrying it would re-click
     // and clobber the queued premove -- so only verify real moves played on our own turn. The popup

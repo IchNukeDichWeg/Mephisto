@@ -8482,6 +8482,57 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('CLICKA-1: with Autoplay off a resume does not bypass the dedupe', c.sent.length === 2, c.sent);
     })();
 }
+// ---- audit 3.1.330 CLICKA-5: a premove from-click still in flight when the real move arrives earns the lead click ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from) => { const a = s.indexOf(from); return s.slice(a, s.indexOf('\n}\n', a) + 3); };
+    const ha = s.indexOf('let halfClicked = null;'), hb = s.indexOf('function moveHeldBack()');
+    const c = vm.createContext({console: {log() {}, warn() {}}, setTimeout, Promise, Date, Math, clicks: [], sel: null,
+        DOMRect: function (x, y, w, h) { Object.assign(this, {x, y, width: w, height: h}); }});
+    vm.runInContext(`var site = 'lichess', moveGen = 0, pendingForPush = null, lastAimed = null, slowFrom = 0;
+        var config = {think_time: 0, think_variance: 0, move_time: 0, move_variance: 0, drag_moves: false};
+        var document = {querySelector: () => sel};
+        const DROP_RE = /^[A-Z]@/, UCI_RE = /^[a-h][1-8][a-h][1-8][qrbnk]?$/, DRAG_MIN_MS = 250, POCKET_ROLE = {};
+        const FITTS_REF_ID = 2;
+        function promiseTimeout(ms) { return new Promise(r => setTimeout(r, ms)); }
+        function thinkWait(ms) { return promiseTimeout(ms).then(() => false); }
+        function warmClicker() { return Promise.resolve(); }
+        function clickableBoardBounds() { return {x: 0, y: 0, width: 800, height: 800}; }
+        function getOrientation() { return 'white'; }
+        function is4PC() { return false; } function boardStillMatchesAnalysis() { return true; }
+        function moveHeldBack() { return null; } function chesscomViewingHistory() { return false; }
+        function isChesscomVariants() { return false; } function cbGeometry() { return null; }
+        function cursorPathFor() { return 0; } function dropMove() {}
+        // a square name back from the click's rectangle (white at the bottom, 100 px squares)
+        function sqOf(r) { return String.fromCharCode(97 + Math.floor(r.x / 100)) + (8 - Math.floor(r.y / 100)); }
+        async function simulateClickSquare(r) {
+            const sq = sqOf(r), first = slowFrom && clicks.length === 0;
+            clicks.push(sq);
+            if (first) await promiseTimeout(slowFrom);   // the premove's from-click round trip, still pending
+            if (sq === 'e2') sel = sel ? null : {};      // lichess: a click on the piece toggles its selection
+        }
+        ${s.slice(ha, hb).replace('let halfClicked', 'var halfClicked').replace('let fromClickInFlight', 'var fromClickInFlight')}
+        ${cut('function simulateMove(move, deselect')}
+        ${s.slice(s.indexOf('async function simulateMoveVerified('), s.indexOf('// Double premove:'))}`, c);
+    (async () => {
+        // the blind premove e2e4 (session 1) is superseded 20 ms into its 120 ms from-click by the real e2e4 (session 2)
+        vm.runInContext('slowFrom = 120; moveGen = 1', c);
+        const premove = vm.runInContext(`simulateMoveVerified('e2e4', null, false, 0, 2, null, 1)`, c);
+        await new Promise(r => setTimeout(r, 20));
+        vm.runInContext('moveGen = 2', c);
+        const real = vm.runInContext(`simulateMoveVerified('e2e4', null, false, 0, 2, null, 2)`, c);
+        await Promise.all([premove, real]);
+        ok('CLICKA-5: the real move waits for the in-flight premove from-click, then clicks the selected piece off before its own pair',
+           JSON.stringify(c.clicks) === JSON.stringify(['e2', 'e2', 'e2', 'e4']), c.clicks);
+        ok('CLICKA-5: the half-click record is consumed, not left set for a later move', vm.runInContext('halfClicked', c) === null
+           && vm.runInContext("typeof fromClickInFlight === 'undefined' ? null : fromClickInFlight", c) === null, vm.runInContext('halfClicked', c));
+        // no premove in flight: a plain first attempt takes no lead click
+        vm.runInContext('slowFrom = 0; clicks.length = 0; sel = null; moveGen = 3', c);
+        await vm.runInContext(`simulateMoveVerified('e2e4', null, false, 0, 2, null, 3)`, c);
+        ok('CLICKA-5: with nothing half-clicked the move is a bare from->to', JSON.stringify(c.clicks) === JSON.stringify(['e2', 'e4']), c.clicks);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
