@@ -8157,6 +8157,65 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('...back on chess the model builds and the bands sweep', c.built === 1 && c.swept === 1, [c.built, c.swept]);
     })().catch(e => { fails++; console.log('FAIL ANALYSISA-2 check threw: ' + (e && e.stack || e)); });
 }
+// ---- audit 3.1.330 ANALYSISA-3 / REGRESS-1: a variant pick the box's [Variant] tag overrides swaps nothing for the rules not kept ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a), j = aj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return aj.slice(i, j); };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    c.el = {textContent: '', className: ''};
+    c.box = {value: ''};
+    c.conf = {};
+    let res = null;
+    try {
+        vm.runInContext(`const Core = self.MephistoReviewCore; let nodeSeq = 0, treeRoot = null, treeNode = null, cursor = 0;
+            const $ = (id) => (id === 'an_pgn' ? box : id === 'an_status' ? el : null);
+            const cfg = (k) => conf[k]; const setCfg = (k, v) => { conf[k] = v; }; const anVariant = () => conf.an_variant;
+            const ENGINES = [{id: 'sf18-native', label: 'Stockfish 18 (native)', kind: 'native'}, {id: 'stockfish-18-nnue', label: 'Stockfish 18', kind: 'wasm'},
+                             {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish', kind: 'wasm'}];
+            const FAIRY_ONLY = ['crazyhouse', '3check']; const FAIRY_ENGINE = 'fairy-stockfish-14-nnue';
+            const evalCache = new Map(), evalCache2 = new Map(), humanCache = new Map(), bandCache = new Map();
+            function relinkLine() {} function buildBoard() {} function renderMoves() {} function renderPockets() {} function go() {}
+            function syncBandRow() {} function reloadEngine() {} function reloadEngine2() {}
+            ${cut('const AN_VARIANTS = [', '// the variants only Fairy')}
+            ${cut('function status(', '\n}\n')}
+            }
+            ${cut('const PGN_VARIANTS = {', '\n};\n')}
+            };
+            ${cut('const NATIVE_960_WASM', 'let engineChain')}
+            ${cut('function threeCheckCounts', '// crazyhouse only')}
+            ${cut('function mkNode', '// the flat view')}
+            ${cut('function onVariantChange(', '// One box takes either')}
+            ${cut('function loadFromInput', '// The line as it stands')}`, c);
+        const pick = (variant, engine, text) => {
+            Object.assign(c.conf, {an_variant: variant, an_engine: engine, an_engine2: ''});
+            c.box.value = text; c.el.textContent = '';
+            vm.runInContext('onVariantChange()', c);
+            return {variant: c.conf.an_variant, engine: c.conf.an_engine, status: c.el.textContent};
+        };
+        res = {
+            // a lichess game in the box, Crazyhouse picked: the tag keeps Standard
+            zh: pick('crazyhouse', 'stockfish-18-nnue', '[Variant "Standard"]\n\n1. e4 e5 2. Nf3 *'),
+            // REGRESS-1: native engine, a Crazyhouse game in the box, Chess960 picked
+            c960: pick('fischerandom', 'sf18-native', '[Variant "Crazyhouse"]\n\n1. e4 e5 2. Nf3 *'),
+            // no tag: the pick stands and its notes are given as before
+            plain: pick('fischerandom', 'sf18-native', '1. e4 e5 2. Nf3 *'),
+        };
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('ANALYSISA-3: Crazyhouse picked over a Standard-tagged game: the engine is not switched to Fairy and no note names crazyhouse',
+       res?.zh?.variant === 'chess' && res.zh.engine === 'stockfish-18-nnue' && !/Fairy|crazyhouse/.test(res.zh.status)
+       && res.zh.status === 'The game in the box is tagged [Variant "Standard"], so it is analysed as Standard; clear the box to analyse Crazyhouse. Loaded 3 moves.', res?.zh);
+    ok('...REGRESS-1: Chess960 picked over a Crazyhouse-tagged game says nothing about Chess960 castling, and the Fairy switch it did make is named',
+       res?.c960?.variant === 'crazyhouse' && res.c960.engine === 'fairy-stockfish-14-nnue' && !/castle/.test(res.c960.status)
+       && /^The game in the box is tagged \[Variant "Crazyhouse"\], so it is analysed as Crazyhouse; clear the box to analyse Chess960\. Engine switched to Fairy-Stockfish: only it plays crazyhouse\. Loaded 3 moves\.$/.test(res.c960.status), res?.c960);
+    ok('...an untagged game keeps the pick and its Chess960 swap note',
+       res?.plain?.variant === 'fischerandom' && res.plain.status === 'Stockfish 18 (native) cannot castle in Chess960; using Stockfish 18 here. Loaded 3 moves.', res?.plain);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

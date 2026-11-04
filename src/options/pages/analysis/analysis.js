@@ -520,11 +520,26 @@ function setVariant(v) {
 // answers an unknown variant by staying on the previous one, which is the failure mode the offscreen
 // loader exists to catch.
 function onVariantChange(quiet) {
-    const v = anVariant();
+    let v = anVariant();
     // The notes are written AFTER loadFromInput: every one of its branches sets its own status line
     // synchronously ("Position loaded.", "Loaded N moves.", or '' for the start position), so a note
     // set before it never painted and the engine swap was silent (audit 3.1.329 ANALYSIS-3).
     const notes = [];
+    // A GAME IN THE BOX TAGGED WITH ITS OWN VARIANT DECIDES THE RULES: loadFromInput below switches
+    // straight back to it. Settled here, before the engine swaps: a pick it overrode swapped the
+    // engine for rules that never took effect (Fairy kept on a Standard game, the user's engine gone)
+    // and its notes named them ("only it plays crazyhouse" over a standard board) (audit 3.1.330
+    // ANALYSISA-3, REGRESS-1). Same lookup as loadFromInput: an unknown tag loads as standard.
+    const tag = /\[Variant\s+"([^"]+)"\]/.exec($('an_pgn')?.value || '')?.[1];
+    const forced = tag ? (PGN_VARIANTS[tag.trim().toLowerCase()] || 'chess') : null;
+    if (forced && forced !== v) {
+        const name = (id) => (AN_VARIANTS.find(x => x[0] === id) || [id, id])[1];
+        notes.push(`The game in the box is tagged [Variant "${tag}"], so it is analysed as ${name(forced)}; clear the box to analyse ${name(v)}.`);
+        v = forced;
+        setCfg('an_variant', v);
+        const sel = $('an_variant_select');
+        if (sel) sel.value = v;
+    }
     if (FAIRY_ONLY.includes(v)) {
         if (cfg('an_engine') !== FAIRY_ENGINE) {
             setCfg('an_engine', FAIRY_ENGINE);
