@@ -10886,6 +10886,90 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     await U.rollback();
     ok('SYSB-2: ...so Roll Back still restores the old code', (await get(r, 'src/a.js')) === 'OLD');
 })().catch(e => { fails++; console.log('FAIL SYSB-2 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 NATIVEB-2: an update checks the glue FILES are on disk, not only the stamped glue id ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const upSrc = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const enc = (s) => new TextEncoder().encode(s), dec = (b) => new TextDecoder().decode(b);
+    // An in-memory FileSystemDirectoryHandle: enough of the API for the updater's read/write/remove.
+    const mkdir = () => {
+        const kids = new Map();
+        const d = {kind: 'directory', kids,
+            getDirectoryHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = mkdir()); if (!k || k.kind !== 'directory') throw new Error('NotFoundError'); return k; },
+            getFileHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = {kind: 'file', bytes: new Uint8Array()}); if (!k || k.kind !== 'file') throw new Error('NotFoundError'); const f = k;
+                return {getFile: async () => ({size: f.bytes.length, arrayBuffer: async () => f.bytes.slice().buffer, text: async () => dec(f.bytes)}),
+                        createWritable: async () => { let buf; return {write: async (b) => { buf = b; }, close: async () => { f.bytes = new Uint8Array(buf); }}; }}; },
+            removeEntry: async (n) => { if (!kids.delete(n)) throw new Error('NotFoundError'); },
+            queryPermission: async () => 'granted', requestPermission: async () => 'granted', name: 'Mephisto'};
+        return d;
+    };
+    const put = async (root, path, text) => { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p, {create: true}); const w = await (await d.getFileHandle(n, {create: true})).createWritable(); await w.write(enc(text)); await w.close(); };
+    const get = async (root, path) => { try { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p); return dec(new Uint8Array(await (await (await d.getFileHandle(n)).getFile()).arrayBuffer())); } catch (e) { return null; } };
+    const load = (root, rel, zip) => {
+        const idbReq = (val) => { const q = {}; setTimeout(() => { q.result = val; q.onsuccess && q.onsuccess(); }); return q; };
+        const indexedDB = {open: () => idbReq({transaction: () => ({objectStore: () => ({get: () => idbReq(root), put: () => idbReq(), delete: () => idbReq()})}), close() {}})};
+        const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise, setTimeout, indexedDB, DecompressionStream,
+            fetch: async () => ({ok: true, status: 200, headers: {get: () => String(zip.byteLength)}, arrayBuffer: async () => zip}),
+            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'}), sendMessage: (m, cb) => cb(rel || {latest: '9.9.9', newer: false})},
+                     permissions: {contains: async () => true}, storage: {local: {get: async () => ({auto_update: true}), set: async () => {}}}}});
+        c.self = c;
+        vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+        vm.runInContext(upSrc.replace('const MephistoUpdater =', 'var MephistoUpdater =').replace(/\nif \(typeof module[\s\S]*$/, ''), c);
+        return vm.runInContext('MephistoUpdater', c);
+    };
+    const GLUE = 'src/offscreen/engine-glue.txt';
+    const man = (v) => JSON.stringify({name: 'Mephisto Chess Extension', version: v});
+    // A stored (method 0) zip, the shape readZip reads: local headers, central directory, end record.
+    const zipOf = (entries) => {
+        const parts = [], cds = []; let off = 0;
+        for (const [name, text] of entries) {
+            const n = enc(name), d = enc(text), lh = new DataView(new ArrayBuffer(30));
+            lh.setUint32(0, 0x04034b50, true); lh.setUint32(18, d.length, true); lh.setUint32(22, d.length, true); lh.setUint16(26, n.length, true);
+            const cd = new DataView(new ArrayBuffer(46));
+            cd.setUint32(0, 0x02014b50, true); cd.setUint32(20, d.length, true); cd.setUint32(24, d.length, true); cd.setUint16(28, n.length, true); cd.setUint32(42, off, true);
+            parts.push(new Uint8Array(lh.buffer), n, d); cds.push(new Uint8Array(cd.buffer), n); off += 30 + n.length + d.length;
+        }
+        const cdLen = cds.reduce((a, b) => a + b.length, 0), end = new DataView(new ArrayBuffer(22));
+        end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true); end.setUint32(12, cdLen, true); end.setUint32(16, off, true);
+        const all = [...parts, ...cds, new Uint8Array(end.buffer)], out = new Uint8Array(all.reduce((a, b) => a + b.length, 0));
+        let p = 0; for (const a of all) { out.set(a, p); p += a.length; }
+        return out.buffer;
+    };
+    const caught = async (p) => { try { await p; return null; } catch (e) { return e; } };
+    const V = '3.1.331', P = `Mephisto-${V}/`, LIST = 'src/offscreen/engine-glue-files.txt';
+    const glue = ['lib/engine/stockfish-19/sf_19.js', 'lib/engine/fairy-stockfish-14-large/fsf_14_large.wasm'];
+    const zip = zipOf([[P + 'manifest.json', man(V)], [P + 'src/popup/popup.js', 'x'], [P + 'src/scripts/content-script.js', 'x'], [P + 'lib/chess.js', 'x'],
+                       [P + GLUE, 'g1\n'], [P + LIST, glue.join('\n') + '\n'], [P + 'src/a.js', 'B']]);
+    const install = async ({id, have}) => {
+        const r = mkdir();
+        await put(r, 'manifest.json', man('3.1.330')); await put(r, 'src/a.js', 'A');
+        if (id) await put(r, GLUE, id + '\n');
+        for (const p of have) await put(r, p, 'glue');
+        const U = load(r, {latest: V, newer: true, asset: 'https://example.invalid/u.zip'}, zip);
+        return {r, e: await caught(U.install()), U};
+    };
+    // a 3.1.315-era install, updated in place: the id was stamped to the current one, the large Fairy glue never arrived
+    const a = await install({id: 'g1', have: [glue[0]]});
+    ok('NATIVEB-2: an install whose glue id matches but which lacks a listed glue file is refused with MPH-U16, naming the file',
+       a.e && a.e.code === 'MPH-U16' && /fsf_14_large\.wasm/.test(a.e.message), a.e && a.e.message);
+    ok('NATIVEB-2: ...before anything is staged, backed up or written', !a.r.kids.has('.mephisto-staging') && !a.r.kids.has('.mephisto-backup') && (await get(a.r, 'src/a.js')) === 'A');
+    const b = await install({id: null, have: [glue[0]]});
+    ok('NATIVEB-2: ...and so is one with no glue id at all (pre-3.1.330), which the id check lets through', b.e && b.e.code === 'MPH-U16', b.e && b.e.message);
+    const c = await install({id: 'g1', have: glue});
+    ok('NATIVEB-2: with every listed glue file present the update installs', c.e === null && (await get(c.r, 'src/a.js')) === 'B', c.e && c.e.message);
+    // the list that ships is the tree's own glue: lib/engine + lib/ort, nets and dotfiles left out
+    const walk = (d) => fs.readdirSync(ROOT + '/' + d, {withFileTypes: true}).filter(x => !x.name.startsWith('.'))
+        .flatMap(x => x.isDirectory() ? walk(d + '/' + x.name) : [d + '/' + x.name]);
+    const disk = [...walk('lib/engine'), ...walk('lib/ort')].filter(p => !/\.(nnue|onnx)(\.part[0-9]+)?$/.test(p)).sort();
+    const shipped = fs.readFileSync(ROOT + '/' + LIST, 'utf8').split('\n').filter(Boolean).sort();
+    ok('NATIVEB-2: engine-glue-files.txt lists exactly the glue files on disk', JSON.stringify(disk) === JSON.stringify(shipped),
+       {missing: disk.filter(p => !shipped.includes(p)), extra: shipped.filter(p => !disk.includes(p))});
+    const rz = fs.readFileSync(ROOT + '/tools/release/release-zips.sh', 'utf8');
+    ok('NATIVEB-2: the release script stops on a stale list and checks both zips carry it',
+       /GLUE_LIST=src\/offscreen\/engine-glue-files\.txt/.test(rz) && /\[ "\$\(git show "\$REF:\$GLUE_LIST" 2>\/dev\/null\)" = "\$GLUE_PATHS" \]/.test(rz)
+       && /GLUE_PATHS="\$\(git ls-tree -r --name-only "\$REF" -- lib\/engine lib\/ort/.test(rz) && /need=\([^)]*"\$GLUE_LIST"/.test(rz));
+    ok('NATIVEB-2: install() probes the files right after the id check', /checkGlue\(await readFileAt\(dir, GLUE\), files\);\s*await checkGlueFiles\(dir, files\);/.test(upSrc));
+})().catch(e => { fails++; console.log('FAIL NATIVEB-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

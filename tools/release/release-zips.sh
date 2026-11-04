@@ -7,8 +7,9 @@
 #                zip leaves those trees out and the updater refuses an archive that has them, so
 #                updated installs would keep the old glue: say in the notes that this release needs
 #                the full zip. Without the flag such a change stops the build. The new glue also
-#                needs a new src/offscreen/engine-glue.txt (the build prints the line to write),
-#                which is what makes the updater refuse the update zip on any older glue.
+#                needs a new src/offscreen/engine-glue.txt and, when a file was added or removed,
+#                engine-glue-files.txt (the build prints the command for each), which is what makes
+#                the updater refuse the update zip on any older glue.
 # --no-harness   cut the zips without the fixture harness (puppeteer not available here). Said out loud
 #                because the harness is a gate: without the flag, a harness that cannot run stops the
 #                build rather than waving it through on one warning line.
@@ -80,6 +81,13 @@ GLUE_FILE=src/offscreen/engine-glue.txt
 GLUE_ID="$(git ls-tree -r "$REF" -- lib/engine lib/ort | { grep -Ev '\.(nnue|onnx)(\.part[0-9]+)?$' || true; } | git hash-object --stdin)"
 [ "$(git show "$REF:$GLUE_FILE" 2>/dev/null | tr -d '[:space:]')" = "$GLUE_ID" ] \
     || { echo "!! $GLUE_FILE does not name $REF's engine glue -- run: echo $GLUE_ID > $GLUE_FILE, commit it, and start again" >&2; exit 1; }
+# ...AND THE FILES THEMSELVES (audit 3.1.330 NATIVEB-2). The id is copied in by the update zip, so it
+# says what an install was last updated to, not what glue is on its disk. $GLUE_LIST names each glue
+# file (the same listing, paths only) and the updater checks every one exists before it updates.
+GLUE_LIST=src/offscreen/engine-glue-files.txt
+GLUE_PATHS="$(git ls-tree -r --name-only "$REF" -- lib/engine lib/ort | { grep -Ev '\.(nnue|onnx)(\.part[0-9]+)?$' || true; })"
+[ "$(git show "$REF:$GLUE_LIST" 2>/dev/null)" = "$GLUE_PATHS" ] \
+    || { echo "!! $GLUE_LIST does not list $REF's engine glue -- run: git ls-tree -r --name-only $REF -- lib/engine lib/ort | grep -Ev '\\.(nnue|onnx)(\\.part[0-9]+)?\$' > $GLUE_LIST, commit it, and start again" >&2; exit 1; }
 
 # THE LOGIC SUITE GATES THE BUILD: it exits non-zero on any failed check.
 echo "logic suite gate..."
@@ -133,7 +141,7 @@ trap 'rm -f "$listing_full" "$listing_upd"' EXIT
 unzip -l "$OUT/mephisto-$V.zip"        > "$listing_full"
 unzip -l "$OUT/mephisto-$V-update.zip" > "$listing_upd"
 
-need=(manifest.json src/popup/popup.js src/scripts/content-script.js lib/chess.js lib/lru.min.js "$MANIFEST" "$GLUE_FILE")
+need=(manifest.json src/popup/popup.js src/scripts/content-script.js lib/chess.js lib/lru.min.js "$MANIFEST" "$GLUE_LIST" "$GLUE_FILE")
 for f in "${need[@]}"; do
     grep -Fq "Mephisto-$V/$f" "$listing_upd" \
         || { echo "!! update archive is missing $f -- refusing to ship it"; exit 1; }

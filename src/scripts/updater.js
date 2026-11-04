@@ -259,6 +259,23 @@ const MephistoUpdater = (function () {
         const got = f ? id(f.bytes) : '';
         if (got !== want) throw fail('MPH-U16', null, `the installed engine glue is ${want}, the update was built for ${got || 'none'}`);
     }
+    // THE GLUE HAS TO BE ON DISK, NOT ONLY NAMED THERE (audit 3.1.330 NATIVEB-2). engine-glue.txt is
+    // written by the same update zip that cannot carry the glue, so an install that started from a
+    // full zip older than a glue change and has only updated in place since had the new id stamped
+    // over its old glue, and the id check above waved every later update through. The archive also
+    // lists the glue files (GLUE_FILES, held equal to the tree by the release script), and each one
+    // must exist in the folder, id or no id. Probed by handle, not read. An archive from before the
+    // list has nothing to probe.
+    const GLUE_FILES = 'src/offscreen/engine-glue-files.txt';
+    async function checkGlueFiles(dir, files) {
+        const f = files.find(x => x.path === GLUE_FILES);
+        if (!f) return;
+        for (const p of new TextDecoder().decode(f.bytes).split('\n').map(s => s.trim()).filter(Boolean)) {
+            const parts = p.split('/'), name = parts.pop();
+            const there = await dirAt(dir, parts.join('/'), false).then(d => d.getFileHandle(name)).then(() => true, () => false);
+            if (!there) throw fail('MPH-U16', null, `the installed folder has no ${p}, which this release's engines need`);
+        }
+    }
 
     // --- staged, recoverable install --------------------------------------------------------------
     // TRUE ATOMICITY IS NOT AVAILABLE, and it is worth being plain about why: the extension id comes
@@ -542,6 +559,7 @@ const MephistoUpdater = (function () {
         onStatus('Reading the archive…');
         const files = await readUpdateArchive(buf, rel.latest);
         checkGlue(await readFileAt(dir, GLUE), files);
+        await checkGlueFiles(dir, files);
         const keyed = carryKey(files.find(f => f.path === 'manifest.json').bytes, installed);
         if (keyed) files.find(f => f.path === 'manifest.json').bytes = keyed;
 
@@ -593,7 +611,7 @@ const MephistoUpdater = (function () {
         rollback, rollbackInfo, pendingInstall, finishStaged,
         // exported for the test suite, which drives them against a real archive and a stub directory
         _readZip: readZip, _extract: extract, _readUpdateArchive: readUpdateArchive,
-        _writeFile: writeFile, _carryKey: carryKey, _checkGlue: checkGlue, _GLUE: GLUE,
+        _writeFile: writeFile, _carryKey: carryKey, _checkGlue: checkGlue, _GLUE: GLUE, _GLUE_FILES: GLUE_FILES,
         _readFileAt: readFileAt, _removeFileAt: removeFileAt, _backupCurrent: backupCurrent,
         _STAGING: STAGING, _BACKUP: BACKUP, _STAGED_MARKER: STAGED_MARKER,
     };
