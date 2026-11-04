@@ -7544,6 +7544,45 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('X1-6: once the only promoted piece is captured no square stays marked, and the capturing pawn does not carry a mark on',
        JSON.stringify(res) === JSON.stringify({root: 'd5', afterCapture: '', afterPawnMove: ''}), res);
 }
+// ---- X1-7: the crazyhouse engine FEN marks promoted pieces (Q~), as Fairy writes and reads them ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a), j = aj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return aj.slice(i, j); };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    c.box = {value: ''};
+    let res = null;
+    try {
+        vm.runInContext(`const Core = self.MephistoReviewCore; let nodeSeq = 0, treeRoot = null, treeNode = null, cursor = 0;
+            const anVariant = () => 'crazyhouse'; const $ = (id) => (id === 'an_pgn' ? box : null); function status() {}
+            const evalCache = new Map(), evalCache2 = new Map(), humanCache = new Map(), bandCache = new Map();
+            function relinkLine() {} function buildBoard() {} function renderMoves() {} function renderPockets() {} function go() {}
+            function setCfg() {} function onVariantChange() {} const PGN_VARIANTS = {crazyhouse: 'crazyhouse'};
+            ${cut('function threeCheckCounts', '// crazyhouse only')}
+            ${cut('function mkNode', '// the flat view')}
+            ${cut('function engineFen', 'let engine = null')}
+            ${cut('function loadFromInput', '// The line as it stands')}`, c);
+        // b7xa8=Q: Fairy-Stockfish 14.0.1 itself answers "Q~6k/8/8/8/8/8/8/K7[R] b - - 0 1" for this line
+        c.box.value = '[Variant "Crazyhouse"]\n[SetUp "1"]\n[FEN "r6k/1P6/8/8/8/8/8/K7[] w - - 0 1"]\n\n1. bxa8=Q *';
+        vm.runInContext('loadFromInput()', c);
+        const promo = vm.runInContext('engineFen(treeRoot.children[0])', c);
+        // and a loaded Q~ comes back out with its mark, so Copy FEN round-trips
+        const fen = 'r1bqkbnr/pppp1ppp/2n1p3/3Q~4/8/8/PPPP1PPP/RNB1KBNR[Nn] b KQkq - 0 1';
+        c.box.value = fen;
+        vm.runInContext('loadFromInput()', c);
+        res = {promo, roundTrip: vm.runInContext('engineFen(treeRoot)', c) === fen,
+               plain: vm.runInContext(`engineFen({fen: '${'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'}', holdings: {w: '', b: ''}, promoted: ''})`, c)};
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('X1-7: after b7xa8=Q the engine FEN is the one Fairy writes for that line, promoted queen marked',
+       res?.promo === 'Q~6k/8/8/8/8/8/8/K7[R] b - - 0 1', res);
+    ok('...a loaded Q~ FEN comes back out unchanged, and a position with no promoted piece carries no mark',
+       res?.roundTrip === true && res?.plain === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1', res);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

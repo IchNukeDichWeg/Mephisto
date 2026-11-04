@@ -163,6 +163,21 @@ function engineFen(pos) {
     const v = anVariant();
     if (v === 'crazyhouse') {
         const parts = pos.fen.split(' ');
+        // Promoted pieces carry their "~" mark (Q~), the spelling Fairy writes after a promotion
+        // and reads back. Without it Fairy took a promoted queen for a real one and pocketed it as
+        // a queen when captured, not as the pawn it was (measured on Fairy-Stockfish 14.0.1; X1-7).
+        const marks = (pos.promoted || '').split(',').filter(Boolean);
+        if (marks.length) {
+            parts[0] = parts[0].split('/').map((row, r) => {
+                let file = 0, out = '';
+                for (const ch of row) {
+                    if (/\d/.test(ch)) { file += +ch; out += ch; continue; }
+                    out += ch + (marks.includes('abcdefgh'[file] + (8 - r)) ? '~' : '');
+                    file++;
+                }
+                return out;
+            }).join('/');
+        }
         const held = (pos.holdings?.w || '').toUpperCase() + (pos.holdings?.b || '').toLowerCase();
         parts[0] = `${parts[0]}[${held}]`;
         return parts.join(' ');
