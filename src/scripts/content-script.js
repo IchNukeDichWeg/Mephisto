@@ -5071,7 +5071,7 @@ async function determineStartPosition() {
 const FEN_RE = /^([rnbqkpRNBQKP1-8]+\/){7}[rnbqkpRNBQKP1-8]+ [wb] /;
 
 function fenToPuzString(fen) {
-    const [placement, turn, castle, , half, full] = fen.trim().split(/\s+/);
+    const [placement, turn, castle, ep, half, full] = fen.trim().split(/\s+/);
     let out = `${turn}*****`;
     const rows = placement.split('/');
     if (rows.length !== 8) return null;
@@ -5091,6 +5091,14 @@ function fenToPuzString(fen) {
     // read 0 (3.1.321 audit F7/F8). The standard start keeps its plain form, which callers compare
     // against DEFAULT_POSITION.
     if (castle && /^(-|[KQkqA-Ha-h]{1,4})$/.test(castle) && out !== DEFAULT_POSITION) out += `cr-${castle}*****`;
+    // THE EN-PASSANT SQUARE rides as the `lm-` token of the double push that made it (f6 -> lm-f7f5),
+    // the protocol's only carrier of it; the panel's apply_ep_square turns that back into the field.
+    // Dropped, a start whose ep capture is possible was analysed without it, and once the capture
+    // was played the SAN replay from the start was illegal, so every later scrape failed to parse
+    // (audit 3.1.330 SCRAPEB-1). Rank 6 only with White to move, rank 3 only with Black.
+    if (/^[a-h][36]$/.test(ep || '') && (ep[1] === '6') === (turn === 'w')) {
+        out += (ep[1] === '6') ? `lm-${ep[0]}7${ep[0]}5*****` : `lm-${ep[0]}2${ep[0]}4*****`;
+    }
     // The MOVE COUNTERS ride the same way (`mc-<halfmove>-<fullmove>`): without them a set-up
     // "... w - - 0 8" came back as "0 1" in Copy FEN, the PGN and every counter-keyed heuristic
     // (3.1.321 audit F4). "0 1" is what the panel assumes anyway, so it is left off.

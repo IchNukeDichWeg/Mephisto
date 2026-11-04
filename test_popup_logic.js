@@ -7696,6 +7696,31 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('X3-2: a list that emptied with the URL change is a new game: the old game\'s start is not filed under it',
        doc().go('/game/live/701', 2) === DP, doc().go('/game/live/701', 2));
 }
+// ---- audit 3.1.330 SCRAPEB-1: a set-up start's en-passant square reaches the panel ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // the REAL fenToPuzString (content script) feeding the REAL parse_position_from_response (panel)
+    const d0 = csrc.indexOf('const DEFAULT_POSITION ='), dEnd = csrc.indexOf(';', d0) + 1, f0 = csrc.indexOf('function fenToPuzString(fen)');
+    const cc = vm.createContext({}); vm.runInContext(csrc.slice(d0, dEnd) + '\n' + csrc.slice(f0, csrc.indexOf('\n}\n', f0) + 3), cc);
+    const puz = (fen) => vm.runInContext(`fenToPuzString(${JSON.stringify(fen)})`, cc);
+    const c = vm.createContext({console}); c.self = c; vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/lru.min.js', 'utf8'), c);
+    const a = psrc.indexOf('function apply_page_rights('), p0 = psrc.indexOf('function parse_position_from_response(');
+    const i0 = psrc.indexOf('const INITIAL_PLACEMENT =');
+    vm.runInContext(`var config = {variant: 'chess'}, fen_cache = new LRU(100), turn = 'w', detected_prefix = null;
+        function i18n(k, d) { return d; } function set_detection_status() {}
+        ${psrc.slice(i0, psrc.indexOf('\n', i0))}
+        ${psrc.slice(a, psrc.indexOf('\n}\n', p0) + 3)}`, c);
+    const parse = (start, sans) => { try { return vm.runInContext(`parse_position_from_response(${JSON.stringify('***livar***' + start + '&*****' + sans)}).fen`, c); } catch (e) { return 'threw ' + e.message; } };
+    const EP = 'rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3';
+    ok('SCRAPEB-1: a start with an ep square (White to move) reaches the panel with it', parse(puz(EP), '?') === EP, parse(puz(EP), '?'));
+    ok('SCRAPEB-1: ...and the ep capture played from it replays instead of failing every scrape',
+       parse(puz(EP), 'exf6*****') === 'rnbqkbnr/ppp1p1pp/5P2/3p4/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 3', parse(puz(EP), 'exf6*****'));
+    const EPB = 'rnbqkbnr/pppp1ppp/8/8/3Pp3/8/PPP1PPPP/RNBQKBNR b KQkq d3 0 2';
+    ok('SCRAPEB-1: Black to move with a rank-3 ep square too', parse(puz(EPB), '?') === EPB && /^rnbqkbnr\/pppp1ppp\/8\/8\/8\/3p4\//.test(parse(puz(EPB), 'exd3*****')), parse(puz(EPB), 'exd3*****'));
+    ok('SCRAPEB-1: no ep field, or one that contradicts the turn, adds no lm- token',
+       !puz('rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq - 0 3').includes('lm-')
+       && !puz('rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f3 0 3').includes('lm-'));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
