@@ -3492,15 +3492,21 @@ class ReviewPage {
             // Run stays ENABLED for 4pc -- it has a review now (run4pcReview). This line used to
             // grey the button out from the "cannot be replayed" era, which made the whole lane
             // unreachable: a disabled button swallows the click before onRun ever runs.
+            // ...and VISIBLE: the Run row (Analyse, Stop) sits in the `own` block, and m is already
+            // forced to 'own' for every non-chess type, so the 4pc lane runs through it. Hiding every
+            // block for 4pc left the note saying to press a button the page no longer showed, with
+            // no way to start or stop a four-player review (audit 3.1.330 REVIEWA-1).
             document.querySelectorAll('.rv-mode').forEach(el =>
-                el.classList.toggle('hidden', fourPc || el.dataset.mode !== m));
+                el.classList.toggle('hidden', el.dataset.mode !== m));
             // ...and the settings themselves: a control that cannot affect the selected review is
             // worse than absent, because changing it looks like it did something. Rows marked
             // data-chess-only (the Maia passes) stand down for every other game type; in 4pc, which
-            // has no replay at all, every row does.
+            // has no replay at all, every row does except the ones marked data-4pc (the Budget row,
+            // whose time run4pcReview sends as the movetime).
             document.querySelectorAll('[data-for]').forEach(el =>
-                el.classList.toggle('hidden', fourPc || !el.dataset.for.split(' ').includes(m)
-                    || (el.hasAttribute('data-chess-only') && variant !== 'chess')));
+                el.classList.toggle('hidden', fourPc ? !el.hasAttribute('data-4pc')
+                    : (!el.dataset.for.split(' ').includes(m)
+                       || (el.hasAttribute('data-chess-only') && variant !== 'chess'))));
         };
         $('rv_mode')?.addEventListener('change', () => { setCfg('rv_mode', $('rv_mode').value); rvModeSync(); });
         $('rv_variant')?.addEventListener('change', () => {
