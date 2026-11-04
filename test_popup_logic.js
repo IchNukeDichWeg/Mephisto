@@ -6717,6 +6717,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            vm.runInContext('report === null && batchReports === null', batch.c) && batch.els.rv_export.disabled === true);
     });
 }
+// ---- audit 3.1.329 REVIEW-4: page load with a fairy Game type shows Fairy-Stockfish, without saving it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fnOf = (head) => { const a = rj.indexOf(head), b = rj.indexOf('\n}\n', a) + 3; return rj.slice(a, b); };
+    const ms = rj.indexOf('        const rvModeSync = () => {'), me = rj.indexOf('\n        };\n', ms) + 11;
+    const is = rj.indexOf('        updateEngineOptions();\n', me), ie = rj.indexOf('        syncLimitUi();', is);
+    // a select that behaves like the real one: a value it has no option for leaves it on ''
+    const sel = {opts: [], _v: '', listeners: 0, innerHTML: '', classList: {toggle() {}}, addEventListener() { sel.listeners++; },
+        get options() { return sel.opts; }, get value() { return sel._v; }, set value(v) { sel._v = sel.opts.some(o => o.value === v) ? v : ''; }};
+    Object.defineProperty(sel, 'innerHTML', {set(h) { sel.opts = [...h.matchAll(/<option value="([^"]+)"( disabled)?/g)].map(m => ({value: m[1], disabled: !!m[2]})); sel._v = sel.opts[0]?.value || ''; }, get() { return ''; }});
+    const store = {rv_variant: 'variant', rv_variant_which: 'crazyhouse', rv_mode: 'own', rv_engine: 'sf19-native'};
+    const writes = [];
+    const c = vm.createContext({console, String, Object,
+        ENGINES: [{id: 'sf19-native', label: 'Stockfish 19 (native)', kind: 'native'}, {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish 14 (WASM)', kind: 'wasm'}],
+        nativeAvailable: null, esc: (s) => s, cfg: (k) => store[k], setCfg: (k, v) => { writes.push(k); store[k] = v; },
+        $: (id) => (id === 'rv_engine' ? sel : null), document: {querySelectorAll: () => []},
+        RV_FAIRY_ONLY: ['crazyhouse', '3check'], RV_FAIRY_ENGINE: 'fairy-stockfish-14-nnue', syncLimitUi() {}, nativeHostAvailable: async () => true});
+    vm.runInContext(fnOf('function rvChessVariant() {') + fnOf('function updateEngineOptions() {')
+        + rj.slice(ms, me) + '\n        rvModeSync();\n' + rj.slice(is, ie), c);
+    ok('REVIEW-4: with crazyhouse saved, a fresh page shows Fairy-Stockfish in Review with', sel.value === 'fairy-stockfish-14-nnue', sel.value);
+    ok('...and the stored engine is not overwritten', store.rv_engine === 'sf19-native' && !writes.includes('rv_engine'), [store.rv_engine, writes]);
+    vm.runInContext("nativeAvailable = {'sf19-native': true}; updateEngineOptions();", c);   // the host probe lands
+    ok('...the re-render after the host probe keeps it', sel.value === 'fairy-stockfish-14-nnue' && !writes.includes('rv_engine'), [sel.value, writes]);
+    store.rv_variant = 'chess'; vm.runInContext('rvModeSync()', c);
+    ok('...and back on Chess the stored engine shows again', sel.value === 'sf19-native', sel.value);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

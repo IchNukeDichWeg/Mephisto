@@ -3518,7 +3518,10 @@ class ReviewPage {
         // Probing three native hosts takes up to a second; do it once and re-render the list when it
         // lands rather than making the page wait for it.
         updateEngineOptions();
-        $('rv_engine').value = cfg('rv_engine');
+        // THE DISPLAY RULE AGAIN, now that the select has options: rvModeSync above ran while it was
+        // still empty, so its Fairy-Stockfish for a fairy Game type was dropped and the stored engine
+        // showed instead (audit 3.1.329 REVIEW-4). It shows the stored engine for every other type.
+        rvModeSync();
         $('rv_engine').addEventListener('change', () => setCfg('rv_engine', $('rv_engine').value));
         syncLimitUi();
         if (!nativeAvailable) {
