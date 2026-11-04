@@ -4006,8 +4006,12 @@ function scrapeStorming() {
     scrapeTimes = [];
     if (!scrapeThrottleReported) {
         scrapeThrottleReported = true;
+        // The route shape, never the raw path: on a game page the path IS the game id, and the
+        // worker's trace ring goes into the diagnostics report verbatim (audit 3.1.329 PAGE-3).
+        // diagnostics_path_shape is popup.js's, loaded just before this file in the same world.
         bgLogAlways('THROTTLED: scrape storm', {rate: `>${SCRAPE_BURST_MAX}/s`,
-            cooldownMs: SCRAPE_COOLDOWN_MS, site, path: location.pathname});
+            cooldownMs: SCRAPE_COOLDOWN_MS, site,
+            path: typeof diagnostics_path_shape === 'function' ? diagnostics_path_shape(location.pathname) : '<path>'});
     }
     return true;
 }

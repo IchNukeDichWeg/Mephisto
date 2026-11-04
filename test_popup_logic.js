@@ -6985,6 +6985,23 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('PAGE-2: an up-to-date registration is left alone', calls.length === 0, calls);
     })();
 }
+// ---- audit 3.1.329 PAGE-3: the scrape-storm trace line carries the route shape, never the game id ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const ps = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = cs.indexOf('function scrapeStorming() {'), j = cs.indexOf('\n}\n', i) + 3;
+    const pa = ps.indexOf('const DIAG_ROUTE_WORDS'), pb = ps.indexOf('\n}\n', ps.indexOf('function diagnostics_path_shape(')) + 3;
+    const logged = [];
+    const c = vm.createContext({Date, location: {pathname: '/game/live/123456789'}, site: 'chesscom',
+        bgLogAlways: (...a) => logged.push(a), scrapeThrottledUntil: 0, scrapeTimes: [], scrapeThrottleReported: false,
+        SCRAPE_BURST_MAX: 2, SCRAPE_COOLDOWN_MS: 1000});
+    vm.runInContext(ps.slice(pa, pb).replace(/^const /, 'var ') + cs.slice(i, j), c);
+    for (let k = 0; k < 4; k++) vm.runInContext('scrapeStorming()', c);
+    const line = JSON.stringify(logged);
+    ok('PAGE-3: a scrape storm on a game page logs the route shape, not the game id',
+       logged.length === 1 && logged[0][1].path === '/game/live/<id>' && !/123456789/.test(line), logged);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
