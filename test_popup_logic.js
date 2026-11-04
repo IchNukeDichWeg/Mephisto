@@ -9504,6 +9504,54 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            /if \(key === 'multiple_lines' \|\| key === 'humanize'\) search_again_at_new_width\(\);/.test(ls), null);
     })().catch(e => { fails++; console.log('FAIL ENGINEA-3 checks threw: ' + (e && e.stack || e)); });
 }
+// ---- audit 3.1.330 ENGINEA-5: a stop charged during Maia-2's lazy opening-net load is still paid ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function on_engine_response(message) {');
+    const head = psrc.slice(i, psrc.indexOf('last_info_at = Date.now();   // the panel is HEARING', i));
+    // the real maia2.js, its imports replaced by stubs and the Maia-3 import by a load the test releases
+    const m2 = fs.readFileSync(ROOT + '/src/offscreen/maia2.js', 'utf8')
+        .replace(/^import [^\n]*\n/gm, '').replace(/^export /gm, '')
+        .replace("import('/src/offscreen/maia3.js')", 'load3()');
+    let now = 0;
+    const c = vm.createContext({console: {log() {}, warn() {}}, Date: {now: () => now}, TextDecoder, Uint8Array, BigInt64Array, Float64Array, BigInt, Math, Promise});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(`var pending_stops = 0, stop_charged_at = 0, search_active = false, last_info_at = 0, one_pass_owed = 0, passed = [];
+        const STOP_FLUSH_MS = 1500; function is_remote() { return false; } function is_one_pass() { return true; }
+        function note_unsupported_variant() {} function download_progress_text() { return null; } function update_best_move() {}
+        ${head} passed.push(message); }
+        function abandon() { if (search_active) { pending_stops++; stop_charged_at = Date.now(); } search_active = false; }
+        function go() { search_active = true; one_pass_owed++; }
+        async function fetchModel(dir, file) { return file.endsWith('.json') ? new TextEncoderLite().encode('{"moves":[],"elo_dict":{}}') : new ArrayBuffer(4); }
+        function TextEncoderLite() { this.encode = (s) => Uint8Array.from(s, ch => ch.charCodeAt(0)); }
+        async function readyEnv() {}
+        const ort = {InferenceSession: {create: async () => ({run: async () => ({})})}, Tensor: function () {}};
+        // the opening net: answers each go for the position it was given, through the callback it was built with
+        let release3 = null;
+        function load3() { return new Promise(r => { release3 = r; }).then(() => ({createMaia3Engine: (listen) => {
+            let pos = '';
+            return {uci(l) { if (l.startsWith('position fen ')) pos = l.slice(13);
+                             if (l === 'go') { const mv = pos.split(' ')[1] === 'w' ? 'e2e4' : 'e7e5';
+                                               listen('info depth 1 multipv 1 score cp 10 pv ' + mv); listen('bestmove ' + mv); } },
+                    terminate() {}};
+        }})); }
+        ${m2}`, c);
+    (async () => {
+        const eng = await vm.runInContext('createMaia2Engine(on_engine_response, 1500, 1500)', c);
+        const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+        const AFTER = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+        now = 0; vm.runInContext('go()', c); eng.uci(`position fen ${START}`); eng.uci('go');            // go A: starts the cached net's load
+        await new Promise(r => setTimeout(r, 0));
+        now = 200; vm.runInContext('abandon(); go()', c); eng.uci(`position fen ${AFTER}`); eng.uci('go'); // the opponent moved: stop A, go B
+        now = 3000; vm.runInContext('release3()', c);                                                     // the load ends 2.8 s after the stop
+        for (let k = 0; k < 20; k++) await new Promise(r => setTimeout(r, 0));
+        const got = vm.runInContext('passed', c);
+        ok('ENGINEA-5: a stop charged during the opening-net load is paid by the stopped go; only the new position\'s line and move pass',
+           JSON.stringify(got) === JSON.stringify(['info depth 1 multipv 1 score cp 10 pv e7e5', 'bestmove e7e5']), got);
+    })().catch(e => { fails++; console.log('FAIL ENGINEA-5 checks threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

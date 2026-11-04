@@ -121,9 +121,17 @@ export async function createMaia2Engine(listen, initialSelf, initialOppo) {
             // the last was ever released.
             // A failed load is not kept: a rejected promise answered every later opening position
             // with "could not answer" until the engine was rebuilt (audit 3.1.328 ENGINE-3).
+            const loading = !opening;
             opening = opening || import('/src/offscreen/maia3.js').then(m => m.createMaia3Engine(listen, selfElo))
                 .catch(e => { opening = null; throw e; });
             const net = await opening;
+            // SAY THE LOAD IS OVER. It runs inside this go, after 'ready', and a cached net loads with
+            // no `info string` at all, so a stop the panel charged during it was older than
+            // STOP_FLUSH_MS when this go's answer came, written off, and this go's line and bestmove
+            // taken for the new position's (audit 3.1.330 ENGINEA-5). Every `info string` restarts
+            // the panel's flush clock while a stop is owed, so the answer right behind this one pays
+            // the stop. Sent at the END: a note at the start lands before the stop it has to cover.
+            if (loading) note('maia2 opening net ready');
             net.uci(`setoption name SelfElo value ${selfElo}`);
             net.uci(`setoption name OppoElo value ${oppoElo}`);
             net.uci(`setoption name MultiPV value ${multipv}`);
