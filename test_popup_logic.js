@@ -12072,6 +12072,44 @@ print(json.dumps(out))`;
     ok('L38: another engine never shows the Remote Engine\'s refusal', String(label.textContent) === '1500', label.textContent);
     ok('L38: both configures that carry the cap read the answer', (s.match(/\.then\(note_remote_elo\)/g) || []).length === 2);
 })();
+// ---- audit 3.1.330 follow-up L35: a Tetrarch error shows the host's reason in the panel, not a bare "Engine error" ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const c = vm.createContext({String});
+    vm.runInContext(cut('function native_host_missing(', '\n// PUZZLE MODE PACING'), c);
+    const detail = c.native_error_detail || (() => '');
+    // the real host's analyse answer over a stand-in uci.py that dies at start (as BOUNDARY-3's check, analyse not configure)
+    const run = `import json, os, shutil, struct, subprocess, sys, tempfile
+d = tempfile.mkdtemp(); repo = os.path.join(d, 'Tetrarch'); os.mkdir(repo)
+open(os.path.join(repo, 'uci.py'), 'w').write('import numpy_missing_in_this_python\\n')
+shutil.copy(sys.argv[1], os.path.join(d, 'tetrarch-host.py')); open(os.path.join(d, 'tetrarch-path'), 'w').write(repo + '\\n')
+env = dict(os.environ); env.pop('TETRARCH_DIR', None)
+p = subprocess.Popen([sys.executable, '-I', os.path.join(d, 'tetrarch-host.py')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
+b = json.dumps({'id': 1, 'cmd': 'analyse', 'fen4': 'x', 'time': 200}).encode(); p.stdin.write(struct.pack('<I', len(b)) + b); p.stdin.flush()
+h = p.stdout.read(4); r = json.loads(p.stdout.read(struct.unpack('<I', h)[0])) if len(h) == 4 else None
+p.stdin.close(); p.wait(10); shutil.rmtree(d, ignore_errors=True)
+print(json.dumps(r))`;
+    const r = await new Promise(res => require('child_process').execFile('python3', ['-I', '-B', '-c', run, ROOT + '/native-host/tetrarch-host.py'],
+        {encoding: 'utf8', timeout: 30000}, (e, stdout, stderr) => res({e, stdout, stderr})));
+    let frame = null; try { frame = JSON.parse(r.stdout); } catch (e) { /* no python3 */ }
+    if (!frame) console.log('ok   L35: host half skipped (no python3 here)');
+    else {
+        // what native_bg makes of an error frame
+        const err = new Error(`Native engine: ${frame.error}`), d = detail(err);
+        ok('L35: a Tetrarch that dies at start is not read as "not installed"', typeof frame.error === 'string' && !c.native_host_missing(err), frame);
+        ok('L35: ...and the panel line keeps the host\'s reason, capped', d.length <= 120 && /^Tetrarch did not start under /.test(d)
+           && /No module named 'numpy_missing_in_this_python'/.test(d), d);
+    }
+    const long = 'Native engine: Tetrarch did not start under /usr/bin/python3: Traceback (most recent call last): | File "uci.py", line 1 | ' + 'x'.repeat(200) + ' | ImportError: numpy too old';
+    ok('L35: a long reason keeps its start and its last line within 120 characters', detail(long).length <= 120
+       && /^Tetrarch did not start/.test(detail(long)) && /ImportError: numpy too old$/.test(detail(long)), detail(long));
+    ok('L35: a short reason is shown whole', detail(new Error('engine switched')) === 'engine switched');
+    ok('L35: the 4PC failure shows MPH-E05 with that detail, not a bare "Engine error"',
+       /: err_line\('MPH-E05', \{detail: native_error_detail\(e\)\}\)\);/.test(cut('function on_new_pos_4pc(', '\nfunction native_host_missing('))
+       && !/i18n\('panel\.engine_error', 'Engine error'\)/.test(cut('function on_new_pos_4pc(', '\nfunction native_host_missing(')));
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -10183,10 +10183,12 @@ function on_new_pos_4pc(payload) {
             // Tetrarch is the ONE engine with nothing bundled behind it -- every other entry in the
             // dropdown either ships as WASM or degrades to one. So "host not found" here almost
             // always means it was never installed, and "Engine error" sent people looking for a bug
-            // instead of the installer. Say what to do.
+            // instead of the installer. Say what to do. Anything else carries the host's own reason, as
+            // other engine errors do: a bare "Engine error" left "Tetrarch did not start under <python>:
+            // <stderr>" in host-debug.log only (audit 3.1.330 follow-up L35).
             update_best_move(native_host_missing(e)
                 ? err_line('MPH-E07')
-                : i18n('panel.engine_error', 'Engine error'));
+                : err_line('MPH-E05', {detail: native_error_detail(e)}));
             console.warn('Mephisto: 4PC analyse failed', e);
         });
 }
@@ -10197,6 +10199,14 @@ function on_new_pos_4pc(payload) {
 // crashed host, which is fine: both answers are "run the installer".
 function native_host_missing(e) {
     return /not found|unavailable|port closed|no such file/i.test(String((e && e.message) || e || ''));
+}
+
+// A host's error capped at 120 characters for the readout, the full text staying in the console. The
+// END is kept as well as the start: Tetrarch's start failure is "Tetrarch did not start under <python>:
+// <stderr lines>", and the reason (ModuleNotFoundError ...) is the last of them.
+function native_error_detail(e) {
+    const why = String((e && e.message) || e || '').replace(/^Native engine: /, '');
+    return why.length <= 120 ? why : `${why.slice(0, 54)} ... ${why.slice(-61)}`;
 }
 
 // PUZZLE MODE PACING, and the rule that matters most: DO NOT MOVE TWICE INTO THE SAME POSITION.
