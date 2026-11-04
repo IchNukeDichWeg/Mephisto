@@ -7225,6 +7225,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /GLUE_FILE=src\/offscreen\/engine-glue\.txt/.test(rz) && /GLUE_ID="\$\(git ls-tree -r "\$REF" -- lib\/engine lib\/ort/.test(rz)
        && /git show "\$REF:\$GLUE_FILE"[\s\S]{0,80}= "\$GLUE_ID" \]/.test(rz) && /need=\([^)]*"\$GLUE_FILE"\)/.test(rz));
 }
+// ---- NATIVE-4 (audit 3.1.329): the native host relaunches a dead engine with the panel's options ----
+// (run end to end by killing the engine under a live host; this pins the shape the run checked)
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const host = fs.readFileSync(ROOT + '/native-host/uci-native-host.py', 'utf8');
+    const ge = host.slice(host.indexOf('def get_engine'), host.indexOf('def _apply_variant_net'));
+    ok('NATIVE-4: get_engine reuses the cached engine only while its process is alive',
+       /def _engine_dead\(e\):[\s\S]{0,80}?e\.protocol\.returncode\.done\(\)/.test(host)
+       && /if engine is not None and not _engine_dead\(engine\):\s*return engine/.test(ge));
+    ok('...a dead one is closed and reopened under the init lock, and gets the panel\'s options back (Threads/Hash first, no 2048 MB detour)',
+       /with _engine_init_lock:[\s\S]*?relaunch = engine is not None and _engine_dead\(engine\)[\s\S]*?engine = None[\s\S]*?popen_uci/.test(ge)
+       && /engine_options\.get\('Threads', FULL_THREADS\)/.test(ge) && /engine_options\.get\('Hash', FULL_HASH_MB\)/.test(ge)
+       && /if relaunch:\s*for key, value in list\(engine_options\.items\(\)\):[\s\S]{0,80}?_apply_option\(key, value\)/.test(ge));
+    ok('...and a configure applies its options through the same _apply_option',
+       /engine_options\[key\] = value\s*_apply_option\(key, value\)/.test(host) && /def _apply_option\(key, value\):[\s\S]{0,300}?_apply_variant_net/.test(host));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

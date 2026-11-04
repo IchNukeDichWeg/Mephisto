@@ -175,20 +175,47 @@ def _set_if_declared(key, value):
     except Exception as e:
         _dbg(f"couldn't set {key}={value}: {e}")
 
+def _engine_dead(e):
+    try:
+        return e.protocol.returncode.done()
+    except Exception:
+        return False
+
 def get_engine():
     global engine
-    if engine is not None:
+    if engine is not None and not _engine_dead(engine):
         return engine
     with _engine_init_lock:
+        # A DEAD ENGINE IS RELAUNCHED (audit 3.1.329 NATIVE-4). Killed by the OS under memory pressure,
+        # by the user, or crashed on a position, it used to stay cached: every later request answered
+        # "engine event loop dead" until every tab on this host closed, since the background restarts
+        # a host only when its last port goes. The new process gets the options the panel set on the
+        # old one (Threads, Hash, MultiPV, Elo, variant + net), as tetrarch-host.py does on a relaunch.
+        relaunch = engine is not None and _engine_dead(engine)
+        if relaunch:
+            _dbg(f"engine died (exit code {engine.protocol.returncode.result()}); relaunching")
+            try:
+                engine.close()
+            except Exception:
+                pass
+            engine = None
         if engine is None:
             _dbg(f"opening engine: {_ENGINE_PATH}")
             engine = chess.engine.SimpleEngine.popen_uci(_ENGINE_PATH)
-            # full-power default; the extension's configure (Threads/Hash sliders) overrides this
-            _set_if_declared('Threads', FULL_THREADS)
-            _set_if_declared('Hash', FULL_HASH_MB)
+            # full-power default; the extension's configure (Threads/Hash sliders) overrides this. A
+            # relaunch starts at the panel's values instead: the full 2048 MB Hash first would be the
+            # very allocation that got the last process killed under memory pressure.
+            threads = engine_options.get('Threads', FULL_THREADS)
+            hash_mb = engine_options.get('Hash', FULL_HASH_MB)
+            _set_if_declared('Threads', threads)
+            _set_if_declared('Hash', hash_mb)
             _set_if_declared('UCI_ShowWDL', True)  # so info lines carry `wdl W D L` for the panel
             _apply_variant_net(None)
-            _dbg(f"engine ready: Threads={FULL_THREADS} Hash={FULL_HASH_MB}")
+            _dbg(f"engine ready: Threads={threads} Hash={hash_mb}")
+            if relaunch:
+                for key, value in list(engine_options.items()):
+                    if key not in ('Threads', 'Hash'):
+                        _apply_option(key, value)
     return engine
 
 def _apply_variant_net(variant):
@@ -322,17 +349,21 @@ def do_configure(data):
     with engine_lock:
         for key, value in (data.get('options') or {}).items():
             engine_options[key] = value
-            if key == 'UCI_Variant':
-                _apply_variant_net(value if value != 'chess' else None)
-            if key.lower() in MANAGED_OPTIONS:
-                continue
-            if key not in engine.options:
-                continue
-            try:
-                engine.configure({key: value})
-            except Exception as e:
-                _dbg(f"configure {key}={value} failed: {e}")
+            _apply_option(key, value)
         return {'ok': True}
+
+def _apply_option(key, value):
+    # One option onto the running engine; also what a relaunch re-applies (NATIVE-4).
+    if key == 'UCI_Variant':
+        _apply_variant_net(value if value != 'chess' else None)
+    if key.lower() in MANAGED_OPTIONS:
+        return
+    if key not in engine.options:
+        return
+    try:
+        engine.configure({key: value})
+    except Exception as e:
+        _dbg(f"configure {key}={value} failed: {e}")
 
 # --- Syzygy tablebases, probed DIRECTLY (python-chess), no engine involved ------------------- #
 # The extension's local-tablebase feature: the service worker sends the user's folder path and a
