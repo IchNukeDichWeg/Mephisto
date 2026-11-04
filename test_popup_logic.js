@@ -7412,6 +7412,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...the same FEN in a PGN [FEN] tag keeps the mark, and capturing the promoted queen pockets a pawn',
        res?.pgnRoot === 'd5' && JSON.stringify(res?.afterCapture) === JSON.stringify({w: 'n', b: 'np'}), res);
 }
+// ---- X1-3: disposing a native engine settles the analyse in flight (rejects, as the WASM engine does) ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // a port that, like Chrome's, does NOT fire its own onDisconnect when this end disconnects
+    const port = {posted: [], onMessage: {addListener() {}}, onDisconnect: {addListener() {}},
+                  postMessage(m) { this.posted.push(m); }, disconnect() {}};
+    const c = {console, self: {MephistoReviewCore: {MATE_CP: 100000}}, chrome: {runtime: {connect: () => port}},
+               setTimeout: (f, ms) => setTimeout(f, Math.min(ms, 50)), clearTimeout, setInterval, clearInterval, Promise};
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8'), c);
+    const eng = new c.self.MephistoEngines.NativeEngine('stockfish18-native#options', {multipv: 1, threads: 1, hash: 16, limitKind: 'time', limitValue: 300});
+    eng.port = port;   // connected; start()'s configure is not under test
+    const verdict = eng.analyse('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'w')
+        .then(() => 'resolved', (e) => 'rejected: ' + e.message);
+    eng.dispose();
+    const got = await Promise.race([verdict, new Promise(r => setTimeout(() => r('still pending'), 300))]);
+    ok('X1-3: NativeEngine.dispose rejects the analyse it was waiting on ("engine disposed"), instead of leaving it pending forever',
+       got === 'rejected: engine disposed', got);
+})().catch(e => { fails++; console.log('FAIL X1-3 check threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

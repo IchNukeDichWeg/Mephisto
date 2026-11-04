@@ -613,6 +613,10 @@ class NativeEngine {
     dispose() {
         try { this.port?.disconnect(); } catch (e) { /* already gone */ }
         this.port = null;
+        // Reject, as WasmEngine.dispose does: a port closed from THIS end never fires our own
+        // onDisconnect, and the backstop timer returns early once the id has left `pending`, so a
+        // cleared map left every analyse in flight pending forever (X1-3).
+        for (const {reject} of this.pending.values()) { try { reject(new Error('engine disposed')); } catch (e) { /* */ } }
         this.pending.clear();
     }
 }
