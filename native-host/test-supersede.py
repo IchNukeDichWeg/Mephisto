@@ -76,21 +76,31 @@ for i, after in enumerate((1, 2, 4)):
           f'{"never (>12s)" if g is None else "%.0fms" % g}', flush=True)
     gaps.append(g)
     time.sleep(9)                                   # let the superseding search finish on its own
-# A search stopped by another request or a configure must say so, or its short frame reads as an answer.
+# A search stopped by a configure must say so, or its short frame reads as an answer. The configure
+# CHANGES a value (Hash 16 -> 32): an unchanged one stops nothing, and the check used to send exactly
+# that, so search 200 was marked only by the analyse after it and configure_cut was never exercised
+# (audit 3.1.329 NATIVE-5). Read BEFORE the next analyse, which would supersede it on its own.
 send({'id': 200, 'cmd': 'analyse', 'fen': DEEP, 'time': BUDGET_MS})
 time.sleep(1)
-send({'id': 201, 'cmd': 'configure', 'options': {'Hash': 16}})
-time.sleep(0.5)
+send({'id': 201, 'cmd': 'configure', 'options': {'Hash': 32}})
+stopped, t0 = None, time.perf_counter()
+while stopped is None and time.perf_counter() - t0 < 5:
+    with lock:
+        stopped = next((m for _, m in frames if m.get('id') == 200 and m.get('done')), None)
+    time.sleep(0.01)
+if not (stopped and stopped.get('superseded')):
+    p.kill()
+    print('FAIL a search stopped by a configure must carry superseded', stopped)
+    sys.exit(1)
 send({'id': 202, 'cmd': 'analyse', 'fen': NEXT, 'time': 300})
 time.sleep(2)
 with lock:
-    stopped = next((m for _, m in frames if m.get('id') == 200 and m.get('done')), None)
     last = next((m for _, m in frames if m.get('id') == 202 and m.get('done')), None)
-if not (stopped and stopped.get('superseded')) or not last or last.get('superseded'):
+if not last or last.get('superseded'):
     p.kill()
-    print('FAIL the stopped search must carry superseded and the finished one must not', stopped, last)
+    print('FAIL a search that finished must not carry superseded', last)
     sys.exit(1)
-print('a stopped search reports superseded, a finished one does not')
+print('a search stopped by a configure reports superseded, a finished one does not')
 
 # The panel's own pattern: a width configure and the analyse carrying that width, in ONE write while a
 # search runs. The new search must run, unsuperseded, at that width, whichever host thread takes the
