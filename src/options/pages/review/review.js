@@ -1035,6 +1035,30 @@ function note(text, bad) {
     el.classList.toggle('rv-bad', !!bad);
 }
 
+// ...AND SO DO THE OTHER TWO. The classifier (rv_ee_status) and chess.com online (rv_ccr_status) runs
+// end on another options page too; their outcome went to an element that was gone, so the revisit
+// showed the classifier's idle "Engine ready" line, or chess.com's line from before the run (audit
+// 3.1.330 follow-up L45). Same rule as note(), by element id. chess.com's line comes back with its
+// raw-answer pane and buttons, which its text points at ("Base64 below - save it").
+const awayStatus = {};
+function statusLine(id, text, bad) {
+    const el = $(id);
+    awayStatus[id] = el ? null : {text: text || '', bad: !!bad, report};
+    if (!el) return;
+    el.textContent = text || '';
+    el.classList.toggle('rv-bad', !!bad);
+}
+let ccrPaneAway = null;
+function ccrPane(outText, copy, save) {
+    const out = $('rv_ccr_out');
+    ccrPaneAway = out ? null : [outText, copy, save];
+    if (!out) return;
+    if (outText != null) out.textContent = outText;
+    out.classList.toggle('hidden', outText == null);
+    $('rv_ccr_copy')?.classList.toggle('hidden', !copy);
+    $('rv_ccr_save')?.classList.toggle('hidden', !save);
+}
+
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 
@@ -3147,7 +3171,7 @@ class ReviewPage {
         // quietly disagree about which game they are looking at.
         // ---- chess.com's classifier, locally -----------------------------------------------
         // Three buttons and one rule: nothing downloads until asked. See ee-host.js.
-        const eeSay = (t, bad) => { const el = $('rv_ee_status'); if (el) { el.textContent = t; el.classList.toggle('rv-bad', !!bad); } };
+        const eeSay = (t, bad) => statusLine('rv_ee_status', t, bad);
         let eeFound = '';   // eeInstalled is at module scope -- the report stamps it too
         const eeSync = async () => {
             const have = await eeCached();
@@ -3162,7 +3186,7 @@ class ReviewPage {
                 + (eeFound ? ` v${eeFound} is available.` : ''));
             return have;
         };
-        eeVersion().then(v => { eeInstalled = v; eeSync(); });
+        const eeReady = eeVersion().then(v => { eeInstalled = v; return eeSync(); });
         // Two jobs, one button: check first, then download what the check found.
         $('rv_ee_update')?.addEventListener('click', async () => {
             const btn = $('rv_ee_update');
@@ -3348,10 +3372,10 @@ class ReviewPage {
             const sel = +($('rv_game_select')?.value || 0);
             const pgn = (games.length ? gameText(games[sel] ? games[sel] : games[0]) : '')
                 || ($('rv_pgn')?.value || '');
-            const out = $('rv_ccr_out'), status = $('rv_ccr_status');
             // every error shows the ticket button and remembers its text; a non-error hides it again.
+            // The line is found by id when said: the answer can land on another options page (L45).
             const say = (t, bad, detail) => {
-                status.textContent = t; status.classList.toggle('rv-bad', !!bad);
+                statusLine('rv_ccr_status', t, bad);
                 ccrLastError = bad ? t : '';
                 ccrLastDetail = bad ? (detail || '') : '';
                 $('rv_ccr_ticket')?.classList.toggle('hidden', !bad);
@@ -3365,9 +3389,7 @@ class ReviewPage {
             // this select is gone and reading it threw, so the report lost its tier (follow-up L24).
             const tier = $('rv_ccr_strength').value;
             say(`Sent to chess.com (${tier}). The game leaves this machine now; waiting on their answer…`);
-            out.classList.add('hidden');
-            $('rv_ccr_copy').classList.add('hidden');
-            $('rv_ccr_save').classList.add('hidden');
+            ccrPane(null, false, false);
             const game = buildCcrGame(pgn);
             if (game.error) { btn.disabled = false; btn.textContent = was; return say(game.error, true); }
             let res;
@@ -3382,7 +3404,7 @@ class ReviewPage {
                 if (res) console.warn('Mephisto chess.com review:', res.error);
                 say(res ? (res.code ? MephistoI18n.errText(res.code) : res.error) : MephistoI18n.errText('MPH-R03'),
                     true, res?.error);
-                if (res?.sentB64) { ccrJson = JSON.stringify(res, null, 2); out.textContent = ccrJson; out.classList.remove('hidden'); $('rv_ccr_save')?.classList.remove('hidden'); } return; }
+                if (res?.sentB64) { ccrJson = JSON.stringify(res, null, 2); ccrPane(ccrJson, false, true); } return; }
             // v2 answers in PROTOBUF frames, not JSON: dump them as base64 so the shape can be
             // decoded offline. A clean close with no frames is the Origin/auth signal.
             const n = res.frames?.length || 0;
@@ -3402,13 +3424,10 @@ class ReviewPage {
                     renderBatch();
                     renderCcrReport(tier);
                     $('rv-report')?.scrollIntoView({behavior: 'smooth', block: 'start'});
-                    out.classList.add('hidden');
+                    ccrPane(null, true, true);
                 } else {
-                    out.textContent = renderCcrReview(review, pgn);
-                    out.classList.remove('hidden');
+                    ccrPane(renderCcrReview(review, pgn), true, true);
                 }
-                $('rv_ccr_copy')?.classList.remove('hidden');
-                $('rv_ccr_save')?.classList.remove('hidden');
                 const rt = review.ratings && review.ratings.white != null
                     ? `, ~${review.ratings.white}/${review.ratings.black} rating` : '';
                 say(`Reviewed by chess.com via your logged-in tab${rt}. The board below is playable; Save for the raw protobuf.`
@@ -3421,10 +3440,7 @@ class ReviewPage {
             } else {
                 say(`Ran in your chess.com tab; ${n} protobuf frame${n === 1 ? '' : 's'} back${res.closeCode ? ` (closed ${res.closeCode})` : ''}. Base64 below - save it.`);
             }
-            out.textContent = ccrJson;
-            out.classList.remove('hidden');
-            $('rv_ccr_copy')?.classList.remove('hidden');
-            $('rv_ccr_save')?.classList.remove('hidden');
+            ccrPane(ccrJson, true, true);
         });
         $('rv_ccr_copy')?.addEventListener('click', async (e) => {
             try { await navigator.clipboard.writeText(ccrJson || ''); e.target.textContent = 'Copied ✓'; }
@@ -3714,6 +3730,17 @@ class ReviewPage {
             $('rv_run').disabled = true;
             $('rv_stop').disabled = false;
         }
+        // ...and the classifier's and chess.com's lines (audit 3.1.330 follow-up L45). The classifier's
+        // waits for this visit's own eeSync, whose "Engine ready" would land on top of it.
+        const ccrSaid = awayStatus.rv_ccr_status, ccrSaidPane = ccrPaneAway;
+        if (ccrSaid?.text && ccrSaid.report === report) {
+            statusLine('rv_ccr_status', ccrSaid.text, ccrSaid.bad);
+            $('rv_ccr_ticket')?.classList.toggle('hidden', !ccrSaid.bad);
+            if (ccrSaidPane) ccrPane(...ccrSaidPane);
+        }
+        const eeSaid = awayStatus.rv_ee_status;
+        if (!running && eeSaid?.text && eeSaid.report === report)
+            eeReady.finally(() => { if (!running) statusLine('rv_ee_status', eeSaid.text, eeSaid.bad); });
     }
 }
 

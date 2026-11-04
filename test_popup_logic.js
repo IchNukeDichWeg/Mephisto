@@ -11641,7 +11641,8 @@ print(json.dumps(out))`;
        !ee.thrown && said.length > 0 && /^Classified by/.test(said[said.length - 1][0]) && !said.some(s => s[1]), said);
 
     // chess.com Game Review online: the answer lands while another options page is open
-    const ccr = await run(handler("$('rv_ccr_run')?.addEventListener('click', async () => {") + fn('function renderCcrReport('),
+    const ccr = await run(handler("$('rv_ccr_run')?.addEventListener('click', async () => {") + fn('function renderCcrReport(')
+                          + rj.slice(rj.indexOf('const awayStatus = {};'), rj.indexOf('\n}\n', rj.indexOf('function ccrPane(')) + 3),
         ['rv_ccr_run', 'rv_game_select', 'rv_ccr_out', 'rv_ccr_status', 'rv_ccr_strength', 'rv_ccr_copy',
          'rv_ccr_save', 'rv_ccr_ticket', 'rv_pgn', 'rv-report', 'rv_export', 'rv_fit'], (away) => ({
             games: [{}], gameText: () => '1. e4 e5 *', ccrConsent: async () => true, buildCcrGame: () => ({}),
@@ -12232,6 +12233,59 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         }
     })().catch(e => { fails++; console.log('FAIL L48 checks threw: ' + (e && e.stack || e)); });
 }
+// ---- audit 3.1.330 follow-up L45: the classifier's and chess.com's status lines survive another options page ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const has = rj.includes('const awayStatus = {};') && rj.includes("        // ...and the classifier's and chess.com's lines");
+    if (!has) return ok('L45: Review keeps the status lines of a run that ended on another options page', false);
+    const fn = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    const handler = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n        });\n', a) + 12); };
+    const ra = rj.indexOf("        // ...and the classifier's and chess.com's lines"), rb = rj.indexOf('\n    }\n}\n', ra) + 1;
+    const el = (hidden) => { const s = new Set(hidden ? ['hidden'] : []);
+        return {value: '', textContent: '', disabled: false, scrollIntoView() {}, addEventListener(ev, f) { this.click = f; },
+                classList: {add: (k) => s.add(k), remove: (k) => s.delete(k), toggle: (k, on) => (on ? s.add(k) : s.delete(k)), contains: (k) => s.has(k)}}; };
+    // the Review page as review.html ships it: the raw pane, its buttons and the ticket start hidden
+    const fresh = () => Object.fromEntries(['rv_ee_run', 'rv_run', 'rv_stop', 'rv_ee_status', 'rv_ccr_run', 'rv_game_select', 'rv_ccr_status',
+        'rv_ccr_strength', 'rv_pgn', 'rv-report', 'rv_export', 'rv_fit', 'rv_ccr_out', 'rv_ccr_copy', 'rv_ccr_save', 'rv_ccr_ticket']
+        .map(id => [id, el(/^rv_ccr_(out|copy|save|ticket)$/.test(id))]));
+    let dom = fresh();
+    const c = vm.createContext({console: {warn() {}}, JSON, Math, String, Promise, $: (id) => (dom && dom[id]) || null,
+        renderBatch() {}, progress() {}, renderReport() {}, games: [{tags: {}}], gameText: () => '1. e4 *', selectedGame: () => ({tags: {}}),
+        eeCached: async () => ({}), eeSync() {}, eeTier: () => ({movetime: 1000, build: 'x', label: 'Card'}), sfCached: async () => ({}),
+        buildPositions: () => ({positions: [], moves: []}), sfSearch: async () => { dom = null; }, EE_MULTIPV: 2, EE_DEPTH: 10,
+        cfg: () => false, lookupOpening: async () => ({}), assemble: () => ({}), sfNiceName: () => 'SF', SF16_BUILD: 'y',
+        eeRun: async () => ({}), eeCommands: () => [], eeElo: () => null, applyEeVerdict() {}, eeEngineLabel: () => '', eeInstalled: 1, disposeRig() {},
+        ccrConsent: async () => true, buildCcrGame: () => ({}), MephistoI18n: {errText: (k) => k},
+        chrome: {runtime: {sendMessage: async () => { dom = null; return {frames: ['AAA', 'BBB'], closeCode: 1000}; }}}});
+    vm.runInContext('var running = false, cancel = false, report = null, batchReports = null, ccrJson = "", ccrLastError = "", ccrLastDetail = "";\n'
+        + rj.slice(rj.indexOf('const awayStatus = {};'), rj.indexOf('\n}\n', rj.indexOf('function ccrPane(')) + 3) + '\n'
+        + rj.match(/^ {8}const eeSay = [^\n]*$/m)[0] + '\n'
+        + handler("$('rv_ee_run')?.addEventListener('click', async () => {")
+        + handler("$('rv_ccr_run')?.addEventListener('click', async () => {"), c);
+    const ee = dom.rv_ee_run.click, ccr = dom.rv_ccr_run.click;
+    await ee();                      // the classifier finishes on another options page
+    dom = fresh(); await ccr();      // back, then chess.com answers on another options page
+    // the revisit: a fresh Review page, this visit's eeSync writes its idle line, then the real replay
+    dom = fresh();
+    vm.runInContext('var eeReady = Promise.resolve().then(() => eeSay("Engine ready (v1, kept on this machine)."));\n(() => {\n'
+        + rj.slice(ra, rb) + '})()', c);
+    await new Promise(r => setTimeout(r, 0));
+    ok('L45: the classifier\'s "Classified by" line is back on the revisit, over this visit\'s "Engine ready"',
+       /^Classified by/.test(dom.rv_ee_status.textContent), dom.rv_ee_status.textContent);
+    ok('L45: chess.com\'s answer line is back on the revisit', /2 protobuf frames back/.test(dom.rv_ccr_status.textContent),
+       dom.rv_ccr_status.textContent);
+    ok('L45: ...with the raw pane it points at, its Copy and Save, and no error ticket',
+       !dom.rv_ccr_out.classList.contains('hidden') && /AAA/.test(dom.rv_ccr_out.textContent)
+       && !dom.rv_ccr_copy.classList.contains('hidden') && !dom.rv_ccr_save.classList.contains('hidden')
+       && dom.rv_ccr_ticket.classList.contains('hidden'));
+    // shown once: the next revisit has nothing to replay
+    dom = fresh();
+    vm.runInContext('(() => {\n' + rj.slice(ra, rb) + '})()', c);
+    await new Promise(r => setTimeout(r, 0));
+    ok('L45: ...once: the next revisit does not replay them', !dom.rv_ccr_status.textContent && !dom.rv_ee_status.textContent,
+       [dom.rv_ccr_status.textContent, dom.rv_ee_status.textContent]);
+})().catch(e => { fails++; console.log('FAIL L45 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
