@@ -717,6 +717,7 @@ async function startRig(override) {
 // own rules), every position is searched, and the moves are graded with the SHARED classifier so a
 // blunder here is a blunder in the two-player report and in the panel's live strip.
 let fourpcReport = null, fourpcPly = 0;
+let fourpcText = '';   // the PGN4 that report came from, for the PGN box on a revisit (REVIEWA-9)
 
 async function run4pcReview() {
     const M = self.Mephisto4PC;
@@ -743,6 +744,7 @@ async function run4pcReview() {
             onProgress: (frac, what) => progress(frac, what),
         });
         fourpcPly = fourpcReport.frames.length - 1;
+        fourpcText = text;
         render4pc();
         $('rv-4pc')?.scrollIntoView({behavior: 'smooth', block: 'start'});
     } catch (e) {
@@ -3658,6 +3660,15 @@ class ReviewPage {
             parsePgnBox();
             renderReport();
             renderBatch();
+        }
+        // ...and the 4-player report, which the block above never brought back: the section ships
+        // hidden, and the board object still pointed at the replaced page's element, so even a new
+        // run drew into a detached node (audit 3.1.330 REVIEWA-9).
+        board4pc = null;
+        if (!running && !report && fourpcReport && String(cfg('rv_variant')) === '4pc') {
+            $('rv_pgn').value = fourpcText;
+            parsePgnBox();
+            render4pc();
         }
         // ...and what a run that ended while away said about it (an engine failure, skipped games,
         // an error), which had no page to say it on (REVIEWA-6)

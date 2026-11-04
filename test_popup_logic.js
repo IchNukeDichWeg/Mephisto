@@ -10417,6 +10417,35 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEWA-8: back on Chess the classifier the user chose is on screen again',
        $('rv_mode').value === 'local' && shown('rv_ee_run') && !shown('rv_run'), [$('rv_mode').value, shown('rv_ee_run')]);
 }
+// ---- audit 3.1.330 REVIEWA-9: coming back to Game Review after a 4-player run shows it again ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    const ra = rj.indexOf('        // Coming back to this page after visiting another one'), rb = rj.indexOf('        // ...and a run the module is still driving.', ra);
+    let dom = {};
+    const el = (id) => (dom[id] = dom[id] || {id, value: '', textContent: '', disabled: false, classList: {add() {}, remove() {}, toggle() {}}, scrollIntoView() {}});
+    const store = {rv_variant: '4pc', rv_limit_kind: 'time', rv_limit_value: 500};
+    const c = vm.createContext({console, Promise, Error, String, Math, $: el, cfg: (k) => store[k], note() {}, progress() {},
+        self: {Mephisto4PC: {runReview: async () => ({frames: [{}, {}, {}]}), disconnect() {}}},
+        drawn: [], render4pc: () => { c.drawn.push({box: dom.rv_pgn?.value, board: vm.runInContext('typeof board4pc === "undefined" ? null : board4pc', c)}); },
+        parsePgnBox() {}, renderReport() {}, renderBatch() {}});
+    vm.runInContext('var running = false, cancel = false, report = null, batchReports = null, batchInputText = "", lastNote = null;\n'
+        + 'var fourpcReport = null, fourpcPly = 0, fourpcText = "", board4pc = null;\n' + fn('async function run4pcReview() {'), c);
+    // the real 4-player run, then the board it drew with is left behind on the old page
+    el('rv_pgn').value = '[Variant "Teams"]\n1. h2-h3 .. ';
+    await c.run4pcReview();
+    vm.runInContext('board4pc = {stale: true};', c);
+    // another options page, then back: a fresh Review DOM and the real revisit block
+    dom = {}; c.drawn.length = 0;
+    vm.runInContext('(() => {\n' + rj.slice(ra, rb) + '})()', c);
+    ok('REVIEWA-9: the 4-player report is drawn again on the revisit, with its PGN4 back in the box',
+       c.drawn.length === 1 && /Variant "Teams"/.test(c.drawn[0].box || ''), c.drawn);
+    ok('REVIEWA-9: ...on a new board, not the one bound to the replaced page', c.drawn[0] && c.drawn[0].board === null, c.drawn[0]);
+    store.rv_variant = 'chess'; dom = {}; c.drawn.length = 0;
+    vm.runInContext('(() => {\n' + rj.slice(ra, rb) + '})()', c);
+    ok('REVIEWA-9: not when the Game type has moved on to Chess', c.drawn.length === 0);
+})().catch(e => { fails++; console.log('FAIL REVIEWA-9 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
