@@ -11830,6 +11830,35 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ctx.onPositionLoad();
     ok('...while a lichess game at move 0 on a set-up board still is', JSON.stringify(filed) === '["/abcd1234"]', filed);
 }
+// ---- L8 (audit 3.1.330 follow-up): a player with no public games is an answer, a failed fetch an error ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const ps = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (s, from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const w = vm.createContext({list: null, archiveFetch: async (u) => w.list === 'down' ? {ok: false, status: 503} : {ok: true, json: async () => w.list},
+        lichess_blocked: () => false, lichess_note_response() {}, encodeURIComponent, Promise, Error, Math, Map, Date, String, Array});
+    vm.runInContext(cut(bg, 'function capMap(', '// Somebody\'s recent public games') + cut(bg, 'async function fetchArchivePgn(', 'async function streamerLookup('), w);
+    const ask = (fn, list) => { w.list = list; return vm.runInContext(`${fn}({site: 'chesscom', username: 'Nobody'})`, w); };
+    // the panel's Player Book, answered from `ans`
+    const p = vm.createContext({Date, console: {log() {}, warn() {}}, JSON, Object, Map, config: {player_book: true, player_book_user: 'lichess:Nobody'},
+        detected_prefix: 'li', ans: null, asked: 0, STORE: {}, update_best_move() {}, build_moves_book: () => ({book: new Map(), used: 0}),
+        chrome: {runtime: {lastError: undefined, sendMessage: (m, cb) => { p.asked++; cb(p.ans); }}}});
+    vm.runInContext('var MephistoConfig = {get: (k) => STORE[k] ?? null, set: (k, v) => { STORE[k] = v; }};'
+        + cut(ps, 'const LOOKUP_RETRY_MS', 'function opp_prep_long_enough()') + cut(ps, 'const PLAYER_BOOK_MAX_PLY', '// What that player played here'), p);
+    (async () => {
+        const none = await ask('oppPrepLookup', {archives: []});
+        ok('L8: Opponent Prep answers a player with no public games with an empty list, not an error', Array.isArray(none.games) && none.games.length === 0 && !none.error, none);
+        const nb = await ask('playerBookLookup', {archives: []});
+        ok('...and so does the Player Book', Array.isArray(nb.games) && nb.games.length === 0 && !nb.error, nb);
+        const down = await ask('playerBookLookup', 'down');
+        ok('...while an archive list that did not come back is still an error', !!down.error && !down.games, down);
+        p.ans = {games: []};
+        vm.runInContext('maybe_player_book(); maybe_player_book();', p);
+        ok('L8: the panel latches "no games" (asked once) and does not write an empty book to storage for a week',
+           p.asked === 1 && !('player_book_cache' in p.STORE), {asked: p.asked, store: Object.keys(p.STORE)});
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

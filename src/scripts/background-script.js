@@ -2888,8 +2888,12 @@ async function fetchArchivePgn(site, user, max) {
     // chess.com serves ONE FILE PER MONTH, so how far back to reach depends on how many games are
     // wanted -- forty is a month or two, two hundred is half a year for most people.
     const months = Math.max(2, Math.ceil(max / 40));
-    const urls = (arch?.archives || []).slice(-months).reverse();
-    if (!urls.length) throw new Error('no public archive');
+    // NO LIST IS A FAILURE, AN EMPTY LIST IS AN ANSWER: a player with no public games has an archive
+    // list with nothing in it, and that '' must reach the callers as "no games" rather than an error
+    // they retry every two minutes (audit 3.1.330 follow-up L8).
+    if (!Array.isArray(arch?.archives)) throw new Error('no public archive');
+    const urls = arch.archives.slice(-months).reverse();
+    if (!urls.length) return '';
     // ONE ROUND TRIP, NOT `months` OF THEM. The loop used to await each monthly file in turn -- up
     // to five multi-megabyte files for PLAYER_BOOK_MAX_GAMES, so months x RTT. They are independent,
     // so they go together and the `max` cut is applied afterwards.
@@ -2939,10 +2943,14 @@ async function oppPrepLookup({site, username}) {
     }
     const games = splitPgnGames(text).slice(-OPP_PREP_MAX_GAMES);
     // NEVER CACHE AN EMPTY RESULT. Its sibling playerBookLookup has had this guard all along: an
-    // empty answer is far more likely a swallowed 429 than a player with no public games, and the
+    // empty answer was far more likely a swallowed 429 than a player with no public games, and the
     // TTL here is SIX HOURS -- one rate-limited moment used to report "no repertoire" for the rest
     // of the session with no way for the user to retry.
-    if (!games.length) return {error: `no public games for ${user}`};
+    // BUT IT IS AN ANSWER, NOT AN ERROR. fetchArchivePgn throws on every failed fetch now (SWALLOW-3),
+    // so an empty list here is a player with no public games. Sent as an error, the panel could not
+    // tell it from a failed fetch and downloaded the whole archive again every two minutes
+    // (SWALLOW-4b's retry); `games: []` is an answer the panel latches (audit 3.1.330 follow-up L8).
+    if (!games.length) return {games: []};
     oppPrepCache.set(key, {at: Date.now(), games});
     capMap(oppPrepCache, OPP_PREP_CACHE_MAX);
     return {games};
@@ -2971,7 +2979,7 @@ async function playerBookLookup({site, username}) {
         return {error: String(e.message || e)};
     }
     const games = splitPgnGames(text).slice(-PLAYER_BOOK_MAX_GAMES);
-    if (!games.length) return {error: `no public games for ${user}`};
+    if (!games.length) return {games: []};   // an answer, not an error: see oppPrepLookup (L8)
     playerBookCache.set(key, {at: Date.now(), games});
     capMap(playerBookCache, PLAYER_BOOK_CACHE_MAX);
     return {games};

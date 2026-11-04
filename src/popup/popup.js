@@ -12504,7 +12504,9 @@ function maybe_player_book() {
                                        {maxPly: PLAYER_BOOK_MAX_PLY, winsOnly: !!config.player_book_wins});
         player_book = built.book;
         player_book_games = built.used;
-        player_book_cache_write(key, built);
+        // "No public games" latches for this session but is not written down for a week: a new
+        // account's first games should reach the book on the next page load (audit 3.1.330 follow-up L8).
+        if (res.games.length) player_book_cache_write(key, built);
         console.log(`Player book: ${built.book.size} positions from ${built.used} of ${who.name}'s games`
                     + (config.player_book_wins ? ' (wins only)' : ''));
         update_best_move(null);                       // the label can appear without a new search
