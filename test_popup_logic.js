@@ -8112,6 +8112,51 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...every variant id the panel writes maps to itself on Analysis and on Review',
        ids.every(id => amap?.[id] === id && rmap[id] === id), ids.map(id => [id, amap?.[id], rmap[id]]));
 }
+// ---- audit 3.1.330 ANALYSISA-2: a human net loading when Shogi / Xiangqi is picked is not rebuilt and swept ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const fn = (head) => { const a = an.indexOf(head), b = an.indexOf('\n}\n', a) + 3; if (a < 0) throw new Error('slice ' + head); return an.slice(a, b); };
+    const c = vm.createContext({Promise, game: 'chess', built: 0, swept: 0, firstStart: null});
+    vm.runInContext(`let bandRun = 0, human = null, humanKey = null, engine = null, engine2 = null, analyseChain = Promise.resolve(), humanChain = Promise.resolve();
+        let pageGen = 0, lastBands = null; const cursor = 0, positions = [{fen: 'start', turn: 'w'}], humanCache = new Map(), bandCache = new Map(), CFG = {an_band: 1500};
+        const cfg = (k) => (k === 'an_human' ? 'maia1' : k === 'an_game' ? game : 1500);
+        const el = () => ({style: {}, textContent: ''}); const $ = (id) => (['an_bands_wrap', 'an_bands', 'an_bands_meta'].includes(id) ? el() : null);
+        function syncBandRow() {} function stopMatch() {} async function stopSearch() {} function showLargeGame() {}
+        function largeOpts() {} function hideLargeGame() {} function takesRating() { return false; } function ratingFor(k, b) { return b; }
+        function renderHumanLines() {} function render() {} function status() {} function engineOpts() { return {}; }
+        function leftDuringLoad() { return false; } const anVariant = () => 'chess'; const humanCacheKey = (f) => f;
+        const bandKey = (f, k) => f + k; function bandSteps() { return [1100, 1900]; } async function queueSweep(f) { return f(); }
+        async function sweepBands() { swept++; return null; }
+        function makeEngine() {
+            built++;
+            const start = !firstStart ? new Promise(r => { firstStart = r; }) : Promise.resolve();
+            return {start: () => start, dispose() {}, analyse: async () => ({lines: []})};
+        }
+        ${fn('function largeGame()')}
+        ${fn('function applyGame(')}
+        ${fn('function ensureHuman(')}
+        ${fn('async function buildHuman(')}
+        ${fn('async function reloadHuman()')}
+        ${fn('async function humanFor(')}
+        ${fn('async function renderBands(')}`, c);
+    (async () => {
+        const settle = async () => { for (let i = 0; i < 50; i++) await null; };
+        const done = vm.runInContext('reloadHuman()', c);   // the net starts loading on chess
+        await settle();
+        c.game = 'xiangqi';
+        vm.runInContext('applyGame(true)', c);              // ...and Xiangqi is picked before it lands
+        c.firstStart();
+        await done; await settle();
+        await vm.runInContext('humanChain', c); await settle();
+        const res = {built: c.built, swept: c.swept, human: vm.runInContext('human === null', c)};
+        ok('ANALYSISA-2: the net that lands after Xiangqi was picked is not rebuilt, and no ratings sweep runs',
+           res.built === 1 && res.swept === 0 && res.human === true, res);
+        c.game = 'chess'; c.built = 0; c.swept = 0;
+        await vm.runInContext('reloadHuman()', c); await settle();
+        ok('...back on chess the model builds and the bands sweep', c.built === 1 && c.swept === 1, [c.built, c.swept]);
+    })().catch(e => { fails++; console.log('FAIL ANALYSISA-2 check threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

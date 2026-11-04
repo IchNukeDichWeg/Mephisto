@@ -1202,6 +1202,11 @@ function humanCacheKey(fen) { return `${fen}|${cfg('an_human')}|${cfg('an_band')
 
 async function humanFor(pos) {
     if (anVariant() !== 'chess') return null;   // the nets know one game
+    // Nor under Shogi or Xiangqi. A reloadHuman already past its own largeGame() check when the game
+    // switched resumed with the landed net and came here; the ensureHuman below then queued a build
+    // behind applyGame's dispose, and a fresh net loaded on the hidden chess board (audit 3.1.330
+    // ANALYSISA-2). renderBands has the same guard for the sweep that came next.
+    if (largeGame()) return null;
     const key = humanCacheKey(pos.fen);
     if (humanCache.has(key)) return humanCache.get(key);
     const kind = cfg('an_human');
@@ -2008,6 +2013,8 @@ function schedulePrefetch() {
 }
 
 async function renderBands(pos) {
+    // the same late caller then swept every band of the hidden board (audit 3.1.330 ANALYSISA-2)
+    if (largeGame()) return;
     const wrap = $('an_bands_wrap'), host = $('an_bands'), meta = $('an_bands_meta');
     if (!wrap || !host) return;
     const kind = cfg('an_human');
