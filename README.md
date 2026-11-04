@@ -652,7 +652,7 @@ Four are worth knowing before you go looking:
 | Setting | Why it matters |
 |---|---|
 | **Threads** / **Memory** | A fresh install takes half your cores. In-browser engines are clamped to 512 MB by the WebAssembly heap limit; native engines get the full value. |
-| **Panel Style** | **Floating panel** lives in the page and is required for Autoplay and Premove. **Toolbar popup** leaves zero page footprint but closes when you click the board. |
+| **Panel Style** | **Floating panel** lives in the page and is required for Autoplay and Premove. **Toolbar popup** leaves zero page footprint unless an on-board drawing is on (see [Footprint](#page-footprint)) and closes when you click the board. |
 | **Colour-blind palette** | One click on the Appearance page replaces every arrow colour with the Okabe-Ito set, which stays distinguishable under the common forms of colour blindness. The shipped colours separate lines by red against green, the one pair that collapses. |
 | **Playstyle** | Ten characters chosen among lines the engine already called equal - *Attacking*, *Quiet*, *Greedy*, *Space*, *Sacrifice*, *Safe*, *Drawish*, *Ultra attacking*, *Disrespect*, and *Balanced* (the engine's own pick). Never at a cost: **35cp**, or two thirds of the top move's probability on a human net. Needs **Multi Lines ≥ 2**, and hides itself where it cannot apply. |
 | **Lichess API token** | The Opening Explorer is behind OAuth now, so without one it answers 401. Make a personal token with **no scopes** ticked; it is sent nowhere but lichess and left out of diagnostics and exports. |
@@ -776,10 +776,12 @@ prepares. A code is never reused: a retired one stays retired.
 ---
 ## Page footprint
 
-**Toolbar popup** leaves **zero page footprint** - it renders in the browser's own chrome. The one exception is
+**Toolbar popup** leaves **zero page footprint** - it renders in the browser's own chrome. One exception is
 **Read solutions from the page**: while it is on, the puzzle pages (and only those) get a page-world script that wraps
-`fetch`, XHR and `WebSocket`, whichever panel style you use. The popup closes when you click
-the board, so it is analysis only; Autoplay and Premove need the floating panel (**Settings → Panel → Panel
+`fetch`, XHR and `WebSocket`, whichever panel style you use. The other is drawing on the site's board: with Help Mode,
+Eval Bar, Eval History, Live Stats, Move Classification on the board or Evals on Your Arrows on, the open popup draws
+them into the page under the same closed shadow root the floating panel uses, and clears them when it closes.
+The popup closes when you click the board, so it is analysis only; Autoplay and Premove need the floating panel (**Settings → Panel → Panel
 Style**). While the floating panel is in use:
 
 - **No iframe.** An iframe is a browsing context, counted by `window.length` and impossible for a closed shadow root

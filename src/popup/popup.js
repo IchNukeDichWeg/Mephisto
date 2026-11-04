@@ -373,6 +373,16 @@ async function initPanel(root, tabId) {
             const [t] = await chrome.tabs.query({active: true, currentWindow: true});
             if (t?.id != null) MY_TAB_ID = t.id;
         } catch (e) { /* no tab (a devtools-opened popup page): keep the active-tab fallbacks */ }
+        // Help Mode arrows, the eval bar, the move badge and user-arrow labels are drawn into the TAB.
+        // Nothing told it when this popup died (it closes on the very click that plays the move), so
+        // they stayed on the site's board, frozen on the old position, until a reload (audit 3.1.330
+        // CLICKB-2 = PAGEA-2). The port's disconnect IS that signal: the content script clears them.
+        if (MY_TAB_ID) {
+            try {
+                chrome.tabs.connect(MY_TAB_ID, {name: 'mephisto-toolbar-popup'})
+                    .onDisconnect.addListener(() => void chrome.runtime.lastError);  // no content script there
+            } catch (e) { /* tab gone */ }
+        }
     }
     // BOOTED means "can answer", not "has started". isBooted() is what makes the content script
     // hand us messages directly instead of posting into the runtime, and PANEL_MSG_HANDLER is

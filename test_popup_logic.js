@@ -9188,6 +9188,56 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('SYSA-2: the worker strips the extension id from every field of the report', res?.bgLeak === false, res);
     })();
 }
+// ---- audit 3.1.330 CLICKB-2 = PAGEA-2: the toolbar popup's board drawings go when the popup closes ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (t, from, to) => { const a = t.indexOf(from), b = t.indexOf(to, a); return (a < 0 || b < 0) ? '' : t.slice(a, b); };
+    // popup side: the real initPanel head opens the port to the tab it bound to
+    const popup = async (isCs, tabId) => {
+        const c = vm.createContext({IS_CONTENT_SCRIPT: isCs, document: {body: {}}, connected: [],
+            chrome: {runtime: {}, tabs: {query: async () => [{id: 42}],
+                connect: (id, o) => { c.connected.push([id, o.name]); return {onDisconnect: {addListener() {}}}; }}}});
+        vm.runInContext(`var MY_TAB_ID = null, ENGINE_CLIENT = 'toolbar', PANEL_ROOT = null, PANEL_TIP_HOST = null;
+            ${cut(s, 'async function initPanel(root, tabId) {', '    PANEL_BOOTED = true;')} }`, c);
+        await vm.runInContext(`initPanel(${isCs ? '{}' : 'undefined'}, ${tabId === undefined ? 'undefined' : tabId})`, c);
+        return c.connected;
+    };
+    // content side: the real onConnect listener, with the board overlays it must clear
+    const tab = (panelOpen, name) => {
+        const c = vm.createContext({calls: [], listeners: [], panelOpen, PANEL_OVERLAY_ID: 'p', clearInterval() {}, clearTimeout() {},
+            chrome: {runtime: {lastError: null, onConnect: {addListener: f => c.listeners.push(f)}}}});
+        vm.runInContext(`var userArrowTimer = 1, positionObserver = {disconnect() { calls.push('observer'); }}, pushDebounce = null;
+            function overlayEl(id) { return panelOpen ? {} : null; }
+            function dropPendingOverlay(k) { calls.push('drop ' + k); }
+            function clearEvalBar() { calls.push('bar'); } function clearHintArrow() { calls.push('hint'); }
+            function clearMoveClass() { calls.push('badge'); } function overlayFollow(k, v) { calls.push('follow ' + k); }
+            function drawUserArrows(items) { calls.push('arrows ' + items.length); }
+            function removeOverlay() { calls.push('removeOverlay'); }
+            ${cut(cs, "chrome.runtime.onConnect.addListener((port) => {\n    if (port.name !== 'mephisto-toolbar-popup')", '\n// Page unload')}`, c);
+        let gone = null;
+        const port = {name, onDisconnect: {addListener: f => { gone = f; }}};
+        c.listeners.forEach(f => f(port));
+        if (gone) gone();
+        return {calls: c.calls, observer: vm.runInContext('positionObserver', c)};
+    };
+    (async () => {
+        let res;
+        try {
+            res = {popup: await popup(false), inpage: await popup(true, 7),
+                   closed: tab(false, 'mephisto-toolbar-popup'), panel: tab(true, 'mephisto-toolbar-popup'), other: tab(false, 'native')};
+        } catch (e) { res = {err: String(e.message || e)}; }
+        ok('CLICKB-2: the toolbar popup holds a port to its tab; the in-page panel opens none',
+           JSON.stringify(res?.popup) === '[[42,"mephisto-toolbar-popup"]]' && res.inpage?.length === 0, res);
+        const k = res?.closed?.calls || [];
+        ok('CLICKB-2: when the popup goes, the tab clears its arrows, eval bar, badge and user-arrow labels and stops scraping',
+           ['hint', 'bar', 'badge', 'arrows 0', 'follow hint', 'follow bar', 'follow moveClass', 'observer'].every(x => k.includes(x))
+           && res.closed.observer === null && !k.includes('removeOverlay'), res?.closed);
+        ok('CLICKB-2: an open floating panel keeps its drawings, and other ports do nothing',
+           res?.panel?.calls?.length === 0 && res?.other?.calls?.length === 0, res);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

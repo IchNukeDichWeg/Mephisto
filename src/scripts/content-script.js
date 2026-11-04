@@ -890,6 +890,31 @@ function removeOverlay() {
     clearTimeout(pushDebounce); pushDebounce = null;
 }
 
+// THE TOOLBAR POPUP DRAWS HERE TOO, and closes on the click that plays the move. It holds this port
+// for its whole life, so the disconnect is the one signal that it is gone: clear what it drew (arrows,
+// eval bar, badge, user-arrow labels) and stop the scraping its config push started, as closing the
+// floating panel does. Left alone they stayed on the board, frozen on the old position, until the
+// page reloaded (audit 3.1.330 CLICKB-2 = PAGEA-2). An open floating panel owns them and is left
+// alone. Not removeOverlay(): its suspend() on this tab's never-booted panel copy would dispose the
+// shared 'toolbar' engine client.
+chrome.runtime.onConnect.addListener((port) => {
+    if (port.name !== 'mephisto-toolbar-popup') return;
+    port.onDisconnect.addListener(() => {
+        void chrome.runtime.lastError;
+        if (overlayEl(PANEL_OVERLAY_ID)) return;
+        dropPendingOverlay('evalbar');
+        dropPendingOverlay('hint');
+        clearEvalBar();
+        clearHintArrow();
+        clearMoveClass();
+        for (const kind of ['hint', 'bar', 'moveClass']) overlayFollow(kind, null);
+        clearInterval(userArrowTimer); userArrowTimer = null;
+        drawUserArrows([]);
+        positionObserver?.disconnect(); positionObserver = null;
+        clearTimeout(pushDebounce); pushDebounce = null;
+    });
+});
+
 // Page unload = tab is going away (navigation, close, reload). Stop any running search cleanly so a
 // long analysis doesn't keep a native host busy through the unload; the tab teardown itself frees
 // the engine (tabs.onRemoved disposes the offscreen doc; the native Port dies with the page).
