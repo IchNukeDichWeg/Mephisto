@@ -2325,7 +2325,7 @@ function scrapePosition() {
             }
             // Off lichess only capture960Start files a start, and 3.1.329 filed boards already past
             // move 0 (audit 3.1.329 SCRAPE-2): a stored one that is not a 960 start is not used.
-            const stored = readStartPos(startPosKey())?.position;
+            const stored = readStartPos(key960())?.position;
             const startPos = ((site === 'lichess') ? stored : chess960Start(puzBoard(stored)))
                 || (site !== 'lichess' && seen960Start) || DEFAULT_POSITION;
             res = startPos + '&*****';
@@ -4648,7 +4648,7 @@ function capture960Start() {
     const start = chess960Start(board);
     if (!start || start === seen960Start) return;
     seen960Start = start;   // position 518 included: it IS this game's start, and replaces an older one
-    writeStartPos(startPosKey(), {position: start, timestamp: Date.now()});
+    writeStartPos(key960(), {position: start, timestamp: Date.now()});
 }
 
 // THE CAPTURE BELONGS TO ONE GAME. seen960Start lives as long as the document, and chess.com moves
@@ -4675,10 +4675,24 @@ function capture960Start() {
 // list that emptied on the same scrape is a new game (above), so its old start is dropped first.
 let seen960Page;   // the one-game path at the last 960 scrape; null = a page naming no game
 let seen960Plies = 0;   // the move list's length at the last 960 scrape
+// A NEW GAME UNDER THE OLD GAME'S URL. A one-game key holds one game's start, but chess.com can show
+// the next game's board before the URL leaves the previous /game/<id>, and its move-0 capture was then
+// filed under that href, over the real start of the game the href names: a reload or review of it
+// replayed its moves from the next game's start (audit 3.1.330 SCRAPEA-3). Once the board shows a
+// new game (an emptied list, and a board that is not the filed start's game, see boardFrom960Start),
+// that page's key is not used until the page changes: the new capture is kept in this document only
+// and the filed start is neither read for the new game nor overwritten.
+let stale960Page = null;
+function key960() { return stale960Page != null ? null : startPosKey(); }
 function forget960OnNewGame(plies) {
     const m = ONE_GAME_PATH.exec(location.pathname);
     const page = m ? location.pathname.slice(0, m.index + m[0].length).replace(/\/$/, '') : null;
-    if (seen960Plies > 0 && plies === 0 && !boardFrom960Start(seen960Start)) seen960Start = null;
+    if (page !== stale960Page) stale960Page = null;
+    if (seen960Plies > 0 && plies === 0) {
+        const same = boardFrom960Start(chess960Start(puzBoard(readStartPos(key960())?.position)) || seen960Start);
+        if (!same) seen960Start = null;
+        if (same === false && page != null) stale960Page = page;
+    }
     if (seen960Page === null && page != null && chess960Start(puzBoard(seen960Start))
         && !chess960Start(puzBoard(readStartPos(startPosKey())?.position))) {
         writeStartPos(startPosKey(), {position: seen960Start, timestamp: Date.now()});
@@ -4696,11 +4710,13 @@ function forget960OnNewGame(plies) {
 // different 960 starts differ on at least two files, so four home squares; a game's own first plies,
 // a premove or a lagging list move at most three. An unreadable board says nothing: the old drop.
 // ponytail: an uncaptured game more than three plies in, read empty once, still loses its start.
+// null = nothing to compare (no start, or no board), which the caller treats as "not the same game"
+// but not as proof of a new one.
 function boardFrom960Start(start) {
     const home = puzBoard(start);
     let board;
-    try { board = isChesscomVariants() ? variants960Board() : puzBoard(scrapePositionPuz()); } catch (e) { return false; }
-    if (!home || !board) return false;
+    try { board = isChesscomVariants() ? variants960Board() : puzBoard(scrapePositionPuz()); } catch (e) { return null; }
+    if (!home || !board) return null;
     if (Object.keys(board).length < 32) return true;
     let off = 0;
     for (const sq in home) if (board[sq] !== home[sq]) off++;

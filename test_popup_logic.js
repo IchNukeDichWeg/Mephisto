@@ -7997,6 +7997,65 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SCRAPEA-2: the list re-mounting empty on the URL change keeps the lobby start', f.go('/game/live/9001', 0) === C, f.go('/game/live/9001', 0));
     ok('SCRAPEA-2: ...and files it, so a reload of the game reads it back', doc().go('/game/live/9001', 6) === C, doc().go('/game/live/9001', 6));
 }
+// ---- audit 3.1.330 SCRAPEA-3: a new game's start seen under the previous game's URL does not overwrite that game's ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const lru = fs.readFileSync(ROOT + '/lib/lru.min.js', 'utf8');
+    const branch = cut("if (config.variant === 'fischerandom') {", "\n        const moves = getMoveRecords();");
+    const board = (back, edits = {}) => {
+        const b = {};
+        for (let f = 0; f < 8; f++) {
+            const F = 'abcdefgh'[f];
+            b[F + '1'] = back[f]; b[F + '2'] = 'P'; b[F + '7'] = 'p'; b[F + '8'] = back[f].toLowerCase();
+        }
+        for (const [sq, pc] of Object.entries(edits)) { if (pc) b[sq] = pc; else delete b[sq]; }
+        let out = 'b*****';
+        for (const sq of Object.keys(b).sort((x, y) => y[0].localeCompare(x[0]) || y[1] - x[1])) {
+            const pc = b[sq];
+            out += `${pc === pc.toUpperCase() ? 'w' : 'b'}-${pc.toLowerCase()}-${sq}*****`;
+        }
+        return out;
+    };
+    let saved = [];
+    const doc = () => {
+        const c = vm.createContext({Date, site: 'chesscom', config: {variant: 'fischerandom'}, location: {pathname: '/', search: '', href: ''},
+            siteValues: {cache: saved}, saveSiteValue: (k, v) => { saved = v; }, isChesscomVariants: () => false, moves: [], cur: '',
+            getMoveRecords: () => c.moves, scrapePositionPuz: () => c.cur});
+        try {
+            vm.runInContext(lru + ';\n' + cut('const DEFAULT_POSITION =', '\n\n') + cut('function loadStartPosCache()', '// --- GRIND MODE')
+                + ';startPosCache = loadStartPosCache();\nthis.scrape = () => { let res; ' + branch + ' return res; };', c);
+        } catch (e) { console.log('slice threw: ' + e.message); }
+        c.go = (path, plies, cur) => {
+            c.location.pathname = path; c.location.href = 'https://www.chess.com' + path;
+            c.moves = Array(plies).fill('m'); if (cur !== undefined) c.cur = cur;
+            try { return c.scrape().split('&*****')[0]; } catch (e) { return 'threw ' + e.message; }
+        };
+        return c;
+    };
+    const mid = (back) => board(back, {e2: null, d7: null, d4: 'P', g1: null, f3: 'N'});
+    const d = doc();
+    const A = d.go('/game/live/111', 0, board('NRKBBQRN'));
+    d.go('/game/live/111', 30, mid('NRKBBQRN'));
+    const B = d.go('/game/live/111', 0, board('QRKRBBNN'));
+    ok('SCRAPEA-3: game B\'s move 0 seen while the URL still names game A: B\'s start is used live',
+       B.startsWith('w*****b-q-a8*****b-r-b8') && B !== A, B);
+    ok('SCRAPEA-3: ...and B\'s first moves under the old URL still replay from it', d.go('/game/live/111', 1, board('QRKRBBNN', {e2: null, e4: 'P'})) === B);
+    ok('SCRAPEA-3: game A\'s filed start is not overwritten: a reload of A reads A', doc().go('/game/live/111', 30) === A, doc().go('/game/live/111', 30));
+    d.go('/game/live/222', 2);
+    ok('SCRAPEA-3: back on game A\'s page in the same document, its filed start is read again', d.go('/game/live/111', 30, mid('NRKBBQRN')) === A, d.go('/game/live/111', 30));
+    // a document opened on A mid-game (nothing captured here, A filed): the same holds
+    const e = doc();
+    e.go('/game/live/111', 25, mid('NRKBBQRN'));
+    const B2 = e.go('/game/live/111', 0, board('QRKRBBNN', {d7: null, d5: 'p'}));   // B's array with a premove: no capture
+    ok('SCRAPEA-3: opened mid-game on A, B\'s premoved array under A\'s URL does not fall back to A\'s start', B2 !== A, B2);
+    ok('SCRAPEA-3: ...and A stays filed', doc().go('/game/live/111', 30) === A);
+    // the same game read empty once (a takeback to move 0) keeps using its filed start
+    const f = doc();
+    f.go('/game/live/111', 4, board('NRKBBQRN', {e2: null, e4: 'P'}));
+    ok('SCRAPEA-3: a takeback to move 0 on A\'s own page is still A', f.go('/game/live/111', 0, board('NRKBBQRN')) === A && f.go('/game/live/111', 1) === A);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
