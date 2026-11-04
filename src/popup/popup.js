@@ -4491,7 +4491,14 @@ function request_explorer(fen) {
             return;
         }
         explorer_empty_streak = 0;
-        explorer_data = {fen, moves: res.moves, opening: res.opening || null};
+        // CASTLING AS THE ENGINE WRITES IT. The explorer can send castling as king-takes-rook (e1h1),
+        // while the engine's lines and every arrow use the king's two-square step (e1g1): the book's
+        // engine veto never found castling in the line scores, so O-O never entered the pool, and
+        // its arrow pointed at the rook (audit 3.1.330 PLAYA-5). Keyed on the san, so a rook moving
+        // into the corner keeps its uci; a no-op if the explorer already sends e1g1.
+        const castle = {e1h1: 'e1g1', e1a1: 'e1c1', e8h8: 'e8g8', e8a8: 'e8c8'};
+        const moves = res.moves.map(m => (/^O-O/.test(m?.san || '') && castle[m.uci]) ? {...m, uci: castle[m.uci]} : m);
+        explorer_data = {fen, moves, opening: res.opening || null};
         render_explorer();
     });
 }
@@ -4550,7 +4557,14 @@ function request_explorer(fen) {
             return;
         }
         explorer_empty_streak = 0;
-        explorer_data = {fen, moves: res.moves, opening: res.opening || null};
+        // CASTLING AS THE ENGINE WRITES IT. The explorer can send castling as king-takes-rook (e1h1),
+        // while the engine's lines and every arrow use the king's two-square step (e1g1): the book's
+        // engine veto never found castling in the line scores, so O-O never entered the pool, and
+        // its arrow pointed at the rook (audit 3.1.330 PLAYA-5). Keyed on the san, so a rook moving
+        // into the corner keeps its uci; a no-op if the explorer already sends e1g1.
+        const castle = {e1h1: 'e1g1', e1a1: 'e1c1', e8h8: 'e8g8', e8a8: 'e8c8'};
+        const moves = res.moves.map(m => (/^O-O/.test(m?.san || '') && castle[m.uci]) ? {...m, uci: castle[m.uci]} : m);
+        explorer_data = {fen, moves, opening: res.opening || null};
         render_explorer();
     });
 }
@@ -9359,7 +9373,12 @@ function manual_play() {
     // uses). last_eval.bestmove is set only on our turn, so a stale opponent-turn value can't leak.
     const our = (our_side() === 'white') ? 'w' : 'b';
     if (last_eval.fen?.split(' ')[1] === our) {
-        const best = last_eval.bestmove || last_eval.lines?.[0]?.move;
+        // THE TABLEBASE MOVE FIRST, as on_engine_best_move plays it. A WASM search here is
+        // `go infinite`, so bestmove (where the tablebase pick is substituted) is never set and the
+        // key played the engine's top line under the amber arrow (audit 3.1.330 PLAYA-6).
+        const tb = tablebase_pick(last_eval.fen);
+        const best = (tb && premove_reply_playable(last_eval.fen, tb)) ? tb
+            : (last_eval.bestmove || last_eval.lines?.[0]?.move);
         if (best && premove_reply_playable(last_eval.fen, best)) {
             request_automove(best, null, true); // manual:true bypasses the content-script's autoplay gate
         }

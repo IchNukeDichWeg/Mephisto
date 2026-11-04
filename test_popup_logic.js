@@ -7841,6 +7841,79 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     set({player_book: true}, `explorer_out_of_book = true; player_book = new Map([[${JSON.stringify(after.split(' ').slice(0, 2).join(' '))}, {h2h3: 3}]])`);
     ok('PLAYA-2: a Player Book hit for the position after the prediction holds the reply', instant() === null && queued().length === 0);
 }
+// ---- audit 3.1.330 PLAYA-5: explorer castling is stored as the engine writes it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.indexOf('function ' + name + '('); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    let answer = null;
+    const c = vm.createContext({explorer_enabled: () => true, explorer_out_of_book: false, document: {hidden: false}, console: {warn() {}},
+        config: {book_play: true}, explorer_wanted: null, explorer_data: null, explorer_error: null, explorer_empty_streak: 0,
+        render_explorer: () => {}, own_book: null, BOOK_MIN_GAMES: 20, BOOK_MAX_LOSS: 40, player_book_pick: () => null, Math,
+        chrome: {runtime: {lastError: null, sendMessage: (m, cb) => cb(answer)}}});
+    vm.runInContext(fn('request_explorer') + fn('book_pick'), c);
+    // the engine's own lines (as engine_line_scores reports them): O-O is its best move
+    c.engine_line_scores = () => ({e1g1: 30, d2d3: 20});
+    answer = {moves: [{uci: 'e1h1', san: 'O-O', white: 500, draws: 300, black: 200},
+                      {uci: 'd2d3', san: 'd3', white: 50, draws: 30, black: 20},
+                      {uci: 'h2h1', san: 'Rh1', white: 30, draws: 0, black: 0}]};
+    c.request_explorer('R');
+    const ucis = (c.explorer_data?.moves || []).map(m => m.uci);
+    ok('PLAYA-5: an explorer O-O sent as e1h1 is stored as e1g1', ucis[0] === 'e1g1', ucis);
+    ok('...a non-castling move into the corner keeps its uci', ucis[2] === 'h2h1', ucis);
+    const seen = new Set();
+    for (let i = 0; i < 200; i++) seen.add(vm.runInContext("book_pick('R')", c));
+    ok('PLAYA-5: castling now passes the engine veto and can be the book move', seen.has('e1g1'), [...seen]);
+    answer = {moves: [{uci: 'e8g8', san: 'O-O', white: 50, draws: 0, black: 0}]};
+    c.request_explorer('S');
+    ok('...an explorer that already sends e8g8 is left alone', c.explorer_data?.moves?.[0]?.uci === 'e8g8', c.explorer_data);
+}
+// ---- audit 3.1.330 PLAYA-5: explorer castling is stored as the engine writes it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.indexOf('function ' + name + '('); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    let answer = null;
+    const c = vm.createContext({explorer_enabled: () => true, explorer_out_of_book: false, document: {hidden: false}, console: {warn() {}},
+        config: {book_play: true}, explorer_wanted: null, explorer_data: null, explorer_error: null, explorer_empty_streak: 0,
+        render_explorer: () => {}, own_book: null, BOOK_MIN_GAMES: 20, BOOK_MAX_LOSS: 40, player_book_pick: () => null, Math,
+        chrome: {runtime: {lastError: null, sendMessage: (m, cb) => cb(answer)}}});
+    vm.runInContext(fn('request_explorer') + fn('book_pick'), c);
+    // the engine's own lines (as engine_line_scores reports them): O-O is its best move
+    c.engine_line_scores = () => ({e1g1: 30, d2d3: 20});
+    answer = {moves: [{uci: 'e1h1', san: 'O-O', white: 500, draws: 300, black: 200},
+                      {uci: 'd2d3', san: 'd3', white: 50, draws: 30, black: 20},
+                      {uci: 'h2h1', san: 'Rh1', white: 30, draws: 0, black: 0}]};
+    c.request_explorer('R');
+    const ucis = (c.explorer_data?.moves || []).map(m => m.uci);
+    ok('PLAYA-5: an explorer O-O sent as e1h1 is stored as e1g1', ucis[0] === 'e1g1', ucis);
+    ok('...a non-castling move into the corner keeps its uci', ucis[2] === 'h2h1', ucis);
+    const seen = new Set();
+    for (let i = 0; i < 200; i++) seen.add(vm.runInContext("book_pick('R')", c));
+    ok('PLAYA-5: castling now passes the engine veto and can be the book move', seen.has('e1g1'), [...seen]);
+    answer = {moves: [{uci: 'e8g8', san: 'O-O', white: 50, draws: 0, black: 0}]};
+    c.request_explorer('S');
+    ok('...an explorer that already sends e8g8 is left alone', c.explorer_data?.moves?.[0]?.uci === 'e8g8', c.explorer_data);
+}
+// ---- audit 3.1.330 PLAYA-6: Manual Mode's key plays the tablebase move on a WASM engine too ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.indexOf('function ' + name + '('); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const fen = '8/8/8/4k3/8/8/4P3/4K3 w - - 0 1';
+    const c = vm.createContext({config: {manual_mode: true}, our_side: () => 'white', premove_reply_playable: () => true,
+        tablebase_data: null, tablebase_enabled: () => true, sent: [], last_eval: null});
+    c.request_automove = (m) => c.sent.push(m);
+    vm.runInContext(fn('manual_play') + fn('tablebase_pick'), c);
+    // a WASM Manual Mode search is `go infinite`: lines, no bestmove
+    const press = (tb) => {
+        c.sent = []; c.last_eval = {fen, lines: [{move: 'e1d2'}]};
+        c.tablebase_data = tb ? {fen, moves: [{uci: tb}]} : null;
+        c.manual_play(); return c.sent[0];
+    };
+    ok('PLAYA-6: with a tablebase answer the play-move key plays the tablebase move', press('e1f2') === 'e1f2', press('e1f2'));
+    ok('...and without one it still plays the engine\'s top line', press(null) === 'e1d2', press(null));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
