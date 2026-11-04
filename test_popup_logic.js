@@ -9332,6 +9332,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const disagree = [...games, ...puzzles].filter(u => answers(u) !== isPuz(u));
     ok('PAGEB-1: the load-time route gate agrees with isPuzzlePage()', disagree.length === 0, disagree);
 }
+// ---- audit 3.1.330 PAGEA-7: debugger-read puzzle bodies go to the probe's own channel, never a fixed name ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const pz = fs.readFileSync(ROOT + '/src/scripts/puz-probe.js', 'utf8');
+    const i = b.indexOf('async function puzzleNetDeliver(');
+    const fn = i < 0 ? '' : b.slice(b.lastIndexOf('const PUZZLE_SID_RETRY_MS', i), b.indexOf('\n}\n', i) + 3).replace(/^const /gm, 'var ');
+    // the tab's isolated world holds the content script's puzSid; the main world records what it is sent
+    const run = async (sid) => {
+        const sent = [], targets = [];
+        const iso = vm.createContext({puzSid: sid});
+        const main = vm.createContext({CustomEvent: function (n, o) { this.type = n; this.detail = o && o.detail; },
+            document: {dispatchEvent: (e) => sent.push([e.type, e.detail])}});
+        const c = vm.createContext({Promise, setTimeout: (f) => f(), chrome: {scripting: {executeScript: async (o) => {
+            const w = o.world === 'MAIN' ? main : iso;
+            if (o.world === 'MAIN') targets.push(o.target);
+            const f = vm.runInContext('(' + o.func.toString() + ')', w);
+            return [{result: f(...(o.args || [])), documentId: 'DOC1'}];
+        }}}});
+        vm.runInContext(fn, c);
+        await vm.runInContext('puzzleNetDeliver(7, \'{"puzzles":[]}\')', c);
+        for (let k = 0; k < 20; k++) await new Promise(r => setImmediate(r));
+        return {sent, targets};
+    };
+    const got = await run('mabc123');
+    ok('PAGEA-7: a body is dispatched on the probe\'s own channel, to the document that holds that id',
+       fn !== '' && got.sent.length === 1 && got.sent[0][0] === 'mabc123c' && got.sent[0][1] === '{"puzzles":[]}'
+       && JSON.stringify(got.targets) === '[{"tabId":7,"documentIds":["DOC1"]}]', got);
+    const none = await run(null);
+    ok('PAGEA-7: with no probe announced in the document nothing is dispatched into the page', fn !== '' && none.sent.length === 0, none);
+    ok('PAGEA-7: no fixed m7 name is left on either side; the probe listens on SID + \'c\'',
+       !/CustomEvent\('m7'/.test(b) && !/addEventListener\('m7'/.test(pz) && /document\.addEventListener\(SID \+ 'c', \(e\) => \{\s*try \{ scan\(/.test(pz)
+       && /puzzleNet\.forwarded\+\+;\s*puzzleNetDeliver\(src\.tabId, r\.body\);/.test(b));
+})().catch(e => { fails++; console.log('FAIL PAGEA-7 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

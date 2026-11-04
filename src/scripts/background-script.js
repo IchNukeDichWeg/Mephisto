@@ -2369,6 +2369,40 @@ async function puzzleNetEnable(tabId) {
   puzzleNetTabs.add(tabId);
 }
 
+// Inject a body straight into the page's MAIN world, where the probe lives. It MUST land in the
+// main world: a content script cannot pass an event detail to the page (isolated->main hands over
+// null), so bouncing through the content script silently dropped the body. executeScript's args
+// cross worlds cleanly, and the dispatch then happens in the same world as the listener.
+//
+// ON THE PROBE'S OWN RANDOM CHANNEL, `<sid>c`, never a fixed name. A fixed `m7` told any page
+// listening for it that the debugger capture was running in that tab, and went to the page alone
+// where no probe was loaded (audit 3.1.330 PAGEA-7). The worker cannot know the id, but the content
+// script took it from the probe's announce, and both content scripts and executeScript's default
+// world share one isolated world per document: one read there gives the id AND the document it
+// belongs to, so the body goes to that document only. No id (no probe announced in this document)
+// is asked again briefly, for a body read before the announce landed, then the body is dropped.
+const PUZZLE_SID_RETRY_MS = 700, PUZZLE_SID_TRIES = 3;
+async function puzzleNetDeliver(tabId, body, tries = 0) {
+  let sid = null, documentId;
+  try {
+    const [r] = await chrome.scripting.executeScript({target: {tabId},
+      func: () => (typeof puzSid === 'string' ? puzSid : null)});
+    sid = r && r.result;
+    documentId = r && r.documentId;
+  } catch (e) { return; }   // tab navigated or closed
+  if (typeof sid !== 'string' || !/^[A-Za-z0-9]{1,24}$/.test(sid)) {
+    if (tries < PUZZLE_SID_TRIES) setTimeout(() => puzzleNetDeliver(tabId, body, tries + 1), PUZZLE_SID_RETRY_MS);
+    return;
+  }
+  try {
+    await chrome.scripting.executeScript({
+      target: documentId ? {tabId, documentIds: [documentId]} : {tabId}, world: 'MAIN',
+      func: (name, body) => { try { document.dispatchEvent(new CustomEvent(name, {detail: body})); } catch (e) { /* */ } },
+      args: [sid + 'c', body],
+    });
+  } catch (e) { /* that document is gone */ }
+}
+
 chrome.debugger.onEvent?.addListener((src, method, params) => {
   if (method !== 'Network.responseReceived' || !src.tabId || !puzzleNetTabs.has(src.tabId)) return;
   try {
@@ -2385,18 +2419,7 @@ chrome.debugger.onEvent?.addListener((src, method, params) => {
           if (chrome.runtime.lastError || !r || r.base64Encoded || typeof r.body !== 'string') return;
           if (!r.body || r.body.length > PUZZLE_BODY_MAX) return;
           puzzleNet.forwarded++;
-          // Inject the body straight into the page's MAIN world, where the probe lives, as a fixed
-          // 'm7' event. It MUST land in the main world: a content script cannot pass an event detail
-          // to the page (isolated->main hands over null), so bouncing through the content script
-          // silently dropped the body. executeScript's args cross worlds cleanly, and the dispatch
-          // then happens in the same world as the listener.
-          try {
-            chrome.scripting.executeScript({
-              target: {tabId: src.tabId}, world: 'MAIN',
-              func: (body) => { try { document.dispatchEvent(new CustomEvent('m7', {detail: body})); } catch (e) { /* */ } },
-              args: [r.body],
-            }).catch(() => { /* tab navigated or closed */ });
-          } catch (e) { /* tab gone */ }
+          puzzleNetDeliver(src.tabId, r.body);
         });
     }, 60);
   } catch (e) { /* a diagnostic path must never break the worker */ }

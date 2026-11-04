@@ -284,12 +284,13 @@
     // INGEST FROM OUTSIDE. Patching the page's own plumbing is a race we do not always win --
     // chess.com's bundle takes its reference to fetch before this script installs, so Puzzle Rush's
     // response never passes through any wrapper here. The service worker reads that body over the
-    // debugger and injects it into THIS world (executeScript world:MAIN) as a fixed-name event, so it
-    // goes through exactly the same extraction as anything we caught ourselves. It has to arrive in
-    // the main world: a content script dispatching across worlds hands us `detail: null` (an
-    // isolated->main CustomEvent cannot carry its payload), which is measured, not assumed -- the
+    // debugger and injects it into THIS world (executeScript world:MAIN) on this probe's own channel
+    // (the worker reads the id from the content script; a fixed name was a tell, audit 3.1.330
+    // PAGEA-7), so it goes through exactly the same extraction as anything we caught ourselves. It has
+    // to arrive in the main world: a content script dispatching across worlds hands us `detail: null`
+    // (an isolated->main CustomEvent cannot carry its payload), which is measured, not assumed -- the
     // body was received and the probe saw nothing. Same-world dispatch keeps the detail intact.
-    document.addEventListener('m7', (e) => {
+    document.addEventListener(SID + 'c', (e) => {
         try { scan(String(e.detail || ''), 'cdp'); } catch (err) { /* */ }
     });
 
