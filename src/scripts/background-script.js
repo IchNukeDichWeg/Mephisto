@@ -729,8 +729,11 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         && typeof sender.url === 'string' && sender.url.startsWith(`chrome-extension://${chrome.runtime.id}/`);
     const tabId = sender.tab?.id ?? ((own && Number.isInteger(msg.tabId)) ? msg.tabId : undefined);
     if (!tabId) { sendResponse({error: 'no sender tab'}); return; }
+    const doc = String(sender.tab ? sender.documentId ?? '' : msg.docId ?? '');   // see warmRefused
+    if (warmRefused.get(tabId) === doc && !attached.has(tabId)) { sendResponse({skipped: true}); return; }
     cdpInputTabs.add(tabId);
-    cdpAttach(tabId).then(() => sendResponse({ok: true})).catch(e => sendResponse({error: String(e)}));
+    cdpAttach(tabId).then(() => { warmRefused.delete(tabId); sendResponse({ok: true}); })
+      .catch(e => { if (e?.attachRefused) warmRefused.set(tabId, doc); sendResponse({refused: !!e?.attachRefused, error: String(e)}); });
     return true;
   }
   // The panel can't open the options page itself: it's a content script, so a relative URL resolves
@@ -1890,6 +1893,13 @@ const attached = new Set();
 // visited afterwards (audit 3.1.329 PAGE-1). Lost on a worker restart, so a tab Autoplay clicked in
 // before the restart is detached too; its next click attaches again, which is the safe direction.
 const cdpInputTabs = new Set();
+// ONE REFUSAL PER PAGE IS ENOUGH. An attach Chrome turns down fails the same way every time
+// (SWALLOW-1), and cdpWarm runs before every move, so after the first refusal each move paid a wasted
+// attach ahead of its click, whose own attach is what reports MPH-E10 (audit 3.1.330 follow-up L7).
+// tabId -> the document the warm was refused in: skipped until the tab holds a new document (a
+// navigation; the in-page sender's documentId, or the one the toolbar popup forwards) or an attach
+// has since succeeded. Lost on a worker restart, which costs one more refused attach.
+const warmRefused = new Map();
 const lastPos = new Map(); // tabId -> {x, y}: where the synthetic cursor was left after the last click
 const cdpSleep = (ms) => new Promise(r => setTimeout(r, ms));
 // A mouseMoved IS NOT ACKED UNTIL THE PAGE PAINTS A FRAME. Blink hands pointer-move events to the
@@ -2484,6 +2494,7 @@ chrome.debugger.onEvent?.addListener((src, method, params) => {
 // Free a panel's offscreen engine when its tab closes (the popup iframe is gone with it). Tab events
 // don't need the "tabs" permission. clientId == String(tabId), matching ENGINE_CLIENT in popup.js.
 chrome.tabs.onRemoved.addListener((tabId) => {
+  warmRefused.delete(tabId);
   chrome.storage.session.get('panelTabs', ({panelTabs = {}}) => {
     if (panelTabs[tabId]) { delete panelTabs[tabId]; chrome.storage.session.set({panelTabs}); }
   });

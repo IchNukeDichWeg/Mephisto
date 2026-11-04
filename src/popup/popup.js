@@ -937,7 +937,8 @@ async function initPanel(root, tabId) {
             // meant the in-page panel, which is every real game, never warmed at all. Send regardless
             // and let the worker fall back to its own authenticated sender.tab, exactly as the click
             // path already does; the id below only matters for the toolbar popup, which has no tab.
-            return chrome.runtime.sendMessage({cdpWarm: true, tabId: sender?.tab?.id})
+            // docId: the page the warm is for, so a refusal is remembered per page (audit 3.1.330 follow-up L7)
+            return chrome.runtime.sendMessage({cdpWarm: true, tabId: sender?.tab?.id, docId: sender?.documentId})
                 .then(r => { if (r && r.error) console.warn('CDP warm failed:', r.error); })
                 .catch(() => {});
         } else if (response.click) {

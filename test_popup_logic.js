@@ -11741,6 +11741,32 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            b.removed === 0 && !b.host && d.removed === 0 && !d.host, [b, d]);
     }
 }
+// ---- L7 (audit 3.1.330 follow-up): after Chrome refuses the warm attach once, a page's later moves do not attach again for it ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const s = b.indexOf('  if (msg.cdpWarm) {'), e = b.indexOf('\n  }\n', s) + 4;
+    if (s < 0) { fails++; console.log('FAIL L7: could not slice the cdpWarm handler'); return; }
+    const c = vm.createContext({tries: 0, refuse: true, Promise, Error});
+    vm.runInContext(`const chrome = {runtime: {id: 'x'}}; const attached = new Set(), cdpInputTabs = new Set(), warmRefused = new Map();
+        function cdpAttach(t) { tries++; if (!refuse) { attached.add(t); return Promise.resolve(); }
+            const err = new Error('Cannot access a chrome-extension:// URL of different extension'); err.attachRefused = true; return Promise.reject(err); }
+        function onWarm(msg, sender, sendResponse) {\n${b.slice(s, e)}}`, c);
+    const warm = (doc) => new Promise(r => { if (vm.runInContext('onWarm', c)({cdpWarm: true}, {tab: {id: 5}, documentId: doc}, r) !== true) {} });
+    const a1 = await warm('D1'), a2 = await warm('D1'), a3 = await warm('D1');
+    ok('L7: the first refusal is answered as refused, and the same page\'s next warms skip the attach',
+       a1.refused === true && a2.skipped && a3.skipped && c.tries === 1, [a1, a2, a3, c.tries]);
+    const n1 = await warm('D2');
+    ok('...a new document (a navigation) tries again', n1.refused === true && c.tries === 2, [n1, c.tries]);
+    c.refuse = false; vm.runInContext('attached.add(5)', c);   // the click path's attach went through since
+    const s1 = await warm('D2'), s2 = await warm('D2');
+    ok('...and once an attach has succeeded the warm runs again and the refusal is forgotten',
+       s1.ok === true && s2.ok === true && vm.runInContext('warmRefused.size', c) === 0, [s1, s2]);
+    c.refuse = true;
+    const tb = (doc) => new Promise(r => vm.runInContext('onWarm', c)({cdpWarm: true, tabId: 9, docId: doc}, {id: 'x', url: 'chrome-extension://x/src/popup/popup.html'}, r));
+    const t1 = await tb('T'), t2 = await tb('T'), t3 = await tb('U');
+    ok('...the toolbar popup\'s warm (no sender tab) keys on the docId it forwards', t1.refused && t2.skipped && t3.refused, [t1, t2, t3]);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
