@@ -21,6 +21,13 @@
 (function () {
     const CACHE = {};
     let ready = false;
+    // chrome.storage.local was read into CACHE. From then on a key missing from CACHE is a key that
+    // does not exist: the localStorage mirror in an extension page is not told when a content script
+    // removes a key (lsRemove is a no-op there), so falling back to it brought back a Budget memo
+    // the panel had already removed, and the next engine switch in Settings reset Budget to Time
+    // (audit 3.1.329 SYS-5). The fallback stays for the window before that read, and for a page
+    // where chrome.storage cannot be read at all.
+    let loaded = false;
 
     // In the popup PAGE / options page, `localStorage` is the EXTENSION's -- the old config backend,
     // still useful as a migration source and a transition mirror. In a CONTENT SCRIPT it is the
@@ -39,6 +46,7 @@
         // mimics localStorage.getItem: the stored JSON string, or null when absent
         get(key) {
             if (key in CACHE) return CACHE[key];
+            if (loaded) return null;
             return lsGet(key); // Phase-3 fallback (extension origin); empty/null in the isolated world
         },
         // mimics localStorage.setItem(key, jsonString)
@@ -239,8 +247,8 @@
         // load chrome.storage into the cache once; one-time migrate the old localStorage config in.
         async init() {
             if (ready) return;
-            let all = {};
-            try { all = await chrome.storage.local.get(null); } catch (e) { all = {}; }
+            let all = {}, read = false;
+            try { all = await chrome.storage.local.get(null); read = true; } catch (e) { all = {}; }
             if (!all.__cfg_migrated && EXT_PAGE) {
                 try {
                     for (let i = 0; i < localStorage.length; i++) {
@@ -253,6 +261,7 @@
                 try { await chrome.storage.local.set(all); } catch (e) { /* */ }
             }
             Object.assign(CACHE, all);
+            loaded = read;   // only once CACHE holds what was read: the migration above awaits
             // ONE MAIA ENTRY, ONE RATING (3.1.322). Maia-1's bands are covered by Maia-3's live rating,
             // and Maia-2 is Maia-3's rating plus the opponent's. A Maia-1 selection moves to Maia-3 at
             // its band, and a Maia-2 one keeps its own rating as the shared one -- once, here.

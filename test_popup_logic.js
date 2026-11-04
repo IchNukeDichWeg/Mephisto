@@ -7058,6 +7058,38 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('PAGE-6: the toolbar popup still falls back on its own document', popup.okd === true && popup.site.length === 1, popup);
     })();
 }
+// ---- audit 3.1.329 SYS-5: an extension page never reads back a key chrome.storage no longer has ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const mk = (getImpl) => {
+        const ls = new Map([['search_mode_before_depth_only', '"time"'], ['search_mode', '"time"']]);
+        const listeners = [];
+        const c = {console, location: {protocol: 'chrome-extension:'}, navigator: {},
+            localStorage: {getItem: k => ls.get(k) ?? null, setItem: (k, v) => ls.set(k, String(v)), removeItem: k => ls.delete(k),
+                get length() { return ls.size; }, key: i => [...ls.keys()][i]},
+            chrome: {storage: {local: {get: getImpl, set: async () => {}, remove: async () => {}},
+                onChanged: {addListener: f => listeners.push(f)}}}};
+        c.self = c;
+        vm.createContext(c);
+        vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8'), c);
+        return {c, listeners};
+    };
+    (async () => {
+        // The memo was in chrome.storage when this page loaded (and mirrored to localStorage); the
+        // panel then removed it from chrome.storage only, and the user set Budget to Nodes.
+        const {c, listeners} = mk(async () => ({__cfg_migrated: '1', search_mode: '"time"', search_mode_before_depth_only: '"time"'}));
+        await c.MephistoConfig.ready;
+        for (const f of listeners) f({search_mode_before_depth_only: {oldValue: '"time"'}, search_mode: {oldValue: '"time"', newValue: '"nodes"'}}, 'local');
+        ok('SYS-5: a memo removed elsewhere is gone in the options page too', c.MephistoConfig.get('search_mode_before_depth_only') === null,
+           c.MephistoConfig.get('search_mode_before_depth_only'));
+        ok('SYS-5: an engine switch in Settings keeps Budget at Nodes', c.MephistoConfig.applyEngineBudgetRule('stockfish-19-nnue') === 'nodes'
+           && c.MephistoConfig.get('search_mode') === '"nodes"');
+        // chrome.storage unreadable: the old localStorage backend is still the fallback
+        const bad = mk(async () => { throw new Error('no storage'); });
+        await bad.c.MephistoConfig.ready;
+        ok('SYS-5: with chrome.storage unreadable the localStorage fallback still answers', bad.c.MephistoConfig.get('search_mode') === '"time"');
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
