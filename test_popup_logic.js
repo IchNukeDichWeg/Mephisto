@@ -8797,6 +8797,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and the offscreen host relays the recogniser\'s progress to the asking tab as kind vision',
        out.some(m => m.fromOffscreen && m.clientId === '7' && m.kind === 'vision' && m.line === 'info string mephisto-download bbox.onnx 5 10'), out);
 })().catch(e => { fails++; console.log('FAIL ENGINEB-3 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 CONTEXT-1: Screen Reader Cores reaches onnxruntime in the offscreen document ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // ort-env.js in the offscreen document's real world: chrome has runtime and nothing else
+    // (measured on Chrome 152: Object.keys(chrome) is csi, loadTimes, runtime).
+    const src = fs.readFileSync(ROOT + '/src/offscreen/ort-env.js', 'utf8').replace(/^import .*$/gm, '').replace(/^export .*$/gm, '');
+    const env = (answer) => {
+        const asked = [];
+        const c = vm.createContext({crossOriginIsolated: true, console, JSON, Number, Math, parseInt, Promise, setTimeout: (f) => setImmediate(f),
+            ort: {env: {wasm: {}}},
+            chrome: {csi() {}, loadTimes() {}, runtime: {sendMessage: (m) => { asked.push(m); return answer(m); }}}});
+        vm.runInContext(src, c);
+        return {c, asked};
+    };
+    const a = env(async (m) => m.visionThreads ? {raw: '5'} : undefined);
+    await vm.runInContext('readyEnv()', a.c);
+    ok('CONTEXT-1: the stored Screen Reader Cores (5) is the thread count, asked of the worker',
+       vm.runInContext('ort.env.wasm.numThreads', a.c) === 5 && a.asked.length === 1, [vm.runInContext('ort.env.wasm.numThreads', a.c), a.asked]);
+    await vm.runInContext('readyEnv()', a.c);
+    ok('...once per document', a.asked.length === 1, a.asked.length);
+    const b = env(async () => ({raw: null}));
+    await vm.runInContext('readyEnv()', b.c);
+    ok('...nothing stored keeps the default of 2', vm.runInContext('ort.env.wasm.numThreads', b.c) === 2);
+    const d = env(() => new Promise(() => {}));   // a worker that never answers
+    await vm.runInContext('readyEnv()', d.c);
+    ok('...and a worker that never answers cannot hold the first session back', vm.runInContext('ort.env.wasm.numThreads', d.c) === 2);
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    ok('...the worker answers the ask from storage',
+       /if \(msg\.visionThreads\) \{\s*chrome\.storage\.local\.get\('vision_threads'\)[\s\S]{0,200}sendResponse\(\{raw: [\s\S]{0,200}return true;/.test(bg));
+})().catch(e => { fails++; console.log('FAIL CONTEXT-1 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -42,16 +42,26 @@ ort.env.wasm.proxy = false;
 // THE THREAD COUNT IS READ ONCE PER DOCUMENT. onnxruntime's wasm backend initialises at the FIRST
 // InferenceSession.create with whatever the env said at that moment, so every session creator must
 // await this first -- and a changed setting only takes effect the next time this host starts.
+//
+// ASKED OF THE WORKER, because this file only ever runs in the offscreen document and an offscreen
+// document has chrome.runtime and no other extension API. Reading chrome.storage here threw a
+// TypeError that the catch took for "nothing stored", so Screen Reader Cores never reached
+// onnxruntime: every read ran on 2 threads whatever was set (audit 3.1.330 CONTEXT-1, measured on
+// Chrome 152: Object.keys(chrome) is csi, loadTimes, runtime). Bounded, so a worker that does not
+// answer costs a first read 3 s at most, never the session.
+const ENV_ASK_MS = 3000;
 let envReady = null;
 function readyEnv() {
     if (envReady) return envReady;
     envReady = (async () => {
         if (!isolated) return;
         try {
-            const {vision_threads: raw} = await chrome.storage.local.get('vision_threads');
+            const raw = await Promise.race([
+                chrome.runtime.sendMessage({visionThreads: true}).then(r => r?.raw),
+                new Promise(r => setTimeout(() => r(null), ENV_ASK_MS))]);
             const n = parseInt(JSON.parse(raw ?? 'null'), 10);
             if (Number.isFinite(n)) ort.env.wasm.numThreads = Math.max(1, Math.min(8, n));
-        } catch (e) { /* no storage here, or nothing stored -- the default above stands */ }
+        } catch (e) { /* no worker answer, or nothing stored -- the default above stands */ }
     })();
     return envReady;
 }

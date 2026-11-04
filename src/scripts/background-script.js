@@ -200,6 +200,14 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     ensureOffscreen().then(() => sendResponse({ok: true}));
     return true; // async sendResponse
   }
+  // Screen Reader Cores for the offscreen document's onnxruntime (ort-env.js): that document has no
+  // chrome.storage, so it asks here (audit 3.1.330 CONTEXT-1). The raw stored value; it parses it.
+  if (msg.visionThreads) {
+    chrome.storage.local.get('vision_threads')
+      .then(({vision_threads: raw}) => sendResponse({raw: raw ?? null}))
+      .catch(() => sendResponse({raw: null}));
+    return true;
+  }
   // The in-page panel asks US for its markup/CSS/pieces. Fetching them HERE (extension context) and
   // shipping the bytes means the page never sees a chrome-extension:// URL -- no <link>/<img> to read
   // and, crucially, nothing recognizable in the page's Resource Timing (issue #35 §3.4).
