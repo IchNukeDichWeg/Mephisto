@@ -10238,6 +10238,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const src = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
     ok('REGRESS-3: the error no longer blames another tab, which per-port hosts ruled out', !/another tab is using this native engine/.test(src));
 })().catch(e => { fails++; console.log('FAIL REVIEWA-3 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 REVIEWA-4: a pool engine that fails to start is disposed (no lease ping left behind) ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rj.indexOf('async function startRig(override) {'), b = rj.indexOf('\n}\n', a) + 3;
+    const run = async (failAt) => {
+        const made = [];
+        const store = {rv_limit_kind: 'time', rv_limit_value: 500, rv_multipv: 1, rv_threads: 2, rv_hash: 16,
+                       rv_engine: 'stockfish-18-nnue', rv_workers: 3, rv_human: ''};
+        const c = vm.createContext({Math, String, cfg: (k) => store[k], rvChessVariant: () => 'chess', RV_FAIRY_ONLY: [],
+            RV_FAIRY_ENGINE: 'fairy', ENGINES: [], note() {}, takesRating: () => false, ratingFor() {},
+            makeEngine: (id, opts, cid) => {
+                const e = {cid, disposed: false, dispose() { e.disposed = true; },
+                           start: async () => { if (made.length - 1 === failAt) throw new Error('net did not load'); }};
+                made.push(e); return e;
+            }});
+        vm.runInContext('var activeEngine = null, activeEngines = [];' + rj.slice(a, b), c);
+        let rig = null, err = null;
+        try { rig = await c.startRig(); } catch (e) { err = e; }
+        return {made, rig, err};
+    };
+    let r = await run(1);
+    ok('REVIEWA-4: engine 2 of 3 failing to start is disposed, and the run goes on with engine 1',
+       r.rig && r.rig.engines.length === 1 && r.made[1].disposed && !r.made[0].disposed, r.made.map(e => e.disposed));
+    r = await run(0);
+    ok('REVIEWA-4: engine 1 failing is disposed before the error is thrown', r.err && r.made[0].disposed && r.made.length === 1, [String(r.err), r.made.map(e => e.disposed)]);
+})().catch(e => { fails++; console.log('FAIL REVIEWA-4 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

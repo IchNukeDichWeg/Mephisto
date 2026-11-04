@@ -673,6 +673,10 @@ async function startRig(override) {
         const e = makeEngine(engineId, {...opts, threads: per}, w ? `review-${w}` : 'review');
         // one failing to start is not fatal while another runs: the pass just goes that much slower
         try { await e.start(); engines.push(e); } catch (err) {
+            // Disposed here or nowhere: it is in neither `engines` nor a rig, so its 15 s lease ping
+            // (or a native host port) outlived the run and kept the offscreen document from ever
+            // idling closed (audit 3.1.330 REVIEWA-4).
+            try { e.dispose(); } catch (e2) { /* */ }
             if (!engines.length) throw err;
             note(`Engine ${w + 1} of ${wantWorkers} did not start (${err.message}) - running with ${engines.length}.`, true);
             break;
