@@ -637,8 +637,11 @@ class GeneralSettings extends SettingsPage {
         // TWO INDEPENDENT CHOICES, because they are two different questions. How many men -- 3-4-5
         // (0.9 GB) or the six-man set (149 GB) -- and which tables: WDL says whether a position is
         // won, drawn or lost and is the smaller half; DTZ is what actually CONVERTS a win under the
-        // 50-move rule, and is most of the bytes. Either alone is useful, so either alone is
-        // offerable, and the sizes come from the server rather than from a number in this file.
+        // 50-move rule, and is most of the bytes. WDL alone is useful (the verdict, with no
+        // distance). DTZ alone is not: every probe reads the WDL table first, and both routes fall
+        // back online without it (Check says MPH-T01, no .rtbw). "DTZ only" stays offerable as the
+        // second half of a WDL download, and its label says it needs WDL (audit 3.1.330 follow-up
+        // L31). The sizes come from the server rather than from a number in this file.
         const TB_DIRS = {
             '345': {wdl: '3-4-5-wdl', dtz: '3-4-5-dtz'},
             '6': {wdl: '6-wdl', dtz: '6-dtz'},

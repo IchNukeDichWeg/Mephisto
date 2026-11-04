@@ -1464,7 +1464,8 @@
                                             men (3-4-5 is 0.9 GB, the six-man set is 149 GB) and
                                             which tables -- WDL says whether a position is won, drawn
                                             or lost; DTZ is what converts a win under the 50-move
-                                            rule and is most of the size. Either alone works, and a
+                                            rule and is most of the size. WDL alone works; DTZ
+                                            needs the WDL files beside it. A
                                             file already there with the right size is skipped, so a
                                             stopped download resumes.">
                             Local Tablebases <i class="material-icons info-tooltip">info</i>
@@ -1483,7 +1484,7 @@
                         <select id="tb_download_kind" class="set-mini-select browser-default" title="Which tables">
                             <option data-i18n="set.tb_kind_both" value="both">WDL + DTZ</option>
                             <option data-i18n="set.tb_kind_wdl" value="wdl">WDL only</option>
-                            <option data-i18n="set.tb_kind_dtz" value="dtz">DTZ only</option>
+                            <option data-i18n="set.tb_kind_dtz" value="dtz">DTZ only (needs WDL)</option>
                         </select>
                         <button id="tb_download" class="set-btn" type="button" data-i18n="set.tb_download">Download tables</button>
                     </div>

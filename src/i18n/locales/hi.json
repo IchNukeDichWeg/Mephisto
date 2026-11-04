@@ -654,7 +654,7 @@
   "set.tb_men_both": "3-4-5 और 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "केवल WDL",
-  "set.tb_kind_dtz": "केवल DTZ",
+  "set.tb_kind_dtz": "केवल DTZ (WDL ज़रूरी)",
   "set.tb_big_online": "6 और 7 मोहरों वाली टेबल ब्राउज़र में पढ़ने के लिए बहुत बड़ी हैं: वे पोज़िशन नीचे दिए गए नेटिव होस्ट पाथ या ऑनलाइन लुकअप का उपयोग करती हैं।",
   "rv.custom": "कस्टम",
   "rv.preset_fast": "तेज़ - गहराई 18",

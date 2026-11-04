@@ -11491,6 +11491,18 @@ print(json.dumps(out))`;
         ok('L30: a full set still ranks by dtz (the shortest win first)', full && !full.error && full.moves?.[0]?.[0] === 'a2a3' && full.dtz === 9, full?.moves?.slice(0, 3));
     }
 })();
+// ---- audit 3.1.330 follow-up L31: Settings' "DTZ only" download says it needs WDL (a DTZ-only folder never answers) ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const dir = ROOT + '/src/i18n/locales';
+    const bad = fs.readdirSync(dir).filter(f => f.endsWith('.json'))
+        .filter(f => !/WDL/.test(JSON.parse(fs.readFileSync(dir + '/' + f, 'utf8'))['set.tb_kind_dtz'] || ''));
+    ok('L31: every locale\'s "DTZ only" label names WDL as needed', bad.length === 0, bad);
+    const html = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const opt = (/<option data-i18n="set\.tb_kind_dtz"[^>]*>([^<]*)</.exec(html) || [])[1];
+    ok('L31: ...and so does the page\'s own fallback text', /WDL/.test(opt || ''), opt);
+    ok('L31: the Settings tooltip no longer says either half works alone', !/Either alone works/.test(html));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

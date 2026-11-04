@@ -654,7 +654,7 @@
   "set.tb_men_both": "3-4-5 und 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "nur WDL",
-  "set.tb_kind_dtz": "nur DTZ",
+  "set.tb_kind_dtz": "nur DTZ (braucht WDL)",
   "set.tb_big_online": "6- und 7-Steiner-Tabellen sind zu groß, um sie im Browser zu lesen: Diese Stellungen nutzen den Pfad für den nativen Host weiter unten oder die Online-Abfrage.",
   "rv.custom": "Eigene",
   "rv.preset_fast": "Schnell - Tiefe 18",

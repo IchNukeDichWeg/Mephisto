@@ -654,7 +654,7 @@
   "set.tb_men_both": "3-4-5 및 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "WDL만",
-  "set.tb_kind_dtz": "DTZ만",
+  "set.tb_kind_dtz": "DTZ만 (WDL 필요)",
   "set.tb_big_online": "6·7기물 테이블은 너무 커서 브라우저에서 읽을 수 없습니다. 해당 포지션은 아래의 네이티브 호스트 경로나 온라인 조회를 사용합니다.",
   "rv.custom": "사용자 지정",
   "rv.preset_fast": "빠름 - 깊이 18",

@@ -654,7 +654,7 @@
   "set.tb_men_both": "3-4-5 en 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "alleen WDL",
-  "set.tb_kind_dtz": "alleen DTZ",
+  "set.tb_kind_dtz": "alleen DTZ (WDL nodig)",
   "set.tb_big_online": "Tabellen met 6 en 7 stukken zijn te groot om in de browser te lezen: die stellingen gebruiken het pad voor de native host hieronder, of de online opzoeking.",
   "rv.custom": "Aangepast",
   "rv.preset_fast": "Snel - diepte 18",

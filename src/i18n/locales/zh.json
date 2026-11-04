@@ -654,7 +654,7 @@
   "set.tb_men_both": "3-4-5 和 6",
   "set.tb_kind_both": "WDL + DTZ",
   "set.tb_kind_wdl": "仅 WDL",
-  "set.tb_kind_dtz": "仅 DTZ",
+  "set.tb_kind_dtz": "仅 DTZ（需要 WDL）",
   "set.tb_big_online": "6 子和 7 子残局库文件太大，无法在浏览器中读取：这些局面会使用下方的本地主机路径，或在线查询。",
   "rv.custom": "自定义",
   "rv.preset_fast": "快速 - 深度 18",
