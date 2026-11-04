@@ -93,7 +93,27 @@ async function download(urls, entry, file, onNote) {
     return out.buffer;
 }
 
-export async function fetchModel(dir, file, onNote) {
+// ONE FETCH PER FILE AT A TIME. Two loads of the same model at once (Maia-3 as the engine and the
+// Human Reply client, both on first use) each missed the cache until the other had finished and
+// started their own download: 184 MB pulled for a 92 MB net (audit 3.1.330 ENGINEB-4). A caller that
+// arrives while a fetch is in flight joins it and hears its progress too (the Human Reply client's
+// timeout is re-armed by those notes). Each joiner gets its own copy of the bytes, so nothing a
+// consumer does to its buffer can reach another's.
+const inflight = new Map();   // `${dir}/${file}` -> {promise, notes: Set of onNote}
+export function fetchModel(dir, file, onNote) {
+    const key = `${dir}/${file}`;
+    let run = inflight.get(key), joined = !!run;
+    if (!run) {
+        const notes = new Set();
+        const fanOut = (m) => { for (const f of notes) { try { f(m); } catch (e) { /* one listener's fault */ } } };
+        run = {notes, promise: fetchModelOnce(dir, file, fanOut).finally(() => inflight.delete(key))};
+        inflight.set(key, run);
+    }
+    if (onNote) run.notes.add(onNote);
+    return joined ? run.promise.then(buf => buf.slice(0)) : run.promise;
+}
+
+async function fetchModelOnce(dir, file, onNote) {
     const whole = await bundled(`${dir}/${file}`);
     if (whole) return whole;
     // the >100MB split convention git forces, same as the Stockfish nets have always used

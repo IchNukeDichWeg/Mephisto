@@ -29,10 +29,18 @@ async function session(file) {
         new Uint8Array(await fetchModel('/lib/engine/vision', file, (m) => console.log(`[vision] ${m}`))));
 }
 
-async function ready() {
-    await readyEnv();   // the thread budget must be in place BEFORE the first session is created
-    if (!bboxSession) bboxSession = await session('bbox.onnx');
-    if (!posSession) posSession = await session('position.onnx');
+// One promise for every caller. The session checks ran before the awaits, so a second read started
+// during the first one's load (Read Position pressed again, or a Follow read overlapping it) built a
+// second pair and overwrote the first without release(), ~75 MB left in the wasm heap (audit 3.1.330
+// ENGINEB-4). Reset on failure, so the next read retries whatever did not load.
+let sessionsReady = null;
+function ready() {
+    sessionsReady ??= (async () => {
+        await readyEnv();   // the thread budget must be in place BEFORE the first session is created
+        if (!bboxSession) bboxSession = await session('bbox.onnx');
+        if (!posSession) posSession = await session('position.onnx');
+    })().catch(e => { sessionsReady = null; throw e; });
+    return sessionsReady;
 }
 
 // plain RGB 0..1 in NCHW -- upstream does NOT apply ImageNet mean/std, and adding it silently

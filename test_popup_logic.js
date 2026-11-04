@@ -8702,6 +8702,52 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...after a switch away from it, the pings no longer do: it closes 30 s after the dispose',
        closedAt !== null && closedAt - gone >= 29000 && closedAt - gone <= 31000, closedAt && closedAt - gone);
 })().catch(e => { fails++; console.log('FAIL ENGINEA-4 offscreen checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 ENGINEB-4: one download per model however many loads ask at once; one recogniser pair ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const sha = (b) => require('crypto').createHash('sha256').update(b).digest('hex');
+    const good = Buffer.from('maia3 net bytes. '.repeat(64));
+    const files = {'m3.onnx': {size: good.length, sha256: sha(good), tag: 'models-v1'}, 'gone.onnx': {size: 9, sha256: 'x', tag: 'models-v1'}};
+    const requested = [], store = new Map();
+    let failNext = true;
+    const mctx = vm.createContext({console, Response, crypto: globalThis.crypto,
+        fetch: async (url) => {
+            requested.push(url);
+            if (url === '/src/offscreen/engine-assets.json') return new Response(JSON.stringify({files}));
+            if (url.startsWith('/')) throw new TypeError('Failed to fetch');
+            await new Promise(r => setTimeout(r, 20));   // a download takes a while
+            if (url.endsWith('/gone.onnx') && failNext) { failNext = false; return new Response('', {status: 503}); }
+            return new Response(url.endsWith('/gone.onnx') ? Buffer.from('123456789') : good);
+        },
+        caches: {open: async () => ({match: async (u) => store.has(u) ? new Response(store.get(u)) : undefined,
+            put: async (u, r) => { store.set(u, Buffer.from(await r.arrayBuffer())); }, delete: async (u) => store.delete(u)})}});
+    vm.runInContext(fs.readFileSync(ROOT + '/src/offscreen/model-fetch.js', 'utf8').replace(/^export /gm, ''), mctx);
+    const fetchModel = vm.runInContext('fetchModel', mctx);
+    const na = [], nb = [];
+    const [a, b] = await Promise.all([fetchModel('/lib/engine/maia3', 'm3.onnx', m => na.push(m)), fetchModel('/lib/engine/maia3', 'm3.onnx', m => nb.push(m))]);
+    const dl = requested.filter(u => u.startsWith('https:'));
+    ok('ENGINEB-4: two loads of the same model at once download it once', dl.length === 1, dl);
+    ok('...both get the right bytes, each in a buffer of its own', Buffer.from(a).equals(good) && Buffer.from(b).equals(good) && a !== b);
+    ok('...and both callers see the download progress', nb.some(m => /^mephisto-download m3\.onnx/.test(m)) && na.some(m => /^mephisto-download m3\.onnx/.test(m)), [na, nb]);
+    const r1 = await Promise.allSettled([fetchModel('/lib/engine/maia3', 'gone.onnx'), fetchModel('/lib/engine/maia3', 'gone.onnx')]);
+    ok('...a failed download fails both waiters', r1.every(r => r.status === 'rejected' && /MPH-N01/.test(String(r.reason))), r1.map(r => r.status));
+    const r2 = await fetchModel('/lib/engine/maia3', 'gone.onnx').then(() => 'ok', e => String(e));
+    ok('...and is not remembered: the next call downloads again', !/MPH-N01/.test(r2) && requested.filter(u => u.startsWith('https:') && u.endsWith('/gone.onnx')).length === 2, r2);
+
+    // vision.js ready(): two first reads at once build one bbox and one position session
+    const vsrc = fs.readFileSync(ROOT + '/src/offscreen/vision.js', 'utf8').replace(/^import .*$/gm, '').replace(/^export /gm, '');
+    let creates = 0, failOnce = true;
+    const vctx = vm.createContext({console: {log() {}}, readyEnv: async () => {},
+        fetchModel: async (dir, file) => { await new Promise(r => setTimeout(r, 20)); if (file === 'position.onnx' && failOnce) { failOnce = false; throw new Error('MPH-N01: offline'); } return new ArrayBuffer(4); },
+        ort: {InferenceSession: {create: async () => ({n: ++creates})}}});
+    vm.runInContext(vsrc, vctx);
+    const ready = vm.runInContext('ready', vctx);
+    const first = await Promise.allSettled([ready(), ready()]);
+    ok('...a first screen read that fails is reported to both overlapping reads', first.every(r => r.status === 'rejected'), first.map(r => r.status));
+    await Promise.all([ready(), ready()]);
+    ok('...two overlapping reads build one recogniser pair, and a failure is retried without rebuilding what loaded',
+       creates === 2 && vm.runInContext('bboxSession.n === 1 && posSession.n === 2', vctx), creates);
+})().catch(e => { fails++; console.log('FAIL ENGINEB-4 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
