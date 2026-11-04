@@ -8672,6 +8672,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and the stale failure does not hold back a respawn', vm.runInContext("loadFailedAt['5']", c) === undefined);
     ok('...while the live load\'s own progress still shows', out.some(([t, m]) => t <= t0 + 100 && m.clientId === '5' && /mephisto-download nn-x.nnue 1 10/.test(m.line || '')));
 })().catch(e => { fails++; console.log('FAIL ENGINEB-2 offscreen checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.330 ENGINEA-4: a lease ping from a panel with no engine here does not hold the document open ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The whole offscreen host on a simulated clock: a panel on SF 11 switches to a native engine
+    // (dispose) and keeps pinging every 15 s, as popup.js does for as long as it is open.
+    const src = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8').replace(/await import\(/g, 'await __imp(');
+    let now = 1e6; const timers = [];
+    const tick = () => new Promise(r => setImmediate(r));
+    const mk = (fn, ms, iv) => { const t = {at: now + ms, fn, iv}; timers.push(t); return t; };
+    const advance = async (ms) => { await tick(); const end = now + ms;
+        for (;;) { timers.sort((a, b) => a.at - b.at); const t = timers[0]; if (!t || t.at > end) break;
+            now = t.at; if (t.iv) t.at += t.iv; else timers.shift(); t.fn(); await tick(); } now = end; await tick(); };
+    let listener, closedAt = null;
+    const c = {console: {log() {}}, Date: {now: () => now},
+        setTimeout: (f, ms) => mk(f, ms, 0), setInterval: (f, ms) => mk(f, ms, ms),
+        clearTimeout: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
+        window: {close() { if (closedAt === null) closedAt = now; }},
+        __imp: async () => ({default: async () => ({uci() {}, getRecommendedNnue: () => null, setNnueBuffer() {}})}),
+        chrome: {runtime: {sendMessage: () => {}, onMessage: {addListener: (f) => listener = f}}}};
+    vm.createContext(c); vm.runInContext(src, c);
+    const msg = (id, o) => listener({toOffscreen: true, clientId: id, ...o}, {}, () => {});
+    msg('9', {cmd: 'init', engine: 'stockfish-11-hce'}); await advance(10);
+    for (let i = 0; i < 4; i++) { await advance(15000); msg('9', {cmd: 'ping'}); }
+    ok('ENGINEA-4: a pinging panel that holds an engine keeps the document open', closedAt === null, closedAt);
+    msg('9', {cmd: 'dispose'});
+    const gone = now;
+    for (let i = 0; i < 8; i++) { await advance(15000); msg('9', {cmd: 'ping'}); }
+    ok('...after a switch away from it, the pings no longer do: it closes 30 s after the dispose',
+       closedAt !== null && closedAt - gone >= 29000 && closedAt - gone <= 31000, closedAt && closedAt - gone);
+})().catch(e => { fails++; console.log('FAIL ENGINEA-4 offscreen checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -369,8 +369,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (!msg || !msg.toOffscreen) return;
     const {clientId, cmd} = msg;
     lastSeen[clientId] = Date.now();   // any word from the panel renews its lease
+    // A ping renews the lease and nothing more. A panel pings every 15 s for as long as it is open,
+    // whatever its engine, so a ping that also cleared the idle timer kept this document -- and a
+    // disposed WASM engine's workers and heap -- alive forever after a switch to a native, Remote or
+    // cloud engine (audit 3.1.330 ENGINEA-4). A client that holds or is loading an engine keeps the
+    // document open through busy() anyway.
+    if (cmd === 'ping') return;
     clearTimeout(idleTimer);           // ...and a panel that is talking is not an idle document
-    if (cmd === 'ping') return;        // nothing else to do: the line above WAS the point
     if (cmd === 'init') {
         initArgs[clientId] = [msg.engine, msg.variant, msg.maiaLevel, msg.elos];
         sticky[clientId] = {};
