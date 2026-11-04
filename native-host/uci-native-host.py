@@ -379,6 +379,21 @@ def _apply_option(key, value):
         return
     if key not in engine.options:
         return
+    # A spin outside the engine's own range is clamped to it, as do_analyse does for MultiPV
+    # (audit 3.1.330 BOUNDARY-1). python-chess refuses it outright, and for the Elo cap that was the
+    # worst outcome: UCI_LimitStrength, sent just before it, was already on, so a distro Stockfish
+    # 14/15 (UCI_Elo 1350-2850) asked for 3000 played at its default 1350 while the panel showed 3000.
+    # engine_options keeps the value the panel sent, so its repeat is still recognised as no change.
+    opt = engine.options[key]
+    if getattr(opt, 'type', None) == 'spin' and isinstance(value, int) and not isinstance(value, bool):
+        clamped = value
+        if opt.max is not None:
+            clamped = min(clamped, opt.max)
+        if opt.min is not None:
+            clamped = max(clamped, opt.min)
+        if clamped != value:
+            _dbg(f"{key}={value} is outside this engine's {opt.min}-{opt.max}; set {clamped}")
+            value = clamped
     try:
         engine.configure({key: value})
     except Exception as e:

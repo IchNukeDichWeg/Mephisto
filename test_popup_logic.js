@@ -11177,6 +11177,39 @@ print(json.dumps(out))`;
            JSON.stringify(res.darwin) === '[{}]' && JSON.stringify(res.linux) === '[{}]', res);
     }
 })();
+// ---- BOUNDARY-1 (audit 3.1.330): the native host clamps a spin option (the Elo cap above all) to the engine's own min/max ----
+// (run end to end through the real host over a stand-in engine declaring Stockfish 14.1's ranges; this runs the same function)
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // run asynchronously: a blocking spawnSync here holds the event loop while the timer-raced async
+    // checks above (the CDP click rig's 1500 ms settle) are waiting, and fails them on a loaded machine
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    const py = `import ast, json, sys, types
+tree = ast.parse(open(sys.argv[1], encoding='utf-8-sig').read())
+body = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_apply_option']
+sent = []
+def configure(d):
+    k, v = next(iter(d.items())); o = opts[k]
+    if o.type == 'spin' and not (o.min <= int(v) <= o.max): raise ValueError('out of range')   # what python-chess does
+    sent.append([k, v])
+spin = lambda lo, hi: types.SimpleNamespace(type='spin', min=lo, max=hi)
+opts = {'UCI_Elo': spin(1350, 2850), 'Hash': spin(1, 1024), 'UCI_LimitStrength': types.SimpleNamespace(type='check', min=None, max=None)}
+ns = {'engine': types.SimpleNamespace(options=opts, configure=configure), 'MANAGED_OPTIONS': ['uci_chess960', 'uci_variant', 'multipv', 'ponder'],
+      '_apply_variant_net': lambda v: None, '_dbg': lambda m: None}
+exec(compile(ast.Module(body=body, type_ignores=[]), sys.argv[1], 'exec'), ns)
+for k, v in (('UCI_LimitStrength', True), ('UCI_Elo', 3000), ('UCI_Elo', 1320), ('UCI_Elo', 2000), ('Hash', 4096), ('Hash', 64)):
+    ns['_apply_option'](k, v)
+print(json.dumps(sent))`;
+    const r = await pyRun(['-I', '-B', '-c', py, ROOT + '/native-host/uci-native-host.py'], {encoding: 'utf8'});
+    if (r.error) console.log('ok   BOUNDARY-1: skipped (no python3 here)');
+    else {
+        let sent = null; try { sent = JSON.parse(r.stdout); } catch (e) { sent = (r.stderr || '').slice(-300); }
+        ok('BOUNDARY-1: an Elo cap of 3000 on a 1350-2850 engine is set at 2850, not dropped with LimitStrength already on',
+           JSON.stringify(sent) === JSON.stringify([['UCI_LimitStrength', true], ['UCI_Elo', 2850], ['UCI_Elo', 1350], ['UCI_Elo', 2000], ['Hash', 1024], ['Hash', 64]]), sent);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
