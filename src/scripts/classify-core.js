@@ -131,7 +131,7 @@ const CLASS_ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'book', 
 
 // ---- per-game statistics -----------------------------------------------------------------------
 // `moves` is the analysed move list review.js builds: one entry per played move, each with
-// {color, cpLoss, winBefore, winAfter, rank, klass, seconds, complexity, maiaMatch}.
+// {color, cpLoss, winBefore, winAfter, rank, klass, seconds, complexity, complexityWin, maiaMatch}.
 
 
 

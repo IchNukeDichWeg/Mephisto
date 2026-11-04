@@ -420,10 +420,12 @@ function indicators(moves, color, multipv, phases, tags) {
         fastN: fast.length,
         fastTop1: rate(fast.filter(m => m.rank != null || m.best != null), isTop),
         // Did the hard moves get more time than the easy ones? Humans slow down for complexity;
-        // a relayed move takes as long as it takes to read it off another screen.
+        // a relayed move takes as long as it takes to read it off another screen. Over the win%
+        // gap, not the cp one: a single mate score in the lines made the cp gap ~99,500 and that one
+        // move's think time decided the sign (audit 3.1.330 REVIEWB-5).
         timeVsComplexity: correlation(
-            timed.filter(m => m.complexity != null).map(m => m.complexity),
-            timed.filter(m => m.complexity != null).map(m => m.seconds)),
+            timed.filter(m => m.complexityWin != null).map(m => m.complexityWin),
+            timed.filter(m => m.complexityWin != null).map(m => m.seconds)),
         // The human model, when one was run: where the played move sat in Maia's OWN ranking.
         maiaN: maia.length,
         maiaTop1: rate(maia, m => m.maiaRank === 1),

@@ -902,6 +902,12 @@ function assemble(game, positions, moves, book, opts) {
         // where being right is a real achievement, which is the only kind worth counting as evidence.
         m.complexity = before.lines.length > 1
             ? Math.abs(before.lines[0].cp - before.lines[1].cp) : null;
+        // The same gap in win% points, for the time-vs-difficulty correlation. A mate line scores
+        // +/-(100000 - distance), so one mating position's cp gap was ~99,500 against tens elsewhere
+        // and decided the whole correlation on its own; win% is bounded, a mate is 100
+        // (audit 3.1.330 REVIEWB-5). winPercent is symmetric, so no mover sign is needed.
+        m.complexityWin = before.lines.length > 1
+            ? Math.abs(Core.winPercent(before.lines[0].cp) - Core.winPercent(before.lines[1].cp)) : null;
         // chess.js cannot count moves under the Fairy rules (drops, explosions, the hill), so those
         // variants hand the question to the engine's line count instead
         m.onlyMove = Core.onlyLegalMove(RV_FAIRY_ONLY.includes(opts.variant) ? null : Chess,

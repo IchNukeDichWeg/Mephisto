@@ -8922,6 +8922,41 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEWB-4: a pawn left en prise is material offered in chess, but antichess and atomic make no sacrifice claim',
        got.chess === true && got.antichess === false && got.atomic === false, got);
 }
+// ---- audit 3.1.330 REVIEWB-5: one mate score in the lines does not decide the time-vs-difficulty correlation ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const c = {console: {log() {}}};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    let res = null;
+    try {
+        vm.runInContext('const Core = self.MephistoReviewCore; function cfg() { return null; } function countClasses() { return {}; }\n'
+            + rj.slice(rj.indexOf('const RV_FAIRY_ONLY ='), rj.indexOf('\n', rj.indexOf('const RV_FAIRY_ONLY ='))) + '\n'
+            + rj.slice(rj.indexOf('function assemble(game, positions, moves, book, opts) {'), rj.indexOf('function countClasses(moves, color) {')), c);
+        // 29 moves where the think time grows with the gap between the engine's two lines (a human
+        // slowing down for the hard ones), then one fast move in a position whose first line is a mate
+        res = vm.runInContext(`(() => {
+            const S = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+            const positions = [], moves = [];
+            for (let i = 0; i < 30; i++) {
+                const top = i < 29 ? 10 * i : 99990, second = i < 29 ? 0 : 300;
+                positions.push({fen: S, turn: 'w', depth: 12, lines: [{cp: top, pv: ['e2e4']}, {cp: second, pv: ['d2d4']}]});
+                moves.push({san: 'e4', uci: 'e2e4', color: 'w', ply: i, seconds: i < 29 ? 2 + i / 2 : 2});
+            }
+            positions.push({fen: S, turn: 'w', depth: 12, lines: [{cp: 0, pv: ['e2e4']}]});
+            const built = assemble({tags: {}}, positions, moves, {plies: 0}, {variant: 'chess', multipv: 2});
+            return {r: built.indicators.w.timeVsComplexity, mateGap: moves[29].complexityWin, cpGap: moves[29].complexity};
+        })()`, c);
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('REVIEWB-5: a game that took longer on harder positions reads as positive although one mating position was played fast',
+       res && res.r > 0.5, res);
+    ok('...the mating position counts as a bounded win% gap, while the cp gap (used for the sharp-move count) is kept',
+       res && res.mateGap > 0 && res.mateGap <= 100 && res.cpGap === 99690, res);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
