@@ -1827,7 +1827,10 @@ async function buildPieces(pieceSet, pieceExt) {
   const pieces = {};
   const mime = MIME[pieceExt] || 'image/svg+xml';
   await Promise.all(PIECES.map(async p => {
-    const uri = await dataUri(`res/chesspieces/${pieceSet}/${p}.${pieceExt}`, mime);
+    // A fetch that throws (a file missing from the set) must cost that one piece, not the whole
+    // map: rejecting here answered {error} and the in-page board got no pieces at all (audit
+    // 3.1.330 PAGEA-6).
+    const uri = await dataUri(`res/chesspieces/${pieceSet}/${p}.${pieceExt}`, mime).catch(() => null);
     if (uri) pieces[p] = uri;
   }));
   return pieces;

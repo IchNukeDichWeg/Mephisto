@@ -9893,6 +9893,29 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('PAGEA-1: ...but not while a screen-select veil is still up in it', removed === 1 && k.overlayHost === host);
     ok('PAGEA-1: a draw after the close builds a fresh host', /if \(overlayRoot && overlayHost && overlayHost\.isConnected\) return overlayRoot;/.test(csrc));
 }
+// ---- audit 3.1.330 PAGEA-6: the in-page board never falls back to a site-relative piece path ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = psrc.indexOf('pieceTheme: ', psrc.indexOf('board = MephistoBoard(\'board\', {'));
+    const expr = /^pieceTheme: (.*?),\s*(\/\/.*)?$/m.exec(psrc.slice(a))[1];
+    const doc = {};
+    const theme = (inPage) => vm.runInNewContext(expr, {PANEL_ROOT: inPage ? {} : doc, document: doc, pieceSet: 'cburnett', ext: 'svg'});
+    ok('PAGEA-6: in-page the board gets no piece path to fall back to', theme(true) === '', theme(true));
+    ok('PAGEA-6: ...the toolbar popup keeps its own extension path', theme(false) === '/res/chesspieces/cburnett/{piece}.svg', theme(false));
+    // the worker side, real buildPieces: one failed fetch must not reject the whole map
+    const bsrc = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const i = bsrc.indexOf('async function buildPieces(pieceSet, pieceExt) {');
+    const c = vm.createContext({MIME: {svg: 'image/svg+xml'}, PIECES: ['wK', 'wQ', 'bK'],
+        dataUri: async (path) => { if (path.includes('/wQ.')) throw new TypeError('Failed to fetch'); return 'data:' + path; }});
+    vm.runInContext(bsrc.slice(i, bsrc.indexOf('\n}\n', i) + 3), c);
+    (async () => {
+        let got;
+        try { got = await vm.runInContext("buildPieces('cburnett', 'svg')", c); } catch (e) { got = 'rejected: ' + e.message; }
+        ok('PAGEA-6: one piece that fails to load costs that piece, not the whole map',
+           got && typeof got === 'object' && got.wK && got.bK && !('wQ' in got), got);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

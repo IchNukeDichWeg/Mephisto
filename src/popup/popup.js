@@ -702,7 +702,11 @@ async function initPanel(root, tabId) {
         root: PANEL_ROOT, // in-page the board element is inside the shadow root, not `document`
         position: 'start',
         pieceMap: PANEL_ASSETS?.pieces || null,               // in-page: inlined data: URIs
-        pieceTheme: `/res/chesspieces/${pieceSet}/{piece}.${ext}`, // popup page: plain extension path
+        // popup page: plain extension path. In-page none: a root-relative path resolves against the
+        // SITE, so every piece missing from the map was fetched from lichess or chess.com itself,
+        // with the user's cookies and in the page's Resource Timing (audit 3.1.330 PAGEA-6), the
+        // same leak arrow_piece_src was fixed for. A missing piece now draws nothing.
+        pieceTheme: PANEL_ROOT !== document ? '' : `/res/chesspieces/${pieceSet}/{piece}.${ext}`,
         showNotation: config.coordinates,
         onMove: play_on_panel_board, // click or drag a piece to play it and keep analysing
         needsPromotion: panel_move_promotes, // ask which piece before a promoting move
