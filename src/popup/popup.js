@@ -3598,6 +3598,12 @@ function maybe_premove_forced_reply(line) {
         premove_tracker.safe = premove_is_safe(premove_tracker.fen, line.pred, line.reply);
     }
     if (!premove_tracker.safe) return;
+    // the book or tablebase plays the position after the prediction, not this reply (PLAYA-2)
+    try {
+        const after = new Chess(config.variant, premove_tracker.fen);
+        after.move({from: line.pred.slice(0, 2), to: line.pred.slice(2, 4), promotion: line.pred[4]});
+        if (premove_yields_to_book(after.fen())) return;
+    } catch (e) { return; }
     // Humanize: hold premoves that aren't a true recapture / forced reply (see premove_human_reflex)
     if (config.humanize && !premove_human_reflex(premove_tracker.fen, line.pred, line.reply)) return;
     premove_tracker.premoved = true;
@@ -3748,10 +3754,29 @@ function pv_walk_moves(fen, pv, maxPlies) {
     return out;
 }
 
+// THE BOOK AND THE TABLEBASE OUTRANK A PREMOVE. A certified reply is the engine's move, and the move
+// priority is Tablebase > Book > engine (on_engine_best_move). Their answers for the position after
+// the prediction cannot be in yet (fired from on_new_pos the same tick), so a premove fired there
+// played the engine's move over the solved one or over the repertoire, and the instant reply then
+// blocked the search's own bestmove (audit 3.1.330 PLAYA-2). `fen` is the position we would reply
+// in. Holds while that position is in tablebase range, the Player Book has it, the imported book
+// answered with moves last time, or the explorer book has not latched out of book; the normal
+// search path then plays it, through the book and tablebase.
+function premove_yields_to_book(fen) {
+    if (!fen) return false;
+    if (tablebase_enabled() && piece_count(fen) <= TABLEBASE_MAX_MEN) return true;
+    if (config.puzzle_mode) return false;
+    if (player_book_at(fen)) return true;
+    if (!config.book_play || (config.variant && config.variant !== 'chess')) return false;
+    if (!own_book_absent && own_book?.moves?.length) return true;
+    return explorer_enabled() && !explorer_out_of_book;
+}
+
 function premove_instant_reply(new_fen, new_moves) {
     if (!config.premove || !config.autoplay) return null;
     // Manual Mode plays on your keypress and nothing else -- a certified reply is still a move
     if (config.help_mode || config.puzzle_mode || config.simon_says_mode || config.manual_mode) return null;
+    if (premove_yields_to_book(new_fen)) return null;   // audit 3.1.330 PLAYA-2
     if (premove_tracker.premoved) return null; // already queued as a real site premove
     if (!premove_tracker.fen || premove_tracker.fen !== last_eval.fen) return null;
     const mover = (new_fen.split(' ')[1] === 'w') ? 'white' : 'black';

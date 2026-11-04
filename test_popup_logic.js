@@ -7800,6 +7800,47 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...it still is in standard chess', hr('chess', '7k/8/8/8/8/8/2q5/K7 b - - 0 1') === true);
     ok('...and a true recapture still is in Crazyhouse', hr('crazyhouse', '7k/8/8/8/8/8/1Pq5/K7 b - - 0 1') === true);
 }
+// ---- audit 3.1.330 PLAYA-2: a premove reply yields to the tablebase and the books ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.indexOf('function ' + name + '('); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({console: {log() {}, warn() {}}}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(`var config, premove_tracker, last_eval, premove_lines = 1, explorer_out_of_book = false, own_book = null,
+        own_book_absent = false, player_book = null, detected_prefix = 'lc', sent = [];
+        const PLAYER_BOOK_MIN = 2, TABLEBASE_MAX_MEN = 7, TABLEBASE_VARIANTS = ['chess', 'atomic', 'antichess'];
+        var our_side = () => 'white', premove_certified = () => true, premove_is_safe = () => true,
+            premove_human_reflex = () => true, request_automove = (m) => sent.push(m), request_double_premove = () => {},
+            forced_premove_moves = () => [];`
+        + ['premove_yields_to_book', 'premove_instant_reply', 'maybe_premove_forced_reply', 'tablebase_enabled',
+           'piece_count', 'explorer_enabled', 'player_book_at'].map(fn).join('\n'), c);
+    // white to reply after black's predicted Kg7: six men on the board
+    const before = '6k1/8/8/8/8/8/5PPP/6K1 b - - 0 1', pred = 'g8g7', reply = 'h2h4';
+    const set = (cfg, extra = '') => vm.runInContext(`config = Object.assign({premove: true, autoplay: true, variant: 'chess'}, ${JSON.stringify(cfg)});
+        premove_tracker = {fen: ${JSON.stringify(before)}, moves: 'a b', lines: [{pred: '${pred}', reply: '${reply}'}], premoved: false};
+        last_eval = {fen: ${JSON.stringify(before)}}; explorer_out_of_book = false; own_book = null; own_book_absent = false;
+        player_book = null; sent = []; ${extra}`, c);
+    const after = vm.runInContext(`(() => { const x = new Chess('chess', ${JSON.stringify(before)}); x.move('Kg7'); return x.fen(); })()`, c);
+    const instant = () => vm.runInContext(`premove_instant_reply(${JSON.stringify(after)}, 'a b ${pred}')`, c);
+    const queued = () => vm.runInContext(`maybe_premove_forced_reply(premove_tracker.lines[0]); sent.slice()`, c);
+    set({tablebase: false});
+    ok('PLAYA-2: with no book and no tablebase the certified reply still plays at once', instant() === reply, instant());
+    set({tablebase: false});
+    ok('...and is still queued as a site premove', JSON.stringify(queued()) === JSON.stringify([reply]), queued());
+    set({tablebase: true});
+    ok('PLAYA-2: Tablebase on at 7 men or fewer: no instant reply', instant() === null, instant());
+    set({tablebase: true});
+    ok('...and no site premove', queued().length === 0, queued());
+    set({book_play: true});
+    ok('PLAYA-2: the explorer book still in book holds the reply', instant() === null, instant());
+    set({book_play: true}, 'explorer_out_of_book = true');
+    ok('...and lets it through once the explorer latched out of book', instant() === reply, instant());
+    set({book_play: true}, `explorer_out_of_book = true; own_book = {fen: 'x', moves: [{uci: 'e2e4', weight: 1}]}`);
+    ok('PLAYA-2: an imported book that answered with moves holds the reply', instant() === null, instant());
+    set({player_book: true}, `explorer_out_of_book = true; player_book = new Map([[${JSON.stringify(after.split(' ').slice(0, 2).join(' '))}, {h2h3: 3}]])`);
+    ok('PLAYA-2: a Player Book hit for the position after the prediction holds the reply', instant() === null && queued().length === 0);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
