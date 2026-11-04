@@ -440,9 +440,13 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       .catch(e => sendResponse({error: String(e)}));
     return true; // async sendResponse
   }
-  // The options page changed the stored book; the worker's cached buffer is stale.
+  // The options page changed the stored book; the worker's cached buffer is stale. Every open panel
+  // is told too: one that latched "no book" would otherwise never ask again (audit 3.1.330
+  // ANALYSISB-6 = SWALLOW-7). Content scripts only hear tabs.sendMessage, hence the relay.
   if (msg.bookChanged) {
     MephistoBooks.dropCache();
+    chrome.tabs.query({}, tabs => tabs.forEach(t => t.id &&
+      chrome.tabs.sendMessage(t.id, {bookChanged: true}, () => void chrome.runtime.lastError)));
     sendResponse({ok: true});
     return;
   }

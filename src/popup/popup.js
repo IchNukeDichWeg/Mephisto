@@ -4534,7 +4534,17 @@ function explorer_enabled() {
 // latched, unlike the explorer: the probe is local and deterministic (no rate limit to protect),
 // and a game can transpose back into a repertoire book after leaving it.
 let own_book = null;          // {fen, moves: [{uci, weight}]} for the last position answered
-let own_book_absent = false;  // the worker said no book is loaded (per panel lifetime)
+let own_book_absent = false;  // the worker said no book is loaded (until a book is imported)
+// A book imported on the Settings page lands in the extension's IndexedDB, which no storage event
+// reaches, so a panel that had latched "no book" ignored it for the rest of its life while Settings
+// said Play Book Moves uses it. The worker relays the page's bookChanged to every tab (and the
+// toolbar popup hears the page directly): drop the latch and ask again now (audit 3.1.330
+// ANALYSISB-6 = SWALLOW-7).
+chrome.runtime.onMessage.addListener((msg) => {
+    if (!msg || !msg.bookChanged) return;
+    own_book_absent = false; own_book = null;
+    if (PANEL_BOOTED && last_eval?.fen) request_own_book(last_eval.fen);
+});
 
 // Fire-and-forget, exactly like request_explorer: the move path never waits for it.
 function request_own_book(fen) {

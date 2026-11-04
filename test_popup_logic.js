@@ -10630,6 +10630,35 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok(`ANALYSISB-5: ${v} hides the standard-chess book at the same placement`, show(v) === 'hidden', show(v));
     }
 }
+// ---- audit 3.1.330 ANALYSISB-6 = SWALLOW-7: a book imported in Settings reaches a panel that had found none ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const cut = (s, from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const F = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    let book = null, asked = 0;
+    const listeners = [];
+    const c = vm.createContext({console, config: {book_play: true, variant: 'chess'}, PANEL_BOOTED: true, last_eval: {fen: F},
+        chrome: {runtime: {lastError: null, onMessage: {addListener: (f) => listeners.push(f)},
+            sendMessage: (msg, cb) => { if (msg.bookLookup) { asked++; cb({moves: book}); } }}}});
+    try { vm.runInContext(cut(pj, 'let own_book = null;', '// Fire-and-forget. Never awaited by the move path (see the note above).\nfunction request_explorer'), c); }
+    catch (e) { console.log('slice threw: ' + e.message); }
+    c.request_own_book(F);
+    c.request_own_book(F);
+    ok('ANALYSISB-6: with no book loaded the panel asks once and latches', asked === 1 && vm.runInContext('own_book_absent', c) === true, asked);
+    // the user imports a .bin on the Settings page; the worker relays bookChanged
+    book = [{uci: 'e2e4', weight: 5}];
+    listeners.forEach(f => { try { f({bookChanged: true}); } catch (e) { /* */ } });
+    ok('ANALYSISB-6: the relayed bookChanged makes the open panel ask again at once and take the new book',
+       asked === 2 && vm.runInContext('own_book && own_book.fen === last_eval.fen && own_book.moves[0].uci', c) === 'e2e4',
+       {asked, own_book: vm.runInContext('own_book', c)});
+    const before = asked;
+    listeners.forEach(f => { try { f({fromOffscreen: true, kind: 'line', line: 'x'}); } catch (e) { /* */ } });
+    ok('ANALYSISB-6: other messages do not touch the book state', asked === before);
+    ok('ANALYSISB-6: the worker relays the Settings page\'s bookChanged to every tab',
+       /if \(msg\.bookChanged\) \{[\s\S]{0,200}chrome\.tabs\.query\(\{\}[\s\S]{0,120}chrome\.tabs\.sendMessage\(t\.id, \{bookChanged: true\}/.test(bg));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
