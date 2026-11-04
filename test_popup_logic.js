@@ -9429,6 +9429,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...an Analysis Limit still decides an open-ended search', rt({engine: 'remote', analysis_limit: 10}, true) === 10000);
     ok('...a cloud engine (which takes the depth instead of a time) keeps its value', rt({engine: 'cloud-chessapi'}, false) === 300);
 }
+// ---- audit 3.1.330 ENGINEA-2: an error answer from remote-engine.py is shown, not taken for a finished game ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (head) => { const i = psrc.indexOf(head); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const e1 = psrc.indexOf('const err_line = '), e2 = psrc.indexOf('\n};\n', psrc.indexOf('const err_fail = ', e1)) + 4;
+    const c = vm.createContext({console: {log() {}, warn() {}, error() {}}, shown: [], answer: null});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+    c.MephistoI18n.setFallback(JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8')));
+    vm.runInContext(`var config = {engine: 'remote'}; var chrome = {runtime: {sendMessage: async () => answer}};
+        function uses_native() { return false; } function uses_cloud() { return false; }
+        function update_best_move(t) { shown.push(t); } function toggle_calculating() {}
+        ${psrc.slice(e1, e2)} ${fn('async function call_backend(')} ${fn('async function parse_backend_json(')}
+        ${fn('async function request_remote_analysis(')} ${fn('function on_remote_error(')}`, c);
+    const ask = async (status, body) => {
+        c.answer = {ok: status >= 200 && status < 300, status, url: 'http://localhost:9090/analyse', text: JSON.stringify(body)};
+        c.shown.length = 0;
+        try { return {res: await vm.runInContext(`request_remote_analysis('8/8/8/8/8/8/8/8 w - - 0 1', 300)`, c)}; }
+        catch (err) { vm.runInContext('on_remote_error', c)(err); return {err, line: c.shown[0]}; }
+    };
+    (async () => {
+        const dead = await ask(503, {error: 'the engine process stopped - restart this script'});
+        ok('ENGINEA-2: a 503 {error} from remote-engine.py is thrown as MPH-E05, not returned as a result',
+           dead.err && dead.err.code === 'MPH-E05', dead.res || (dead.err && dead.err.message));
+        ok('...and the panel shows the server\'s own words', /^MPH-E05: .*remote-engine\.py: the engine process stopped/.test(dead.line || ''), dead.line);
+        const bad = await ask(400, {error: 'invalid position: no board for duck'});
+        ok('...a 400 invalid position the same', bad.err && /invalid position/.test(bad.line || ''), bad.line);
+        const bare = await ask(500, {});
+        ok('...a failed status with no error key still throws, naming the status', bare.err && /HTTP 500/.test(bare.line || ''), bare.line);
+        const good = await ask(200, {bestmove: 'e2e4', lines: []});
+        ok('...a normal answer is returned as before', good.res && good.res.bestmove === 'e2e4', good);
+    })().catch(e => { fails++; console.log('FAIL ENGINEA-2 checks threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

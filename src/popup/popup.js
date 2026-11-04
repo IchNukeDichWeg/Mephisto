@@ -13565,12 +13565,23 @@ async function request_remote_analysis(fen, time, moves = null, depth = null, no
 
 async function parse_backend_json(res) {
     const text = await res.text();
+    let json;
     try {
-        return JSON.parse(text);
+        json = JSON.parse(text);
     } catch (e) {
         // an unrelated server on the port answers with HTML ("<!doctype ...") - surface that instead of a SyntaxError
         throw err_fail('MPH-E03', null, `Remote engine at ${res.url} did not return JSON`);
     }
+    // AN ERROR ANSWER IS NOT A RESULT. remote-engine.py answers a dead engine (503), a position it
+    // cannot build (400) or an internal error (500) as {error: ...}. Returned as a result, it had no
+    // bestmove, so the panel took the game-over branch and showed "Stalemate! / Draw" on a live
+    // position, with the server's own words never shown (audit 3.1.330 ENGINEA-2). Thrown, it reaches
+    // on_remote_error, which prints it -- as the native lane already does with a host's frame.error.
+    if (!res.ok || (json && typeof json === 'object' && json.error)) {
+        const why = (json && json.error) ? String(json.error) : `HTTP ${res.status}`;
+        throw err_fail('MPH-E05', {detail: `remote-engine.py: ${why}`.slice(0, 120)}, `HTTP ${res.status} from ${res.url}`);
+    }
+    return json;
 }
 
 function on_remote_error(err) {
