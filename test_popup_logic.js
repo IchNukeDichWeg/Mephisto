@@ -10659,6 +10659,43 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('ANALYSISB-6: the worker relays the Settings page\'s bookChanged to every tab',
        /if \(msg\.bookChanged\) \{[\s\S]{0,200}chrome\.tabs\.query\(\{\}[\s\S]{0,120}chrome\.tabs\.sendMessage\(t\.id, \{bookChanged: true\}/.test(bg));
 }
+// ---- audit 3.1.330 ANALYSISB-7: the panel's explorer box never shows the previous position's book moves ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (from, to) => { const a = pj.indexOf(from), b = pj.indexOf(to, a); return (a < 0 || b < 0) ? '' : pj.slice(a, b); };
+    const box = {innerHTML: '', style: {display: 'none'}};
+    let pending = [];
+    const c = vm.createContext({console: {log() {}, warn() {}}, config: {explorer: true}, document: {hidden: false},
+        PANEL_ROOT: {getElementById: (id) => id === 'book-lines' ? box : null},
+        apply_explorer: () => {}, draw_book_moves: () => {}, explorer_enabled: () => true,
+        chrome: {runtime: {lastError: null, sendMessage: (msg, cb) => { if (msg.explorerLookup) pending.push({fen: msg.explorerLookup.fen, cb}); }}}});
+    try {
+        vm.runInContext('var explorer_wanted = null, explorer_data = null, explorer_out_of_book = false, explorer_error = null, explorer_empty_streak = 0;\n'
+            + cut('function render_explorer()', '// The panel is a fixed-size box')
+            + cut('// Fire-and-forget. Never awaited by the move path (see the note above).\nfunction request_explorer', '// Weighted-random pick'), c);
+    } catch (e) { console.log('slice threw: ' + e.message); }
+    const A = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const B = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+    const C = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2';
+    const answer = (san) => { const p = pending.shift(); p?.cb({moves: [{san, white: 5, draws: 3, black: 2}], opening: {eco: 'A00', name: 'Line ' + san}}); };
+    const run = (f) => { try { f(); } catch (e) { box.innerHTML = 'threw ' + e.message; } };
+    run(() => { c.request_explorer(A); answer('e4'); });
+    ok('ANALYSISB-7: the answer for the position shows its rows', /<b>e4<\/b>/.test(box.innerHTML) && box.style.display === '', box.innerHTML);
+    run(() => c.request_explorer(B));
+    ok('ANALYSISB-7: while the next position\'s lookup is out, the previous rows and opening name are gone',
+       !/e4|Line/.test(box.innerHTML), box.innerHTML);
+    ok('ANALYSISB-7: ...and the box keeps its place rather than collapsing on every move', box.style.display === '', box.style.display);
+    run(() => answer('e5'));
+    ok('ANALYSISB-7: the new answer shows the new rows', /<b>e5<\/b>/.test(box.innerHTML), box.innerHTML);
+    c.document.hidden = true;
+    run(() => c.request_explorer(C));
+    ok('ANALYSISB-7: a position that sends no lookup (hidden tab) does not keep showing the previous rows',
+       pending.length === 0 && !/e5|Line/.test(box.innerHTML), box.innerHTML);
+    c.document.hidden = false;
+    run(() => c.request_explorer(B));
+    ok('ANALYSISB-7: back on the answered position its rows return without a new lookup', pending.length === 0 && /<b>e5<\/b>/.test(box.innerHTML), box.innerHTML);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

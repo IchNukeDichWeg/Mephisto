@@ -3073,6 +3073,12 @@ function render_explorer() {
             ? `Explorer unavailable (${explorer_error})` : 'Out of book'}</div>`;
         return;
     }
+    // Another position's rows: the box keeps its size (no resize on every move) but shows none of
+    // them until this position's answer lands (ANALYSISB-7). No arrows from here either.
+    if (explorer_wanted != null && explorer_data.fen !== explorer_wanted) {
+        panel.innerHTML = '<div class="bk-opening">&hellip;</div>';
+        return;
+    }
     const rows = [];
     if (explorer_data.opening?.name) {
         const eco = explorer_data.opening.eco ? `${explorer_data.opening.eco} ` : '';
@@ -4561,11 +4567,17 @@ function request_own_book(fen) {
 
 // Fire-and-forget. Never awaited by the move path (see the note above).
 function request_explorer(fen) {
+    // THE BOX DESCRIBES THE POSITION ON THE BOARD OR NOTHING. Set before any early return, and the box
+    // redrawn as soon as the position changes: it held the previous position's rows for the whole
+    // round trip, and for good when no lookup went out (hidden tab, Puzzle Mode switched on), read
+    // as this position's (audit 3.1.330 ANALYSISB-7). render_explorer checks the fen against this.
+    const moved = explorer_wanted !== fen;
+    explorer_wanted = fen;
+    if (moved && config.explorer) render_explorer();
     if (!explorer_enabled() || explorer_out_of_book) return;
     // Same rule as the tablebase probe: silent in a hidden tab, unless Background Play says the game
     // is still going. Otherwise a backgrounded game silently loses its book moves.
     if (document.hidden && !config.background_play) return;
-    explorer_wanted = fen;
     if (explorer_data?.fen === fen) return; // already have this position
     chrome.runtime.sendMessage({explorerLookup: {fen, db: config.explorer_db || 'masters'}}, (res) => {
         // ONLY THE ANSWER FOR THE POSITION ASKED ABOUT LAST. A slow answer for A landing after B's
