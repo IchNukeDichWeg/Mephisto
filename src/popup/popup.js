@@ -231,7 +231,11 @@ const NO_CHESS960_ENGINES = [...ONE_PASS_ENGINES];
 // Must match UPDATE_REPO in background-script.js; the ladder asserts they agree. Was written out
 // three times, which is two chances for a fork to be pointed at the wrong releases page.
 const UPDATE_REPO_SLUG = 'IchNukeDichWeg/Mephisto';
-const NO_ELO_ENGINES = [...ONE_PASS_ENGINES, 'tetrarch-native'];
+// The cloud engines take a FEN and a depth (or a think time) and nothing else: no request carries a
+// strength, and request_remote_configure is a no-op for them, so a cap set there showed 1500 beside
+// full-strength Stockfish moves (audit 3.1.330 OPT-1). Written out, not spread from CLOUD_ENGINES,
+// which is declared further down.
+const NO_ELO_ENGINES = [...ONE_PASS_ENGINES, 'tetrarch-native', 'cloud-chessapi', 'cloud-stockfish-online'];
 
 // engines that speak native messaging (Chrome auto-launches the host, no server -- see
 // native-host/install-native.sh). The port name == the engine value (see NATIVE_HOSTS).

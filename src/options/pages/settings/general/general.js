@@ -416,7 +416,8 @@ class GeneralSettings extends SettingsPage {
             // The one-pass nets have no UCI_Elo either -- their strength IS the net. Keep in step
             // with ONE_PASS_ENGINES in popup.js; the ladder pins that this stays a subset of its list.
             const ONE_PASS = ['maia', 'maia2', 'maia3', 'elite-leela'];
-            const NO_ELO = [...ONE_PASS, 'tetrarch-native'];
+            // The cloud engines take no strength at all (audit 3.1.330 OPT-1).
+            const NO_ELO = [...ONE_PASS, 'tetrarch-native', 'cloud-chessapi', 'cloud-stockfish-online'];
             eloSection?.classList.toggle('hidden', NO_ELO.includes(engine_select.getValue()));
             // Rodent IV's Personality, beside its Elo cap rather than in place of it: a personality
             // is a style, not a strength. Keep in step with RODENT_ENGINES in popup.js (the ladder pins it).

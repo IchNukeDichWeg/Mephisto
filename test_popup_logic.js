@@ -9552,6 +9552,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            JSON.stringify(got) === JSON.stringify(['info depth 1 multipv 1 score cp 10 pv e7e5', 'bestmove e7e5']), got);
     })().catch(e => { fails++; console.log('FAIL ENGINEA-5 checks threw: ' + (e && e.stack || e)); });
 }
+// ---- audit 3.1.330 OPT-1: no Elo cap is offered for the cloud engines, which cannot apply one ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const gsrc = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const cut = (s, from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return a < 0 || b < 0 ? '' : s.slice(a, b + to.length); };
+    const c = vm.createContext({});
+    vm.runInContext([cut(psrc, 'const ONE_PASS_ENGINES', ';'), cut(psrc, 'const NO_ELO_ENGINES', ';'), cut(psrc, 'const CLOUD_ENGINES', ';'),
+                     cut(gsrc, 'const ONE_PASS = ', ';'), cut(gsrc, 'const NO_ELO = ', ';'),
+                     'this.r = {panel: NO_ELO_ENGINES, cloud: CLOUD_ENGINES, settings: NO_ELO};'].join('\n'), c);
+    const r = c.r || {};
+    ok('OPT-1: every cloud engine is in the panel\'s NO_ELO_ENGINES, so its Elo row hides and no cap is claimed',
+       (r.cloud || []).length === 2 && r.cloud.every(e => r.panel.includes(e)), r);
+    ok('...and in the Settings page\'s NO_ELO, which stays a subset of the panel list', r.cloud.every(e => r.settings.includes(e))
+       && r.settings.every(e => r.panel.includes(e)), r.settings);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
