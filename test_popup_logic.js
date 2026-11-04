@@ -12202,6 +12202,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            !!e && e.code === 'MPH-U13' && a === 'NEW' && r.kids.has('.mephisto-backup'), [e && e.code, e && e.name, a]);
     }
 })().catch(e => { fails++; console.log('FAIL L47 checks threw: ' + (e && e.stack || e)); });
+// ---- the archive fetch notes a lichess rate limit before it gives up ---------------------------------
+// The public build threw on !r.ok BEFORE lichess_note_response, so a 429/503 on an Opponent Prep or
+// Player Book fetch never started the shared lichess cooldown and the explorer and tablebase kept asking.
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const f = b.slice(b.indexOf('async function fetchArchivePgn('), b.indexOf("const arch = await archiveFetch("));
+    const note = f.indexOf("lichess_note_response(r, 'archive')"), thr = f.indexOf('if (!r.ok) throw');
+    ok('fetchArchivePgn notes a lichess 429/503 before it throws on the failed status', note > 0 && thr > 0 && note < thr, {note, thr});
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

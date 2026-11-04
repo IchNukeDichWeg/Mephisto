@@ -2894,8 +2894,8 @@ async function fetchArchivePgn(site, user, max) {
         const r = await archiveFetch(`https://lichess.org/api/games/user/${encodeURIComponent(user)}`
                               + `?max=${max}&perfType=blitz,rapid,classical`,
                               {headers: {Accept: 'application/x-chess-pgn'}});
-        if (!r.ok) throw new Error(`lichess answered ${r.status}`);
         lichess_note_response(r, 'archive');
+        if (!r.ok) throw new Error(`lichess answered ${r.status}`);
         return await r.text();
     }
     const arch = await archiveFetch(`https://api.chess.com/pub/player/${encodeURIComponent(user.toLowerCase())}/games/archives`)
