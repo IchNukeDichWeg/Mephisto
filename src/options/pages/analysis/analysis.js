@@ -1544,6 +1544,10 @@ function buildBoard() {
 }
 
 function render() {
+    // NOT UNDER SHOGI OR XIANGQI. Late callers (reloadHuman after humanFor answered null, the human
+    // column's .then in analyseNow) redrew the hidden chess board and sent its opening and tablebase
+    // lookups (audit 3.1.330 follow-up L5). applyGame redraws it on the way back to chess.
+    if (largeGame()) return;
     const pos = positions[cursor];
     if (!pos) return;
     if (!board) buildBoard();

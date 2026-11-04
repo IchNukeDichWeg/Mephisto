@@ -11386,6 +11386,43 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        !/beside Mephisto's parent folder/.test(readme) && (readme.match(/beside the Mephisto folder \(in the same parent folder\)/g) || []).length === 2
        && !/beside this repo's parent folder/.test(ps1) && /beside the Mephisto folder \(in the same parent\s+folder\)/.test(ps1));
 }
+// ---- audit 3.1.330 follow-up L5: a human answer landing after Xiangqi was picked does not redraw the hidden chess board ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const fn = (head) => { const a = an.indexOf(head), b = an.indexOf('\n}\n', a) + 3; if (a < 0) throw new Error('slice ' + head); return an.slice(a, b); };
+    const c = vm.createContext({Promise, game: 'chess', extras: 0, firstStart: null});
+    vm.runInContext(`let bandRun = 0, human = null, humanKey = null, humanChain = Promise.resolve(), board = {position() {}};
+        let pageGen = 0; const cursor = 0, positions = [{fen: 'start', turn: 'w'}], humanCache = new Map(), bandCache = new Map(), evalCache = new Map(), evalCache2 = new Map(), CFG = {an_band: 1500};
+        const cfg = (k) => (k === 'an_human' ? 'maia1' : k === 'an_game' ? game : k === 'an_engine2' ? false : 1500);
+        const $ = () => null; function syncBandRow() {} function takesRating() { return false; } function ratingFor(k, b) { return b; }
+        function renderHumanLines() {} function status() {} function engineOpts() { return {}; } function leftDuringLoad() { return false; }
+        const anVariant = () => 'chess'; const humanCacheKey = (f) => f; const bandKey = (f, k) => f + k;
+        function buildBoard() {} function renderExtras() { extras++; } function renderEval() {} function renderEngineLines() {}
+        function renderEngine2Lines() {} function renderArrows() {} function renderBook() {} function highlightMove() {} async function renderBands() {}
+        function makeEngine() {
+            const start = !firstStart ? new Promise(r => { firstStart = r; }) : Promise.resolve();
+            return {start: () => start, dispose() {}, analyse: async () => ({lines: []})};
+        }
+        ${fn('function largeGame()')}
+        ${fn('function ensureHuman(')}
+        ${fn('async function buildHuman(')}
+        ${fn('async function reloadHuman()')}
+        ${fn('async function humanFor(')}
+        ${fn('function render()')}`, c);
+    (async () => {
+        const settle = async () => { for (let i = 0; i < 50; i++) await null; };
+        const done = vm.runInContext('reloadHuman()', c);   // the net starts loading on chess
+        await settle();
+        c.game = 'xiangqi';                                  // ...Xiangqi is picked before it lands
+        c.firstStart();
+        await done; await settle();
+        ok('L5: reloadHuman finishing under Xiangqi does not render the hidden chess board (no opening/tablebase lookup)', c.extras === 0, c.extras);
+        c.game = 'chess';
+        vm.runInContext('render()', c);
+        ok('...back on chess render() draws as before', c.extras === 1, c.extras);
+    })().catch(e => { fails++; console.log('FAIL L5 check threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
