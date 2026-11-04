@@ -2312,7 +2312,10 @@ function scrapePosition() {
     } else {
         prefix += 'var***';
         if (config.variant === 'fischerandom') {
-            if (site !== 'lichess' && !getMoveRecords()?.length) capture960Start();
+            if (site !== 'lichess') {
+                forget960OnNewGame();
+                if (!getMoveRecords()?.length) capture960Start();
+            }
             // Off lichess only capture960Start files a start, and 3.1.329 filed boards already past
             // move 0 (audit 3.1.329 SCRAPE-2): a stored one that is not a 960 start is not used.
             const stored = readStartPos(startPosKey())?.position;
@@ -4634,6 +4637,21 @@ function capture960Start() {
     if (!start || start === seen960Start) return;
     seen960Start = start;   // position 518 included: it IS this game's start, and replaces an older one
     writeStartPos(startPosKey(), {position: start, timestamp: Date.now()});
+}
+
+// THE CAPTURE BELONGS TO ONE GAME. seen960Start lives as long as the document, and chess.com moves
+// from game to game without a page load: a 960 game opened mid-game on another /game/<id> (nothing
+// stored under it) replayed from the PREVIOUS game's start, a real 960 start that the shape test
+// passes (audit 3.1.329 X2-3). So a capture is dropped once the page leaves the game page it was
+// last used on. Lobby -> game page keeps it: chess.com can change the URL once the game begins.
+// ponytail: a page with no game in its path (/play/computer) hosts game after game with nothing to
+// tell them apart, so there a missed move 0 still falls back to the last capture, as before.
+let seen960Page;   // the one-game path at the last 960 scrape; null = a page naming no game
+function forget960OnNewGame() {
+    const m = ONE_GAME_PATH.exec(location.pathname);
+    const page = m ? location.pathname.slice(0, m.index + m[0].length).replace(/\/$/, '') : null;
+    if (seen960Page != null && page !== seen960Page) seen960Start = null;
+    seen960Page = page;
 }
 
 // A scraped piece string ("w*****b-r-a8*****...") -> {square: 'K'|'p'|...}, or null. The turn and

@@ -7473,6 +7473,46 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and the panel\'s Manual Mode switch does too',
        /if \(key === 'autoplay' \|\| key === 'help_mode' \|\| key === 'manual_mode'\) fourpc_last = '';/.test(s));
 }
+// ---- audit 3.1.329 X2-3: the in-document Chess960 capture is dropped when the page moves to another game ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const lru = fs.readFileSync(ROOT + '/lib/lru.min.js', 'utf8');
+    // the real var-scrape 960 branch, run as one scrape
+    const branch = cut("if (config.variant === 'fischerandom') {", "\n        const moves = getMoveRecords();");
+    const board = (back) => {
+        let out = 'b*****';
+        for (const F of 'hgfedcba') for (const r of [8, 7, 2, 1]) {
+            const k = back['abcdefgh'.indexOf(F)];
+            const pc = r === 8 ? k.toLowerCase() : r === 7 ? 'p' : r === 2 ? 'P' : k;
+            out += `${pc === pc.toUpperCase() ? 'w' : 'b'}-${pc.toLowerCase()}-${F}${r}*****`;
+        }
+        return out;
+    };
+    const c = vm.createContext({Date, site: 'chesscom', config: {variant: 'fischerandom'}, location: {pathname: '/', search: '', href: ''},
+        siteValues: {cache: []}, saveSiteValue: () => {}, isChesscomVariants: () => false, moves: [], cur: '',
+        getMoveRecords: () => c.moves, scrapePositionPuz: () => c.cur});
+    try {
+        vm.runInContext(lru + ';\n' + cut('const DEFAULT_POSITION =', '\n\n') + cut('function loadStartPosCache()', '// --- GRIND MODE')
+            + ';startPosCache = loadStartPosCache();\nthis.scrape = () => { let res; ' + branch + ' return res; };', c);
+    } catch (e) { console.log('slice threw: ' + e.message); }
+    const go = (path, moves, back) => {
+        c.location.pathname = path; c.location.href = 'https://www.chess.com' + path;
+        c.moves = moves ? ['m'] : []; if (back) c.cur = board(back);
+        try { return c.scrape().split('&*****')[0]; } catch (e) { return 'threw ' + e.message; }
+    };
+    const DP = vm.runInContext('DEFAULT_POSITION', c);
+    const A = go('/play/online', false, 'NRKBBQRN');
+    ok('X2-3: a lobby capture at move 0 is the start', A.startsWith('w*****b-n-a8*****b-r-b8*****b-k-c8'), A);
+    ok('X2-3: ...and survives the URL becoming the game page once the game begins', go('/game/live/111', true) === A);
+    ok('X2-3: another game page joined mid-game does not inherit it (no start known: the standard array)', go('/game/live/222', true) === DP, go('/game/live/222', true));
+    ok('X2-3: a game page that saw its own move 0 uses its own start', go('/game/live/333', false, 'BQNRKRNB') !== A && go('/game/live/333', true).startsWith('w*****b-b-a8*****b-q-b8'));
+    go('/game/live/333/', true);
+    ok('X2-3: a trailing slash is the same game', go('/game/live/333', true).startsWith('w*****b-b-a8*****b-q-b8'));
+    ok('X2-3: leaving the game for the lobby drops it: a lobby game joined mid-game is not given it', go('/play/online', true) === DP);
+    ok('X2-3: back on a game page that filed its start, that start is read again', go('/game/live/333', true).startsWith('w*****b-b-a8*****b-q-b8'));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
