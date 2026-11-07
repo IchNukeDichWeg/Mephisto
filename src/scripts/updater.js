@@ -114,9 +114,25 @@ const MephistoUpdater = (function () {
         } catch (e) {
             throw fail('MPH-U01', null, e && e.message);
         }
-        const want = chrome.runtime.getManifest().name;
+        const running = chrome.runtime.getManifest(), want = running.name;
         if (manifest.name !== want) {
             throw fail('MPH-U02', null, `holds "${manifest.name || 'something else'}", not ${want}`);
+        }
+        // THE NAME SAYS MEPHISTO, NOT WHICH COPY (audit 3.1.331 UPDATER-1). Every release zip extracts to
+        // its own Mephisto-<v>/, so a picker reopened in Downloads offered an older copy that passed the
+        // name check: it was updated, the real folder was reloaded unchanged, and the panel stopped
+        // offering the release because mephisto_installed_version already named it. The loaded folder
+        // holds the running version, or the one an update of ours wrote and Chrome has not reloaded yet
+        // (recorded, and newer than what runs: an older record is from before an update by hand). A
+        // key, where the running manifest has one, pins the id and must be the same.
+        const vars = {folder: manifest.version || '?', running: running.version};
+        if (running.key && manifest.key !== running.key) throw fail('MPH-U17', vars, 'its manifest key is not the running one');
+        if (manifest.version !== running.version) {
+            const rec = await chrome.storage.local.get('mephisto_installed_version')
+                .then(v => v && v.mephisto_installed_version, () => null);
+            if (!(rec && manifest.version === rec && isNewer(rec, running.version))) {
+                throw fail('MPH-U17', vars, `holds v${manifest.version}, the running extension is v${running.version}`);
+            }
         }
         return manifest;
     }

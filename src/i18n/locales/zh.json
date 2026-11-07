@@ -784,6 +784,7 @@
   "err.U14": "没有可继续完成的中断更新。",
   "err.U15": "暂存的更新不完整。请点击“安装更新”重新下载。",
   "err.U16": "此版本是为与当前安装不同的引擎文件构建的，而更新无法带来这些文件。请从 Releases 页面下载完整 zip 并手动安装。",
+  "err.U17": "该文件夹中是 Mephisto v{folder}，但 Chrome 正在运行的 Mephisto 是 v{running}。请选择 chrome://extensions 中为 Mephisto 显示的文件夹；如果你是手动更新的，请在那里重新加载扩展程序。",
   "err.P01": "这是压缩文件。请先解压（unzstd lichess_db_puzzle.csv.zst），再选择 .csv。",
   "err.P02": "习题数据库导入失败。已导入的部分会保留；再次运行即可继续。",
   "err.P03": "该文件中未识别到任何习题。请选择 lichess_db_puzzle.csv 或 Chess.com 习题 CSV。",

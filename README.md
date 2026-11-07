@@ -691,6 +691,7 @@ prepares. A code is never reused: a retired one stays retired.
 | `MPH-U14` | Finish Interrupted Update was pressed but no update was interrupted. | Nothing to do. |
 | `MPH-U15` | The staged update is incomplete (it is only finishable once every file and the final marker were written). | Press **Install Update**; it downloads the archive again. |
 | `MPH-U16` | The release was built for different engine files (`lib/engine`, `lib/ort`) than the install has, and the update archive does not carry them. This happens when you skip a release that changed them. Nothing was written. | Download the full zip from the Releases page and install it by hand. |
+| `MPH-U17` | The folder is Mephisto, but not the copy Chrome is running: it holds another version (an older extracted zip, say) or another manifest key. Nothing is written to it. | Pick the folder `chrome://extensions` shows for Mephisto. If you just updated that folder by hand, reload the extension there first. |
 
 ### Puzzle database (Settings → Puzzle Database)
 

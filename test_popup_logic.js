@@ -4292,7 +4292,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     // ---- the updater: run the REAL verifyFolder / zip reader against a fake directory handle ----
     const upSrc = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
     const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise,
-        chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'})}, storage: {local: {get: async () => ({}), set: async () => {}}}}});
+        chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '3.1.0'})}, storage: {local: {get: async () => ({}), set: async () => {}}}}});
     c.self = c;
     vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
     vm.runInContext(upSrc.replace('const MephistoUpdater =', 'var MephistoUpdater =').replace(/\nif \(typeof module[\s\S]*$/, ''), c);
@@ -10765,7 +10765,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const idbReq = (val) => { const q = {}; setTimeout(() => { q.result = val; q.onsuccess && q.onsuccess(); }); return q; };
         const indexedDB = {open: () => idbReq({transaction: () => ({objectStore: () => ({get: () => idbReq(root), put: () => idbReq(), delete: () => idbReq()})}), close() {}})};
         const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise, setTimeout, indexedDB,
-            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'}), sendMessage: (m, cb) => cb({latest: '9.9.9', newer: false})},
+            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: ((r) => { try { return JSON.parse(new TextDecoder().decode(r.kids.get('manifest.json').bytes)).version; } catch (e) { return '1.0.0'; } })(root)}), sendMessage: (m, cb) => cb({latest: '9.9.9', newer: false})},
                      permissions: {contains: async () => true}, storage: {local: {get: async () => ({auto_update: true}), set: async () => {}}}}});
         c.self = c;
         vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
@@ -10851,7 +10851,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const indexedDB = {open: () => idbReq({transaction: () => ({objectStore: () => ({get: () => idbReq(root), put: () => idbReq(), delete: () => idbReq()})}), close() {}})};
         const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise, setTimeout, indexedDB, DecompressionStream,
             fetch: async () => ({ok: true, status: 200, headers: {get: () => String(zip.byteLength)}, arrayBuffer: async () => zip}),
-            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'}), sendMessage: (m, cb) => cb(rel || {latest: '9.9.9', newer: false})},
+            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: ((r) => { try { return JSON.parse(new TextDecoder().decode(r.kids.get('manifest.json').bytes)).version; } catch (e) { return '1.0.0'; } })(root)}), sendMessage: (m, cb) => cb(rel || {latest: '9.9.9', newer: false})},
                      permissions: {contains: async () => true}, storage: {local: {get: async () => ({auto_update: true}), set: async () => {}}}}});
         c.self = c;
         vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
@@ -10923,7 +10923,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const indexedDB = {open: () => idbReq({transaction: () => ({objectStore: () => ({get: () => idbReq(root), put: () => idbReq(), delete: () => idbReq()})}), close() {}})};
         const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise, setTimeout, indexedDB, DecompressionStream,
             fetch: async () => ({ok: true, status: 200, headers: {get: () => String(zip.byteLength)}, arrayBuffer: async () => zip}),
-            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'}), sendMessage: (m, cb) => cb(rel || {latest: '9.9.9', newer: false})},
+            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: ((r) => { try { return JSON.parse(new TextDecoder().decode(r.kids.get('manifest.json').bytes)).version; } catch (e) { return '1.0.0'; } })(root)}), sendMessage: (m, cb) => cb(rel || {latest: '9.9.9', newer: false})},
                      permissions: {contains: async () => true}, storage: {local: {get: async () => ({auto_update: true}), set: async () => {}}}}});
         c.self = c;
         vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
@@ -11916,7 +11916,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const idbReq = (val) => { const q = {}; setTimeout(() => { q.result = val; q.onsuccess && q.onsuccess(); }); return q; };
         const indexedDB = {open: () => idbReq({transaction: () => ({objectStore: () => ({get: () => idbReq(root), put: () => idbReq(), delete: () => idbReq()})}), close() {}})};
         const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Set, JSON, Promise, setTimeout, indexedDB,
-            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: '1.0.0'}), sendMessage: (m, cb) => cb({latest: '3.1.330', newer: false})},
+            chrome: {runtime: {getManifest: () => ({name: 'Mephisto Chess Extension', version: ((r) => { try { return JSON.parse(new TextDecoder().decode(r.kids.get('manifest.json').bytes)).version; } catch (e) { return '1.0.0'; } })(root)}), sendMessage: (m, cb) => cb({latest: '3.1.330', newer: false})},
                      permissions: {contains: async () => true}, storage: {local: {get: async () => ({auto_update: true}), set: async () => {}}}}});
         c.self = c;
         vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
@@ -14676,6 +14676,85 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
     else ok('SYZYGY-1: the native host answers the same: blessed-loss root, king moves cursed-win, the pawn push a win',
             /^blessed-loss \S+ cursed-win win$/.test((hr.stdout || '').trim()), (hr.stdout || '') + (hr.stderr || '').slice(-300));
 }
+// ---- audit 3.1.331 UPDATER-1: only the folder Chrome runs Mephisto from is written, not another copy of the same name ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const upSrc = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const enc = (s) => new TextEncoder().encode(s), dec = (b) => new TextDecoder().decode(b);
+    const mkdir = () => {
+        const kids = new Map();
+        return {kind: 'directory', kids, name: 'Mephisto', queryPermission: async () => 'granted', requestPermission: async () => 'granted',
+            getDirectoryHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = mkdir()); if (!k || k.kind !== 'directory') throw new Error('NotFoundError'); return k; },
+            getFileHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = {kind: 'file', bytes: new Uint8Array()}); if (!k || k.kind !== 'file') throw new Error('NotFoundError'); const f = k;
+                return {getFile: async () => ({size: f.bytes.length, arrayBuffer: async () => f.bytes.slice().buffer, text: async () => dec(f.bytes)}),
+                        createWritable: async () => { let buf; return {write: async (b) => { buf = b; }, close: async () => { if (f.fail) throw new Error('Simulated write failure'); f.bytes = new Uint8Array(buf); }}; }}; },
+            removeEntry: async (n) => { if (!kids.delete(n)) throw new Error('NotFoundError'); }};
+    };
+    const put = async (root, path, text) => { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p, {create: true}); const w = await (await d.getFileHandle(n, {create: true})).createWritable(); await w.write(enc(text)); await w.close(); };
+    const get = async (root, path) => { try { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p); return dec(new Uint8Array(await (await (await d.getFileHandle(n)).getFile()).arrayBuffer())); } catch (e) { return null; } };
+    // a stored (method 0) zip of {path: text}
+    const zip = (files) => {
+        const parts = [], cd = []; let off = 0;
+        for (const [name, text] of files) {
+            const nb = enc(name), data = enc(text), lh = new DataView(new ArrayBuffer(30)), c = new DataView(new ArrayBuffer(46));
+            lh.setUint32(0, 0x04034b50, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, nb.length, true);
+            c.setUint32(0, 0x02014b50, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, nb.length, true); c.setUint32(42, off, true);
+            parts.push(new Uint8Array(lh.buffer), nb, data); cd.push(new Uint8Array(c.buffer), nb); off += 30 + nb.length + data.length;
+        }
+        const e = new DataView(new ArrayBuffer(22));
+        e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+        e.setUint32(12, cd.reduce((a, b) => a + b.length, 0), true); e.setUint32(16, off, true);
+        const all = [...parts, ...cd, new Uint8Array(e.buffer)], out = new Uint8Array(all.reduce((a, b) => a + b.length, 0));
+        let p = 0; for (const a of all) { out.set(a, p); p += a.length; }
+        return out.buffer;
+    };
+    const NAME = 'Mephisto Chess Extension', GLUE = 'src/offscreen/engine-glue.txt';
+    const man = (v, extra) => JSON.stringify(Object.assign({name: NAME, version: v}, extra || {}));
+    const CODE = ['lib/chess.js', 'src/popup/popup.js', 'src/scripts/content-script.js'];
+    const release = (v) => zip([...CODE.map(p => [`Mephisto-${v}/${p}`, `${p} ${v}`]), [`Mephisto-${v}/manifest.json`, man(v)], [`Mephisto-${v}/${GLUE}`, 'g1\n']]);
+    const base = async (v, extra) => { const r = mkdir(); await put(r, 'manifest.json', man(v, extra)); for (const p of CODE) await put(r, p, `${p} ${v}`); await put(r, GLUE, 'g1\n'); return r; };
+    const isNewer = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i]; return false; };
+    // the REAL updater over `root`; `running` is the manifest Chrome runs, `latest` the newest release, `store` chrome.storage.local
+    const load = (root, {running, latest, key, store = {}}) => {
+        const idbReq = (val) => { const q = {}; setTimeout(() => { q.result = val; q.onsuccess && q.onsuccess(); }); return q; };
+        const indexedDB = {open: () => idbReq({transaction: () => ({objectStore: () => ({get: () => idbReq(root), put: () => idbReq(), delete: () => idbReq()})}), close() {}})};
+        const buf = release(latest);
+        const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise, setTimeout, indexedDB,
+            fetch: async () => ({ok: true, headers: {get: () => String(buf.byteLength)}, arrayBuffer: async () => buf}),
+            chrome: {runtime: {getManifest: () => Object.assign({name: NAME, version: running}, key ? {key} : {}),
+                               sendMessage: (m, cb) => cb({latest, newer: isNewer(latest, running), asset: 'https://example.invalid/u.zip'})},
+                     permissions: {contains: async () => true},
+                     storage: {local: {get: async (k) => Object.assign({auto_update: true}, store), set: async (o) => { Object.assign(store, o); }}}}});
+        c.self = c;
+        vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+        vm.runInContext(upSrc.replace('const MephistoUpdater =', 'var MephistoUpdater =').replace(/\nif \(typeof module[\s\S]*$/, ''), c);
+        return Object.assign(vm.runInContext('MephistoUpdater', c), {I: c.MephistoI18n});
+    };
+    const caught = async (p) => { try { return {ok: await p}; } catch (e) { return {e}; } };
+    const ver = async (r) => JSON.parse(await get(r, 'manifest.json')).version;
+    // a mis-picked older copy (Downloads/Mephisto-3.1.300) while 3.1.331 runs
+    const old = await base('3.1.300'), U = load(old, {running: '3.1.331', latest: '3.1.332'});
+    const a = await caught(U.install());
+    ok('UPDATER-1: Install into an older copy of Mephisto than the one running is MPH-U17 and writes nothing',
+       a.e && a.e.code === 'MPH-U17' && await ver(old) === '3.1.300' && !old.kids.has('.mephisto-staging') && !old.kids.has('.mephisto-backup'), a.e ? a.e.message : a.ok);
+    ok('UPDATER-1: ...and the user sees both versions in the translated line',
+       a.e && U.I.errMsg(a.e) === 'MPH-U17: ' + U.I.format(JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'))['err.U17'], {folder: '3.1.300', running: '3.1.331'})
+       && /3\.1\.300/.test(U.I.errMsg(a.e)) && /3\.1\.331/.test(U.I.errMsg(a.e)), a.e && U.I.errMsg(a.e));
+    // the running copy, and the running copy after our own update wrote it but before Chrome reloaded it
+    const same = await caught(load(await base('3.1.331'), {running: '3.1.331', latest: '3.1.332'}).verifyFolder(await base('3.1.331')));
+    const written = await caught(load(mkdir(), {running: '3.1.331', latest: '3.1.332', store: {mephisto_installed_version: '3.1.332'}}).verifyFolder(await base('3.1.332')));
+    // a record from an update long ago does not vouch for an old copy at that version
+    const stale = await caught(load(mkdir(), {running: '3.1.331', latest: '3.1.332', store: {mephisto_installed_version: '3.1.300'}}).verifyFolder(await base('3.1.300')));
+    ok('UPDATER-1: the running version passes, so does an update of ours not yet reloaded, an old copy at an old recorded version does not',
+       same.ok && written.ok && written.ok.version === '3.1.332' && stale.e && stale.e.code === 'MPH-U17', [same.e && same.e.code, written.e && written.e.code, stale.ok]);
+    // a key pins the extension id: same version, other key (or none) is another extension's folder
+    const k = {running: '3.1.331', latest: '3.1.332', key: 'KEY-A'};
+    const keyed = await caught(load(mkdir(), k).verifyFolder(await base('3.1.331', {key: 'KEY-A'})));
+    const other = await caught(load(mkdir(), k).verifyFolder(await base('3.1.331', {key: 'KEY-B'})));
+    const none = await caught(load(mkdir(), k).verifyFolder(await base('3.1.331')));
+    ok('UPDATER-1: where the running manifest has a key, only a folder with that key passes',
+       keyed.ok && other.e && other.e.code === 'MPH-U17' && none.e && none.e.code === 'MPH-U17', [keyed.e && keyed.e.code, other.ok, none.ok]);
+})().catch(e => { fails++; console.log('FAIL UPDATER-1 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
