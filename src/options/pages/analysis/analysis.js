@@ -1215,7 +1215,16 @@ async function analyseNow(gen) {
         renderArrows(pos, res, humanCache.get(humanCacheKey(pos.fen)));
         const m = $('an_engine_meta');
         if (m) m.textContent = meta1(res);
-    }, {depth: wantDepth});
+    }, {depth: wantDepth, onError: (err) => {
+        // a native search that failed (host error, crash, host gone) says so as a failed start does,
+        // instead of leaving "thinking…" up with no reason (audit 3.1.331 ENGINES-2)
+        if (cursor !== at || positions[at]?.fen !== pos.fen) return;
+        const m = $('an_engine_meta');
+        if (m) m.textContent = 'not running';
+        const lines = $('an_engine_lines');
+        if (lines) lines.innerHTML = '<div class="an-lrow"><span></span><span class="an-lval">not running</span><span></span></div>';
+        status(String(err.message || err), 'err');
+    }});
     liveSearch = search;
     if (cfg('an_engine2')) {
         try {
@@ -1227,7 +1236,14 @@ async function analyseNow(gen) {
                     renderEngine2Lines(pos, res);
                     const m2 = $('an_engine2_meta');
                     if (m2) m2.textContent = meta1(res);
-                }, {depth: wantDepth});
+                }, {depth: wantDepth, onError: (err) => {
+                    if (cursor !== at || positions[at]?.fen !== pos.fen) return;
+                    const m2 = $('an_engine2_meta');
+                    if (m2) m2.textContent = 'not running';
+                    const l2 = $('an_engine2_lines');
+                    if (l2) l2.innerHTML = '<div class="an-lrow"><span></span><span class="an-lval">not running</span><span></span></div>';
+                    status(`Second engine unavailable (${err.message || err})`, 'err');
+                }});
             }
         } catch (err) { status(`Second engine unavailable (${err.message || err})`, 'err'); }
     }

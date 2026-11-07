@@ -599,7 +599,14 @@ class NativeEngine {
             depth = Math.max(depth, finals[0]?.depth || 0);
             nodes = Math.max(nodes, finals[0]?.nodes || 0);
             emit(true);
-        }).catch(() => { settled = true; /* stopped, superseded or timed out -- nothing to show */ });
+        }).catch((err) => {
+            settled = true;
+            if (timer) { clearTimeout(timer); timer = null; }
+            // A REAL FAILURE IS SAID. A host error frame, a {fatal} and a disconnect all land here
+            // beside our own Stop, and all were dropped: the Analysis column sat on "thinking..." with
+            // no reason anywhere (audit 3.1.331 ENGINES-2). After stop() there is nothing to report.
+            if (!stopped) opts.onError?.(err);
+        });
         return {
             // STOPPING A HOST: `{cmd:'stop'}` is not understood by any installed host (it answers an
             // id-less error frame every listener drops). What DOES interrupt one is a NEWER analyse:

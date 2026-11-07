@@ -525,7 +525,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         // CONTRACT CHANGE 3.1.290: the budget has two units. Time keeps the 3.1.254 shape (page-side
         // stopwatch, last notch infinite); Depth caps the go command itself and stops there.
         ['the budget offers both units', /an_limit_kind_select/.test(ah) && /an_depth_range/.test(ah)],
-        ['depth reaches the go command, not a stopwatch', /\{depth: wantDepth\}/.test(aj)],
+        ['depth reaches the go command, not a stopwatch', /\{depth: wantDepth[,}]/.test(aj)],
     ];
     for (const [name, ok] of pins) {
         if (ok) console.log('ok   analysis page: ' + name);
@@ -14498,6 +14498,64 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         || (k !== 'en' && l['native.chess_only'] === locs.en['native.chess_only'])).map(([k]) => k);
     ok('ENGINES-1: ...the refusal is translated in all 14 locales with both placeholders', Object.keys(locs).length === 14 && bad.length === 0, bad);
 })().catch(e => { fails++; console.log('FAIL ENGINES-1 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 ENGINES-2: a failed native infinite search reaches the Analysis column instead of "thinking..." for ever ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    let listener = null, mode = 'error';
+    const port = {onMessage: {addListener: (f) => { listener = f; }}, onDisconnect: {addListener() {}}, disconnect() {},
+        postMessage: (m) => Promise.resolve().then(() => {
+            if (m.cmd !== 'analyse') return listener({id: m.id, ok: true});
+            if (mode === 'error') return listener({id: m.id, error: "invalid character in position part of fen: 'x'"});
+            if (mode === 'fatal') return listener({fatal: 'Stockfish 19 (native) native host unavailable'});
+            /* 'hold': the search runs until the kill switch, then answers superseded */
+            if (m.time === 1) listener({id: m.id - 1, superseded: true, lines: []});
+        })};
+    const c = vm.createContext({console, Promise, Map, Error, Math, Array, Object, JSON, String, Number,
+        setTimeout: (f, ms) => (ms <= 8000 ? setTimeout(f, 1) : 0), clearTimeout() {}, setInterval: () => 0, clearInterval() {},
+        chrome: {runtime: {connect: () => port}}});
+    c.self = c; c.MephistoReviewCore = {MATE_CP: 100000};
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8'), c);
+    const e = new c.MephistoEngines.NativeEngine('sf19-native', {variant: 'chess', limitKind: 'depth', limitValue: 22, multipv: 1, threads: 1, hash: 16});
+    await e.start();
+    const run = async () => {
+        const got = {errors: [], updates: 0};
+        const s = e.startInfinite('8/8/8/8/8/8/8/K6k w - - 0 1', 'w', () => { got.updates++; }, {onError: (err) => got.errors.push(err.message)});
+        await new Promise(r => setTimeout(r, 20));
+        return [got, s];
+    };
+    const [err] = await run();
+    ok('ENGINES-2: a host {error} frame reaches the caller\'s onError with its message', err.errors.length === 1 && /invalid character/.test(err.errors[0]), err);
+    mode = 'fatal';
+    const [fat] = await run();
+    ok('ENGINES-2: ...so does a {fatal} (host gone)', fat.errors.length === 1 && /native host unavailable/.test(fat.errors[0]), fat);
+    mode = 'hold';
+    const [held, s] = await run();
+    await s.stop();
+    e.dispose();
+    await new Promise(r => setTimeout(r, 20));
+    ok('ENGINES-2: our own Stop (and a dispose after it) reports nothing', held.errors.length === 0, held);
+    // the page half: analyseNow shows the failure the way a failed start does
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const i = aj.indexOf('async function analyseNow(gen) {'), body = aj.slice(i, aj.indexOf('\n}\n', i) + 3);
+    const els = {}, $ = (id) => (els[id] = els[id] || {id, textContent: '', innerHTML: '', classList: {toggle() {}}});
+    const st = [];
+    const fake = (msg) => ({startInfinite: (fen, turn, onUpdate, o) => { Promise.resolve().then(() => o.onError?.(new Error(msg))); return {stop: () => Promise.resolve()}; }});
+    const store = {an_time: 999, an_limit_kind: 'time', an_depth: 20, an_engine2: 'sf18-native'};
+    const pc = vm.createContext({Math, String, Promise, Error, console, $, cfg: (k) => store[k], CFG: {an_depth: 20}, AN_DEPTH_MAX: 99, AN_INFINITE: 999,
+        pageGen: 1, match: null, largeGame: () => false, cursor: 0, positions: [{fen: 'f', turn: 'w'}], stopSearch: () => Promise.resolve(),
+        ensureEngine: async () => fake('engine event loop dead'), ensureEngine2: async () => fake('second host gone'),
+        status: (t, k) => st.push([t, k]), engineFen: (p) => p.fen, evalCache: new Map(), evalCache2: new Map(), humanCache: new Map(),
+        humanCacheKey: (f) => f, renderEval() {}, renderEngineLines() {}, renderEngine2Lines() {}, renderArrows() {},
+        humanFor: () => Promise.resolve(), render() {}, renderBands() {}, renderBook() {}, liveSearch: null, liveSearch2: null, searchTimer: null});
+    vm.runInContext(body, pc);
+    await vm.runInContext('analyseNow(1)', pc);
+    await new Promise(r => setTimeout(r, 20));
+    ok('ENGINES-2: the Analysis column says "not running" and the status line gives the host\'s reason',
+       els.an_engine_meta.textContent === 'not running' && /not running/.test(els.an_engine_lines?.innerHTML || '')
+       && st.some(([t, k]) => /engine event loop dead/.test(t) && k === 'err'), [els.an_engine_meta?.textContent, st]);
+    ok('ENGINES-2: ...and the second column says it too', els.an_engine2_meta?.textContent === 'not running'
+       && st.some(([t]) => /Second engine unavailable \(second host gone\)/.test(t)), [els.an_engine2_meta?.textContent, st]);
+})().catch(e => { fails++; console.log('FAIL ENGINES-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
