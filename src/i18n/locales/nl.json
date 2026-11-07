@@ -443,6 +443,7 @@
   "native.setup_win": "stel hem eenmaal in met de Windows-stappen uit de README",
   "native.update": "voer het native-host-installatieprogramma opnieuw uit",
   "native.update_win": "werk hem bij met de Windows-stappen uit de README",
+  "native.chess_only": "{engine} speelt alleen standaardschaak; kies Fairy-Stockfish voor {variant}",
   "panel.msg.puzzle_rating": "Rating {r}",
   "panel.msg.fourpc_to_play": "{seat} aan zet, de beste zet is {move}",
   "panel.msg.mate_in": "Schaakmat in {n}",

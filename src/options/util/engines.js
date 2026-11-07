@@ -435,6 +435,9 @@ const NATIVE_DEPTH_CAP_MS = 600000;
 // analysis is one very long request that streams its info frames; this is a ceiling, not a target
 // -- stop() ends it long before, and an hour is the same figure the panel's ponder budget uses.
 const NATIVE_INFINITE_MS = 3600000;
+// The native engine whose host builds the board as a fairy variant and whose engine plays it; every
+// other host is told standard chess, so start() refuses it a variant rather than search the wrong game.
+const NATIVE_VARIANT_ENGINES = ['fairy-native'];
 
 class NativeEngine {
     constructor(name, opts, clientId) {   // clientId is the WASM host's business; a port is its own
@@ -446,6 +449,16 @@ class NativeEngine {
     }
 
     async start() {
+        // THE VARIANT GOES TO THE HOST. It builds its board from the configured UCI_Variant, and this
+        // always said 'chess': Fairy-Stockfish (native) under Crazyhouse or Three-check got a FEN its
+        // standard board refused, and under Antichess or KOTH searched the position as standard
+        // chess (audit 3.1.331 ENGINES-1). A host that is not Fairy's cannot play the variant at all.
+        const variant = this.opts.variant || 'chess';
+        if (variant !== 'chess' && !NATIVE_VARIANT_ENGINES.includes(this.name)) {
+            const label = ENGINES.find(e => e.id === this.name)?.label || this.name;
+            throw new Error(self.MephistoI18n?.t?.('native.chess_only', '{engine} plays standard chess only; pick Fairy-Stockfish for {variant}', {engine: label, variant})
+                || `${label} plays standard chess only; pick Fairy-Stockfish for ${variant}`);
+        }
         this.port = chrome.runtime.connect({name: this.name});
         this.port.onMessage.addListener((frame) => {
             if (frame && frame.fatal) {
@@ -476,7 +489,7 @@ class NativeEngine {
         // with its own host process nothing here ever lowered it.
         await this.request('configure', {options: {
             MultiPV: this.opts.multipv, Threads: this.opts.threads, Hash: this.opts.hash,
-            UCI_Variant: 'chess', UCI_Chess960: false, UCI_LimitStrength: false, Personality: '---',
+            UCI_Variant: variant, UCI_Chess960: false, UCI_LimitStrength: false, Personality: '---',
         }});
     }
 
@@ -521,6 +534,7 @@ class NativeEngine {
         // the field ignores it and uses `time` exactly as before, so an old install keeps working
         // rather than silently doing something else. In depth mode `time` is the safety cap.
         const depthMode = this.opts.limitKind === 'depth';
+        this.lastFen = fen;   // stopSearch's kill switch: a position the variant's board accepts (ENGINES-1)
         const ask = () => this.request('analyse', {
             fen,
             time: depthMode ? NATIVE_DEPTH_CAP_MS : this.opts.limitValue,
@@ -617,7 +631,7 @@ class NativeEngine {
     stopSearch() {
         this.stops++;
         this.request('analyse', {
-            fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', time: 1,
+            fen: this.lastFen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', time: 1,
         }, {timeoutMs: 30000}).catch(() => { /* port already gone -- nothing left to stop */ });
     }
 

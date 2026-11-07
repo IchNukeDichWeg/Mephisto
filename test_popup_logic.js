@@ -6045,7 +6045,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && Object.keys(c.nativePorts).sort().join() === 'sf-native,sf-native#options1', Object.keys(c.nativePorts));
     const en = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
     ok('an options-page native engine configures full strength, standard castling and no personality',
-       /UCI_Variant: 'chess', UCI_Chess960: false, UCI_LimitStrength: false, Personality: '---',/.test(en));
+       /UCI_Variant: variant, UCI_Chess960: false, UCI_LimitStrength: false, Personality: '---',/.test(en));
 }
 // ---- audit 3.1.328 OPT-3: a Settings-page change shows in the open panel's own rows ----
 {
@@ -14457,6 +14457,47 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            calls[calls.length - 1] === 'settings/general' && loc.h === '#settings/general' && loc.pushes === pushes, {last: calls[calls.length - 1], hash: loc.h, pushed: loc.pushes - pushes});
     })();
 }
+// ---- audit 3.1.331 ENGINES-1: a native engine is configured for the variant it analyses, or refuses it ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const ports = [];
+    const mkPort = () => {
+        let listener = null;
+        const p = {posted: [], onMessage: {addListener: (f) => { listener = f; }}, onDisconnect: {addListener() {}}, disconnect() {},
+            postMessage: (m) => { p.posted.push(m); Promise.resolve().then(() => listener({id: m.id, ok: true, lines: []})); }};
+        ports.push(p);
+        return p;
+    };
+    const c = vm.createContext({console, Promise, Map, Error, Math, Array, Object, JSON, String, Number,
+        setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
+        chrome: {runtime: {connect: mkPort}}});
+    c.self = c; c.MephistoReviewCore = {MATE_CP: 100000};
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8'), c);
+    const opts = (variant) => ({variant, limitKind: 'depth', limitValue: 22, multipv: 3, threads: 1, hash: 16});
+    const zh = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1';
+    const fairy = c.MephistoEngines.makeEngine('fairy-native', opts('crazyhouse'));
+    await fairy.start();
+    const conf = ports[0].posted[0];
+    ok('ENGINES-1: Fairy-Stockfish (native) under Crazyhouse is configured with UCI_Variant crazyhouse, not chess',
+       conf.cmd === 'configure' && conf.options.UCI_Variant === 'crazyhouse', conf);
+    await fairy.analyse(zh, 'w');
+    fairy.stopSearch();
+    const kill = ports[0].posted[ports[0].posted.length - 1];
+    ok('ENGINES-1: ...and its Stop kill switch asks the position it was analysing, which the variant\'s board accepts',
+       kill.time === 1 && kill.fen === zh, kill);
+    const std = c.MephistoEngines.makeEngine('sf-native', opts('chess'));
+    await std.start();
+    ok('ENGINES-1: standard chess still configures UCI_Variant chess', ports[1].posted[0].options.UCI_Variant === 'chess', ports[1].posted[0]);
+    const before = ports.length;
+    let err = null;
+    try { await c.MephistoEngines.makeEngine('sf-native', opts('antichess')).start(); } catch (e) { err = e; }
+    ok('ENGINES-1: a native engine that is not Fairy refuses a variant at start, with the reason, and opens no host',
+       err && /standard chess only/.test(err.message) && /antichess/.test(err.message) && ports.length === before, err && err.message);
+    const dir = ROOT + '/src/i18n/locales', locs = Object.fromEntries(fs.readdirSync(dir).map(f => [f.slice(0, -5), JSON.parse(fs.readFileSync(dir + '/' + f, 'utf8'))]));
+    const bad = Object.entries(locs).filter(([k, l]) => !/\{engine\}/.test(l['native.chess_only'] || '') || !/\{variant\}/.test(l['native.chess_only'])
+        || (k !== 'en' && l['native.chess_only'] === locs.en['native.chess_only'])).map(([k]) => k);
+    ok('ENGINES-1: ...the refusal is translated in all 14 locales with both placeholders', Object.keys(locs).length === 14 && bad.length === 0, bad);
+})().catch(e => { fails++; console.log('FAIL ENGINES-1 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

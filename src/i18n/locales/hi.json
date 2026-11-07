@@ -443,6 +443,7 @@
   "native.setup_win": "README के Windows चरणों से इसे एक बार सेट करें",
   "native.update": "नेटिव-होस्ट इंस्टॉलर फिर से चलाएँ",
   "native.update_win": "README के Windows चरणों से इसे अपडेट करें",
+  "native.chess_only": "{engine} केवल मानक शतरंज खेलता है; {variant} के लिए Fairy-Stockfish चुनें",
   "panel.msg.puzzle_rating": "रेटिंग {r}",
   "panel.msg.fourpc_to_play": "{seat} की चाल, सर्वोत्तम चाल है {move}",
   "panel.msg.mate_in": "{n} चालों में शह-मात",

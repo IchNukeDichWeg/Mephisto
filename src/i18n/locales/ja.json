@@ -443,6 +443,7 @@
   "native.setup_win": "README の Windows 手順で一度セットアップしてください",
   "native.update": "ネイティブホストのインストーラーを再実行してください",
   "native.update_win": "README の Windows 手順で更新してください",
+  "native.chess_only": "{engine} は標準チェスのみ対応です。{variant} には Fairy-Stockfish を選んでください",
   "panel.msg.puzzle_rating": "レーティング {r}",
   "panel.msg.fourpc_to_play": "{seat} の手番、最善手は {move}",
   "panel.msg.mate_in": "{n} 手で詰み",

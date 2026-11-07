@@ -443,6 +443,7 @@
   "native.setup_win": "richte ihn einmal mit den Windows-Schritten im README ein",
   "native.update": "führe den Native-Host-Installer erneut aus",
   "native.update_win": "aktualisiere ihn mit den Windows-Schritten im README",
+  "native.chess_only": "{engine} spielt nur Standardschach; wähle Fairy-Stockfish für {variant}",
   "panel.msg.puzzle_rating": "Wertung {r}",
   "panel.msg.fourpc_to_play": "{seat} am Zug, bester Zug ist {move}",
   "panel.msg.mate_in": "Matt in {n}",

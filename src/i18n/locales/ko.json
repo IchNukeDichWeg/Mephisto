@@ -443,6 +443,7 @@
   "native.setup_win": "README의 Windows 단계로 한 번 설정하세요",
   "native.update": "네이티브 호스트 설치 프로그램을 다시 실행하세요",
   "native.update_win": "README의 Windows 단계로 업데이트하세요",
+  "native.chess_only": "{engine}은(는) 표준 체스만 둡니다. {variant}에는 Fairy-Stockfish를 선택하세요",
   "panel.msg.puzzle_rating": "레이팅 {r}",
   "panel.msg.fourpc_to_play": "{seat} 차례, 최선 수는 {move}",
   "panel.msg.mate_in": "{n}수 체크메이트",

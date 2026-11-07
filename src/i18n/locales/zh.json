@@ -443,6 +443,7 @@
   "native.setup_win": "请按 README 中的 Windows 步骤设置一次",
   "native.update": "请重新运行本地主机安装程序",
   "native.update_win": "请按 README 中的 Windows 步骤更新",
+  "native.chess_only": "{engine} 只下标准国际象棋；{variant} 请选择 Fairy-Stockfish",
   "panel.msg.puzzle_rating": "等级分 {r}",
   "panel.msg.fourpc_to_play": "{seat} 行棋,最佳着法是 {move}",
   "panel.msg.mate_in": "{n} 步将杀",
