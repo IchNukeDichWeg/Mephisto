@@ -3246,7 +3246,7 @@ class ReviewPage {
         const eeReady = eeVersion().then(v => { eeInstalled = v; return eeSync(); });
         // Two jobs, one button: check first, then download what the check found.
         $('rv_ee_update')?.addEventListener('click', async () => {
-            const btn = $('rv_ee_update');
+            const btn = $('rv_ee_update'), forget = $('rv_ee_forget');
             btn.disabled = true;
             try {
                 if (!eeFound) {
@@ -3258,6 +3258,9 @@ class ReviewPage {
                     return;
                 }
                 const target = eeFound;
+                // Remove mid-download deleted the old engine and the update then installed the new one
+                // anyway, against what was just asked (audit 3.1.331 EEHOST-1).
+                if (forget) forget.disabled = true;
                 await eeUpdate(target, (got, total) => {
                     const mb = (got / 1048576).toFixed(1);
                     eeSay(total ? `Updating to v${target}\u2026 ${mb} MB of ${(total / 1048576).toFixed(1)} MB` : `Updating\u2026 ${mb} MB`);
@@ -3267,7 +3270,7 @@ class ReviewPage {
                 await eeSync();
             } catch (e) {
                 eeSay(`Could not update: ${e.message || e}`, true);
-            } finally { btn.disabled = false; }
+            } finally { btn.disabled = false; if (forget) forget.disabled = false; }
         });
         $('rv_ee_get')?.addEventListener('click', async () => {
             const btn = $('rv_ee_get');

@@ -13715,6 +13715,80 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         || (k !== 'en' && l['rv.4pc_error_at_ply'] === locs.en['rv.4pc_error_at_ply'])).map(([k]) => k);
     ok('REVIEW4PC-4: the message is translated in all 14 locales, each keeping {error} and {n}', Object.keys(locs).length === 14 && miss.length === 0, miss);
 })();
+// ---- audit 3.1.331 EEHOST-1: an engine update keeps the installed engine readable until the new one is stored ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/ee-host.js', 'utf8');
+    const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    // ee-host.js with an in-memory IndexedDB and a fetch that serves `JS of <ver>` / the version's bytes
+    const load = (fetchImpl) => {
+        const store = new Map(), later = (f) => setTimeout(f, 0);
+        const indexedDB = {open() { const rq = {}; later(() => { rq.result = {transaction() { return {objectStore() {
+            const op = (fn) => { const r = {}; later(() => { try { r.result = fn(); r.onsuccess(); } catch (e) { r.error = e; r.onerror(); } }); return r; };
+            return {get: k => op(() => store.get(k)), put: (v, k) => op(() => { store.set(k, v); }), delete: k => op(() => { store.delete(k); })};
+        }}; }}; rq.onsuccess(); }); return rq; }};
+        const c = vm.createContext({indexedDB, fetch: fetchImpl, Blob, setTimeout, Promise, Number, Math, String, Error, TextEncoder});
+        c.self = c;
+        const ee = vm.runInContext(src.replace(/^export \{[^}]*\};?\s*$/m, '') + '\n({eeVersion, eeUpdate, eeCached, eeDownload, eeForget})', c);
+        store.set('js:1.124.57', 'JS of 1.124.57'); store.set('wasm:1.124.57', new TextEncoder().encode('1.124.57').buffer);
+        store.set('installed-version', '1.124.57');
+        return {ee, store};
+    };
+    const body = (ver) => { let sent = false; return {ok: true, headers: {get: () => String(ver.length)},
+        body: {getReader: () => ({read: async () => sent ? {done: true} : (sent = true, {done: false, value: new TextEncoder().encode(ver)})})}}; };
+    const verOf = (url) => url.match(/explanation-engine\/([\d.]+)\//)[1];
+    const dec = (b) => b ? new TextDecoder().decode(b) : null;
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    // 1) the update's wasm download fails after 40 ms; Classify is pressed during it, and a Download too
+    {
+        let n = 0;
+        const {ee, store} = load(async (url) => {
+            const v = verOf(url);
+            if (url.endsWith('.js')) return {ok: true, text: async () => `JS of ${v}`};
+            const call = ++n;
+            await wait(call === 1 ? 40 : 80);
+            if (call === 1) throw new TypeError('Failed to fetch');
+            return body(v);
+        });
+        await ee.eeVersion();
+        const upd = ee.eeUpdate('1.125.0', () => {}).then(() => 'updated', e => 'failed: ' + e.message);
+        await wait(10);
+        const mid = await ee.eeCached();
+        ok('EEHOST-1: Classify during an update still finds the installed engine (not "Download the engine first")',
+           !!mid && mid.js === 'JS of 1.124.57', mid && mid.js);
+        const get = ee.eeDownload(() => {});
+        const res = await upd;
+        await get;
+        ok('EEHOST-1: ...the failed update reports its error', res === 'failed: Failed to fetch', res);
+        ok('EEHOST-1: a Download pressed mid-update stores the INSTALLED build under its own keys, never the newer bytes',
+           store.get('js:1.124.57') === 'JS of 1.124.57' && dec(store.get('wasm:1.124.57')) === '1.124.57' && !store.has('js:1.125.0'),
+           [store.get('js:1.124.57'), dec(store.get('wasm:1.124.57')), [...store.keys()]]);
+        ok('EEHOST-1: ...and the installed version still reads 1.124.57', await ee.eeVersion() === '1.124.57' && store.get('installed-version') === '1.124.57');
+    }
+    // 2) a successful update: old engine readable during the download, the new one installed after, old blobs dropped
+    {
+        const {ee, store} = load(async (url) => {
+            const v = verOf(url);
+            if (url.endsWith('.js')) return {ok: true, text: async () => `JS of ${v}`};
+            await wait(30);
+            return body(v);
+        });
+        await ee.eeVersion();
+        const upd = ee.eeUpdate('1.125.0', () => {});
+        await wait(10);
+        const mid = await ee.eeCached();
+        await upd;
+        const after = await ee.eeCached();
+        ok('EEHOST-1: during a successful update the old engine is served; after it, the new one under its own keys',
+           mid && mid.js === 'JS of 1.124.57' && after && after.js === 'JS of 1.125.0' && dec(after.wasm) === '1.125.0',
+           [mid && mid.js, after && after.js]);
+        ok('EEHOST-1: ...the version is stamped and the old blobs are gone',
+           store.get('installed-version') === '1.125.0' && !store.has('js:1.124.57') && !store.has('wasm:1.124.57'), [...store.keys()]);
+    }
+    ok('EEHOST-1: Remove engine is disabled while the update downloads, and re-enabled after',
+       /if \(forget\) forget\.disabled = true;\s*await eeUpdate\(target,/.test(rsrc)
+       && /finally \{ btn\.disabled = false; if \(forget\) forget\.disabled = false; \}/.test(rsrc));
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -113,8 +113,8 @@ function eeIdb(mode, fn) {
 
 // Keyed by version: a newer engine on chess.com is a different classifier, and quietly reusing the
 // old one would make our answer disagree with theirs for a reason nobody could see.
-const kJs = () => `js:${eeVer}`;
-const kWasm = () => `wasm:${eeVer}`;
+const kJs = (v = eeVer) => `js:${v}`;
+const kWasm = (v = eeVer) => `wasm:${v}`;
 const K_VER = 'installed-version';
 
 // Keyed by BUILD, so the card's engine and the Game Review's engine can both be kept and neither
@@ -212,16 +212,14 @@ async function eeCheckUpdate(from) {
 
 // Switch to `v` and fetch it. The OLD blobs are dropped only after the new ones are safely stored,
 // so a failed update leaves the working engine in place rather than no engine at all.
+// eeVer moves only once `v` is stored: every eeCached() during the 28.7 MB download read the
+// not-yet-written `v` keys, so Classify said "Download the engine first" and a Download pressed
+// then wrote `v`'s bytes under the old version's keys when the update failed (audit 3.1.331 EEHOST-1).
 async function eeUpdate(v, onProgress) {
     const old = eeVer;
-    eeVer = v;
-    try {
-        await eeDownload(onProgress);
-    } catch (e) {
-        eeVer = old;
-        throw e;
-    }
+    await eeDownload(onProgress, v);
     await eeIdb('readwrite', s => s.put(v, K_VER));
+    eeVer = v;
     if (old !== v) {
         try { await eeIdb('readwrite', s => s.delete(`js:${old}`)); } catch (e) { /* nothing to drop */ }
         try { await eeIdb('readwrite', s => s.delete(`wasm:${old}`)); } catch (e) { /* nothing to drop */ }
@@ -239,13 +237,14 @@ async function eeCached() {
 
 // One download, reported in bytes as it arrives -- 28.7 MB with no progress is indistinguishable
 // from a hang, which is the whole reason this is behind a button rather than automatic.
-async function eeDownload(onProgress) {
+// `v` is fixed at the call: fetching and storing must name the same build however long it takes.
+async function eeDownload(onProgress, v = eeVer) {
     const say = (n, total, what) => { try { onProgress(n, total, what); } catch (e) { /* caller's problem */ } };
-    const jsRes = await fetch(eeBase() + 'explanation-engine.js');
+    const jsRes = await fetch(eeBase(v) + 'explanation-engine.js');
     if (!jsRes.ok) throw new Error(`explanation-engine.js: HTTP ${jsRes.status}`);
     const js = await jsRes.text();
 
-    const res = await fetch(eeBase() + 'explanation-engine.wasm');
+    const res = await fetch(eeBase(v) + 'explanation-engine.wasm');
     if (!res.ok) throw new Error(`explanation-engine.wasm: HTTP ${res.status}`);
     const total = Number(res.headers.get('content-length')) || 0;
     const chunks = [];
@@ -260,8 +259,8 @@ async function eeDownload(onProgress) {
     }
     const wasm = new Blob(chunks).arrayBuffer ? await new Blob(chunks).arrayBuffer() : null;
     if (!wasm) throw new Error('could not assemble the engine');
-    await eeIdb('readwrite', s => s.put(js, kJs()));
-    await eeIdb('readwrite', s => s.put(wasm, kWasm()));
+    await eeIdb('readwrite', s => s.put(js, kJs(v)));
+    await eeIdb('readwrite', s => s.put(wasm, kWasm(v)));
     return {js, wasm, bytes: js.length + wasm.byteLength};
 }
 
