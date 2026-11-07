@@ -15482,6 +15482,32 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('PUZZLEDB-2: with two king-side rooks the outermost (h1) is the castling rook', k.startsWith('8/3k4/8/8/8/8/5R2/5RK1 b'), k);
     ok('PUZZLEDB-2: the standard start position still offers both castles once cleared', JSON.stringify(castles('r3k2r/8/8/8/8/8/8/R3K2R w KQkq')) === '["O-O","O-O-O"]', castles('r3k2r/8/8/8/8/8/8/R3K2R w KQkq'));
 }
+// ---- audit 3.1.331 PUZZLEDB-3: an import or Remove whose transaction aborts (disk full, forced close) rejects instead of hanging ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // a fake IndexedDB whose readwrite transactions run every request, then abort at commit with
+    // QuotaExceededError and NO error event -- what a commit-time quota failure dispatches
+    const quota = Object.assign(new Error('quota'), {name: 'QuotaExceededError'});
+    const db = {objectStoreNames: {contains: () => true}, close() {},
+        transaction() {
+            const tx = {error: null, objectStore: () => ({put() {}, clear() {}})};
+            setTimeout(() => { tx.error = quota; tx.onabort && tx.onabort({target: tx}); });
+            return tx;
+        }};
+    const c = vm.createContext({setTimeout, console, DOMException, Error, TextDecoderStream: class {},
+        indexedDB: {open() { const r = {result: db}; setTimeout(() => r.onsuccess && r.onsuccess()); return r; }}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/puzzle-db.js', 'utf8'), c);
+    const line = '00008,r6k/pp2r2p/4Rp1Q/3p4/8/1N1P2R1/PqP2bPP/7K b - - 0 24,f2g3 e6e7 b2b1 b3c1 b1c1 h6c1,1784,77,95,9822,crushing,https://lichess.org/787zsVup/black#48,\n';
+    const file = {stream: () => ({pipeThrough: () => ({getReader() { let sent = false;
+        return {read: async () => (sent ? {done: true} : (sent = true, {value: line, done: false}))}; }})})};
+    const settle = (p) => Promise.race([p.then(() => 'resolved', (e) => 'rejected ' + (e && e.name)),
+                                        new Promise((r) => setTimeout(() => r('hung'), 300))]);
+    const imp = await settle(c.PuzzleDB.importCsv(file, null, {}));
+    ok('PUZZLEDB-3: an import whose batch commit aborts rejects with the abort\'s error (the page shows it and re-enables its buttons)', imp === 'rejected QuotaExceededError', imp);
+    const clr = await settle(c.PuzzleDB.clear('li'));
+    ok('PUZZLEDB-3: ...and so does Remove', clr === 'rejected QuotaExceededError', clr);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

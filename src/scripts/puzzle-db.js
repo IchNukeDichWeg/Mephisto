@@ -309,6 +309,11 @@ async function importCsv(file, onProgress, opts = {}) {
                 for (const [k, v] of pending) store.put(v, k);
                 tx.oncomplete = resolve;
                 tx.onerror = () => reject(tx.error);
+                // A commit that fails after every put() succeeded (disk full: QuotaExceededError) or
+                // a connection the browser force-closes fires ONLY 'abort', no 'error'. Without this
+                // the promise never settled and the import hung with its buttons disabled (audit
+                // 3.1.331 PUZZLEDB-3).
+                tx.onabort = () => reject(tx.error || new DOMException('Transaction aborted', 'AbortError'));
             });
             onProgress?.({rows, kept});
         };
@@ -414,6 +419,7 @@ async function clear(site) {
             for (const st of stores) tx.objectStore(st).clear();
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error || new DOMException('Transaction aborted', 'AbortError'));   // see importCsv's flush
         });
     } finally {
         db.close();
