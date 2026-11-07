@@ -13136,6 +13136,31 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('CONTENT2-1: a Red double push still writes e3:e4', JSON.stringify(ep({e4: P('R')}, {e2: P('R')})) === '["e3:e4","","",""]', ep({e4: P('R')}, {e2: P('R')}));
     ok('CONTENT2-1: a Blue double push along the rank still writes c7:d7', JSON.stringify(ep({d7: P('B')}, {b7: P('B')})) === '["","c7:d7","",""]', ep({d7: P('B')}, {b7: P('B')}));
 }
+// ---- audit 3.1.331 CONTENT2-2: 4PC castling rights never come back once the king has moved, even between home squares 7 and 8 ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = csrc.indexOf('const FOURPC_SEATS = '), e = csrc.indexOf('function fourPCCastling('), b = csrc.indexOf('\n}\n', e) + 3;
+    const loc = {pathname: '/variants/4-player-chess/game/1'};
+    const c = vm.createContext({console, Set, Math, parseInt, JSON, Object, location: loc, site: 'chesscom'});
+    vm.runInContext('var lastScrapeFail;' + csrc.slice(a, b), c);
+    const castle = (board) => JSON.stringify(vm.runInContext(`fourPCCastling(${JSON.stringify(board)})`, c));
+    const sq = (i) => vm.runInContext(`fourPCSquare('R', ${i})`, c);
+    // classic Red back row: R d1, K h1 (index 8), R k1; the knight, bishop and queen between them gone
+    const home = {[sq(4)]: {seat: 'R', type: 'R'}, [sq(8)]: {seat: 'R', type: 'K'}, [sq(11)]: {seat: 'R', type: 'R'}};
+    const moved = {[sq(4)]: {seat: 'R', type: 'R'}, [sq(7)]: {seat: 'R', type: 'K'}, [sq(11)]: {seat: 'R', type: 'R'}};
+    vm.runInContext('fourPCResetIfNavigated()', c);
+    ok('CONTENT2-2: Red king on its home h1 with both rooks keeps both rights', castle(home) === '{"short":[1,0,0,0],"long":[1,0,0,0]}', castle(home));
+    ok('CONTENT2-2: ...after Kh1-g1 (index 8 -> 7) Red may castle neither way', castle(moved) === '{"short":[0,0,0,0],"long":[0,0,0,0]}', castle(moved));
+    ok('CONTENT2-2: ...and walking back to h1 does not restore them', castle(home) === '{"short":[0,0,0,0],"long":[0,0,0,0]}', castle(home));
+    loc.pathname = '/variants/4-player-chess/game/2'; vm.runInContext('fourPCResetIfNavigated()', c);
+    ok('CONTENT2-2: a new game (path change) derives the rights afresh', castle(home) === '{"short":[1,0,0,0],"long":[1,0,0,0]}', castle(home));
+    const noRook = {[sq(8)]: {seat: 'R', type: 'K'}, [sq(11)]: {seat: 'R', type: 'R'}};
+    ok('CONTENT2-2: a rook that left loses its side', castle(noRook) === '{"short":[1,0,0,0],"long":[0,0,0,0]}', castle(noRook));
+    ok('CONTENT2-2: ...and coming back does not restore it', castle(home) === '{"short":[1,0,0,0],"long":[0,0,0,0]}', castle(home));
+    ok('CONTENT2-2: scrapePosition4PC starts the rights afresh on an empty move table, before deriving them',
+       /if \(lastFilled < 0\) fourPCCastleMem = null;\s*\n\s*const \{short, long\} = fourPCCastling\(board\);/.test(csrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

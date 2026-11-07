@@ -3201,6 +3201,7 @@ const FOURPC_BACK = {R: ['rank', 1], B: ['file', 'a'], Y: ['rank', 14], G: ['fil
 let fourPCPrev = null;   // previous board, for the en-passant diff
 let fourPCPrevKey = null, fourPCEp = null;   // ...its identity, and the field that diff produced
 let fourPCTurn = null;   // last KNOWN side to move; sticky across scrapes that saw no move
+let fourPCCastleMem = null;   // seat -> {k, short, long}: castling rights only ever DECREASE in a game
 // KEYED BY PATH, like fourPCModeCache below already is (audit finding #4, 2026-08-26): chess.com is
 // a client-routed SPA, so browsing from a lobby preview or a finished game into a live one keeps
 // this module alive -- and the first scrape of the new game then diffed its board against the
@@ -3211,6 +3212,7 @@ function fourPCResetIfNavigated() {
     fourPCPrevPath = location.pathname;
     fourPCPrev = fourPCPrevKey = fourPCEp = null;
     fourPCTurn = null;
+    fourPCCastleMem = null;
 }
 
 // Commissioning diagnostic for the four-player lane. bgLog is silent while the tab is focused unless
@@ -3323,21 +3325,31 @@ const fourPCSquare = (seat, i) =>
 // at index 7 or 8 of its back row with rooks at 4 and 11; the SHORT side is the end it starts nearer.
 // A king that has left its home square loses both, which is the conservative direction: the cost of
 // a missed castle is one ordinary move, the cost of an invented one is an illegal move.
+// One board cannot say "unmoved": 7 and 8 are BOTH home squares, so a king that stepped h1-g1 (or
+// went out and came back) read as castle-ready, Tetrarch offered g1e1 and chess.com refused it
+// (audit 3.1.331 CONTENT2-2). So the rights are ANDed with what earlier scrapes of this game saw,
+// and a seat whose king is ever seen off the square it was first seen on loses both for good.
 function fourPCCastling(board) {
     const short = [], long = [];
+    if (!fourPCCastleMem) fourPCCastleMem = {};
     for (const seat of FOURPC_SEATS) {
         let kingIdx = null;
         for (const i of [7, 8]) {
             const p = board[fourPCSquare(seat, i)];
             if (p && p.seat === seat && p.type === 'K') kingIdx = i;
         }
-        if (kingIdx === null) { short.push(0); long.push(0); continue; }
         const rookAt = (i) => {
             const p = board[fourPCSquare(seat, i)];
             return (p && p.seat === seat && p.type === 'R') ? 1 : 0;
         };
-        short.push(rookAt(kingIdx === 8 ? 11 : 4));
-        long.push(rookAt(kingIdx === 8 ? 4 : 11));
+        const s = kingIdx === null ? 0 : rookAt(kingIdx === 8 ? 11 : 4);
+        const l = kingIdx === null ? 0 : rookAt(kingIdx === 8 ? 4 : 11);
+        const m = fourPCCastleMem[seat];
+        if (!m) fourPCCastleMem[seat] = {k: kingIdx, short: s, long: l};
+        else if (m.k !== kingIdx) m.short = m.long = 0;
+        else { m.short &= s; m.long &= l; }
+        short.push(fourPCCastleMem[seat].short);
+        long.push(fourPCCastleMem[seat].long);
     }
     return {short, long};
 }
@@ -3514,6 +3526,8 @@ function scrapePosition4PC() {
     // `dead` is no longer hardcoded either -- a seat with no king is out, and in Teams that changes
     // the evaluation substantially.
     const dead = FOURPC_SEATS.map(seat => alive(seat) ? 0 : 1);
+    // an empty move table is a fresh game (or a reset analysis board): the rights start from it again
+    if (lastFilled < 0) fourPCCastleMem = null;
     const {short, long} = fourPCCastling(board);
     // Only a real change advances this. The right came from the diff, so a second scrape of the same
     // board lost it: the FEN4 changed with no board change, the panel threw its first search away, and
