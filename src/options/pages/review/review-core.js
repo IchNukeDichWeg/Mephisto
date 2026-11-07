@@ -367,7 +367,11 @@ function indicators(moves, color, multipv, phases, tags) {
     const timed = mine.filter(m => Number.isFinite(m.seconds));
     const secs = timed.map(m => m.seconds);
     const fastCut = secs.length ? Math.max(1, median(secs) / 3) : 0;
-    const fast = timed.filter(m => m.seconds <= fastCut);
+    // The cut comes from every timed move, but only the moves that were a real choice are counted
+    // under it: a premoved opening is fast AND the engine's choice by construction, and counting
+    // it put "90% of the quickest moves" at Strong in an otherwise ordinary game (audit 3.1.331
+    // REVIEWCORE-1).
+    const fast = real.filter(m => Number.isFinite(m.seconds) && m.seconds <= fastCut);
     const maia = mine.filter(m => m.maiaRank != null);
     const cpls = mine.filter(m => m.cpLoss != null).map(m => m.cpLoss);
     const accs = mine.filter(m => m.acc != null).map(m => m.acc);

@@ -13447,6 +13447,31 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-4: Stop on game B hides the 4-player section instead of leaving A under "Replaying..."', s.hidden && s.status === 'Stopped.', s);
     ok('REVIEW-4: ...and keeps neither A\'s report nor its PGN4 for the revisit to restore over B', !s.report && s.text === '', s);
 })().catch(e => { fails++; console.log('FAIL REVIEW-4 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 REVIEWCORE-1: the fast-and-right line counts only moves that were a real choice ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const Core = c.MephistoReviewCore;
+    // 40 white moves: 10 premoved book moves at 0.4 s (9 of them the engine's first choice), then 30
+    // real choices at 5-25 s with 40% first choice and a few of them quick
+    const game = (bookSecs) => {
+        const moves = [];
+        for (let k = 0; k < 40; k++) {
+            const book = k < 10, top = book ? k !== 3 : (k % 5 < 2);
+            moves.push({color: 'w', ply: 2 * k, best: 'x', rank: top ? 1 : 2, isBook: book, onlyMove: false, isRecapture: false,
+                        seconds: book ? bookSecs : (k >= 30 && k < 35 ? 1 : 5 + ((k * 7) % 21)), acc: top ? 100 : 80, cpLoss: top ? 0 : 30});
+            moves.push({color: 'b', ply: 2 * k + 1});
+        }
+        return Core.indicators(moves, 'w', 3, {mid: 20, end: null}, {});
+    };
+    const pre = game(0.4), slow = game(6);
+    ok('REVIEWCORE-1: premoved book moves are not counted among the quickest moves', pre.fastN === 5 && pre.fastTop1 === 0.4, [pre.fastN, pre.fastTop1]);
+    ok('REVIEWCORE-1: ...so the fast line does not read Strong off the opening', !Core.evidence(pre, {}).some(e => e.key === 'fast' && e.level !== 'normal'),
+       Core.evidence(pre, {}).filter(e => e.key === 'fast'));
+    ok('REVIEWCORE-1: ...and the same game with the opening at normal speed counts the same quick real moves', slow.fastN === 5 && slow.fastTop1 === 0.4, [slow.fastN, slow.fastTop1]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
