@@ -738,7 +738,7 @@ class GeneralSettings extends SettingsPage {
 
                 // ALREADY THERE means already there AND the right size. A half file left by a stop or a
                 // dropped connection reads as a table and answers wrongly, which is worse than missing.
-                let done = 0, skipped = 0, bytes = 0, failed = 0, skippedBytes = 0;
+                let done = 0, skipped = 0, bytes = 0, failed = 0, skippedBytes = 0, quota = false;
                 const t0 = Date.now();
                 const total = wanted.length;
                 const totalBytes = wanted.reduce((a, f) => a + f.size, 0);
@@ -787,6 +787,7 @@ class GeneralSettings extends SettingsPage {
                             // either, so stop the whole run instead of failing every one of them in turn.
                             if (e && e.name === 'QuotaExceededError') {
                                 run.stop = true;   // the siblings read this in their while()
+                                quota = true;
                                 say(MephistoI18n.errText('MPH-T06'), true);
                             }
                             continue;
@@ -810,7 +811,10 @@ class GeneralSettings extends SettingsPage {
                 await Promise.all(Array.from({length: tbParallel(dirs)}, worker));
                 const stopped = run.stop;
                 btn.textContent = 'Download tables';
-                say(`${stopped ? 'Stopped. ' : 'Done. '}${done} downloaded (${(bytes / 1048576).toFixed(0)} MB), `
+                // OUT OF SPACE STAYS THE HEADLINE: it used to be replaced within milliseconds by the
+                // same "Stopped." summary a pressed Stop gives, so the reason never stayed on screen
+                // and the next Download just failed again (audit 3.1.331 GENERAL-3).
+                say(`${quota ? MephistoI18n.errText('MPH-T06') + ' ' : stopped ? 'Stopped. ' : 'Done. '}${done} downloaded (${(bytes / 1048576).toFixed(0)} MB), `
                     + `${skipped} already there${failed ? `, ${failed} failed` : ''}. Press Check to verify.`,
                     failed > 0);
                 notifyWorker();

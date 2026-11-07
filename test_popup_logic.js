@@ -14228,6 +14228,49 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('GENERAL-2: a double-click downloads the set once (12 fetches for 12 files) and ends "Done."', e.st.fetches === 12 && /^Done\. 12 downloaded/.test(last(e)), [e.st.fetches, last(e)]);
     }
 })();
+// ---- audit 3.1.331 GENERAL-3: a tablebase download that runs out of space ends on MPH-T06, not a plain "Stopped." ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const a = gj.indexOf("        const TB_BASE = "), b = gj.indexOf('\n        sync();', a);
+    const body = a < 0 || b < 0 ? '' : gj.slice(a, b);
+    if (!body) { ok('GENERAL-3: the download handler slices out of general.js', false); return; }
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    // the real download handler over 12 files; the folder fills up on the 3rd write
+    const log = [], els = {}, files = {};
+    let writes = 0;
+    const mk = (id) => (els[id] = els[id] || {id, textContent: '', value: '', disabled: false, handlers: {}, addEventListener(ev, fn) { this.handlers[ev] = fn; }});
+    mk('tb_download_men').value = '345'; mk('tb_download_kind').value = 'wdl';
+    const handle = {
+        requestPermission: async () => 'granted', removeEntry: async () => {},
+        getFileHandle: async (name, o) => {
+            if (!files[name] && !(o && o.create)) throw new Error('NotFoundError');
+            files[name] = files[name] || {size: 0};
+            return {getFile: async () => ({size: files[name].size}),
+                createWritable: async () => ({write: async (buf) => {
+                    await sleep(2);
+                    if (++writes >= 3) { const e = new Error('quota'); e.name = 'QuotaExceededError'; throw e; }
+                    files[name].size = buf.byteLength;
+                }, close: async () => {}}),
+                move: async (to) => { files[to] = {size: files[name].size}; delete files[name]; }};
+        },
+    };
+    const listing = Array.from({length: 12}, (_, i) => `<a href="K${i}vK.rtbw">K${i}vK.rtbw</a>   07-Dec-2013 02:14   100`).join('\n');
+    const fetchFn = async (url) => {
+        if (url.endsWith('/')) return {ok: true, text: async () => listing};
+        await sleep(10);
+        return {ok: true, arrayBuffer: async () => new ArrayBuffer(100)};
+    };
+    const ctx = {$: mk, say: (t, bad) => log.push((bad ? '[BAD] ' : '') + t), notifyWorker() {}, fetch: fetchFn, confirm: () => true,
+        console: {warn() {}, log() {}}, AbortController, self: {MephistoTbStore: {getHandle: async () => handle}},
+        chrome: {permissions: {request: async () => true}}, MephistoI18n: {errText: (c) => `ERR ${c}`}};
+    new Function(...Object.keys(ctx), body)(...Object.values(ctx));
+    await els.tb_download.handlers.click();
+    await sleep(10);
+    const last = log[log.length - 1] || '';
+    ok('GENERAL-3: out of space, the line left on screen is MPH-T06 (marked bad), with the counts after it', /^\[BAD\] ERR MPH-T06 \d+ downloaded/.test(last) && /failed\. Press Check to verify\.$/.test(last), last);
+    ok('GENERAL-3: ...not the "Stopped." summary a pressed Stop gives', !/Stopped\./.test(last), last);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
