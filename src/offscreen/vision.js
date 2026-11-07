@@ -487,7 +487,9 @@ async function readBoard(bitmap, box) {
 // on a live page it answers the same box read after read -- the tab is the same size and the board
 // is where it was. So the last box is kept and REUSED while the image is the same shape, and the
 // detector only runs again when that stops being true or when the position model reports a read it
-// is not confident about (which is what a wrong box looks like from here).
+// is not confident about (which is what a wrong box looks like from here). An explicit Read Position
+// press passes `fresh` and always re-detects (audit 3.1.331 VISION-2); the follow loop passes the
+// box it read from as a crop, so this cache is only for a caller that asks for neither.
 //
 // THE KEY IS THE CLIENT AND THE GEOMETRY, not the geometry alone. This document is ONE document for
 // every panel, and window size is per-window rather than per-tab, so two game tabs in same-sized
@@ -538,7 +540,12 @@ function uriHash(s) {
 // panel is ours, so it steps out of the way for the one frame a detection capture needs -- see
 // with_panel_hidden() in popup.js. A follow read passes the box it already knows and needs none of
 // this.
-export async function recognize({dataUri, crop, clientId}, onNote) {
+// fresh: an explicit Read Position press. It never takes the cached box: a board that moved inside
+// the same tab and window size (a layout change, another page in the tab, a stream going theatre)
+// left the old box over a crop one file off, which kept both kings, passed staleRead and every
+// legality check, and read the same confident wrong FEN on every press, with nothing that ever
+// cleared it (audit 3.1.331 VISION-2). A press is a request to look again, so it pays the detector.
+export async function recognize({dataUri, crop, clientId, fresh}, onNote) {
     if (onNote) readNotes.add(onNote);
     try { await ready(); } finally { if (onNote) readNotes.delete(onNote); }
     const t0 = performance.now();
@@ -554,7 +561,7 @@ export async function recognize({dataUri, crop, clientId}, onNote) {
     let box = crop, cached = false, tDetect = tDecode;
     if (!box) {
         const key = boxKey(clientId, bitmap.width, bitmap.height);
-        if (boxCache.has(key)) {
+        if (!fresh && boxCache.has(key)) {
             box = boxCache.get(key);
             cached = true;
         } else {

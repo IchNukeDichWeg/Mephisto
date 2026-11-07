@@ -5563,7 +5563,9 @@ async function snap_position(crop) {
             ? await chrome.runtime.sendMessage({captureAndRecognize: {crop}, tabId: tab_id})
             // No `notify` without a hidden panel to bring back: the toolbar popup's token made the worker
             // message the game tab, where nothing listens for it (audit 3.1.330 follow-up L10).
-            : await with_panel_hidden(async (s) => { show = s; return chrome.runtime.sendMessage({captureAndRecognize: s ? {notify: token} : {}, tabId: tab_id}); });
+            // fresh: a press re-detects the board rather than reusing a box cached for this tab, which a
+            // moved board turned into the same wrong read on every press (audit 3.1.331 VISION-2)
+            : await with_panel_hidden(async (s) => { show = s; return chrome.runtime.sendMessage({captureAndRecognize: s ? {notify: token, fresh: true} : {fresh: true}, tabId: tab_id}); });
     } catch (e) {
         setup_fen_msg(err_line('MPH-V02', {detail: e}));
         return;

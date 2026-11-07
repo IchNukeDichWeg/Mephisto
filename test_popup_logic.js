@@ -15909,6 +15909,58 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     msg('8', {cmd: 'dispose'});
     ok('...and an explicit dispose forgets the client\'s lease', vm.runInContext("lastSeen['8'] === undefined && lastSeen['7:ua'] === undefined", c));
 })().catch(e => { fails++; console.log('FAIL OFFSCREEN-3 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 VISION-2: a Read Position press re-detects the board instead of reusing the tab's cached box ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const vsrc = fs.readFileSync(ROOT + '/src/offscreen/vision.js', 'utf8').replace(/^import .*$/gm, '').replace(/^export /gm, '');
+    // the board sits one square further right on every frame; detectBoard finds it, a box read decodes
+    // whatever is under the box (a legal, king-bearing placement either way, so staleRead never fires)
+    let boardX = 400, detects = 0;
+    const RIGHT = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR', SHIFTED = '1rnbqkbn/1ppppppp/8/8/5P2/8/1PPPP1PP/1RNBQKBN';
+    const vctx = vm.createContext({console: {log() {}}, performance: {now: () => 0},
+        fetch: async () => ({blob: async () => ({})}), createImageBitmap: async () => ({width: 1600, height: 1000})});
+    vm.runInContext(vsrc, vctx);
+    Object.assign(vctx, {ready: async () => {}, cornerLabelVerdict: () => null,
+        detectBoard: async () => { detects++; return {x: boardX, y: 100, w: 640, h: 640}; },
+        readBoard: async (bm, box) => ({placement: box.x === boardX ? RIGHT : SHIFTED, low: [], unresolved: [], lowCount: 0, upsideDown: false})});
+    const recognize = vm.runInContext('recognize', vctx);
+    let n = 0;
+    // a longer dataUri each time: a new frame to the frame cache, which keys on length and sampled bytes
+    const press = (extra) => recognize({dataUri: 'data:,' + 'f'.repeat(++n), clientId: '7', ...extra});
+    const a = await press({fresh: true});
+    boardX = 480;
+    const b = await press({fresh: true}), b2 = await press({fresh: true});
+    ok('VISION-2: a press after the board moved reads it where it is now, not through the old box',
+       a.placement === RIGHT && b.placement === RIGHT && b.box.x === 480 && b2.box.x === 480 && detects === 3, [a.box, b.box, detects]);
+    ok('...and reports that the box was detected, not cached', b.timing.cachedBox === false, b.timing);
+    boardX = 560;
+    const c = await press({});
+    ok('...a read that does not ask for fresh still takes the cached box (the cache itself is unchanged)',
+       c.timing.cachedBox === true && c.box.x === 480 && detects === 3, [c.box, detects]);
+    // the panel's press asks for fresh, in the page and in the toolbar popup; the worker forwards it
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (head, end) => { const i = s.indexOf(head), j = s.indexOf(end, i); return i < 0 || j < 0 ? '' : s.slice(i, j); };
+    const code = fn('async function with_panel_hidden(', '\n}\n') + '\n}\n'
+        + fn('function download_progress_text(', '\n}\n') + '\n}\n'
+        + fn('async function snap_position(', '\n    // The recogniser reports placement only') + '\n}\n';
+    const sent = async (inPage) => {
+        const wrap = {style: {opacity: '1'}}, out = [];
+        const pc = vm.createContext({console, Promise, Date, Math, String, setImmediate, ENGINE_CLIENT: '7',
+            PANEL_ROOT: {getElementById: (id) => id === 'mephisto-overlay' ? (inPage ? wrap : null) : id === 'setup-fen-row' ? {style: {}} : null},
+            requestAnimationFrame: (f) => setImmediate(f), setup_fen_msg() {}, err_line: (x) => x, err_code_line: () => null,
+            request_drag_select() {}, resolve_click_tab: async () => 7,
+            chrome: {runtime: {onMessage: {addListener() {}, removeListener() {}}, sendMessage: async (m) => { out.push(m); return {error: 'no board found'}; }}}});
+        vm.runInContext(code, pc);
+        await vm.runInContext('snap_position()', pc);
+        return out[0]?.captureAndRecognize;
+    };
+    const ip = await sent(true), tb = await sent(false);
+    ok('...the panel\'s Read Position press asks for a fresh detection, in the page and in the toolbar popup',
+       ip?.fresh === true && tb?.fresh === true, [ip, tb]);
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    ok('...and the worker passes it on to the recogniser',
+       /recognizeBoard: \{\s*dataUri, crop: msg\.captureAndRecognize\.crop, fresh: msg\.captureAndRecognize\.fresh === true,/.test(bg));
+})().catch(e => { fails++; console.log('FAIL VISION-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
