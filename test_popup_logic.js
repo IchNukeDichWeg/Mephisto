@@ -14038,6 +14038,32 @@ globalThis.largeBoardTable = () => {
            [threw, h.text('an_lg_moves'), h.el('an_lg_turn').textContent]);
     } catch (e) { fails++; console.log('FAIL LARGEBOARD-1: the harness threw ' + e.message); }
 })();
+// ---- audit 3.1.331 LARGEBOARD-2: the game-over line and a refused Load do not outlive their position ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    if (!globalThis.largeBoardHarness) { fails++; return console.log('FAIL LARGEBOARD-2: the LARGEBOARD-1 harness is missing'); }
+    const T = largeBoardTable();
+    try {
+        let h = largeBoardHarness(T);
+        h.L.showLargeGame('shogi', h.opts); await h.settle();
+        h.sq(2, 2); h.sq(2, 3); await h.settle();
+        h.sq(6, 6); h.sq(6, 5); await h.settle();          // into the no-moves position
+        const over = h.el('an_lg_status').textContent;
+        h.el('an_lg_prev').fire('click'); await h.settle();
+        ok('LARGEBOARD-2: Prev from a game-over position clears "No legal moves" once the live position is drawn',
+           /No legal moves/.test(over) && h.el('an_lg_status').textContent === '' && h.el('an_lg_fen').value === T.S1,
+           [over, h.el('an_lg_status').textContent]);
+        h = largeBoardHarness(T);
+        h.L.showLargeGame('shogi', h.opts); await h.settle();
+        h.el('an_lg_fen').value = 'lnsgkgsnl/9 w - - 0 1';
+        h.el('an_lg_load').fire('click');
+        const refused = h.el('an_lg_status').textContent;
+        h.sq(2, 2); h.sq(2, 3); await h.settle();
+        ok('LARGEBOARD-2: a refused Load\'s message goes once a move is played on the board below it',
+           /^Not a Shogi FEN/.test(refused) && h.el('an_lg_status').textContent === '' && h.text('an_lg_moves') === '1. c3c4',
+           [refused, h.el('an_lg_status').textContent]);
+    } catch (e) { fails++; console.log('FAIL LARGEBOARD-2: the harness threw ' + e.message); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

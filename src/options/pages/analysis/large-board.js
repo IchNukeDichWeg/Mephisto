@@ -215,6 +215,10 @@ async function refreshNow(want, gen) {
     // a newer change is queued behind this one: its answer would describe a position already gone
     const stale = () => !game || game !== want || gen !== posGen;
     if (stale()) return;
+    // A status describes the position it was set for: the game-over line or an error (a refused
+    // Load, a failed refresh) stayed up after stepping back to a live position, since only a new
+    // engine or a good Load cleared it (audit 3.1.331 LARGEBOARD-2).
+    status('');
     await stopSearch();
     lastLines = [];
     renderLines(null);
