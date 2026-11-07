@@ -749,6 +749,10 @@ async function run4pcReview() {
     const text = ($('rv_pgn')?.value || '').trim();
     if (!text) return note('Paste a chess.com PGN4 first.', true);
     running = true; cancel = false;
+    // A NEW RUN IS A NEW GAME'S REPORT, as in onRun: a stopped or failed run B left game A's report
+    // under the "Replaying..." header, and a revisit put game A and its PGN4 back over the B the
+    // user had pasted (audit 3.1.331 REVIEW-4).
+    fourpcReport = null; fourpcText = '';
     $('rv_run').disabled = true;
     if ($('rv_stop')) $('rv_stop').disabled = false;
     $('rv_progress_wrap')?.classList.remove('hidden');
@@ -775,6 +779,7 @@ async function run4pcReview() {
         render4pc();
         $('rv-4pc')?.scrollIntoView({behavior: 'smooth', block: 'start'});
     } catch (e) {
+        $('rv-4pc')?.classList.add('hidden');   // no report: the section's header still said "Replaying..."
         note(cancel ? 'Stopped.' : String(e.message || e), !cancel);
     } finally {
         running = false; cancel = false;

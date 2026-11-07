@@ -13412,6 +13412,41 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-3: ...no TypeError is stored to be shown red on the revisit, and the report is kept for it',
        s.lastNote === null && s.kept && !s.running, s);
 })().catch(e => { fails++; console.log('FAIL REVIEW-3 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 REVIEW-4: a stopped 4-player run B does not leave game A's report under "Replaying..." or bring A back on a revisit ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const sl = (s, e) => rj.slice(rj.indexOf(s), rj.indexOf(e));
+    // the REAL note, run4pcReview and render4pc: run A succeeds, run B is stopped
+    const c = vm.createContext({console: {log() {}}, setTimeout}); c.self = c;
+    vm.runInContext(`
+        const els = {}, hidden = new Set();
+        const mk = (id) => ({disabled: false, textContent: '', value: '', innerHTML: '', scrollIntoView(){}, querySelectorAll(){ return []; },
+            classList: {add(k){ if (k === 'hidden') hidden.add(id); }, remove(k){ if (k === 'hidden') hidden.delete(id); }, toggle(){}}});
+        const $ = (id) => (els[id] ||= mk(id));
+        let running = false, cancel = false, report = null, call = 0;
+        const store = {rv_limit_kind: 'time', rv_limit_value: 1000};
+        function cfg(k){ return store[k]; } function storedFor(){ return 1000; } function progress(){} const esc = s => String(s);
+        self.Mephisto4PC = {
+            runReview: async () => { if (++call === 2) { cancel = true; throw new Error('stopped'); }
+                return {frames: [{fen4: 'x', turn: 'r'}, {fen4: 'y', turn: 'b'}], tags: {Red: 'GameA-red'}, teamNames: ['RY', 'BG'],
+                        counts: [{}, {}], accuracy: [90, 80], moves: [{ply: 0, seatName: 'Red', token: 'e2-e4', klass: 'best', teamCpAfter: 10}],
+                        evals: [{}, {}], seatName: {r: 'Red', b: 'Blue'}}; },
+            disconnect(){} };
+        ` + sl('let lastNote = null;', 'const awayStatus = {};') + sl('let fourpcReport = null', 'function disposeRig(rig)') + `
+        self.st = () => ({head: $('rv4_head').textContent, hidden: hidden.has('rv-4pc'), status: $('rv_pgn_status').textContent,
+                          report: !!fourpcReport, text: fourpcText});
+        self.paste = (t) => { $('rv_pgn').value = t; };`, c);
+    c.paste('GAME A pgn4');
+    await c.run4pcReview();
+    let s = c.st();
+    ok('REVIEW-4: game A reviews and shows as before', /GameA-red/.test(s.head) && !s.hidden && s.report && s.text === 'GAME A pgn4', s);
+    c.paste('GAME B pgn4');
+    await c.run4pcReview();
+    s = c.st();
+    ok('REVIEW-4: Stop on game B hides the 4-player section instead of leaving A under "Replaying..."', s.hidden && s.status === 'Stopped.', s);
+    ok('REVIEW-4: ...and keeps neither A\'s report nor its PGN4 for the revisit to restore over B', !s.report && s.text === '', s);
+})().catch(e => { fails++; console.log('FAIL REVIEW-4 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
