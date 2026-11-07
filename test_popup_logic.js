@@ -13508,6 +13508,19 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEWCORE-3: ...one game with a comment after its result is still one game',
        tail.length === 1 && tail[0].moves.length === 2 && tail[0].result === '1-0', tail.map(g => g.moves.length));
 }
+// ---- audit 3.1.331 REVIEWCORE-4: an exported clock never has a "60.0" seconds field ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const clk = (sec) => (/\[%clk ([^\]]+)\]/.exec(c.MephistoReviewCore.annotatedPgn({moves: [{san: 'e4', clk: sec}]})) || [])[1];
+    const got = [59.96, 119.95, 3599.97, 9.99, 151.4].map(clk);
+    ok('REVIEWCORE-4: a clock that rounds up to the minute carries into it (59.96 s -> 0:01:00.0, 3599.97 s -> 1:00:00.0)',
+       JSON.stringify(got) === JSON.stringify(['0:01:00.0', '0:02:00.0', '1:00:00.0', '0:00:10.0', '0:02:31.4']), got);
+    const back = c.MephistoReviewCore.parsePgn(c.MephistoReviewCore.annotatedPgn({moves: [{san: 'e4', clk: 59.96}, {san: 'e5', clk: 119.95}]}))[0];
+    ok('REVIEWCORE-4: ...and reads back as the rounded clock', back.moves[0].clk === 60 && back.moves[1].clk === 120, back.moves.map(m => m.clk));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

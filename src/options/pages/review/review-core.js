@@ -662,7 +662,10 @@ function pgnEval(cp) {
 }
 
 function pgnClock(sec) {
-    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = (sec % 60).toFixed(1);
+    // Rounded to the tenth BEFORE it is split: rounding only the seconds wrote 59.96 s as
+    // "0:00:60.0", which is not h:mm:ss (audit 3.1.331 REVIEWCORE-4).
+    const t = Math.round(sec * 10) / 10;
+    const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = (t % 60).toFixed(1);
     return `${h}:${String(m).padStart(2, '0')}:${s.padStart(4, '0')}`;
 }
 
