@@ -2388,6 +2388,10 @@ function on_engine_best_move(best, threat, isTerminal=false) {
     const white = i18n('color.white', 'White'), black = i18n('color.black', 'Black');
     const toplay = (turn === 'w') ? white : black;
     const next = (turn === 'w') ? black : white;
+    // toplay/next are LABELS, translated; our_side() answers 'white'/'black'. Comparing the label
+    // never matched in any of the 13 non-English languages ('Weiß' !== 'white'), so autoplay never
+    // played an engine move there (audit 3.1.331 POPUP1-1). Side tests use this, labels only display.
+    const toplay_side = (turn === 'w') ? 'white' : 'black';
     // A variant that has already been won ends the analysis, whatever the engine still has to say:
     // its search has no notion of an exploded king or a third check, so it happily reports a move
     // in a finished game (reported live on a won atomic position).
@@ -2452,7 +2456,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         if (tb_show && move_possible_here(last_eval.fen, tb_show)) best = tb_show;
     }
     if (config.simon_says_mode) {
-        if (toplay.toLowerCase() === our_side()) {
+        if (toplay_side === our_side()) {
             const startSquare = best.substring(0, 2);
             const startPiece = board.position()[startSquare];
             const startPieceType = (startPiece) ? startPiece.substring(1) : null;
@@ -2469,12 +2473,12 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         // "Pondering -- Black to play, ..." rather than looking like a stalled search on our move.
         // Maia is a single forward pass -- it can't deepen, so it never really ponders; every other
         // engine (WASM, native SF/Fairy, remote) does.
-        const pondering = config.ponder && toplay.toLowerCase() !== our_side()
+        const pondering = config.ponder && toplay_side !== our_side()
             && !is_one_pass();
         update_best_move(`${pondering ? i18n('panel.msg.pondering', 'Pondering - ') : ''}` + i18n('panel.msg.to_play_best', '{side} to play, best move is {move}', {side: toplay, move: notate(last_eval.fen, best)}));
     }
 
-    if (toplay.toLowerCase() === our_side()) {
+    if (toplay_side === our_side()) {
         last_eval.bestmove = best;
         last_eval.threat = threat;
         last_eval.humanReply = null;    // belongs to the previous best move until re-asked

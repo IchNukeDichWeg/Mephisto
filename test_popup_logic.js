@@ -12563,6 +12563,43 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('L3: one board move with drops in hand keeps the full ponder width in Crazyhouse', w('crazyhouse', zh) === 5, w('crazyhouse', zh));
     ok('...a real forced move in standard chess still narrows it to 1', w('chess', std) === 1, w('chess', std));
 }
+// ---- audit 3.1.331 POPUP1-1: autoplay plays the engine move with the panel in a non-English language ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'), isrc = fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8');
+    const s = psrc.indexOf('function on_engine_best_move('), e = psrc.indexOf('\n}\n', s) + 3;
+    const dir = ROOT + '/src/i18n/locales';
+    const run = (lang, side, ponder) => {
+        const played = [], shown = [];
+        const c = vm.createContext({console: {log() {}, warn() {}}, played, shown, JSON, Date, Math}); c.self = c; c.window = c;
+        vm.runInContext(isrc, c);
+        c.L = JSON.parse(fs.readFileSync(dir + '/' + lang + '.json', 'utf8')); c.EN = JSON.parse(fs.readFileSync(dir + '/en.json', 'utf8'));
+        vm.runInContext(`MephistoI18n.setFallback(EN); MephistoI18n.setStrings(${JSON.stringify(lang)}, L);
+            var i18n = (k, d, v) => MephistoI18n.t(k, d, v);
+            var config = {variant: 'chess', autoplay: true, help_mode: false, manual_mode: false, simon_says_mode: false,
+                          puzzle_mode: false, humanize: false, ponder: ${!!ponder}, threat_analysis: false};
+            var turn = 'w', last_eval = {fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', lines: [{score: 20, depth: 20}]};
+            var last_pos = {startFen: null, moves: ''};
+            var instant_reply_fen = null, search_start = Date.now();
+            var is_remote=()=>false, flush_held_eval=()=>{}, variant_result=()=>null, move_possible_here=()=>true,
+              tablebase_pick=()=>null, update_evaluation=()=>{}, update_best_move=(t)=>shown.push(t), notate=(f,m)=>m,
+              our_side=()=>${JSON.stringify(side)}, request_threat_human=()=>{}, request_second_opinion=()=>{}, request_safety_net_human=()=>{},
+              bgTrace=()=>{}, premove_reply_playable=()=>true, maybe_end_game=()=>null, book_pick=()=>null,
+              playstyle_pick=m=>m, contempt_pick=m=>m, contempt_cp=()=>0, clock_aware=()=>false,
+              request_automove=(m)=>played.push(m), render_move_reason=()=>{}, draw_moves=()=>{}, draw_threat=()=>{},
+              draw_human_reply=()=>{}, draw_safety_net=()=>{}, note_engine_healthy=()=>{}, toggle_calculating=()=>{},
+              is_one_pass=()=>false, clear_next_move_eta=()=>{}, set_idle_reason=()=>{};` + psrc.slice(s, e), c);
+        try { vm.runInContext(`on_engine_best_move('e2e4', null, true)`, c); } catch (err) { return {err: err.message}; }
+        return {best: vm.runInContext('last_eval.bestmove || null', c), played, shown};
+    };
+    const langs = fs.readdirSync(dir).map(f => f.slice(0, -5));
+    const bad = langs.filter(l => { const r = run(l, 'white'); return r.best !== 'e2e4' || r.played.join() !== 'e2e4'; });
+    ok('POPUP1-1: our turn, white to move: the engine move is recorded and autoplayed in every one of the ' + langs.length + ' languages', langs.length === 14 && bad.length === 0, bad.map(l => [l, run(l, 'white')]));
+    const pond = JSON.parse(fs.readFileSync(dir + '/de.json', 'utf8'))['panel.msg.pondering'];
+    const de = run('de', 'black', true), de2 = run('de', 'white', true);
+    ok('POPUP1-1: ...their turn in German: nothing is played and the readout says Pondering', de.best === null && de.played.length === 0 && !!pond && (de.shown[0] || '').startsWith(pond), de);
+    ok('POPUP1-1: ...our turn in German with ponder on: no Pondering prefix on our own move', !!(de2.shown || [])[0] && !de2.shown[0].startsWith(pond), de2);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
