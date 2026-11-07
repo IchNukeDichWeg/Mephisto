@@ -13005,6 +13005,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('POPUP3-3: ...closed within its 600 ms: not reopened, the setting still written', reloads.length === 1 && st.coordinates === 'false');
     } catch (e) { fails++; console.log('FAIL POPUP3-3 checks threw: ' + (e && e.stack || e)); }
 })();
+// ---- audit 3.1.331 POPUP3-4: an engine picked by hand on a 4-player page is not switched back to Tetrarch on the next poll ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = psrc.indexOf('let fourpc_prev_engine = null;'), b = psrc.indexOf('// 4PC does NOT go through request_automove');
+    const changes = [];
+    const sel = {value: 'stockfish-19-nnue', dispatchEvent: () => { changes.push(sel.value); c.config.engine = sel.value; }};
+    const c = vm.createContext({Event: function () {}, console: {log() {}}, setTimeout: (f) => f(), config: {engine: 'stockfish-19-nnue'},
+        FOURPC_ENGINES: ['tetrarch-native'], FOURPC_FALLBACK_ENGINE: 'stockfish-18', PANEL_ROOT: {getElementById: () => sel}});
+    c.is_fourpc_engine = () => c.FOURPC_ENGINES.includes(c.config.engine);
+    vm.runInContext(psrc.slice(a, b), c);
+    const poll = (on) => { vm.runInContext(`sync_fourpc_engine_to_page(${on})`, c); return c.config.engine; };
+    ok('POPUP3-4: control: a 4-player page switches the panel onto Tetrarch', poll(true) === 'tetrarch-native');
+    c.config.engine = sel.value = 'stockfish-19-nnue';   // the user picks Stockfish while still on the 4PC page
+    const picks = [poll(true), poll(true), poll(true)];
+    ok('POPUP3-4: ...an engine picked by hand on that page stays picked over the next polls', picks.every(e => e === 'stockfish-19-nnue'), picks);
+    ok('POPUP3-4: ...with no switch back dispatched', JSON.stringify(changes) === '["tetrarch-native"]', changes);
+    ok('POPUP3-4: leaving the 4PC pages with that engine leaves it alone', poll(false) === 'stockfish-19-nnue');
+    ok('POPUP3-4: ...and the next 4PC page is followed again', poll(true) === 'tetrarch-native');
+    ok('POPUP3-4: ...and leaving it restores the engine you had', poll(false) === 'stockfish-19-nnue', c.config.engine);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

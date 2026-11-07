@@ -9988,6 +9988,10 @@ function is_fourpc_engine() {
 // panel, which is why every path here returns unless something actually has to change: a switch that
 // re-fires on each poll would reload the panel once a second.
 let fourpc_prev_engine = null;
+// ...but clearing it is not a record of having stopped: with it null the next poll read "nobody has
+// switched yet" and switched straight back to Tetrarch, so a pick never stuck on a 4PC page (audit
+// 3.1.331 POPUP3-4). This latch is that record, and only leaving the 4PC pages lifts it.
+let fourpc_follow_off = false;
 let fourpc_switch_pending = false;   // a deferred switch is queued; a second poll must not queue another
 
 function sync_fourpc_engine_to_page(onFourPCPage) {
@@ -9997,12 +10001,14 @@ function sync_fourpc_engine_to_page(onFourPCPage) {
     const isFourPC = is_fourpc_engine();
     if (onFourPCPage) {
         if (isFourPC) return;                         // already on a four-player engine
+        if (fourpc_follow_off) return;                // you chose another engine here: leave it
         if (fourpc_prev_engine) {
             // We switched, and you have since picked something else WHILE STILL on a 4PC page. That
             // is a deliberate choice, so stop managing the engine rather than switching back on the
             // next poll and fighting you once a second. (Puzzle Mode's version of this does fight
             // you; it should not, but that is its bug to fix, not one to copy.)
             fourpc_prev_engine = null;
+            fourpc_follow_off = true;
             return;
         }
         fourpc_prev_engine = config.engine;            // remember what to restore
@@ -10015,6 +10021,7 @@ function sync_fourpc_engine_to_page(onFourPCPage) {
     // LEFT THE 4PC PAGES. Unlike Puzzle Mode this is not a preference to respect: Tetrarch plays
     // 14x14 four-player chess and nothing else, so leaving it selected on a normal game is simply a
     // broken panel. Switch away whether we chose it or you did.
+    fourpc_follow_off = false;   // the next 4PC page is followed again
     if (!isFourPC) { fourpc_prev_engine = null; return; }  // already on something else
     // back to what you had, unless that was also a 4PC engine (or there was nothing to remember)
     const back = (fourpc_prev_engine && !FOURPC_ENGINES.includes(fourpc_prev_engine))
