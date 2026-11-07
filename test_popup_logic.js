@@ -16529,6 +16529,31 @@ print(json.dumps(out))`;
        (got.reapplied || []).includes('setoption name UCI_LimitStrength value true') && got.reapplied.includes('setoption name UCI_Elo value 1500'), got.reapplied);
     ok('REMOTEENGINE-2: a /configure after the engine died starts it again too, not a 500', st('dies2') === 503 && st('cfg_dead') === 200, [got.dies2, got.cfg_dead]);
 })();
+// ---- audit 3.1.331 REMOTEENGINE-3: remote-engine.py no longer recommends -o UCI_Variant:crazyhouse (the panel replaced
+// it with "chess" at once) and says at startup which -o options the panel sets itself ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/scripts/remote-engine.py', 'utf8');
+    const header = src.slice(0, src.indexOf('\nimport '));
+    ok('REMOTEENGINE-3: the header has no -o UCI_Variant example any more', !/^#\s+python remote-engine\.py .*-o UCI_Variant/m.test(header), header);
+    ok('REMOTEENGINE-3: ...and says the extension sets the variant itself', /The extension sets the variant/.test(header));
+    const py = `import importlib.util, json, sys
+try:
+    import flask, chess
+except ImportError:
+    print('null'); sys.exit(0)
+src = sys.argv[1]; sys.argv = ['remote-engine.py', 'no-engine']
+spec = importlib.util.spec_from_file_location('re_r3', src); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Level:15', 'SyzygyPath:C:\\\\tb', 'uci_elo:1500', 'junk']),
+                  m.panel_owned(None)]))`;
+    const r = await new Promise(res => require('child_process').execFile('python3', ['-E', '-B', '-c', py, ROOT + '/src/scripts/remote-engine.py'],
+        {encoding: 'utf8', timeout: 60000, cwd: require('os').tmpdir()}, (e, stdout, stderr) => res({e, stdout, stderr})));
+    let got = null; try { got = JSON.parse(String(r.stdout).trim().split('\n').pop()); } catch (e) { got = (r.stderr || String(r.e)).slice(-300); }
+    if (got === null) console.log('ok   REMOTEENGINE-3: server half skipped (no python3 with flask + python-chess here)');
+    else ok('REMOTEENGINE-3: the startup note names the -o keys the panel replaces, and only those',
+            JSON.stringify(got) === JSON.stringify([['UCI_Variant', 'Hash', 'uci_elo'], []]), got);
+    ok('REMOTEENGINE-3: the note is printed at startup', /replaced = panel_owned\(args\.options\)\s*\n\s*if replaced:\s*\n\s*print\(f"NOTE: the extension sets/.test(src));
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

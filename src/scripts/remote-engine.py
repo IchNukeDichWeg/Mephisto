@@ -5,8 +5,12 @@
 # Requires:  pip install python-chess flask
 #
 # Examples:
-#   python remote-engine.py /usr/bin/stockfish -o Hash:128 -o "Skill Level":15 -p 9090
-#   python remote-engine.py fairy-stockfish -o UCI_Variant:crazyhouse -p 9090
+#   python remote-engine.py /usr/bin/stockfish -o "Skill Level":15 -o SyzygyPath:/path/to/syzygy -p 9090
+#
+# The extension sets the variant (Standard or Chess960), the Elo cap, Hash, Threads and the line count
+# itself, from its own settings, with every search: -o for those lasts only until it connects. A
+# UCI_Variant given here, as an earlier example did with crazyhouse, was replaced by the panel's
+# "chess" at once (audit 3.1.331 REMOTEENGINE-3).
 
 import argparse
 import json
@@ -155,6 +159,18 @@ def relaunch_if_dead():
         raise chess.engine.EngineTerminatedError(f"couldn't start the engine again: {ex}")
     for (key, value) in list(engine_options.items()):
         set_option(key, value)
+
+
+# The options the panel sends with every search (popup.js remote_engine_options), so a -o for one is
+# replaced as soon as it connects; said at startup.
+PANEL_SETS = ('Hash', 'Threads', 'MultiPV', 'UCI_Variant', 'UCI_Chess960', 'UCI_LimitStrength', 'UCI_Elo')
+
+
+def panel_owned(cli_options):
+    # The -o keys the panel will replace, as typed.
+    owned = {key.lower() for key in PANEL_SETS}
+    return [opt.split(':', 1)[0].strip() for opt in cli_options or []
+            if ':' in opt and opt.split(':', 1)[0].strip().lower() in owned]
 
 
 def apply_option(opt):
@@ -485,6 +501,10 @@ if __name__ == '__main__':
     engine = start_engine(args.executable)
     for option in args.options or []:
         apply_option(option)
+    replaced = panel_owned(args.options)
+    if replaced:
+        print(f"NOTE: the extension sets {', '.join(replaced)} itself from its own settings, so -o for "
+              f"{'it' if len(replaced) == 1 else 'them'} lasts only until it connects.")
     if args.port != 9090:
         print(f'NOTE: the extension only calls port 9090; on port {args.port} it cannot reach this server.')
     print(f"Mephisto remote engine ready at http://localhost:{args.port}")
