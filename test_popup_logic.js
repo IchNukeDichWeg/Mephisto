@@ -15223,6 +15223,40 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
         ok('CONFIGSTORE-2: Settings Reset removes the Budget memo', removed.includes(C.BUDGET_MEMO_KEY), removed.slice(-3));
     })();
 }
+// ---- audit 3.1.331 CONFIGSTORE-3: a second init() during the first read shares it, so the panel boots on the migrated engine ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // chrome.storage.local as Chrome orders it: each call answered in its own later task, in issue
+    // order, and onChanged for a write delivered in a task after that
+    const boot = async (lateSecond) => {
+        const store = {engine: '"maia"', maia_level: '"1100"', maia3_elo: '2000', __cfg_migrated: '1', __match_default: '1'};
+        const listeners = [], q = [], gets = [];
+        const enqueue = (fn) => { q.push(fn); setImmediate(() => q.shift()()); };
+        const c = {console, location: {protocol: 'https:'}, navigator: {}, chrome: {storage: {
+            onChanged: {addListener: (f) => listeners.push(f)},
+            local: {
+                get: () => { gets.push(1); return new Promise(r => enqueue(() => r(JSON.parse(JSON.stringify(store))))); },
+                set: (o) => new Promise(r => enqueue(() => { const ch = {}; for (const k in o) { ch[k] = {oldValue: store[k], newValue: o[k]}; store[k] = o[k]; }
+                    r(); setImmediate(() => listeners.forEach(l => l(ch, 'local'))); })),
+                remove: (k) => new Promise(r => enqueue(() => { const ch = {[k]: {oldValue: store[k]}}; delete store[k]; r();
+                    setImmediate(() => listeners.forEach(l => l(ch, 'local'))); })),
+            }}}};
+        c.self = c;
+        vm.createContext(c);
+        vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8'), c);
+        if (lateSecond) await c.MephistoConfig.ready;
+        else await Promise.resolve();          // popup.js initPanel: one round trip, then init() again
+        await c.MephistoConfig.init();
+        return {engine: c.MephistoConfig.get('engine'), elo: c.MephistoConfig.get('maia3_elo'), gets: gets.length};
+    };
+    try {
+        const early = await boot(false), late = await boot(true);
+        ok('CONFIGSTORE-3: init() called while the first read is in flight returns the migrated engine (Maia-1 -> Maia-3 at its band)',
+           early.engine === '"maia3"' && early.elo === '1100', early);
+        ok('CONFIGSTORE-3: ...storage is read once however many callers init(), early or late', early.gets === 1 && late.gets === 1 && late.engine === '"maia3"',
+           [early.gets, late]);
+    } catch (e) { ok('CONFIGSTORE-3: the overlapping init() runs', false, String(e)); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

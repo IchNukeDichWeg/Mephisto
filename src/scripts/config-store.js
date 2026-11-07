@@ -21,6 +21,7 @@
 (function () {
     const CACHE = {};
     let ready = false;
+    let initP = null;   // the one in-flight/finished load, see init()
     // chrome.storage.local was read into CACHE. From then on a key missing from CACHE is a key that
     // does not exist: the localStorage mirror in an extension page is not told when a content script
     // removes a key (lsRemove is a no-op there), so falling back to it brought back a Budget memo
@@ -261,7 +262,15 @@
         },
 
         // load chrome.storage into the cache once; one-time migrate the old localStorage config in.
-        async init() {
+        // ONE LOAD, HOWEVER MANY CALLERS. The file starts a load itself (api.ready below) and
+        // popup.js calls init() again; `ready` only stops a call made after the first has finished,
+        // so a second call during the first read took its own, older snapshot and wrote it back
+        // over the first one's migration writes, and the panel booted on the pre-migration
+        // engine (audit 3.1.331 CONFIGSTORE-3). Every caller now shares the first load.
+        init() {
+            return initP || (initP = api.loadOnce());
+        },
+        async loadOnce() {
             if (ready) return;
             let all = {}, read = false;
             try { all = await chrome.storage.local.get(null); read = true; } catch (e) { all = {}; }
