@@ -61,7 +61,10 @@ GOT="$(git show "$REF:manifest.json" | node -e 'let s="";process.stdin.on("data"
 # glue at all. Nets are exempt -- they come from the assets releases by manifest. Compared with the
 # newest release tag that is not this one; tags are fetched first so a stale clone cannot hide one.
 git fetch -q --tags origin 2>/dev/null || echo "WARNING: could not fetch tags; comparing with the local ones" >&2
-PREV="$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -vx "v$V" | head -1)"
+# grep exits 1 when it keeps no tag (none local, or only v$V), and pipefail made that kill the build
+# with no message before the empty-PREV skip below was reached (audit 3.1.331 RELEASETOOLS-2).
+PREV="$(git tag -l 'v[0-9]*' --sort=-v:refname | { grep -vx "v$V" || true; } | head -1)"
+[ -n "$PREV" ] || echo "WARNING: no earlier release tag; the engine glue diff is skipped" >&2
 NETS=(':(exclude,glob)**/*.nnue' ':(exclude,glob)**/*.nnue.part*' ':(exclude,glob)**/*.onnx' ':(exclude,glob)**/*.onnx.part*')
 if [ -n "$PREV" ] && ! git diff --quiet "$PREV" "$REF" -- lib/engine lib/ort "${NETS[@]}"; then
     git diff --stat "$PREV" "$REF" -- lib/engine lib/ort "${NETS[@]}" >&2

@@ -16570,6 +16570,28 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     ok('RELEASETOOLS-1: ...the preamble and the "Second pass" narrative are still dropped, and no entry is added or lost',
        JSON.stringify(es.map(e => e.v.join('.'))) === '["3.1.135","3.1.136"]' && !es.some(e => /intro|Removed v3/.test(e.body)), es);
 }
+// ---- audit 3.1.331 RELEASETOOLS-2: with no earlier version tag the release script skips the glue diff instead of dying silently ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rz = fs.readFileSync(ROOT + '/tools/release/release-zips.sh', 'utf8');
+    const line = rz.split('\n').find(l => /^PREV="\$\(git tag -l/.test(l)) || '';
+    // the real PREV line, run under the script's own set -euo pipefail in a scratch repo (async: see NATIVEA-3)
+    const run = (cwd, script) => new Promise(res => require('child_process').execFile('/bin/bash', ['-c', script],
+        {cwd, encoding: 'utf8', timeout: 30000}, (e, stdout) => res({status: e ? e.code : 0, stdout})));
+    const dir = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'rt2-'));
+    try {
+        const init = await run(dir, 'git init -q && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m t');
+        if (init.status !== 0) { console.log('ok   RELEASETOOLS-2: skipped (no git)'); return; }
+        const prev = async () => run(dir, `set -euo pipefail; V=3.1.332\n${line}\necho "PREV=[$PREV]"`);
+        const none = await prev();
+        await run(dir, 'git tag v3.1.332'); const self = await prev();
+        await run(dir, 'git tag v3.1.331'); const two = await prev();
+        ok('RELEASETOOLS-2: no version tag at all, or only v$V: PREV is empty and the script carries on to its skip',
+           none.status === 0 && none.stdout.trim() === 'PREV=[]' && self.status === 0 && self.stdout.trim() === 'PREV=[]', [line, none, self]);
+        ok('RELEASETOOLS-2: ...an earlier tag is still found', two.status === 0 && two.stdout.trim() === 'PREV=[v3.1.331]', two);
+        ok('RELEASETOOLS-2: ...and the skip is said out loud', /\[ -n "\$PREV" \] \|\| echo "WARNING: no earlier release tag/.test(rz));
+    } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+})().catch(e => { fails++; console.log('FAIL RELEASETOOLS-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
