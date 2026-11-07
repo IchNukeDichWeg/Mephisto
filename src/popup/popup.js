@@ -2313,9 +2313,9 @@ function engine_out_of_sync(best) {
 //   racingkings  a king that reached the eighth rank
 //   kingofthehill a king that reached one of the four centre squares
 //   horde        the horde loses when its last pawn goes
-//   3check       the check counter in the FEN's own extra field reaches three
+//   3check       three checks given, counted over startFen + moves (or a FEN's own "+N+N" field)
 // Returns {winner: 'w'|'b'|null, reason} or null when the game is not over by a variant rule.
-function variant_result(fen, variant) {
+function variant_result(fen, variant, startFen = null, moves = '') {
     try {
         if (!fen || !variant || variant === 'chess' || variant === 'fischerandom') return null;
         const board = new Chess(variant, fen);
@@ -2368,6 +2368,22 @@ function variant_result(fen, variant) {
                 if (+m[1] >= 3) return {winner: 'w', reason: 'three checks delivered'};
                 if (+m[2] >= 3) return {winner: 'b', reason: 'three checks delivered'};
             }
+            // ...but no panel FEN carries one: chess.js writes none and folds lichess's "3+3" into
+            // the move counters, so this rule never fired and a won game read as a draw (audit
+            // 3.1.331 POPUP1-4). Count the checks over the move list instead. Only when the replay
+            // lands on THIS placement: a list for another position is no verdict. A game joined from
+            // a set-up start counts only the checks since that start, so it can only under-count.
+            if (startFen && moves) {
+                const c = new Chess(variant, startFen), given = {w: 0, b: 0};
+                for (const u of String(moves).trim().split(/\s+/)) {
+                    const mv = c.move({from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4]});
+                    if (!mv) return null;
+                    if (c.inCheck()) given[mv.color]++;
+                }
+                if (c.fen().split(' ')[0] !== fen.split(' ')[0]) return null;
+                if (given.w >= 3) return {winner: 'w', reason: 'three checks delivered'};
+                if (given.b >= 3) return {winner: 'b', reason: 'three checks delivered'};
+            }
         }
         return null;
     } catch (e) {
@@ -2398,7 +2414,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
     // A variant that has already been won ends the analysis, whatever the engine still has to say:
     // its search has no notion of an exploded king or a third check, so it happily reports a move
     // in a finished game (reported live on a won atomic position).
-    const vres = variant_result(last_eval.fen, config.variant);
+    const vres = variant_result(last_eval.fen, config.variant, last_pos.startFen, last_pos.moves);
     if (vres) {
         const side = vres.winner === 'w' ? white : black;
         update_evaluation(i18n('panel.msg.variant_over', 'Game over'));

@@ -12698,6 +12698,48 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('POPUP1-3: ...the answer for the position asked about last is still kept', r.tb === 'd5d4' && r.book === true, r);
     } catch (e) { ok('POPUP1-3: harness ran', false, e.message); }
 }
+// ---- audit 3.1.331 POPUP1-4: Three-check is recognised as won on the third check, counted over the move list ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.indexOf('function ' + name + '('); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const shown = [];
+    const c = vm.createContext({console: {log() {}, warn() {}}, shown, JSON}); c.self = c;
+    try {
+        vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+        vm.runInContext(`var config = {variant: '3check', autoplay: true, ponder: false, simon_says_mode: false};
+            var turn = 'b', last_eval = {fen: '', lines: [{score: 0, depth: 20}]}, last_pos = {startFen: null, moves: ''};
+            var is_remote = () => false, flush_held_eval = () => {}, update_evaluation = (t) => shown.push('eval:' + t), update_best_move = (t) => shown.push(t),
+                clear_next_move_eta = () => {}, toggle_calculating = () => {}, is_one_pass = () => false, move_possible_here = () => false, engine_out_of_sync = () => shown.push('sync');`
+            + fn('variant_result') + fn('on_engine_best_move'), c);
+        // a real chess.js 3check game: white checks whenever it can, black never does, until white has given three
+        const game = vm.runInContext(`(() => {
+            const g = new Chess('3check'); let checks = 0; const ucis = [];
+            for (let ply = 0; ply < 200 && checks < 3; ply++) {
+                const ms = g.moves({verbose: true}); if (!ms.length) break;
+                let pick = ms[0];
+                if (g.turn() === 'w') { const chk = ms.find(m => m.san.includes('+')); if (chk) pick = chk; }
+                else pick = ms.find(m => !m.san.includes('+')) || ms[0];
+                g.move({from: pick.from, to: pick.to, promotion: pick.promotion}); ucis.push(pick.from + pick.to + (pick.promotion || ''));
+                if (g.turn() === 'b' && g.inCheck()) checks++;
+            }
+            return {fen: g.fen(), moves: ucis.join(' '), checks};
+        })()`, c);
+        const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+        const vr = (fen, start, moves) => vm.runInContext(`variant_result(${JSON.stringify(fen)}, '3check', ${JSON.stringify(start)}, ${JSON.stringify(moves)})`, c);
+        const won = vr(game.fen, START, game.moves);
+        ok('POPUP1-4: the third check given in a replayed 3check game is a white win', game.checks === 3 && won && won.winner === 'w' && won.reason === 'three checks delivered', [game.checks, won]);
+        const two = game.moves.split(' '), cut = two.slice(0, -1).join(' ');
+        const before = vm.runInContext(`(() => { const g = new Chess('3check'); for (const u of ${JSON.stringify(cut)}.split(' ')) g.move({from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4]}); return g.fen(); })()`, c);
+        ok('POPUP1-4: ...two checks is no verdict yet', vr(before, START, cut) === null, vr(before, START, cut));
+        ok('POPUP1-4: ...a move list that does not end on this placement is no verdict', vr(before, START, game.moves) === null, vr(before, START, game.moves));
+        ok('POPUP1-4: ...nor is a FEN with no move list (counter unknown)', vr(game.fen, null, '') === null);
+        // the caller: on_engine_best_move hands variant_result the position's start + moves, and announces the win
+        vm.runInContext(`last_eval.fen = ${JSON.stringify(game.fen)}; last_pos = {startFen: ${JSON.stringify(START)}, moves: ${JSON.stringify(game.moves)}};
+            on_engine_best_move('(none)', null, true)`, c);
+        ok('POPUP1-4: on_engine_best_move announces "White Wins - three checks delivered", not a draw', shown.some(t => t === 'White Wins - three checks delivered') && !shown.some(t => /Draw|Stalemate/.test(t)), shown);
+    } catch (e) { ok('POPUP1-4: harness ran', false, e.message); }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
