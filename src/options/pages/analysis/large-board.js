@@ -63,6 +63,10 @@ function parseLargeFen(game, fen) {
     }
     const turn = fields[1];
     if (turn !== 'w' && turn !== 'b') bad('turn');
+    // Six fields at most and no `moves`: loadFen sends the whole text as `position fen <text> moves …`,
+    // so a pasted "… 0 1 moves c3c4" had Fairy play c3c4 and then stop at the page's own second
+    // `moves` token, dropping every move played on the board (audit 3.1.331 LARGEBOARD-4).
+    if (fields.length > 6 || fields.includes('moves')) bad('extra');
     return {cells, hand, turn};
 }
 
@@ -109,6 +113,7 @@ const FEN_ERRORS = {
     kings: ['an.lg_err_kings', 'each side needs exactly one king'],
     turn: ['an.lg_err_turn', 'the side to move must be w or b'],
     hand: ['an.lg_err_hand', 'pieces in hand are only for shogi'],
+    extra: ['an.lg_err_extra', 'nothing may follow the move number (such as "moves …")'],
 };
 
 let game = null;        // 'shogi' | 'xiangqi' while shown, null while the chess board is up

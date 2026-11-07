@@ -14085,6 +14085,35 @@ globalThis.largeBoardTable = () => {
            && h.el('an_lg_meta').textContent === 'not running', [h.el('an_lg_status').textContent, h.text('an_lg_lines')]);
     } catch (e) { fails++; console.log('FAIL LARGEBOARD-3: the harness threw ' + e.message); }
 })();
+// ---- audit 3.1.331 LARGEBOARD-4: a FEN with UCI tokens after it is refused, not sent ahead of the page's moves ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const lj = fs.readFileSync(ROOT + '/src/options/pages/analysis/large-board.js', 'utf8');
+    const lctx = vm.createContext({});
+    vm.runInContext(lj.slice(lj.indexOf('// ---- PURE'), lj.indexOf('// ---- END PURE')) + ';this.P = {LARGE_GAMES, parseLargeFen};', lctx);
+    const P = lctx.P, S0 = P.LARGE_GAMES.shogi.start, X0 = P.LARGE_GAMES.xiangqi.start;
+    const why = (v, fen) => { try { P.parseLargeFen(v, fen); return 'accepted'; } catch (e) { return e.key; } };
+    ok('LARGEBOARD-4: "<fen> moves c3c4", a seventh field, or a moves token in a short FEN is refused; the six-field and two-field forms still load',
+       JSON.stringify([why('shogi', S0 + ' moves c3c4'), why('xiangqi', X0 + ' 7'), why('shogi', S0.split(' ').slice(0, 2).join(' ') + ' moves c3c4'),
+                       why('shogi', S0), why('xiangqi', X0), why('shogi', S0.split(' ').slice(0, 2).join(' '))])
+       === JSON.stringify(['extra', 'extra', 'extra', 'accepted', 'accepted', 'accepted']),
+       [why('shogi', S0 + ' moves c3c4'), why('xiangqi', X0 + ' 7')]);
+    const dir = ROOT + '/src/i18n/locales', locs = Object.fromEntries(fs.readdirSync(dir).map(f => [f.slice(0, -5), JSON.parse(fs.readFileSync(dir + '/' + f, 'utf8'))]));
+    const miss = Object.entries(locs).filter(([k, l]) => !l['an.lg_err_extra'] || (k !== 'en' && l['an.lg_err_extra'] === locs.en['an.lg_err_extra'])).map(([k]) => k);
+    ok('LARGEBOARD-4: ...its reason is translated in every locale', /extra: \['an\.lg_err_extra', /.test(lj) && miss.length === 0, miss);
+    if (!globalThis.largeBoardHarness) { fails++; return console.log('FAIL LARGEBOARD-4: the LARGEBOARD-1 harness is missing'); }
+    try {
+        const h = largeBoardHarness(largeBoardTable());
+        h.L.showLargeGame('shogi', h.opts); await h.settle();
+        h.el('an_lg_fen').value = S0 + ' moves c3c4';
+        h.el('an_lg_load').fire('click'); await h.settle();
+        const st = h.el('an_lg_status').textContent;
+        h.sq(2, 2); h.sq(2, 3); await h.settle();
+        const pos = h.sent.filter(c => /^position /.test(c)).pop();
+        ok('LARGEBOARD-4: Load refuses it with a reason, and the next board move is sent after the old start, once',
+           /^Not a Shogi FEN: /.test(st) && pos === `position fen ${S0} moves c3c4` && h.text('an_lg_moves') === '1. c3c4', [st, pos]);
+    } catch (e) { fails++; console.log('FAIL LARGEBOARD-4: the harness threw ' + e.message); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

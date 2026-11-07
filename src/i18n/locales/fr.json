@@ -758,6 +758,7 @@
   "an.lg_err_kings": "chaque camp doit avoir exactement un roi",
   "an.lg_err_turn": "le camp au trait doit être w ou b",
   "an.lg_err_hand": "les pièces en réserve n'existent qu'au shogi",
+  "an.lg_err_extra": "rien ne doit suivre le numéro du coup (comme « moves … »)",
   "an.err_king_en_prise": "le camp qui n'a pas le trait est en échec, cette position est donc impossible -- vérifiez à qui c'est de jouer",
   "an.lg_no_moves": "Aucun coup légal : le camp au trait a perdu.",
   "an.lg_promote": "Promouvoir cette pièce ?",

@@ -758,6 +758,7 @@
   "an.lg_err_kings": "każda strona musi mieć dokładnie jednego króla",
   "an.lg_err_turn": "strona na ruchu musi być w lub b",
   "an.lg_err_hand": "bierki w ręce istnieją tylko w shogi",
+  "an.lg_err_extra": "po numerze ruchu nie może nic następować (np. \"moves …\")",
   "an.err_king_en_prise": "strona, która nie ma ruchu, jest szachowana, więc ta pozycja jest niemożliwa -- sprawdź, czyj jest ruch",
   "an.lg_no_moves": "Brak legalnych ruchów: strona na ruchu przegrała.",
   "an.lg_promote": "Promować tę bierkę?",

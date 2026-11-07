@@ -758,6 +758,7 @@
   "an.lg_err_kings": "jede Seite braucht genau einen König",
   "an.lg_err_turn": "die Seite am Zug muss w oder b sein",
   "an.lg_err_hand": "Figuren in der Hand gibt es nur im Shogi",
+  "an.lg_err_extra": "nach der Zugnummer darf nichts mehr folgen (etwa „moves …“)",
   "an.err_king_en_prise": "die Seite, die nicht am Zug ist, steht im Schach, diese Stellung ist also unmöglich -- prüfe, wer am Zug ist",
   "an.lg_no_moves": "Keine legalen Züge: die Seite am Zug hat verloren.",
   "an.lg_promote": "Diese Figur befördern?",

@@ -758,6 +758,7 @@
   "an.lg_err_kings": "每方必须恰好有一个王",
   "an.lg_err_turn": "走棋方必须是 w 或 b",
   "an.lg_err_hand": "持驹只存在于将棋中",
+  "an.lg_err_extra": "回合数之后不能再有内容（例如 \"moves …\"）",
   "an.err_king_en_prise": "非行棋方正被将军，因此这个局面不可能出现 -- 请检查轮到哪一方走棋",
   "an.lg_no_moves": "没有合法着法：轮到走棋的一方已输。",
   "an.lg_promote": "要升变这枚棋子吗？",
