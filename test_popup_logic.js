@@ -15403,6 +15403,47 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and after an accepted drag and a re-render, no dots, and a click where one was plays nothing',
        log.join() === 'g1f3,e2e4' && JSON.stringify(shown()) === '{"sel":[],"dots":[]}', [log, shown()]);
 }
+// ---- audit 3.1.331 PANELBOARD-3: a promotion onMove rejects drops the highlight and dots, as any rejected move does ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pb = fs.readFileSync(ROOT + '/src/scripts/panel-board.js', 'utf8');
+    const el = (tag) => ({tag, style: {}, classList: [], children: [], on: {}, className: '',
+        appendChild(c) { this.children.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; }, remove() { this.gone = true; }});
+    const host = el('div'); host.clientWidth = 400;
+    Object.defineProperty(host, 'innerHTML', {set() { host.children = []; }});
+    Object.defineProperty(host, 'firstChild', {get() { return host.children[0]; }});
+    // the picker hangs off the destination square: find it by its square-<alg> class
+    host.querySelector = (sel) => { const want = sel.slice(1); for (const row of host.children[0].children)
+        for (const s of row.children || []) if ((s.className || '').split(' ').includes(want)) return s; return null; };
+    const c = vm.createContext({Math, requestAnimationFrame() {}, window: {addEventListener() {}, removeEventListener() {}},
+        document: {createElement: el, body: el('body')}});
+    c.self = c;
+    vm.runInContext(pb, c);
+    let accept = false; const log = [];
+    // as analysis.js panelPromotes: any white pawn move to the last rank asks for a piece, legal or not
+    c.MephistoBoard(host, {position: '7k/4P3/8/8/8/8/8/4K3 w - - 0 1',
+        onMove: (f, t, p) => { log.push(f + t + (p || '')); return accept; },
+        needsPromotion: (f, t) => f === 'e7' && t[1] === '8' ? 'w' : null,
+        legalTargets: (sq) => sq === 'e7' ? ['e8'] : []});
+    const sq = (alg) => host.children[0].children[8 - +alg[1]].children['abcdefgh'.indexOf(alg[0])];   // white at the bottom
+    const shown = () => { const sel = [], dots = [];
+        for (const f of 'abcdefgh') for (let r = 1; r <= 8; r++) { const s = sq(f + r);
+            if (s.style.boxShadow) sel.push(f + r);
+            if (s.children.some(x => x.tag === 'div')) dots.push(f + r); }
+        return {sel, dots: dots.sort()}; };
+    const pick = (t) => { const menu = host.children[0].children.find(x => x.tag === 'div' && x.children.some(y => y.textContent));
+        menu.children.find(x => x.textContent === t).on.click({stopPropagation() {}}); };
+    sq('e7').on.click();
+    ok('PANELBOARD-3: clicking e7 selects it and dots e8', JSON.stringify(shown()) === '{"sel":["e7"],"dots":["e8"]}', shown());
+    sq('d8').on.click();
+    pick('N');
+    ok('PANELBOARD-3: an illegal promotion onMove rejects after the pick drops the highlight and the dot',
+       log.join() === 'e7d8n' && JSON.stringify(shown()) === '{"sel":[],"dots":[]}', [log, shown()]);
+    sq('e7').on.click();
+    sq('e8').on.click();
+    pick('Q');
+    ok('...a promotion rejected while a match runs does the same', log.join() === 'e7d8n,e7e8q' && JSON.stringify(shown()) === '{"sel":[],"dots":[]}', [log, shown()]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

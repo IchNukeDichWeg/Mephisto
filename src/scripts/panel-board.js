@@ -164,7 +164,10 @@
             const colour = needsPromotion && needsPromotion(from, to);
             if (!colour) return onMove(from, to);
             promptPromotion(from, to, colour, (piece) => {
-                if (piece) onMove(from, to, piece); else render(); // cancelled -> put the piece back
+                // cancelled -> put the piece back. Rejected too, as the non-promotion paths do: the
+                // board under the picker still drew the selection and dots, which no longer exist
+                // (audit 3.1.331 PANELBOARD-3)
+                if (!piece || onMove(from, to, piece) === false) render();
             });
             return true;
         }
