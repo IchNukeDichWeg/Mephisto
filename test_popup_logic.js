@@ -2948,7 +2948,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         sendCommand: (t, m, p, cb) => { chromeStub.runtime.lastError = really ? null : {message: 'Debugger is not attached to the tab with id: 5.'}; if (really) sent++; cb(); chromeStub.runtime.lastError = null; }}};
     const run = new Function('chrome', 'setTimeout', 'clearTimeout',
         'let cdpPending = 0, cdpHung = 0, cdpCalls = 0, cdpTotalMs = 0, cdpWorstMs = 0, pacedCalls = 0, pacedTotalMs = 0;'
-        + 'const CDP_HUNG_MS = 1e9, CDP_MOVE_ACK_MS = 1e9, ATTACH_SETTLE_MS = 0; const attached = new Set([5]), moveStalled = new Set();' + att + disp
+        + 'const CDP_HUNG_MS = 1e9, CDP_MOVE_ACK_MS = 1e9, ATTACH_SETTLE_MS = 0; const attached = new Set([5]), attaching = new Map(), moveStalled = new Set();' + att + disp
         + 'return cdpDispatch({tabId: 5}, {type: "mousePressed"}).then(() => attached.has(5));');
     const stillAttached = await run(chromeStub, (f, ms) => setTimeout(f, ms), clearTimeout);
     ok('a stale "attached" tab re-attaches and the click goes through', really && sent === 1 && stillAttached, {really, sent});
@@ -6935,7 +6935,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
     const fn = (name) => { const i = b.indexOf(`function ${name}(tabId) {`); return b.slice(i, b.indexOf('\n}\n', i) + 3); };
     const cmds = [], detached = [];
-    const c = vm.createContext({puzzleNetTabs: new Set([7, 8]), attached: new Set([7, 8]), cdpInputTabs: new Set([8]), lastPos: new Map(),
+    const c = vm.createContext({puzzleNetTabs: new Set([7, 8]), attached: new Set([7, 8]), attaching: new Map(), cdpInputTabs: new Set([8]), lastPos: new Map(),
         chrome: {runtime: {}, debugger: {sendCommand: (t, m) => cmds.push([t.tabId, m]), detach: (t) => detached.push(t.tabId)}}});
     vm.runInContext(fn('puzzleNetStop') + fn('puzzleNetDetach'), c);
     vm.runInContext('puzzleNetStop(7); puzzleNetStop(8)', c);
@@ -8564,7 +8564,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const bsrc = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
     const ai = bsrc.indexOf('function cdpAttach(tabId) {');
     const b = vm.createContext({setTimeout, Promise, Error, lastError: null});
-    vm.runInContext(`const attached = new Set(), ATTACH_SETTLE_MS = 0;
+    vm.runInContext(`const attached = new Set(), attaching = new Map(), ATTACH_SETTLE_MS = 0;
         const chrome = {runtime: {}, debugger: {attach(t, v, cb) { chrome.runtime.lastError = lastError; cb(); chrome.runtime.lastError = null; }}};
         ${bsrc.slice(ai, bsrc.indexOf('\n}\n', ai) + 3)}`, b);
     (async () => {
@@ -13212,6 +13212,32 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     host.fire({note: 'host-initiated'});
     ok('...a frame without an id is still broadcast', B.sent.length === before + 2 && B.sent[before + 1].note === 'host-initiated', B.sent.length - before);
 }
+// ---- audit 3.1.331 BACKGROUND-3: a second cdpAttach inside the first one's settle waits for that settle ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const ai = b.indexOf('function cdpAttach(tabId) {'), di = b.indexOf('const attaching = new Map();');
+    const att = (di >= 0 && di < ai ? b.slice(di, b.indexOf('\n', di) + 1) : '') + b.slice(ai, b.indexOf('\n}\n', ai) + 3);
+    const fnD = (name) => { const i = b.indexOf(`function ${name}(tabId) {`); return b.slice(i, b.indexOf('\n}\n', i) + 3); };
+    const timers = [], attaches = [];
+    const c = vm.createContext({Promise, Error, setTimeout: (f, ms) => timers.push({f, ms}), puzzleNetTabs: new Set(), cdpInputTabs: new Set(), lastPos: new Map(),
+        chrome: {runtime: {lastError: null}, debugger: {attach: (t, v, cb) => { attaches.push(t.tabId); cb(); }, detach() {}}}});
+    vm.runInContext('const attached = new Set(), ATTACH_SETTLE_MS = 450;\n' + att + fnD('puzzleNetDetach'), c);
+    const tick = () => new Promise(r => setImmediate(r));
+    const done = [];
+    vm.runInContext('cdpAttach(7)', c).then(() => done.push('first'));            // puzzleNetEnable on page load
+    await tick();
+    vm.runInContext('cdpAttach(7)', c).then(() => done.push('second'));           // the move's cdpWarm, inside the settle
+    await tick();
+    ok('BACKGROUND-3: a cdpAttach inside the first one\'s 450 ms settle does not resolve before that settle', done.length === 0 && attaches.length === 1, done);
+    timers.splice(0).forEach(t => t.f()); await tick();
+    ok('...both callers resolve once the settle is over, with one attach', done.join() === 'first,second' && attaches.length === 1, done);
+    let third = false; vm.runInContext('cdpAttach(7)', c).then(() => { third = true; }); await tick();
+    ok('...after the settle an attached tab answers at once', third && timers.length === 0);
+    vm.runInContext('cdpAttach(8)', c); await tick(); vm.runInContext('puzzleNetDetach(8)', c);
+    vm.runInContext('cdpAttach(8)', c); await tick();
+    ok('...our own detach inside the settle drops the cached attach, so the next call attaches again', attaches.filter(x => x === 8).length === 2, attaches);
+})().catch(e => { fails++; console.log('FAIL BACKGROUND-3 check threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

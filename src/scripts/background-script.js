@@ -2243,9 +2243,15 @@ function cdpDrag(tabId, x1, y1, x2, y2, travelMs = 0) {
 // Split out from cdpClick so a move can raise the bar BEFORE it measures any squares: the bar shrinks
 // the viewport, chess.com re-sizes the board to fit, and coordinates taken before that point aim at
 // where the square used to be. Idempotent and cached, so only the first call per tab ever waits.
+// THE PROMISE IS CACHED, not just the flag. `attached` is set in the attach callback, BEFORE the
+// settle, so a second caller inside those 450 ms (a move's cdpWarm while puzzleNetEnable attaches
+// the same tab) was answered at once and measured squares while the board was still re-laying out
+// under the bar (audit 3.1.331 BACKGROUND-3). Every caller in that window now gets the same promise.
+const attaching = new Map();   // tabId -> the attach still inside its settle
 function cdpAttach(tabId) {
+  if (attaching.has(tabId)) return attaching.get(tabId);
   if (attached.has(tabId)) return Promise.resolve();
-  return new Promise((resolve, reject) => {
+  const p = new Promise((resolve, reject) => {
     chrome.debugger.attach({tabId}, '1.3', () => {
       // "Another debugger is already attached" is fine -- we stay attached after the first click
       if (chrome.runtime.lastError && !/already attached/i.test(chrome.runtime.lastError.message)) {
@@ -2260,9 +2266,13 @@ function cdpAttach(tabId) {
       setTimeout(resolve, ATTACH_SETTLE_MS);
     });
   });
+  attaching.set(tabId, p);
+  const settled = () => { if (attaching.get(tabId) === p) attaching.delete(tabId); };
+  p.then(settled, settled);
+  return p;
 }
 chrome.debugger.onDetach?.addListener((src) => {
-  if (src.tabId) { attached.delete(src.tabId); cdpInputTabs.delete(src.tabId); lastPos.delete(src.tabId); puzzleNetTabs.delete(src.tabId); moveStalled.delete(src.tabId); }
+  if (src.tabId) { attaching.delete(src.tabId); attached.delete(src.tabId); cdpInputTabs.delete(src.tabId); lastPos.delete(src.tabId); puzzleNetTabs.delete(src.tabId); moveStalled.delete(src.tabId); }
 });
 
 // --- reading puzzle payloads over the debugger -----------------------------------------------------
@@ -2411,6 +2421,7 @@ function puzzleNetStop(tabId) {
 
 function puzzleNetDetach(tabId) {
   puzzleNetTabs.delete(tabId);
+  attaching.delete(tabId);   // our own detach fires no onDetach: a later attach must not reuse it
   attached.delete(tabId);
   cdpInputTabs.delete(tabId);
   lastPos.delete(tabId);
