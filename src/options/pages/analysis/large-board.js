@@ -124,6 +124,7 @@ let flipped = false;
 let lastLines = [];
 let engine = null, engineGame = null, live = null, budgetTimer = null;
 let chain = Promise.resolve();
+let posGen = 0;         // bumped by every refresh(): a refreshNow whose number is not the newest is stale
 // The board element the listeners were attached to. The router re-injects the page's HTML on every
 // visit while this module stays cached, so a module-level boolean left a revisited board with no
 // listeners at all; keying on the element rewires each fresh copy of the DOM exactly once.
@@ -200,22 +201,31 @@ async function stopSearch() {
 // Serialised: a second click while the first is still asking must not interleave its commands.
 function refresh() {
     const want = game;
-    chain = chain.then(() => refreshNow(want)).catch(e => status(String(e.message || e), 'err'));
+    // The board on screen is no longer the position being asked about, so until the engine's answer
+    // for THIS one is in, nothing may be played off the old perft list. A move taken from it is
+    // illegal here, Fairy stops parsing `position ... moves` at the first move it rejects, and that
+    // move and every later one were listed but never played (audit 3.1.331 LARGEBOARD-1).
+    const gen = ++posGen;
+    legal = []; selected = null;
+    chain = chain.then(() => refreshNow(want, gen)).catch(e => status(String(e.message || e), 'err'));
     return chain;
 }
 
-async function refreshNow(want) {
-    if (!game || game !== want) return;
+async function refreshNow(want, gen) {
+    // a newer change is queued behind this one: its answer would describe a position already gone
+    const stale = () => !game || game !== want || gen !== posGen;
+    if (stale()) return;
     await stopSearch();
     lastLines = [];
     renderLines(null);
     const e = await ensureEngine();
-    if (game !== want) return;
+    if (stale()) return;
     // The engine's own board, not ours: `d` prints the FEN it now holds after the moves.
     const d = await ask(e, [positionCmd(), 'd'], /^Checkers:/);
+    const perft = await ask(e, [positionCmd(), 'go perft 1'], /^Nodes searched/);
+    if (stale()) return;
     curFen = (d.find(l => /^Fen: /.test(l)) || '').slice(5).trim() || startFen;
     view = parseLargeFen(game, curFen);
-    const perft = await ask(e, [positionCmd(), 'go perft 1'], /^Nodes searched/);
     legal = perft.map(l => /^(\S+): \d+$/.exec(l)?.[1]).filter(Boolean);
     const fenBox = $('an_lg_fen');
     if (fenBox && document.activeElement !== fenBox) fenBox.value = curFen;
@@ -450,6 +460,11 @@ function showLargeGame(g, opts) {
     wire();
     if (game !== g) {
         game = g;
+        // the old game's board must not stay clickable while the new engine loads: render() drew the
+        // 9x9 shogi view in the 9x10 xiangqi shape and threw (audit 3.1.331 LARGEBOARD-1)
+        view = null;
+        const host = $('an_lg_board');
+        if (host) host.innerHTML = '';
         const box = $('an_lg_fen');
         if (box) box.value = '';
         loadFen('');

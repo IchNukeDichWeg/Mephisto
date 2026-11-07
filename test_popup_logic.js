@@ -13943,6 +13943,101 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('331 ANALYSIS-3: ...a null build with a model still chosen (the page left mid-load) draws nothing and starts no sweep', c.calls.length === 0, c.calls);
     })().catch(e => { fails++; console.log('FAIL 331 ANALYSIS-3 check threw: ' + (e && e.stack || e)); });
 }
+// ---- audit 3.1.331 LARGEBOARD-1: no move is played off a perft list the board has already left ----
+// The REAL large-board.js runs in a vm against a stub DOM and a stub engine that answers like Fairy:
+// `d` prints the FEN after the moves it accepts and stops at the first one it rejects, `go perft 1`
+// lists that position's moves. Answers are queued, so a check can land a click between two of them.
+// The harness is shared with the LARGEBOARD-2/3/4 blocks below.
+globalThis.largeBoardHarness = (table, {failStart = false} = {}) => {
+    const src = fs.readFileSync(ROOT + '/src/options/pages/analysis/large-board.js', 'utf8').replace(/^export \{[^}]*\};?\s*$/m, '');
+    const els = {};
+    const el = (id) => els[id] || (els[id] = {id, h: {}, value: '', textContent: '', innerHTML: '', className: '',
+        classList: {toggle() {}}, setAttribute() {}, addEventListener(t, f) { (this.h[t] = this.h[t] || []).push(f); },
+        fire(t, ev) { for (const f of this.h[t] || []) f(ev || {}); }});
+    const queue = [], sent = [];
+    class Eng {
+        constructor(name, opts) { this.variant = opts.variant; this.listeners = []; this.pos = []; }
+        async start() { if (failStart) throw new Error('Failed to fetch dynamically imported module'); }
+        dispose() {}
+        emit(lines) { for (const line of lines) for (const f of this.listeners.slice()) f({kind: 'line', line}); }
+        once(pred) { return new Promise((res) => { const f = (m) => { if (pred(m)) { this.listeners.splice(this.listeners.indexOf(f), 1); res(m); } }; this.listeners.push(f); }); }
+        at() {
+            const T = table[this.variant]; let key = '';
+            for (const m of this.pos) { const k = key ? key + ' ' + m : m; if (!T[key].legal.includes(m) || !T[k]) break; key = k; }
+            return T[key];
+        }
+        send(c) {
+            sent.push(c);
+            const p = /^position fen .+?(?: moves (.*))?$/.exec(c);
+            if (p) { this.pos = p[1] ? p[1].split(' ') : []; return; }
+            const pos = this.at();
+            if (c === 'd') queue.push(() => this.emit(['Fen: ' + pos.fen, 'Checkers: ']));
+            if (c === 'go perft 1') queue.push(() => this.emit([...pos.legal.map(m => m + ': 1'), 'Nodes searched: ' + pos.legal.length]));
+        }
+        startInfinite() { return {stop: async () => {}}; }
+    }
+    const ctx = vm.createContext({document: {getElementById: el, activeElement: null}, window: {confirm: () => false},
+                                  setTimeout, clearTimeout, console});
+    ctx.self = ctx;
+    ctx.MephistoEngines = {WasmEngine: Eng};
+    ctx.MephistoReviewCore = {isMateScore: () => false};
+    vm.runInContext(src + '\n;this.L = {showLargeGame, hideLargeGame};', ctx);
+    const tick = () => new Promise(r => setTimeout(r, 0));
+    return {
+        L: ctx.L, el, queue, sent, tick,
+        // deliver queued answers until nothing new has been asked for a few ticks
+        settle: async () => { for (let idle = 0, i = 0; idle < 5 && i < 500; i++) { await tick(); if (queue.length) { queue.shift()(); idle = 0; } else idle++; } },
+        until: async (cond) => { for (let i = 0; i < 500 && !cond(); i++) { await tick(); if (!cond() && queue.length) queue.shift()(); } return cond(); },
+        sq: (f, r) => el('an_lg_board').fire('click', {target: {closest: (s) => s === '.an-lg-hit' ? {dataset: {f: String(f), r: String(r)}} : null}}),
+        row: (mv) => el('an_lg_lines').fire('click', {target: {closest: (s) => s === '[data-move]' ? {dataset: {move: mv}} : null}}),
+        text: (id) => el(id).innerHTML.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
+        opts: () => ({multipv: 2, threads: 1, hash: 16, depth: 0, secs: 0}),
+    };
+};
+// a few real positions; the page knows no rules, so only the FENs need to parse
+globalThis.largeBoardTable = () => {
+    const S0 = 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL[] w - - 0 1';
+    const S1 = 'lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL[] b - - 1 1';
+    const S2 = 'lnsgkgsnl/1r5b1/pppppp1pp/6p2/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL[] w - - 0 2';
+    const X0 = 'rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1';
+    return {S0, S1, S2, X0, shogi: {'': {fen: S0, legal: ['c3c4', 'h3h4']}, 'c3c4': {fen: S1, legal: ['g7g6']},
+                                    'c3c4 g7g6': {fen: S2, legal: []}},       // S2 stands in for a mate: no moves
+            xiangqi: {'': {fen: X0, legal: ['h3e3']}}};
+};
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const T = largeBoardTable();
+    try {
+        // a board move, then at once a click on an engine-line row from the position before it
+        let h = largeBoardHarness(T);
+        h.L.showLargeGame('shogi', h.opts); await h.settle();
+        h.sq(2, 2); h.sq(2, 3); h.row('h3h4'); await h.settle();
+        ok('LARGEBOARD-1: a line-row click before the refresh lands is not recorded as a move the engine then drops',
+           h.text('an_lg_moves') === '1. c3c4' && h.el('an_lg_fen').value === T.S1, [h.text('an_lg_moves'), h.el('an_lg_fen').value]);
+        // Prev while the refresh for c3c4 is still asking: that refresh's answer must not re-arm the board
+        h = largeBoardHarness(T);
+        h.L.showLargeGame('shogi', h.opts); await h.settle();
+        h.sq(2, 2); h.sq(2, 3);
+        await h.until(() => h.sent.filter(c => c === 'go perft 1').length === 2);
+        h.el('an_lg_prev').fire('click');
+        h.queue.shift()();                          // the c3c4 perft answer arrives after the Prev
+        for (let i = 0; i < 5; i++) await h.tick();
+        h.sq(6, 6); h.sq(6, 5);                     // Gote g7g6 off the superseded list
+        await h.settle();
+        ok('LARGEBOARD-1: ...nor off the answer of a refresh a newer one (Prev) has superseded',
+           h.text('an_lg_moves') === '1. c3c4' && h.el('an_lg_fen').value === T.S0, [h.text('an_lg_moves'), h.el('an_lg_fen').value]);
+        // Shogi -> Xiangqi: a click on the shogi board while the xiangqi engine loads
+        h = largeBoardHarness(T);
+        h.L.showLargeGame('shogi', h.opts); await h.settle();
+        h.L.showLargeGame('xiangqi', h.opts);
+        let threw = null;
+        try { h.sq(2, 2); h.sq(2, 3); } catch (e) { threw = e.message; }
+        await h.settle();
+        ok('LARGEBOARD-1: a click on the old game\'s board during a game switch neither throws nor records a move',
+           threw === null && h.text('an_lg_moves') === '' && h.el('an_lg_fen').value === T.X0 && h.el('an_lg_turn').textContent === 'Red to move',
+           [threw, h.text('an_lg_moves'), h.el('an_lg_turn').textContent]);
+    } catch (e) { fails++; console.log('FAIL LARGEBOARD-1: the harness threw ' + e.message); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
