@@ -4005,6 +4005,7 @@ let explorer_empty_streak = 0; // consecutive empty lookups; 3 = genuinely out o
 // into a Clock/Mirror budget.
 const TABLEBASE_MAX_MEN = 7;   // the largest Syzygy set lichess serves
 let tablebase_data = null;     // {fen, category, dtz, dtm, moves:[...]} for the last position probed
+let tablebase_wanted = null;   // the position request_tablebase was last asked about
 
 // lichess serves Syzygy for standard, atomic and antichess only (probed -- everything else 404s).
 // Chess960 is excluded on purpose: a <=7-man 960 position can still carry castling rights, which
@@ -4022,6 +4023,11 @@ function piece_count(fen) {
 
 // Fire-and-forget. Never awaited by the move path (see the note above).
 function request_tablebase(fen) {
+    // ONLY THE ANSWER FOR THE POSITION ASKED ABOUT LAST, as request_explorer. The worker answers
+    // concurrently (cache hit at once, a network probe up to 4 s), so A's late answer overwrote B's and
+    // tablebase_pick(B) went null for good: on_new_pos does not re-ask (audit 3.1.331 POPUP1-3).
+    // Set before any early return, so going back to a position already answered drops A's too.
+    tablebase_wanted = fen;
     if (!tablebase_enabled()) return;
     // A hidden tab makes no third-party requests -- unless Background Play is on, in which case the
     // game IS still being played and a tablebase answer is exactly as wanted as it is in front of you.
@@ -4030,6 +4036,7 @@ function request_tablebase(fen) {
     if (tablebase_data?.fen === fen) return;           // already have this position
     chrome.runtime.sendMessage({tablebaseLookup: {fen, variant: config.variant || 'chess'}}, (res) => {
         if (chrome.runtime.lastError || !res || res.error || !res.moves?.length) return;
+        if (fen !== tablebase_wanted) return;
         tablebase_data = {fen, ...res};
         console.log(`Tablebase: ${res.category} (dtz ${res.dtz}, dtm ${res.dtm}) -> ${res.moves[0].uci}`);
         // The probe usually answers before the engine, and on_engine_best_move then announces the
@@ -4569,6 +4576,7 @@ function explorer_enabled() {
 // latched, unlike the explorer: the probe is local and deterministic (no rate limit to protect),
 // and a game can transpose back into a repertoire book after leaving it.
 let own_book = null;          // {fen, moves: [{uci, weight}]} for the last position answered
+let own_book_wanted = null;   // the position request_own_book was last asked about (audit 3.1.331 POPUP1-3)
 let own_book_absent = false;  // the worker said no book is loaded (until a book is imported)
 // A book imported on the Settings page lands in the extension's IndexedDB, which no storage event
 // reaches, so a panel that had latched "no book" ignored it for the rest of its life while Settings
@@ -4583,6 +4591,7 @@ chrome.runtime.onMessage.addListener((msg) => {
 
 // Fire-and-forget, exactly like request_explorer: the move path never waits for it.
 function request_own_book(fen) {
+    own_book_wanted = fen;   // a late answer for the previous position must not replace this one's
     if (!config.book_play || own_book_absent) return;
     if (config.variant && config.variant !== 'chess') return;   // Polyglot keys standard chess
     if (config.puzzle_mode) return;
@@ -4590,6 +4599,7 @@ function request_own_book(fen) {
     chrome.runtime.sendMessage({bookLookup: {fen}}, (res) => {
         if (chrome.runtime.lastError || !res || res.error) return;   // worker asleep/failed: retry next move
         if (res.moves === null) { own_book_absent = true; return; }
+        if (fen !== own_book_wanted) return;
         own_book = {fen, moves: res.moves || []};
     });
 }

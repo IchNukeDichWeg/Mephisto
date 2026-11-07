@@ -12660,6 +12660,44 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('POPUP1-2: a position restored while the engine loads is searched once it is ready, and last_eval keeps its FEN', r.go === 1 && r.fen === SETUP, r);
     } catch (e) { ok('POPUP1-2: init-order harness ran', false, e.message); }
 })();
+// ---- audit 3.1.331 POPUP1-3: a late tablebase / own-book answer for the previous position does not replace the current one ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const sl = (a, b) => { const s = psrc.indexOf(a), e = psrc.indexOf(b, s); if (s < 0 || e < 0) throw new Error('slice ' + a); return psrc.slice(s, e); };
+    const pending = [];
+    const c = vm.createContext({console: {log() {}, warn() {}}, document: {hidden: false}, pending, JSON});
+    c.chrome = {runtime: {lastError: null, sendMessage: (m, cb) => { if (cb) pending.push({m, cb}); }, onMessage: {addListener() {}}}};
+    try {
+        vm.runInContext(`var config = {tablebase: true, variant: 'chess', book_play: true, puzzle_mode: false}, PANEL_BOOTED = true, last_eval = {fen: ''};
+            var update_best_move_suffix = () => {}, move_possible_here = () => true;`
+            + sl('const TABLEBASE_MAX_MEN = 7;', '// 50 is the panel stepper') + sl('function tablebase_pick(fen)', '\n}\n') + '\n}\n'
+            + sl('let own_book = null;', '// Fire-and-forget, exactly like request_explorer') + sl('function request_own_book(fen)', '\n}\n') + '\n}\n' + `
+            var A = '8/8/8/4k3/8/8/4P3/4K3 b - - 0 1', B = '8/8/8/3k4/8/8/4P3/4K3 w - - 1 2';
+            var ans = (p) => p.m.tablebaseLookup ? {category: 'win', dtz: 1, moves: [{uci: p.m.tablebaseLookup.fen === A ? 'd5d4' : 'e2e4'}]}
+                                                 : {moves: [{uci: p.m.bookLookup.fen === A ? 'd5d4' : 'e2e4', weight: 1}]};`, c);
+        const run = (code) => vm.runInContext(code, c);
+        // A asked, then B; the worker answers B first and A late
+        run(`request_tablebase(A); request_own_book(A); last_eval.fen = B; request_tablebase(B); request_own_book(B);`);
+        for (const i of [2, 3, 0, 1]) pending[i].cb(run('ans')(pending[i]));
+        let r = run(`({tb: tablebase_pick(B), tbFen: tablebase_data && tablebase_data.fen === B, book: own_book && own_book.fen === B && own_book.moves[0].uci})`);
+        ok('POPUP1-3: A\'s late tablebase answer does not replace B\'s: tablebase_pick(B) still gives B\'s move', r.tb === 'e2e4' && r.tbFen, r);
+        ok('POPUP1-3: ...and the same for the own (Polyglot) book', r.book === 'e2e4', r);
+        // B answered; A asked (in flight); back to B, which the dedupe does not re-send; A lands last
+        pending.length = 0;
+        run(`tablebase_data = {fen: B, category: 'win', dtz: 1, moves: [{uci: 'e2e4'}]}; own_book = {fen: B, moves: [{uci: 'e2e4', weight: 1}]};
+             request_tablebase(A); request_own_book(A); request_tablebase(B); request_own_book(B);`);
+        for (const p of pending) p.cb(run('ans')(p));
+        r = run(`({tb: tablebase_pick(B), book: own_book && own_book.fen === B})`);
+        ok('POPUP1-3: ...going back to an answered position: the stray answer for the one in between is dropped', pending.length === 2 && r.tb === 'e2e4' && r.book === true, [pending.length, r]);
+        // an answer for the position still wanted is stored as before
+        pending.length = 0;
+        run(`tablebase_data = null; own_book = null; request_tablebase(A); request_own_book(A);`);
+        for (const p of pending) p.cb(run('ans')(p));
+        r = run(`({tb: tablebase_pick(A), book: own_book && own_book.fen === A})`);
+        ok('POPUP1-3: ...the answer for the position asked about last is still kept', r.tb === 'd5d4' && r.book === true, r);
+    } catch (e) { ok('POPUP1-3: harness ran', false, e.message); }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
