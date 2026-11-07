@@ -1,6 +1,7 @@
 import ctypes
 import ctypes.util
 import sys
+import threading
 from random import random
 
 import pyautogui
@@ -132,6 +133,16 @@ def _target(data, kx, ky):
     return x, y
 
 
+# ONE GESTURE AT A TIME. app.run serves each request on its own thread (Flask's default threaded=True)
+# and every gesture drives the one OS cursor, while mouseDown()/mouseUp() act wherever the cursor is
+# right then. Two overlapping requests (a superseded premove's to-click still running when the real
+# move's from-click arrives, or two game windows) pulled the cursor away mid-gesture: both presses
+# landed on one square, or a press landed between squares and released on the other target, a drag
+# across the board, and both answered OK (audit 3.1.331 CLICKER-1). Held by the routes around the
+# whole gesture, so a queued request waits for the one before it to finish.
+gesture_lock = threading.Lock()
+
+
 def perform_click(x, y):
     duration = (args.drag_variance * random() + args.drag_time) / 1000
     pyautogui.moveTo(x, y, duration=duration)
@@ -161,14 +172,18 @@ def perform_drag(x0, y0, x1, y1, ms=0):
 @app.route('/performClick', methods=['POST'])
 def perform_click_api():
     data = request.get_json(silent=True) or {}
-    perform_click(*_target(data, 'x', 'y'))
+    target = _target(data, 'x', 'y')
+    with gesture_lock:
+        perform_click(*target)
     return 'OK'
 
 
 @app.route('/performMove', methods=['POST'])
 def perform_move_api():
     data = request.get_json(silent=True) or {}
-    perform_move(*_target(data, 'x0', 'y0'), *_target(data, 'x1', 'y1'))
+    target = (*_target(data, 'x0', 'y0'), *_target(data, 'x1', 'y1'))
+    with gesture_lock:
+        perform_move(*target)
     return 'OK'
 
 
@@ -176,8 +191,9 @@ def perform_move_api():
 def perform_drag_api():
     data = request.get_json(silent=True) or {}
     ms = data.get('ms')
-    perform_drag(*_target(data, 'x0', 'y0'), *_target(data, 'x1', 'y1'),
-                 ms if isinstance(ms, (int, float)) and ms == ms else 0)
+    target = (*_target(data, 'x0', 'y0'), *_target(data, 'x1', 'y1'))
+    with gesture_lock:
+        perform_drag(*target, ms if isinstance(ms, (int, float)) and ms == ms else 0)
     return 'OK'
 
 
