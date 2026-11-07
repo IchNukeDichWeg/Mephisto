@@ -16450,6 +16450,85 @@ print(json.dumps({'s1': r1.status_code, 'refused1': (r1.get_json() or {}).get('r
     ok('REMOTEENGINE-1: initialize_engine configures from the same builder', /request_remote_configure\(remote_engine_options\(\)\)\.then\(note_remote_elo\)/.test(s));
     ok('REMOTEENGINE-1: a search answer that lists refused keys updates the Elo label', /if \(Array\.isArray\(res\?\.refused_options\)\) note_remote_elo\(res\);/.test(fn('on_remote_result')));
 })();
+// ---- audit 3.1.331 REMOTEENGINE-2: remote-engine.py refuses an illegal move or position with a 400 before the engine
+// sees it, and starts a dead engine again (with its options) instead of answering 500 "engine event loop dead" for good ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // a stand-in UCI engine that logs what it is told and exits, as Stockfish does on a CRITICAL ERROR, when asked to
+    // search a position whose move list has h2h3
+    const py = `import importlib.util, json, os, sys, tempfile
+try:
+    import flask, chess.engine
+except ImportError:
+    print('null'); sys.exit(0)
+ENG = '''import sys
+LOG = %r
+pos = ""
+for l in sys.stdin:
+    l = l.strip()
+    if l.startswith(("uci", "setoption", "position")): open(LOG, "a").write(l + "\\\\n")
+    if l == "uci":
+        print("id name stand-in")
+        print("option name UCI_LimitStrength type check default false")
+        print("option name UCI_Elo type spin default 1350 min 1320 max 3190")
+        print("uciok")
+    elif l == "isready": print("readyok")
+    elif l.startswith("position"): pos = l
+    elif l.startswith("go"):
+        if "h2h3" in pos: sys.exit(1)
+        print("bestmove 0000")
+    elif l == "quit": break
+    sys.stdout.flush()
+'''
+src = sys.argv[1]; d = tempfile.mkdtemp(); log = os.path.join(d, 'log.txt'); eng = os.path.join(d, 'eng.py')
+open(eng, 'w').write(ENG % (log,)); open(log, 'w').close()
+sys.argv = ['remote-engine.py', eng]
+spec = importlib.util.spec_from_file_location('re_r2', src); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+m.args.executable = [sys.executable, '-E', eng]   # what a relaunch starts
+m.engine = chess.engine.SimpleEngine.popen_uci(m.args.executable)
+c = m.app.test_client(); S = chess.STARTING_FEN; out = {}
+def go(name, path, body):
+    r = c.post(path, json=body); out[name] = [r.status_code, (r.get_json() or {}).get('error')]
+go('cfg', '/configure', {'UCI_LimitStrength': True, 'UCI_Elo': 1500})
+go('illegal', '/analyse', {'fen': S, 'moves': 'e2e4 e2e4', 'time': 50})
+go('nonpseudo', '/analyse', {'fen': S, 'moves': 'e2e5', 'time': 50})
+go('null', '/analyse', {'fen': S, 'moves': '0000', 'time': 50})
+go('oppcheck', '/analyse', {'fen': '4k3/8/8/8/8/8/4R3/4K3 w - - 0 1', 'time': 50})
+go('nokings', '/analyse', {'fen': '8/8/8/8/8/8/4R3/8 w - - 0 1', 'time': 50})
+go('stalecastle', '/analyse', {'fen': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBN1 w KQkq - 0 1', 'time': 50})
+go('castle', '/analyse', {'fen': S, 'moves': 'e2e4 e7e5 g1f3 b8c6 f1c4 f8c5 e1g1', 'time': 50})
+before = open(log).read().splitlines().count('uci')
+go('dies', '/analyse', {'fen': S, 'moves': 'h2h3', 'time': 50})
+go('after', '/analyse', {'fen': S, 'time': 50})
+lines = open(log).read().splitlines()
+go('dies2', '/analyse', {'fen': S, 'moves': 'h2h3', 'time': 50})
+go('cfg_dead', '/configure', {'UCI_Elo': 1600})
+try:
+    m.engine.quit()
+except Exception:
+    pass
+out['positions'] = [l for l in lines if l.startswith('position')]
+out['launches'] = [before, lines.count('uci')]
+at = [i for (i, l) in enumerate(lines) if l == 'uci']
+out['reapplied'] = lines[at[before]:] if len(at) > before else []
+print(json.dumps(out))`;
+    const r = await new Promise(res => require('child_process').execFile('python3', ['-E', '-B', '-c', py, ROOT + '/src/scripts/remote-engine.py'],
+        {encoding: 'utf8', timeout: 60000, cwd: require('os').tmpdir()}, (e, stdout, stderr) => res({e, stdout, stderr})));
+    let got = null; try { got = JSON.parse(String(r.stdout).trim().split('\n').pop()); } catch (e) { got = (r.stderr || String(r.e)).slice(-300); }
+    if (got === null) { console.log('ok   REMOTEENGINE-2: skipped (no python3 with flask + python-chess here)'); return; }
+    const st = (k) => (got && got[k] || [])[0];
+    ok('REMOTEENGINE-2: a move list with an illegal move is a 400 naming the move, never sent to the engine',
+       st('illegal') === 400 && /move 2 \(e2e4\) is not legal/.test(got.illegal[1]) && st('nonpseudo') === 400 && st('null') === 400
+       && !(got.positions || []).some(p => / e2e5$| 0000$| e2e4 e2e4$/.test(p)), got);
+    ok('REMOTEENGINE-2: a position that is not chess (side not to move in check, no kings) is a 400',
+       st('oppcheck') === 400 && /opposite check/.test(got.oppcheck[1]) && st('nokings') === 400, [got.oppcheck, got.nokings]);
+    ok('REMOTEENGINE-2: ...while stale castling rights and a real castle still search', st('stalecastle') === 200 && st('castle') === 200, [got.stalecastle, got.castle]);
+    ok('REMOTEENGINE-2: an engine that dies on a search answers 503, and the next request starts it again and searches',
+       st('dies') === 503 && st('after') === 200 && got.launches[1] === got.launches[0] + 1, [got.dies, got.after, got.launches]);
+    ok('REMOTEENGINE-2: ...with the Elo cap the panel set on the old process',
+       (got.reapplied || []).includes('setoption name UCI_LimitStrength value true') && got.reapplied.includes('setoption name UCI_Elo value 1500'), got.reapplied);
+    ok('REMOTEENGINE-2: a /configure after the engine died starts it again too, not a 500', st('dies2') === 503 && st('cfg_dead') === 200, [got.dies2, got.cfg_dead]);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

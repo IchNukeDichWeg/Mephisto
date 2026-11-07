@@ -129,6 +129,34 @@ def take_options(keys):
     return refused
 
 
+def engine_dead():
+    try:
+        return engine.protocol.returncode.done()
+    except Exception:
+        return False
+
+
+def relaunch_if_dead():
+    # A DEAD ENGINE IS STARTED AGAIN (audit 3.1.331 REMOTEENGINE-2), as uci-native-host.py has done
+    # since audit 3.1.329 NATIVE-4. Once Stockfish exited (on a position it rejects, or killed), every
+    # later request answered 500 "engine event loop dead", a valid position too, until this script was
+    # restarted. The new process gets every option the old one took, from -o and from the panel.
+    global engine
+    if engine is None or not engine_dead():
+        return
+    print('the engine stopped - starting it again')
+    try:
+        engine.close()
+    except Exception:
+        pass
+    try:
+        engine = chess.engine.SimpleEngine.popen_uci(args.executable)
+    except Exception as ex:
+        raise chess.engine.EngineTerminatedError(f"couldn't start the engine again: {ex}")
+    for (key, value) in list(engine_options.items()):
+        set_option(key, value)
+
+
 def apply_option(opt):
     # Parse one CLI "NAME:VALUE" string, then apply it. Splits on the FIRST colon only, so values
     # containing ':' survive (Windows paths like C:\syzygy). Tolerates typos.
@@ -141,8 +169,17 @@ def apply_option(opt):
     set_option(key.strip(), value.strip())
 
 
+# What a position may get wrong and still be searched: Stockfish reads stale castling rights, a stale
+# en passant square and an impossible check without complaint (measured with Stockfish 19).
+PLAYABLE_ANYWAY = (chess.STATUS_BAD_CASTLING_RIGHTS | chess.STATUS_INVALID_EP_SQUARE
+                   | chess.STATUS_IMPOSSIBLE_CHECK | chess.STATUS_TOO_MANY_CHECKERS)
+
+
 def build_board(fen, moves):
-    # Build the position, raising ValueError with a clear message on bad input.
+    # Build the position, raising ValueError with a clear message on bad input. An illegal move or a
+    # position that is not chess (the side not to move in check, a missing king, a pawn on the back
+    # rank, nine pawns) is refused HERE: Stockfish answers one with CRITICAL ERROR and exits, and
+    # board.push() took any move at all, e2e5 from the start included (audit 3.1.331 REMOTEENGINE-2).
     variant = engine_options.get('UCI_Variant')
     if variant is None:
         board = chess.Board(fen)
@@ -151,8 +188,19 @@ def build_board(fen, moves):
     else:
         VariantBoard = chess.variant.find_variant(variant)
         board = VariantBoard(fen)
-    for move in (moves or '').split():
-        board.push(chess.Move.from_uci(move))
+    bad = board.status() & ~PLAYABLE_ANYWAY
+    if bad:
+        why = [name[7:].lower().replace('_', ' ') for name in dir(chess)
+               if name.startswith('STATUS_') and getattr(chess, name) & bad]
+        raise ValueError(f"not a legal position ({', '.join(why)})")
+    for (ply, move) in enumerate((moves or '').split(), 1):
+        try:
+            parsed = board.parse_uci(move)
+        except ValueError:
+            parsed = None
+        if not parsed:  # parse_uci returns the null move for '0000'
+            raise ValueError(f'move {ply} ({move}) is not legal in that position')
+        board.push(parsed)
     return board
 
 
@@ -259,6 +307,7 @@ def analyse():
             current_analysis.stop()
 
     with engine_lock:
+        relaunch_if_dead()
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
             return {'error': 'expected a JSON object in the request body'}, 400
@@ -353,7 +402,7 @@ def analyse():
                 out['refused_options'] = [key for (key, value) in sent if key in refused_keys]
             return out
         except chess.engine.EngineTerminatedError:
-            return {'error': 'the engine process stopped - restart this script'}, 503
+            return {'error': 'the engine process stopped on this position - it starts again on the next request'}, 503
 
 
 @app.route('/configure', methods=['POST'])
@@ -384,6 +433,7 @@ def configure():
         except Exception:
             pass
     with engine_lock:
+        relaunch_if_dead()
         # The keys the engine did not take ride back beside the options. An engine with no UCI_Elo
         # (Lc0) played at full strength while the panel showed the cap; this is how the panel learns
         # it did not apply (audit 3.1.330 follow-up L38).
@@ -411,6 +461,9 @@ def on_unexpected_error(e):
         resp.set_data(json.dumps({'error': f'{e.code} {e.name}: {e.description}'}))
         resp.content_type = 'application/json'
         return resp
+    if isinstance(e, chess.engine.EngineTerminatedError):  # died outside a search, or did not restart
+        print(f"engine stopped: {e}")
+        return {'error': f'the engine process stopped: {e}'}, 503
     print(f"unexpected error: {e}")
     return {'error': f'internal error: {e}'}, 500
 
