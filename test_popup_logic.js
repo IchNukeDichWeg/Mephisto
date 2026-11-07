@@ -13789,6 +13789,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /if \(forget\) forget\.disabled = true;\s*await eeUpdate\(target,/.test(rsrc)
        && /finally \{ btn\.disabled = false; if \(forget\) forget\.disabled = false; \}/.test(rsrc));
 })();
+// ---- audit 3.1.331 EEHOST-2: Check for update says it could not reach chess.com instead of "newest build" ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/ee-host.js', 'utf8');
+    const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const isrc = fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8');
+    const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+    const check = async (answer) => {
+        let calls = 0;
+        const c = vm.createContext({Promise, Number, Math, String, Error, Object, RegExp, setTimeout, console, navigator: {platform: 'MacIntel'},
+            fetch: async (url, opt) => { calls++; return answer(url.match(/explanation-engine\/([\d.]+)\//)[1], opt); }});
+        c.self = c;
+        vm.runInContext(isrc, c); c.MephistoI18n.setFallback(en);
+        const ee = vm.runInContext(src.replace(/^export \{[^}]*\};?\s*$/m, '') + '\n({eeCheckUpdate})', c);
+        try { return {v: await ee.eeCheckUpdate('1.124.57'), calls}; }
+        catch (e) { return {err: c.MephistoI18n.errMsg(e), calls}; }
+    };
+    const r03 = 'MPH-R03: ' + en['err.R03'];
+    const off = await check(async () => { throw new TypeError('Failed to fetch'); });
+    ok('EEHOST-2: offline, the check fails with "could not get an answer from chess.com", not a newest-build claim', off.err === r03, off);
+    const wall = await check(async () => ({ok: false, status: 403}));
+    ok('EEHOST-2: a 403 on the probes is the same error (no HTTP detail in the user line)', wall.err === r03 && wall.calls === 1, wall);
+    const none = await check(async () => ({ok: false, status: 404}));
+    ok('EEHOST-2: 404 on every probe still means "nothing newer" (the installed version comes back)', none.v === '1.124.57' && none.calls === 6, none);
+    const newer = await check(async (v) => ({ok: v === '1.125.0', status: v === '1.125.0' ? 200 : 404}));
+    ok('EEHOST-2: ...and a live 1.125.0 among 404s is found', newer.v === '1.125.0', newer);
+    ok('EEHOST-2: the update status line shows the coded, translated error', /eeSay\(`Could not update: \$\{MephistoI18n\.errMsg\(e\)\}`, true\);/.test(rsrc));
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

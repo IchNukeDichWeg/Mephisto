@@ -3269,7 +3269,7 @@ class ReviewPage {
                 eeFound = '';
                 await eeSync();
             } catch (e) {
-                eeSay(`Could not update: ${e.message || e}`, true);
+                eeSay(`Could not update: ${MephistoI18n.errMsg(e)}`, true);
             } finally { btn.disabled = false; if (forget) forget.disabled = false; }
         });
         $('rv_ee_get')?.addEventListener('click', async () => {

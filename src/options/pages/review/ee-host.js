@@ -178,9 +178,16 @@ function eeNewer(a, b) {
     return false;
 }
 
+// true = served, false = a 404 (how the CDN says a build does not exist, measured below). Anything
+// else -- offline, a bot wall's 403, a 5xx -- says nothing about the build and throws: read as
+// "absent", six failed probes became "v<installed> is the newest build" (audit 3.1.331 EEHOST-2).
 async function eeExists(v) {
-    try { return (await fetch(eeBase(v) + 'explanation-engine.js', {method: 'HEAD'})).ok; }
-    catch (e) { return false; }
+    let res;
+    try { res = await fetch(eeBase(v) + 'explanation-engine.js', {method: 'HEAD'}); }
+    catch (e) { throw self.MephistoI18n.fail('MPH-R03', null, `HEAD ${v}: ${e.message || e}`); }
+    if (res.ok) return true;
+    if (res.status === 404) return false;
+    throw self.MephistoI18n.fail('MPH-R03', null, `HEAD ${v}: HTTP ${res.status}`);
 }
 
 // Look for a newer build. chess.com publishes no directory listing and no `latest` alias -- both
