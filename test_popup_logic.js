@@ -15636,6 +15636,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        got.denied === 'prompt', got);
     ok('STORES-1: ...granted, prompt and no folder are unchanged', got.granted === 'granted' && got.prompt === 'prompt' && got.none === 'missing', got);
 })();
+// ---- audit 3.1.331 STORES-2: macOS '._' AppleDouble twins are not counted as tables (browser inventory and host tbinfo) ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const mem = new Map();
+    const c = vm.createContext({setTimeout, indexedDB: {open() { const req = {}; setTimeout(() => {
+        req.result = {close() {}, transaction() { const tx = {}; tx.objectStore = () => ({
+            put(v, k) { mem.set(k, v); return {result: k}; }, get(k) { return {result: mem.get(k)}; },
+            delete(k) { mem.delete(k); return {result: undefined}; }});
+            setTimeout(() => tx.oncomplete && tx.oncomplete()); return tx; }};
+        req.onsuccess(); }); return req; }}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/tb-store.js', 'utf8'), c);
+    const S = c.MephistoTbStore;
+    // a 3-4-5 subset copied from a Mac onto exFAT: every file has its '._' twin
+    const real = ['KQvK.rtbw', 'KRvK.rtbw', 'KQvKR.rtbw', 'KRPvKR.rtbw', 'KQvK.rtbz', 'KRPvKR.rtbz'];
+    await S.saveHandle({queryPermission: async () => 'granted',
+        async *values() { for (const n of real.concat(real.map(x => '._' + x))) yield {kind: 'file', name: n}; }});
+    const inv = await S.inventory();
+    const got = {tables: inv.tables, men: inv.men};
+    ok('STORES-2: the browser inventory counts the 4 real tables only, no invented 6- and 7-man ones',
+       JSON.stringify(got) === JSON.stringify({tables: 4, men: {3: 2, 4: 1, 5: 1}}), got);
+    ok('STORES-2: ...the real table names are still listed for the prober', inv.names.has('KRPvKR.rtbw') && inv.names.has('KQvK.rtbz'));
+    // the native host's tbinfo (Check's host route) uses the same rule
+    const host = fs.readFileSync(ROOT + '/native-host/uci-native-host.py', 'utf8');
+    const m = /\n(def do_tbinfo[\s\S]*?\n)(?=\S)/.exec(host);
+    const tmp = fs.mkdtempSync(require('os').tmpdir() + '/tbinfo-');
+    try {
+        for (const n of real.concat(real.map(x => '._' + x))) fs.writeFileSync(tmp + '/' + n, '');
+        const py = 'import os, json, sys\n' + (m ? m[1] : '') + '\nprint(json.dumps(do_tbinfo({"path": sys.argv[1]}), sort_keys=True))\n';
+        const out = require('child_process').execFileSync('python3', ['-c', py, tmp], {encoding: 'utf8'}).trim();
+        ok('STORES-2: the native host tbinfo counts the same 4 tables', JSON.stringify(JSON.parse(out)) === JSON.stringify({men: {3: 2, 4: 1, 5: 1}, tables: 4}), out);
+    } catch (e) { ok('STORES-2: the native host tbinfo counts the same 4 tables', false, String(e.message).slice(0, 200)); }
+    finally { fs.rmSync(tmp, {recursive: true, force: true}); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

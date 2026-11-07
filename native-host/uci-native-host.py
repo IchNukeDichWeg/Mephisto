@@ -440,9 +440,12 @@ def do_tbinfo(data):
     path = data.get('path') or ''
     if not path or not os.path.isdir(path):
         return {'error': 'folder not found'}
+    import re
     men = {}
     for f in os.listdir(path):
-        if f.endswith('.rtbw'):
+        # table names only: macOS '._KQvK.rtbw' AppleDouble twins on exFAT/FAT/SMB doubled the
+        # count and read as 6-7 man tables (audit 3.1.331 STORES-2); same rule as tb-store.js
+        if re.match(r'K[KQRBNP]*vK[KQRBNP]*\.rtbw\Z', f):
             n = len(f[:-5].replace('v', ''))
             men[n] = men.get(n, 0) + 1
     return {'men': men, 'tables': sum(men.values())}

@@ -75,7 +75,10 @@ async function inventory() {
     for await (const entry of handle.values()) {
         if (entry.kind !== 'file') continue;
         names.add(entry.name);
-        if (entry.name.endsWith('.rtbw')) {
+        // Only real table names: a folder copied from a Mac onto exFAT/FAT/SMB holds a '._KQvK.rtbw'
+        // AppleDouble twin per file, which doubled the count and, read as 5-7 men, invented 6- and
+        // 7-man tables and the too-large warning (audit 3.1.331 STORES-2). Same rule as the host.
+        if (/^K[KQRBNP]*vK[KQRBNP]*\.rtbw$/.test(entry.name)) {
             const n = entry.name.slice(0, -5).replace('v', '').length;
             men[n] = (men[n] || 0) + 1;
             tables++;
