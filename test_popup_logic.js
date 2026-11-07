@@ -13605,6 +13605,45 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW4PC-1: the 4-player move list and eval line print through scoreText, not cp/100',
        /scoreText\(m\.teamCpAfter\)/.test(rv) && /scoreText\(ev\.teamCp\)/.test(rv) && !/teamCpAfter \/ 100|ev\.teamCp \/ 100/.test(rv));
 })();
+// ---- audit 3.1.331 REVIEW4PC-2: FFA, a seat taken out with no `#`/`S` token (chess.com) does not get the next seat's move ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the REAL review-4pc.js over a fake host, with frames shaped like Tetrarch's pgn4.replay of a
+    // chess.com export: Yellow mates Green, no terminator, so frame 3 still says Green to move and
+    // the move out of it is Red's (Green is dead in frame 4)
+    const c = vm.createContext({console, setTimeout, Promise, Error, Map, Math, Array, Object, String, Number, JSON});
+    c.self = c;
+    const T = [true, true, true, true], nc = [false, false, false, false];
+    const fr = (i, turn, move, alive, check) => ({ply: i, fen4: 'f' + i, turn, alive: alive || T, move, token: move, check: check || nc});
+    const game = {variant: 'FFA', mode: '0', setup: 'classic', tags: {}, terminations: [{ply: 3, seat: 'G', reason: 'checkmate', implied: true}],
+        frames: [fr(0, 'R', null), fr(1, 'B', 'r1'), fr(2, 'Y', 'b1'), fr(3, 'G', 'y1', T, [false, false, false, true]),
+                 fr(4, 'B', 'r2', [true, true, true, false]), fr(5, 'Y', 'b2', [true, true, true, false])]};
+    const best = {f0: 'r1', f1: 'b1', f2: 'y1', f3: 'r2', f4: 'b2', f5: 'y3'};
+    c.chrome = {runtime: {connect() {
+        const L = [];
+        return {onMessage: {addListener: (f) => L.push(f)}, onDisconnect: {addListener() {}}, disconnect() {},
+            postMessage(m) { setTimeout(() => {
+                const r = m.cmd === 'pgn4' ? game : m.cmd === 'configure' ? {ok: true}
+                    : {bestmove: best[m.fen4], lines: [{move: best[m.fen4], score: 20}]};
+                L.forEach(f => f({...r, id: m.id}));
+            }, 0); }};
+    }}};
+    try {
+        vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+        vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-4pc.js', 'utf8'), c);
+        const r = await c.Mephisto4PC.runReview('x', {movetime: 50});
+        ok('REVIEW4PC-2: the move after an implied elimination is credited to the seat that played it (Red), not the dead one (Green)',
+           r.moves[3].seat === 'R' && r.moves[3].seatName === 'Red' && r.moves[3].group === 0, r.moves.map(m => m.seat));
+        ok('REVIEW4PC-2: ...so the engine-move tally is Red 2 of 2, Green 0 of 0',
+           r.matched[0].of === 2 && r.matched[0].hit === 2 && r.matched[3].of === 0, r.matched);
+        ok('REVIEW4PC-2: ...and that position\'s eval names Red as the side it is for',
+           r.evals[3].mover === 'R' && r.evals[2].mover === 'Y' && r.evals[5].mover === 'Y', r.evals.map(e => e.mover));
+    } catch (e) { fails++; console.log('FAIL REVIEW4PC-2: threw ' + e.message); }
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const i = rv.indexOf('function show4pcPly('), body = rv.slice(i, rv.indexOf('\n}\n', i));
+    ok('REVIEW4PC-2: the 4-player eval line names the mover the review resolved, not the frame\'s stuck seat',
+       /const side = ev\.mover \|\| f\.turn;/.test(body) && !/seatName\[f\.turn\]/.test(body));
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

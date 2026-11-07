@@ -104,6 +104,20 @@ function lineCp(l, MATE_CP) {
     return null;
 }
 
+// The seat that actually moves out of frame `f`. When the file carries no `#`/`S` token for a seat
+// left with no move (chess.com writes none), Tetrarch's replay takes that seat out WITHOUT a frame,
+// so `f.turn` still names the stuck seat while the move that follows is the next live seat's -- and
+// the engine, resolving the stuck seat on load, searches for that seat too. Taking `turn` as the
+// mover credited the next move, its eval and its tally to a seat already out of the game (audit
+// 3.1.331 REVIEW4PC-2). The mover is the first seat from `turn` on that is still alive after it.
+function moverOf(f, next) {
+    const alive = next && next.alive;
+    let k = SEATS.indexOf(f.turn);
+    if (!Array.isArray(alive) || k < 0) return f.turn;
+    for (let n = 0; n < SEATS.length; n++, k = (k + 1) % SEATS.length) if (alive[k]) return SEATS[k];
+    return f.turn;
+}
+
 // What the page prints for a score from this file: `#N` / `#-N` for a mate, pawns otherwise.
 function scoreText(cp) {
     if (typeof cp !== 'number') return null;
@@ -160,6 +174,7 @@ async function runReview(pgn4Text, {movetime = 1000, onProgress, isCancelled} = 
             teamCp: isFfa ? cp : toTeamCp(cp, frames[i].turn),
             best: (res.bestmove && res.bestmove !== '0000' ? res.bestmove : null) || lines[0]?.move || null,
             lines,
+            mover: moverOf(f, frames[i + 1]),   // whose search this is (REVIEW4PC-2)
         };
     }
 
@@ -167,7 +182,7 @@ async function runReview(pgn4Text, {movetime = 1000, onProgress, isCancelled} = 
     for (let i = 0; i + 1 < frames.length; i++) {
         const f = frames[i], next = frames[i + 1];
         if (!next.move) continue;                       // a terminator, not a move
-        const seat = f.turn;
+        const seat = moverOf(f, next);
         const rank = evals[i]?.lines?.findIndex(l => l.move === next.move);
         let winBefore = null, winAfter = null;
         if (isFfa) {

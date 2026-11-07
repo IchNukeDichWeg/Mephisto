@@ -856,8 +856,11 @@ function show4pcPly(ply) {
     $('rv4_ply').textContent = `ply ${fourpcPly} of ${r.frames.length - 1}`;
     // FFA scores are the mover's own outlook (paranoid search, not zero-sum); Teams scores are
     // normalised to one fixed team, so the label says which reading applies
-    $('rv4_evalline').textContent = `${r.seatName[f.turn] || f.turn} to move`
-        + (cp == null ? '' : (r.isFfa ? ` · ${cp} for ${r.seatName[f.turn] || f.turn}`
+    // the seat the review resolved as moving here: after an implied elimination `f.turn` is the
+    // stuck seat, not the one searched for (REVIEW4PC-2)
+    const side = ev.mover || f.turn;
+    $('rv4_evalline').textContent = `${r.seatName[side] || side} to move`
+        + (cp == null ? '' : (r.isFfa ? ` · ${cp} for ${r.seatName[side] || side}`
                                       : ` · ${cp} for ${r.teamNames[0]}`))
         + (ev.best ? ` · best ${ev.best}` : '');
     $('rv4_moves').querySelectorAll('.rv4-mv').forEach(el =>
