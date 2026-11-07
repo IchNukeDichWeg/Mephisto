@@ -4985,8 +4985,10 @@ function pgn_san_tokens(pgn) {
     let t = String(pgn || '').replace(/\r/g, '\n');
     t = t.replace(/^\s*%.*$/gm, ' ');            // escape-mechanism lines
     t = t.replace(/^\s*\[[^\]\n]*\]\s*$/gm, ' ');// header tags, whole lines only
-    t = t.replace(/;[^\n]*/g, ' ');              // rest-of-line comments
-    t = t.replace(/\{[^}]*\}/g, ' ');            // brace comments -- PGN braces do not nest
+    // Brace and rest-of-line comments in ONE left-to-right pass: whichever opens first wins, so a ';'
+    // inside {...} is just text (as the PGN spec has it) instead of eating the closing brace and, with
+    // it, every move up to the next '}' (audit 3.1.331 POPUP2-4). PGN braces do not nest.
+    t = t.replace(/\{[^}]*\}|;[^\n]*/g, ' ');
     // Variations DO nest, so one regex cannot do it: strip the innermost pair until none are left.
     // Bounded rather than while(true) -- a PGN with an unbalanced '(' would otherwise spin forever.
     for (let i = 0; i < 64 && /\([^()]*\)/.test(t); i++) t = t.replace(/\([^()]*\)/g, ' ');
@@ -5002,7 +5004,10 @@ function pgn_san_tokens(pgn) {
             .replace(/[!?]+$/, '')               // !, ?, !?, ?!, !!, ?? are commentary, not notation
             .replace(/^0-0-0/, 'O-O-O')          // some sources write castling with zeroes
             .replace(/^0-0/, 'O-O'))
-        .filter(tok => /^(?:[KQRBN][a-h1-8]?x?[a-h][1-8]|[a-h]x?[a-h]?[1-8](?:=[QRBN])?|O-O(?:-O)?)[+#]?$/.test(tok));
+        // a full from-square ("Qh4e1", three queens on one square's lines) and a promotion written
+        // without '=' ("e8Q") are both SAN that chess.js plays; dropping them made the NEXT move the
+        // one reported illegal (POPUP2-4)
+        .filter(tok => /^(?:[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h]x?[a-h]?[1-8](?:=?[QRBN])?|O-O(?:-O)?)[+#]?$/.test(tok));
 }
 
 // The game's result, in the notation everybody reads it in. Derived from the winner rather than
@@ -5025,8 +5030,15 @@ function bot_pgn_line(pgn) {
     const moves = pgn_san_tokens(text);
     if (!moves.length) return {error: i18n('panel.bot.pgn_unreadable', 'No moves found in that PGN.')};
     const check = new Chess();
+    // The page's own game.move() plays the list, so it gets chess.js's canonical SAN ("e8=Q", "Qhe1")
+    // rather than the looser spellings the tokenizer now lets through (audit 3.1.331 POPUP2-4).
+    const played = [];
     for (const san of moves) {
-        try { if (!check.move(san)) return {error: i18n('panel.bot.pgn_illegal', 'Illegal move in that PGN: {m}.', {m: san})}; }
+        try {
+            const m = check.move(san);
+            if (!m) return {error: i18n('panel.bot.pgn_illegal', 'Illegal move in that PGN: {m}.', {m: san})};
+            played.push(m.san);
+        }
         catch (e) { return {error: i18n('panel.bot.pgn_illegal', 'Illegal move in that PGN: {m}.', {m: san})}; }
     }
     // A GAME THAT DOES NOT END ITSELF IS NO LONGER REFUSED. Most real games stop by resignation or
@@ -5038,7 +5050,7 @@ function bot_pgn_line(pgn) {
     return {id: 'pgn', name: i18n('panel.bot.pgn_name', 'Your pasted game'),
             // A draw belongs to neither colour, so it plays from either side.
             winner: mated ? (check.turn() === 'w' ? 'black' : 'white') : null,
-            endWith: ends ? null : 'draw', moves};
+            endWith: ends ? null : 'draw', moves: played};
 }
 
 // The list the dropdown shows, pasted game included when there is one.

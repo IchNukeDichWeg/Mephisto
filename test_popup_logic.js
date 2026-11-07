@@ -12815,6 +12815,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('POPUP2-3: the in-page panel still decides from the page it runs in', run(true, '', 'https://www.chess.com/play/computer') === false
        && run(true, 'https://www.chess.com/play/computer', 'https://lichess.org/') === true);
 }
+// ---- audit 3.1.331 POPUP2-4: a pasted bot-trick PGN keeps its moves past a ';' in a brace comment, a full from-square and an '='-less promotion ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.search(new RegExp('^function ' + name + '\\(', 'm')); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(['pgn_san_tokens', 'bot_pgn_line'].map(fn).join('\n'), c);
+    const toks = (p) => vm.runInContext(`pgn_san_tokens(${JSON.stringify(p)})`, c);
+    const line = (p) => vm.runInContext(`bot_pgn_line(${JSON.stringify(p)})`, c);
+    const mate = '1. e4 e5 2. Qh5 { a comment; with semicolon } Nc6 3. Bc4 Nf6 4. Qxf7# 1-0';
+    ok('POPUP2-4: a ";" inside a brace comment is text, the moves after it survive', JSON.stringify(toks(mate)) === '["e4","e5","Qh5","Nc6","Bc4","Nf6","Qxf7#"]', toks(mate));
+    const l = line(mate);
+    ok('POPUP2-4: ...so the pasted mate is a won line, not a 2-move draw', l.moves && l.moves.length === 7 && l.winner === 'white' && l.endWith === null, l);
+    ok('POPUP2-4: a ";" comment still runs to the end of its line, a "{" in it included', JSON.stringify(toks('1. e4 ; note {\ne5 2. Nf3 }')) === '["e4","e5","Nf3"]', toks('1. e4 ; note {\ne5 2. Nf3 }'));
+    ok('POPUP2-4: a full from-square and an "="-less promotion are kept as moves', JSON.stringify(toks('50. Qh4e1 Kb2 51. e8Q Ka1 52. Qh4xe1')) === '["Qh4e1","Kb2","e8Q","Ka1","Qh4xe1"]',
+       toks('50. Qh4e1 Kb2 51. e8Q Ka1 52. Qh4xe1'));
+    const promo = line('1. e4 d5 2. exd5 c6 3. dxc6 Qd7 4. cxb7 Kd8 5. bxa8Q');
+    ok('POPUP2-4: ...and the line handed to the page is canonical SAN ("bxa8=Q" for "bxa8Q")', !promo.error && promo.moves[8] === 'bxa8=Q', promo);
+    ok('POPUP2-4: ...and the result marker and castles are still told apart', JSON.stringify(toks('1. e4 e5 2. O-O 0-0-0 1-0')) === '["e4","e5","O-O","O-O-O"]', toks('1. e4 e5 2. O-O 0-0-0 1-0'));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
