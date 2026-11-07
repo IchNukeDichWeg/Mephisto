@@ -5212,6 +5212,12 @@ function rotate_fen_180(fen) {
     }
 }
 
+// The same half-turn for one square name: a1 <-> h8, c6 <-> f3.
+function rotate_square_180(square) {
+    if (!/^[a-h][1-8]$/.test(square || '')) return square;
+    return String.fromCharCode(201 - square.charCodeAt(0)) + (9 - Number(square[1]));
+}
+
 // --- Follow the screen ---------------------------------------------------------------------------
 // Re-read the SAME rectangle on a timer, so a board that is playing on screen -- a video, a stream,
 // a game being shown in another app -- keeps the panel in step without capturing by hand each move.
@@ -5557,7 +5563,11 @@ async function snap_position(crop) {
     // model's second choice for that square, which is what a misread almost always is.
     // The flip notice leads rather than following: said afterwards, it replaced the chips on exactly
     // the reads most likely to need them. An automatic 180 must never happen quietly.
-    render_unsure(res.low || [], res.unresolved || [], auto_flipped ? i18n('panel.fen.auto_flipped',
+    // The recogniser names its unsure squares in the IMAGE frame; after the auto-flip each chip must
+    // name and edit the square it now stands on, or it swaps a piece onto the empty square opposite
+    // (audit 3.1.331 POPUP2-1 / VISION-1).
+    const low = (res.low || []).map(sq => auto_flipped ? {...sq, square: rotate_square_180(sq.square)} : sq);
+    render_unsure(low, res.unresolved || [], auto_flipped ? i18n('panel.fen.auto_flipped',
         'Read from screen - Black was at the bottom, so the board was turned round. Flip board undoes it.') : '');
     last_eval.fen = ''; prev_ply_count = 0;
     opp_spend = opp_clock_mark = last_our_eval = null; opp_turn_at = 0;

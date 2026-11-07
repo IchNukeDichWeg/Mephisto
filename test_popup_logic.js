@@ -4733,7 +4733,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
 const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('the notice is passed in, and nothing overwrites the chips afterwards',
-       /render_unsure\(res\.low \|\| \[\], res\.unresolved \|\| \[\], auto_flipped \? i18n\('panel\.fen\.auto_flipped'/.test(psrc)
+       /render_unsure\(low, res\.unresolved \|\| \[\], auto_flipped \? i18n\('panel\.fen\.auto_flipped'/.test(psrc)
        && !/if \(auto_flipped\) setup_fen_msg/.test(psrc) && /el\.textContent = lead \|\|/.test(psrc));
 }
 // ---- OPT-3: Game Review keeps the chosen engine across a page open ----
@@ -12740,6 +12740,39 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('POPUP1-4: on_engine_best_move announces "White Wins - three checks delivered", not a draw', shown.some(t => t === 'White Wins - three checks delivered') && !shown.some(t => /Draw|Stalemate/.test(t)), shown);
     } catch (e) { ok('POPUP1-4: harness ran', false, e.message); }
 }
+// ---- audit 3.1.331 POPUP2-1 / VISION-1: after Read Position auto-turns a Black-side board, the unsure chips name the turned squares ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.search(new RegExp('^(async )?function ' + name + '\\(', 'm')); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({console, Promise, String, Number, Math, Date}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    // 1.e4 e5 2.Nf3 imaged from Black's side: in the image the white knight on f3 sits at c6
+    const real = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R';
+    let chips = null, err = null;
+    try {
+        vm.runInContext(`var config = {variant: 'chess'}, setup_fen = '', snap_crop = null, last_eval = {}, prev_ply_count, opp_spend, opp_clock_mark,
+            last_our_eval, opp_turn_at, explorer_out_of_book, explorer_data, explorer_empty_streak, turn, setup_view, snap_flipped;
+            var ENGINE_CLIENT = 'x', PANEL_ROOT = {getElementById: () => null}, board = {orientation() {}}, chips = null;
+            var setup_fen_msg = () => {}, request_drag_select = () => {}, stash_setup_state = () => {}, update_snap_follow_button = () => {},
+                panel_line_reset = () => {}, abandon_search = () => {}, on_new_pos = () => {}, is_legal_position = () => true,
+                resolve_click_tab = async () => 1, err_line = (k) => k, err_code_line = () => '', download_progress_text = () => '',
+                render_unsure = (low) => { chips = low; };
+            ` + fn('rotate_fen_180') + fn('rotate_square_180') + fn('snap_position'), c);
+        const image = vm.runInContext(`rotate_fen_180(${JSON.stringify(real + ' w - - 0 1')}).split(' ')[0]`, c);
+        c.chrome = {runtime: {onMessage: {addListener() {}, removeListener() {}},
+            sendMessage: async () => ({placement: image, upsideDown: true, unresolved: [],
+                low: [{square: 'c6', piece: 'N', prob: 0.55, alt: 'B', altProb: 0.3}]})}};
+        await vm.runInContext('snap_position({x: 0, y: 0, w: 8, h: 8})', c);
+        chips = vm.runInContext('chips', c);
+    } catch (e) { err = e.message; }
+    const fen = err ? null : vm.runInContext('setup_fen', c);
+    ok('POPUP2-1: the auto-turned read puts the knight back on f3', fen === real + ' w - - 0 1', err || fen);
+    const at = fen && chips && chips[0] ? vm.runInContext(`new Chess('chess', ${JSON.stringify(fen)}).get(${JSON.stringify(chips[0].square)})`, c) : null;
+    ok('POPUP2-1: ...and its unsure chip names f3, the square the knight stands on now (not c6, the image square)',
+       chips && chips[0] && chips[0].square === 'f3' && at && at.type === 'n' && at.color === 'w', err || [chips, at]);
+    ok('POPUP2-1: ...keeping the runner-up the click applies', chips && chips[0] && chips[0].alt === 'B' && chips[0].prob === 0.55, chips);
+})().catch(e => { fails++; console.log('FAIL POPUP2-1 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
