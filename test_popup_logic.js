@@ -14064,6 +14064,27 @@ globalThis.largeBoardTable = () => {
            [refused, h.el('an_lg_status').textContent]);
     } catch (e) { fails++; console.log('FAIL LARGEBOARD-2: the harness threw ' + e.message); }
 })();
+// ---- audit 3.1.331 LARGEBOARD-3: the engine-lines column stops saying "thinking…" when nothing will search ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    if (!globalThis.largeBoardHarness) { fails++; return console.log('FAIL LARGEBOARD-3: the LARGEBOARD-1 harness is missing'); }
+    const T = largeBoardTable();
+    try {
+        let h = largeBoardHarness(T);
+        h.L.showLargeGame('shogi', h.opts); await h.settle();
+        const live = h.text('an_lg_lines');
+        h.sq(2, 2); h.sq(2, 3); await h.settle();
+        h.sq(6, 6); h.sq(6, 5); await h.settle();          // into the no-moves position
+        ok('LARGEBOARD-3: a game-over position shows "not running" in the lines column and meta, not "thinking…"',
+           live === 'thinking…' && h.text('an_lg_lines') === 'not running' && h.el('an_lg_meta').textContent === 'not running',
+           [live, h.text('an_lg_lines'), h.el('an_lg_meta').textContent]);
+        h = largeBoardHarness(T, {failStart: true});
+        h.L.showLargeGame('xiangqi', h.opts); await h.settle();
+        ok('LARGEBOARD-3: ...and so does an engine that failed to start, with the reason in the status line',
+           h.el('an_lg_status').textContent === 'Failed to fetch dynamically imported module' && h.text('an_lg_lines') === 'not running'
+           && h.el('an_lg_meta').textContent === 'not running', [h.el('an_lg_status').textContent, h.text('an_lg_lines')]);
+    } catch (e) { fails++; console.log('FAIL LARGEBOARD-3: the harness threw ' + e.message); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

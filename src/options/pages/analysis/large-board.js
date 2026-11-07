@@ -207,7 +207,10 @@ function refresh() {
     // move and every later one were listed but never played (audit 3.1.331 LARGEBOARD-1).
     const gen = ++posGen;
     legal = []; selected = null;
-    chain = chain.then(() => refreshNow(want, gen)).catch(e => status(String(e.message || e), 'err'));
+    chain = chain.then(() => refreshNow(want, gen)).catch(e => {
+        status(String(e.message || e), 'err');
+        renderLines(null, 'not running');    // see renderLines: nothing is searching after a failure
+    });
     return chain;
 }
 
@@ -235,7 +238,10 @@ async function refreshNow(want, gen) {
     if (fenBox && document.activeElement !== fenBox) fenBox.value = curFen;
     render();
     renderMoves();
-    if (!legal.length) return status(t('an.lg_no_moves', 'No legal moves: the side to move has lost.'));
+    if (!legal.length) {
+        renderLines(null, 'not running');
+        return status(t('an.lg_no_moves', 'No legal moves: the side to move has lost.'));
+    }
     const o = getOpts();
     const at = curFen, turn = view.turn;
     live = e.startInfinite(positionCmd().replace(/^position fen /, ''), turn, (res) => {
@@ -356,9 +362,13 @@ function drawArrow() {
     g.innerHTML = `<line x1="${fx}" y1="${fy}" x2="${fx + (tx - fx) * k}" y2="${fy + (ty - fy) * k}" class="an-lg-best" marker-end="url(#an-lg-head)"/>`;
 }
 
-function renderLines(res) {
+// `idle` names an end state (no search will run) for the empty column: renderLines(null) alone says
+// "thinking…", which stayed up for good on a game-over position and after the engine failed to
+// start, while the status line already said why (audit 3.1.331 LARGEBOARD-3; analysis.js has the
+// same "not running" row since 3.1.321 F1).
+function renderLines(res, idle) {
     const host = $('an_lg_lines'), meta = $('an_lg_meta');
-    if (meta) meta.textContent = res ? `depth ${res.depth}${res.nodes ? ` · ${(res.nodes / 1000).toFixed(0)}k` : ''}${res.done ? ' · done' : ''}` : '';
+    if (meta) meta.textContent = idle ? idle : res ? `depth ${res.depth}${res.nodes ? ` · ${(res.nodes / 1000).toFixed(0)}k` : ''}${res.done ? ' · done' : ''}` : '';
     const h = $('an_lg_lines_h');
     if (h && game) h.textContent = t('an.lg_lines', 'Engine lines, scored for {side}',
         {side: game === 'shogi' ? t('an.lg_sente', 'Sente') : t('an.lg_red', 'Red')});
@@ -371,7 +381,7 @@ function renderLines(res) {
             <span class="an-lrank">${i + 1}</span>
             <span class="an-lmove">${esc(l.pv[0])} <span class="an-lpv">${esc(l.pv.slice(1, 10).join(' '))}</span></span>
             <span class="an-lval">${esc(val)}</span></div>`;
-    }).join('') : '<div class="an-lrow"><span></span><span class="an-lval">thinking…</span><span></span></div>';
+    }).join('') : `<div class="an-lrow"><span></span><span class="an-lval">${esc(idle || 'thinking…')}</span><span></span></div>`;
 }
 
 function renderMoves() {
