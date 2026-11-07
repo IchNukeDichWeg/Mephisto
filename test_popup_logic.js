@@ -13026,6 +13026,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('POPUP3-4: ...and the next 4PC page is followed again', poll(true) === 'tetrarch-native');
     ok('POPUP3-4: ...and leaving it restores the engine you had', poll(false) === 'stockfish-19-nnue', c.config.engine);
 }
+// ---- audit 3.1.331 CONTENT1-1: an automove's timing does not leak into the in-page panel's own config ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = cs.indexOf('function handleExtensionMessage(');
+    let src = '';
+    for (let d = 0, k = cs.indexOf('{', i); k < cs.length; k++) { if (cs[k] === '{') d++; else if (cs[k] === '}' && !--d) { src = cs.slice(i, k + 1); break; } }
+    // the real handler, every free name it reaches resolved through one scope: explicit state below,
+    // any other non-global name a no-op that returns a settled promise (the click simulators chain .catch/.finally)
+    const vars = {moving: false, movingSince: 0, movingSpeculative: false, config: null, location: {pathname: '/game/1', href: ''},
+        document: {visibilityState: 'visible', hasFocus: () => true}, console: {log() {}, warn() {}},
+        tabActive: () => true, boardStillMatchesAnalysis: () => true, beginMoving: () => 1, is4PCGame: () => false};
+    const scope = new Proxy(vars, {has: (t, k) => (k in t) || !(k in globalThis),
+        get: (t, k) => (k in t) ? t[k] : (k === Symbol.unscopables ? undefined : () => Promise.resolve()),
+        set: (t, k, v) => { t[k] = v; return true; }});
+    let handle = null;
+    try { handle = new Function('scope', 'with (scope) { return (' + src + '); }')(scope); } catch (e) { console.log('     ' + e.message); }
+    const panel = {autoplay: true, background_play: true, move_time: 400, move_variance: 400, think_time: 0, think_variance: 0};
+    try {
+        handle({pushConfig: true, config: panel}, null, () => {});   // send_to_active_tab in-page: same object, same realm
+        handle({automove: true, move: 'e2e4', verify: true, timing: {think_time: 0, think_variance: 0, move_time: 200, move_variance: 0}}, null, () => {});
+    } catch (e) { panel.threw = e.message; }
+    ok('CONTENT1-1: a time-trouble move\'s timing (200/0) leaves the panel\'s own Move Time / Variance at 400/400',
+       panel.move_time === 400 && panel.move_variance === 400 && !panel.threw, panel);
+    ok('CONTENT1-1: ...and the content script still clicks that move with the timing it was sent',
+       vars.config && vars.config !== panel && vars.config.move_time === 200 && vars.config.move_variance === 0, vars.config);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

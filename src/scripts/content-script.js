@@ -382,7 +382,12 @@ function handleExtensionMessage(response, sender, sendResponse) {
             console.warn('Mephisto: automove failed:', e);
         }
     } else if (response.pushConfig) {
-        config = response.config;
+        // A COPY. The in-page panel calls handle() in this same realm, so `response.config` IS the
+        // panel's own config object, and the automove's Object.assign(config, response.timing) then
+        // wrote one move's paced/time-trouble timing into the panel's settings, where fresh_timing
+        // falls back to it for every later move (audit 3.1.331 CONTENT1-1). The toolbar popup's
+        // messages are already copies; this makes the in-page path behave the same.
+        config = {...response.config};
         applyHideOpponent(!!config.hide_opponent); // follows the setting on every config push
         syncUserArrowWatch();                      // Evals on Your Arrows, likewise
         maybeCheckStreamer();   // opt-in; one lookup per opponent, skipped entirely when off
