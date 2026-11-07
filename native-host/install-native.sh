@@ -149,6 +149,11 @@ installed=0
 # install (no python-chess) died here before Tetrarch was registered (audit 3.1.330 NATIVEB-1).
 for spec in ${SPECS[@]+"${SPECS[@]}"}; do
   IFS='|' read -r slug bin nnue home flag <<< "$spec"
+  # a folder passes -x, and its `cp` below then aborted the whole run under set -e, before any
+  # manifest was written: the stockfishchess.org download unpacks to one (audit 3.1.331 INSTALLSH-4)
+  if [ -n "$bin" ] && [ -d "$bin" ]; then
+    echo "-- skipping $slug ($bin is a folder: pass ${flag:+$flag }the engine binary inside it)"; continue
+  fi
   if [ -z "$bin" ] || [ ! -x "$bin" ]; then
     # the flag comes from the spec: deriving it from the slug suggested --sf and --rodent, which the
     # parser above rejects as unknown (audit 3.1.330 NATIVEB-4)
