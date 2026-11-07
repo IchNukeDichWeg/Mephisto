@@ -12773,6 +12773,26 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        chips && chips[0] && chips[0].square === 'f3' && at && at.type === 'n' && at.color === 'w', err || [chips, at]);
     ok('POPUP2-1: ...keeping the runner-up the click applies', chips && chips[0] && chips[0].alt === 'B' && chips[0].prob === 0.55, chips);
 })().catch(e => { fails++; console.log('FAIL POPUP2-1 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 POPUP2-2: Follow Screen explains a castle from a screen-read seed, so the side to move passes on ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.search(new RegExp('^function ' + name + '\\(', 'm')); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext("var config = {variant: 'chess'};" + ['flip_fen_turn', 'apply_castling_rights', 'follow_infer_ply'].map(fn).join('\n'), c);
+    const infer = (prev, placement) => vm.runInContext(`follow_infer_ply(${JSON.stringify(prev)}, ${JSON.stringify(placement)})`, c);
+    // a screen read is seeded "w - - 0 1"; White then castles short, then Black castles long
+    const seed = 'r3k1nr/pppq1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w - - 0 1';
+    const oo = infer(seed, 'r3k1nr/pppq1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1');
+    ok('POPUP2-2: White castling is explained from a rights-less seed, with Black to move after it', !!oo && oo.split(' ')[1] === 'b', oo);
+    const ooo = oo && infer(oo, '2kr2nr/pppq1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1');
+    ok('POPUP2-2: ...and Black\'s long castle after it too, with White to move', !!ooo && ooo.split(' ')[1] === 'w', ooo);
+    // nothing gets invented: a placement no move explains stays unexplained, and a plain move still needs no rights
+    ok('POPUP2-2: a jump of two plies is still unexplained', infer(seed, 'r3k1nr/pppq1ppp/2n5/2b1p3/2B1P3/2N2N2/PPPP1PPP/R1BQ1RK1') === null);
+    const nc3 = infer(seed, 'r3k1nr/pppq1ppp/2n5/2b1p3/2B1P3/2N2N2/PPPP1PPP/R1BQK2R');
+    ok('POPUP2-2: ...and an ordinary move is explained as before', !!nc3 && /^\S+ b - - /.test(nc3), nc3);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

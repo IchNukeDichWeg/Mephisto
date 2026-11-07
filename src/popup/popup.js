@@ -5308,7 +5308,13 @@ function follow_infer_ply(prevFen, placement) {
             return (hits.length === 1) ? hits[0] : null;
         } catch (e) { return null; }
     };
-    return from_side(prevFen) || from_side(flip_fen_turn(prevFen));
+    const hit = from_side(prevFen) || from_side(flip_fen_turn(prevFen));
+    if (hit) return hit;
+    // A screen read is seeded with no castling rights, so a castle never matched and each one sat
+    // unexplained until the re-seed handed the move back to the side that had just castled (audit
+    // 3.1.331 POPUP2-2). Retry with the rights the home squares allow, as the page scrape infers them.
+    const with_rights = apply_castling_rights(prevFen);
+    return with_rights === prevFen ? null : (from_side(with_rights) || from_side(flip_fen_turn(with_rights)));
 }
 
 let snap_last_error = null;    // dedupe the read-failure warning
