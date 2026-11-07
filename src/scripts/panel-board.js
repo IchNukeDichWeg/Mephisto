@@ -113,7 +113,9 @@
                 const sqEl = el && el.closest && el.closest('.square-55d63');
                 const to = sqEl && [...sqEl.classList].map(c => c.match(/^square-([a-h][1-8])$/))
                     .find(Boolean)?.[1];
-                selected = null;
+                // targets too, as squareClicked does: left set, the next render drew the dots of an
+                // earlier click with nothing selected (audit 3.1.331 PANELBOARD-2)
+                selected = null; targets = [];
                 if (to && to !== from) { if (submitMove(from, to) === false) render(); }
                 else render();
             };

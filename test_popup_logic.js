@@ -15363,6 +15363,46 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     sq('e3').on.click();
     ok('...and a click on a stale dot plays no move from the now-empty e2', log.length === 0, log);
 }
+// ---- audit 3.1.331 PANELBOARD-2: a drag after a click leaves no legal-move dots behind ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pb = fs.readFileSync(ROOT + '/src/scripts/panel-board.js', 'utf8');
+    const el = (tag) => ({tag, style: {}, classList: [], children: [], on: {}, className: '',
+        appendChild(c) { this.children.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; }, remove() { this.gone = true; }});
+    const host = el('div'); host.clientWidth = 400;
+    Object.defineProperty(host, 'innerHTML', {set() { host.children = []; }});
+    const win = {};
+    let under = null;   // the square the pointer is released over (null = off the board)
+    const c = vm.createContext({Math, requestAnimationFrame() {}, window: {addEventListener: (t, f) => { win[t] = f; }, removeEventListener() {}},
+        document: {createElement: el, body: el('body'),
+                   elementFromPoint: () => under && {closest: () => ({classList: ['square-55d63', 'square-' + under]})}}});
+    c.self = c;
+    vm.runInContext(pb, c);
+    let accept = false; const log = [];
+    const b = c.MephistoBoard(host, {position: 'start', onMove: (f, t) => { log.push(f + t); return accept; },
+        legalTargets: (sq) => sq === 'e2' ? ['e3', 'e4'] : []});
+    const sq = (alg) => host.children[0].children[8 - +alg[1]].children['abcdefgh'.indexOf(alg[0])];   // white at the bottom
+    const shown = () => { const sel = [], dots = [];
+        for (const f of 'abcdefgh') for (let r = 1; r <= 8; r++) { const s = sq(f + r);
+            if (s.style.boxShadow) sel.push(f + r);
+            if (s.children.some(x => x.tag === 'div')) dots.push(f + r); }
+        return {sel, dots: dots.sort()}; };
+    const drag = (from, to) => { under = to; sq(from).on.pointerdown({button: 0, clientX: 10, clientY: 10, preventDefault() {}});
+        win.pointermove({clientX: 60, clientY: 60}); win.pointerup({clientX: 60, clientY: 60}); };
+    sq('e2').on.click();
+    ok('PANELBOARD-2: clicking e2 dots e3 and e4', JSON.stringify(shown()) === '{"sel":["e2"],"dots":["e3","e4"]}', shown());
+    drag('g1', null);
+    ok('PANELBOARD-2: a drag cancelled off the board leaves no dots from the earlier click', JSON.stringify(shown()) === '{"sel":[],"dots":[]}', shown());
+    sq('e2').on.click();
+    drag('g1', 'f3');
+    ok('PANELBOARD-2: a rejected drag leaves no dots either', log.join() === 'g1f3' && JSON.stringify(shown()) === '{"sel":[],"dots":[]}', [log, shown()]);
+    sq('e2').on.click(); accept = true;
+    drag('e2', 'e4');
+    b.position(b.position());   // the caller's re-render; a same placement keeps a live selection (PANELBOARD-1)
+    sq('e3').on.click();
+    ok('...and after an accepted drag and a re-render, no dots, and a click where one was plays nothing',
+       log.join() === 'g1f3,e2e4' && JSON.stringify(shown()) === '{"sel":[],"dots":[]}', [log, shown()]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
