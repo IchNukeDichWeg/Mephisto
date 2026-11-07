@@ -13679,6 +13679,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('REVIEW4PC-3: ...an old host that sends no setup gets no Setup option (the engine keeps its own)', none.n === 1 && !('Setup' in none.opts), none);
     } catch (e) { fails++; console.log('FAIL REVIEW4PC-3: threw ' + e.message); }
 })();
+// ---- audit 3.1.331 REVIEW4PC-4: a PGN4 the host refuses names the move that broke, not only its token ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const dir = ROOT + '/src/i18n/locales', locs = Object.fromEntries(fs.readdirSync(dir).map(f => [f.slice(0, -5), JSON.parse(fs.readFileSync(dir + '/' + f, 'utf8'))]));
+    // the REAL review-4pc.js; the fake host answers the pgn4 the way tetrarch-host.py do_pgn4 does
+    const shown = async (reply, lang) => {
+        const c = vm.createContext({console, setTimeout, Promise, Error, Map, Math, Array, Object, String, Number, JSON});
+        c.self = c;
+        c.chrome = {runtime: {connect() {
+            const L = [];
+            return {onMessage: {addListener: (f) => L.push(f)}, onDisconnect: {addListener() {}}, disconnect() {},
+                postMessage(m) { setTimeout(() => L.forEach(f => f({...reply, id: m.id, done: true})), 0); }};
+        }}};
+        if (lang) {
+            vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+            c.MephistoI18n.setFallback(locs.en); c.MephistoI18n.setStrings(lang, locs[lang]);
+        }
+        vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+        vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-4pc.js', 'utf8'), c);
+        try { await c.Mephisto4PC.runReview('x'); return 'no error'; } catch (e) { return e.message; }
+    };
+    const exp = (lang) => locs[lang]['rv.4pc_error_at_ply'] ? locs[lang]['rv.4pc_error_at_ply'].replace('{error}', 'Qn8-m3 is not legal for G here').replace('{n}', '8') : 'no key';
+    const bad = {error: 'Qn8-m3 is not legal for G here', ply: 7};
+    let m = await shown(bad);
+    ok('REVIEW4PC-4: the host\'s error keeps its words and gains the move it broke at (the 8th written, 0-based ply 7)',
+       m.startsWith('Qn8-m3 is not legal for G here') && /\bmove 8\b/.test(m), m);
+    m = await shown(bad, 'en');
+    ok('REVIEW4PC-4: ...through i18n, English', m === exp('en'), m);
+    m = await shown(bad, 'de');
+    ok('REVIEW4PC-4: ...and in the page language', m === exp('de') && m !== exp('en'), m);
+    m = await shown({error: 'Tetrarch package unavailable (x): y', ply: null});
+    ok('REVIEW4PC-4: an error with no ply is passed through as it was', m === 'Tetrarch package unavailable (x): y', m);
+    const miss = Object.entries(locs).filter(([k, l]) => !/\{error\}/.test(l['rv.4pc_error_at_ply'] || '') || !/\{n\}/.test(l['rv.4pc_error_at_ply'])
+        || (k !== 'en' && l['rv.4pc_error_at_ply'] === locs.en['rv.4pc_error_at_ply'])).map(([k]) => k);
+    ok('REVIEW4PC-4: the message is translated in all 14 locales, each keeping {error} and {n}', Object.keys(locs).length === 14 && miss.length === 0, miss);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -39,7 +39,7 @@ function connect() {
         }
         const p = frame && pending.get(frame.id);
         if (!p) return;
-        if (frame.error) { pending.delete(frame.id); p.reject(new Error(frame.error)); return; }
+        if (frame.error) { pending.delete(frame.id); p.reject(new Error(errorText(frame))); return; }
         if (frame.info) { if (p.onInfo) p.onInfo(frame.info); return; }   // streamed depth update
         pending.delete(frame.id);
         p.resolve(frame);
@@ -50,6 +50,18 @@ function connect() {
         pending.clear();
     });
     return port;
+}
+
+// The host's error, with the move it broke at when it names one. A bad PGN4 comes back as
+// {error, ply}, and the parser's words name only the token and the seat, so dropping `ply` left a
+// repeated token (a king or rook shuffle) impossible to find (audit 3.1.331 REVIEW4PC-4). `ply` is
+// the 0-based index of the token in the file, every seat's move (and any `#`/`S`/`R` token) counted.
+function errorText(frame) {
+    if (typeof frame.ply !== 'number') return frame.error;
+    const vars = {error: frame.error, n: frame.ply + 1};
+    const en = "{error} (move {n}, counting every player's move from the start)";
+    const I = self.MephistoI18n;
+    return I && I.t ? I.t('rv.4pc_error_at_ply', en, vars) : en.replace(/\{(\w+)\}/g, (m, k) => String(vars[k]));
 }
 
 function send(cmd, data, onInfo) {

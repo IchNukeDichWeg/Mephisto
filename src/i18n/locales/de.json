@@ -297,6 +297,7 @@
   "rv.run": "Start",
   "rv.analyse": "Partie analysieren",
   "rv.note_4pc": "4-Spieler-Schach: Füge oben eine chess.com-PGN4 ein und drücke Partie analysieren. Die Stellungen werden von der Tetrarch-Engine über ihren nativen Host nachgespielt und durchsucht, daher muss der Host installiert sein (siehe README-Abschnitt „Four-player chess“). Teams und Jeder-gegen-jeden werden beide ausgewertet; FFA-Bewertungen gelten für den Ziehenden selbst (zwischen Sitzen nicht vergleichbar), und die Karten zählen, wie oft jeder Sitz den Zug der Engine gespielt hat -- die Engine bewertet in FFA derzeit eine Variante. Kein menschliches Modell und keine Spielstärke-Schätzung für 4-Spieler.",
+  "rv.4pc_error_at_ply": "{error} (Zug {n}, die Züge aller Spieler ab Beginn gezählt)",
   "rv.stop": "Stopp",
   "rv.export": "Bericht exportieren",
   "rv.flip": "Drehen",

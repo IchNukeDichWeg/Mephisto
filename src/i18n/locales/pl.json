@@ -297,6 +297,7 @@
   "rv.run": "Uruchom",
   "rv.analyse": "Analizuj partię",
   "rv.note_4pc": "Szachy dla 4 graczy: wklej powyżej PGN4 z chess.com i naciśnij Analizuj partię. Pozycje są odtwarzane i przeszukiwane przez silnik Tetrarch przez jego natywnego hosta, więc host musi być zainstalowany (zobacz sekcję „Four-player chess” w README). Analizowane są zarówno Drużyny, jak i każdy na każdego; wyniki FFA są własne dla wykonującego ruch (nieporównywalne między miejscami), a karty liczą, jak często każde miejsce zagrało ruch silnika -- silnik ocenia dziś w FFA jeden wariant. Brak modelu ludzkiego i szacunku siły gry dla 4 graczy.",
+  "rv.4pc_error_at_ply": "{error} (ruch {n}, licząc ruchy wszystkich graczy od początku)",
   "rv.stop": "Zatrzymaj",
   "rv.export": "Eksportuj raport",
   "rv.flip": "Obróć",

@@ -297,6 +297,7 @@
   "rv.run": "Lancer",
   "rv.analyse": "Analyser la partie",
   "rv.note_4pc": "Échecs à 4 joueurs : collez un PGN4 de chess.com ci-dessus et appuyez sur Analyser la partie. Les positions sont rejouées et cherchées par le moteur Tetrarch via son hôte natif, l'hôte doit donc être installé (voir la section « Four-player chess » du README). Équipes et chacun pour soi sont tous deux analysés ; les scores FFA sont ceux du joueur au trait (non comparables d'un siège à l'autre), et ses cartes comptent combien de fois chaque siège a joué le coup du moteur -- le moteur n'évalue aujourd'hui qu'une ligne en FFA. Pas de modèle humain ni d'estimation de force pour le jeu à 4.",
+  "rv.4pc_error_at_ply": "{error} (coup {n}, en comptant les coups de tous les joueurs depuis le début)",
   "rv.stop": "Arrêter",
   "rv.export": "Exporter le rapport",
   "rv.flip": "Retourner",

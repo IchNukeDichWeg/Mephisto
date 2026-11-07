@@ -297,6 +297,7 @@
   "rv.run": "Avvia",
   "rv.analyse": "Analizza partita",
   "rv.note_4pc": "Scacchi a 4 giocatori: incolla sopra un PGN4 di chess.com e premi Analizza partita. Le posizioni vengono rigiocate e cercate dal motore Tetrarch tramite il suo host nativo, quindi l'host deve essere installato (vedi la sezione «Four-player chess» del README). Si analizzano sia Squadre sia tutti contro tutti; i punteggi FFA sono del giocatore che muove (non confrontabili tra posti), e le sue schede contano quante volte ogni posto ha giocato la mossa del motore -- oggi il motore valuta una linea in FFA. Nessun modello umano né stima della forza per i 4 giocatori.",
+  "rv.4pc_error_at_ply": "{error} (mossa {n}, contando le mosse di tutti i giocatori dall'inizio)",
   "rv.stop": "Ferma",
   "rv.export": "Esporta rapporto",
   "rv.flip": "Ruota",
