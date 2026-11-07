@@ -7152,7 +7152,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext(`var config = {engine: 'remote'}; var remote_multipv_set = null;
         function uses_native() { return false; } function uses_cloud() { return false; }
         async function call_backend(url, data) { posted.push([url, data]); return {}; }
-        function parse_backend_json(x) { return x; }
+        function parse_backend_json(x) { return x; } function remote_engine_options() { return {}; }
         ${psrc.slice(r, re)}`, rc);
     (async () => {
         await vm.runInContext(`request_remote_analysis('startfen', 25000, 'e2e4', null, 2000000)`, rc);
@@ -9460,7 +9460,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     c.MephistoI18n.setFallback(JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8')));
     vm.runInContext(`var config = {engine: 'remote'}; var remote_multipv_set = null; var chrome = {runtime: {sendMessage: async () => answer}};
         function uses_native() { return false; } function uses_cloud() { return false; }
-        function update_best_move(t) { shown.push(t); } function toggle_calculating() {}
+        function update_best_move(t) { shown.push(t); } function toggle_calculating() {} function remote_engine_options() { return {}; }
         ${psrc.slice(e1, e2)} ${fn('async function call_backend(')} ${fn('async function parse_backend_json(')}
         ${fn('async function request_remote_analysis(')} ${fn('function on_remote_error(')}`, c);
     const ask = async (status, body) => {
@@ -12167,7 +12167,7 @@ print(json.dumps(seen))`;
     vm.runInContext(`var config = {engine: 'remote'}; var remote_multipv_set = 5;
         function uses_native() { return false; } function uses_cloud() { return false; }
         async function call_backend(url, data) { posted.push([url, data]); return {}; }
-        function parse_backend_json(x) { return x; } ${s.slice(i, j)}`, c);
+        function parse_backend_json(x) { return x; } function remote_engine_options() { return {}; } ${s.slice(i, j)}`, c);
     await vm.runInContext(`request_remote_analysis('startfen', 300, 'e2e4')`, c);
     ok('L17: the HTTP /analyse request carries multipv', (c.posted[0] || [])[1]?.multipv === 5, c.posted[0]);
     vm.runInContext('remote_multipv_set = null', c); c.posted.length = 0;
@@ -16360,6 +16360,95 @@ print(json.dumps(out))`;
     replyFor.analyse = "Tetrarch: error handling 'position': ValueError: bad turn";
     const b = await A.analyse('BAD', 100).then(v => JSON.stringify(v), e => 'rejected: ' + e.message);
     ok('...while any other host error still rejects', /^rejected: Tetrarch: error handling/.test(b), b);
+})();
+// ---- audit 3.1.331 REMOTEENGINE-1: the panel's settings ride on every HTTP /analyse, so a remote-engine.py started
+// after the panel (or restarted) still gets the Elo cap and the variant: a Chess960 castle no longer reaches the engine
+// as a standard position (which killed Stockfish) ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // 1. the server, over a stand-in UCI engine that logs what it is told; it never sees a /configure
+    const py = `import importlib.util, json, os, sys, tempfile
+try:
+    import flask, chess.engine
+except ImportError:
+    print('null'); sys.exit(0)
+ENG = '''import sys
+LOG = %r
+for l in sys.stdin:
+    l = l.strip()
+    if l.startswith(("setoption", "position")): open(LOG, "a").write(l + "\\\\n")
+    if l == "uci":
+        print("id name stand-in")
+        print("option name UCI_LimitStrength type check default false")
+        print("option name UCI_Elo type spin default 1350 min 1320 max 3190")
+        print("option name UCI_Chess960 type check default false")
+        print("option name MultiPV type spin default 1 min 1 max 50")
+        print("option name Hash type spin default 16 min 1 max 1024")
+        print("option name Threads type spin default 1 min 1 max 64")
+        print("uciok")
+    elif l == "isready": print("readyok")
+    elif l.startswith("go"): print("bestmove 0000")
+    elif l == "quit": break
+    sys.stdout.flush()
+'''
+src = sys.argv[1]; d = tempfile.mkdtemp(); log = os.path.join(d, 'log.txt'); eng = os.path.join(d, 'eng.py')
+open(eng, 'w').write(ENG % (log,)); open(log, 'w').close()
+sys.argv = ['remote-engine.py', eng]
+spec = importlib.util.spec_from_file_location('re_r1', src); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+m.engine = chess.engine.SimpleEngine.popen_uci([sys.executable, '-E', eng])
+c = m.app.test_client()
+opts = {'Hash': 32, 'Threads': 2, 'UCI_Chess960': True, 'UCI_Variant': 'fischerandom',
+        'UCI_LimitStrength': True, 'UCI_Elo': 1500}
+start = 'nrbkqbrn/pppppppp/8/8/8/8/PPPPPPPP/NRBKQBRN w KQkq - 0 1'
+moves = 'g2g3 g7g6 f1g2 f8g7 f2f4 f7f5 e1f2 e8f7 d1g1 d8g8'
+r1 = c.post('/analyse', json={'fen': start, 'moves': moves, 'time': 50, 'options': opts})
+n1 = len(open(log).read().splitlines())
+r2 = c.post('/analyse', json={'fen': start, 'moves': moves, 'time': 50, 'options': opts})
+m.engine.quit()
+lines = open(log).read().splitlines()
+print(json.dumps({'s1': r1.status_code, 'refused1': (r1.get_json() or {}).get('refused_options'),
+                  's2': r2.status_code, 'refused2': (r2.get_json() or {}).get('refused_options', 'absent'),
+                  'set': [l for l in lines if l.startswith('setoption')], 'pos': [l for l in lines if l.startswith('position')],
+                  'set_after_first': [l for l in lines[n1:] if l.startswith('setoption')]}))`;
+    const r = await new Promise(res => require('child_process').execFile('python3', ['-E', '-B', '-c', py, ROOT + '/src/scripts/remote-engine.py'],
+        {encoding: 'utf8', timeout: 60000, cwd: require('os').tmpdir()}, (e, stdout, stderr) => res({e, stdout, stderr})));
+    let got = null; try { got = JSON.parse(String(r.stdout).trim().split('\n').pop()); } catch (e) { got = (r.stderr || String(r.e)).slice(-300); }
+    if (got === null) console.log('ok   REMOTEENGINE-1: server half skipped (no python3 with flask + python-chess here)');
+    else {
+        const set = (got && got.set) || [];
+        ok('REMOTEENGINE-1: an /analyse on a server that never saw a /configure applies the Elo cap it carries',
+           got.s1 === 200 && set.includes('setoption name UCI_LimitStrength value true') && set.includes('setoption name UCI_Elo value 1500'), got);
+        ok('REMOTEENGINE-1: ...and builds the Chess960 position: the castle goes out with castling rights, not as "- -"',
+           (got.pos || []).length === 2 && got.pos.every(p => /moves .* d1g1 d8g8$/.test(p) && !/ w - - 0 1 moves/.test(p)), got.pos);
+        ok('REMOTEENGINE-1: the first answer lists the refused keys (none here), so the panel\'s Elo label can follow it',
+           JSON.stringify(got.refused1) === '[]', got.refused1);
+        ok('REMOTEENGINE-1: a second search with the same settings sets nothing and lists nothing',
+           got.s2 === 200 && got.set_after_first.length === 0 && got.refused2 === 'absent', got);
+    }
+    // 2. the panel: the HTTP /analyse carries the whole configure but MultiPV, from config at send time
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = s.indexOf('function ' + name + '('); return i < 0 ? '' : s.slice(i, s.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({posted: []});
+    vm.runInContext(`var config = {engine: 'remote', variant: 'fischerandom', memory: 64, threads: 2, elo: 1500, premove: false};
+        var remote_multipv_set = 3, NO_ELO_ENGINES = [], ELO_RANGE = {}, SKILL_ENGINES = [], RODENT_ENGINES = [];
+        function effective_multipv() { return 7; } function engine_elo() { return config.elo; }
+        function uses_native() { return false; } function uses_cloud() { return false; }
+        async function call_backend(url, data) { posted.push([url, JSON.parse(JSON.stringify(data))]); return {}; }
+        function parse_backend_json(x) { return x; }
+        ${fn('remote_engine_options')} async ${fn('request_remote_analysis')}`, c);
+    await vm.runInContext(`request_remote_analysis('startfen', 300, 'e2e4')`, c);
+    const o = (c.posted[0] || [])[1]?.options || {};
+    ok('REMOTEENGINE-1: the panel\'s /analyse carries the variant and the Elo cap',
+       o.UCI_Variant === 'fischerandom' && o.UCI_Chess960 === true && o.UCI_LimitStrength === true && o.UCI_Elo === 1500
+       && o.Hash === 64 && o.Threads === 2, c.posted[0]);
+    ok('REMOTEENGINE-1: ...but not MultiPV: the request\'s own multipv key is the width in force', !('MultiPV' in o) && c.posted[0][1].multipv === 3, c.posted[0]);
+    vm.runInContext(`config.elo = 0; config.variant = 'chess'; posted.length = 0`, c);
+    await vm.runInContext(`request_remote_analysis('startfen', 300, 'e2e4')`, c);
+    const o2 = (c.posted[0] || [])[1]?.options || {};
+    ok('REMOTEENGINE-1: a setting changed since the panel started rides on the next search (cap off, Standard)',
+       o2.UCI_LimitStrength === false && !('UCI_Elo' in o2) && o2.UCI_Variant === 'chess' && o2.UCI_Chess960 === false, o2);
+    ok('REMOTEENGINE-1: initialize_engine configures from the same builder', /request_remote_configure\(remote_engine_options\(\)\)\.then\(note_remote_elo\)/.test(s));
+    ok('REMOTEENGINE-1: a search answer that lists refused keys updates the Elo label', /if \(Array\.isArray\(res\?\.refused_options\)\) note_remote_elo\(res\);/.test(fn('on_remote_result')));
 })();
 // ==== END FIX CHECKS ====
 

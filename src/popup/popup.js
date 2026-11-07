@@ -1891,28 +1891,7 @@ async function initialize_engine(reuseWarm = false) {
     }
 
     if (is_remote()) {
-        request_remote_configure({
-            "Hash": config.memory,
-            "Threads": config.threads,
-            "MultiPV": effective_multipv(), // bumped for Humanize (needs alt-line headroom), like WASM
-            "Premove": !!config.premove, // opt-in; engines without the option skip it
-            // remote-engine.py skips options the engine doesn't declare, so this is safe everywhere.
-            // ALWAYS sent, never omitted-when-standard: the host keeps the last configure it was
-            // given (engine_options is a dict it only ever writes into), so leaving these out on the
-            // way BACK to Standard left it building Chess960 or Fairy boards for a standard game --
-            // the variant was a one-way door. The host handles the explicit standard values
-            // (UCI_Variant 'chess' drops the variant net) and skips options an engine doesn't declare.
-            "UCI_Chess960": config.variant === 'fischerandom',
-            "UCI_Variant": config.variant || 'chess',
-            // Same rule as the WASM branch below: cap only inside the engine's own range, and SEND the
-            // cap's removal. Omitting it left the host at the last cap it was given, and Rodent IV
-            // boots with UCI_LimitStrength on. Engines with no Elo option get neither key.
-            ...(NO_ELO_ENGINES.includes(config.engine) ? {}
-                : config.elo > 0 && config.elo <= (ELO_RANGE[config.engine] || [1320, 3190])[1]
-                    ? {"UCI_LimitStrength": true, "UCI_Elo": engine_elo()} : {"UCI_LimitStrength": false}),
-            // Always sent for Rodent, '---' included: the host keeps the last configure it was given.
-            ...(RODENT_ENGINES.includes(config.engine) ? {"Personality": config.rodent_personality} : {}),
-        }).then(note_remote_elo).catch(on_remote_error);
+        request_remote_configure(remote_engine_options()).then(note_remote_elo).catch(on_remote_error);
         remote_multipv_set = effective_multipv(); // baseline just configured; don't re-push it
     } else {
         // STOP BEFORE THE PREAMBLE. Boot no longer awaits this init (v3.1.250), so a scraped
@@ -2185,6 +2164,9 @@ function search_again_at_new_width() {
 const SUPERSEDED_TRIES = 5;
 let superseded_tries = 0;
 function on_remote_result(res) {
+    // remote-engine.py lists the refused keys on a search that changed its options, as a server
+    // started after the panel does on its first one (audit 3.1.331 REMOTEENGINE-1)
+    if (Array.isArray(res?.refused_options)) note_remote_elo(res);
     if (!res?.superseded) { superseded_tries = 0; return on_engine_response(res); }
     if (++superseded_tries > SUPERSEDED_TRIES) {
         superseded_tries = 0;
@@ -13818,6 +13800,35 @@ function cloud_fen_after(startFen, moves) {
     }
 }
 
+// THE PANEL'S SETTINGS AS A REMOTE ENGINE TAKES THEM: the full configure initialize_engine sends a
+// native host or remote-engine.py, and what every HTTP /analyse carries beside it (audit 3.1.331
+// REMOTEENGINE-1). Built from config each time, so the setters that push one key on their own
+// (the Elo, Skill and Personality sliders) are never undone by a stale copy.
+function remote_engine_options() {
+    return {
+        "Hash": config.memory,
+        "Threads": config.threads,
+        "MultiPV": effective_multipv(), // bumped for Humanize (needs alt-line headroom), like WASM
+        "Premove": !!config.premove, // opt-in; engines without the option skip it
+        // remote-engine.py skips options the engine doesn't declare, so this is safe everywhere.
+        // ALWAYS sent, never omitted-when-standard: the host keeps the last configure it was
+        // given (engine_options is a dict it only ever writes into), so leaving these out on the
+        // way BACK to Standard left it building Chess960 or Fairy boards for a standard game --
+        // the variant was a one-way door. The host handles the explicit standard values
+        // (UCI_Variant 'chess' drops the variant net) and skips options an engine doesn't declare.
+        "UCI_Chess960": config.variant === 'fischerandom',
+        "UCI_Variant": config.variant || 'chess',
+        // Same rule as initialize_engine's WASM branch: cap only inside the engine's own range, and SEND the
+        // cap's removal. Omitting it left the host at the last cap it was given, and Rodent IV
+        // boots with UCI_LimitStrength on. Engines with no Elo option get neither key.
+        ...(NO_ELO_ENGINES.includes(config.engine) ? {}
+            : config.elo > 0 && config.elo <= (ELO_RANGE[config.engine] || [1320, 3190])[1]
+                ? {"UCI_LimitStrength": true, "UCI_Elo": engine_elo()} : {"UCI_LimitStrength": false}),
+        // Always sent for Rodent, '---' included: the host keeps the last configure it was given.
+        ...(RODENT_ENGINES.includes(config.engine) ? {"Personality": config.rodent_personality} : {}),
+    };
+}
+
 async function request_remote_configure(options) {
     if (uses_native()) return native_send('configure', {options});
     // A cloud provider has no options to set: one request in, one line out. Silently doing nothing
@@ -13884,6 +13895,12 @@ async function request_remote_analysis(fen, time, moves = null, depth = null, no
     // `multipv` as on the native lane: the configure that pushes a new width is served on another
     // thread, and without the key this search could run first at the old width (audit 3.1.330
     // follow-up L17). An older remote-engine.py ignores it and still gets the configure.
+    // `options`: the panel's whole configure, MultiPV aside (the key above wins). The server had them
+    // only from the configure initialize_engine sends once, so one started after the panel (what
+    // MPH-E02 says to do) or restarted under it played with no Elo cap, and with no UCI_Variant built
+    // a Chess960 game as standard chess, whose first castle killed Stockfish (audit 3.1.331
+    // REMOTEENGINE-1). It applies only the values that changed.
+    const {MultiPV, ...options} = remote_engine_options();
     return call_backend('http://localhost:9090/analyse', {
         fen: fen,
         moves: moves,
@@ -13891,6 +13908,7 @@ async function request_remote_analysis(fen, time, moves = null, depth = null, no
         depth: depth,
         nodes: nodes,
         multipv: remote_multipv_set ?? undefined,
+        options,
     }).then(parse_backend_json);
 }
 

@@ -115,6 +115,20 @@ def set_option(key, value):
     return True
 
 
+def take_options(keys):
+    # Apply (key, value) pairs the panel sent, through /configure or on an /analyse, and remember each
+    # as requested. Returns the keys the engine did not take.
+    refused = []
+    for (key, value) in keys:
+        if set_option(key, value):
+            refused_keys.discard(key)
+        else:
+            refused.append(key)
+            refused_keys.add(key)
+        requested_options[key] = value
+    return refused
+
+
 def apply_option(opt):
     # Parse one CLI "NAME:VALUE" string, then apply it. Splits on the FIRST colon only, so values
     # containing ':' survive (Windows paths like C:\syzygy). Tolerates typos.
@@ -259,6 +273,19 @@ def analyse():
         if time_ms <= 0:
             return {'error': "Parameter 'time' must be greater than 0"}, 400
 
+        # THE PANEL'S SETTINGS RIDE ON EVERY SEARCH (audit 3.1.331 REMOTEENGINE-1). They came only from
+        # the /configure the panel sends once when it starts, so a server started after the panel (what
+        # MPH-E02 tells you to do) or restarted under it never had them: no Elo cap, and with no
+        # UCI_Variant a Chess960 game was built as standard chess, whose first castle killed Stockfish.
+        # Only a value that differs from the last one sent is applied, so a steady game sets nothing.
+        options = data.get('options')
+        sent, changed = [], []
+        if isinstance(options, dict):
+            sent = [(str(key).strip(), value) for (key, value) in options.items()]
+            changed = [(key, value) for (key, value) in sent
+                       if not (key in requested_options and requested_options[key] == value)]
+            take_options(changed)
+
         try:
             board = build_board(data.get('fen'), data.get('moves'))
         except ValueError as ex:
@@ -320,6 +347,10 @@ def analyse():
             # (or a `(none)`) as an answer. Its retry fires on this flag, as with the native hosts.
             if request_counter != request_id or cut:
                 out['superseded'] = True
+            # As /configure answers, when this search changed any option: the panel's Elo label
+            # learns here whether a cap took on a server that never saw its configure.
+            if changed:
+                out['refused_options'] = [key for (key, value) in sent if key in refused_keys]
             return out
         except chess.engine.EngineTerminatedError:
             return {'error': 'the engine process stopped - restart this script'}, 503
@@ -356,14 +387,7 @@ def configure():
         # The keys the engine did not take ride back beside the options. An engine with no UCI_Elo
         # (Lc0) played at full strength while the panel showed the cap; this is how the panel learns
         # it did not apply (audit 3.1.330 follow-up L38).
-        refused = []
-        for (key, value) in keys:
-            if set_option(key, value):
-                refused_keys.discard(key)
-            else:
-                refused.append(key)
-                refused_keys.add(key)
-            requested_options[key] = value
+        refused = take_options(keys)
         out = config()
         out['refused_options'] = refused
         return out
