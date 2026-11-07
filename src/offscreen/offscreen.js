@@ -112,6 +112,7 @@ function stopOrphanedSearches(now = Date.now()) {
         console.log(`[Mephisto] offscreen: ${id} abandoned -- disposing its engine`);
         disposeClient(id);
         delete pending[id];   // lines meant for the engine just thrown away; a respawn starts clean
+        delete lastSeen[id];
     }
 }
 setInterval(stopOrphanedSearches, LEASE_SWEEP_MS);
@@ -143,7 +144,10 @@ function disposeClient(clientId) {
     epoch[clientId] = (epoch[clientId] || 0) + 1; // invalidate any load still in flight
     const engine = clients[clientId];
     delete searching[clientId];
-    delete lastSeen[clientId];
+    // lastSeen is NOT cleared here: initEngine disposes through this right after the init message
+    // stamped it, and a client that then says nothing until 'ready' (':ua', ':bn', an options page)
+    // read as silent since time 0, so the next sweep disposed its fresh engine as abandoned (audit
+    // 3.1.331 OFFSCREEN-3). The explicit dispose and the abandon sweep clear it.
     if (!engine) return;
     // STOP, AND DO NOT QUIT. Measured on this build: `stop` takes a 403% search to 0% -- but a
     // `quit` sent straight after it kills the main thread before it has processed the stop, and the
@@ -428,6 +432,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     } else if (cmd === 'dispose') {
         disposeClient(clientId);
         delete pending[clientId];
+        delete lastSeen[clientId];
         delete initArgs[clientId];   // disposed on purpose: never respawn it
         delete sticky[clientId];
     }

@@ -15877,6 +15877,38 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...an instance whose setNnueBuffer threw is stopped and replaced by a fresh one',
        b.engines.length === 2 && b.engines[0].got.includes('stop') && vm.runInContext("clients['8']", b.c) === b.engines[1], b.engines.length);
 })().catch(e => { fails++; console.log('FAIL OFFSCREEN-2 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 OFFSCREEN-3: an engine that is ready before its client's next line is not swept as abandoned ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The whole offscreen host on a simulated clock. The arrow engine (':ua') sends its init and then
+    // nothing until 'ready'; the init lands 10 ms before the 20 s sweep and the load takes 5 ms.
+    const src = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8').replace(/await import\(/g, 'await __imp(');
+    let now = 1e6, listener; const timers = [], out = [];
+    const tick = () => new Promise(r => setImmediate(r));
+    const mk = (fn, ms, iv) => { const t = {at: now + ms, fn, iv}; timers.push(t); return t; };
+    const advance = async (ms) => { await tick(); const end = now + ms;
+        for (;;) { timers.sort((a, b) => a.at - b.at); const t = timers[0]; if (!t || t.at > end) break;
+            now = t.at; if (t.iv) t.at += t.iv; else timers.shift(); t.fn(); await tick(); } now = end; await tick(); };
+    const c = {console: {log() {}}, Date: {now: () => now},
+        setTimeout: (f, ms) => mk(f, ms, 0), setInterval: (f, ms) => mk(f, ms, ms),
+        clearTimeout: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
+        window: {close() {}},
+        __imp: async () => ({default: () => new Promise(r => mk(() => r({uci() {}, getRecommendedNnue: () => null, setNnueBuffer() {}}), 5, 0))}),
+        chrome: {runtime: {sendMessage: (m) => out.push(m), onMessage: {addListener: (f) => listener = f}}}};
+    vm.createContext(c); vm.runInContext(src, c);
+    const msg = (id, o) => listener({toOffscreen: true, clientId: id, ...o}, {}, () => {});
+    const has = (id) => vm.runInContext(`Object.keys(clients).includes(${JSON.stringify(id)})`, c);
+    await advance(19990);
+    msg('7:ua', {cmd: 'init', engine: 'stockfish-11-hce', variant: 'chess'});
+    await advance(30);   // ready at +5 ms, the sweep at +10 ms, no line from the client yet
+    ok('OFFSCREEN-3: the init renews the lease, so the sweep right after ready keeps the fresh engine',
+       out.some(m => m.clientId === '7:ua' && m.kind === 'ready') && has('7:ua'), vm.runInContext('Object.keys(clients)', c));
+    await advance(330000);
+    ok('...a client silent for 5 minutes after that is still disposed as abandoned', !has('7:ua'));
+    msg('8', {cmd: 'init', engine: 'stockfish-11-hce'}); await advance(30);
+    msg('8', {cmd: 'dispose'});
+    ok('...and an explicit dispose forgets the client\'s lease', vm.runInContext("lastSeen['8'] === undefined && lastSeen['7:ua'] === undefined", c));
+})().catch(e => { fails++; console.log('FAIL OFFSCREEN-3 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
