@@ -52,6 +52,13 @@ function t(key, dflt, vars) {
     return format(text, vars);
 }
 
+// apply()'s lookup: null when NEITHER table holds the key, so the markup keeps its own English. t()
+// cannot serve here -- with dflt null it falls through to the key itself, so a missing table wrote
+// 'set.autoplay' over every label, tooltip and placeholder (audit 3.1.331 I18N-1).
+function lookup(key) {
+    return strings[key] ?? fallback[key] ?? null;
+}
+
 function setStrings(lang, obj) {
     current = LANG_CODES.includes(lang) ? lang : DEFAULT_LANG;
     strings = obj || {};
@@ -78,8 +85,12 @@ async function fetchLocale(lang) {
 async function use(lang) {
     const en = (lang === DEFAULT_LANG) ? null : await fetchLocale(DEFAULT_LANG).catch(() => null);
     const obj = await fetchLocale(lang).catch(() => null);
-    setFallback(en || obj || {});
-    setStrings(lang, obj || en || {});
+    // Nothing loaded (an in-place update swapped the files mid-fetch, say): keep what is active rather
+    // than emptying both tables, and report only a language that actually loaded, since the options
+    // page writes `lang` into documentElement.lang (audit 3.1.331 I18N-1).
+    if (!obj && !en) return strings;
+    setFallback(en || obj);
+    setStrings(obj ? lang : DEFAULT_LANG, obj || en);
     return strings;
 }
 
@@ -95,22 +106,22 @@ function apply(scope) {
     const el = scope || root.document;
     if (!el || !el.querySelectorAll) return;
     for (const node of el.querySelectorAll('[data-i18n]')) {
-        const text = t(node.dataset.i18n, null);
+        const text = lookup(node.dataset.i18n);
         if (text == null) continue;
         const first = [...node.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
         if (first) first.textContent = text;
         else if (!node.firstElementChild) node.textContent = text;
     }
     for (const node of el.querySelectorAll('[data-i18n-ph]')) {
-        const text = t(node.dataset.i18nPh, null);
+        const text = lookup(node.dataset.i18nPh);
         if (text != null) node.setAttribute('placeholder', text);
     }
     for (const node of el.querySelectorAll('[data-i18n-tip]')) {
-        const text = t(node.dataset.i18nTip, null);
+        const text = lookup(node.dataset.i18nTip);
         if (text != null) node.setAttribute('data-tooltip', text);
     }
     for (const node of el.querySelectorAll('[data-i18n-title]')) {
-        const text = t(node.dataset.i18nTitle, null);
+        const text = lookup(node.dataset.i18nTitle);
         if (text != null) node.setAttribute('title', text);
     }
     // A few explanatory paragraphs are a sentence with <b> and <a> woven through it. Splitting those
@@ -118,7 +129,7 @@ function apply(scope) {
     // (markup and all) is one string. The value comes from our own bundled locale files, never from
     // the page or the network, so there is nothing here a site could inject into.
     for (const node of el.querySelectorAll('[data-i18n-html]')) {
-        const text = t(node.dataset.i18nHtml, null);
+        const text = lookup(node.dataset.i18nHtml);
         if (text != null) node.innerHTML = text;
     }
 }

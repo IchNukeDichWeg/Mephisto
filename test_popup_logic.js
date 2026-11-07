@@ -15727,6 +15727,54 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        res[0] === 'error UnknownError' && res[1] === 'e2e4' && res[2] === 'e2e4', res);
     ok('STORES-4: ...a good read is still cached (one IndexedDB read for the retried and later probes)', gets === 2, gets);
 })();
+// ---- audit 3.1.331 I18N-1: with no locale table loaded, apply() keeps the markup's English instead of writing raw keys ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const isrc = fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8');
+    // a minimal DOM: <label data-i18n="set.autoplay">Autoplay <i>info</i></label> plus a tooltip, a placeholder, a title and an html block
+    const mk = () => {
+        const attrNode = (ds, attrs) => ({dataset: ds, attrs, setAttribute(k, v) { this.attrs[k] = v; }});
+        const n = {
+            label: {dataset: {i18n: 'set.autoplay'}, childNodes: [{nodeType: 3, textContent: 'Autoplay '}, {nodeType: 1, textContent: 'info'}], firstElementChild: {}},
+            ph: attrNode({i18nPh: 'k.ph'}, {placeholder: 'Type here'}),
+            tip: attrNode({i18nTip: 'set.tip.autoplay'}, {'data-tooltip': 'Plays the best move for you.'}),
+            title: attrNode({i18nTitle: 'k.title'}, {title: 'Close'}),
+            html: {dataset: {i18nHtml: 'k.html'}, innerHTML: 'Read <b>this</b>.'},
+        };
+        const sel = {'[data-i18n]': n.label, '[data-i18n-ph]': n.ph, '[data-i18n-tip]': n.tip, '[data-i18n-title]': n.title, '[data-i18n-html]': n.html};
+        n.doc = {querySelectorAll: (s) => sel[s] ? [sel[s]] : []};
+        return n;
+    };
+    const ctxOf = (fetchImpl) => { const c = vm.createContext({navigator: {platform: 'MacIntel'}, fetch: fetchImpl}); c.self = c; vm.runInContext(isrc, c); return c.MephistoI18n; };
+    const english = (n) => [n.label.childNodes[0].textContent, n.ph.attrs.placeholder, n.tip.attrs['data-tooltip'], n.title.attrs.title, n.html.innerHTML];
+    const EN = ['Autoplay ', 'Type here', 'Plays the best move for you.', 'Close', 'Read <b>this</b>.'];
+    (async () => {
+        // every locale fetch fails (options page during an in-place update)
+        const I = ctxOf(async () => { throw new TypeError('Failed to fetch'); });
+        await I.use('de');
+        ok('I18N-1: a use() that loaded nothing does not report the failed language', I.lang === 'en', I.lang);
+        const a = mk(); I.apply(a.doc);
+        ok('I18N-1: ...and apply() then leaves every label, placeholder, tooltip, title and html block in English', JSON.stringify(english(a)) === JSON.stringify(EN), english(a));
+        // the panel of an English user never loads a table; a lost worker reply leaves both empty
+        const P = ctxOf(async () => { throw new Error('unused'); });
+        const b = mk(); P.apply(b.doc);
+        ok('I18N-1: empty tables in the panel keep the markup English too', JSON.stringify(english(b)) === JSON.stringify(EN), english(b));
+        // a key that is loaded still replaces the text, and t() keeps its key fallback for code call sites
+        P.setStrings('de', {'set.autoplay': 'Autom. Zug', 'set.tip.autoplay': 'Spielt den besten Zug.'});
+        const c = mk(); P.apply(c.doc);
+        ok('I18N-1: a loaded key still translates the label and the tooltip', c.label.childNodes[0].textContent === 'Autom. Zug' && c.tip.attrs['data-tooltip'] === 'Spielt den besten Zug.' && c.ph.attrs.placeholder === 'Type here',
+           [c.label.childNodes[0].textContent, c.tip.attrs['data-tooltip'], c.ph.attrs.placeholder]);
+        ok('I18N-1: t() unchanged: dflt first, then the key', P.t('nope', 'Fallback') === 'Fallback' && P.t('nope') === 'nope');
+        // a locale that loads with English failing still switches, as before
+        const D = ctxOf(async (url) => url.endsWith('de.json') ? {ok: true, json: async () => ({'set.autoplay': 'Autom. Zug'})} : {ok: false});
+        await D.use('de');
+        ok('I18N-1: use() still switches when only the requested locale loads', D.lang === 'de' && D.t('set.autoplay', 'Autoplay') === 'Autom. Zug', D.lang);
+        // English loads, the requested locale does not: report English, which is what is shown
+        const E = ctxOf(async (url) => url.endsWith('en.json') ? {ok: true, json: async () => ({'set.autoplay': 'Autoplay'})} : {ok: false});
+        await E.use('fr');
+        ok('I18N-1: a failed locale with English loaded reports en, not the failed code', E.lang === 'en' && E.t('set.autoplay', null) === 'Autoplay', E.lang);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
