@@ -82,14 +82,19 @@ document.addEventListener('DOMContentLoaded', function () {
     // wrong title. Only the newest load touches the page after an await, and the page's own onInit
     // gets the same test for its awaits (audit 3.1.331 OPTIONSFRAMEWORK-1).
     let navGen = 0;
+    let loadingPath = null;   // the page the newest load is for: the hashchange router below skips it
 
     async function injectPage(pagePath) {
         const navEntry = document.getElementById(pagePath);
         if (!navEntry) {
             if (pagePath === DEFAULT_PAGE) return;   // the default itself is gone: nothing to fall back to
+            // replaced, not pushed: Back is routed now (below), and Back onto a dead hash that pushed
+            // the default again would land the user on the same dead entry every time
+            history.replaceState(null, '', '#' + DEFAULT_PAGE);
             return injectPage(DEFAULT_PAGE);
         }
         const gen = ++navGen, isCurrent = () => gen === navGen;
+        loadingPath = pagePath;
         updateActiveTab(navEntry);
         const title = pagePath.substring(pagePath.lastIndexOf('/') + 1);
         const path = pagePath.substring(0, pagePath.lastIndexOf('/') + 1) + title;
@@ -143,6 +148,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.querySelectorAll('#nav-mobile a.menu-item').forEach(elem => {
         elem.addEventListener('click', e => onClick(e));
+    });
+
+    // BACK AND FORWARD ROUTE TOO. Every visit sets location.hash, so every visit is a history entry,
+    // but only a nav click ever loaded a page: Back changed the URL and left the old page on screen,
+    // on Analysis with its engines already freed by its own hashchange teardown (dead arrow keys),
+    // and F5 then opened a page other than the one shown (audit 3.1.331 OPTIONSFRAMEWORK-2). The
+    // hash a load sets for itself, and the one a nav click's link sets after its handler, name the
+    // page already loading and are skipped.
+    window.addEventListener('hashchange', () => {
+        const pagePath = location.hash.substring(1) || DEFAULT_PAGE;
+        if (pagePath !== loadingPath) injectPage(pagePath);
     });
 
     injectPage(location.hash.substring(1) || DEFAULT_PAGE);

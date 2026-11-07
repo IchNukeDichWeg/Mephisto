@@ -14393,6 +14393,70 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('...the current load still wires all four and builds the page once', wired.length === 4 && c.page.built === 1, {wired, built: c.page.built});
     })();
 }
+// ---- audit 3.1.331 OPTIONSFRAMEWORK-2: browser Back/Forward on the options page loads the page the URL names ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const osrc = fs.readFileSync(ROOT + '/src/options/options.js', 'utf8').replace(/^import .*$/m, '');
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const settle = async () => { for (let i = 0; i < 6; i++) await sleep(5); };   // microtasks and 0 ms hashchange timers only
+    // the real options.js shell on a stub DOM: `pushes` counts history entries a hash write added,
+    // traverse() is the browser's Back/Forward (the URL changes, then hashchange fires)
+    const doc = {}, win = {}, calls = [];
+    const on = (m) => (t, f) => (m[t] = m[t] || []).push(f);
+    const cls = {add() {}, remove() {}, contains: () => false, toggle() {}};
+    const navUl = {id: 'nav-mobile', tagName: 'UL', classList: cls};
+    const anchors = {};
+    for (const p of ['settings/general', 'analysis', 'about']) {
+        const li = {id: '', tagName: 'LI', classList: cls, parentElement: navUl};
+        anchors[p] = {id: p, tagName: 'A', hash: '#' + p, classList: cls, parentElement: li, addEventListener(t, f) { this.onclick = f; }};
+    }
+    const content = {innerHTML: ''}, title = {innerText: ''};
+    const fire = () => setTimeout(() => (win.hashchange || []).forEach(f => f({})), 0);
+    const loc = {h: '#settings/general', pushes: 0, get hash() { return this.h; }, set hash(v) {
+        v = v.startsWith('#') ? v : '#' + v; if (v === this.h) return; this.h = v; this.pushes++; fire(); }};
+    const titles = {'settings/general': 'General Settings', analysis: 'Analysis', about: 'About'};
+    const c = vm.createContext({console, setTimeout, Promise, JSON, Array, location: loc,
+        history: {replaceState: (s, t, u) => { loc.h = u; }},
+        M: {Sidenav: {init() {}}, ScrollSpy: {init: () => []}, Tooltip: {init() {}}},
+        MephistoConfig: {get: () => null, ready: Promise.resolve()},
+        MephistoI18n: {use: async () => {}, apply() {}, lang: 'en'},
+        document: {addEventListener: on(doc), documentElement: {classList: cls},
+            getElementById: (id) => anchors[id] || ({title, header: {scrollIntoView() {}}})[id] || null,
+            querySelector: (s) => s === 'head' ? {appendChild() {}} : content,
+            querySelectorAll: (s) => s === '#nav-mobile a.menu-item' ? Object.values(anchors) : [],
+            getElementsByClassName: () => []},
+        require: async (path, type = 'js') => {
+            const p = path.replace(/^pages\//, '').replace(/\/[^/]+$/, '');
+            if (type === 'html') return {innerHTML: 'html:' + p};
+            if (type === 'css') return {};
+            return {title: titles[p], page: {onInit() { calls.push(p); }}};
+        }});
+    c.window = c; c.addEventListener = on(win);
+    vm.runInContext(osrc, c);
+    const click = (p) => { const a = anchors[p]; a.onclick({target: a}); loc.hash = a.hash; };  // handler, then the link's own navigation
+    const traverse = (h) => { loc.h = h; fire(); };
+    (async () => {
+        doc.DOMContentLoaded.forEach(f => f());
+        await settle();
+        click('analysis');
+        await settle();
+        const clicked = calls.join();
+        traverse('#settings/general');
+        await settle();
+        const back = {calls: calls.join(), title: title.innerText, html: content.innerHTML};
+        traverse('#analysis');
+        await settle();
+        ok('OPTIONSFRAMEWORK-2: a nav click still loads its page exactly once', clicked === 'settings/general,analysis', clicked);
+        ok('...Back from Analysis puts General on screen under its own title, Forward brings Analysis back',
+           back.calls === 'settings/general,analysis,settings/general' && back.title === 'General Settings' && back.html === 'html:settings/general'
+           && calls.join() === 'settings/general,analysis,settings/general,analysis' && title.innerText === 'Analysis', {back, now: calls.join()});
+        const pushes = loc.pushes;
+        traverse('#no-such-page');
+        await settle();
+        ok('...Back onto a hash no page has shows the default and REPLACES that entry, so the next Back is not bounced forward',
+           calls[calls.length - 1] === 'settings/general' && loc.h === '#settings/general' && loc.pushes === pushes, {last: calls[calls.length - 1], hash: loc.h, pushed: loc.pushes - pushes});
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
