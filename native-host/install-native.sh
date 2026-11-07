@@ -112,6 +112,17 @@ case "$(uname -s)" in
     ) ;;
   *) echo "!! this installer supports macOS/Linux. On Windows, see the README (registry setup)."; exit 1 ;;
 esac
+# Every manifest loop below skips a browser whose profile dir is absent, and `installed` counts
+# engines, not manifests, so with no profile dir at all the run enabled every engine, printed Done
+# and registered nothing (audit 3.1.331 INSTALLSH-2). Stop before copying anything instead.
+browsers=0
+for d in "${DIRS[@]}"; do [ -d "$(dirname "$d")" ] && browsers=$((browsers + 1)); done
+if [ "$browsers" -eq 0 ]; then
+  echo "!! no Chromium-family browser profile found, so no native engine can be registered. Looked for:"
+  for d in "${DIRS[@]}"; do echo "     $(dirname "$d")"; done
+  echo "   Start the browser once (that creates its profile folder), then re-run this script."
+  exit 1
+fi
 mkdir -p "$RUNTIME_DIR/engines"
 
 pin_shebang() { local f="$1" tmp; tmp="$(mktemp)"; { printf '#!%s\n' "$PYBIN"; tail -n +2 "$f"; } > "$tmp"; cat "$tmp" > "$f"; rm -f "$tmp"; }
