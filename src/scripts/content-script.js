@@ -1954,10 +1954,14 @@ function drawLiveStats(stats, bounds) {
     const side = (name, s) => {
         const acc = (s.accuracy == null) ? ' - ' : `${s.accuracy}%`;
         const c = s.counts || {};
-        const named = NOTABLE.filter(k => c[k]).slice(0, 3).map(k =>
-            `<span style="color:${(C.CLASS_COLOR || {})[k] || '#d8d8d8'}">${c[k]} ${(C.CLASS_LABEL || {})[k] || k}${c[k] > 1 ? 's' : ''}</span>`);
-        const fallback = (s.mistake || s.blunder || s.inaccuracy)
-            ? `${s.blunder} blunder${s.blunder === 1 ? '' : 's'}` : 'clean';
+        const nameAll = (n) => NOTABLE.filter(k => n[k]).slice(0, 3).map(k =>
+            `<span style="color:${(C.CLASS_COLOR || {})[k] || '#d8d8d8'}">${n[k]} ${(C.CLASS_LABEL || {})[k] || k}${n[k] > 1 ? 's' : ''}</span>`);
+        const named = nameAll(c);
+        // Nothing graded yet (classifier not loaded, or no ply pair deep enough): name the coarse
+        // counters the same way. This printed only s.blunder, so 2 mistakes read "0 blunders"
+        // (audit 3.1.331 CONTENT1-3).
+        const coarse = nameAll(s);
+        const fallback = coarse.length ? coarse.join(' \u00b7 ') : 'clean';
         const detail = named.length ? named.join(' \u00b7 ')
             : (Object.keys(c).length ? 'clean' : fallback);
         return `<span><b style="color:#fff">${name}</b> ${acc}` +

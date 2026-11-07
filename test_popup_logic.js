@@ -13091,6 +13091,35 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        JSON.stringify(got[1]) === '["magnus","magnus"]', got[1]);
     ok('CONTENT1-2: ...and an opponent already answered is not asked again per position', JSON.stringify(got[2]) === '[]', got[2]);
 }
+// ---- audit 3.1.331 CONTENT1-3: the Live Stats strip names mistakes and inaccuracies before the classifier has graded anything ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const i = cs.indexOf('function drawLiveStats(');
+    let src = '';
+    for (let d = 0, k = cs.indexOf('{', i); k < cs.length; k++) { if (cs[k] === '{') d++; else if (cs[k] === '}' && !--d) { src = cs.slice(i, k + 1); break; } }
+    const box = {style: {}, innerHTML: ''};
+    const strip = (cls, white, black) => {
+        const c = vm.createContext({LIVESTATS_OVERLAY_ID: 'x', EVALHIST_OVERLAY_ID: 'y', EVALHIST_H: 96, BOARD_OVERLAY_Z: 1,
+            window: {scrollX: 0, scrollY: 0}, overlayEl: (id) => id === 'x' ? box : null, getOverlayRoot: () => ({appendChild() {}}),
+            document: {createElement: () => box}});
+        c.self = cls ? {MephistoClassify: {CLASS_NOTABLE: ['blunder', 'miss', 'mistake', 'inaccuracy', 'brilliant', 'great']}} : {};
+        // live_stats()'s shape: the coarse counters always filled, the classifier's counts {} while nothing is graded
+        const side = (o) => Object.assign({moves: 10, accuracy: 71, best: 7, inaccuracy: 0, mistake: 0, blunder: 0, counts: {}}, o);
+        try { vm.runInContext(src, c); c.drawLiveStats({plies: 20, white: side(white), black: side(black)}, {left: 0, top: 0, width: 400, height: 400}); }
+        catch (e) { return 'threw ' + e.message; }
+        return box.innerHTML.replace(/<[^>]+>/g, '');
+    };
+    const a = strip(false, {mistake: 2, inaccuracy: 1}, {inaccuracy: 3});
+    ok('CONTENT1-3: no classifier yet, 2 mistakes + 1 inaccuracy / 3 inaccuracies are named, not "0 blunders"',
+       /^White 71% · 2 mistakes · 1 inaccuracyBlack 71% · 3 inaccurac/.test(a) && !/blunder/.test(a), a);
+    const b = strip(true, {blunder: 1, mistake: 1}, {});
+    ok('CONTENT1-3: ...classifier loaded but nothing graded: worst first, and a side with no errors reads "clean"',
+       b === 'White 71% · 1 blunder · 1 mistakeBlack 71% · clean', b);
+    const g = strip(true, {mistake: 2}, {}), named = (() => { const w = {mistake: 2, counts: {blunder: 1}}; return strip(true, w, {counts: {good: 3}}); })();
+    ok('CONTENT1-3: ...graded counts still win when present (a graded-clean side stays "clean")',
+       named === 'White 71% · 1 blunderBlack 71% · clean' && /2 mistakes/.test(g), [named, g]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
