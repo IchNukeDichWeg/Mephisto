@@ -277,11 +277,17 @@ def do_configure(data):
 _request_lock = threading.Lock()
 _request_counter = 0
 
-def do_analyse(data, mid):
+def _number_request():
+    # numbered as it ARRIVES (main), not when its turn on the engine worker comes: the worker runs
+    # one at a time, so a number taken there would always be the newest and nothing queued behind a
+    # search would ever be superseded
     global _request_counter
     with _request_lock:
         _request_counter += 1
-        request_id = _request_counter
+        return _request_counter
+
+def do_analyse(data, mid):
+    request_id = data['_request']
     with engine_lock:
         if _request_counter != request_id:
             return {'superseded': True}     # a newer position arrived while we queued
@@ -402,13 +408,31 @@ def handle(msg):
         _dbg(f"FAIL id={mid} {e!r}\n{traceback.format_exc()}")
         send_message({'id': mid, 'error': str(e)})
 
+# configure and analyse run on ONE worker, in the order they arrived. One thread per message raced
+# for engine_lock in whatever order the threads reached it, and the panel sends its Mode/MultiPV
+# configure and the analyse after it back to back: about 1 search in 9 (35 of 300 in the audit's
+# run) reached the engine first and was searched under the OLD Mode and line count (audit 3.1.331
+# TETRARCHHOST-2). ping and pgn4 never touch the engine and keep their own threads, so a running
+# search cannot hold up the panel's health probe.
+_ENGINE_CMDS = ('analyse', 'configure')
+_engine_q = queue.Queue()
+def _engine_loop():
+    while True:
+        handle(_engine_q.get())
+
 def main():
     threading.Thread(target=_sender_loop, daemon=True).start()
+    threading.Thread(target=_engine_loop, daemon=True).start()
     while True:
         msg = read_message()
         if msg is None:
             break
-        threading.Thread(target=handle, args=(msg,), daemon=True).start()
+        if msg.get('cmd') in _ENGINE_CMDS:
+            if msg.get('cmd') == 'analyse':
+                msg['_request'] = _number_request()
+            _engine_q.put(msg)
+        else:
+            threading.Thread(target=handle, args=(msg,), daemon=True).start()
     try:
         if _proc and _proc.poll() is None:
             _proc.kill()

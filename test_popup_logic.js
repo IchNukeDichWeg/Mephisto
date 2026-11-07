@@ -16235,6 +16235,67 @@ print(json.dumps(out))`;
            JSON.stringify(best) === JSON.stringify(['mvP1', 'error', 'mvP3', 'mvP4']), best);
     }
 })();
+// ---- TETRARCHHOST-2 (audit 3.1.331): the Tetrarch host searches each analyse under the Mode configured just before it ----
+// (run end to end through the real host over a stand-in uci.py whose bestmove names the Mode it searched under; the panel
+// sends configure and analyse back to back, and one thread per message let about 1 search in 9 reach the engine first)
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    const run = `import json, os, shutil, struct, subprocess, sys, tempfile, time
+d = tempfile.mkdtemp(); repo = os.path.join(d, 'Tetrarch'); os.mkdir(repo)
+open(os.path.join(repo, 'uci.py'), 'w').write('''import sys, time
+board, mode = 'start', 'teams'
+for raw in sys.stdin:
+    t = raw.split()
+    if not t: continue
+    if t[0] == 'uci': print('uciok')
+    elif t[0] == 'isready': print('readyok')
+    elif t[0] == 'setoption' and t[2] == 'Mode': mode = t[4]
+    elif t[0] == 'position': board = t[2]
+    elif t[0] == 'go':
+        if board.startswith('SLOW'): sys.stdout.flush(); time.sleep(0.5)
+        print('bestmove mv%s@%s' % (board, mode))
+    sys.stdout.flush()
+''')
+shutil.copy(sys.argv[1], os.path.join(d, 'tetrarch-host.py')); open(os.path.join(d, 'tetrarch-path'), 'w').write(repo + '\\n')
+env = dict(os.environ); env.pop('TETRARCH_DIR', None)
+p = subprocess.Popen([sys.executable, '-I', os.path.join(d, 'tetrarch-host.py')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
+def send(o):
+    b = json.dumps(o).encode(); p.stdin.write(struct.pack('<I', len(b)) + b); p.stdin.flush()
+def recv():
+    h = p.stdout.read(4)
+    return json.loads(p.stdout.read(struct.unpack('<I', h)[0])) if len(h) == 4 else None
+wrong = []
+for k in range(100):
+    mode = 'ffa' if k % 2 else 'teams'
+    send({'id': 2 * k, 'cmd': 'configure', 'options': {'Mode': mode}})
+    send({'id': 2 * k + 1, 'cmd': 'analyse', 'fen4': 'K%d' % k, 'time': 10})
+    got = {}
+    while len(got) < 2:
+        m = recv(); got[m['id']] = m
+    if got[2 * k + 1].get('bestmove') != 'mvK%d@%s' % (k, mode): wrong.append([k, mode, got[2 * k + 1].get('bestmove')])
+# a search in flight, two more positions behind it and a ping: the ping is answered at once and the middle position is superseded
+send({'id': 900, 'cmd': 'analyse', 'fen4': 'SLOW', 'time': 10}); time.sleep(0.2); send({'id': 901, 'cmd': 'analyse', 'fen4': 'MID', 'time': 10})
+send({'id': 902, 'cmd': 'analyse', 'fen4': 'LAST', 'time': 10}); send({'id': 903, 'cmd': 'ping'})
+order = []
+while len(order) < 4:
+    m = recv(); order.append([m['id'], m.get('bestmove') or ('superseded' if m.get('superseded') else m.get('protocol'))])
+p.stdin.close(); p.wait(10); shutil.rmtree(d, ignore_errors=True)
+print(json.dumps({'wrong': wrong, 'order': order}))`;
+    const r = await pyRun(['-I', '-B', '-c', run, ROOT + '/native-host/tetrarch-host.py'], {encoding: 'utf8', timeout: 45000});
+    if (r.error) console.log('ok   TETRARCHHOST-2: skipped (no python3 here)');
+    else {
+        let res = null; try { res = JSON.parse(r.stdout); } catch (e) { res = (r.stderr || '').slice(-300); }
+        ok('TETRARCHHOST-2: 100 back-to-back configure + analyse pairs, alternating Mode: every search ran under its own Mode',
+           res && Array.isArray(res.wrong) && res.wrong.length === 0, res && res.wrong);
+        const order = res && res.order || [];
+        ok('...a ping is answered while a search runs, the position queued behind the newest one is superseded, the newest is searched',
+           order.length === 4 && order[0][0] === 903
+           && JSON.stringify(order.slice(1).sort((a, b) => a[0] - b[0])) === JSON.stringify([[900, 'mvSLOW@ffa'], [901, 'superseded'], [902, 'mvLAST@ffa']]), order);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
