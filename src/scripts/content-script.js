@@ -2999,6 +2999,28 @@ function puzzleTcnToUci(tcn) {
     return out.join(' ');
 }
 
+// chess.com's Daily Puzzle ships its solution as SAN under the SAME `tcnMoveList` key the rated
+// tactics use for TCN (`Rd8+ Kh7 Ra8`, as the importer's daily rows do), and SAN needs the position
+// to mean anything, so it is read here against the fen that came beside it. Without this every daily
+// capture was counted unread and dropped (audit 3.1.331 PUZPROBE-1). Only a line legal all the way
+// through comes back; anything else is null, and the TCN reading is still offered beside it.
+function puzzleSanToUci(fen, text) {
+    if (typeof fen !== 'string' || !fen.trim() || typeof text !== 'string') return null;
+    const san = text.trim().split(/\s+/).filter(Boolean);
+    if (!san.length || san.length > 400) return null;
+    try {
+        const c = new Chess('chess', fen.trim());
+        const out = [];
+        for (const s of san) {
+            let m = null;
+            try { m = c.move(s); } catch (e) { return null; }
+            if (!m) return null;
+            out.push(m.from + m.to + (m.promotion || ''));
+        }
+        return out.join(' ');
+    } catch (e) { return null; }
+}
+
 // Does this whole line replay from this position? Nothing is stored on a partial answer -- a line
 // that fits for three moves and then does not is a payload we have misread, and misreading it is
 // exactly how the reverted version played confident wrong moves.
@@ -3032,6 +3054,8 @@ function acceptPuzzleCaptures(found) {
         if (!lineStrs.length && f.raw && typeof f.raw.value === 'string') {
             const tcn = puzzleTcnToUci(f.raw.value.trim());
             if (tcn) lineStrs.push(tcn);
+            const san = puzzleSanToUci(f.fen, f.raw.value);
+            if (san) lineStrs.push(san);
         }
         if (!lineStrs.length) {
             if (f.raw) {
@@ -3040,7 +3064,7 @@ function acceptPuzzleCaptures(found) {
                 puzzleSample = `unread ${f.raw.key}=${String(f.raw.value).slice(0, 90)}`;
                 if (puzzleReported < 3) {
                     console.log(`puzzle capture: a solution field "${f.raw.key}" in an encoding that is `
-                              + `neither UCI nor TCN nor move objects: ${String(f.raw.value).slice(0, 120)}`);
+                              + `neither UCI nor TCN nor SAN nor move objects: ${String(f.raw.value).slice(0, 120)}`);
                 }
             } else {
                 puzzleSample = `no solution field beside fen=${String(f.fen || f.pgn || '?').slice(0, 40)}`;

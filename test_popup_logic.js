@@ -15257,6 +15257,50 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
            [early.gets, late]);
     } catch (e) { ok('CONFIGSTORE-3: the overlapping init() runs', false, String(e)); }
 })();
+// ---- audit 3.1.331 PUZPROBE-1: a SAN solution beside a FEN (chess.com Daily Puzzle) is read, not dropped as unread ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const pz = fs.readFileSync(ROOT + '/src/scripts/puz-probe.js', 'utf8');
+    const i = cs.indexOf('const puzzleCaptures = new Map();'), j = cs.indexOf('\n});\n', cs.indexOf('self.puzzleCaptureDebug')) + 5;
+    // the probe, in its own world, turns a payload into the `found` array the content side receives
+    const probe = (payload) => {
+        const ls = {}, ev = [];
+        const doc = {addEventListener: (t, f) => (ls[t] = ls[t] || []).push(f), querySelectorAll: () => [],
+            dispatchEvent: (e) => { ev.push(e); for (const f of ls[e.type] || []) f(e); return true; }};
+        const w = vm.createContext({document: doc, JSON, CustomEvent: function (t, o) { this.type = t; this.detail = o && o.detail; },
+            MutationObserver: class { observe() {} }, setInterval: () => 0, clearInterval() {}, XMLHttpRequest: function () {}});
+        w.window = w; w.addEventListener = () => {}; w.XMLHttpRequest.prototype = {open() {}};
+        vm.runInContext(pz, w);
+        const sid = JSON.parse(ev[0].detail).s, n = ev.length;
+        doc.dispatchEvent({type: sid + 'c', detail: JSON.stringify(payload)});
+        return ev.slice(n).filter(e => e.type === sid + 'p').flatMap(e => JSON.parse(e.detail).found);
+    };
+    const run = (payload) => {
+        const c = vm.createContext({console: {log() {}}}); c.self = c;
+        vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+        vm.runInContext('var config = null;\n' + cs.slice(i, j).replace(/^let puzSid = null;$/m, 'var puzSid = null;'), c);
+        c.acceptPuzzleCaptures(probe(payload));
+        return c;
+    };
+    const fen = '6k1/5pp1/7p/8/8/8/5PPP/R2R2K1 w - - 0 1';
+    const a = run({puzzle: {id: 'daily-125', initialFen: fen, tcnMoveList: 'Rd8+ Kh7 Raa8'}});
+    const got = a.puzzleCaptureFor(fen), dbg = a.puzzleCaptureDebug();
+    ok('PUZPROBE-1: a daily SAN line beside its fen is stored as UCI for that position',
+       got && got.line === 'd1d8 g8h7 a1a8' && got.id === 'daily-125' && dbg.unread === 0 && dbg.rejected === 0, {got, dbg});
+    // 'Rd8#' is four characters that are ALSO valid TCN; that reading is illegal here, the SAN one is kept
+    const b = run({puzzle: {id: 'daily-124', initialFen: '6k1/5ppp/8/8/8/8/5PPP/3R2K1 w - - 0 1', tcnMoveList: 'Rd8#'}});
+    ok('PUZPROBE-1: a one-move SAN mate that also parses as TCN still reads as its SAN',
+       (b.puzzleCaptureFor('6k1/5ppp/8/8/8/8/5PPP/3R2K1 w - - 0 1') || {}).line === 'd1d8', b.puzzleCaptureDebug());
+    // a SAN line that is not legal from that fen stores nothing (counted rejected, never guessed)
+    const c = run({puzzle: {id: 'daily-9', initialFen: fen, tcnMoveList: 'Qd8+ Kh7'}});
+    ok('PUZPROBE-1: SAN that does not replay from the fen stores nothing', c.puzzleCaptureDebug().size === 0 && !c.puzzleCaptureFor(fen),
+       c.puzzleCaptureDebug());
+    // the rated TCN path is unchanged: e2e4 e7e5 in TCN is "mC0K"
+    const d = run({puzzle: {id: 7, fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', tcnMoveList: 'mC0K'}});
+    ok('PUZPROBE-1: a TCN solution still decodes as before',
+       (d.puzzleCaptureFor('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') || {}).line === 'e2e4 e7e5', d.puzzleCaptureDebug());
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
