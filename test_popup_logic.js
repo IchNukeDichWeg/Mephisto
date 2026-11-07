@@ -13053,6 +13053,44 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('CONTENT1-1: ...and the content script still clicks that move with the timing it was sent',
        vars.config && vars.config !== panel && vars.config.move_time === 200 && vars.config.move_variance === 0, vars.config);
 }
+// ---- audit 3.1.331 CONTENT1-2: Streamer Alert asks again on a new position, not only on a config push ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const fn = (name) => { const i = cs.indexOf('function ' + name + '('); for (let d = 0, k = cs.indexOf('{', i); k < cs.length; k++) { if (cs[k] === '{') d++; else if (cs[k] === '}' && !--d) return cs.slice(i, k + 1); } return ''; };
+    // the real pushPosition + maybeCheckStreamer; free names resolve through one scope (globals natively)
+    let now = 1e12, fen = 'start', topName = 'Opponent', answer = {live: false}, asks = [];
+    const vars = {config: {streamer_alert: true}, moving: false, lastPushKey: null, lastDisplayKey: null, resumePush: false,
+        noScrapeRetries: 0, scrapeCount: 0, scrapeMs: 0, site: 'chesscom', streamerAsked: null, streamerFailed: null,
+        STREAMER_RETRY_MS: 2 * 60 * 1000, Date: {now: () => now}, performance: {now: () => 0},
+        scrapeStorming: () => false, tryScrapePosition: () => fen, getOrientation: () => 'white', playerColor: () => 'white',
+        scrapeClocks: () => null, sendToPanel: () => {}, bgLog: () => {}, opponentUsername: () => topName, opponentRating: () => null,
+        chrome: {runtime: {lastError: null, sendMessage: (m, cb) => { asks.push(m.streamerLookup.username); cb(answer); }}}};
+    const scope = new Proxy(vars, {has: (t, k) => (k in t) || !(k in globalThis),
+        get: (t, k) => (k in t) ? t[k] : (k === Symbol.unscopables ? undefined : () => {}),
+        set: (t, k, v) => { t[k] = v; return true; }});
+    let got = [];
+    try {
+        const [push, check] = new Function('scope', 'with (scope) { return [(' + fn('pushPosition') + '), (' + fn('maybeCheckStreamer') + ')]; }')(scope);
+        vars.maybeCheckStreamer = check;
+        check();                                    // the panel's config push, in the lobby
+        topName = 'hikaru'; fen = 'game2 move1';    // a game starts in the same document: no config push
+        push();
+        got.push(asks.slice());
+        asks = []; answer = {error: 'chess.com answered 429'}; topName = 'magnus'; fen = 'game3 move1';
+        push();                                     // the lookup fails...
+        answer = {live: false}; now += 3 * 60 * 1000; fen = 'game3 move2';
+        push();                                     // ...and three minutes later the next position asks again
+        got.push(asks.slice());
+        asks = []; fen = 'game3 move3'; push();     // an answered opponent is not asked again
+        got.push(asks.slice());
+    } catch (e) { got = ['threw ' + e.message]; }
+    ok('CONTENT1-2: the opponent of a game that starts after the config push is looked up on its first position',
+       JSON.stringify(got[0]) === '["Opponent","hikaru"]', got[0]);
+    ok('CONTENT1-2: ...a failed lookup is retried by a later position once the two minutes are up',
+       JSON.stringify(got[1]) === '["magnus","magnus"]', got[1]);
+    ok('CONTENT1-2: ...and an opponent already answered is not asked again per position', JSON.stringify(got[2]) === '[]', got[2]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

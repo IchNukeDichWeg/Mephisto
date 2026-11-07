@@ -4232,6 +4232,10 @@ function pushPosition() {
         sendToPanel({ dom: res, orient: orient, mine: playerColor(), clocks: scrapeClocks(), fenresponse: true, resume,
                       opponent: config.opp_prep ? opponentUsername() : null,
                       oppRating: config.engine === 'maia2' ? opponentRating() : null });
+        // Every new position asks too, not only a config push: on chess.com the next game starts in
+        // the same document with no push, and a failed lookup's two-minute retry needs a later ask
+        // (audit 3.1.331 CONTENT1-2). Cheap: it returns at once for an opponent already asked.
+        maybeCheckStreamer();
     } catch (e) {
         // extension was reloaded -- this orphaned content-script can't reach it anymore
     }
