@@ -182,36 +182,39 @@ function repairPlacement(squares) {
     // that can then never be flipped again. Tentative-flip-and-count catches that generically: any
     // candidate whose flip does not reduce the violation total is reverted and the next one tried,
     // and a violation none of them can reduce is REPORTED rather than papered over.
-    const tryFlip = (cand, rule, before) => {
-        flip(cand);
-        if (placementViolations(squares).length < before) {
-            fixed.push({square: cand.square, from: cand.alt, to: cand.piece, rule});
-            flipped.add(cand.square);
-            return true;
-        }
-        flip(cand);                                    // revert: this trade was not an improvement
-        return false;
-    };
+    //
+    // The BEST flip of the pass, not the first that helps at all. Taking the first one turned the
+    // real, less confident white king into a queen on ['two white kings', 'no black king'] (2 -> 1),
+    // and since a flipped square is never revisited, the black king misread as white (runner-up k,
+    // 2 -> 0) could then only trade one missing king for the other and stayed unfixed: a one-flip
+    // board reported as not legal (audit 3.1.331 VISION-3). Every candidate is scored across all the
+    // violations and the largest drop wins; a tie keeps the order below, so a pass where every flip
+    // helps by one takes exactly the flip it always took. Still greedy, not a search: on 90,148
+    // synthetic boards with 1-2 misreads it changed 334 outcomes, recovering the true board in 109 of
+    // them (first-that-helps: 11), with fewer rules left broken in 146 and more in 3.
+    const countAfter = (cand) => { flip(cand); const n = placementViolations(squares).length; flip(cand); return n; };
     for (let pass = 0; pass < 12; pass++) {           // bounded: <= one flip per violation family
         const violations = placementViolations(squares);
         if (!violations.length) break;
-        let progressed = false;
+        let best = null;
         for (const v of violations) {
-            if (v.missing) {
+            const cands = v.missing
                 // a MISSING king cannot be fixed by removing anything: the squares whose runner-up
-                // IS that king, most confident first, until one strictly helps
-                const cands = squares.filter(sq => sq.alt === v.missing && !flipped.has(sq.square))
-                                     .sort((a, b) => b.altProb - a.altProb);
-                progressed = cands.some(c => tryFlip(c, v.rule, violations.length));
-            } else {
-                // too many of something: the least confident offenders, until one strictly helps
-                const cands = (v.offenders || []).filter(sq => !flipped.has(sq.square) && sq.alt !== null)
-                                                 .sort((a, b) => a.prob - b.prob);
-                progressed = cands.some(c => tryFlip(c, v.rule, violations.length));
+                // IS that king, most confident first
+                ? squares.filter(sq => sq.alt === v.missing && !flipped.has(sq.square))
+                         .sort((a, b) => b.altProb - a.altProb)
+                // too many of something: the least confident offenders first
+                : (v.offenders || []).filter(sq => !flipped.has(sq.square) && sq.alt !== null)
+                                     .sort((a, b) => a.prob - b.prob);
+            for (const c of cands) {
+                const n = countAfter(c);
+                if (n < violations.length && (!best || n < best.n)) best = {cand: c, rule: v.rule, n};
             }
-            if (progressed) break; // re-check from scratch: a flip may have changed other counts
         }
-        if (!progressed) break;                        // nothing improves anything -- report what remains
+        if (!best) break;                              // nothing improves anything -- report what remains
+        flip(best.cand);
+        fixed.push({square: best.cand.square, from: best.cand.alt, to: best.cand.piece, rule: best.rule});
+        flipped.add(best.cand.square);                 // re-check from scratch: a flip may have changed other counts
     }
     return {fixed, unresolved: placementViolations(squares).map(v => v.rule)};
 }

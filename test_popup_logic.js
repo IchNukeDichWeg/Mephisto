@@ -15961,6 +15961,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and the worker passes it on to the recogniser',
        /recognizeBoard: \{\s*dataUri, crop: msg\.captureAndRecognize\.crop, fresh: msg\.captureAndRecognize\.fresh === true,/.test(bg));
 })().catch(e => { fails++; console.log('FAIL VISION-2 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 VISION-3: placement repair takes the flip that fixes the most, not the first that helps at all ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const v = fs.readFileSync(ROOT + '/src/offscreen/vision.js', 'utf8');
+    const sl = (a, b) => { const i = v.indexOf(a), j = v.indexOf(b, i); return i < 0 || j < 0 ? '' : v.slice(i, j); };
+    const c = vm.createContext({});
+    vm.runInContext(sl('function placementViolations(', '// squares (rank 8 first') + sl('function placementOf(', 'async function readBoard('), c);
+    vm.runInContext(`function board(spec) { const sq = []; for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
+        const n = String.fromCharCode(97 + f) + (8 - r);
+        sq.push(Object.assign({square: n, piece: '', prob: 0.85, alt: 'P', altProb: 0.05}, spec[n] || {})); } return sq; }`, c);
+    const run = (spec) => vm.runInContext(`(() => { const s = board(${JSON.stringify(spec)}); const r = repairPlacement(s); return {p: placementOf(s), r}; })()`, c);
+    // the black king on e8 misread as a second white king (runner-up k); the real white king on e1 is the
+    // less confident of the two, with a queen as its runner-up
+    const a = run({e1: {piece: 'K', prob: 0.50, alt: 'Q', altProb: 0.30}, e8: {piece: 'K', prob: 0.55, alt: 'k', altProb: 0.40},
+                   a1: {piece: 'R', prob: 0.9, alt: '', altProb: 0.05}});
+    ok('VISION-3: two white kings and no black king are fixed by the one flip that gives the black king back',
+       a.p === '4k3/8/8/8/8/8/8/R3K3' && a.r.unresolved.length === 0 && a.r.fixed.length === 1 && a.r.fixed[0].square === 'e8', a);
+    // a pass where every flip helps by one still takes the least confident offender, as before
+    const b = run({e1: {piece: 'K', prob: 0.50, alt: 'Q', altProb: 0.30}, e4: {piece: 'K', prob: 0.70, alt: 'B', altProb: 0.20},
+                   e8: {piece: 'k', prob: 0.9, alt: '', altProb: 0.05}});
+    ok('...a single broken rule still spends the least confident offender\'s runner-up',
+       b.p === '4k3/8/8/8/4K3/8/8/4Q3' && b.r.fixed.length === 1 && b.r.fixed[0].square === 'e1' && b.r.unresolved.length === 0, b);
+    // nothing that helps: reported, nothing flipped
+    const d = run({e1: {piece: 'K', prob: 0.50, alt: null, altProb: 0}, e4: {piece: 'K', prob: 0.70, alt: null, altProb: 0},
+                   e8: {piece: 'k', prob: 0.9, alt: '', altProb: 0.05}});
+    ok('...and a violation no runner-up reduces is left alone and reported', d.r.fixed.length === 0 && d.r.unresolved.join() === 'two white kings', d);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
