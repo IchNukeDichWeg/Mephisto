@@ -59,6 +59,11 @@ const sticky = {};   // clientId -> {option name: its last `setoption` line}
 // it. Each load claims a generation and abandons itself if a newer one has since started; a dispose
 // bumps it too, so a teardown mid-load can't be undone by the load finishing afterwards.
 const epoch = {};
+// clientId -> {name, engine}: a WASM instance whose net download failed. It cannot be freed (see
+// disposeClient), and the panel retries every 30 s while the download keeps failing, so each retry
+// built one more instance with its own workers and 64 MB+ shared heap. The next load of the same
+// engine for that client takes this one back instead (audit 3.1.331 OFFSCREEN-2).
+const spare = {};
 
 function send(clientId, payload) {
     // every engine's output funnels through here, so this is the one place that sees a search end
@@ -281,7 +286,9 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
     const enginePath = `/lib/engine/${engineMap[engineName]}`;
     const base = enginePath.substring(0, enginePath.lastIndexOf('/'));
     const module = await import(enginePath);
-    const engine = await module.default();
+    const parked = spare[clientId]?.name === engineName ? spare[clientId].engine : null;
+    if (parked) delete spare[clientId];
+    const engine = parked || await module.default();
     if (superseded()) return abandon(engine);
     engine.listen = (line) => say({kind: 'line', line});
     engine.onError = (e) => say({kind: 'error', error: String(e)});
@@ -289,48 +296,62 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
     // mid-load; while we're unpublished it queues, and a 'go' can't reach an engine whose NNUE
     // isn't in yet (it would search with no net). Publish + flush together, below.
 
-    if (engineName.includes('nnue')) {
-        if (engineName === 'fairy-stockfish-14-nnue' || engineName === 'fairy-stockfish-14-large-nnue') {
-            // A VARIANT THE ENGINE DOES NOT HAVE IS IGNORED, SILENTLY. Fairy answers an unknown
-            // UCI_Variant by staying on the one it was already playing -- so asking it for Duck
-            // Chess gets you a full-strength STANDARD CHESS analysis of a duck position, with no
-            // sign that anything is wrong. Measured: this build declares 84 variants and duck is
-            // not among them. The engine lists them in its own `uci` handshake, so the list is
-            // asked for rather than hardcoded, and the panel is told when the answer is no.
-            engine.uci('uci');
-            const declared = await new Promise((resolve) => {
-                const found = [];
-                const done = setTimeout(() => resolve(found), 3000);
-                const prev = engine.listen;
-                engine.listen = (line) => {
-                    prev(line);
-                    const m = /option name UCI_Variant type combo default \S+ (.*)$/.exec(line || '');
-                    if (m) found.push(...m[1].split(/\s+/).filter(w => w && w !== 'var'));
-                    if (/^uciok/.test(line || '')) { clearTimeout(done); engine.listen = prev; resolve(found); }
-                };
-            });
-            if (superseded()) return abandon(engine);   // and do not start its net download
-            if (declared.length && !declared.includes(variant)) {
-                say({kind: 'line', line: `info string mephisto-unsupported-variant ${variant}`});
-            }
-            engine.uci(`setoption name UCI_Variant value ${variant}`);
-            const net = variantNnueMap[variant] || variantNnueMap['chess'];
-            const note = (m) => say({kind: 'line', line: `info string ${m}`});
-            // Fairy's nets live one level down in nnue/, unlike mainline SF's, which sit beside the
-            // .js. Fetching them from `base` missed every one of them: the .partN probe missed too,
-            // and remoteNetUrl only serves official nn-<hash> nets, so this THREW -- before the
-            // publish below, so the engine was never registered and every command the panel sent
-            // queued in `pending` forever. Fairy WASM could not load at all. (bench.html:25 has
-            // always used the nnue/ path; only this copy of the path was wrong.)
-            engine.setNnueBuffer(new Uint8Array(await fetchNnue(`${base}/nnue`, net, note)), 0);
-        } else {
-            const nets = [];
-            for (let i = 0; ; i++) { const n = engine.getRecommendedNnue(i); if (!n || nets.includes(n)) break; nets.push(n); }
-            const note = (m) => say({kind: 'line', line: `info string ${m}`});
-            for (let i = 0; i < nets.length; i++) {
-                engine.setNnueBuffer(new Uint8Array(await fetchNnue(base, nets[i], note)), i);
+    // Only a failed DOWNLOAD parks the instance for reuse: the instance itself was never touched by
+    // it. One that threw on its own (setNnueBuffer, uci) may be broken, and is only stopped.
+    let downloadFailed = false;
+    const fetchNet = (b, n, note) => fetchNnue(b, n, note).catch(e => { downloadFailed = true; throw e; });
+    try {
+        if (engineName.includes('nnue')) {
+            if (engineName === 'fairy-stockfish-14-nnue' || engineName === 'fairy-stockfish-14-large-nnue') {
+                // A VARIANT THE ENGINE DOES NOT HAVE IS IGNORED, SILENTLY. Fairy answers an unknown
+                // UCI_Variant by staying on the one it was already playing -- so asking it for Duck
+                // Chess gets you a full-strength STANDARD CHESS analysis of a duck position, with no
+                // sign that anything is wrong. Measured: this build declares 84 variants and duck is
+                // not among them. The engine lists them in its own `uci` handshake, so the list is
+                // asked for rather than hardcoded, and the panel is told when the answer is no.
+                engine.uci('uci');
+                const declared = await new Promise((resolve) => {
+                    const found = [];
+                    const done = setTimeout(() => resolve(found), 3000);
+                    const prev = engine.listen;
+                    engine.listen = (line) => {
+                        prev(line);
+                        const m = /option name UCI_Variant type combo default \S+ (.*)$/.exec(line || '');
+                        if (m) found.push(...m[1].split(/\s+/).filter(w => w && w !== 'var'));
+                        if (/^uciok/.test(line || '')) { clearTimeout(done); engine.listen = prev; resolve(found); }
+                    };
+                });
+                if (superseded()) return abandon(engine);   // and do not start its net download
+                if (declared.length && !declared.includes(variant)) {
+                    say({kind: 'line', line: `info string mephisto-unsupported-variant ${variant}`});
+                }
+                engine.uci(`setoption name UCI_Variant value ${variant}`);
+                const net = variantNnueMap[variant] || variantNnueMap['chess'];
+                const note = (m) => say({kind: 'line', line: `info string ${m}`});
+                // Fairy's nets live one level down in nnue/, unlike mainline SF's, which sit beside the
+                // .js. Fetching them from `base` missed every one of them: the .partN probe missed too,
+                // and remoteNetUrl only serves official nn-<hash> nets, so this THREW -- before the
+                // publish below, so the engine was never registered and every command the panel sent
+                // queued in `pending` forever. Fairy WASM could not load at all. (bench.html:25 has
+                // always used the nnue/ path; only this copy of the path was wrong.)
+                engine.setNnueBuffer(new Uint8Array(await fetchNet(`${base}/nnue`, net, note)), 0);
+            } else {
+                const nets = [];
+                for (let i = 0; ; i++) { const n = engine.getRecommendedNnue(i); if (!n || nets.includes(n)) break; nets.push(n); }
+                const note = (m) => say({kind: 'line', line: `info string ${m}`});
+                for (let i = 0; i < nets.length; i++) {
+                    engine.setNnueBuffer(new Uint8Array(await fetchNet(base, nets[i], note)), i);
+                }
             }
         }
+    } catch (e) {
+        // A failed load used to drop its instance unstopped and unreachable (audit 3.1.331 OFFSCREEN-2).
+        // Silenced first, since its client id is still current and say() would pass the bestmove its
+        // stop flushes to the panel as an answer.
+        engine.listen = () => {}; engine.onError = () => {};
+        abandon(engine);
+        if (downloadFailed) spare[clientId] = {name: engineName, engine};
+        throw e;
     }
     // Fully loaded: publish it and flush everything the panel sent while we were loading, in order.
     // The panel doesn't block on us any more, so its board paints instantly even for Fairy (whose

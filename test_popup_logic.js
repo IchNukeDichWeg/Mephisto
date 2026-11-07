@@ -15828,6 +15828,55 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     await h.advance(60000);
     ok('...but a client still loading, then holding, an engine keeps it open', h.closedAt() === null, h.closedAt());
 })().catch(e => { fails++; console.log('FAIL OFFSCREEN-1 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 OFFSCREEN-2: a failed net download does not leave one more engine instance per retry ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The whole offscreen host on a simulated clock; SF 19 recommends one net, and the download fails
+    // until `netUp` (or setNnueBuffer throws when `badBuffer`).
+    const src = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8').replace(/await import\(/g, 'await __imp(');
+    const host = (st) => {
+        let now = 1e6, listener; const timers = [], out = [], engines = [];
+        const tick = () => new Promise(r => setImmediate(r));
+        const mk = (fn, ms, iv) => { const t = {at: now + ms, fn, iv}; timers.push(t); return t; };
+        const advance = async (ms) => { await tick(); const end = now + ms;
+            for (;;) { timers.sort((a, b) => a.at - b.at); const t = timers[0]; if (!t || t.at > end) break;
+                now = t.at; if (t.iv) t.at += t.iv; else timers.shift(); t.fn(); await tick(); } now = end; await tick(); };
+        const c = {console: {log() {}}, Date: {now: () => now},
+            setTimeout: (f, ms) => mk(f, ms, 0), setInterval: (f, ms) => mk(f, ms, ms),
+            clearTimeout: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
+            window: {close() {}},
+            __imp: async (path) => /model-fetch/.test(path)
+                ? {fetchModel: async () => { if (!st.netUp) throw new Error('MPH-N01: offline'); return new ArrayBuffer(4); }}
+                : {default: async () => { const e = {got: [], uci: (l) => { e.got.push(l); if (l === 'stop') e.listen && e.listen('bestmove e2e4'); },
+                    getRecommendedNnue: (i) => (i === 0 ? 'nn-a.nnue' : null),
+                    setNnueBuffer() { if (st.badBuffer) throw new Error('RuntimeError: unreachable'); }}; engines.push(e); return e; }},
+            chrome: {runtime: {sendMessage: (m) => out.push(m), onMessage: {addListener: (f) => listener = f}}}};
+        vm.createContext(c); vm.runInContext(src, c);
+        return {advance, out, engines, c, msg: (id, o) => listener({toOffscreen: true, clientId: id, ...o}, {}, () => {})};
+    };
+    const st = {netUp: false};
+    const h = host(st);
+    h.msg('7', {cmd: 'init', engine: 'stockfish-19-nnue', variant: 'chess'});
+    for (let i = 0; i < 30; i++) { await h.advance(10000); h.msg('7', {cmd: 'uci', line: `position fen x${i}`}); }
+    const errors = h.out.filter(m => m.kind === 'error').length;
+    ok('OFFSCREEN-2: 5 min of positions while the net download fails builds ONE engine instance, not one per retry',
+       h.engines.length === 1 && errors >= 8, {instances: h.engines.length, errors});
+    ok('...the failed load\'s instance is stopped, and says nothing to the panel', h.engines[0].got.includes('stop')
+       && !h.out.some(m => m.kind === 'line' && /^bestmove/.test(m.line || '')), h.engines[0].got);
+    st.netUp = true;
+    await h.advance(31000); h.msg('7', {cmd: 'uci', line: 'position startpos'}); await h.advance(100);
+    ok('...once the download works, the retry publishes that same instance and it gets the position',
+       h.engines.length === 1 && h.out.some(m => m.kind === 'ready') && vm.runInContext("clients['7']", h.c) === h.engines[0]
+       && h.engines[0].got.includes('position startpos'), {instances: h.engines.length, got: h.engines[0].got});
+    // an instance that threw on its own (not the download) is not reused
+    const st2 = {netUp: true, badBuffer: true};
+    const b = host(st2);
+    b.msg('8', {cmd: 'init', engine: 'stockfish-19-nnue', variant: 'chess'}); await b.advance(100);
+    st2.badBuffer = false;
+    await b.advance(31000); b.msg('8', {cmd: 'uci', line: 'position startpos'}); await b.advance(100);
+    ok('...an instance whose setNnueBuffer threw is stopped and replaced by a fresh one',
+       b.engines.length === 2 && b.engines[0].got.includes('stop') && vm.runInContext("clients['8']", b.c) === b.engines[1], b.engines.length);
+})().catch(e => { fails++; console.log('FAIL OFFSCREEN-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
