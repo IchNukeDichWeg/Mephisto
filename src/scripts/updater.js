@@ -457,6 +457,10 @@ const MephistoUpdater = (function () {
         // Files the update ADDED have no earlier version. Leaving them behind would mix two builds,
         // which is the failure mode that made a deleted declaration invisible once before.
         for (const p of (m.added || [])) await removeFileAt(dir, p);
+        // A staging left by the interrupted update being rolled back is not an update to finish any
+        // more: kept, Settings went on calling it interrupted and the next Install put it straight
+        // back, the build just rolled back, without looking for a newer release (audit 3.1.331 UPDATER-2).
+        await removeEntry(dir, STAGING);
         await removeEntry(dir, BACKUP);
         return {version: m.version, files: restore.length, removed: (m.added || []).length};
     }
