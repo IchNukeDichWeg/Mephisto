@@ -15125,6 +15125,24 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
        ["'Update failed, and nothing was changed'", "'Roll back failed, and nothing was changed'", "'Could not finish the update, and nothing was changed'"]
            .every(f => g.includes('await failed(oops(e, ' + f + ', true));')));
 })().catch(e => { fails++; console.log('FAIL UPDATER-6 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 UPDATER-7: Roll Back rewrites the record of what is on disk, so the panel offers the release again ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const a = g.indexOf("rollbackBtn?.addEventListener('click', async () => {"), b = g.indexOf('\n        });\n', a);
+    if (a < 0 || b < 0) return ok('UPDATER-7: the Roll Back handler is where the check expects it', false);
+    const store = {mephisto_installed_version: '3.1.332'}, reloads = [];
+    const c = vm.createContext({store, reloads, buttons: [], say() {}, oops: () => '', failed: async () => {},
+        setTimeout: (f) => f(), MephistoUpdater: {rollback: async () => ({version: '3.1.331', files: 5, removed: 0})},
+        chrome: {runtime: {reload: () => reloads.push(Object.assign({}, store))}, storage: {local: {set: async (o) => { Object.assign(store, o); }}}}});
+    vm.runInContext('var rollbackBtn = {addEventListener: (ev, f) => { rollbackBtn.click = f; }};\n' + g.slice(a, b + 12), c);
+    await c.rollbackBtn.click();
+    ok('UPDATER-7: after Roll Back to v3.1.331 the installed-version record says v3.1.331, written before the reload',
+       store.mephisto_installed_version === '3.1.331' && reloads.length === 1 && reloads[0].mephisto_installed_version === '3.1.331', [store, reloads]);
+    // the panel suppresses its update notice only on equality with the release: with the record rewritten it offers v3.1.332 again
+    const p = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('UPDATER-7: ...which is the record the panel compares with the newest release', /got\?\.mephisto_installed_version === res\.latest\) return;/.test(p));
+})().catch(e => { fails++; console.log('FAIL UPDATER-7 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

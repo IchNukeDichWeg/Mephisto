@@ -1403,6 +1403,10 @@ class GeneralSettings extends SettingsPage {
             buttons.forEach(b => b.disabled = true);
             try {
                 const res = await MephistoUpdater.rollback(say);
+                // The record of what is on disk follows the roll back. Left at the version rolled back
+                // from, it equalled the newest release, so the panel never offered that release again
+                // while Settings said it was available (audit 3.1.331 UPDATER-7).
+                await chrome.storage.local.set({mephisto_installed_version: res.version});
                 say(`Rolled back to v${res.version} - ${res.files} files restored` +
                     `${res.removed ? `, ${res.removed} removed` : ''}. Reloading the extension; reload your game tabs.`);
                 setTimeout(() => chrome.runtime.reload(), 1500);
