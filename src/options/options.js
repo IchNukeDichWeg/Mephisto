@@ -162,4 +162,21 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     injectPage(location.hash.substring(1) || DEFAULT_PAGE);
+
+    // THE PANEL'S "CLICK TO INSTALL" WITH THIS PAGE ALREADY OPEN (audit 3.1.331 UPDATER-5). The worker
+    // raises a flag and calls openOptionsPage, which only brings an open options tab to the front: it
+    // neither reloads it nor changes its page, so on Game Review nothing happened. The tab that comes
+    // to the front (visible now or within a moment) goes to Settings > General, which takes the flag.
+    chrome.storage.onChanged.addListener((ch, area) => {
+        if (area !== 'local' || !(ch.mephisto_autostart_update?.newValue || ch.mephisto_focus_updates?.newValue)) return;
+        const go = () => injectPage(DEFAULT_PAGE);
+        if (document.visibilityState === 'visible') return go();
+        const seen = () => {
+            if (document.visibilityState !== 'visible') return;
+            document.removeEventListener('visibilitychange', seen);
+            go();
+        };
+        document.addEventListener('visibilitychange', seen);
+        setTimeout(() => document.removeEventListener('visibilitychange', seen), 3000);
+    });
 });

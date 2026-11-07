@@ -14338,6 +14338,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const c = vm.createContext({console, setTimeout, Promise, JSON, Array, location: loc,
             M: {Sidenav: {init() {}}, ScrollSpy: {init: () => []}, Tooltip: {init() {}}},
             MephistoConfig: {get: () => null, ready: Promise.resolve()},
+            chrome: {storage: {onChanged: {addListener() {}}}},   // UPDATER-5's focus listener
             MephistoI18n: {use: async () => {}, apply() {}, lang: 'en'},
             document: {addEventListener: on(doc), documentElement: {classList: cls},
                 getElementById: (id) => anchors[id] || ({title, header: {scrollIntoView() {}}})[id] || null,
@@ -14419,6 +14420,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         history: {replaceState: (s, t, u) => { loc.h = u; }},
         M: {Sidenav: {init() {}}, ScrollSpy: {init: () => []}, Tooltip: {init() {}}},
         MephistoConfig: {get: () => null, ready: Promise.resolve()},
+        chrome: {storage: {onChanged: {addListener() {}}}},   // UPDATER-5's focus listener
         MephistoI18n: {use: async () => {}, apply() {}, lang: 'en'},
         document: {addEventListener: on(doc), documentElement: {classList: cls},
             getElementById: (id) => anchors[id] || ({title, header: {scrollIntoView() {}}})[id] || null,
@@ -14979,6 +14981,58 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
     const locs = fs.readdirSync(ROOT + '/src/i18n/locales').filter(f => f.endsWith('.json'));
     ok('UPDATER-4: ...in every language, with its {version}', locs.length === 14 && locs.every(f => /\{version\}/.test(JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8'))['set.update_in_folder'] || '')));
 })().catch(e => { fails++; console.log('FAIL UPDATER-4 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 UPDATER-5: the panel's click to install reaches an options tab already open, and a stale flag never installs ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const ga = g.indexOf('const AUTOSTART_MS'), gb = g.indexOf('render().then(autostart);', ga);
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    ok('UPDATER-5: the worker arms the autostart with the click\'s time', /if \(msg\.startUpdate\) \{[\s\S]{0,200}mephisto_autostart_update: Date\.now\(\)/.test(bg));
+    if (ga < 0 || gb < 0) return ok('UPDATER-5: Settings > General has a time-bounded autostart', false);
+    // the page's autostart over a shared chrome.storage.local and a Web Locks stand-in that serialises
+    const store = {};
+    let chain = Promise.resolve();
+    const locks = {request: (name, fn) => { const p = chain.then(() => fn()); chain = p.catch(() => {}); return p; }};
+    const mk = () => {
+        const c = vm.createContext({Date, Object, Promise, navigator: {locks}, installs: 0,
+            chrome: {storage: {local: {get: async (keys) => { await null; return Object.fromEntries(keys.filter(k => k in store).map(k => [k, store[k]])); },
+                                       remove: async (keys) => { await null; for (const k of [].concat(keys)) delete store[k]; }}}},
+            document: {getElementById: () => ({scrollIntoView() {}})},
+            MephistoUpdater: {isReady: async () => true, folder: async () => ({})}, say() {}});
+        vm.runInContext('var render = () => Promise.resolve(); var runInstall = () => { installs++; };\n' + g.slice(ga, gb) + '\nvar run = autostart;', c);
+        return c;
+    };
+    const run = async (flag) => { store.mephisto_autostart_update = flag; const c = mk(); await c.run(); return c.installs; };
+    const fresh = await run(Date.now()), stale = await run(Date.now() - 10 * 60 * 1000), bare = await run(true);
+    ok('UPDATER-5: a fresh flag installs, one left from ten minutes ago (or a bare true) does not, and every one is cleared',
+       fresh === 1 && stale === 0 && bare === 0 && !('mephisto_autostart_update' in store), [fresh, stale, bare, store]);
+    store.mephisto_autostart_update = Date.now();
+    const a = mk(), b = mk();
+    await Promise.all([a.run(), b.run()]);
+    ok('UPDATER-5: two open options tabs taking the same flag start one install between them', a.installs + b.installs === 1, [a.installs, b.installs]);
+    // options.js: the tab that comes to the front goes to Settings > General
+    const o = fs.readFileSync(ROOT + '/src/options/options.js', 'utf8');
+    const oa = o.indexOf('chrome.storage.onChanged.addListener((ch, area) => {'), ob = o.indexOf('\n    });\n', oa);
+    if (oa < 0 || ob < 0) return ok('UPDATER-5: options.js reacts to the flag', false);
+    const tab = (vis) => {
+        const ls = {}, c = vm.createContext({DEFAULT_PAGE: 'settings/general', pages: [], timers: [],
+            setTimeout: (f) => c.timers.push(f),
+            document: {visibilityState: vis, addEventListener: (e, f) => { ls[e] = f; }, removeEventListener: (e, f) => { if (ls[e] === f) delete ls[e]; }},
+            chrome: {storage: {onChanged: {addListener: (f) => { c.fire = f; }}}}});
+        c.ls = ls;
+        vm.runInContext('var injectPage = (p) => pages.push(p);\n' + o.slice(oa, ob + 8), c);
+        return c;
+    };
+    const front = tab('visible'); front.fire({mephisto_autostart_update: {newValue: 1}}, 'local');
+    front.fire({mephisto_autostart_update: {oldValue: 1}}, 'local'); front.fire({mephisto_focus_updates: {newValue: true}}, 'sync');
+    const late = tab('hidden'); late.fire({mephisto_autostart_update: {newValue: 1}}, 'local');
+    late.document.visibilityState = 'visible'; late.ls.visibilitychange && late.ls.visibilitychange();
+    const behind = tab('hidden'); behind.fire({mephisto_focus_updates: {newValue: true}}, 'local'); behind.timers.forEach(f => f());
+    behind.document.visibilityState = 'visible'; behind.ls.visibilitychange && behind.ls.visibilitychange();
+    ok('UPDATER-5: an open options tab in front, or brought to the front at once, goes to Settings > General; one left behind does not, nor does a cleared flag',
+       front.pages.join() === 'settings/general' && late.pages.join() === 'settings/general' && behind.pages.length === 0,
+       [front.pages, late.pages, behind.pages]);
+})().catch(e => { fails++; console.log('FAIL UPDATER-5 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

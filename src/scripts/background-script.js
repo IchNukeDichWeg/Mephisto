@@ -277,7 +277,8 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   // directory handle's permission and show progress), so flag it and open that page -- it starts by
   // itself from there.
   if (msg.startUpdate) {
-    chrome.storage.local.set({mephisto_autostart_update: true}, () => {
+    // the click's time, not `true`: the page honours it only briefly (audit 3.1.331 UPDATER-5)
+    chrome.storage.local.set({mephisto_autostart_update: Date.now()}, () => {
       chrome.runtime.openOptionsPage();
       sendResponse({ok: true});
     });

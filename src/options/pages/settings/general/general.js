@@ -1431,19 +1431,28 @@ class GeneralSettings extends SettingsPage {
         // The panel's "click to install" hands off to here -- the worker raises a flag and opens
         // this page, and the install starts on its own. The flag is cleared BEFORE anything runs, so
         // reloading this page afterwards never re-triggers an update.
+        // ...and it runs only right after the click (audit 3.1.331 UPDATER-5). A flag no page took up
+        // stayed armed and installed with no click whenever this page was next opened, maybe another
+        // release by then. It holds the click's time; read and cleared under a lock, so two open
+        // options tabs that both come here (options.js sends them) cannot both start an install.
+        const AUTOSTART_MS = 60000;   // a generous bound on opening this page, not a measurement
         const autostart = async () => {
             // Two ways in, and they must not be confused. `autostart` means "run it": the panel had a
             // one-click update to offer. `focus` means "come and finish setting this up": automatic
             // updates are switched on but something is still missing, so scroll here and stop.
-            const got = await chrome.storage.local.get(
-                ['mephisto_autostart_update', 'mephisto_focus_updates']);
+            const take = async () => {
+                const flags = await chrome.storage.local.get(['mephisto_autostart_update', 'mephisto_focus_updates']);
+                await chrome.storage.local.remove(Object.keys(flags));
+                return flags;
+            };
+            const got = await (navigator.locks ? navigator.locks.request('mephisto-update-flags', take) : take());
             if (got.mephisto_focus_updates) {
-                await chrome.storage.local.remove('mephisto_focus_updates');
                 document.getElementById('updates')?.scrollIntoView({block: 'center'});
             }
             if (!got.mephisto_autostart_update) return;
-            await chrome.storage.local.remove('mephisto_autostart_update');
             document.getElementById('updates')?.scrollIntoView({block: 'center'});
+            const at = got.mephisto_autostart_update;
+            if (typeof at !== 'number' || !(Date.now() - at <= AUTOSTART_MS)) return;
             if (!(await MephistoUpdater.isReady())) return;
             // The folder grant lapses across a browser restart, and asking for it again needs a
             // click, which a page opened by the panel has not had: install() threw "Update failed".
