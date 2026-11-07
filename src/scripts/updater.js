@@ -404,6 +404,23 @@ const MephistoUpdater = (function () {
             JSON.stringify({version, to, saved, added, at: new Date().toISOString()}, null, 2)));
         return {saved: saved.length, added: added.length};
     }
+    // The kept backup of an update that was cut off, made to cover another release's files (audit
+    // 3.1.331 UPDATER-3). A path the backup does not list was not in any update that wrote here since
+    // it was taken, so the folder still holds the old version's copy (or none) and is safe to add.
+    async function extendBackup(dir, m, paths, to) {
+        const backup = await dir.getDirectoryHandle(BACKUP);
+        const gen = await backup.getDirectoryHandle(m.version, {create: true});
+        const saved = [...m.saved], added = [...(m.added || [])], known = new Set([...saved, ...added]);
+        for (const p of paths) {
+            if (known.has(p)) continue;
+            const bytes = await readFileAt(dir, p);
+            if (bytes) { await writeFile(gen, p, bytes); saved.push(p); }
+            else added.push(p);
+        }
+        await writeFile(backup, 'manifest.json', new TextEncoder().encode(
+            JSON.stringify({...m, to, saved, added}, null, 2)));
+        return {saved: saved.length, added: added.length};
+    }
 
     // What Settings needs to decide whether to offer the button at all.
     async function rollbackInfo() {
@@ -611,10 +628,16 @@ const MephistoUpdater = (function () {
         // off: its backup is the good copy of the old version, while the folder may already be half
         // written by it. Backing that up again would replace the only copy Roll Back has.
         onStatus(`Backing up v${installed.version}…`);
+        // ...WHATEVER RELEASE IT WAS FOR (audit 3.1.331 UPDATER-3). Reused only when it was also for
+        // the same release, so a newer release out before the re-download backed up the half-written
+        // folder as the old version and Roll Back restored a mix. A backup of the version the folder
+        // still names is kept whichever update made it, and extended by the files this one adds.
         let prev = null;
         try { prev = JSON.parse(new TextDecoder().decode(await readFileAt(dir, `${BACKUP}/manifest.json`))); } catch (e) { /* none */ }
-        const bk = prev && prev.version === installed.version && prev.to === rel.latest
-            ? {saved: (prev.saved || []).length, added: (prev.added || []).length}
+        const keep = prev && prev.version === installed.version && Array.isArray(prev.saved)
+            && !(await backupStale(dir, await dir.getDirectoryHandle(BACKUP), prev));
+        const bk = keep
+            ? await extendBackup(dir, prev, files.map(f => f.path), rel.latest)
             : await backupCurrent(dir, installed.version, files.map(f => f.path), onStatus, rel.latest);
 
         // 3. PUT IN PLACE. Written from memory rather than re-read from staging -- same bytes, half
