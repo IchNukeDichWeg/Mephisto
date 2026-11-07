@@ -13238,6 +13238,37 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext('cdpAttach(8)', c); await tick();
     ok('...our own detach inside the settle drops the cached attach, so the next call attaches again', attaches.filter(x => x === 8).length === 2, attaches);
 })().catch(e => { fails++; console.log('FAIL BACKGROUND-3 check threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 BACKGROUND-4: archiveFetch's timeout covers a body that stalls after the headers ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const i = b.indexOf('async function archiveFetch(');
+    const fn = b.slice(i, b.indexOf('\n}\n', i) + 3);
+    const http = require('http');
+    // /stall: headers and one chunk, then nothing; /slow: four chunks 120 ms apart (longer in all than the limit)
+    const srv = http.createServer((req, res) => {
+        res.writeHead(req.url === '/gone' ? 429 : 200, {'Content-Type': 'text/plain', 'Retry-After': '7'});
+        if (req.url === '/stall') { res.write('[Event "x"]\n'); return; }
+        if (req.url === '/gone') { res.end('slow down'); return; }
+        let n = 0; const t = setInterval(() => { res.write(`part${n}\n`); if (++n === 4) { clearInterval(t); res.end(); } }, 120);
+    });
+    await new Promise(r => srv.listen(0, '127.0.0.1', r));
+    const base = `http://127.0.0.1:${srv.address().port}`;
+    const c = vm.createContext({fetch, AbortController, Response, Blob, setTimeout, clearTimeout});
+    vm.runInContext('const ARCHIVE_TIMEOUT_MS = 300;\n' + fn, c);
+    try {
+        const t0 = Date.now();
+        const stalled = await Promise.race([
+            c.archiveFetch(base + '/stall', {}).then(r => r.text()).then(t => 'resolved ' + t.length, e => 'rejected ' + (e && e.name)),
+            new Promise(r => setTimeout(() => r('still pending'), 2500))]);
+        ok('BACKGROUND-4: a body that stalls after the headers ends the fetch within the timeout instead of holding it',
+           /^rejected/.test(stalled) && Date.now() - t0 < 2000, stalled);
+        const slow = await c.archiveFetch(base + '/slow', {}).then(r => r.text());
+        ok('...an inactivity limit, not a deadline: a body that keeps arriving (480 ms in all, 300 ms limit) is read whole', slow === 'part0\npart1\npart2\npart3\n', slow);
+        const g = await c.archiveFetch(base + '/gone', {});
+        ok('...status, ok and headers reach the caller unchanged', g.status === 429 && g.ok === false && g.headers.get('Retry-After') === '7' && await g.text() === 'slow down', g.status);
+    } finally { srv.closeAllConnections && srv.closeAllConnections(); srv.close(); }
+})().catch(e => { fails++; console.log('FAIL BACKGROUND-4 check threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -2894,10 +2894,30 @@ function splitPgnGames(text) {
 // analysing. Same AbortController-plus-cleared-timer pattern the explorer uses.
 const ARCHIVE_TIMEOUT_MS = 8000;   // archives are megabytes, so longer than the explorer's 4s
 
+// THE TIMER STAYS ARMED THROUGH THE BODY. It used to be cleared once the headers were in, and the
+// callers' r.text()/r.json() then read a multi-MB body with no limit: a body that stalled after the
+// headers held the lookup, and the panel's opp_prep_for/player_book_for latch, for good (audit
+// 3.1.331 BACKGROUND-4). The body is read here, the timer re-armed on every chunk: an INACTIVITY
+// limit, not a deadline, because lichess streams its export at about 20 games a second and a
+// 200-game Player Book body alone can take ten. The callers get the same status, headers and bytes.
 async function archiveFetch(url, init) {
     const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), ARCHIVE_TIMEOUT_MS);
-    try { return await fetch(url, {...init, signal: ctl.signal}); }
+    let timer = 0;
+    const arm = () => { clearTimeout(timer); timer = setTimeout(() => ctl.abort(), ARCHIVE_TIMEOUT_MS); };
+    arm();
+    try {
+        const r = await fetch(url, {...init, signal: ctl.signal});
+        if (!r.body) return r;
+        const reader = r.body.getReader(), chunks = [];
+        for (;;) {
+            arm();
+            const {done, value} = await reader.read();   // an abort rejects this read
+            if (done) break;
+            chunks.push(value);
+        }
+        const nullBody = [101, 204, 205, 304].includes(r.status);
+        return new Response(nullBody ? null : new Blob(chunks), {status: r.status, statusText: r.statusText, headers: r.headers});
+    }
     finally { clearTimeout(timer); }
 }
 
