@@ -15544,6 +15544,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('BOTGAMES-1: a move made on the board mid-replay stops the replay, no line move lands after it',
        desync.r.ok && JSON.stringify(desync.hist) === JSON.stringify(['e4', 'd5']), desync.hist);
 })().catch(e => { fails++; console.log('FAIL BOTGAMES-1 check threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 CLASSIFYCORE-1: a double push that can be taken en passant is material offered ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    const sac = (fen, uci) => vm.runInContext(`self.MephistoClassify.sacrificesMaterial(Chess, 'chess', ${JSON.stringify(fen)}, ${JSON.stringify(uci)})`, c);
+    // 1.c4 bxc3 e.p. with nothing able to retake on c3: the pawn is simply given
+    const loose = sac('4k3/8/8/8/1p6/8/2P5/4K3 w - - 0 1', 'c2c4');
+    // the same push with d2 covering c3: 1.c4 bxc3 2.dxc3 is a pawn trade
+    const covered = sac('4k3/8/8/8/1p6/8/2PP4/4K3 w - - 0 1', 'c2c4');
+    // a single push onto a pawn-attacked square, which was already seen
+    const single = sac('4k3/8/8/1p6/8/2P5/8/4K3 w - - 0 1', 'c3c4');
+    ok('CLASSIFYCORE-1: a double push the opponent takes en passant for free is material offered', loose === true, loose);
+    ok('...the exchange continues on the en passant square, so a retake there makes it a pawn trade', covered === false, covered);
+    ok('...a single push onto an attacked square still counts as before', single === true, single);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

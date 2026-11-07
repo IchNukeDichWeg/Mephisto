@@ -59,13 +59,19 @@ function sacrificesMaterial(Chess, variant, fenBefore, uci) {
         // cheapest opponent capture of that square, then our cheapest recapture, alternating
         let side = 'them';
         const balance = [];
+        // The square being fought over. After a double push the first reply can be en passant: it
+        // takes the pushed pawn but lands on the square behind it, so a to-only filter never saw it
+        // and a gambit pawn read as offering nothing; the rest of the swap is then fought on the ep
+        // square (audit 3.1.331 CLASSIFYCORE-1).
+        let sq = to;
         for (let ply = 0; ply < 8; ply++) {
-            const caps = c.moves({verbose: true}).filter(m => m.to === to && m.captured);
+            const caps = c.moves({verbose: true}).filter(m => m.captured && (m.to === sq || (ply === 0 && m.flags.includes('e'))));
             if (!caps.length) break;
             caps.sort((a, b) => PIECE_VAL[a.piece] - PIECE_VAL[b.piece]);
             const cheapest = caps[0];
             balance.push({side, wins: onSquare, with: PIECE_VAL[cheapest.piece]});
             c.move({from: cheapest.from, to: cheapest.to, promotion: cheapest.promotion});
+            sq = cheapest.to;
             onSquare = PIECE_VAL[cheapest.piece];
             side = side === 'them' ? 'us' : 'them';
         }
