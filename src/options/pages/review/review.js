@@ -778,10 +778,12 @@ async function run4pcReview() {
         note(cancel ? 'Stopped.' : String(e.message || e), !cancel);
     } finally {
         running = false; cancel = false;
-        $('rv_run').disabled = false;
+        M.disconnect();   // the host is single-threaded and idle now; do not hold its port open
+        // The page can be gone (another options page): an unguarded line threw here before the
+        // disconnect and kept the Tetrarch host connected for the life of the tab (audit 3.1.331 REVIEW-3).
+        if ($('rv_run')) $('rv_run').disabled = false;
         if ($('rv_stop')) $('rv_stop').disabled = true;
         $('rv_progress_wrap')?.classList.add('hidden');
-        M.disconnect();   // the host is single-threaded and idle now; do not hold its port open
     }
 }
 
@@ -790,6 +792,10 @@ let board4pc = null;
 function render4pc() {
     const r = fourpcReport;
     if (!r) return;
+    // A run that ends on another options page keeps its report for the revisit, which renders it
+    // then; drawing into the missing section threw, and the revisit showed that TypeError as the
+    // run's red note (audit 3.1.331 REVIEW-3).
+    if (!$('rv4_head')) return;
     $('rv-4pc')?.classList.remove('hidden');
     const C = self.MephistoClassify || {};
     const tags = r.tags || {};
