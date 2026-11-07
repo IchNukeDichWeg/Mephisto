@@ -237,9 +237,10 @@
                 try { return JSON.parse(this.get('search_mode')); } catch (e) { return 'time'; }
             })();
             if (depthOnly) {
-                // remember only the FIRST time, so switching between two depth-only engines cannot
-                // overwrite the memo with 'depth' and lose what the user actually had
-                if (current !== 'depth' && !this.get(this.BUDGET_MEMO_KEY)) {
+                // never overwrite the memo with 'depth', so switching between two depth-only engines
+                // cannot lose what the user actually had. Any other budget is the user's latest
+                // choice, so it replaces an older memo (one a Settings Reset left behind).
+                if (current !== 'depth') {
                     this.set(this.BUDGET_MEMO_KEY, JSON.stringify(current));
                 }
                 this.set('search_mode', JSON.stringify('depth'));
@@ -247,6 +248,11 @@
             }
             const memo = this.get(this.BUDGET_MEMO_KEY);
             if (!memo) return current;               // we never changed it; leave the user's choice alone
+            // The memo only stands for the Depth WE set. A budget that is no longer Depth was chosen
+            // after that (or reset by Settings Reset, which does not know the memo), so it stays and
+            // the memo goes: restoring it brought back an old Nodes budget out of nowhere on the next
+            // engine switch (audit 3.1.331 CONFIGSTORE-2).
+            if (current !== 'depth') { this.remove(this.BUDGET_MEMO_KEY); return current; }
             let restored = 'time';
             try { restored = JSON.parse(memo) || 'time'; } catch (e) { /* corrupt memo -> time */ }
             this.remove(this.BUDGET_MEMO_KEY);

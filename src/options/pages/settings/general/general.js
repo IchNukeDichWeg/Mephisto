@@ -1071,7 +1071,10 @@ class GeneralSettings extends SettingsPage {
         for (const k of ['humanize_top', 'humanize_second', 'humanize_third', 'humanize_fourth', 'humanize_inaccuracy',
             'humanize_mistake', 'humanize_blunder', 'humanize_cp_second', 'humanize_cp_third', 'humanize_cp_fourth',
             'humanize_cp_inaccuracy', 'humanize_cp_mistake', 'humanize_cp_blunder',
-            'live_classify_which', 'hotkeys', 'hotkey_macros', 'hotkey_custom']) MephistoConfig.remove(k);
+            'live_classify_which', 'hotkeys', 'hotkey_macros', 'hotkey_custom',
+            // the stockfish.online Budget memo: Budget is reset, so the old one must not come back
+            // on the next engine switch (audit 3.1.331 CONFIGSTORE-2)
+            MephistoConfig.BUDGET_MEMO_KEY]) MephistoConfig.remove(k);
         chrome.storage.local.remove('ui_mode', () => location.reload());
     }
 

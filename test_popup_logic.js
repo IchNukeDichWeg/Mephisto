@@ -15183,6 +15183,46 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
        && Object.keys(C.HOTKEY_DEFAULTS).every(a => after[a] === C.canonHotkey(C.HOTKEY_DEFAULTS[a])), [rc.bindings && rc.bindings.autoplay, C.hotkeyMacros()]);
     C.remove('hotkeys'); C.remove('hotkey_macros');
 }
+// ---- audit 3.1.331 CONFIGSTORE-2: the stockfish.online Budget memo never brings an old Budget back ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console, location: {protocol: 'https:'}, navigator: {},
+        chrome: {storage: {local: {get: async () => ({__cfg_migrated: '1', __maia_merged: '1', __match_default: '1'}), set: async () => {}, remove: async () => {}},
+            onChanged: {addListener() {}}}}};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8'), c);
+    const C = c.MephistoConfig, SO = 'cloud-stockfish-online', mode = () => C.get('search_mode');
+    (async () => {
+        await C.ready;
+        // the round trip still works: Nodes -> stockfish.online (Depth) -> another engine (Nodes back)
+        C.set('search_mode', '"nodes"');
+        const r1 = [C.applyEngineBudgetRule(SO), C.applyEngineBudgetRule('stockfish-19-nnue'), mode(), C.get(C.BUDGET_MEMO_KEY)];
+        ok('CONFIGSTORE-2: picking stockfish.online and leaving it again puts Nodes back', JSON.stringify(r1) === '["depth","nodes","\\"nodes\\"",null]', r1);
+        // Settings Reset while on stockfish.online (search_mode removed, the memo not), then an engine switch
+        C.set('search_mode', '"nodes"'); C.applyEngineBudgetRule(SO); C.remove('search_mode');
+        const r2 = C.applyEngineBudgetRule('stockfish-19-nnue');
+        ok('CONFIGSTORE-2: after a reset Budget, the next engine switch keeps the default, not the old Nodes',
+           r2 !== 'nodes' && mode() !== '"nodes"' && C.get(C.BUDGET_MEMO_KEY) === null, [r2, mode()]);
+        // a Budget picked by hand on stockfish.online is the user's latest choice
+        C.set('search_mode', '"nodes"'); C.applyEngineBudgetRule(SO); C.set('search_mode', '"time"');
+        ok('CONFIGSTORE-2: Time chosen by hand on stockfish.online stays Time when switching away',
+           C.applyEngineBudgetRule('stockfish-19-nnue') === 'time' && mode() === '"time"');
+        // a stale memo left over never wins over the Budget in force when stockfish.online is picked again
+        C.set(C.BUDGET_MEMO_KEY, '"nodes"'); C.set('search_mode', '"time"');
+        const r3 = [C.applyEngineBudgetRule(SO), C.applyEngineBudgetRule('stockfish-19-nnue')];
+        ok('CONFIGSTORE-2: an old memo is replaced by the Budget in force when stockfish.online is picked', r3[1] === 'time', r3);
+        C.remove('search_mode'); C.remove(C.BUDGET_MEMO_KEY);
+        // Settings > General > Reset removes the memo along with the Budget it stood for
+        const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+        const i = gj.indexOf('onResetConfigValues() {'), body = gj.slice(i, gj.indexOf('\n    }\n', i));
+        const removed = [];
+        const rc = vm.createContext({MephistoConfig: {remove: (k) => removed.push(k), BUDGET_MEMO_KEY: C.BUDGET_MEMO_KEY},
+            chrome: {storage: {local: {remove() {}}}}, location: {}});
+        vm.runInContext(`(${body.replace('onResetConfigValues() {', 'function () {')}\n}).call({clearConfigValues() {}})`, rc);
+        ok('CONFIGSTORE-2: Settings Reset removes the Budget memo', removed.includes(C.BUDGET_MEMO_KEY), removed.slice(-3));
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
