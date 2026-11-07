@@ -214,9 +214,21 @@ async function main() {
     for (const n of names.filter(x => files[x].tag === o.tag)) {
         const e = files[n], src = found[n].sources;
         if (e.parts) {
-            // re-split the joined bytes at PART_BYTES, whatever the git split was
-            const all = Buffer.concat(src.map(s => fs.readFileSync(s)));
-            for (let p = 0; p < e.parts; p++) fs.writeFileSync(path.join(o.out, `${n}.part${p}`), all.subarray(p * PART_BYTES, (p + 1) * PART_BYTES));
+            // re-split the joined bytes at PART_BYTES, whatever the git split was. Streamed: this branch is
+            // for files over 2 GiB, which fs.readFileSync refuses (ERR_FS_FILE_TOO_LARGE), so a whole net
+            // that size died here after the manifest above was written (audit 3.1.331 RELEASETOOLS-4)
+            let p = 0, fd = null, left = 0;
+            try {
+                for (const s of src) for await (let chunk of fs.createReadStream(s)) {
+                    while (chunk.length) {
+                        if (!left) { if (fd !== null) { fs.closeSync(fd); fd = null; } fd = fs.openSync(path.join(o.out, `${n}.part${p++}`), 'w'); left = PART_BYTES; }
+                        const k = Math.min(left, chunk.length);
+                        fs.writeFileSync(fd, chunk.subarray(0, k));
+                        chunk = chunk.subarray(k); left -= k;
+                    }
+                }
+            } finally { if (fd !== null) fs.closeSync(fd); }
+            if (p !== e.parts) throw new Error(`${n}: staged ${p} parts, the manifest says ${e.parts}`);
         } else if (src.length === 1) {
             const dst = path.join(o.out, n);
             fs.rmSync(dst, {force: true});

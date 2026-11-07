@@ -16612,6 +16612,36 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
         ok('RELEASETOOLS-3: ...and so does a missing .part0', first.status === 1 && /m\.nnue: \.partN files are not contiguous \(no \.part0\)/.test(first.stderr), first);
     } finally { fs.rmSync(tmp, {recursive: true, force: true}); }
 })().catch(e => { fails++; console.log('FAIL RELEASETOOLS-3 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 RELEASETOOLS-4: the over-2-GiB split is staged by streaming, never one readFileSync of the whole net ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const path = require('path');
+    const bm = fs.readFileSync(ROOT + '/tools/release/build-engines-manifest.mjs', 'utf8');
+    const branch = bm.slice(bm.indexOf('if (e.parts) {', bm.indexOf('fs.mkdirSync(o.out')), bm.indexOf('} else if (src.length === 1)')).replace(/\/\/.*$/gm, '');
+    // a whole net over 2 GiB cannot go through fs.readFileSync (ERR_FS_FILE_TOO_LARGE); run end to end on a sparse 2.3 GB file
+    ok('RELEASETOOLS-4: the split branch reads its sources as streams, not with readFileSync',
+       branch.length > 0 && !/readFileSync/.test(branch) && /createReadStream/.test(branch), branch.slice(0, 200));
+    // the real builder with the limits shrunk to bytes and the GitHub read stubbed (unpublished tag), on a two-part git split
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'rt4-'));
+    try {
+        const root = path.join(tmp, 'root'), out = path.join(tmp, 'stage'), d = path.join(root, 'lib/engine/x');
+        fs.mkdirSync(d, {recursive: true}); fs.mkdirSync(path.join(root, 'src/offscreen'), {recursive: true});
+        const bytes = Buffer.from('abcdefghijklmnopqrstuvwxyz0123'); // 30 bytes: git parts of 13 + 17, staged at 8 -> 8/8/8/6
+        fs.writeFileSync(path.join(d, 's.nnue.part0'), bytes.subarray(0, 13)); fs.writeFileSync(path.join(d, 's.nnue.part1'), bytes.subarray(13));
+        const small = bm.replace(/^#!.*\n/, 'globalThis.fetch = async () => ({status: 404, ok: false});\n')
+            .replace(/^const ASSET_LIMIT = .*$/m, 'const ASSET_LIMIT = 10;').replace(/^const PART_BYTES = .*$/m, 'const PART_BYTES = 8;');
+        fs.writeFileSync(path.join(tmp, 'bm.mjs'), small);
+        const r = await new Promise(res => require('child_process').execFile(process.execPath,
+            [path.join(tmp, 'bm.mjs'), '--root', root, '--tag', 'zz-v1', '--out', out], {encoding: 'utf8', timeout: 30000},
+            (e, stdout, stderr) => res({status: e ? e.code : 0, stderr})));
+        const staged = fs.existsSync(out) ? fs.readdirSync(out).sort() : [];
+        const man = JSON.parse(fs.readFileSync(path.join(root, 'src/offscreen/engine-assets.json'), 'utf8')).files['s.nnue'] || {};
+        ok('RELEASETOOLS-4: ...the joined bytes come out re-split at PART_BYTES, as many parts as the manifest names',
+           r.status === 0 && man.parts === 4 && JSON.stringify(staged) === '["s.nnue.part0","s.nnue.part1","s.nnue.part2","s.nnue.part3"]'
+           && Buffer.concat(staged.map(f => fs.readFileSync(path.join(out, f)))).equals(bytes)
+           && staged.slice(0, 3).every(f => fs.statSync(path.join(out, f)).size === 8), {r, staged, man});
+    } finally { fs.rmSync(tmp, {recursive: true, force: true}); }
+})().catch(e => { fails++; console.log('FAIL RELEASETOOLS-4 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
