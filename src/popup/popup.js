@@ -1130,7 +1130,10 @@ async function initPanel(root, tabId) {
     // panel's message handler exists -- it's dropped, but its dedupe key is already recorded, so the
     // board would stay stale until the position next CHANGES (an opponent move). Now that we're fully
     // wired, force one clean re-fetch: reset the dedupe and re-scrape immediately.
-    last_eval.fen = '';
+    // NOT while restore_setup_state holds a position: every scrape is dropped then, so nothing would
+    // refill it, and a search held for the loading engine is re-driven only `&& last_eval.fen` -- the
+    // restored board was never analysed, and Copy FEN / Analyze saw '' (audit 3.1.331 POPUP1-2).
+    if (!setup_fen) last_eval.fen = '';
     fen_request_inflight = false;
     push_config();  // resets the content-script's push dedupe + triggers an immediate push
     request_fen();
@@ -3943,6 +3946,11 @@ let snap_crop = null;        // the screen rect the last capture came from, for 
 // your board away and go back to following the page. Park it in storage across the rebuild instead.
 // (Threads, Hash, Lines and the poll no longer reload at all -- see the settings handler.)
 const SETUP_STASH_KEY = 'setup_fen_stash';
+// In-page, a rebuild is reopenPanel -> removeOverlay -> suspend, and suspend is also the real close,
+// which clears the stash. panel_reload raises this so that one suspend keeps it: without it every
+// Engine/Variant change wiped the position it was meant to carry (audit 3.1.331 POPUP1-2). One-shot,
+// consumed by the next suspend.
+let panel_rebuild_pending = false;
 
 function stash_setup_state() {
     try {
@@ -7037,7 +7045,11 @@ function set_detection_status(text) {
 }
 
 function panel_reload() {
-    if (IS_CONTENT_SCRIPT) { self.MephistoContent?.reopenPanel?.(); return; }
+    if (IS_CONTENT_SCRIPT) {
+        // the stash may lag setup_fen (a turn flip, a move on the panel board): park the current one
+        if (self.MephistoContent?.reopenPanel) { stash_setup_state(); panel_rebuild_pending = true; }
+        self.MephistoContent?.reopenPanel?.(); return;
+    }
     location.reload();
 }
 
@@ -13863,6 +13875,8 @@ self.MephistoPanel = {
     // is a different thing and was a real bug when it lost your board -- that behaviour stays.
     suspend: () => {
         clearInterval(fen_poll_timer); fen_poll_timer = null;
+        const rebuild = panel_rebuild_pending;   // a panel_reload, not a close (audit 3.1.331 POPUP1-2)
+        panel_rebuild_pending = false;
         // A panel that is not up has nothing to close. Every chess tab loads this file, and in a tab
         // whose floating panel never booted ENGINE_CLIENT is still 'toolbar', the toolbar popup's own
         // client id: that tab's pagehide or the closeOverlay broadcast ran stop_current_engine here and
@@ -13875,7 +13889,8 @@ self.MephistoPanel = {
         engine_hint_arrows = [];   // a reopen must not re-send the closed panel's engine arrows (audit 3.1.330 CLICKB-3)
         setup_fen = null; snap_crop = null; setup_view = null;
         try { snap_follow_stop(); } catch (e) { /* ignore */ }
-        try { stash_setup_state(); } catch (e) { /* ignore */ } // setup_fen is null -> clears the stash
+        // setup_fen is null -> clears the stash; a rebuild keeps it for restore_setup_state
+        if (!rebuild) { try { stash_setup_state(); } catch (e) { /* ignore */ } }
         try { stop_current_engine(); } catch (e) { /* ignore */ }
         // Drop any manual turn override so reopening auto-adjusts to the current position's real side.
         turn_override = null;

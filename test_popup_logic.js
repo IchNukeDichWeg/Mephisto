@@ -11709,7 +11709,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const c = vm.createContext({chrome: {runtime: {sendMessage: (m) => sent.push(m.clientId + ' ' + m.cmd)}}, clearInterval() {}, clearTimeout() {}});
         vm.runInContext(`var PANEL_BOOTED = false, ENGINE_CLIENT = 'toolbar', fen_poll_timer = null, maia2 = null, native_bg_port = null,
             native_bg_port_name = null, engine_ready = false, last_init_fp = null, engine_hint_arrows = [], user_arrows = [], ua_last_sent = '',
-            setup_fen = null, snap_crop = null, setup_view = null, turn_override = null, turn_detected_prev = null;
+            setup_fen = null, snap_crop = null, setup_view = null, turn_override = null, turn_detected_prev = null, panel_rebuild_pending = false;
             function abandon_search() {} function dispose_threat_human() {} function ua_dispose() {} function snap_follow_stop() {} function stash_setup_state() {}
             ${stop}\n${m2}\nvar P = {${sus}};`, c);
         vm.runInContext('P.suspend()', c);
@@ -12600,6 +12600,66 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('POPUP1-1: ...their turn in German: nothing is played and the readout says Pondering', de.best === null && de.played.length === 0 && !!pond && (de.shown[0] || '').startsWith(pond), de);
     ok('POPUP1-1: ...our turn in German with ponder on: no Pondering prefix on our own move', !!(de2.shown || [])[0] && !de2.shown[0].startsWith(pond), de2);
 }
+// ---- audit 3.1.331 POPUP1-2: a set position survives an Engine/Variant change and is searched afterwards ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const sl = (a, b) => { const s = psrc.indexOf(a), e = psrc.indexOf(b, s); if (s < 0 || e < 0) throw new Error('slice ' + a); return psrc.slice(s, e); };
+    const SETUP = '8/8/8/4k3/8/8/4P3/4K3 w - - 0 1', FLIP = '8/8/8/4k3/8/8/4P3/4K3 b - - 0 1';
+    // (a) in-page: the REAL stash, panel_reload and suspend; reopenPanel starts with removeOverlay -> suspend
+    const store = {};
+    const c = vm.createContext({console: {log() {}, warn() {}}, store, clearInterval, clearTimeout, JSON});
+    c.self = c;
+    try {
+        const susp = sl('    suspend: () => {', '    // Header king-switch tap').replace(/^    suspend: /, 'var suspend = ').replace(/},\s*$/, '};');
+        vm.runInContext(`var MephistoConfig = {set: (k, v) => { store[k] = v; }, get: (k) => store[k]};
+            var setup_fen = null, snap_crop = null, setup_view = null, snap_flipped = false, PANEL_BOOTED = true, fen_poll_timer = null;
+            var user_arrows = [], ua_last_sent = '', engine_hint_arrows = [], turn_override = null, turn_detected_prev = null;
+            var abandon_search = () => {}, dispose_threat_human = () => {}, ua_dispose = () => {}, snap_follow_stop = () => {}, stop_current_engine = () => {};
+            var IS_CONTENT_SCRIPT = true, location = {reload() {}};
+            self.MephistoContent = {reopenPanel: () => { suspend(); PANEL_BOOTED = true; }};`
+            + sl('const SETUP_STASH_KEY', 'let explorer_empty_streak') + sl('function panel_reload() {', '\n}\n') + '\n}\n' + susp, c);
+        const fen = () => (JSON.parse(store.setup_fen_stash || 'null') || {}).fen || null;
+        vm.runInContext(`setup_fen = ${JSON.stringify(SETUP)}; stash_setup_state(); setup_fen = ${JSON.stringify(FLIP)}; panel_reload();`, c);
+        ok('POPUP1-2: an in-page Engine/Variant rebuild keeps the stash through suspend, with the position as it is now (turn flipped)', fen() === FLIP, store.setup_fen_stash);
+        vm.runInContext('suspend()', c);
+        ok('POPUP1-2: ...a real close afterwards still clears it', fen() === null, store.setup_fen_stash);
+    } catch (e) { ok('POPUP1-2: in-page harness ran', false, e.message); }
+    // (b) init order: REAL initialize_engine (not awaited, as initPanel does), restore's on_new_pos while the
+    // engine loads, then initPanel's REAL re-fetch statement. The held search must still be driven.
+    const uci = [], calls = [];
+    const d = vm.createContext({console: {log() {}, warn() {}}, uci, calls, Worker: class {}, Promise, JSON, Date, Math, setTimeout});
+    d.chrome = {runtime: {sendMessage: (m) => { if (m.cmd === 'uci') uci.push(m.line); return Promise.resolve(); }}};
+    try {
+        const refetch = sl('    // wired, force one clean re-fetch', '    fen_request_inflight = false;');
+        vm.runInContext(`var config = {engine: 'stockfish-18-nnue', variant: 'chess', memory: 64, threads: 1, elo: 0, premove: false, maia_level: '1500', skill_level: 40, rodent_personality: '---', maia3_elo: 1500, maia2_self_elo: 1500, maia2_oppo_elo: 1500};
+            var engine, engine_ready = false, last_init_engine = null, last_init_variant = null, last_init_maia = null, last_init_fp = null;
+            var pending_stops = 0, one_pass_owed = 0, pending_engine_options = {}, search_active = false, stop_charged_at = 0, remote_gen = 0, native_inflight = null;
+            var search_threads_set = null, search_multipv_set = null, remote_multipv_set = null, engine_loading_since = 0, last_go = '', engine_net_seen = '';
+            var last_eval = {fen: ''}, last_pos = {startFen: null, moves: ''}, setup_fen = null;
+            var offscreen_engine = {uci: (l) => uci.push(l)}; var ENGINE_CLIENT = 'toolbar';
+            var NO_ELO_ENGINES = [], ELO_RANGE = {}, SKILL_ENGINES = [], RODENT_ENGINES = [];
+            var is_remote = () => false, effective_multipv = () => 1, engine_elo = () => 0, update_engine_id = () => {}, on_engine_error = (e) => { throw new Error(e); };`
+            + sl('const WASM_ENGINES =', 'const offscreen_engine =') + sl('async function ensure_offscreen_engine', 'async function fetch_nnue')
+            + sl('function send_engine_uci(', '// Abandon the search in flight.') + sl('function abandon_search()', '// Claim the current generation') + `
+            // on_new_pos reduced to its held branch and its last_eval assignment
+            function on_new_pos(fen) {
+                calls.push(fen);
+                if (wasm_engine_loading) wasm_search_held = true;
+                else { abandon_search(); send_engine_uci('position fen ' + fen); send_engine_uci('go infinite'); search_active = true; }
+                last_eval = {fen, lines: []};
+            }
+            var run = async () => {
+                const p = initialize_engine(true);
+                setup_fen = ${JSON.stringify(SETUP)}; on_new_pos(setup_fen);   // restore_setup_state
+                ${refetch}
+                await p;
+                return {go: uci.filter(l => l.startsWith('go')).length, fen: last_eval.fen};
+            };`, d);
+        const r = await vm.runInContext('run()', d);
+        ok('POPUP1-2: a position restored while the engine loads is searched once it is ready, and last_eval keeps its FEN', r.go === 1 && r.fen === SETUP, r);
+    } catch (e) { ok('POPUP1-2: init-order harness ran', false, e.message); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
