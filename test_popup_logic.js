@@ -16146,6 +16146,47 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const sl = await settle(fetchModel('/lib/engine/sf', 'slow.nnue'));
     ok('...a slow download that keeps sending outlives the limit (it is re-armed on every chunk)', sl === 'resolved ' + good.length, sl);
 })().catch(e => { fails++; console.log('FAIL MODELFETCH-1 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 MODELFETCH-2: a connection cut mid-download reaches the panel as MPH-N02, not a bare TypeError ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const sha = (b) => require('crypto').createHash('sha256').update(b).digest('hex');
+    const good = Buffer.from('maia3 net bytes. '.repeat(40));
+    const files = {'cut.onnx': {size: good.length, sha256: sha(good), tag: 'models-v1'}};
+    let hits = 0;
+    const store = new Map();
+    const mctx = vm.createContext({console, Response, ReadableStream, crypto: globalThis.crypto, setTimeout, clearTimeout, AbortController,
+        fetch: async (url) => {
+            if (url === '/src/offscreen/engine-assets.json') return new Response(JSON.stringify({files}));
+            if (url.startsWith('/')) throw new TypeError('Failed to fetch');
+            if (++hits > 1) return new Response(good);
+            return new Response(new ReadableStream({start(c) {   // headers and half the body, then the socket dies
+                c.enqueue(new Uint8Array(good.subarray(0, good.length / 2)));
+                setTimeout(() => c.error(new TypeError('network error')), 5);
+            }}));
+        },
+        caches: {open: async () => ({match: async (u) => store.has(u) ? new Response(store.get(u)) : undefined,
+            put: async (u, r) => { store.set(u, Buffer.from(await r.arrayBuffer())); }, delete: async (u) => store.delete(u)})}});
+    vm.runInContext(fs.readFileSync(ROOT + '/src/offscreen/model-fetch.js', 'utf8').replace(/^export /gm, ''), mctx);
+    const fetchModel = vm.runInContext('fetchModel', mctx);
+    const msg = await fetchModel('/lib/engine/maia3', 'cut.onnx').then(() => 'resolved', e => String(e));
+    ok('MODELFETCH-2: a body cut off after the headers fails as MPH-N02, with the bytes and the platform error kept for the console',
+       /^Error: MPH-N02: cut\.onnx download broke off at \d+ of \d+ bytes \(TypeError: network error\)$/.test(msg), msg);
+    const again = await fetchModel('/lib/engine/maia3', 'cut.onnx').then(b => b.byteLength, e => String(e));
+    ok('...and the next load downloads it again', again === good.length, again);
+    // the panel half: that exact text is shown as the translated "cut short, try again" line, not MPH-E05
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const hs = psrc.indexOf('const err_line ='), helpers = psrc.slice(hs, psrc.indexOf('// Background-play tracing from the PANEL side', hs));
+    const ia = psrc.indexOf('function on_engine_error('), onErr = psrc.slice(ia, psrc.indexOf('\n}\n', ia) + 3);
+    const pc = vm.createContext({console: {error() {}, warn() {}, log() {}}, String, Object, Error, RegExp, TypeError}); pc.self = pc;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), pc);
+    vm.runInContext(`var shown = null, engine_restarting = false, engine_ready = true, engine_restarts = 0, engine = {}, last_engine_crash_at = 0;
+        function update_best_move(t) { shown = t; } function toggle_calculating() {} function i18n(k, d) { return d; }
+        function initialize_engine() { return Promise.resolve(); } let last_eval = {}; ${helpers} ${onErr}`, pc);
+    pc.cut = msg;
+    vm.runInContext('on_engine_error(cut)', pc);
+    const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+    ok('...which the panel shows as its MPH-N02 registry line', pc.shown === 'MPH-N02: ' + en['err.N02'], pc.shown);
+})().catch(e => { fails++; console.log('FAIL MODELFETCH-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -92,8 +92,12 @@ async function download(urls, entry, file, onNote) {
                 try {
                     chunk = await reader.read();
                 } catch (e) {
-                    if (!ctl.signal.aborted) throw e;
-                    throw coded('MPH-N02', `${file} download stalled at ${got} of ${entry.size} bytes (nothing for ${STALL_MS / 1000} s)`);
+                    // A connection cut after the headers rejects here with the platform's bare TypeError
+                    // ('network error'), which the panel could only show as the generic MPH-E05 line in
+                    // English; it is the same "cut short, try again" case as a stall (audit 3.1.331 MODELFETCH-2).
+                    throw coded('MPH-N02', ctl.signal.aborted
+                        ? `${file} download stalled at ${got} of ${entry.size} bytes (nothing for ${STALL_MS / 1000} s)`
+                        : `${file} download broke off at ${got} of ${entry.size} bytes (${e})`);
                 }
                 const {done, value} = chunk;
                 if (done) break;
