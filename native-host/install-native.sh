@@ -22,6 +22,7 @@
 # Requires python3 with python-chess for the Stockfish/Fairy hosts:  python3 -m pip install chess
 # (Tetrarch needs neither -- it speaks raw UCI over a pipe.)
 set -euo pipefail
+ORIG_PWD="$PWD"   # where the user stands: their relative --stockfish/--fairy/--tetrarch paths are relative to THIS
 cd "$(dirname "$0")"
 SRC_DIR="$(pwd)"
 
@@ -36,6 +37,17 @@ while [ $# -gt 0 ]; do
     *) echo "unknown arg: $1"; exit 1 ;;
   esac
 done
+# The cd above ran before the parse, so a relative path the user typed was checked against
+# native-host/, and a relative Tetrarch path went into tetrarch-path as-is, where the host resolves
+# it against its own runtime-dir cwd (audit 3.1.331 INSTALLSH-1). Anchor it to where the user stood.
+from_orig() {
+  case "$1" in
+    ''|/*) printf '%s' "$1" ;;
+    */*) printf '%s/%s' "$ORIG_PWD" "$1" ;;
+    *) if [ -e "$ORIG_PWD/$1" ]; then printf '%s/%s' "$ORIG_PWD" "$1"; else printf '%s' "$1"; fi ;;
+  esac
+}
+SF_BIN="$(from_orig "$SF_BIN")"; FAIRY_BIN="$(from_orig "$FAIRY_BIN")"; TETRARCH_DIR="$(from_orig "$TETRARCH_DIR")"
 [ -n "$EXT_ID" ] || { echo "!! --ext-id is required (copy it from chrome://extensions)"; exit 1; }
 
 # a python3 that can import chess (Chrome launches hosts with a minimal PATH -> pin an absolute one)
@@ -178,6 +190,7 @@ done
 # is what makes the net path in its default options resolve.
 [ -n "$TETRARCH_DIR" ] || TETRARCH_DIR="$(cd "$SRC_DIR/../.." 2>/dev/null && pwd)/Tetrarch"
 if [ -f "$TETRARCH_DIR/uci.py" ]; then
+  TETRARCH_DIR="$(cd "$TETRARCH_DIR" && pwd)"   # canonical: tetrarch-path is read from the runtime dir
   TT_HOST="$RUNTIME_DIR/tetrarch-host.py"
   rm -f "$TT_HOST"; cp "$SRC_DIR/tetrarch-host.py" "$TT_HOST"
   { printf '#!%s\n' "${PYBIN:-$PYBIN_ANY}"; tail -n +2 "$TT_HOST"; } > "$TT_HOST.tmp"
