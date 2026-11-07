@@ -14289,6 +14289,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        dist('arrow_color_forced_theirs', 'arrow_color_human_reply') > 60 && dist('arrow_color_pv_walk', 'arrow_color_human_reply') > 60,
        [dist('arrow_color_forced_theirs', 'arrow_color_human_reply'), dist('arrow_color_pv_walk', 'arrow_color_human_reply')]);
 }
+// ---- audit 3.1.331 APPEARANCE-2 / OPTIONSFRAMEWORK-3: a language (re)apply keeps the 250 ms tooltip delay ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const osrc = fs.readFileSync(ROOT + '/src/options/options.js', 'utf8');
+    const ssrc = fs.readFileSync(ROOT + '/src/options/util/SettingsPage.js', 'utf8');
+    const i = osrc.indexOf('async function applyLanguage(');
+    const delays = [];
+    const c = vm.createContext({
+        MephistoI18n: {lang: 'de', use: async () => {}, apply: () => {}},
+        MephistoConfig: {get: () => '"de"'},
+        document: {documentElement: {}, querySelectorAll: () => []},
+        M: {Tooltip: {init: (els, opts) => delays.push(opts && opts.enterDelay)}},
+    });
+    vm.runInContext(osrc.slice(i, osrc.indexOf('\n}\n', i) + 3) + '\nthis.applyLanguage = applyLanguage;', c);
+    const page = /decorateTooltips\(\) \{[\s\S]*?M\.Tooltip\.init\([^,]+, \{enterDelay: (\d+)\}\)/.exec(ssrc);
+    (async () => {
+        await c.applyLanguage('de');
+        ok('APPEARANCE-2: re-applying the language (which the Appearance page does while filling its form) rebuilds tooltips at the settings pages\' own delay',
+           page && delays.length === 1 && delays[0] === Number(page[1]) && delays[0] <= 250, [delays, page && page[1]]);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

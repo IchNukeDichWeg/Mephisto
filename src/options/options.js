@@ -21,7 +21,11 @@ async function applyLanguage(lang) {
     document.documentElement.lang = MephistoI18n.lang;
     // Materialize copies data-tooltip into its own element when a tooltip is created, so an already
     // initialised tooltip keeps the old text until it is rebuilt.
-    M.Tooltip.init(document.querySelectorAll('.tooltipped'), {enterDelay: 1000});
+    // The SAME 250 ms as SettingsPage.decorateTooltips: the Appearance page's language select fires
+    // this while its form is filled (and on Restore Defaults), and rebuilding at 1000 put every
+    // tooltip on that page back to the one-second wait decorateTooltips exists to remove (audit
+    // 3.1.331 APPEARANCE-2).
+    M.Tooltip.init(document.querySelectorAll('.tooltipped'), {enterDelay: 250});
 }
 window.mephistoApplyLanguage = applyLanguage;
 
