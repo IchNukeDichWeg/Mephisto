@@ -10251,7 +10251,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
 (async () => {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
-    const a = rj.indexOf('async function startRig(override) {'), b = rj.indexOf('\n}\n', a) + 3;
+    const a = rj.indexOf('async function startRig(override'), b = rj.indexOf('\n}\n', a) + 3;
     const run = async (failAt) => {
         const made = [];
         const store = {rv_limit_kind: 'time', rv_limit_value: 500, rv_multipv: 1, rv_threads: 2, rv_hash: 16,
@@ -13290,6 +13290,55 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        review([[...five]]).moves[0].mateIn === -1 && d.ccrWalk(Uint8Array.from(vf(1, 2 ** 53 - 1)))[0].v === 2 ** 53 - 1,
        review([[...five]]).moves[0].mateIn);
 }
+// ---- audit 3.1.331 REVIEW-1: every game of a list is reviewed under its own rules, not game 1's ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head); return a < 0 ? '' : rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    const el = () => ({disabled: false, value: '', classList: {add() {}, remove() {}, toggle() {}}, scrollIntoView() {}});
+    // the REAL game-type code (detectVariantFrom, rvChessVariant, looks960, the PGN maps) and the REAL
+    // onRun; startRig stands in with the variant the real one resolves (its own line is pinned below)
+    const run = async (tags, batch, dropdown = 'chess') => {
+        const store = {rv_variant: dropdown, rv_variant_which: 'crazyhouse', rv_batch: batch};
+        const seen = [], starts = [], disposed = [];
+        const els = {};
+        const c = vm.createContext({console, Promise, setTimeout, Error, String, Object, Math, JSON,
+            $: (id) => (els[id] = els[id] || el()), cfg: (k) => store[k], setCfg: (k, v) => { store[k] = v; },
+            note() {}, progress() {}, renderReport() {}, renderBatch() {}, gameText: () => '', run4pcReview() {},
+            disposeRig: (r) => { if (r) disposed.push(r.opts.variant); },
+            eeCached: async () => null,
+            runReview: async (g, rig) => { seen.push(rig.opts.variant); return {positions: [], moves: [], opts: rig.opts}; }});
+        vm.runInContext('var running = false, cancel = false, report = null, batchReports = null, batchInputText = "", games = [];\n'
+            + rj.slice(rj.indexOf('const RV_FAIRY_ONLY ='), rj.indexOf('// ---- the run ----'))
+            + fn('function selectedGame() {') + fn('async function onRun() {')
+            + 'var startRig = async (o, rules) => { starts.push(rules || null); return {opts: {variant: o ? "chess" : (rules || rvChessVariant())}}; };', c);
+        c.starts = starts;
+        c.games = tags.map(t => ({tags: t ? {Variant: t} : {}, moves: []}));
+        vm.runInContext('games = this.games; markGameRules(games); detectVariantFrom(games[0]);', c);
+        await c.onRun();
+        return {seen, starts, disposed, store, c};
+    };
+    let r = await run(['Crazyhouse', '', ''], true);
+    ok('REVIEW-1: a batch whose game 1 is crazyhouse reviews the untagged games as standard chess',
+       r.seen.join() === 'crazyhouse,chess,chess', r.seen);
+    ok('REVIEW-1: ...on engines started for those rules, the crazyhouse ones disposed first',
+       r.starts.join() === 'crazyhouse,chess' && r.disposed[0] === 'crazyhouse', [r.starts, r.disposed]);
+    r = await run(['Chess960', '', 'Crazyhouse'], true);
+    ok('REVIEW-1: a Chess960 game 1 no longer puts the standard games under 960 rules, and a later tagged game keeps its own',
+       r.seen.join() === 'fischerandom,chess,crazyhouse', r.seen);
+    r = await run(['', ''], true, 'variant');
+    ok('REVIEW-1: a list where no game names its rules still follows the dropdown', r.seen.join() === 'crazyhouse,crazyhouse', r.seen);
+    r = await run(['Standard', 'Atomic'], true);
+    ok('REVIEW-1: lichess-style tags decide game by game', r.seen.join() === 'chess,atomic', r.seen);
+    // one game picked from the list: the pick re-runs the detection, an untagged pick among tagged ones is standard
+    r = await run(['Crazyhouse', ''], false);
+    ok('REVIEW-1: single mode, game 1 (crazyhouse) picked: reviewed as crazyhouse', r.seen.join() === 'crazyhouse', r.seen);
+    vm.runInContext('detectVariantFrom(games[1])', r.c);
+    ok('REVIEW-1: picking the untagged game 2 sets the Game type back to Chess', r.store.rv_variant === 'chess', r.store);
+    ok('REVIEW-1: ...and the list wires that pick to the detection', /\$\('rv_game_select'\)\?\.addEventListener\('change', \(\) => \{\s*if \(games\.length > 1 && !running\) note\([^\n]*detectVariantFrom\(selectedGame\(\)\)\);/.test(rj));
+    ok('REVIEW-1: the real startRig takes a game\'s own rules ahead of the dropdown', /const variant = override \? 'chess' : \(rules \|\| rvChessVariant\(\)\);/.test(rj));
+    ok('REVIEW-1: parsePgnBox marks every game\'s rules', /games = text\.trim\(\) \? Core\.parsePgn\(text\) : \[\];\s*markGameRules\(games\);/.test(rj));
+})().catch(e => { fails++; console.log('FAIL REVIEW-1 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

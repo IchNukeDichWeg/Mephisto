@@ -142,6 +142,7 @@ function detectVariantFrom(game) {
     else if (mapped === 'fischerandom') want = 'chess960';
     else if (mapped) { want = 'variant'; which = mapped; }
     else if (!rawTag && game.startFen && looks960(game.startFen)) want = 'chess960';
+    else if (!rawTag && game.rules === 'chess') want = 'chess';   // untagged among tagged (markGameRules)
     if (!want) {
         // nothing decisive in the PGN: remind when a non-chess type is in force, so a run under
         // unusual rules is never a surprise
@@ -155,6 +156,23 @@ function detectVariantFrom(game) {
     syncGameTypeUi();
     const label = want === 'chess' ? 'Chess' : want === 'chess960' ? 'Chess960' : which;
     return ` Game type set to ${label} from the PGN.`;
+}
+
+// EVERY GAME OF A LIST KEEPS ITS OWN RULES. The Game type was set from game 1 alone, and a batch (or
+// game 2 picked from the list) replayed every other game under it: a standard game is legal under
+// crazyhouse and Chess960 rules, so it was searched as one, with pockets in the FEN or no book and no
+// human pass, and nothing said so (audit 3.1.331 REVIEW-1). `rules` is the chess.js id a game's own
+// Variant tag or 960 start decides. An untagged game in a list where other games are tagged is
+// standard chess (the exports tag every variant game, chess.com none of its standard ones); in a list
+// where nothing decides, `rules` stays null and the dropdown decides, as for a single pasted game.
+function markGameRules(list) {
+    const own = list.map(g => {
+        const tag = g.tags?.Variant ? String(g.tags.Variant).trim() : '';
+        if (tag) return RV_PGN_VARIANTS[tag.toLowerCase()] || null;
+        return g.startFen && looks960(g.startFen) ? 'fischerandom' : null;
+    });
+    const decides = own.some(Boolean);
+    list.forEach((g, i) => { g.rules = own[i] || (decides && !g.tags?.Variant ? 'chess' : null); });
 }
 
 // ---- the run ----------------------------------------------------------------------------------
@@ -641,9 +659,10 @@ function strengthForSide(rec, side, bands, phases) {
 // is not bit-reproducible, so one thread is both closer to theirs and steadier run to run. Hash
 // stays the user's: it changes how fast the same search runs, not what it finds. No human pass
 // either -- not part of their verdict, and it would double the wait for nothing.
-async function startRig(override) {
-    // the classifier override is chess-only by construction; everything else follows the dropdown
-    const variant = override ? 'chess' : rvChessVariant();
+async function startRig(override, rules) {
+    // the classifier override is chess-only by construction; a batch game's own rules (markGameRules)
+    // come next; everything else follows the dropdown
+    const variant = override ? 'chess' : (rules || rvChessVariant());
     const opts = {
         variant,
         limitKind: override?.depth ? 'depth' : cfg('rv_limit_kind'),
@@ -2574,6 +2593,7 @@ function loadPgnText(text) {
 function parsePgnBox() {
     const text = $('rv_pgn')?.value || '';
     games = text.trim() ? Core.parsePgn(text) : [];
+    markGameRules(games);
     const sel = $('rv_game_select');
     const row = $('rv_games_row');
     if (games.length > 1) {
@@ -2640,11 +2660,23 @@ async function onRun() {
     let rig = null;
     try {
         progress(0, 'starting the engine');
-        rig = await startRig();
+        rig = await startRig(undefined, batch ? list[0]?.rules : undefined);
         const done = [], skipped = [];
         let engineFailure = null;
         for (let g = 0; g < list.length; g++) {
             if (cancel) break;
+            // A batch game whose own rules differ from the engines' gets engines for its rules
+            // (audit 3.1.331 REVIEW-1). One that will not start ends the batch like an engine failure.
+            const rules = batch ? list[g].rules : null;
+            if (rules && rig.opts?.variant !== rules) {
+                disposeRig(rig);
+                rig = null;
+                try { rig = await startRig(undefined, rules); } catch (e) {
+                    if (!done.length) throw e;
+                    if (!cancel) engineFailure = `game ${g + 1} (${String(e.message || e)})`;
+                    break;
+                }
+            }
             const label = batch ? `game ${g + 1} of ${list.length} - ` : '';
             // Each game gets its own slice of the bar, so a batch of forty does not sit at 2%.
             const base = g / list.length, span = 1 / list.length;
@@ -3164,6 +3196,11 @@ class ReviewPage {
         M.Tooltip.init(document.querySelectorAll('.tooltipped'), {enterDelay: 1000});
 
         $('rv_pgn').addEventListener('input', parsePgnBox);
+        // the game picked from a list sets the Game type as the first one did when the list was read
+        // (audit 3.1.331 REVIEW-1); not parsePgnBox, which rebuilds the list and loses the pick
+        $('rv_game_select')?.addEventListener('change', () => {
+            if (games.length > 1 && !running) note(`${games.length} games read.` + detectVariantFrom(selectedGame()));
+        });
         $('rv_file_btn').addEventListener('click', () => $('rv_file').click());
 
         // ---- chess.com review (DEBUG STAGE): send the loaded game, show the raw JSON ----------
