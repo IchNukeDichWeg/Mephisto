@@ -2742,6 +2742,11 @@ function ensureNative(name) {
     }
     // No known owner: an unsolicited frame, or one whose asker has gone. Broadcast as before --
     // this is the path `{fatal: ...}` and any host-initiated message takes.
+    // EXCEPT A FRAME THAT CARRIES AN ID. That id is the worker's outer number for a request whose
+    // asker disconnected or was swept, and every peer matches frames by its OWN inner ids: a peer
+    // whose pending request happened to have that number took another tab's info and bestmove as
+    // its own (audit 3.1.331 BACKGROUND-2). Nobody can claim it correctly, so it goes nowhere.
+    if (frame && frame.id != null) { nativeTrace('<- dropped (no owner)', name, frame); return; }
     nativeTrace('<- host', name, frame);
     for (const p of peers()) { try { p.postMessage(frame); } catch (e) { /* port gone */ } }
   });

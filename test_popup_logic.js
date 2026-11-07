@@ -13182,6 +13182,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('CONTENT2-3: ...a draw inside 5 s of a resign waits (its confirm may be open)', run([[0, 'resign'], [2000, 'draw']]) === 'resign', run([[0, 'resign'], [2000, 'draw']]));
     ok('CONTENT2-3: ...and a second draw inside 5 s is one press', run([[0, 'draw'], [1000, 'draw'], [6000, 'draw']]) === 'draw,draw', run([[0, 'draw'], [1000, 'draw'], [6000, 'draw']]));
 }
+// ---- audit 3.1.331 BACKGROUND-2: an ownerless native frame that carries an id reaches no panel ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = bg.indexOf('function ensureNative(name) {'), b = bg.indexOf('// ===== IS THE OPPONENT STREAMING?', a);
+    const listeners = []; let host = null;
+    const mkPort = (url) => { const p = {name: 'sf-native', sender: {url}, sent: [], postMessage(m) { p.sent.push(m); }, onDisconnect: {addListener(f) { p.bye = f; }}, onMessage: {addListener(f) { p.hear = f; }}}; return p; };
+    const c = vm.createContext({NATIVE_HOSTS: {'sf-native': {app: 'com.x.sf', label: 'Stockfish'}}, nativePorts: {}, popupPortsByName: {}, nativeRequestOwner: new Map(),
+        nativeSeq: 0, nativeFramesIn: 0, nativeFramesRecent: [], nativeFramesOut: 0, sweepNativeOwners() {}, nativeTrace() {}, console, Date,
+        MephistoI18n: {nativeSetup: () => 'setup'},
+        chrome: {runtime: {lastError: null, onConnect: {addListener: (f) => listeners.push(f)},
+            connectNative: () => { host = {postMessage() {}, onMessage: {addListener(f) { host.fire = f; }}, onDisconnect: {addListener() {}}, disconnect() {}}; return host; }}}});
+    vm.runInContext(bg.slice(a, b), c);
+    const B = mkPort('https://lichess.org/gameB'), A = mkPort('https://lichess.org/gameA');
+    listeners[0](B); listeners[0](A);
+    B.hear({id: 1, cmd: 'configure', options: {}}); B.hear({id: 2, cmd: 'analyse', fen: 'b1', time: 2000});   // outer 1, 2
+    host.fire({id: 1, ok: true}); host.fire({id: 2, bestmove: 'b1c3', done: true});
+    A.hear({id: 1, cmd: 'configure', options: {}}); host.fire({id: 3, ok: true});                            // outer 3
+    A.hear({id: 2, cmd: 'analyse', fen: 'a', time: 5000});                                                   // outer 4
+    A.bye();                                                                                                 // tab A reloads mid-search
+    B.hear({id: 3, cmd: 'configure', options: {}}); B.hear({id: 4, cmd: 'analyse', fen: 'b2', time: 2000});   // B's inner 4 is pending
+    const before = B.sent.length;
+    host.fire({id: 4, info: {depth: 20, pv: ['g1f3']}}); host.fire({id: 4, bestmove: 'g1f3', done: true});  // A's orphaned search ends
+    ok('BACKGROUND-2: the orphaned search\'s info and bestmove (outer id 4) are not delivered to the other tab, whose own inner 4 is pending',
+       B.sent.length === before, B.sent.slice(before));
+    host.fire({id: 6, bestmove: 'b8c6', done: true});
+    ok('...B\'s real answer still arrives renumbered to its inner 4', B.sent.length === before + 1 && B.sent[before].id === 4 && B.sent[before].bestmove === 'b8c6', B.sent.slice(before));
+    host.fire({note: 'host-initiated'});
+    ok('...a frame without an id is still broadcast', B.sent.length === before + 2 && B.sent[before + 1].note === 'host-initiated', B.sent.length - before);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
