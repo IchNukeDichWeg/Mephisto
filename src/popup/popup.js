@@ -11401,12 +11401,17 @@ function draw_refutation(hint_arrows, page_arrows) {
     if (!moves.length) return;
     // The move just played must be OURS -- the opponent's mistakes are the Opponent Mistake Alert's
     // job, and drawing both would put two red lines on one board.
-    const mover = (moves.length % 2 === 1) ? 'white' : 'black';
+    // Read off the position, not move-list parity: a From Position game or analysis board can start
+    // with Black to move, and parity then hid our own blunders and drew our winning reply in red as
+    // the punishment of the opponent's (audit 3.1.331 POPUP3-2). The side to move now is the side
+    // that did NOT just move, and this is the position the PV below is walked from.
+    if (!last_eval.fen) return;
+    const mover = String(last_eval.fen).split(' ')[1] === 'b' ? 'white' : 'black';
     if (mover !== our_side()) return;
     const klass = classify_history()[moves.length - 1];
     if (!REFUTE_CLASSES.includes(klass)) return;
     const pv = last_eval.lines?.[0]?.pv;
-    if (!pv || !last_eval.fen) return;
+    if (!pv) return;
     const limit = Math.max(1, Math.min(6, config.refute_plies || 4));
     const steps = pv_walk_moves(last_eval.fen, pv, limit);
     const col = user_color('arrow_color_refute', REFUTE_COLOR);

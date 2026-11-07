@@ -12939,6 +12939,30 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('POPUP3-1: ...and the database path likewise after a reopen', await run('db', 'Panel.suspend()', 'PANEL_BOOTED = true') === 1);
     } catch (e) { fails++; console.log('FAIL POPUP3-1 checks threw: ' + (e && e.stack || e)); }
 })();
+// ---- audit 3.1.331 POPUP3-2: Refute Bad Moves judges whose move it was from the position, so a Black-to-move start works ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = psrc.slice(psrc.indexOf('function draw_refutation('), psrc.indexOf('function draw_last_move_class('));
+    // the real classify_history is stubbed to grade the last ply a blunder; the PV walk returns one step
+    const drawn = (startFen, moves, ourSide, fen) => {
+        const out = [];
+        const c = vm.createContext({config: {refute: true, refute_plies: 4}, REFUTE_CLASSES: ['inaccuracy', 'mistake', 'miss', 'blunder'],
+            REFUTE_COLOR: '#d1495b', premove_tracker: {startFen, moves}, our_side: () => ourSide,
+            classify_history: () => { const r = []; r[moves.split(' ').length - 1] = 'blunder'; return r; },
+            last_eval: {fen, lines: [{pv: 'x'}]}, pv_walk_moves: () => [{uci: 'h1h8', ply: 0}], user_color: (k, d) => d,
+            draw_move: (uci) => out.push(uci), PANEL_ROOT: {getElementById: () => null}});
+        vm.runInContext(fn + '; draw_refutation([], false);', c);
+        return out.length;
+    };
+    const bStart = '8/8/8/8/8/k7/8/K6R b - - 0 1', after = '8/8/8/8/8/1k6/8/K6R w - - 1 2';
+    ok('POPUP3-2: a game from a Black-to-move start, we are Black and blundered: the refutation is drawn', drawn(bStart, 'a3b3', 'black', after) === 1);
+    ok('POPUP3-2: ...the same game played as White, the OPPONENT blundered: our reply is not drawn as a refutation', drawn(bStart, 'a3b3', 'white', after) === 0);
+    const std = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const f3 = 'rnbqkbnr/pppppppp/8/8/8/5P2/PPPPP1PP/RNBQKBNR b KQkq - 0 1';
+    ok('POPUP3-2: control: the standard start, White blundered on ply 1, we are White: drawn', drawn(std, 'f2f3', 'white', f3) === 1);
+    ok('POPUP3-2: control: ...and not drawn for Black', drawn(std, 'f2f3', 'black', f3) === 0);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
