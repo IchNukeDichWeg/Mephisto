@@ -18,6 +18,14 @@ const MANIFEST_URL = '/src/offscreen/engine-assets.json';
 // A 98 MB net takes long enough that a silent panel reads as a dead engine (and trips the panel's
 // silence watchdog); twice a second is enough to look alive without flooding the message channel.
 const NOTE_EVERY_MS = 500;
+// A download that stops sending (a half-open socket after Wi-Fi drops or the laptop sleeps, a proxy
+// that goes quiet) never settles on its own, and fetchModel shares ONE promise per file: every later
+// load, including the panel's rebuild of a hung engine, joined the dead download for as long as the
+// offscreen document lived (audit 3.1.331 MODELFETCH-1). So a download that hears nothing, headers or
+// body, for this long is aborted and fails; the next load starts a fresh one. Chosen, not measured:
+// any live connection sends something far more often, and it lands well inside the panel's 60 s
+// load grace (ENGINE_LOAD_GRACE_MS) so the rebuild finds the dead download already gone.
+const STALL_MS = 30000;
 
 // These errors reach the user as plain text (offscreen -> worker -> panel, String(error)), so the
 // registry code (MPH-N.., see src/i18n/i18n.js) leads the message and the panel swaps in the
@@ -62,30 +70,47 @@ async function download(urls, entry, file, onNote) {
     const out = new Uint8Array(entry.size);
     let got = 0, shown = 0;
     for (const url of urls) {
-        let r;
+        const ctl = new AbortController();
+        let timer;
+        const arm = () => { clearTimeout(timer); timer = setTimeout(() => ctl.abort(), STALL_MS); };
+        arm();
         try {
-            r = await fetch(url);
-        } catch (e) {
-            // The download host is an OPTIONAL permission (the same pair the self-updater asks for),
-            // so "no permission" and "no network" arrive identically here. Say what to do rather
-            // than leaving a bare TypeError in the console.
-            throw coded('MPH-N01', `${file} is not bundled and could not be downloaded (offline, or permission off in Settings)`);
-        }
-        if (!r.ok) throw coded('MPH-N01', `${file} could not be downloaded: HTTP ${r.status}`);
-        const reader = r.body.getReader();
-        for (;;) {
-            const {done, value} = await reader.read();
-            if (done) break;
-            if (got + value.byteLength > entry.size) {
-                reader.cancel().catch(() => {});
-                throw coded('MPH-N02', `${file} is larger than the ${entry.size} bytes the manifest lists - refused`);
+            let r;
+            try {
+                r = await fetch(url, {signal: ctl.signal});
+            } catch (e) {
+                // The download host is an OPTIONAL permission (the same pair the self-updater asks for),
+                // so "no permission" and "no network" arrive identically here. Say what to do rather
+                // than leaving a bare TypeError in the console.
+                throw coded('MPH-N01', ctl.signal.aborted ? `${file}: no answer from the download host in ${STALL_MS / 1000} s`
+                    : `${file} is not bundled and could not be downloaded (offline, or permission off in Settings)`);
             }
-            out.set(value, got);
-            got += value.byteLength;
-            if (Date.now() - shown >= NOTE_EVERY_MS) {
-                shown = Date.now();
-                onNote?.(`mephisto-download ${file} ${got} ${entry.size}`);
+            if (!r.ok) throw coded('MPH-N01', `${file} could not be downloaded: HTTP ${r.status}`);
+            const reader = r.body.getReader();
+            for (;;) {
+                let chunk;
+                try {
+                    chunk = await reader.read();
+                } catch (e) {
+                    if (!ctl.signal.aborted) throw e;
+                    throw coded('MPH-N02', `${file} download stalled at ${got} of ${entry.size} bytes (nothing for ${STALL_MS / 1000} s)`);
+                }
+                const {done, value} = chunk;
+                if (done) break;
+                arm();
+                if (got + value.byteLength > entry.size) {
+                    reader.cancel().catch(() => {});
+                    throw coded('MPH-N02', `${file} is larger than the ${entry.size} bytes the manifest lists - refused`);
+                }
+                out.set(value, got);
+                got += value.byteLength;
+                if (Date.now() - shown >= NOTE_EVERY_MS) {
+                    shown = Date.now();
+                    onNote?.(`mephisto-download ${file} ${got} ${entry.size}`);
+                }
             }
+        } finally {
+            clearTimeout(timer);
         }
     }
     if (got !== entry.size) throw coded('MPH-N02', `${file} download stopped at ${got} of ${entry.size} bytes`);

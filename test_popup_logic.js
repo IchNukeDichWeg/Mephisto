@@ -2677,7 +2677,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         put: async (u, r) => { store.set(u, Buffer.from(await r.arrayBuffer())); },
         delete: async (u) => store.delete(u),
     })};
-    const mctx = vm.createContext({fetch: fetchMock, caches: cachesMock, crypto: globalThis.crypto, Response, console});
+    const mctx = vm.createContext({fetch: fetchMock, caches: cachesMock, crypto: globalThis.crypto, Response, console,
+        setTimeout, clearTimeout, AbortController});   // the download's stall guard (audit 3.1.331 MODELFETCH-1)
     vm.runInContext(fs.readFileSync(ROOT + '/src/offscreen/model-fetch.js', 'utf8').replace(/^export /gm, ''), mctx);
     const fetchModel = vm.runInContext('fetchModel', mctx), releaseUrl = vm.runInContext('releaseUrl', mctx);
     const same = (buf) => Buffer.from(buf).equals(good);
@@ -4338,7 +4339,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        coded === 'MPH-N03: ' + loc('en')['err.N03'] && /^MPH-E05: Engine error - Error: something nobody coded$/.test(pc.shown), [coded, pc.shown]);
     const mf = fs.readFileSync(ROOT + '/src/offscreen/model-fetch.js', 'utf8');
     ok('model downloads: every failure of fetchModel carries an N code at the front of its message (they cross to the panel as text)',
-       !/new Error\(/.test(mf.replace(/const coded = [^\n]*/, '')) && (mf.match(/coded\('MPH-N0[1-4]'/g) || []).length === 6);
+       !/new Error\(/.test(mf.replace(/const coded = [^\n]*/, '')) && (mf.match(/coded\('MPH-N0[1-4]'/g) || []).length === 7);
 })().catch(e => { fails++; console.log('FAIL error-code checks threw: ' + (e && e.stack || e)); });
 // ---- issue 2: a backend that does not answer moves play to the debugger clicker --------------
 {
@@ -8737,7 +8738,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const files = {'m3.onnx': {size: good.length, sha256: sha(good), tag: 'models-v1'}, 'gone.onnx': {size: 9, sha256: 'x', tag: 'models-v1'}};
     const requested = [], store = new Map();
     let failNext = true;
-    const mctx = vm.createContext({console, Response, crypto: globalThis.crypto,
+    const mctx = vm.createContext({console, Response, crypto: globalThis.crypto, setTimeout, clearTimeout, AbortController,
         fetch: async (url) => {
             requested.push(url);
             if (url === '/src/offscreen/engine-assets.json') return new Response(JSON.stringify({files}));
@@ -16097,6 +16098,54 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            got.whiteCapture === '44' && got.blackCapture === '40', got);
     })().catch(e => { fails++; console.log('FAIL MAIA-3 checks threw: ' + (e && e.stack || e)); });
 }
+// ---- audit 3.1.331 MODELFETCH-1: a download that stops sending fails, so the next load (the panel's rebuild) fetches afresh ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const sha = (b) => require('crypto').createHash('sha256').update(b).digest('hex');
+    const good = Buffer.from('stockfish net bytes. '.repeat(40));
+    const files = {'s.nnue': {size: good.length, sha256: sha(good), tag: 'engines-v1'}, 'h.nnue': {size: good.length, sha256: sha(good), tag: 'engines-v1'},
+                   'slow.nnue': {size: good.length, sha256: sha(good), tag: 'engines-v1'}};
+    const hits = {}, store = new Map();
+    const abortErr = () => Object.assign(new Error('The operation was aborted.'), {name: 'AbortError'});
+    const mctx = vm.createContext({console, Response, ReadableStream, crypto: globalThis.crypto, setTimeout, clearTimeout, AbortController,
+        fetch: async (url, opts) => {
+            if (url === '/src/offscreen/engine-assets.json') return new Response(JSON.stringify({files}));
+            if (url.startsWith('/')) throw new TypeError('Failed to fetch');
+            const name = url.split('/').pop(), n = hits[name] = (hits[name] || 0) + 1, signal = opts && opts.signal;
+            if (name === 'h.nnue' && n === 1)   // never answers: headers stall, settled only by the abort
+                return new Promise((_, no) => signal && signal.addEventListener('abort', () => no(abortErr())));
+            if (name === 'slow.nnue')            // alive but slow: a chunk every 30 ms, 150 ms in all
+                return new Response(new ReadableStream({async start(c) {
+                    for (let i = 0; i < 5; i++) { await new Promise(r => setTimeout(r, 30)); c.enqueue(new Uint8Array(good.subarray(i * good.length / 5, (i + 1) * good.length / 5))); }
+                    c.close(); }}));
+            if (name === 's.nnue' && n === 1)   // half the body, then silence (a half-open socket)
+                return new Response(new ReadableStream({start(c) {
+                    c.enqueue(new Uint8Array(good.subarray(0, good.length / 2)));
+                    if (signal) signal.addEventListener('abort', () => c.error(abortErr()));
+                }}));
+            return new Response(good);
+        },
+        caches: {open: async () => ({match: async (u) => store.has(u) ? new Response(store.get(u)) : undefined,
+            put: async (u, r) => { store.set(u, Buffer.from(await r.arrayBuffer())); }, delete: async (u) => store.delete(u)})}});
+    const src = fs.readFileSync(ROOT + '/src/offscreen/model-fetch.js', 'utf8');
+    ok('MODELFETCH-1: the download has a stall limit', /const STALL_MS = \d+;/.test(src));
+    vm.runInContext(src.replace(/^export /gm, '').replace(/const STALL_MS = \d+;/, 'const STALL_MS = 60;'), mctx);
+    const fetchModel = vm.runInContext('fetchModel', mctx);
+    const settle = (p, ms = 1000) => Promise.race([p.then(b => 'resolved ' + b.byteLength, e => String(e)), new Promise(r => setTimeout(() => r('still pending'), ms))]);
+    const first = fetchModel('/lib/engine/sf', 's.nnue');
+    await new Promise(r => setTimeout(r, 20));
+    const joined = fetchModel('/lib/engine/sf', 's.nnue');   // the panel's rebuild while the first is stuck
+    const [r1, r2] = await Promise.all([settle(first), settle(joined)]);
+    ok('...a body that stops arriving fails as MPH-N02 instead of hanging forever', /^Error: MPH-N02: s\.nnue download stalled at \d+ of \d+ bytes/.test(r1), r1);
+    ok('...and so does a load that joined it', /^Error: MPH-N02: .*stalled/.test(r2), r2);
+    const r3 = await settle(fetchModel('/lib/engine/sf', 's.nnue'));
+    ok('...the next load starts a fresh download and gets the net', r3 === 'resolved ' + good.length && hits['s.nnue'] === 2, [r3, hits]);
+    const h1 = await settle(fetchModel('/lib/engine/sf', 'h.nnue'));
+    ok('...a host that never answers fails as MPH-N01, and the next load fetches again',
+       /^Error: MPH-N01: h\.nnue: no answer/.test(h1) && await settle(fetchModel('/lib/engine/sf', 'h.nnue')) === 'resolved ' + good.length, [h1, hits]);
+    const sl = await settle(fetchModel('/lib/engine/sf', 'slow.nnue'));
+    ok('...a slow download that keeps sending outlives the limit (it is re-armed on every chunk)', sl === 'resolved ' + good.length, sl);
+})().catch(e => { fails++; console.log('FAIL MODELFETCH-1 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
