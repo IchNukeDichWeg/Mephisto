@@ -204,7 +204,14 @@ if [ -f "$TETRARCH_DIR/uci.py" ]; then
   TETRARCH_DIR="$(cd "$TETRARCH_DIR" && pwd)"   # canonical: tetrarch-path is read from the runtime dir
   TT_HOST="$RUNTIME_DIR/tetrarch-host.py"
   rm -f "$TT_HOST"; cp "$SRC_DIR/tetrarch-host.py" "$TT_HOST"
-  { printf '#!%s\n' "${PYBIN:-$PYBIN_ANY}"; tail -n +2 "$TT_HOST"; } > "$TT_HOST.tmp"
+  # Pinned to the PATH python3, the one Tetrarch's setup.sh installs numpy into: the host never
+  # imports chess and runs uci.py under its own interpreter. PYBIN came first before, so a PATH
+  # pyenv/conda/venv python without python-chess lost to a Homebrew one that has it, uci.py ran
+  # without numpy and every search ended in "Engine error" (audit 3.1.331 INSTALLSH-3).
+  # sys.executable, not `command -v`: a pyenv shim is a script and cannot be a shebang interpreter.
+  TT_PY="$("${PYBIN_ANY:-$PYBIN}" -c 'import sys; print(sys.executable)' 2>/dev/null || true)"
+  [ -n "$TT_PY" ] && [ -x "$TT_PY" ] || TT_PY="${PYBIN_ANY:-$PYBIN}"
+  { printf '#!%s\n' "$TT_PY"; tail -n +2 "$TT_HOST"; } > "$TT_HOST.tmp"
   mv "$TT_HOST.tmp" "$TT_HOST"; chmod +x "$TT_HOST"
   printf '%s\n' "$TETRARCH_DIR" > "$RUNTIME_DIR/tetrarch-path"
   TT_MANIFEST="$(sed -e "s|__HOST_PATH__|$TT_HOST|" -e "s|__EXTENSION_ID__|$EXT_ID|" \
