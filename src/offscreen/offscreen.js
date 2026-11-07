@@ -378,7 +378,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // cloud engine (audit 3.1.330 ENGINEA-4). A client that holds or is loading an engine keeps the
     // document open through busy() anyway.
     if (cmd === 'ping') return;
-    clearTimeout(idleTimer);           // ...and a panel that is talking is not an idle document
     if (cmd === 'init') {
         initArgs[clientId] = [msg.engine, msg.variant, msg.maiaLevel, msg.elos];
         sticky[clientId] = {};
@@ -411,10 +410,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         delete initArgs[clientId];   // disposed on purpose: never respawn it
         delete sticky[clientId];
     }
+    // RE-ARM, NOT JUST CLEAR. This used to only clear the idle timer, and nothing re-armed it unless
+    // a load finished or a dispose found an engine: a tab close disposes '<tab>' then ':m2', ':hr',
+    // ':bn' and ':ua', so the second dispose (a client that never existed) cancelled the close the
+    // first had armed, and the disposed engine's workers and heap stayed for the browser session. A
+    // stray `stop`, or a line during the load-failure backoff, did the same (audit 3.1.331
+    // OFFSCREEN-1). A client that holds or is loading an engine is busy(), so this cannot close it.
+    maybeGoIdle();
 });
 
 // A DOCUMENT NOBODY USES CLOSES TOO. The idle timer was armed only by a dispose or a finished load, so
 // a document the worker created on wake (it does, to time its cold start) and that never got a client
 // stayed open for the rest of the browser session (audit 3.1.328 SYS-4). Any message from a panel
-// clears the timer, so a panel that is about to init is not raced.
+// but a ping restarts the timer, so a panel that is about to init is not raced.
 maybeGoIdle();

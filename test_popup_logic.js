@@ -15775,6 +15775,59 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('I18N-1: a failed locale with English loaded reports en, not the failed code', E.lang === 'en' && E.t('set.autoplay', null) === 'Autoplay', E.lang);
     })();
 }
+// ---- audit 3.1.331 OFFSCREEN-1: a dispose for a client with no engine, or a queued line, re-arms the idle close ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The whole offscreen host on a simulated clock, one fresh document per case.
+    const src = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8').replace(/await import\(/g, 'await __imp(');
+    const host = (opts = {}) => {
+        let now = 1e6, closedAt = null, listener; const timers = [];
+        const tick = () => new Promise(r => setImmediate(r));
+        const mk = (fn, ms, iv) => { const t = {at: now + ms, fn, iv}; timers.push(t); return t; };
+        const advance = async (ms) => { await tick(); const end = now + ms;
+            for (;;) { timers.sort((a, b) => a.at - b.at); const t = timers[0]; if (!t || t.at > end) break;
+                now = t.at; if (t.iv) t.at += t.iv; else timers.shift(); t.fn(); await tick(); } now = end; await tick(); };
+        const c = {console: {log() {}}, Date: {now: () => now},
+            setTimeout: (f, ms) => mk(f, ms, 0), setInterval: (f, ms) => mk(f, ms, ms),
+            clearTimeout: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
+            window: {close() { if (closedAt === null) closedAt = now; }},
+            __imp: async (path) => /model-fetch/.test(path)
+                ? {fetchModel: async () => { throw new Error('MPH-N01: offline'); }}
+                : {default: () => new Promise(r => mk(() => r({uci() {}, getRecommendedNnue: (i) => (i === 0 && opts.net ? 'nn-a.nnue' : null), setNnueBuffer() {}}), opts.loadMs || 10, 0))},
+            chrome: {runtime: {sendMessage: () => {}, onMessage: {addListener: (f) => listener = f}}}};
+        vm.createContext(c); vm.runInContext(src, c);
+        return {advance, now: () => now, closedAt: () => closedAt, msg: (id, o) => listener({toOffscreen: true, clientId: id, ...o}, {}, () => {})};
+    };
+    // a tab on SF 11 closes: background-script.js tabs.onRemoved disposes '<tab>' and its four sub-clients
+    let h = host();
+    h.msg('7', {cmd: 'init', engine: 'stockfish-11-hce'}); await h.advance(50);
+    h.msg('7', {cmd: 'dispose'}); for (const s of [':m2', ':hr', ':bn', ':ua']) h.msg('7' + s, {cmd: 'dispose'});
+    let gone = h.now(); await h.advance(120000);
+    ok('OFFSCREEN-1: a closed tab (dispose of the engine, then of four clients that never had one) closes the document 30 s later',
+       h.closedAt() !== null && h.closedAt() - gone <= 31000, h.closedAt() && h.closedAt() - gone);
+    // a switch to a native engine: dispose main, then ':m2', then the panel pings on
+    h = host();
+    h.msg('7', {cmd: 'init', engine: 'stockfish-11-hce'}); await h.advance(50);
+    h.msg('7', {cmd: 'dispose'}); h.msg('7:m2', {cmd: 'dispose'}); gone = h.now();
+    for (let i = 0; i < 8; i++) { await h.advance(15000); h.msg('7', {cmd: 'ping'}); }
+    ok('...a switch to a native engine (dispose main + :m2, then pings) closes it too', h.closedAt() !== null && h.closedAt() - gone <= 31000, h.closedAt() && h.closedAt() - gone);
+    // a clientless document (the worker's wake-up one) and an unrelated tab closing
+    h = host();
+    await h.advance(5000); h.msg('99', {cmd: 'dispose'}); gone = h.now(); await h.advance(120000);
+    ok('...a clientless document still closes after an unrelated tab\'s dispose', h.closedAt() !== null && h.closedAt() - gone <= 31000, h.closedAt() && h.closedAt() - gone);
+    // a failed net download, then one stray `stop` queued for the engine that never came
+    h = host({net: true});
+    h.msg('7', {cmd: 'init', engine: 'stockfish-19-nnue'}); await h.advance(1000);
+    h.msg('7', {cmd: 'uci', line: 'stop'}); gone = h.now();
+    for (let i = 0; i < 8; i++) { await h.advance(15000); h.msg('7', {cmd: 'ping'}); }
+    ok('...a failed load followed by a queued `stop` closes it too', h.closedAt() !== null && h.closedAt() - gone <= 31000, h.closedAt() && h.closedAt() - gone);
+    // while an engine loads for 60 s, lines queued for it never close the document under it
+    h = host({loadMs: 60000});
+    h.msg('7', {cmd: 'init', engine: 'stockfish-11-hce'});
+    for (let i = 0; i < 5; i++) { await h.advance(10000); h.msg('7', {cmd: 'uci', line: 'isready'}); }
+    await h.advance(60000);
+    ok('...but a client still loading, then holding, an engine keeps it open', h.closedAt() === null, h.closedAt());
+})().catch(e => { fails++; console.log('FAIL OFFSCREEN-1 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
