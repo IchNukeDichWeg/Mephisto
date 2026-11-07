@@ -13432,6 +13432,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
                 return {frames: [{fen4: 'x', turn: 'r'}, {fen4: 'y', turn: 'b'}], tags: {Red: 'GameA-red'}, teamNames: ['RY', 'BG'],
                         counts: [{}, {}], accuracy: [90, 80], moves: [{ply: 0, seatName: 'Red', token: 'e2-e4', klass: 'best', teamCpAfter: 10}],
                         evals: [{}, {}], seatName: {r: 'Red', b: 'Blue'}}; },
+            scoreText: (cp) => cp == null ? null : String(cp),   // render4pc prints through it (REVIEW4PC-1)
             disconnect(){} };
         ` + sl('let lastNote = null;', 'const awayStatus = {};') + sl('let fourpcReport = null', 'function disposeRig(rig)') + `
         self.st = () => ({head: $('rv4_head').textContent, hidden: hidden.has('rv-4pc'), status: $('rv_pgn_status').textContent,
@@ -13548,6 +13549,62 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        c.MephistoReviewCore.moveAccuracy(50, 49.99) === 100 && c.MephistoReviewCore.moveAccuracy(50, 50) === 100 && c.accuracy_from_drop(0) === 100,
        [c.MephistoReviewCore.moveAccuracy(50, 49.99), c.accuracy_from_drop(0)]);
 }
+// ---- audit 3.1.331 REVIEW4PC-1: a 4-player review scores Tetrarch's `mate N` lines and the mated end position ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the REAL review-4pc.js and classifier, over a fake host port that answers the way
+    // tetrarch-host.py does: a mate line carries `mate` and no `score`, a mated seat gets 0000
+    const run = async (pgn4, analyse) => {
+        const c = vm.createContext({console, setTimeout, Promise, Error, Map, Math, Array, Object, String, Number, JSON});
+        c.self = c;
+        c.chrome = {runtime: {connect() {
+            const L = [];
+            return {onMessage: {addListener: (f) => L.push(f)}, onDisconnect: {addListener() {}}, disconnect() {},
+                postMessage(m) { setTimeout(() => {
+                    const r = m.cmd === 'pgn4' ? pgn4 : m.cmd === 'configure' ? {ok: true} : analyse[m.fen4];
+                    L.forEach(f => f({...r, id: m.id}));
+                }, 0); }};
+        }}};
+        vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+        vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-4pc.js', 'utf8'), c);
+        return {r: await c.Mephisto4PC.runReview('x', {movetime: 50}), M: c.Mephisto4PC, MATE: c.MephistoClassify.MATE_CP};
+    };
+    const nc = [false, false, false, false];
+    const fr = (i, turn, move, check) => ({ply: i, fen4: 'f' + i, turn, alive: [true, true, true, true], move, token: move, check: check || nc});
+    try {
+        // Teams: Red blunders into a mate-in-1, Blue/Green mate Red. Mate lines as the host relays them.
+        const teams = {variant: 'Teams', mode: '1', setup: 'classic', tags: {}, terminations: [],
+            frames: [fr(0, 'R', null), fr(1, 'B', 'r2'), fr(2, 'Y', 'b1'), fr(3, 'G', 'y1'), fr(4, 'R', 'g1', [true, false, false, false])]};
+        const ta = {f0: {bestmove: 'r1', lines: [{move: 'r1', score: 50}, {move: 'r2', score: 40}]},
+                    f1: {bestmove: 'b1', lines: [{move: 'b1', mate: 1, rawScore: 'mate 1'}]},
+                    f2: {bestmove: 'y1', lines: [{move: 'y1', mate: -1, rawScore: 'mate -1'}]},
+                    f3: {bestmove: 'g1', lines: [{move: 'g1', mate: 0, rawScore: 'mate 0'}]},
+                    f4: {bestmove: '0000', lines: [{move: '0000', pv: ['0000']}]}};
+        const {r, M, MATE} = await run(teams, ta);
+        ok('REVIEW4PC-1: every Teams position has an eval, the mate-scored ones and the mated end position included',
+           r.evals.every(e => typeof e.teamCp === 'number'), r.evals.map(e => e.teamCp));
+        ok('REVIEW4PC-1: ...a mate for Blue/Green reads as a mate against Red/Yellow, and Green about to mate (`mate 0`) as one too',
+           r.evals[1].teamCp === -(MATE - 1) && r.evals[2].teamCp === -(MATE - 1) && r.evals[3].teamCp === -MATE && r.evals[4].teamCp === -MATE,
+           r.evals.map(e => e.teamCp));
+        ok('REVIEW4PC-1: every move is graded, and walking into a mate-in-1 is a blunder',
+           r.moves.length === 4 && r.moves.every(m => m.klass) && r.moves[0].klass === 'blunder' && r.moves[3].klass === 'best',
+           r.moves.map(m => m.klass));
+        ok('REVIEW4PC-1: ...so Red/Yellow\'s accuracy counts the blunder', r.accuracy[0] != null && r.accuracy[0] < 60 && r.counts[0].blunder === 1,
+           [r.accuracy, r.counts]);
+        ok('REVIEW4PC-1: the mated position names no best move (not "0000")', r.evals[4].best === null && r.evals[4].lines.length === 0, r.evals[4]);
+        ok('REVIEW4PC-1: a mate score prints as one (#N / #-N), a plain one in pawns',
+           M.scoreText && M.scoreText(-(MATE - 1)) === '#-1' && M.scoreText(MATE - 2) === '#2' && M.scoreText(-MATE) === '#-0'
+           && M.scoreText(-130) === '-1.30' && M.scoreText(null) === null, M.scoreText && [-(MATE - 1), MATE - 2, -130].map(M.scoreText));
+        // FFA grades within one search: a missed mate-in-2 is now priced against the move played
+        const ffa = {variant: 'FFA', mode: '0', setup: 'classic', tags: {}, terminations: [], frames: [fr(0, 'R', null), fr(1, 'B', 'r2')]};
+        const fa = {f0: {bestmove: 'r1', lines: [{move: 'r1', mate: 2}, {move: 'r2', score: 0}]}, f1: {bestmove: 'b1', lines: [{move: 'b1', score: 10}]}};
+        const f = (await run(ffa, fa)).r;
+        ok('REVIEW4PC-1: FFA: a move that lets a forced mate go is graded (a miss), not left blank', f.moves[0].klass === 'miss', f.moves[0]);
+    } catch (e) { fails++; console.log('FAIL REVIEW4PC-1: threw ' + e.message); }
+    const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    ok('REVIEW4PC-1: the 4-player move list and eval line print through scoreText, not cp/100',
+       /scoreText\(m\.teamCpAfter\)/.test(rv) && /scoreText\(ev\.teamCp\)/.test(rv) && !/teamCpAfter \/ 100|ev\.teamCp \/ 100/.test(rv));
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

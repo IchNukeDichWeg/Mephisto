@@ -830,7 +830,7 @@ function render4pc() {
     $('rv4_moves').innerHTML = r.moves.map(m => {
         const col = (C.CLASS_COLOR || {})[m.klass];
         const badge = m.klass ? `<span class="rv4-klass" style="background:${col}">${m.klass}</span>` : '';
-        const cp = m.teamCpAfter == null ? '' : (m.teamCpAfter / 100).toFixed(2);
+        const cp = self.Mephisto4PC.scoreText(m.teamCpAfter) ?? '';   // a mate prints #N (REVIEW4PC-1)
         return `<div class="rv4-mv" data-ply="${m.ply + 1}">`
              + `<span class="rv4-seat">${esc(m.seatName)}</span>`
              + `<span class="rv4-tok">${esc(m.token || m.move || '')}</span>${badge}`
@@ -852,7 +852,7 @@ function show4pcPly(ply) {
     if (!board4pc && self.MephistoBoard4PC) board4pc = new self.MephistoBoard4PC('rv4_board', {seat: 'r'});
     board4pc?.position(f.fen4);
     const ev = r.evals[fourpcPly] || {};
-    const cp = ev.teamCp == null ? null : (ev.teamCp / 100).toFixed(2);
+    const cp = self.Mephisto4PC.scoreText(ev.teamCp);
     $('rv4_ply').textContent = `ply ${fourpcPly} of ${r.frames.length - 1}`;
     // FFA scores are the mover's own outlook (paranoid search, not zero-sum); Teams scores are
     // normalised to one fixed team, so the label says which reading applies

@@ -90,6 +90,28 @@ function toTeamCp(cp, turn) {
     return TEAM_OF[turn] === 0 ? cp : -cp;
 }
 
+// A line's score in centipawns, a mate encoded the way the two-player review's toWhiteCp does it
+// (MATE_CP less the distance) so winPercent and isMateScore read it as one. Tetrarch prints
+// `score mate N` (N in team moves, positive when the side to move's team mates) and the host relays
+// it as `mate` with no `score`, so reading only `score`/`cp` left every position with a forced mate
+// unscored and the moves that decide the game ungraded (audit 3.1.331 REVIEW4PC-1). `mate 0` is the
+// mating move itself: score_string has no sign for a zero, and it is printed for the side about to
+// deliver it, so it counts as a win for the side to move.
+function lineCp(l, MATE_CP) {
+    if (typeof l.score === 'number') return l.score;
+    if (typeof l.cp === 'number') return l.cp;
+    if (typeof l.mate === 'number') return l.mate >= 0 ? MATE_CP - l.mate : -(MATE_CP + l.mate);
+    return null;
+}
+
+// What the page prints for a score from this file: `#N` / `#-N` for a mate, pawns otherwise.
+function scoreText(cp) {
+    if (typeof cp !== 'number') return null;
+    const C = self.MephistoClassify;
+    if (C && C.isMateScore(cp)) return (cp > 0 ? '#' : '#-') + (C.MATE_CP - Math.abs(cp));
+    return (cp / 100).toFixed(2);
+}
+
 // Walk the game: search every position, then grade each move with the SHARED classifier -- the
 // same rules the two-player review and the panel's live strip use, so a blunder is a blunder on
 // every screen. No human model and no strength estimate: Maia knows one game and it is not this
@@ -118,15 +140,25 @@ async function runReview(pgn4Text, {movetime = 1000, onProgress, isCancelled} = 
         if (isCancelled && isCancelled()) throw new Error('stopped');
         if (onProgress) onProgress(i / frames.length, `position ${i + 1} of ${frames.length}`);
         const res = await analyse(frames[i].fen4, movetime);
+        // `0000` is the engine's "no legal move", not a line: the seat to move is mated or stalemated
         const lines = (res.lines || []).map(l => ({
             move: l.move || (l.pv || [])[0] || null,
-            cp: typeof l.score === 'number' ? l.score : (typeof l.cp === 'number' ? l.cp : null),
-        }));
-        const cp = lines[0]?.cp ?? null;
+            cp: lineCp(l, C.MATE_CP),
+        })).filter(l => l.move !== '0000');
+        let cp = lines[0]?.cp ?? null;
+        // A finished Teams position gets no score from the engine, so the move that ended the game
+        // had nothing to be graded against. The rules say what it is worth, as the two-player
+        // assemble fills it: the side to move mated loses (Teams: the first mate wins, RULES.md 7),
+        // a stalemate is a draw. Only with the host's `check` flags; without them it stays unscored.
+        const f = frames[i], seatIdx = SEATS.indexOf(f.turn);
+        if (!isFfa && cp == null && !lines.length && (!res.bestmove || res.bestmove === '0000')
+            && Array.isArray(f.check) && seatIdx >= 0) {
+            cp = f.check[seatIdx] ? -C.MATE_CP : 0;
+        }
         evals[i] = {
             // Teams: one fixed team's terms all game. FFA: the mover's own terms, unflipped.
             teamCp: isFfa ? cp : toTeamCp(cp, frames[i].turn),
-            best: res.bestmove || lines[0]?.move || null,
+            best: (res.bestmove && res.bestmove !== '0000' ? res.bestmove : null) || lines[0]?.move || null,
             lines,
         };
     }
@@ -201,7 +233,7 @@ async function runReview(pgn4Text, {movetime = 1000, onProgress, isCancelled} = 
             matched, groupNames, teamNames: TEAM_NAME, seatName: SEAT_NAME};
 }
 
-root.Mephisto4PC = {replay, analyse, runReview, disconnect, toTeamCp,
+root.Mephisto4PC = {replay, analyse, runReview, disconnect, toTeamCp, scoreText,
                     SEATS, SEAT_NAME, TEAM_OF, TEAM_NAME};
 
 })(typeof self !== 'undefined' ? self : globalThis);
