@@ -12793,6 +12793,28 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const nc3 = infer(seed, 'r3k1nr/pppq1ppp/2n5/2b1p3/2B1P3/2N2N2/PPPP1PPP/R1BQK2R');
     ok('POPUP2-2: ...and an ordinary move is explained as before', !!nc3 && /^\S+ b - - /.test(nc3), nc3);
 }
+// ---- audit 3.1.331 POPUP2-3: the Bot Tricks row shows in the toolbar popup, judged by the bound tab's address ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = psrc.indexOf('\n}\n', psrc.indexOf('function bot_pick(')) + 3, b = psrc.indexOf('// Fill the dropdown', a);
+    const s0 = psrc.indexOf('function sync_bot_row('), s1 = psrc.indexOf('\n}\n', s0) + 3;
+    const run = (content, tabUrl, page) => {
+        const row = {hidden: true};
+        const c = vm.createContext({URL, String,
+            location: new URL(page), IS_CONTENT_SCRIPT: content, MY_TAB_ID: 7, config: {bot_tricks: 'true'},
+            PANEL_ROOT: {getElementById: (id) => id === 'qs_bot_row' ? row : null},
+            chrome: {runtime: {}, tabs: {get: (id, cb) => cb(id === 7 ? {id, url: tabUrl} : undefined)}}});
+        try { vm.runInContext(psrc.slice(a, b) + psrc.slice(s0, s1) + '\nsync_bot_row();', c); } catch (e) { return 'threw ' + e.message; }
+        return row.hidden;
+    };
+    const popup = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop/src/popup/popup.html';
+    ok('POPUP2-3: the toolbar popup on a chess.com bot game shows the row', run(false, 'https://www.chess.com/play/computer', popup) === false,
+       run(false, 'https://www.chess.com/play/computer', popup));
+    ok('POPUP2-3: ...and hides it when its tab is any other page', run(false, 'https://www.chess.com/play/online', popup) === true);
+    ok('POPUP2-3: the in-page panel still decides from the page it runs in', run(true, '', 'https://www.chess.com/play/computer') === false
+       && run(true, 'https://www.chess.com/play/computer', 'https://lichess.org/') === true);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

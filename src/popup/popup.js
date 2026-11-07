@@ -5064,10 +5064,16 @@ function bot_pick(id, side) {
     return pool[Math.floor(Math.random() * pool.length)] || null;
 }
 
+// The toolbar popup's own location is its chrome-extension:// page, so there the test reads the bound
+// tab's address instead, refreshed by sync_bot_row on the slow poll; without it the Bot Tricks row
+// could never show in that panel style (audit 3.1.331 POPUP2-3). The worker's page check stays the
+// trust boundary.
+let bot_tab_url = '';
 function on_computer_play_page() {
     try {
-        return /(^|\.)chess\.com$/.test(location.hostname)
-            && /^\/play\/computer(\/|$)/.test(location.pathname);
+        const at = IS_CONTENT_SCRIPT ? location : new URL(bot_tab_url);
+        return /(^|\.)chess\.com$/.test(at.hostname)
+            && /^\/play\/computer(\/|$)/.test(at.pathname);
     } catch (e) { return false; }
 }
 
@@ -5077,6 +5083,15 @@ let bot_row_signature = null;
 function sync_bot_row() {
     const row = PANEL_ROOT.getElementById('qs_bot_row');
     if (!row) return;
+    if (!IS_CONTENT_SCRIPT && MY_TAB_ID) {
+        try {
+            chrome.tabs.get(MY_TAB_ID, (t) => {
+                void chrome.runtime.lastError;              // the tab closed: no address, no row
+                const url = t?.url || '';
+                if (url !== bot_tab_url) { bot_tab_url = url; sync_bot_row(); }
+            });
+        } catch (e) { /* no tabs API here: the row stays hidden */ }
+    }
     const show = on_computer_play_page() && String(config.bot_tricks) === 'true';
     row.hidden = !show;
     if (!show) return;
