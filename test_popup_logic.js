@@ -14556,6 +14556,56 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('ENGINES-2: ...and the second column says it too', els.an_engine2_meta?.textContent === 'not running'
        && st.some(([t]) => /Second engine unavailable \(second host gone\)/.test(t)), [els.an_engine2_meta?.textContent, st]);
 })().catch(e => { fails++; console.log('FAIL ENGINES-2 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 ENGINES-3: after a {fatal} the relaunched host is configured again before it searches ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the relay as ensureNative runs it: the page port stays, the next message after a host exit
+    // starts a fresh process that knows none of the options
+    let listener = null, host = null, down = false;
+    const hosts = [];
+    const port = {onMessage: {addListener: (f) => { listener = f; }}, onDisconnect: {addListener() {}}, disconnect() {},
+        postMessage: (m) => {
+            if (!host) { host = {got: [], answered: []}; hosts.push(host); }
+            const h = host;
+            h.got.push(m);
+            Promise.resolve().then(() => {
+                if (down) { host = null; return listener({fatal: 'Stockfish 19 (native) native host unavailable'}); }
+                h.answered.push(m.cmd);
+                listener(m.cmd === 'configure' ? {id: m.id, ok: true} : {id: m.id, lines: [{score: 20, pv: ['d2d4'], depth: 12, multipv: 1}]});
+            });
+        }};
+    const c = vm.createContext({console, Promise, Map, Error, Math, Array, Object, JSON, String, Number,
+        setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
+        chrome: {runtime: {connect: () => port}}});
+    c.self = c; c.MephistoReviewCore = {MATE_CP: 100000};
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8'), c);
+    const e = new c.MephistoEngines.NativeEngine('sf19-native', {variant: 'chess', limitKind: 'depth', limitValue: 22, multipv: 3, threads: 2, hash: 64});
+    await e.start();
+    const fen = '8/8/8/8/8/8/8/K6k w - - 0 1';
+    await e.analyse(fen, 'w');
+    // the host process exits: the relay broadcasts {fatal} and forgets it
+    host = null; listener({fatal: 'Stockfish 19 (native) native host unavailable'});
+    await e.analyse(fen, 'w');
+    const fresh = hosts[1] || {got: []};
+    const conf = fresh.got[0] || {};
+    ok('ENGINES-3: the relaunched host gets the configure again (MultiPV, Threads, Hash, full strength) before the analyse',
+       hosts.length === 2 && conf.cmd === 'configure' && JSON.stringify(conf.options) === JSON.stringify(hosts[0].got[0].options)
+       && conf.options.MultiPV === 3 && conf.options.UCI_LimitStrength === false && fresh.got[1]?.cmd === 'analyse', fresh.got.map(m => m.cmd));
+    ok('ENGINES-3: ...and the analyse is sent only after the configure was answered (the host runs messages on threads)',
+       fresh.answered[0] === 'configure', fresh.answered);
+    await e.analyse(fen, 'w');
+    ok('ENGINES-3: one configure per relaunch, not one per request', fresh.got.filter(m => m.cmd === 'configure').length === 1, fresh.got.map(m => m.cmd));
+    // a relaunch that fails again: the request fails with the reason, and the next one configures again
+    host = null; listener({fatal: 'Stockfish 19 (native) native host unavailable'});
+    down = true;
+    let err = null;
+    try { await e.analyse(fen, 'w'); } catch (x) { err = x; }
+    down = false;
+    await e.analyse(fen, 'w');
+    const last = hosts[hosts.length - 1];
+    ok('ENGINES-3: a configure the dead host never answered fails the request, and the next request configures again',
+       err && /native host unavailable/.test(err.message) && last.got[0]?.cmd === 'configure' && last.got[1]?.cmd === 'analyse', [err && err.message, last.got.map(m => m.cmd)]);
+})().catch(e => { fails++; console.log('FAIL ENGINES-3 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

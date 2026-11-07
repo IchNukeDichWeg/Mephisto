@@ -464,6 +464,11 @@ class NativeEngine {
             if (frame && frame.fatal) {
                 for (const {reject} of this.pending.values()) reject(new Error(frame.fatal));
                 this.pending.clear();
+                // THE HOST PROCESS IS GONE, the port is not: the relay launches a fresh host on our
+                // next message, with none of the configure below, so it ran MultiPV 1, all cores, 2 GB
+                // and the engine's own strength defaults (audit 3.1.331 ENGINES-3). request() sends
+                // the same configure again first.
+                if (this.configured) this.reconfigure = true;
                 return;
             }
             if (!frame || frame.id == null) return;
@@ -487,16 +492,29 @@ class NativeEngine {
         // analysis states full strength and no style; options the engine does not declare are
         // dropped by the host (audit 3.1.328 OPT-2). No Skill Level: its top differs by engine, and
         // with its own host process nothing here ever lowered it.
-        await this.request('configure', {options: {
+        this.configured = {
             MultiPV: this.opts.multipv, Threads: this.opts.threads, Hash: this.opts.hash,
             UCI_Variant: variant, UCI_Chess960: false, UCI_LimitStrength: false, Personality: '---',
-        }});
+        };
+        await this.request('configure', {options: this.configured});
     }
 
     // `extra.onInfo` receives every streamed `{info}` frame for THIS request (already matched by
     // id, so another request's tail can never leak in); `extra.timeoutMs` overrides the backstop
     // for a request whose budget the default arithmetic knows nothing about.
     request(cmd, data, extra = {}) {
+        // After a {fatal}: the configure goes first and every request waits on it, since the host
+        // runs each message on its own thread and an analyse sent beside it could build its board
+        // before UCI_Variant is set (ENGINES-3). A configure that fails leaves the flag for the next.
+        if (this.reconfigure && cmd !== 'configure') {
+            this.reconfigure = false;
+            this.reconfiguring = this.request('configure', {options: this.configured}).then(
+                () => { this.reconfiguring = null; },
+                (err) => { this.reconfiguring = null; this.reconfigure = true; throw err; });
+        }
+        if (this.reconfiguring && cmd !== 'configure') {
+            return this.reconfiguring.then(() => this.request(cmd, data, extra));
+        }
         return new Promise((resolve, reject) => {
             if (!this.port) return reject(new Error('the native host is not connected'));
             const id = ++this.seq;
