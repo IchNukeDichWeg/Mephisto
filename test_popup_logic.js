@@ -1698,7 +1698,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
             HOTKEY_TOGGLES: {autoplay: 'qs_autoplay'}, LIVE_CONFIG_KEYS: ['autoplay', 'background_play'],
             PANEL_ROOT: {getElementById: (id) => id === 'qs_autoplay' ? box : null},
             i18n: (k, d, v) => v ? d.replace('{name}', v.name).replace('{state}', v.state) : d,
-            set_idle_reason: (t) => said.push(t), panel_reload: () => reloads.push(1), setTimeout: (f) => f()});
+            set_idle_reason: (t) => said.push(t), panel_reload: () => reloads.push(1), setTimeout: (f) => f(),
+            PANEL_BOOTED: true});   // the delayed reopen only rebuilds a panel still open (POPUP3-3)
         vm.runInContext(fnSrc('custom_hotkey_live') + fnSrc('custom_hotkey'), pc);
         const run = (slots, i) => { pc.slots = slots; return vm.runInContext(`custom_hotkey(${i})`, pc); };
         ok('custom hotkey: an unassigned slot does nothing and leaves the key to the site', run([{setting: ''}], 0) === false);
@@ -3302,7 +3303,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        [page('/variant/atomic'), page('/variant/fromPosition'), page(null), page(undefined, '/variant/horde')]);
     // apply_detected_variant, executed: to a variant and back restores the engine that was loaded
     const c = vm.createContext({});
-    vm.runInContext(`var store = {}, reloads = 0, config = {engine: 'stockfish-19-nnue'};
+    vm.runInContext(`var store = {}, reloads = 0, config = {engine: 'stockfish-19-nnue'}, PANEL_BOOTED = true;   // only an open panel is rebuilt (POPUP3-3)
         const FAIRY_ENGINES = ['fairy-stockfish-14-nnue', 'fairy-native'];
         const MephistoConfig = {set: (k, v) => { store[k] = v; if (k === 'engine') config.engine = JSON.parse(v); }, get: (k) => store[k] ?? null};
         function panel_reload() { reloads++; } async function preferred_fairy_engine() { return 'fairy-stockfish-14-nnue'; }
@@ -12963,6 +12964,47 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('POPUP3-2: control: the standard start, White blundered on ply 1, we are White: drawn', drawn(std, 'f2f3', 'white', f3) === 1);
     ok('POPUP3-2: control: ...and not drawn for Black', drawn(std, 'f2f3', 'black', f3) === 0);
 }
+// ---- audit 3.1.331 POPUP3-3: a panel closed while a variant auto-detect or a custom-hotkey reopen is pending stays closed ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const sl = (from, to) => { const a = psrc.indexOf(from); return psrc.slice(a, psrc.indexOf(to, a)); };
+    const fnSrc = (name) => { const i = psrc.indexOf(`function ${name}(`); return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    // the variant path: the real detect -> 500 ms -> apply (await the Fairy probe) -> reload, panel_reload in-page
+    const variant = async (closeIt) => {
+        const st = {}, reopened = [];
+        const c = vm.createContext({console: {log() {}}, setTimeout, JSON, IS_CONTENT_SCRIPT: true,
+            config: {variant: 'chess', engine: 'stockfish-19-nnue'}, FAIRY_ENGINES: ['fairy-stockfish-14-nnue', 'fairy-native'],
+            MephistoConfig: {set: (k, v) => { st[k] = v; }, get: () => null}, native_host_available: async () => false,
+            request_detect_variant: (cb) => cb('crazyhouse', 'https://www.chess.com/variants/crazyhouse/game/1', true),
+            abandon_search() {}, stash_setup_state() {}, panel_rebuild_pending: false,   // panel_reload's POPUP1-2 stash
+            PANEL_BOOTED: true, self: {MephistoContent: {reopenPanel: () => reopened.push(1)}}});
+        vm.runInContext(sl('function needs_fairy_engine(', '// Is a native host actually installed?')
+            + sl('async function preferred_fairy_engine()', '// Options-page changes reaching a LIVE panel.') + fnSrc('panel_reload'), c);
+        vm.runInContext('maybe_autodetect_variant()', c);
+        await new Promise(r => setTimeout(r, 100));
+        if (closeIt) c.PANEL_BOOTED = false;   // X / Panic: MephistoPanel.suspend
+        await new Promise(r => setTimeout(r, 600));
+        return {reopened: reopened.length, saved: st.variant === '"crazyhouse"' && st.engine === '"fairy-stockfish-14-nnue"'};
+    };
+    try {
+        const open = await variant(false), closed = await variant(true);
+        ok('POPUP3-3: control: an open panel on a variants page is rebuilt onto the detected variant', open.reopened === 1 && open.saved, open);
+        ok('POPUP3-3: closed within the pending window: the panel is not reopened by itself', closed.reopened === 0, closed);
+        ok('POPUP3-3: ...and the variant and its engine are still saved for the next open', closed.saved, closed);
+        // the custom-hotkey path: a reload-only setting reopens the panel 600 ms later
+        const timers = [], reloads = [], st = {};
+        const pc = vm.createContext({console: {log() {}}, st, MephistoConfig: {get: (k) => st[k] ?? null, set: (k, v) => { st[k] = v; },
+            hotkeyCustom: () => [{setting: 'coordinates', label: 'Coordinates', def: false}]}, HOTKEY_TOGGLES: {}, LIVE_CONFIG_KEYS: [],
+            PANEL_ROOT: {getElementById: () => null}, i18n: (k, d) => d, set_idle_reason() {}, panel_reload: () => reloads.push(1),
+            setTimeout: (f) => timers.push(f), PANEL_BOOTED: true});
+        vm.runInContext(fnSrc('custom_hotkey_live') + fnSrc('custom_hotkey'), pc);
+        vm.runInContext('custom_hotkey(0)', pc); timers.shift()();
+        ok('POPUP3-3: control: a reload-only custom hotkey reopens an open panel', reloads.length === 1 && st.coordinates === 'true');
+        vm.runInContext('custom_hotkey(0)', pc); pc.PANEL_BOOTED = false; timers.shift()();
+        ok('POPUP3-3: ...closed within its 600 ms: not reopened, the setting still written', reloads.length === 1 && st.coordinates === 'false');
+    } catch (e) { fails++; console.log('FAIL POPUP3-3 checks threw: ' + (e && e.stack || e)); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

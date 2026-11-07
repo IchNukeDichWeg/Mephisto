@@ -9897,7 +9897,9 @@ function custom_hotkey(i) {
         set_idle_reason(i18n('panel.msg.custom_hotkey', '{name}: {state}', {name: c.label, state}));
     } else {
         set_idle_reason(i18n('panel.msg.custom_hotkey_reload', '{name}: {state} - reopening the panel to apply it', {name: c.label, state}));
-        setTimeout(panel_reload, 600);   // long enough to read the line, and for the write to land
+        // long enough to read the line, and for the write to land; a panel closed meanwhile stays
+        // closed, since in-page the reload reopens it (audit 3.1.331 POPUP3-3)
+        setTimeout(() => { if (PANEL_BOOTED) panel_reload(); }, 600);
     }
     console.log(`Mephisto: custom hotkey ${i + 1} -> ${c.setting} ${on}`);
     return true;
@@ -10911,7 +10913,11 @@ async function apply_detected_variant(v) {
             MephistoConfig.set('variant_prev_engine', JSON.stringify(''));
         }
     }
-    panel_reload();
+    // Only an OPEN panel is rebuilt. This runs 0.5-1.5 s after the panel opened, and in-page the
+    // reload is reopenPanel, which OPENS a closed panel: closing it or pressing Panic in that window
+    // brought it straight back (audit 3.1.331 POPUP3-3). The settings above are saved either way, so
+    // the next open gets the variant and its engine.
+    if (PANEL_BOOTED) panel_reload();
 }
 
 // Auto-detect the variant on a chess.com / lichess variant GAME page so it just works -- apply the
