@@ -40,8 +40,17 @@ function releaseBreaks(body) {
 // split on the separators, not on "## ": old notes carry their own "## Install" / "## What's new
 // since 3.1.41" inside, and the second one would otherwise pass for a version. Chunks that do not
 // open with a versioned heading (the preamble, "Second pass: ...") are narrative and dropped.
+// A chunk that opens with no "## " heading at all is the rest of the entry above it, cut at a `---`
+// rule inside its own notes (3.1.135 and 3.1.136 have one before their install line and Full
+// Changelog link), so it is joined back on rather than dropped (audit 3.1.331 RELEASETOOLS-1).
 function archiveEntries(text) {
-    return String(text || '').replace(/\r\n?/g, '\n').split(/^-{3,}[ \t]*$/m).map(chunk => {
+    const chunks = [];
+    for (const chunk of String(text || '').replace(/\r\n?/g, '\n').split(/^-{3,}[ \t]*$/m)) {
+        if (!chunk.trim()) continue;
+        if (chunks.length && !/^## /.test(chunk.trim())) chunks[chunks.length - 1] += '\n---\n' + chunk;
+        else chunks.push(chunk);
+    }
+    return chunks.map(chunk => {
         const [head, ...rest] = chunk.trim().split('\n');
         if (!/^## /.test(head || '')) return null;
         return {v: versionOf(head), head: head.replace(/^##\s*/, ''),

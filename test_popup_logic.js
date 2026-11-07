@@ -16554,6 +16554,22 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
             JSON.stringify(got) === JSON.stringify([['UCI_Variant', 'Hash', 'uci_elo'], []]), got);
     ok('REMOTEENGINE-3: the note is printed at startup', /replaced = panel_owned\(args\.options\)\s*\n\s*if replaced:\s*\n\s*print\(f"NOTE: the extension sets/.test(src));
 })();
+// ---- audit 3.1.331 RELEASETOOLS-1: an archived entry with its own `---` rule keeps the notes after it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cl = fs.readFileSync(ROOT + '/tools/changelog.mjs', 'utf8'), c = vm.createContext({});
+    vm.runInContext(cl.slice(cl.indexOf('// ==== pure'), cl.indexOf('// ==== end pure ====')), c);
+    const entries = vm.runInContext('archiveEntries', c);
+    // the shape of 3.1.135 / 3.1.136 in docs/RELEASES-ARCHIVE.md: a rule before the install line, then the next entry
+    const arch = '# Archived release notes\n\nintro\n\n---\n\n## Mephisto 3.1.135 — x\n\nnotes\n\n---\n\nUnpacked extension — load it.\n\n'
+        + '**Full Changelog**: .../compare/v3.1.134...v3.1.135\n\n---\n\n---\n\n## Second pass: nobody downloaded\n\nRemoved v3.1.135\n\n---\n\n'
+        + '## Mephisto 3.1.136 — y\n\nmore\n\n---\n';
+    const es = entries(arch), e135 = es.find(e => e.v.join('.') === '3.1.135');
+    ok('RELEASETOOLS-1: the text after a rule inside an archived entry stays in that entry (install line and Full Changelog link)',
+       !!e135 && /notes/.test(e135.body) && /Unpacked extension/.test(e135.body) && /v3\.1\.134\.\.\.v3\.1\.135/.test(e135.body), e135);
+    ok('RELEASETOOLS-1: ...the preamble and the "Second pass" narrative are still dropped, and no entry is added or lost',
+       JSON.stringify(es.map(e => e.v.join('.'))) === '["3.1.135","3.1.136"]' && !es.some(e => /intro|Removed v3/.test(e.body)), es);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
