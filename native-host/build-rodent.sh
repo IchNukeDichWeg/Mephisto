@@ -75,8 +75,11 @@ patch -d "$WORK" -p1 -l <<'PATCH'
 +    }
 PATCH
 
-# the Makefile's flags minus the gcc-only ones (-fprefetch-loop-arrays) and -g
-( cd "$WORK/sources" && c++ -std=c++14 -O3 -DNDEBUG -fno-rtti -w -pipe src/*.cpp -o "$WORK/rodent-iv" )
+# the Makefile's flags minus the gcc-only ones (-fprefetch-loop-arrays) and -g. -pthread (audit
+# 3.1.331 INSTALLPS1-3): every `go` starts a std::thread, and on glibc older than 2.34 (Debian 11,
+# Ubuntu 20.04, RHEL 8) a build without it links, then the thread constructor throws "Enable
+# multithreading to use std::thread" and the engine aborts on its first search. Harmless on macOS.
+( cd "$WORK/sources" && c++ -std=c++14 -O3 -DNDEBUG -fno-rtti -w -pipe -pthread src/*.cpp -o "$WORK/rodent-iv" )
 
 rm -rf "$OUT"; mkdir -p "$OUT/personalities"
 cp "$WORK/rodent-iv" "$OUT/rodent-iv"
