@@ -15463,6 +15463,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('PUZZLEDB-1: a row with a variation in parentheses is still skipped (its main line is ambiguous)', rec('Rf1+ Kxf1 Qe1#) Qe1+') === 'null', rec('Rf1+ Kxf1 Qe1#) Qe1+'));
     ok('PUZZLEDB-1: an unplayable SAN still drops the row', rec('Rf1+ Kxf1 Qe9#') === 'null');
 }
+// ---- audit 3.1.331 PUZZLEDB-2: chess.js castling rooks are the back-rank rooks, not whichever rook the FEN reaches first ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    const castles = (fen) => new c.Chess('chess', fen).moves().filter(m => m.startsWith('O-'));
+    const play = (fen, sans) => { const g = new c.Chess('chess', fen); try { for (const s of sans) g.move(s); } catch (e) { return 'threw ' + e.message; } return g.fen(); };
+    ok('PUZZLEDB-2: a white rook on h4 no longer hides O-O-O with the a1 rook', JSON.stringify(castles('1k6/8/8/8/7R/8/8/R3K3 w Q')) === '["O-O-O"]', castles('1k6/8/8/8/7R/8/8/R3K3 w Q'));
+    const p = play('1k2rr2/pp4p1/2pb4/5qBp/3P3R/8/PPPQNP2/R3K3 w Q - 3 27', ['O-O-O']);
+    ok('PUZZLEDB-2: ...lichess puzzle 09BTb plays its setup castle e1c1', p.startsWith('1k2rr2/pp4p1/2pb4/5qBp/3P3R/8/PPPQNP2/2KR4 b - '), p);
+    const b = play('4k2r/8/8/8/8/8/1r6/7K b k', ['Rb3', 'Kg1']);
+    ok('PUZZLEDB-2: a black rook off rank 8 moving keeps black\'s k right', / b k - /.test(b) && castles(b).includes('O-O'), b);
+    const x = play('4k2r/8/8/8/8/8/1r6/1R4K1 w k', ['Rxb2']);
+    ok('PUZZLEDB-2: ...and capturing it keeps the right too', / b k - /.test(x), x);
+    // K right with rooks on f1 and h1 (the a-rook wandered to f1): the castling rook is h1, so moving f1 keeps the right
+    const k = play('4k3/8/8/8/8/8/8/4KR1R w K', ['Rf2', 'Kd7', 'O-O']);
+    ok('PUZZLEDB-2: with two king-side rooks the outermost (h1) is the castling rook', k.startsWith('8/3k4/8/8/8/8/5R2/5RK1 b'), k);
+    ok('PUZZLEDB-2: the standard start position still offers both castles once cleared', JSON.stringify(castles('r3k2r/8/8/8/8/8/8/R3K2R w KQkq')) === '["O-O","O-O-O"]', castles('r3k2r/8/8/8/8/8/8/R3K2R w KQkq'));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
