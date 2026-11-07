@@ -91,8 +91,16 @@ async function replay(pgn4Text) {
 
 // One position, searched. `movetime` is the same budget the two-player review calls a time limit.
 async function analyse(fen4, movetime, onInfo) {
-    const r = await send('analyse', {fen4, time: movetime}, onInfo);
-    return r || {};
+    // A position Tetrarch refuses to search is the host's error now, where it used to come back as
+    // the engine's fallback first legal move posing as the best (audit 3.1.331 TETRARCHHOST-3). One
+    // such frame goes ungraded, as its scoreless answer did before, instead of ending the whole review.
+    try {
+        const r = await send('analyse', {fen4, time: movetime}, onInfo);
+        return r || {};
+    } catch (e) {
+        if (/^Tetrarch: search failed/.test(String(e && e.message))) return {};
+        throw e;
+    }
 }
 
 // Score in the RED/YELLOW team's favour, whoever is to move. `cp` arrives from the side-to-move's

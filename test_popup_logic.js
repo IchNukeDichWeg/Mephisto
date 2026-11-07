@@ -16296,6 +16296,71 @@ print(json.dumps({'wrong': wrong, 'order': order}))`;
            && JSON.stringify(order.slice(1).sort((a, b) => a[0] - b[0])) === JSON.stringify([[900, 'mvSLOW@ffa'], [901, 'superseded'], [902, 'mvLAST@ffa']]), order);
     }
 })();
+// ---- TETRARCHHOST-3 (audit 3.1.331): Tetrarch's "search failed" fallback move is an error, not the engine's best move ----
+// (the host run end to end over a stand-in uci.py that answers like Tetrarch's cmd_go on a refused search; the 4-player
+// review's analyse() run in a vm over a stub port)
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    const run = `import json, os, shutil, struct, subprocess, sys, tempfile
+d = tempfile.mkdtemp(); repo = os.path.join(d, 'Tetrarch'); os.mkdir(repo)
+open(os.path.join(repo, 'uci.py'), 'w').write('''import sys
+board = 'start'
+for raw in sys.stdin:
+    t = raw.split()
+    if not t: continue
+    if t[0] == 'uci': print('uciok')
+    elif t[0] == 'isready': print('readyok')
+    elif t[0] == 'position': board = t[2]
+    elif t[0] == 'go':
+        if board.startswith('DEAD'):
+            print('info string search failed: ValueError: Teams ends when a seat is mated'); print('bestmove first' + board)
+        else:
+            print('info depth 1 score cp 5 pv mv' + board); print('bestmove mv' + board)
+    sys.stdout.flush()
+''')
+shutil.copy(sys.argv[1], os.path.join(d, 'tetrarch-host.py')); open(os.path.join(d, 'tetrarch-path'), 'w').write(repo + '\\n')
+env = dict(os.environ); env.pop('TETRARCH_DIR', None)
+p = subprocess.Popen([sys.executable, '-I', os.path.join(d, 'tetrarch-host.py')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
+def ask(o):
+    b = json.dumps(o).encode(); p.stdin.write(struct.pack('<I', len(b)) + b); p.stdin.flush()
+    while True:
+        h = p.stdout.read(4)
+        if len(h) < 4: return None
+        m = json.loads(p.stdout.read(struct.unpack('<I', h)[0]))
+        if 'info' not in m: return m
+out = [ask({'id': i, 'cmd': 'analyse', 'fen4': f, 'time': 50}) for i, f in enumerate(('DEAD1', 'P2'), 1)]
+p.stdin.close(); p.wait(10); shutil.rmtree(d, ignore_errors=True)
+print(json.dumps(out))`;
+    const r = await pyRun(['-I', '-B', '-c', run, ROOT + '/native-host/tetrarch-host.py'], {encoding: 'utf8', timeout: 30000});
+    if (r.error) console.log('ok   TETRARCHHOST-3: skipped (no python3 here)');
+    else {
+        let out = null; try { out = JSON.parse(r.stdout); } catch (e) { out = (r.stderr || '').slice(-300); }
+        ok('TETRARCHHOST-3: a refused search answers with the engine\'s "search failed" reason and no bestmove (not its first legal move)',
+           Array.isArray(out) && out[0] && !out[0].bestmove && /^Tetrarch: search failed: ValueError: Teams ends/.test(out[0].error || ''), out);
+        ok('...and the next position still gets its own searched move',
+           Array.isArray(out) && out[1] && out[1].bestmove === 'mvP2', out);
+    }
+    // the review: a refused frame is ungraded (analyse resolves {}), any other host error still ends the run
+    const vm = require('vm');
+    const replyFor = {analyse: null};
+    const sb = {self: {}, chrome: {runtime: {connect: () => {
+        const ls = [];
+        return {onMessage: {addListener: f => ls.push(f)}, onDisconnect: {addListener: () => {}},
+                postMessage: m => setTimeout(() => ls.forEach(f => f({id: m.id, error: replyFor.analyse}))), disconnect() {}};
+    }}}, setTimeout};
+    vm.createContext(sb);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-4pc.js', 'utf8'), sb);
+    const A = sb.self.Mephisto4PC;
+    replyFor.analyse = 'Tetrarch: search failed: ValueError: Teams ends when a seat is mated';
+    const a = await A.analyse('DEAD', 100).then(v => JSON.stringify(v), e => 'rejected: ' + e.message);
+    ok('TETRARCHHOST-3: the 4-player review grades a refused frame as nothing instead of ending the review', a === '{}', a);
+    replyFor.analyse = "Tetrarch: error handling 'position': ValueError: bad turn";
+    const b = await A.analyse('BAD', 100).then(v => JSON.stringify(v), e => 'rejected: ' + e.message);
+    ok('...while any other host error still rejects', /^rejected: Tetrarch: error handling/.test(b), b);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

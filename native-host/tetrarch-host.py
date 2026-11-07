@@ -307,7 +307,7 @@ def do_analyse(data, mid):
         _send(pos)
 
         lines, best = {}, None
-        engine_error = []
+        engine_error, search_failed = [], []
         def on_line(l):
             if not l.startswith('info'):
                 return
@@ -319,6 +319,14 @@ def do_analyse(data, mid):
             # discarded below rather than read on (audit 3.1.331 TETRARCHHOST-1).
             if l.startswith('info string error'):
                 engine_error.append(l[len('info string '):])
+                return
+            # A search Tetrarch refuses (a Teams FEN4 with a dead seat, say) is caught in its own
+            # `go`, which says `info string search failed: ...` and then answers bestmove with the
+            # FIRST LEGAL MOVE. Dropped like any `info string`, that arbitrary move went back as the
+            # engine's best, shown, drawn and autoplayed (audit 3.1.331 TETRARCHHOST-3). The bestmove
+            # still follows, so the pipe is read on to it and stays in step; the answer is the error.
+            if l.startswith('info string search failed'):
+                search_failed.append(l[len('info string '):])
                 return
             info = parse_info(l)
             if not info:
@@ -345,6 +353,8 @@ def do_analyse(data, mid):
             why = _stderr_why()
             _discard_engine('no bestmove before the deadline')   # one still searching would answer the next request
             raise RuntimeError('Tetrarch stopped responding' + (f': {why}' if why else ''))
+        if search_failed:
+            raise RuntimeError(f'Tetrarch: {search_failed[0]}')
         parts = bm.split()
         best = parts[1] if len(parts) > 1 else None
         ordered = [lines[k] for k in sorted(lines)]
