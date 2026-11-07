@@ -55,7 +55,11 @@ export function boardTensor(chess) {
     ['K', 'Q', 'k', 'q'].forEach((r, i) => {
         if (rights.includes(r)) out.fill(1, (13 + i) * 64, (14 + i) * 64);
     });
-    if (parts[3] && parts[3] !== '-') {
+    // ONLY A CAPTURABLE SQUARE, as in training: the positions came from python-chess board.fen(), which
+    // writes the en-passant square only when a legal capture exists, while chess.js prints it after
+    // every double push. After a4 or ...c5 the net read a plane it never saw set that way, and 9 of
+    // 107 such positions changed their top move (audit 3.1.331 MAIA-3).
+    if (parts[3] && parts[3] !== '-' && chess.moves({ verbose: true }).some(m => m.flags.includes('e'))) {
         const ep = (Number(parts[3][1]) - 1) * 8 + files.indexOf(parts[3][0]);
         out[17 * 64 + ep] = 1;
     }

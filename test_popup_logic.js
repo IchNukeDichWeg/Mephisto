@@ -16060,6 +16060,43 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            {knight: knight.best, queen: queen.best, n: knight.pvs.length, r: rook.pvs.length});
     })().catch(e => { fails++; console.log('FAIL MAIA-2 checks threw: ' + (e && e.stack || e)); });
 }
+// ---- audit 3.1.331 MAIA-3: Maia-2's en-passant plane is set only when an en-passant capture is legal, as in its training ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the real maia2.js, imports stubbed; the Tensor stub keeps the board planes the net was handed
+    const m2 = fs.readFileSync(ROOT + '/src/offscreen/maia2.js', 'utf8')
+        .replace(/^import [^\n]*\n/gm, '').replace(/^export /gm, '').replace("import('/src/offscreen/maia3.js')", 'Promise.reject(new Error("no opening net"))');
+    const files = 'abcdefgh', all = [];
+    for (let a = 0; a < 64; a++) for (let b = 0; b < 64; b++) all.push(files[a % 8] + (a / 8 + 1 | 0) + files[b % 8] + (b / 8 + 1 | 0));
+    const c = vm.createContext({console: {log() {}}, Promise, TextDecoder, Float32Array, Float64Array, BigInt64Array, BigInt, Math, planes: null,
+        fetchModel: async (dir, file) => new TextEncoder().encode(file.endsWith('.json') ? JSON.stringify({moves: all, elo_dict: {}}) : 'x'),
+        readyEnv: async () => {},
+        ort: {Tensor: function (type, data) { if (type === 'float32') c.planes = data; },
+              InferenceSession: {create: async () => ({run: async () => ({logits_maia: {data: new Float32Array(all.length)}, logits_value: {data: [0]}})})}}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(m2, c);
+    (async () => {
+        const eng = await vm.runInContext('createMaia2Engine', c)(() => {}, 1500, 1500);
+        const epPlane = async (fen) => {
+            c.planes = null; eng.uci(`position fen ${fen}`); eng.uci('go');
+            for (let k = 0; k < 5; k++) await new Promise(r => setTimeout(r, 0));
+            if (!c.planes) return 'no pass';
+            const on = []; for (let i = 0; i < 64; i++) if (c.planes[17 * 64 + i]) on.push(i);
+            return on.join(',');
+        };
+        const got = {
+            whiteNoCapture: await epPlane('5r1k/1p2qrp1/p2pbnpp/P1p5/1PP1PR2/3PN3/3QB1PP/5RK1 w - c6 0 24'),
+            blackNoCapture: await epPlane('rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq a3 0 10'),
+            whiteCapture: await epPlane('rnbqkbnr/pppp1ppp/8/3Pp3/8/8/PPP1PPPP/RNBQKBNR w KQkq e6 0 10'),
+            blackCapture: await epPlane('rnbqkbnr/p1pppppp/8/8/Pp6/8/1PPPPPPP/RNBQKBNR b KQkq a3 0 10'),   // mirrored: a6
+        };
+        ok('MAIA-3: after a double push nobody can take en passant, Maia-2\'s en-passant plane stays empty (python-chess fen() writes "-")',
+           got.whiteNoCapture === '' && got.blackNoCapture === '', got);
+        ok('...and it is still set on the target square when the capture is legal, for both colours',
+           got.whiteCapture === '44' && got.blackCapture === '40', got);
+    })().catch(e => { fails++; console.log('FAIL MAIA-3 checks threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
