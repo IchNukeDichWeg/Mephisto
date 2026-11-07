@@ -82,7 +82,15 @@
     // lifetime -- a worker that just woke re-reads it once, which is the price of being killable.
     let cached;         // Promise<ArrayBuffer|null>
     function probe(fen) {
-        if (!cached) cached = idb('readonly', s => s.get(KEY)).then(rec => rec ? rec.buffer : null);
+        // A FAILED read is not cached: kept, it answered every later probe with the same error until
+        // the worker restarted, and the panel's per-move asks keep it alive, so one transient
+        // IndexedDB failure ended book play for the session (audit 3.1.331 STORES-4). The identity
+        // check keeps a dropCache() + re-read that raced this one.
+        if (!cached) {
+            const p = idb('readonly', s => s.get(KEY)).then(rec => rec ? rec.buffer : null)
+                .catch(e => { if (cached === p) cached = undefined; throw e; });
+            cached = p;
+        }
         return cached.then(buffer => {
             if (!buffer) return null;                      // no book loaded at all
             return self.MephistoPolyglot.bufferLookup(buffer, fen);

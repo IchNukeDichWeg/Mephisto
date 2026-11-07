@@ -15698,6 +15698,35 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const inf = await B.info();
     ok('STORES-3: ...a commit that succeeds still saves and reads back', r2 === 'book.bin' && inf && inf.name === 'book.bin' && inf.entries === 2, [r2, inf]);
 })();
+// ---- audit 3.1.331 STORES-4: one failed book read in the worker is retried on the next probe, not cached for the worker's life ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const committed = new Map(); let failGets = 0, gets = 0;
+    const c = vm.createContext({setTimeout, indexedDB: {open() { const req = {}; setTimeout(() => {
+        req.result = {close() {}, transaction() { const tx = {};
+            const done = (r, err) => setTimeout(() => {
+                if (err) { r.error = err; r.onerror && r.onerror(); tx.error = err; tx.onerror && tx.onerror(); tx.onabort && tx.onabort(); }
+                else { r.onsuccess && r.onsuccess(); tx.oncomplete && tx.oncomplete(); } });
+            tx.objectStore = () => ({
+                put(v, k) { const r = {result: k}; committed.set(k, v); done(r); return r; },
+                get(k) { const r = {}; gets++; if (failGets > 0) { failGets--; done(r, Object.assign(new Error('read failed'), {name: 'UnknownError'})); }
+                         else { r.result = committed.get(k); done(r); } return r; },
+                delete(k) { const r = {}; committed.delete(k); done(r); return r; }});
+            return tx; }};
+        req.onsuccess(); }); return req; }}});
+    c.self = c;
+    c.MephistoPolyglot = {bufferLookup: () => [{uci: 'e2e4', weight: 1}]};
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/book-store.js', 'utf8'), c);
+    const B = c.MephistoBooks;
+    const book = new ArrayBuffer(32); new DataView(book).setBigUint64(16, 5n);
+    await B.save('book.bin', book);
+    failGets = 1; gets = 0;
+    const res = [];
+    for (let i = 0; i < 3; i++) res.push(await B.probe('fen').then(m => m && m[0] && m[0].uci, e => 'error ' + e.name));
+    ok('STORES-4: a transient read failure costs one probe; the next one reads the book again and answers',
+       res[0] === 'error UnknownError' && res[1] === 'e2e4' && res[2] === 'e2e4', res);
+    ok('STORES-4: ...a good read is still cached (one IndexedDB read for the retried and later probes)', gets === 2, gets);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
