@@ -71,17 +71,21 @@ function encode(positions) {
 
 // ---- decoding (verified) -----------------------------------------------------------------------
 const CASTLE = { e1g1: 'e1h1', e1c1: 'e1a1', e8g8: 'e8h8', e8c8: 'e8a8' }; // lc0 = king-to-rook
-function toPerspUci(uci, black) {
-    uci = CASTLE[uci] || uci;
+// ONLY THE KING'S CASTLING is written king-to-rook in lc0. A rook or queen going e1-c1 keeps its own
+// e1c1 slot, and mapping it by its squares alone read the e1a1 rook slot instead: Maia-1500 played
+// a3a4 (29.0%) where the net gave Re1-c1 46.1% (audit 3.1.331 MAIA-1). `castles` holds the UCIs
+// chess.js flagged k/q; the map runs before the flip so a black castle lands on e1h1/e1a1.
+function toPerspUci(uci, black, castle) {
+    if (castle) uci = CASTLE[uci] || uci;
     const flip = (s) => black ? s[0] + (9 - +s[1]) : s;
     return flip(uci.slice(0, 2)) + flip(uci.slice(2, 4)) + (uci[4] || '');
 }
 // Rank every legal move by the net's policy (softmax over the legal subset). Returns
 // [[uci, prob], ...] best-first -- the top is the move to play; the rest are the multi-PV candidates.
-function scoreMoves(logits, legalUcis, black) {
+function scoreMoves(logits, legalUcis, black, castles) {
     const scored = [];
     for (const uci of legalUcis) {
-        const idx = moveToIdx.get(toPerspUci(uci, black));
+        const idx = moveToIdx.get(toPerspUci(uci, black, castles.has(uci)));
         if (idx !== undefined) scored.push([uci, logits[idx]]);
     }
     if (!scored.length) return [[legalUcis[0], 1]];
@@ -120,7 +124,7 @@ export async function createMaiaEngine(level, listen, net = null) {
     const session = await ort.InferenceSession.create(bytes);
     console.log(`[lc0 net] ${file} loaded (${bytes.length} bytes), onnxruntime ready`);
 
-    let history = [], legalUcis = [], black = false, multipv = 1;
+    let history = [], legalUcis = [], castles = new Set(), black = false, multipv = 1;
 
     function setPosition(fen, moves) {
         const chess = new Chess('chess', fen || undefined);
@@ -139,14 +143,16 @@ export async function createMaiaEngine(level, listen, net = null) {
         if (fens[0].split(' ')[0] !== START) while (fens.length < 8) fens.unshift(fens[0]);
         history = fens.reverse().map(parseFen);
         black = history[0].stm === 'b';
-        legalUcis = chess.moves({ verbose: true }).map(m => m.from + m.to + (m.promotion || ''));
+        const legal = chess.moves({ verbose: true });
+        legalUcis = legal.map(m => m.from + m.to + (m.promotion || ''));
+        castles = new Set(legal.filter(m => /[kq]/.test(m.flags)).map(m => m.from + m.to));
     }
 
     async function go() {
         if (!legalUcis.length) { listen('bestmove (none)'); return; }
         const t0 = performance.now();
         const out = await session.run({ '/input/planes': new ort.Tensor('float32', encode(history.slice(0, 8)), [1, 112, 8, 8]) });
-        const scored = scoreMoves(out['/output/policy'].data, legalUcis, black);
+        const scored = scoreMoves(out['/output/policy'].data, legalUcis, black, castles);
         const cp = valueToCp(Array.from(out['/output/wdl'].data)); // one position eval (same for every line)
         // Emit one info line per requested line, ranked by human-likelihood. The multipv field is
         // REQUIRED: without it the panel's activeLines goes NaN and no arrows draw. BEST-FIRST

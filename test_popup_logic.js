@@ -15988,6 +15988,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
                    e8: {piece: 'k', prob: 0.9, alt: '', altProb: 0.05}});
     ok('...and a violation no runner-up reduces is left alone and reported', d.r.fixed.length === 0 && d.r.unresolved.join() === 'two white kings', d);
 }
+// ---- audit 3.1.331 MAIA-1: Maia-1 / Leela read the castling slot only for a king's castling, not a rook's Re1-c1 ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the real maia.js, imports stubbed; the "net" puts all its policy on ONE lc0 slot
+    const table = JSON.parse(fs.readFileSync(ROOT + '/lib/engine/maia/lc0_policy_index.json', 'utf8'));
+    const src = fs.readFileSync(ROOT + '/src/offscreen/maia.js', 'utf8').replace(/^import [^\n]*\n/gm, '').replace(/^export /gm, '');
+    const c = vm.createContext({console: {log() {}}, performance: {now: () => 0}, TextDecoder, Float32Array, Promise, Math, JSON, Map,
+        fetchModel: async (dir, file) => file.endsWith('.json') ? new TextEncoder().encode(JSON.stringify(table)) : new ArrayBuffer(4),
+        readyEnv: async () => {}, hot: 0,
+        ort: {Tensor: function () {}, InferenceSession: {create: async () => ({run: async () => {
+            const p = new Float32Array(1858).fill(-10); p[c.hot] = 10; return {'/output/policy': {data: p}, '/output/wdl': {data: [0.3, 0.4, 0.3]}}; }})}}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(src, c);
+    (async () => {
+        const lines = [];
+        const eng = await vm.runInContext('createMaiaEngine', c)(1500, (l) => lines.push(l));
+        const best = async (fen, slot) => {
+            c.hot = table.indexOf(slot); lines.length = 0;
+            eng.uci(`position fen ${fen}`); eng.uci('go');
+            for (let k = 0; k < 5; k++) await new Promise(r => setTimeout(r, 0));
+            return lines.find(l => l.startsWith('bestmove'));
+        };
+        const got = {
+            whiteRook: await best('6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1', 'e1c1'),
+            blackRook: await best('4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1', 'e1c1'),     // black's e8c8, rank-flipped
+            blackRookE1: await best('6k1/8/8/8/8/8/8/K3r3 b - - 0 1', 'e8g8'),          // black's e1g1, rank-flipped
+            whiteOO: await best('r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1', 'e1h1'),
+            blackOOO: await best('r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1', 'e1a1'),
+        };
+        ok('MAIA-1: a rook move e1-c1 / e8-c8 / (Black) e1-g1 reads its own lc0 slot, so the net\'s favourite rook move is played',
+           got.whiteRook === 'bestmove e1c1' && got.blackRook === 'bestmove e8c8' && got.blackRookE1 === 'bestmove e1g1', got);
+        ok('...and a king\'s castling still reads lc0\'s king-to-rook slot, for both colours',
+           got.whiteOO === 'bestmove e1g1' && got.blackOOO === 'bestmove e8c8', got);
+    })().catch(e => { fails++; console.log('FAIL MAIA-1 checks threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
