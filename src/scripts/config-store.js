@@ -162,6 +162,16 @@
             try { saved = JSON.parse(this.get('hotkeys')) || {}; } catch (e) { /* unset/corrupt */ }
             const out = {...this.HOTKEY_DEFAULTS, ...saved};
             for (const a in out) out[a] = this.canonHotkey(out[a]);
+            // A NEW ACTION NEVER TAKES A KEY YOU ALREADY USE. The rebind UI saves every action that
+            // existed at the time, so an action missing from `saved` arrived in a later version. If
+            // its default letter is already one of your saved keys or a macro key, it starts
+            // unbound: the listener acts on the first match only, so giving it the letter made one
+            // of the two dead (Panic rebound to W went silent once Bot Tricks shipped on W;
+            // audit 3.1.331 CONFIGSTORE-1).
+            const taken = new Set(this.hotkeyMacros().map(m => m.key));
+            for (const a in this.HOTKEY_DEFAULTS) if (Object.hasOwn(saved, a)) taken.add(out[a]);
+            taken.delete('');
+            for (const a in this.HOTKEY_DEFAULTS) if (!Object.hasOwn(saved, a) && taken.has(out[a])) out[a] = '';
             return out;
         },
         // HOTKEY MACROS: one key, a list of existing actions run in order. Stored as config

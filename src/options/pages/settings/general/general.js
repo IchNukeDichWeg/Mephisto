@@ -1022,12 +1022,15 @@ class GeneralSettings extends SettingsPage {
         // stay, unbound), and the page says so. Keeping both would leave the macro silently dead.
         resetBtn.addEventListener('click', () => {
             MephistoConfig.remove('hotkeys');
-            bindings = MephistoConfig.hotkeys();
             capturing = null;
-            const taken = new Set(Object.values(bindings));
+            // the DEFAULTS, not hotkeys(): that leaves an action unbound while a macro holds its
+            // default key, so the macro would keep the key a reset is meant to restore
+            // (audit 3.1.331 CONFIGSTORE-1)
+            const taken = new Set(Object.values(MephistoConfig.HOTKEY_DEFAULTS).map(k => MephistoConfig.canonHotkey(k)));
             let cleared = 0;
             for (const m of macros) if (m.key && taken.has(m.key)) { m.key = ''; cleared++; }
             if (cleared) saveMacros();
+            bindings = MephistoConfig.hotkeys();
             say(cleared ? t('set.macro_reset_cleared',
                 'Hotkeys reset. {n} macro key(s) matched a restored default and were cleared - the macros are kept.',
                 {n: cleared}) : '');

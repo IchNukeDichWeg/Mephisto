@@ -15143,6 +15143,46 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
     const p = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('UPDATER-7: ...which is the record the panel compares with the newest release', /got\?\.mephisto_installed_version === res\.latest\) return;/.test(p));
 })().catch(e => { fails++; console.log('FAIL UPDATER-7 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 CONFIGSTORE-1: a hotkey added in a later version never takes a key the user already bound ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console, location: {protocol: 'https:'}, navigator: {},
+        chrome: {storage: {local: {get: async () => ({}), set() {}, remove() {}}, onChanged: {addListener() {}}}}};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8'), c);
+    const C = c.MephistoConfig;
+    // what the rebind UI stored before Bot Tricks existed: every action of that version, Panic moved to W
+    const old = Object.fromEntries(Object.entries(C.HOTKEY_DEFAULTS).filter(([a]) => !['bot_trick', 'shortcuts', 'custom_1', 'custom_2'].includes(a)));
+    const press = (b, k) => { for (const a in b) if (b[a] && b[a] === k) return a; return null; };   // the listener's first-match rule
+    C.set('hotkeys', JSON.stringify({...old, panic: 'w'}));
+    let b = C.hotkeys();
+    ok('CONFIGSTORE-1: Panic rebound to W before Bot Tricks existed still fires on W; Bot Tricks starts unbound',
+       press(b, 'w') === 'panic' && b.bot_trick === '' && C.hotkeyOwner('w') === 'panic', [press(b, 'w'), b.bot_trick]);
+    ok('CONFIGSTORE-1: ...a new action whose letter nobody uses still gets its default', b.shortcuts === '?', b.shortcuts);
+    C.set('hotkeys', JSON.stringify({...old, autoplay: 'Shift+w'}));
+    ok('CONFIGSTORE-1: ...a saved key that only looks alike (Shift+W) does not unbind it', C.hotkeys().bot_trick === 'w');
+    // an action the user saved on purpose keeps its key even when it equals a default (no clash with itself)
+    C.set('hotkeys', JSON.stringify({...old, bot_trick: 'w', panic: 'x'}));
+    ok('CONFIGSTORE-1: ...a saved action is never unbound by the rule', C.hotkeys().bot_trick === 'w' && C.hotkeys().panic === 'x');
+    // a macro on W made before Bot Tricks existed, nothing rebound
+    C.remove('hotkeys');
+    C.set('hotkey_macros', JSON.stringify([{key: 'w', steps: ['autoplay']}]));
+    b = C.hotkeys();
+    ok('CONFIGSTORE-1: a macro key made before Bot Tricks existed stays the macro\'s', b.bot_trick === '' && C.hotkeyOwner('w') === 'macro:0', b.bot_trick);
+    // Settings > Hotkeys > Reset still restores every default and clears the clashing macro key (the real handler)
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const i = gj.indexOf("resetBtn.addEventListener('click', () => {"), body = gj.slice(gj.indexOf('{', i + 30) + 1, gj.indexOf('\n        });', i));
+    C.set('hotkey_macros', JSON.stringify([{key: 'a', steps: ['humanize']}, {key: 'j', steps: ['premove']}]));
+    const rc = vm.createContext({MephistoConfig: C, macros: C.hotkeyMacros(), bindings: null, capturing: 'x', said: []});
+    vm.runInContext(`var saveMacros = () => MephistoConfig.set('hotkey_macros', JSON.stringify(macros)), say = (s) => said.push(s),
+        t = (k, d) => d, render = () => {}; (() => {${body}})();`, rc);
+    const after = C.hotkeys();
+    ok('CONFIGSTORE-1: Reset gives a macro-held default letter back to its action and clears only that macro key',
+       rc.bindings && rc.bindings.autoplay === 'a' && after.autoplay === 'a' && C.hotkeyMacros()[0].key === '' && C.hotkeyMacros()[1].key === 'j'
+       && Object.keys(C.HOTKEY_DEFAULTS).every(a => after[a] === C.canonHotkey(C.HOTKEY_DEFAULTS[a])), [rc.bindings && rc.bindings.autoplay, C.hotkeyMacros()]);
+    C.remove('hotkeys'); C.remove('hotkey_macros');
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
