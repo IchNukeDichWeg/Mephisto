@@ -28,8 +28,14 @@
         return openDb().then(db => new Promise((resolve, reject) => {
             const tx = db.transaction(STORE, mode);
             const rq = fn(tx.objectStore(STORE));
-            rq.onsuccess = () => { resolve(rq.result); db.close(); };
-            rq.onerror = () => { reject(rq.error); db.close(); };
+            // Settled by the TRANSACTION, not the request: a put can succeed and its commit still
+            // abort (QuotaExceededError on a big book, disk full). Resolving on the request said
+            // "saved", Settings then showed the old book or none and no error (audit 3.1.331 STORES-3).
+            // A failed request bubbles to tx.onerror; a failed commit only fires abort.
+            const fail = () => { reject(tx.error || rq.error || new Error('transaction aborted')); db.close(); };
+            tx.oncomplete = () => { resolve(rq.result); db.close(); };
+            tx.onerror = fail;
+            tx.onabort = fail;
         }));
     }
 

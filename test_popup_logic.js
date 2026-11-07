@@ -15670,6 +15670,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     } catch (e) { ok('STORES-2: the native host tbinfo counts the same 4 tables', false, String(e.message).slice(0, 200)); }
     finally { fs.rmSync(tmp, {recursive: true, force: true}); }
 })();
+// ---- audit 3.1.331 STORES-3: a book import whose transaction aborts at commit (disk full) is refused, not reported as saved ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // IndexedDB mock in Chrome's order: the request succeeds first, then the transaction commits or aborts
+    const committed = new Map(); let abortNext = false;
+    const c = vm.createContext({setTimeout, indexedDB: {open() { const req = {}; setTimeout(() => {
+        req.result = {close() {}, transaction() { const tx = {}, pending = new Map();
+            const finish = () => setTimeout(() => {
+                if (abortNext) { abortNext = false; tx.error = Object.assign(new Error('disk full'), {name: 'QuotaExceededError'}); tx.onabort && tx.onabort(); }
+                else { for (const [k, v] of pending) committed.set(k, v); tx.oncomplete && tx.oncomplete(); } });
+            tx.objectStore = () => ({
+                put(v, k) { const r = {}; pending.set(k, v); setTimeout(() => { r.result = k; r.onsuccess && r.onsuccess(); finish(); }); return r; },
+                get(k) { const r = {}; setTimeout(() => { r.result = committed.get(k); r.onsuccess && r.onsuccess(); finish(); }); return r; },
+                delete(k) { const r = {}; setTimeout(() => { committed.delete(k); r.onsuccess && r.onsuccess(); finish(); }); return r; }});
+            return tx; }};
+        req.onsuccess(); }); return req; }}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/book-store.js', 'utf8'), c);
+    const B = c.MephistoBooks;
+    const book = () => { const b = new ArrayBuffer(32); new DataView(b).setBigUint64(16, 5n); return b; };
+    abortNext = true;
+    const r = await B.save('big.bin', book()).then(x => 'resolved ' + JSON.stringify(x), e => 'rejected ' + e.name);
+    ok('STORES-3: save() rejects when the commit aborts, so Settings shows the error instead of a silent no-op',
+       r === 'rejected QuotaExceededError', r);
+    const r2 = await B.save('book.bin', book()).then(x => x.name, e => 'rejected ' + e.name);
+    const inf = await B.info();
+    ok('STORES-3: ...a commit that succeeds still saves and reads back', r2 === 'book.bin' && inf && inf.name === 'book.bin' && inf.entries === 2, [r2, inf]);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
