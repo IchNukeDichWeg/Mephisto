@@ -16024,6 +16024,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            got.whiteOO === 'bestmove e1g1' && got.blackOOO === 'bestmove e8c8', got);
     })().catch(e => { fails++; console.log('FAIL MAIA-1 checks threw: ' + (e && e.stack || e)); });
 }
+// ---- audit 3.1.331 MAIA-2: Maia-1 / Leela can play b7-b8 (b2-b1 for Black) and knight promotions ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the real maia.js and the shipped policy table, imports stubbed; the "net" puts all its policy on ONE slot
+    const table = JSON.parse(fs.readFileSync(ROOT + '/lib/engine/maia/lc0_policy_index.json', 'utf8'));
+    const src = fs.readFileSync(ROOT + '/src/offscreen/maia.js', 'utf8').replace(/^import [^\n]*\n/gm, '').replace(/^export /gm, '');
+    const c = vm.createContext({console: {log() {}}, performance: {now: () => 0}, TextDecoder, Float32Array, Promise, Math, JSON, Map,
+        fetchModel: async (dir, file) => file.endsWith('.json') ? new TextEncoder().encode(JSON.stringify(table)) : new ArrayBuffer(4),
+        readyEnv: async () => {}, hot: 0,
+        ort: {Tensor: function () {}, InferenceSession: {create: async () => ({run: async () => {
+            const p = new Float32Array(1858).fill(-10); p[c.hot] = 10; return {'/output/policy': {data: p}, '/output/wdl': {data: [0.3, 0.4, 0.3]}}; }})}}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(src, c);
+    (async () => {
+        const lines = [];
+        const eng = await vm.runInContext('createMaiaEngine', c)(1500, (l) => lines.push(l));
+        eng.uci('setoption name MultiPV value 99');
+        const run = async (fen, slot) => {
+            c.hot = slot; lines.length = 0;
+            eng.uci(`position fen ${fen}`); eng.uci('go');
+            for (let k = 0; k < 5; k++) await new Promise(r => setTimeout(r, 0));
+            return {best: (lines.find(l => l.startsWith('bestmove')) || '').slice(9), pvs: lines.filter(l => / pv /.test(l)).map(l => l.split(' pv ')[1])};
+        };
+        // lc0's index 1428 is b7b8 (the harvested JSON reads 'b7b8n'); a knight promotion is lc0's plain from-to slot
+        const rook = await run('7k/1R6/8/8/8/8/8/K7 w - - 0 1', 1428);
+        const blackRook = await run('k7/8/8/8/8/8/1r6/7K b - - 0 1', 1428);
+        const knight = await run('7k/P7/8/8/8/8/8/K7 w - - 0 1', table.indexOf('a7a8'));
+        const queen = await run('7k/P7/8/8/8/8/8/K7 w - - 0 1', table.indexOf('a7a8q'));
+        ok('MAIA-2: Rb7-b8 (and Black\'s Rb2-b1) is scored from lc0\'s b7b8 slot and played when it is the net\'s choice',
+           rook.best === 'b7b8' && blackRook.best === 'b2b1', {rook: rook.best, blackRook: blackRook.best});
+        ok('...a knight promotion reads the plain from-to slot, a queen promotion still its own, and every legal move is a candidate',
+           knight.best === 'a7a8n' && queen.best === 'a7a8q' && knight.pvs.length === 7 && rook.pvs.length === 17,
+           {knight: knight.best, queen: queen.best, n: knight.pvs.length, r: rook.pvs.length});
+    })().catch(e => { fails++; console.log('FAIL MAIA-2 checks threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

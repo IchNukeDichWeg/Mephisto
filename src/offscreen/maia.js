@@ -17,7 +17,9 @@ async function loadTable(note) {
     if (moveToIdx) return;
     const arr = JSON.parse(new TextDecoder().decode(
         await fetchModel('/lib/engine/maia', 'lc0_policy_index.json', note)));
-    moveToIdx = new Map(arr.map((m, i) => [m, i]).filter(([m]) => m));
+    // The harvested table reads 'b7b8n' at 1428, where lc0 has plain b7b8: as shipped, Rb7-b8 (Rb2-b1
+    // for Black) had no slot and was never scored, even as the net's top move (audit 3.1.331 MAIA-2).
+    moveToIdx = new Map(arr.map((m, i) => [m === 'b7b8n' ? 'b7b8' : m, i]).filter(([m]) => m));
 }
 
 // ---- input encoding: lc0 classic 112-plane (verified) ------------------------------------------
@@ -78,7 +80,9 @@ const CASTLE = { e1g1: 'e1h1', e1c1: 'e1a1', e8g8: 'e8h8', e8c8: 'e8a8' }; // lc
 function toPerspUci(uci, black, castle) {
     if (castle) uci = CASTLE[uci] || uci;
     const flip = (s) => black ? s[0] + (9 - +s[1]) : s;
-    return flip(uci.slice(0, 2)) + flip(uci.slice(2, 4)) + (uci[4] || '');
+    // lc0 writes a knight promotion as the plain from-to move (only q/r/b carry a letter), so a7a8n
+    // had no slot and was never a candidate (audit 3.1.331 MAIA-2)
+    return flip(uci.slice(0, 2)) + flip(uci.slice(2, 4)) + (uci[4] && uci[4] !== 'n' ? uci[4] : '');
 }
 // Rank every legal move by the net's policy (softmax over the legal subset). Returns
 // [[uci, prob], ...] best-first -- the top is the move to play; the rest are the multi-PV candidates.
