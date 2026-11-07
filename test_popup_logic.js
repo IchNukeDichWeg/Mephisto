@@ -15582,6 +15582,37 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...the same with Rb8+ Nxb8 axb8=Q', rook === false, rook);
     ok('...a rook given for a knight with no promotion behind it still counts as offered', plain === true, plain);
 }
+// ---- audit 3.1.331 CBPROBE-1: the ChessBase late re-measure asks the probe, so a scroll during the think moves the drag with the board ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const probe = fs.readFileSync(ROOT + '/src/scripts/cb-probe.js', 'utf8');
+    const grab = (start) => { const a = csrc.indexOf(start); return a < 0 ? '' : csrc.slice(a, csrc.indexOf('\n}\n', a) + 3); };
+    // the real probe and the real content-script side over a synchronous fake event bus
+    const listeners = {};
+    const document = {
+        addEventListener: (n, f) => (listeners[n] = listeners[n] || []).push(f),
+        dispatchEvent: (e) => { (listeners[e.type] || []).forEach(f => f(e)); return true; },
+    };
+    class CustomEvent { constructor(type, o) { this.type = type; this.detail = o && o.detail; } }
+    let scroll = 0;
+    const canvas = {width: 740, getBoundingClientRect: () => ({left: 100, top: 200 - scroll, width: 740, height: 740})};
+    const gameKernel = {game: {addOnCurPosChangedListener() {}}, getCurPos: () => ({toFEN: () => '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1'}),
+        boardWin: {x0: 34, y0: 94, nMarginW: 20, nSqPix: 82, blackIsBottom: false, singleClickDisabled: true}, boardArea: {cbcanvas: {canvas}}};
+    const c = vm.createContext({document, CustomEvent, window: {V35s: {gameKernel}}, setInterval: () => 0, clearInterval() {}, setTimeout: () => 0,
+        DOMRect: class { constructor(x, y, w, h) { Object.assign(this, {x, y, width: w, height: h, left: x, top: y}); } },
+        config: null, schedulePush() {}, site: 'chessbase', getBoard: () => null});
+    vm.runInContext(`let ttState = null, ttSid = null, puzSid = null, cbState = null, cbSid = null; const PROBE_TYPES = ['cb'];`
+        + ['function onProbeAnnounce(e)', 'function cbQuery()', 'function cbFen()', 'function cbGeometry()', 'function clickableBoardBounds()'].map(grab).join('\n')
+        + `document.addEventListener('m9', onProbeAnnounce);`, c);
+    vm.runInContext(probe, c);
+    vm.runInContext('cbQuery()', c);   // the scrape the move was computed from
+    const before = vm.runInContext('clickableBoardBounds()', c);
+    ok('CBPROBE-1: the board rectangle at arrival is the live one', before && before.y === 314, before && before.y);
+    scroll = 300;   // the user scrolls during the think: no DOM change, so no push re-scrapes
+    const late = vm.runInContext('clickableBoardBounds()', c);   // what refreshBoardGeometry reads
+    ok('CBPROBE-1: the late re-measure follows a 300 px scroll (board top 14, not the cached 314)', late && late.y === 14 && late.x === 154, late && [late.x, late.y]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

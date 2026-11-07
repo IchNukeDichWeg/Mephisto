@@ -5770,6 +5770,13 @@ function simulateClickSquare(bounds, range = 0.8, travelMs = 0) {
 // the arrows, and the same answer: its own model says where the board is (see cbGeometry).
 function clickableBoardBounds() {
     if (site === 'chessbase') {
+        // Ask the probe first. Its rectangle is in VIEWPORT pixels, measured when it answered, and the
+        // cached one is from the last scrape: a scroll during the think changes no DOM, so nothing
+        // re-scraped, and the late re-measure in performSimulatedMoveClicks aimed the drag where the
+        // board was before the scroll (300 px = 3.66 squares). The query is answered synchronously,
+        // so the next line reads a live rectangle like every other site's getBoundingClientRect
+        // (audit 3.1.331 CBPROBE-1).
+        cbQuery();
         const g = cbGeometry();
         return g ? new DOMRect(g.x, g.y, g.size, g.size) : null;
     }
