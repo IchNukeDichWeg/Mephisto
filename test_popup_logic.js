@@ -4455,10 +4455,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     const i = psrc.indexOf('function request_automove(move, think'), j = psrc.indexOf('\n}\n', i) + 3;
     const c = vm.createContext({console: {log() {}}, sent: [], timers: [], setTimeout: (f) => { c.timers.push(f); return 1; }, clearTimeout() {}});
-    vm.runInContext(`var setup_fen = null, config = {puzzle_mode: true}, last_eval = {fen: 'A b'}, puzzle_last_sent = {}, puzzle_move_timer = null, analysed_push_key = 'k', our_turn_at = 0, session_counted_fen = null;
+    // the fire-time re-check (POPUP3-1) reads PANEL_BOOTED and Autoplay, so the context has the panel up and Autoplay on
+    const w = psrc.indexOf('function puzzle_send_still_wanted('), wj = w < 0 ? w : psrc.indexOf('\n}\n', w) + 3;
+    vm.runInContext(`var PANEL_BOOTED = true, setup_fen = null, config = {puzzle_mode: true, autoplay: true}, last_eval = {fen: 'A b'}, puzzle_last_sent = {}, puzzle_move_timer = null, analysed_push_key = 'k', our_turn_at = 0, session_counted_fen = null;
         const puzzle_key = (f) => f; const puzzle_move_delay_ms = () => 300; const bgTrace = () => {}; const our_side = () => 'black';
         const safe_deselect_square = () => null; const fresh_timing = () => ({think_time: 0}); const move_situation = () => ''; const session_note_move = () => {};
-        const send_to_active_tab = (m) => sent.push(m);` + psrc.slice(i, j), c);
+        const send_to_active_tab = (m) => sent.push(m);` + (w < 0 ? '' : psrc.slice(w, wj)) + psrc.slice(i, j), c);
     vm.runInContext(`request_automove('e7e5')`, c); c.timers.shift()();
     ok('the board unchanged: the answer goes after its pause', c.sent.length === 1 && c.sent[0].pv[0] === 'e7e5', c.sent);
     vm.runInContext(`last_eval.fen = 'C b'; request_automove('d7d5'); last_eval.fen = 'D b'`, c); c.timers.shift()();
@@ -11710,7 +11712,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const c = vm.createContext({chrome: {runtime: {sendMessage: (m) => sent.push(m.clientId + ' ' + m.cmd)}}, clearInterval() {}, clearTimeout() {}});
         vm.runInContext(`var PANEL_BOOTED = false, ENGINE_CLIENT = 'toolbar', fen_poll_timer = null, maia2 = null, native_bg_port = null,
             native_bg_port_name = null, engine_ready = false, last_init_fp = null, engine_hint_arrows = [], user_arrows = [], ua_last_sent = '',
-            setup_fen = null, snap_crop = null, setup_view = null, turn_override = null, turn_detected_prev = null, panel_rebuild_pending = false;
+            setup_fen = null, snap_crop = null, setup_view = null, turn_override = null, turn_detected_prev = null, panel_rebuild_pending = false,
+            puzzle_move_timer = null, puzzle_retry_timer = null;
             function abandon_search() {} function dispose_threat_human() {} function ua_dispose() {} function snap_follow_stop() {} function stash_setup_state() {}
             ${stop}\n${m2}\nvar P = {${sus}};`, c);
         vm.runInContext('P.suspend()', c);
@@ -12614,7 +12617,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     try {
         const susp = sl('    suspend: () => {', '    // Header king-switch tap').replace(/^    suspend: /, 'var suspend = ').replace(/},\s*$/, '};');
         vm.runInContext(`var MephistoConfig = {set: (k, v) => { store[k] = v; }, get: (k) => store[k]};
-            var setup_fen = null, snap_crop = null, setup_view = null, snap_flipped = false, PANEL_BOOTED = true, fen_poll_timer = null;
+            var setup_fen = null, snap_crop = null, setup_view = null, snap_flipped = false, PANEL_BOOTED = true, fen_poll_timer = null,
+                puzzle_move_timer = null, puzzle_retry_timer = null, puzzle_last_sent = {key: null, at: 0};
             var user_arrows = [], ua_last_sent = '', engine_hint_arrows = [], turn_override = null, turn_detected_prev = null;
             var abandon_search = () => {}, dispose_threat_human = () => {}, ua_dispose = () => {}, snap_follow_stop = () => {}, stop_current_engine = () => {};
             var IS_CONTENT_SCRIPT = true, location = {reload() {}};
@@ -12884,6 +12888,57 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     if (!err) vm.runInContext('panel_line_goto(-1); setup_fen = null; restore_setup_state();', c);
     ok('POPUP2-6: ...and walking to the line\'s start stashes that too', !err && vm.runInContext('setup_fen', c) === base, err || vm.runInContext('setup_fen', c));
 }
+// ---- audit 3.1.331 POPUP3-1: a puzzle move waiting out its pre-move pause is not played after Close/Panic or a toggle change ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.indexOf('function ' + name + '('); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const sl = (from, to) => { const a = psrc.indexOf(from); return psrc.slice(a, psrc.indexOf(to, a)); };
+    const run = async (path, act, after) => {
+        const sent = [];
+        const c = vm.createContext({console: {log() {}, warn() {}}, setTimeout, clearTimeout, clearInterval, Date,
+            config: {puzzle_mode: true, autoplay: true}, last_eval: {fen: '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1'},
+            setup_fen: null, puzzle_last_sent: {key: null, at: 0}, puzzle_move_timer: null, puzzle_retry_timer: null,
+            puzzle_retry: {key: null, until: 0}, PUZZLE_MOVE_RETRY_MS: 1500, PUZZLE_MOVE_WINDOW_MS: 9000,
+            puzzle_key: (f) => String(f).split(' ').slice(0, 2).join(' '), puzzle_move_delay_ms: () => 40,
+            puzzle_move_ready: () => 'a1a8', show_puzzle_answer() {},
+            bgTrace() {}, our_side: () => 'white', safe_deselect_square: () => null, fresh_timing: () => ({think_time: 0}),
+            move_situation: () => null, our_turn_at: 0, session_counted_fen: null, session_note_move() {}, analysed_push_key: 'k',
+            send_to_active_tab: (m) => sent.push(m), search_active: false, pending_stops: 0, stop_charged_at: 0, remote_gen: 0,
+            native_inflight: null, send_engine_uci() {}, PANEL_BOOTED: true, fen_poll_timer: null,
+            dispose_threat_human() {}, ua_dispose() {}, user_arrows: [], ua_last_sent: '', engine_hint_arrows: [],
+            snap_crop: null, setup_view: null, snap_follow_stop() {}, stash_setup_state() {}, stop_current_engine() {},
+            turn_override: null, turn_detected_prev: null, panel_rebuild_pending: false});
+        vm.runInContext(fn('puzzle_send_still_wanted') + sl('function request_automove(', '// Queue two forced premoves')
+            + fn('abandon_search') + fn('maybe_play_puzzle_move') + fn('watch_puzzle_move')
+            + 'var Panel = {' + sl('    suspend: () => {', '    // Header king-switch tap') + '};', c);
+        vm.runInContext(path === 'db' ? "maybe_play_puzzle_move(last_eval.fen)" : "request_automove('a1a8')", c);
+        await new Promise(r => setTimeout(r, 10));
+        if (act) vm.runInContext(act, c);
+        await new Promise(r => setTimeout(r, 100));
+        if (after) {   // the user turns back (reopens, switches the toggle back): the same position asks again
+            vm.runInContext(after, c);
+            vm.runInContext(path === 'db' ? "maybe_play_puzzle_move(last_eval.fen)" : "request_automove('a1a8')", c);
+            await new Promise(r => setTimeout(r, 100));
+        }
+        vm.runInContext('Panel.suspend()', c); // stop the DB path's retry watchdog either way
+        return sent.filter(m => m.automove).length;
+    };
+    try {
+        ok('POPUP3-1: control: an engine puzzle move with nothing changed is sent after the pause', await run('engine', null) === 1);
+        ok('POPUP3-1: closing the panel (or Panic) inside the pause: the engine move is not played', await run('engine', 'Panel.suspend()') === 0);
+        ok('POPUP3-1: ...nor the puzzle-database move', await run('db', 'Panel.suspend()') === 0);
+        ok('POPUP3-1: Autoplay switched off inside the pause: not played', await run('engine', 'config.autoplay = false') === 0);
+        ok('POPUP3-1: Help Mode switched on inside the pause: not played', await run('engine', 'config.help_mode = true') === 0);
+        ok('POPUP3-1: Manual Mode switched on inside the pause: the database move is not played', await run('db', 'config.manual_mode = true') === 0);
+        // the refused move was never sent, so the same position is not then refused as "already moved from"
+        ok('POPUP3-1: closed in the pause and reopened on the same position: that position\'s move is played once',
+           await run('engine', 'Panel.suspend()', 'PANEL_BOOTED = true') === 1);
+        ok('POPUP3-1: Help Mode on in the pause and off again: the same position\'s move is played once',
+           await run('engine', 'config.help_mode = true', 'config.help_mode = false') === 1);
+        ok('POPUP3-1: ...and the database path likewise after a reopen', await run('db', 'Panel.suspend()', 'PANEL_BOOTED = true') === 1);
+    } catch (e) { fails++; console.log('FAIL POPUP3-1 checks threw: ' + (e && e.stack || e)); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

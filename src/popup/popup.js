@@ -4485,6 +4485,14 @@ function puzzle_move_delay_ms() {
 // for the SAME board -- a re-push flagged as a resume does exactly that -- and two live timers would
 // send the move twice, which the content-script then has to drop on its `moving` guard.
 let puzzle_move_timer = null;
+// Re-read when the pause runs out, not just when it is armed: the panel can be closed or Panic
+// pressed inside the pause (suspend clears the timer too), or Autoplay switched off or Help/Manual
+// Mode on, and a move armed before that was still clicked onto the board (audit 3.1.331 POPUP3-1).
+// A move refused here was never sent, so it must not stay on record as "already moved from this
+// position": that record would refuse the same position's move for good once the user turns back.
+function puzzle_send_still_wanted() {
+    return PANEL_BOOTED && config.autoplay && !config.help_mode && !config.manual_mode;
+}
 let puzzle_rating = null;   // what the publisher rated the puzzle we are on, when they said
 let puzzle_from_page = false;   // did this solution come from the page (capture) or the imported DB
 
@@ -4532,6 +4540,7 @@ function maybe_play_puzzle_move(fen, opts = {}) {
     show_puzzle_answer(uci);
     clearTimeout(puzzle_move_timer);
     puzzle_move_timer = setTimeout(() => {
+        puzzle_move_timer = null;   // fired: suspend must not take this for a move still pending
         // Only skip if the BOARD really moved on. Compared on placement + side to move, not on the
         // whole FEN: on a puzzle page the castling rights and ep square are inferred and the move
         // counters are often re-derived, so the FEN string can change while the position in front of
@@ -4542,6 +4551,7 @@ function maybe_play_puzzle_move(fen, opts = {}) {
             console.log('Puzzle DB: position moved on during the pre-move pause -- not sending');
             return;
         }
+        if (!puzzle_send_still_wanted()) return;
         request_automove(uci, null, false, {paused: true, retry: opts.retry});
         watch_puzzle_move(fen, uci);
     }, puzzle_move_delay_ms());
@@ -10343,11 +10353,16 @@ function request_automove(move, think = null, manual = false, opts = {}) {
             clearTimeout(puzzle_move_timer);
             const asked = puzzle_key(last_eval.fen || '');
             puzzle_move_timer = setTimeout(() => {
+                puzzle_move_timer = null;   // fired: suspend must not take this for a move still pending
                 // The fen and push key below are read at fire time, so a board that moved on during
                 // the pause would send the old answer under the NEW key and pass the content guard:
                 // the settled stale-answer bug through the engine path (PLAY-3).
                 if (puzzle_key(last_eval.fen || '') !== asked) {
                     console.log('Puzzle: the board moved on during the pause -- not sending', move);
+                    return;
+                }
+                if (!puzzle_send_still_wanted()) {
+                    if (puzzle_last_sent.key === asked) puzzle_last_sent = {key: null, at: 0};
                     return;
                 }
                 request_automove(move, think, manual, {...opts, paused: true, checked: true});
@@ -13956,6 +13971,11 @@ self.MephistoPanel = {
         clearInterval(fen_poll_timer); fen_poll_timer = null;
         const rebuild = panel_rebuild_pending;   // a panel_reload, not a close (audit 3.1.331 POPUP1-2)
         panel_rebuild_pending = false;
+        // A puzzle move waiting out its pre-move pause, and its retry watchdog, die with the panel. The
+        // pending move was never sent, so its "already moved" record goes too, or the reopened panel
+        // would refuse to play this same position (audit 3.1.331 POPUP3-1).
+        if (puzzle_move_timer) { clearTimeout(puzzle_move_timer); puzzle_move_timer = null; puzzle_last_sent = {key: null, at: 0}; }
+        clearTimeout(puzzle_retry_timer);
         // A panel that is not up has nothing to close. Every chess tab loads this file, and in a tab
         // whose floating panel never booted ENGINE_CLIENT is still 'toolbar', the toolbar popup's own
         // client id: that tab's pagehide or the closeOverlay broadcast ran stop_current_engine here and
