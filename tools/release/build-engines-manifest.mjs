@@ -73,7 +73,10 @@ function collect(root) {
         if (m[2] === undefined) f.whole = abs; else f.parts[+m[2]] = abs;
     }
     for (const [name, f] of Object.entries(found)) {
-        if (!f.whole && f.parts.some(p => !p)) throw new Error(`${name}: .partN files are not contiguous`);
+        // Array.from: a missing part is a hole in the sparse array, which .some() never visits, so the
+        // check passed and hashing died on createReadStream(undefined) (audit 3.1.331 RELEASETOOLS-3)
+        const gap = Array.from(f.parts).findIndex(p => !p);
+        if (!f.whole && gap >= 0) throw new Error(`${name}: .partN files are not contiguous (no .part${gap})`);
         f.sources = f.whole ? [f.whole] : f.parts;
     }
     return found;

@@ -16592,6 +16592,26 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
         ok('RELEASETOOLS-2: ...and the skip is said out loud', /\[ -n "\$PREV" \] \|\| echo "WARNING: no earlier release tag/.test(rz));
     } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 })().catch(e => { fails++; console.log('FAIL RELEASETOOLS-2 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 RELEASETOOLS-3: a missing .partN stops the manifest builder with the file and part it lacks ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const path = require('path');
+    // the real builder in --check mode on a scratch root: collect() runs before any network call (async: see NATIVEA-3)
+    const build = (root) => new Promise(res => require('child_process').execFile(process.execPath,
+        [ROOT + '/tools/release/build-engines-manifest.mjs', '--check', '--root', root], {encoding: 'utf8', timeout: 30000},
+        (e, stdout, stderr) => res({status: e ? e.code : 0, stderr})));
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'rt3-'));
+    try {
+        const mk = (name, parts) => { const d = path.join(tmp, name, 'lib/engine/x'); fs.mkdirSync(d, {recursive: true});
+            fs.mkdirSync(path.join(tmp, name, 'src/offscreen'), {recursive: true});
+            fs.writeFileSync(path.join(tmp, name, 'src/offscreen/engine-assets.json'), '{"files":{}}');
+            for (const p of parts) fs.writeFileSync(path.join(d, p), 'x'); return path.join(tmp, name); };
+        const mid = await build(mk('mid', ['n.nnue.part0', 'n.nnue.part2'])), first = await build(mk('first', ['m.nnue.part1', 'm.nnue.part2']));
+        ok('RELEASETOOLS-3: a hole in the middle of the git split names the file and the missing part',
+           mid.status === 1 && /n\.nnue: \.partN files are not contiguous \(no \.part1\)/.test(mid.stderr), mid);
+        ok('RELEASETOOLS-3: ...and so does a missing .part0', first.status === 1 && /m\.nnue: \.partN files are not contiguous \(no \.part0\)/.test(first.stderr), first);
+    } finally { fs.rmSync(tmp, {recursive: true, force: true}); }
+})().catch(e => { fails++; console.log('FAIL RELEASETOOLS-3 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
