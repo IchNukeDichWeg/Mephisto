@@ -12836,6 +12836,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('POPUP2-4: ...and the line handed to the page is canonical SAN ("bxa8=Q" for "bxa8Q")', !promo.error && promo.moves[8] === 'bxa8=Q', promo);
     ok('POPUP2-4: ...and the result marker and castles are still told apart', JSON.stringify(toks('1. e4 e5 2. O-O 0-0-0 1-0')) === '["e4","e5","O-O","O-O-O"]', toks('1. e4 e5 2. O-O 0-0-0 1-0'));
 }
+// ---- audit 3.1.331 POPUP2-5: Time Trouble caps the simulated move time at its floor and never raises a faster one ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.search(new RegExp('^function ' + name + '\\(', 'm')); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({Date, Number, Math});
+    vm.runInContext(`var config = {time_trouble: true, time_trouble_at: 30, clock_pace: false}, last_clocks = {mine: 12, at: Date.now()};
+        const TIME_TROUBLE_MOVE_MS = 200; function clock_move_budget_ms() { return null; }`
+        + ['time_trouble_at', 'in_time_trouble', 'clock_pace_timing'].map(fn).join('\n'), c);
+    const pace = (t) => vm.runInContext(`clock_pace_timing(${JSON.stringify(t)})`, c);
+    ok('POPUP2-5: the slice is in time trouble with 12 s left at a 30 s threshold', vm.runInContext('in_time_trouble()', c) === true);
+    const fast = pace({think_time: 800, think_variance: 400, move_time: 40, move_variance: 20});
+    ok('POPUP2-5: a 40 ms (+20) move time is kept in a scramble, not raised to 200 ms; the think pause still goes',
+       JSON.stringify(fast) === '{"think_time":0,"think_variance":0,"move_time":40,"move_variance":20}', fast);
+    const slow = pace({think_time: 800, think_variance: 400, move_time: 400, move_variance: 400});
+    ok('POPUP2-5: ...a slower one still collapses to the 200 ms floor', JSON.stringify(slow) === '{"think_time":0,"think_variance":0,"move_time":200,"move_variance":0}', slow);
+    const edge = pace({think_time: 0, think_variance: 0, move_time: 150, move_variance: 100});
+    ok('POPUP2-5: ...as does one whose variance can carry it past the floor', edge.move_time === 200 && edge.move_variance === 0, edge);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

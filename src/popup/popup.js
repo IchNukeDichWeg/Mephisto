@@ -7529,7 +7529,8 @@ function mirror_ratio() {
 // it answers "am I about to flag", which is true whether or not you asked for clock-aware pacing.
 const TIME_TROUBLE_SEARCH_MS = 250;   // a depth-8-ish move on any machine, and it is not the search
                                       // that is costing you here
-const TIME_TROUBLE_MOVE_MS = 200;     // the floor a click still needs to look like a hand made it
+const TIME_TROUBLE_MOVE_MS = 200;     // the floor a click still needs to look like a hand made it;
+                                      // a move time set below it is kept, never raised
 function time_trouble_at() {
     const n = parseInt(config.time_trouble_at);
     return Number.isFinite(n) ? Math.max(5, Math.min(120, n)) : 30;
@@ -7648,7 +7649,13 @@ function clock_pace_timing(t) {
     // the think pause and the cursor travel are what a scramble actually costs, and Pace to Clock
     // (below) only helps if you switched it on and only in proportion.
     if (in_time_trouble()) {
-        return {think_time: 0, think_variance: 0, move_time: TIME_TROUBLE_MOVE_MS, move_variance: 0};
+        // A floor caps, it never raises: a Simulated Move Time already inside it (0-200 ms is allowed)
+        // is kept as set, or the scramble made every move slower exactly when the clock was lowest
+        // (audit 3.1.331 POPUP2-5).
+        const mt = Number(t.move_time) || 0, mv = Number(t.move_variance) || 0;
+        return mt + mv <= TIME_TROUBLE_MOVE_MS
+            ? {think_time: 0, think_variance: 0, move_time: mt, move_variance: mv}
+            : {think_time: 0, think_variance: 0, move_time: TIME_TROUBLE_MOVE_MS, move_variance: 0};
     }
     if (!config.clock_pace) return t;
 
