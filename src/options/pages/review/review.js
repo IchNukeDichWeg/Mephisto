@@ -432,6 +432,11 @@ async function runReview(game, rig, onProgress) {
     // The engine pass owns the verdict: if it throws (or is stopped), the review is over. The human
     // pass is already swallowed above, and is awaited so a half-filled `moves` never reaches assemble.
     await Promise.all([enginePass.catch(e => { engineFailed = true; throw e; }), humanPass]);
+    // A STOP DURING THE LAST POSITIONS IS STILL A STOP. The workers check `cancel` only before taking
+    // a position, so with the queue empty they just returned; Stop had already made the searches in
+    // flight answer with what they had, and those cut-short lines graded the game's last moves in a
+    // report shown as finished (audit 3.1.331 REVIEW-2). Same throw as a Stop mid-game.
+    if (cancel) throw new Error('stopped');
 
     // The opening table is standard chess. Crazyhouse, three-check, the hill and atomic start from
     // the standard position and their FENs key the same way, so they hit it: the header named a

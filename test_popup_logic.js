@@ -13339,6 +13339,47 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-1: the real startRig takes a game\'s own rules ahead of the dropdown', /const variant = override \? 'chess' : \(rules \|\| rvChessVariant\(\)\);/.test(rj));
     ok('REVIEW-1: parsePgnBox marks every game\'s rules', /games = text\.trim\(\) \? Core\.parsePgn\(text\) : \[\];\s*markGameRules\(games\);/.test(rj));
 })().catch(e => { fails++; console.log('FAIL REVIEW-1 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 REVIEW-2: Stop pressed while the last positions are searched is a Stop, not a finished report ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const sl = (s, e) => rj.slice(rj.indexOf(s), rj.indexOf(e));
+    // the REAL runReview + buildPositions + assemble, two WASM-like engines: a search takes 30 ms and
+    // reaches depth 16, stopSearch() answers the one in flight at once at depth 2 (WasmEngine.stopSearch)
+    const run = async (stopAt) => {
+        const c = vm.createContext({console: {log() {}}, setTimeout, clearTimeout, Promise}); c.self = c;
+        for (const f of ['/lib/chess.js', '/src/scripts/classify-core.js', '/src/options/pages/review/review-core.js'])
+            vm.runInContext(fs.readFileSync(ROOT + f, 'utf8'), c);
+        vm.runInContext(`const Core = self.MephistoReviewCore; const CFG_DEFAULTS = {rv_book: false}; const store = {};
+            const MephistoConfig = {get: k => store[k]}; function cfg(k){ return CFG_DEFAULTS[k]; } function setCfg(){}
+            let report = null, running = false, cancel = false; const ENGINES = [];
+            function note(){} async function lookupOpening(){ return {name: null, plies: 0}; } async function strengthPass(){ return null; }
+            ` + sl('const RV_FAIRY_ONLY =', 'function looks960(') + sl('function threeCheckCounts(fen)', '// ---- strength estimate')
+            + sl('function assemble(game, positions, moves, book, opts) {', '// ---- rendering ----') + `
+            class Fake { analyse(){ return new Promise(res => { const r = (d) => { clearTimeout(t); this.cur = null;
+                    res({lines: [{cp: d === 16 ? 30 : -250, mate: null, pv: ['e2e4'], depth: d}], depth: d}); };
+                const t = setTimeout(() => r(16), 30); this.cur = r; }); }
+                stopSearch(){ this.cur && this.cur(2); } }
+            self.go = async (stopAt) => {
+                const engines = [new Fake(), new Fake()];
+                const rig = {opts: {variant: 'chess', multipv: 1}, engines, engine: engines[0], human: null};
+                const game = {moves: ['e4','e5','Nf3','Nc6','Bb5','a6','Ba4','Nf6'].map(san => ({san})), tags: {}};
+                let fired = false;
+                try {
+                    const built = await runReview(game, rig, (frac, what) => {
+                        if (stopAt && !fired && what === stopAt) { fired = true;
+                            setTimeout(() => { cancel = true; engines.forEach(e => e.stopSearch()); }, 5); }
+                    });
+                    return {threw: null, depths: built.positions.map(p => p.depth)};
+                } catch (e) { return {threw: e.message}; }
+            };`, c);
+        return c.go(stopAt);
+    };
+    let r = await run('position 8 of 9');
+    ok('REVIEW-2: Stop with the last positions in flight throws "stopped", no report built from depth-2 lines', r.threw === 'stopped', r);
+    r = await run(null);
+    ok('REVIEW-2: ...a run nobody stopped still finishes at full depth', r.threw === null && r.depths.every(d => d === 16), r);
+})().catch(e => { fails++; console.log('FAIL REVIEW-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
