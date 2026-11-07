@@ -167,6 +167,22 @@ def _start_engine():
     _dbg(f"engine up from {_repo}")
     return _proc
 
+def _discard_engine(why):
+    """Kill an engine whose pipe can no longer be trusted, so the next request relaunches it
+    (_start_engine re-sends every option). A search the host gives up on still has output on its way:
+    after `info string error handling 'position'` Tetrarch reads the host's own `go` next and
+    searches the OLD board to a bestmove, and a search past its deadline is still running. Left in
+    the pipe, that bestmove answered the NEXT request, whose own search answered the one after, for
+    the rest of the host's life (audit 3.1.331 TETRARCHHOST-1). A relaunch measured 0.05 s to uciok
+    on an M5 Pro, inside the next request's own 300 ms search; nothing else resyncs the pipe, because
+    Tetrarch answers `isready` at once even mid-search."""
+    _dbg(f"engine discarded: {why}")
+    try:
+        _proc.kill()
+        _proc.wait(timeout=5)
+    except Exception:
+        pass
+
 def _send(line):
     _proc.stdin.write(line + '\n')
     _proc.stdin.flush()
@@ -289,11 +305,12 @@ def do_analyse(data, mid):
         def on_line(l):
             if not l.startswith('info'):
                 return
-            # The engine reports its own failures as `info string error ...` and then goes silent --
-            # no bestmove ever follows. Dropping that line meant the caller waited out the WHOLE
-            # bestmove timeout (60s+) to learn nothing (2026-08-26: an FFA `go` with MultiPV died
-            # this way in Tetrarch v8; fixed engine-side, but the next engine error should cost
-            # seconds, not a minute, and carry its own words).
+            # The engine reports a command it could not handle as `info string error ...`. After a
+            # failed `go` no bestmove follows, so waiting for one cost the WHOLE bestmove timeout
+            # (60s+) to learn nothing (2026-08-26: an FFA `go` with MultiPV died this way in Tetrarch
+            # v8); after a failed `position` the `go` still runs, on the old board. Either way the
+            # answer is this line, at once and in the engine's own words, and the engine is
+            # discarded below rather than read on (audit 3.1.331 TETRARCHHOST-1).
             if l.startswith('info string error'):
                 engine_error.append(l[len('info string '):])
                 return
@@ -313,12 +330,14 @@ def do_analyse(data, mid):
         bm = _read_until(lambda l: l.startswith('bestmove') or engine_error,
                          timeout=ms / 1000.0 + 60, on_line=on_line)
         if engine_error:
+            _discard_engine(engine_error[0])
             raise RuntimeError(f'Tetrarch: {engine_error[0]}')
         if bm is None:
             # with the engine's own words when it left any: a crash mid-game ends in a traceback on
             # stderr, which the bare message dropped (audit 3.1.330 follow-up L36, as BOUNDARY-3 did
             # for startup)
             why = _stderr_why()
+            _discard_engine('no bestmove before the deadline')   # one still searching would answer the next request
             raise RuntimeError('Tetrarch stopped responding' + (f': {why}' if why else ''))
         parts = bm.split()
         best = parts[1] if len(parts) > 1 else None

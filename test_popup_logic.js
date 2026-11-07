@@ -16187,6 +16187,54 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
     ok('...which the panel shows as its MPH-N02 registry line', pc.shown === 'MPH-N02: ' + en['err.N02'], pc.shown);
 })().catch(e => { fails++; console.log('FAIL MODELFETCH-2 checks threw: ' + (e && e.stack || e)); });
+// ---- TETRARCHHOST-1 (audit 3.1.331): a position Tetrarch rejects does not leave its `go` output in the pipe to answer the NEXT analyse ----
+// (run end to end through the real host over a stand-in uci.py that, like Tetrarch's dispatch guard, reports a bad
+// `position` as `info string error handling 'position'` and then searches the OLD board on the `go` that follows)
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    const run = `import json, os, shutil, struct, subprocess, sys, tempfile
+d = tempfile.mkdtemp(); repo = os.path.join(d, 'Tetrarch'); os.mkdir(repo)
+open(os.path.join(repo, 'uci.py'), 'w').write('''import sys
+board = 'start'
+for raw in sys.stdin:
+    t = raw.split()
+    if not t: continue
+    if t[0] == 'uci': print('uciok')
+    elif t[0] == 'isready': print('readyok')
+    elif t[0] == 'position':
+        if t[2].startswith('BAD'): print("info string error handling 'position': ValueError: bad turn")
+        else: board = t[2]
+    elif t[0] == 'go':
+        print('info depth 1 score cp 0 pv mv' + board); print('bestmove mv' + board)
+    sys.stdout.flush()
+''')
+shutil.copy(sys.argv[1], os.path.join(d, 'tetrarch-host.py')); open(os.path.join(d, 'tetrarch-path'), 'w').write(repo + '\\n')
+env = dict(os.environ); env.pop('TETRARCH_DIR', None)
+p = subprocess.Popen([sys.executable, '-I', os.path.join(d, 'tetrarch-host.py')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
+def ask(o):
+    b = json.dumps(o).encode(); p.stdin.write(struct.pack('<I', len(b)) + b); p.stdin.flush()
+    while True:
+        h = p.stdout.read(4)
+        if len(h) < 4: return None
+        m = json.loads(p.stdout.read(struct.unpack('<I', h)[0]))
+        if 'info' not in m: return m
+out = [ask({'id': i, 'cmd': 'analyse', 'fen4': f, 'time': 50}) for i, f in enumerate(('P1', 'BAD2', 'P3', 'P4'), 1)]
+p.stdin.close(); p.wait(10); shutil.rmtree(d, ignore_errors=True)
+print(json.dumps(out))`;
+    const r = await pyRun(['-I', '-B', '-c', run, ROOT + '/native-host/tetrarch-host.py'], {encoding: 'utf8', timeout: 30000});
+    if (r.error) console.log('ok   TETRARCHHOST-1: skipped (no python3 here)');
+    else {
+        let out = null; try { out = JSON.parse(r.stdout); } catch (e) { out = (r.stderr || '').slice(-300); }
+        const best = Array.isArray(out) ? out.map(m => m && (m.bestmove || (m.error ? 'error' : null))) : out;
+        ok('TETRARCHHOST-1: the rejected position answers with the engine\'s own error',
+           Array.isArray(out) && out[1] && /^Tetrarch: error handling 'position'/.test(out[1].error || ''), out);
+        ok('...and the next two analyses get their OWN bestmove, not the abandoned search\'s (mvP1) one request late',
+           JSON.stringify(best) === JSON.stringify(['mvP1', 'error', 'mvP3', 'mvP4']), best);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
