@@ -13916,6 +13916,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('331 ANALYSIS-2: an engine drop line is legal here only when the drop is (not into check, not onto the king, not a back-rank pawn)',
        JSON.stringify(res.legal) === JSON.stringify([false, true, false, false]), res.legal);
 }
+// ---- audit 3.1.331 ANALYSIS-3: turning the human model Off clears its rating chart and its arrow at once ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const fn = (head) => { const a = an.indexOf(head), b = an.indexOf('\n}\n', a) + 3; if (a < 0) throw new Error('slice ' + head); return an.slice(a, b); };
+    const c = vm.createContext({Promise, kind: '', calls: []});
+    vm.runInContext(`let bandRun = 0, human = {dispose() {}}, humanKey = 'maia|1500', humanChain = Promise.resolve();
+        const cursor = 0, positions = [{fen: 'start', turn: 'w'}], humanCache = new Map(), bandCache = new Map(), CFG = {an_band: 1500};
+        const evalCache = new Map([['start', {lines: [{pv: ['e2e4']}]}]]);
+        const cfg = (k) => (k === 'an_human' ? kind : 1500);
+        function syncBandRow() {} function largeGame() { return false; } function takesRating() { return false; } function ratingFor(k, b) { return b; }
+        function renderHumanLines() {} function render() { calls.push('render'); } function status() {}
+        function ensureHuman() { return Promise.resolve(null); } async function humanFor() {}
+        function renderArrows(pos, ev, hum) { calls.push('arrows:' + (ev ? 'engine' : '-') + ':' + (hum ? 'human' : 'none')); }
+        function renderBands(pos) { calls.push('bands:' + (kind || 'off')); }
+        ${fn('async function reloadHuman()')}`, c);
+    (async () => {
+        await vm.runInContext('reloadHuman()', c);
+        ok('331 ANALYSIS-3: Off redraws the arrows without the human one (engine arrows kept) and lets renderBands hide the chart',
+           c.calls.join() === 'arrows:engine:none,bands:off', c.calls);
+        // a build that came back null with a model still chosen is the page being left mid-load: no sweep for it
+        c.calls.length = 0; c.kind = 'maia';
+        vm.runInContext("human = null; humanKey = null", c);
+        await vm.runInContext('reloadHuman()', c);
+        ok('331 ANALYSIS-3: ...a null build with a model still chosen (the page left mid-load) draws nothing and starts no sweep', c.calls.length === 0, c.calls);
+    })().catch(e => { fails++; console.log('FAIL 331 ANALYSIS-3 check threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

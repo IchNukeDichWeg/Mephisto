@@ -1071,7 +1071,15 @@ async function reloadHuman() {
     renderHumanLines(pos, null);
     try {
         const h = await ensureHuman();
-        if (!h) return renderHumanLines(pos, null);
+        if (!h) {
+            renderHumanLines(pos, null);
+            // Turned Off: the old model's rating chart and its pink arrow stayed up until the next
+            // position, since only renderBands hides the chart and only renderArrows clears the arrow
+            // (audit 3.1.331 ANALYSIS-3). Not when the page was left mid-load (kind still set): that
+            // renderBands would start a sweep for a page nobody is on.
+            if (!cfg('an_human')) { renderArrows(pos, evalCache.get(pos.fen), null); renderBands(pos); }
+            return;
+        }
         await humanFor(pos);
         render();
         renderBands(pos);
