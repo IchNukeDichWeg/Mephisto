@@ -15301,6 +15301,37 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
     ok('PUZPROBE-1: a TCN solution still decodes as before',
        (d.puzzleCaptureFor('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') || {}).line === 'e2e4 e7e5', d.puzzleCaptureDebug());
 }
+// ---- audit 3.1.331 PUZPROBE-2: a fetch-caught puzzle body is scanned once and filed under 'fetch' ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pz = fs.readFileSync(ROOT + '/src/scripts/puz-probe.js', 'utf8');
+    const body = JSON.stringify({puzzles: [{id: 'ZZTEST', fen: 'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 2 3', line: 'f3f7'}]});
+    const run = async (pageReads) => {
+        const ls = {}, ev = [], parsed = {n: 0};
+        const doc = {addEventListener: (t, f) => (ls[t] = ls[t] || []).push(f), querySelectorAll: () => [],
+            dispatchEvent: (e) => { ev.push(e); for (const f of ls[e.type] || []) f(e); return true; }};
+        // a stand-in Response whose prototype the probe patches inside its own world, never the host's
+        class Resp { constructor(b) { this.b = b; this.headers = {get: () => 'application/json'}; }
+            clone() { return new Resp(this.b); } text() { return Promise.resolve(this.b); } json() { return Promise.resolve(JSON.parse(this.b)); } }
+        const w = vm.createContext({document: doc, CustomEvent: function (t, o) { this.type = t; this.detail = o && o.detail; },
+            JSON: {stringify: JSON.stringify, parse: (t, r) => { if (String(t).includes('ZZTEST')) parsed.n++; return JSON.parse(t, r); }},
+            MutationObserver: class { observe() {} }, setInterval: () => 0, clearInterval() {}, XMLHttpRequest: function () {},
+            Response: Resp, fetch: async () => new Resp(body)});
+        w.window = w; w.addEventListener = () => {}; w.XMLHttpRequest.prototype = {open() {}};
+        vm.runInContext(pz, w);
+        const sid = JSON.parse(ev[0].detail).s;
+        const r = await w.fetch('/api/puzzle');
+        if (pageReads) await r.json();
+        for (let k = 0; k < 20; k++) await new Promise(res => setImmediate(res));
+        const wheres = ev.filter(e => e.type === sid + 'p').flatMap(e => JSON.parse(e.detail).found.map(f => f.where));
+        return {wheres, parsed: parsed.n};
+    };
+    const a = await run(false);
+    ok('PUZPROBE-2: a fetched body the page never reads is parsed once and filed under fetch',
+       JSON.stringify(a.wheres) === '["fetch"]' && a.parsed === 1, a);
+    const b = await run(true);
+    ok('PUZPROBE-2: ...and a body the page reads with res.json() is still emitted once', b.wheres.length === 1 && b.parsed === 1, b);
+})().catch(e => { fails++; console.log('FAIL PUZPROBE-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

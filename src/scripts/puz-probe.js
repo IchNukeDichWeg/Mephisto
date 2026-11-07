@@ -376,6 +376,11 @@
     // anywhere in here can never break the site's own reading of its answer.
     try {
         const origFetch = window.fetch;
+        // The ORIGINAL text(), taken before source 2b below replaces it: reading the clone through the
+        // patched one scanned every body twice and filed it under 'res.text', so 'fetch' never showed in
+        // puzzleCaptureDebug().wheres (audit 3.1.331 PUZPROBE-2).
+        const RT = window.Response && window.Response.prototype;
+        const origBodyText = RT && typeof RT.text === 'function' ? RT.text : null;
         window.fetch = function (...args) {
             const p = origFetch.apply(this, args);
             try {
@@ -383,7 +388,8 @@
                     try {
                         const ct = res.headers.get('content-type') || '';
                         if (!/json/i.test(ct)) return;
-                        res.clone().text().then(t => scan(t, 'fetch'), () => {});
+                        const cl = res.clone();
+                        (origBodyText ? origBodyText.call(cl) : cl.text()).then(t => scan(t, 'fetch'), () => {});
                     } catch (e) { /* */ }
                 }, () => {});
             } catch (e) { /* */ }
