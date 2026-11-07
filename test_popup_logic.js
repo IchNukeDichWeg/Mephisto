@@ -14114,6 +14114,47 @@ globalThis.largeBoardTable = () => {
            /^Not a Shogi FEN: /.test(st) && pos === `position fen ${S0} moves c3c4` && h.text('an_lg_moves') === '1. c3c4', [st, pos]);
     } catch (e) { fails++; console.log('FAIL LARGEBOARD-4: the harness threw ' + e.message); }
 })();
+// ---- audit 3.1.331 GENERAL-1: every settings -/+ stepper moves by exactly the input's own step ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const i = gj.indexOf('    initSteppers() {'), body = i < 0 ? '' : gj.slice(i, gj.indexOf('\n    }\n', i) + 7);
+    const attr = (tag, a) => (new RegExp(`\\b${a}="([^"]*)"`).exec(tag) || [])[1];
+    // every <span class="set-step"> on the page: its two buttons and the number input between them
+    const rows = [...gh.matchAll(/<span class="set-step">([\s\S]*?)<\/span>/g)].map(m => {
+        const inTag = (/<input[^>]*>/.exec(m[1]) || [''])[0];
+        const input = {id: attr(inTag, 'id'), min: attr(inTag, 'min') ?? '', max: attr(inTag, 'max') ?? '', step: attr(inTag, 'step') ?? '', value: '', dispatchEvent() {}};
+        const btns = [...m[1].matchAll(/<button[^>]*class="set-step-btn"[^>]*>/g)].map(b => {
+            const btn = {dataset: {step: attr(b[0], 'data-step')}, parentElement: {querySelector: () => input}, addEventListener: (t, f) => { btn.click = f; }};
+            return btn;
+        });
+        return {input, btns};
+    });
+    const c = vm.createContext({Event: class { constructor(t) { this.type = t; } }, Math});
+    c.document = {querySelectorAll: () => rows.flatMap(r => r.btns)};
+    let bad = ['initSteppers not found'];
+    try {
+        vm.runInContext(`({${body}}).initSteppers()`, c);
+        bad = [];
+        for (const {input, btns} of rows) {
+            const step = +input.step || 1;
+            // start one step inside the range so the clamp cannot hide a wrong size
+            const start = (input.min !== '' ? +input.min : 0) + step;
+            for (const btn of btns) {
+                input.value = String(start);
+                btn.click();
+                const want = start + Math.sign(+btn.dataset.step) * step;
+                const lim = Math.min(input.max !== '' ? +input.max : Infinity, Math.max(input.min !== '' ? +input.min : -Infinity, want));
+                if (+input.value !== lim) bad.push(`${input.id} ${btn.dataset.step}: ${start} -> ${input.value}, want ${lim}`);
+            }
+        }
+    } catch (e) { bad = ['threw ' + e.message]; }
+    ok('GENERAL-1: every -/+ button on the settings page moves its field by one input step (not step*step)', rows.length >= 20 && bad.length === 0, bad.length ? bad : rows.length);
+    const resign = rows.find(r => r.input.id === 'auto_resign_cp_input');
+    if (resign) { resign.input.value = '900'; resign.btns[0].click(); }
+    ok('GENERAL-1: ...Resign Below 900 with "-" gives 800, not 100', resign && +resign.input.value === 800, resign && resign.input.value);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

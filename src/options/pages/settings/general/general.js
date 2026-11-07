@@ -812,7 +812,10 @@ class GeneralSettings extends SettingsPage {
                 const input = btn.parentElement.querySelector('input[type=number]');
                 if (!input) return;
                 const step = +input.step || 1;
-                let val = (+input.value || 0) + (+btn.dataset.step) * step;
+                // data-step is only the DIRECTION; the size is the input's own step. Five rows carried
+                // the size in data-step too ("100" beside step="100"), so a click moved by step*step:
+                // Resign Below went 900 -> 100 or 3000 in one press (audit 3.1.331 GENERAL-1).
+                let val = (+input.value || 0) + Math.sign(+btn.dataset.step || 0) * step;
                 if (input.min !== '') val = Math.max(+input.min, val);
                 if (input.max !== '') val = Math.min(+input.max, val);
                 input.value = val;
