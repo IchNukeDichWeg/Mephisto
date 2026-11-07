@@ -260,6 +260,15 @@ def _apply_variant_net(variant):
     else:
         _dbg(f"no net for {prefix} in {_NNUE_DIR} -- classical eval ({_setup_hint('nets')})")
 
+# The board states Stockfish 19 refuses with a CRITICAL ERROR and exit 1 (each one run against it).
+# Not here: BAD_CASTLING_RIGHTS and the too-many/impossible-check states (searched without
+# complaint), and INVALID_EP_SQUARE (repaired in do_analyse instead).
+_ENGINE_KILLING_STATUS = (chess.STATUS_EMPTY | chess.STATUS_NO_WHITE_KING | chess.STATUS_NO_BLACK_KING
+                          | chess.STATUS_TOO_MANY_KINGS | chess.STATUS_PAWNS_ON_BACKRANK
+                          | chess.STATUS_OPPOSITE_CHECK | chess.STATUS_TOO_MANY_WHITE_PAWNS
+                          | chess.STATUS_TOO_MANY_BLACK_PAWNS | chess.STATUS_TOO_MANY_WHITE_PIECES
+                          | chess.STATUS_TOO_MANY_BLACK_PIECES)
+
 def do_analyse(data, mid):
     global request_counter, current_analysis
     get_engine()  # open on first real use (not on a ping probe)
@@ -287,11 +296,24 @@ def do_analyse(data, mid):
             board = chess.Board(data['fen'],
                                 chess960=(variant == 'fischerandom'
                                           or bool(engine_options.get('UCI_Chess960'))))
+            # Refused here, before the engine sees it (audit 3.1.331 UCINATIVEHOST-1): Stockfish 19
+            # answers each of these with "CRITICAL ERROR ... Unsupported position" and exits (18
+            # segfaults on a missing king), so the reply was only "engine event loop dead" and the
+            # next request paid an engine relaunch. An en-passant square no double push could have
+            # left ("w ... e3") kills it the same way and python-chess sends it as given, so it is
+            # dropped: it cannot enable any capture. Variant boards define their own status rules.
+            status = board.status()
+            if status & chess.STATUS_INVALID_EP_SQUARE:
+                board.ep_square = None
+            bad = status & _ENGINE_KILLING_STATUS
+            if bad:
+                _dbg(f"refused {data['fen']!r}: status {int(bad):#x}")
+                raise ValueError('illegal position')
         else:
             board = chess.variant.find_variant(variant)(data['fen'])
         if data.get('moves'):
             for mv in data['moves'].split():
-                board.push(chess.Move.from_uci(mv))
+                board.push_uci(mv)   # raises on an illegal move; push() took it and the engine died
         # A DEPTH budget when the caller asks for one, time otherwise. Depth is what makes two
         # reviews of the same game comparable across machines, which a wall-clock budget can never
         # be. `time` is still sent alongside it and is used as the cap, so a caller that predates
