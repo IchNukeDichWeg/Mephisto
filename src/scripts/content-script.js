@@ -5083,7 +5083,10 @@ function grindClick(el) {
 // path is the one Grind Mode already took -- capture the real markup from a live game and match the
 // one hook in it that carries meaning.
 const END_ACTION_GAP_MS = 5000;   // never twice in a breath, whatever arrives from the panel
-let endActionAt = 0;
+// PER KIND. One shared stamp let a draw offer swallow a resign that came within 5 s of it, with no
+// click and no gameActionFailed, and the panel then withheld every move until the flag fell
+// (audit 3.1.331 CONTENT2-3). A resign waits only for an earlier resign; a draw waits for either.
+const endActionAt = {resign: 0, draw: 0};
 
 // chess.com hangs its in-game controls off utility classes, so the class fragment is tried first
 // (it survives translation) and the visible label second (it does not, hence the alternatives).
@@ -5158,8 +5161,9 @@ function doGameAction(kind) {
     const rules = END_ACTION_SITES[site];
     if (kind === 'resign' && !rules) { resignFailed(); return; }
     if (!rules || (kind !== 'resign' && kind !== 'draw')) return;
-    if (Date.now() - endActionAt < END_ACTION_GAP_MS) return;   // one press, not a stutter
-    endActionAt = Date.now();
+    const since = kind === 'resign' ? endActionAt.resign : Math.max(endActionAt.resign, endActionAt.draw);
+    if (Date.now() - since < END_ACTION_GAP_MS) return;   // one press, not a stutter
+    endActionAt[kind] = Date.now();
     const btn = rules[kind]();
     if (!btn) {
         bgLogAlways(`game action: no ${kind} control on this page`, {site});

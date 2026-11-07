@@ -13161,6 +13161,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('CONTENT2-2: scrapePosition4PC starts the rights afresh on an empty move table, before deriving them',
        /if \(lastFilled < 0\) fourPCCastleMem = null;\s*\n\s*const \{short, long\} = fourPCCastling\(board\);/.test(csrc));
 }
+// ---- audit 3.1.331 CONTENT2-3: an Auto Resign within 5 s of an Auto Draw offer is still pressed ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const g0 = csrc.indexOf('const END_ACTION_GAP_MS'), g1 = csrc.indexOf('// chess.com hangs its in-game controls', g0);
+    const i = csrc.indexOf('const RESIGN_CHECK_MS'), j = csrc.indexOf('\n}\n', csrc.indexOf('function doGameAction(kind)')) + 3;
+    const run = (seq) => {
+        const c = vm.createContext({pressed: [], sent: [], clock: {t: 1e6}, setTimeout: () => {}});
+        c.Date = {now: () => c.clock.t};
+        vm.runInContext(`var site = 'x', lastPushKey = 'k', lastDisplayKey = 'k', resumePush = false;
+            const END_ACTION_SITES = {x: {resign: () => 'resign', draw: () => 'draw', confirm: () => null}};
+            function sendToPanel(m) { sent.push(m); } function schedulePush() {} function bgLogAlways() {}
+            function pressControl(b) { pressed.push(b); }` + csrc.slice(g0, g1) + csrc.slice(i, j), c);
+        for (const [at, kind] of seq) { c.clock.t = 1e6 + at; vm.runInContext(`doGameAction(${JSON.stringify(kind)})`, c); }
+        return c.pressed.join(',');
+    };
+    ok('CONTENT2-3: draw at 0 s, resign at 3 s: both are pressed', run([[0, 'draw'], [3000, 'resign']]) === 'draw,resign', run([[0, 'draw'], [3000, 'resign']]));
+    ok('CONTENT2-3: ...a second resign inside 5 s is still one press', run([[0, 'resign'], [2000, 'resign']]) === 'resign', run([[0, 'resign'], [2000, 'resign']]));
+    ok('CONTENT2-3: ...a draw inside 5 s of a resign waits (its confirm may be open)', run([[0, 'resign'], [2000, 'draw']]) === 'resign', run([[0, 'resign'], [2000, 'draw']]));
+    ok('CONTENT2-3: ...and a second draw inside 5 s is one press', run([[0, 'draw'], [1000, 'draw'], [6000, 'draw']]) === 'draw,draw', run([[0, 'draw'], [1000, 'draw'], [6000, 'draw']]));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
