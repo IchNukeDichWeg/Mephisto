@@ -758,6 +758,7 @@
   "an.lg_err_kings": "her tarafın tam olarak bir şahı olmalı",
   "an.lg_err_turn": "hamle sırası w ya da b olmalı",
   "an.lg_err_hand": "eldeki taşlar yalnızca shogi'de vardır",
+  "an.err_king_en_prise": "sırası olmayan taraf şah altında, bu yüzden bu konum oluşamaz -- sıranın kimde olduğunu kontrol edin",
   "an.lg_no_moves": "Yasal hamle yok: hamle sırası olan taraf kaybetti.",
   "an.lg_promote": "Bu taş terfi etsin mi?",
   "an.lg_to_move": "Hamle sırası: {side}",

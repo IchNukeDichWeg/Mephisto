@@ -758,6 +758,7 @@
   "an.lg_err_kings": "各陣営に玉がちょうど1枚必要です",
   "an.lg_err_turn": "手番は w か b である必要があります",
   "an.lg_err_hand": "持ち駒は将棋にしかありません",
+  "an.err_king_en_prise": "手番でない側がチェックされているため、この局面はありえません -- 手番を確認してください",
   "an.lg_no_moves": "合法手がありません。手番の側の負けです。",
   "an.lg_promote": "この駒を成りますか？",
   "an.lg_to_move": "{side}の手番",

@@ -758,6 +758,7 @@
   "an.lg_err_kings": "elke kant heeft precies één koning nodig",
   "an.lg_err_turn": "de kant aan zet moet w of b zijn",
   "an.lg_err_hand": "stukken in de hand bestaan alleen bij shogi",
+  "an.err_king_en_prise": "de partij die niet aan zet is staat schaak, dus deze stelling kan niet bestaan -- controleer wie aan zet is",
   "an.lg_no_moves": "Geen legale zetten: de kant aan zet heeft verloren.",
   "an.lg_promote": "Dit stuk promoveren?",
   "an.lg_to_move": "{side} aan zet",

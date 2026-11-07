@@ -3464,8 +3464,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('panel tooltips flip above the control, or are clamped, instead of running off the bottom', /const below = r\.bottom \+ 6;\s*tip\.style\.top = \(\(below \+ h > vh - 4 && r\.top - 6 - h >= 4\) \? r\.top - 6 - h/.test(psrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const a = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
-    const i = a.indexOf("if (['chess', 'fischerandom'].includes(anVariant())) {"), blk = a.slice(i, a.indexOf('const c = newChess(fenText);', i));
-    const why = (fen) => { try { vm.runInNewContext(`const parts = ${JSON.stringify(fen.split(' '))}; const anVariant = () => 'chess'; ${blk}`); return ''; } catch (e) { return e.message; } };
+    // the checks live in checkStartPos, shared by the FEN box and a PGN's [FEN] start (audit 3.1.331 ANALYSIS-1)
+    const i = a.indexOf('function checkStartPos('), blk = a.slice(i, a.indexOf('\n}\n', i) + 3);
+    const cx = vm.createContext({}); cx.self = cx;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), cx);
+    vm.runInContext(`const anVariant = () => 'chess'; const MephistoI18n = {t: (k, d) => d}; ${blk}`, cx);
+    const why = (fen) => { try { vm.runInContext(`checkStartPos(new Chess('chess', ${JSON.stringify(fen)}), ${JSON.stringify(fen.split(' ')[0])})`, cx); return ''; } catch (e) { return e.message; } };
     ok('Analysis: an impossible standard position is refused with a reason, a normal one loads',
        why('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') === '' && /king/.test(why('8/8/8/8/8/8/8/8 w - - 0 1'))
        && /pawn/.test(why('P3k3/8/8/8/8/8/8/4K3 w - - 0 1')) && /too many/.test(why('qqqqkqqq/qqqqqqqq/qq6/8/8/8/8/4K3 w - - 0 1'))); }
@@ -13817,6 +13821,54 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('EEHOST-2: ...and a live 1.125.0 among 404s is found', newer.v === '1.125.0', newer);
     ok('EEHOST-2: the update status line shows the coded, translated error', /eeSay\(`Could not update: \$\{MephistoI18n\.errMsg\(e\)\}`, true\);/.test(rsrc));
 })();
+// ---- audit 3.1.331 ANALYSIS-1: a start position whose side NOT to move is in check never reaches the engine (FEN box and PGN [FEN]) ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a), j = aj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return aj.slice(i, j); };
+    const c = {console, MephistoI18n: {t: (k, d) => d}};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    c.box = {value: ''}; c.st = []; c.sent = []; c.v = 'chess';
+    const load = (variant, text) => {
+        c.v = variant; c.st.length = 0; c.sent.length = 0; c.box.value = text;
+        try { vm.runInContext('treeRoot = null; loadFromInput()', c); } catch (e) { return {threw: String(e.message || e)}; }
+        return {status: c.st[0]?.[0], kind: c.st[0]?.[1], engine: c.sent.length};
+    };
+    let res = {};
+    try {
+        vm.runInContext(`const Core = self.MephistoReviewCore; let nodeSeq = 0, treeRoot = null, treeNode = null, cursor = 0;
+            const anVariant = () => v; const $ = (id) => (id === 'an_pgn' ? box : null); function status(t, k) { st.push([t, k]); }
+            const evalCache = new Map(), evalCache2 = new Map(), humanCache = new Map(), bandCache = new Map();
+            function relinkLine() {} function buildBoard() {} function renderMoves() {} function renderPockets() {}
+            function go() { sent.push(treeRoot.fen); }
+            function setCfg() {} function onVariantChange() {} const PGN_VARIANTS = {};
+            function newChess(fen) { return fen === undefined ? new Chess(anVariant()) : new Chess(anVariant(), fen); }
+            ${cut('function threeCheckCounts', '// crazyhouse only')}
+            ${cut('function mkNode', '// the flat view')}
+            ${cut('function loadFromInput', '// The line as it stands')}`, c);
+        const enPrise = '4k3/8/8/8/8/8/8/4R1K1 w - - 0 1';   // white to move with the black king in check from e1
+        res = {fen: load('chess', enPrise), pgn: load('chess', `[SetUp "1"]\n[FEN "${enPrise}"]\n\n1. Kf2 *`),
+               pgnNoKing: load('chess', '[SetUp "1"]\n[FEN "8/8/8/8/8/8/8/4K3 w - - 0 1"]\n\n1. Kf2 *'),
+               zh: load('crazyhouse', '4k3/8/8/8/8/8/8/4R1K1[N] w - - 0 1'),
+               legal: load('chess', '4k3/8/8/8/8/8/8/4R1K1 b - - 0 1'),
+               legalPgn: load('chess', '[SetUp "1"]\n[FEN "4k3/8/8/8/8/8/8/4R1K1 b - - 0 1"]\n\n1... Kd7 *'),
+               anti: load('antichess', '4k3/8/8/8/8/8/8/4R1K1 w - - 0 1')};
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('331 ANALYSIS-1: a FEN with the side not to move in check is refused with a reason, and nothing goes to the engine',
+       res.fen?.kind === 'err' && /not to move is in check/.test(res.fen?.status) && res.fen?.engine === 0, res);
+    ok('331 ANALYSIS-1: ...the same position as a PGN [FEN] start is refused too (it was loaded as "Only 1 move understood")',
+       res.pgn?.kind === 'err' && /not to move is in check/.test(res.pgn?.status) && res.pgn?.engine === 0, res.pgn);
+    ok('331 ANALYSIS-1: a PGN [FEN] start now gets the FEN box\'s standard-chess checks (a missing king)',
+       res.pgnNoKing?.kind === 'err' && /exactly one king/.test(res.pgnNoKing?.status) && res.pgnNoKing?.engine === 0, res.pgnNoKing);
+    ok('331 ANALYSIS-1: ...and Crazyhouse, whose kings are royal, refuses it as well', res.zh?.kind === 'err' && res.zh?.engine === 0, res.zh);
+    ok('331 ANALYSIS-1: the side TO move in check still loads, as a FEN and as a PGN start; antichess (no royal king) is not checked',
+       res.legal?.status === 'Position loaded.' && res.legal?.engine === 1 && res.legalPgn?.engine === 1 && res.legalPgn?.kind !== 'err'
+       && res.anti?.status === 'Position loaded.' && res.anti?.engine === 1, res);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

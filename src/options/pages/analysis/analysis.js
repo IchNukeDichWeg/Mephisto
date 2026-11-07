@@ -601,19 +601,10 @@ function loadFromInput() {
             if ((parts[0] || '').split('/').length !== 8 || parts.length < 4) {
                 throw new Error('that does not look like a FEN');
             }
-            // ...and for standard chess the position has to be one a game can reach: an impossible
-            // one was accepted with "Position loaded." and handed to the engine, which either sat on
-            // "thinking…" (an empty board) or can be wedged by it (more than 32 pieces).
-            if (['chess', 'fischerandom'].includes(anVariant())) {
-                const n = (re) => (parts[0].match(re) || []).length;
-                const ranks = parts[0].split('/');
-                if (n(/K/g) !== 1 || n(/k/g) !== 1) throw new Error('each side needs exactly one king');
-                if (n(/[PNBRQK]/g) > 16 || n(/[pnbrqk]/g) > 16 || n(/P/g) > 8 || n(/p/g) > 8) throw new Error('too many pieces for a chess position');
-                if (/[Pp]/.test(ranks[0] + ranks[7])) throw new Error('a pawn cannot stand on the first or last rank');
-            }
             let checksLeft = {w: 3, b: 3};
             if (anVariant() === '3check') ({left: checksLeft, fen: fenText} = threeCheckCounts(fenText));
             const c = newChess(fenText);
+            checkStartPos(c, parts[0]);
             treeRoot = mkNode(c.fen(), c.turn(), null, null, null,
                               {holdings, promoted, checksLeft});
             treeNode = treeRoot;
@@ -625,6 +616,9 @@ function loadFromInput() {
             if (start) ({holdings, promoted, fen: start} = liftHoldings(start));
             if (start && anVariant() === '3check') ({left: checksLeft, fen: start} = threeCheckCounts(start));
             const c = newChess(start);
+            // a [FEN] start is the same pasted position the FEN branch checks, and went to the engine
+            // unchecked (audit 3.1.331 ANALYSIS-1)
+            if (start) checkStartPos(c, start.split(/\s+/)[0]);
             // Built in a local and adopted only once every move replayed: assigned up front, a failed
             // load left treeRoot on the partial game while the board and `positions` kept the old one,
             // and the next move-list redraw showed the wreck (audit 3.1.330 follow-up L40).
@@ -661,6 +655,29 @@ function loadFromInput() {
     renderMoves();
     renderPockets();
     go(cursor);
+}
+
+// A pasted start position has to be one a game can reach. An impossible one was accepted with
+// "Position loaded." and handed to the engine, which either sat on "thinking…" (an empty board) or
+// can be wedged by it (more than 32 pieces). The side NOT to move standing in check is the same
+// kind: Stockfish rejects it and its process exits, the wasm build crashes out of bounds, and the
+// column then read "thinking…" for every later position too -- the guard popup.js has for a
+// scraped board (audit 3.1.331 ANALYSIS-1). Antichess kings are not royal and atomic kings that
+// touch may stand "attacked", so those two skip the en-prise test. `placement` is the board field
+// with any pockets and promoted marks already lifted.
+function checkStartPos(c, placement) {
+    const v = anVariant();
+    if (['chess', 'fischerandom'].includes(v)) {
+        const n = (re) => (placement.match(re) || []).length;
+        const ranks = placement.split('/');
+        if (n(/K/g) !== 1 || n(/k/g) !== 1) throw new Error('each side needs exactly one king');
+        if (n(/[PNBRQK]/g) > 16 || n(/[pnbrqk]/g) > 16 || n(/P/g) > 8 || n(/p/g) > 8) throw new Error('too many pieces for a chess position');
+        if (/[Pp]/.test(ranks[0] + ranks[7])) throw new Error('a pawn cannot stand on the first or last rank');
+    }
+    if (v !== 'antichess' && v !== 'atomic' && c._isKingAttacked(c.turn() === 'w' ? 'b' : 'w')) {
+        throw new Error(MephistoI18n.t('an.err_king_en_prise',
+            'the side not to move is in check, so this position cannot happen -- check whose turn it is'));
+    }
 }
 
 // a drop's identity is its SAN ('P@e5'); a normal move's is from+to+promotion
