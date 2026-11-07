@@ -17,11 +17,23 @@ export class SettingsPage {
         throw new Error("init() must be implemented!");
     }
 
-    async onInit() {
+    // `isCurrent`: options.js's test that this is still the newest page load. A load superseded while
+    // it waited below must not wire anything: the markup in #content is the newer load's, which wires
+    // its own (audit 3.1.331 OPTIONSFRAMEWORK-1). So every listener is added after the awaits.
+    async onInit(isCurrent = () => true) {
         // require.js caches the page object, so this runs on the same instance per visit. Kept, the
         // old controls stayed registered and their listeners fired too: N returns to Analysis meant
         // N times its four engine reloads on every open.
         this.formElements = [];
+
+        // chrome.storage.local is the source of truth (the panel writes only there). Wait for the
+        // cache before touching the forms -- reading early gave stale values, and any later change
+        // then pushed those stale values back, silently reverting settings made in the panel.
+        await MephistoConfig.ready;
+        // Translate before init(): Materialize snapshots select options and tooltip text when it
+        // initialises them, so a page translated afterwards would show half the old language.
+        await window.mephistoApplyLanguage?.();
+        if (!isCurrent()) return;
 
         // Guarded, like every other lookup in this class: a page that has no reset button (the
         // Analysis page is one -- there is nothing on it to reset) would otherwise throw HERE and
@@ -42,13 +54,6 @@ export class SettingsPage {
             importFile.value = ''; // re-selecting the SAME file must fire 'change' again
         });
 
-        // chrome.storage.local is the source of truth (the panel writes only there). Wait for the
-        // cache before touching the forms -- reading early gave stale values, and any later change
-        // then pushed those stale values back, silently reverting settings made in the panel.
-        await MephistoConfig.ready;
-        // Translate before init(): Materialize snapshots select options and tooltip text when it
-        // initialises them, so a page translated afterwards would show half the old language.
-        await window.mephistoApplyLanguage?.();
         this.init();
         MephistoI18n.apply(document); // the page's own markup, which only exists after init()
         this.decorateTooltips();

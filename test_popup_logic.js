@@ -4784,7 +4784,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
 const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const src = fs.readFileSync(ROOT + '/src/options/util/SettingsPage.js', 'utf8');
     ok('onInit resets the list before init() registers the page again',
-       /async onInit\(\) \{[\s\S]*?this\.formElements = \[\];[\s\S]*?this\.init\(\);/.test(src));
+       /async onInit\(.*\) \{[\s\S]*?this\.formElements = \[\];[\s\S]*?this\.init\(\);/.test(src));
 }
 // ---- OPT-7: the Analysis tablebase line reads like the panel ----
 {
@@ -14308,6 +14308,89 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         await c.applyLanguage('de');
         ok('APPEARANCE-2: re-applying the language (which the Appearance page does while filling its form) rebuilds tooltips at the settings pages\' own delay',
            page && delays.length === 1 && delays[0] === Number(page[1]) && delays[0] <= 250, [delays, page && page[1]]);
+    })();
+}
+// ---- audit 3.1.331 OPTIONSFRAMEWORK-1: an options-page load superseded by a newer one touches nothing ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const osrc = fs.readFileSync(ROOT + '/src/options/options.js', 'utf8').replace(/^import .*$/m, '');
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    // every pending step is a microtask or a 0 ms timer (the hashchange event), so a few 5 ms waits
+    // drain it whatever else the suite has running
+    const settle = async () => { for (let i = 0; i < 6; i++) await sleep(5); };
+    // the real options.js shell on a stub DOM; require() answers at once, except for the pages in
+    // `hold`, which wait for release()
+    const shell = (hash, hold) => {
+        const doc = {}, win = {}, calls = [], held = new Set(hold), waiting = [];
+        const on = (m) => (t, f) => (m[t] = m[t] || []).push(f);
+        const cls = {add() {}, remove() {}, contains: () => false, toggle() {}};
+        const navUl = {id: 'nav-mobile', tagName: 'UL', classList: cls};
+        const anchors = {};
+        for (const p of ['settings/general', 'analysis', 'about']) {
+            const li = {id: '', tagName: 'LI', classList: cls, parentElement: navUl};
+            anchors[p] = {id: p, tagName: 'A', hash: '#' + p, classList: cls, parentElement: li, addEventListener(t, f) { this.onclick = f; }};
+        }
+        const content = {innerHTML: ''}, title = {innerText: ''};
+        const loc = {h: hash, get hash() { return this.h; }, set hash(v) {
+            v = v.startsWith('#') ? v : '#' + v; if (v === this.h) return; this.h = v;
+            setTimeout(() => (win.hashchange || []).forEach(f => f({})), 0); }};
+        const titles = {'settings/general': 'General Settings', analysis: 'Analysis', about: 'About'};
+        const c = vm.createContext({console, setTimeout, Promise, JSON, Array, location: loc,
+            M: {Sidenav: {init() {}}, ScrollSpy: {init: () => []}, Tooltip: {init() {}}},
+            MephistoConfig: {get: () => null, ready: Promise.resolve()},
+            MephistoI18n: {use: async () => {}, apply() {}, lang: 'en'},
+            document: {addEventListener: on(doc), documentElement: {classList: cls},
+                getElementById: (id) => anchors[id] || ({title, header: {scrollIntoView() {}}})[id] || null,
+                querySelector: (s) => s === 'head' ? {appendChild() {}} : content,
+                querySelectorAll: (s) => s === '#nav-mobile a.menu-item' ? Object.values(anchors) : [],
+                getElementsByClassName: () => []},
+            require: async (path, type = 'js') => {
+                const p = path.replace(/^pages\//, '').replace(/\/[^/]+$/, '');
+                if (held.has(p)) await new Promise(r => waiting.push(r));
+                if (type === 'html') return {innerHTML: 'html:' + p};
+                if (type === 'css') return {};
+                return {title: titles[p], page: {onInit() { calls.push(p + ' on ' + content.innerHTML); }}};
+            }});
+        c.window = c; c.addEventListener = on(win);
+        vm.runInContext(osrc, c);
+        doc.DOMContentLoaded.forEach(f => f());
+        const click = (p) => { const a = anchors[p]; a.onclick({target: a}); loc.hash = a.hash; };  // handler, then the link's own navigation
+        const release = () => { held.clear(); waiting.splice(0).forEach(r => r()); };
+        return {calls, click, release, title, content};
+    };
+    (async () => {
+        const a = shell('#about', []);
+        await settle();
+        a.click('settings/general'); a.click('settings/general');
+        await settle();
+        ok('OPTIONSFRAMEWORK-1: a double-click on Settings initialises the page once, not once per click (two exports per Export click)',
+           JSON.stringify(a.calls) === JSON.stringify(['about on html:about', 'settings/general on html:settings/general']), a.calls);
+        const b = shell('#analysis', ['analysis']);
+        b.click('settings/general');
+        await settle();
+        b.release();
+        await settle();
+        ok('...a click on Settings while Analysis is still loading: Analysis never initialises on the General markup, and the title is General\'s',
+           JSON.stringify(b.calls) === JSON.stringify(['settings/general on html:settings/general']) && b.title.innerText === 'General Settings'
+           && b.content.innerHTML === 'html:settings/general', {calls: b.calls, title: b.title.innerText, html: b.content.innerHTML});
+    })();
+    // SettingsPage.onInit: a load superseded during its awaits wires no listener and builds nothing
+    const spsrc = fs.readFileSync(ROOT + '/src/options/util/SettingsPage.js', 'utf8').replace(/^import .*$/m, '').replace('export class', 'class');
+    (async () => {
+        const wired = [];
+        const el = (id) => ({addEventListener: (t) => wired.push(id + ':' + t)});
+        const c = vm.createContext({console, Promise, MephistoConfig: {ready: Promise.resolve(), get: () => null}, MephistoI18n: {apply() {}},
+            M: {Tooltip: {init() {}}},
+            document: {getElementById: (id) => ['reset_btn', 'export_btn', 'import_btn', 'import_file'].includes(id) ? el(id) : null,
+                querySelectorAll: () => []}});
+        c.window = c;
+        vm.runInContext(spsrc + '; class P extends SettingsPage { init() { this.built = (this.built || 0) + 1; } pullConfigValues() {} }; var page = new P();', c);
+        await c.page.onInit(() => false);
+        const stale = {wired: wired.length, built: c.page.built || 0};
+        await c.page.onInit(() => true);
+        ok('OPTIONSFRAMEWORK-1: SettingsPage.onInit superseded while it waited wires no Reset/Export/Import listener and runs no init()',
+           stale.wired === 0 && stale.built === 0, stale);
+        ok('...the current load still wires all four and builds the page once', wired.length === 4 && c.page.built === 1, {wired, built: c.page.built});
     })();
 }
 // ==== END FIX CHECKS ====

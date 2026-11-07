@@ -75,12 +75,21 @@ document.addEventListener('DOMContentLoaded', function () {
     // it) and leave a BLANK options page with no way back except editing the URL by hand.
     const DEFAULT_PAGE = 'settings/general';
 
+    // A LOAD IS SUPERSEDED, NOT QUEUED. Every step below awaits the page's html, css or module, so a
+    // double-click on a nav entry, or a click while the first route was still loading, ran two loads
+    // at once: both initialised the SECOND load's markup (every listener twice: two exports per
+    // click, two table downloads), or the slower page's init ran on the faster page's DOM under the
+    // wrong title. Only the newest load touches the page after an await, and the page's own onInit
+    // gets the same test for its awaits (audit 3.1.331 OPTIONSFRAMEWORK-1).
+    let navGen = 0;
+
     async function injectPage(pagePath) {
         const navEntry = document.getElementById(pagePath);
         if (!navEntry) {
             if (pagePath === DEFAULT_PAGE) return;   // the default itself is gone: nothing to fall back to
             return injectPage(DEFAULT_PAGE);
         }
+        const gen = ++navGen, isCurrent = () => gen === navGen;
         updateActiveTab(navEntry);
         const title = pagePath.substring(pagePath.lastIndexOf('/') + 1);
         const path = pagePath.substring(0, pagePath.lastIndexOf('/') + 1) + title;
@@ -88,6 +97,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // inject html
         const pageBody = await require(componentPath, 'html');
+        if (!isCurrent()) return;
         contentElem.innerHTML = pageBody.innerHTML;
         activeScrollspies?.forEach(scrollspy => scrollspy.destroy());
         activeScrollspies = M.ScrollSpy.init(document.querySelectorAll('.scrollspy'), {});
@@ -103,12 +113,14 @@ document.addEventListener('DOMContentLoaded', function () {
             pageStylesheet.disabled = false;
         } else {
             const pageStyle = await require(componentPath, 'css');
+            if (!isCurrent()) return;
             stylesheetsElem.appendChild(pageStyle);
         }
 
         // inject js
         const pageModule = await require(componentPath);
-        pageModule.page?.onInit();
+        if (!isCurrent()) return;
+        pageModule.page?.onInit(isCurrent);
 
         // inject page title
         titleElem.innerText = pageModule.title;

@@ -3209,9 +3209,11 @@ function bindHumanUi() {
 }
 
 class ReviewPage {
-    async onInit() {
+    async onInit(isCurrent = () => true) {
         await MephistoConfig.ready;
         await window.mephistoApplyLanguage?.();
+        // a newer page load took over while this one waited: its markup, its listeners (audit 3.1.331 OPTIONSFRAMEWORK-1)
+        if (!isCurrent()) return;
         M.Tooltip.init(document.querySelectorAll('.tooltipped'), {enterDelay: 1000});
 
         $('rv_pgn').addEventListener('input', parsePgnBox);
