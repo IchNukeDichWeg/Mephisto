@@ -63,7 +63,10 @@ function stripVariations(movetext) {
     return out;
 }
 
-// One game: {tags, startFen, moves: [{san, clk, comment}], result}
+// One game: {tags, startFen, moves: [{san, clk, comment}], result}. Returns a LIST: tagless games
+// pasted one after another have no tag line for splitGames to cut on, so a move after a result token
+// starts the next game here. Without that two games became one that was never played, with every
+// move legal and nothing said (audit 3.1.331 REVIEWCORE-3).
 function parseGame(text) {
     const firstMove = text.search(/^\s*(?!\[)\S/m);
     const tagBlock = firstMove < 0 ? text : text.slice(0, firstMove);
@@ -85,7 +88,8 @@ function parseGame(text) {
     movetext = movetext.replace(/\$\d+/g, ' ');            // NAGs
     movetext = movetext.replace(/\d+\s*\.(\s*\.\.)?/g, ' ');  // move numbers, incl. black's "12..." and "12. ..."
 
-    const moves = [];
+    const games = [];
+    let moves = [];
     let movetextResult = null;   // a game with no tag block still ends in "1-0": that is its result
     for (const tok of movetext.split(/\s+/)) {
         if (!tok) continue;
@@ -106,15 +110,21 @@ function parseGame(text) {
         if (/^(?!-+$)[?!+\-=/±∓⩱⩲∞□]+$/.test(tok)) continue;
         // castling written with zeros is the FIDE spelling and common in hand-typed PGNs
         const san = tok.replace(/[?!]+$/, '').replace(/^0-0-0/, 'O-O-O').replace(/^0-0/, 'O-O');
+        if (movetextResult && moves.length) {              // the game ended: this move opens the next
+            games.push({moves, result: movetextResult});
+            moves = []; movetextResult = null;
+        }
         moves.push({san, clk: null, eval: null, comment: ''});
     }
-    return {
+    games.push({moves, result: movetextResult});
+    // the tag block belongs to the first game; the ones after it had none of their own
+    return games.map((g, i) => i ? {tags: {}, startFen: null, result: g.result || '*', moves: g.moves} : {
         tags,
         // Chess960 and set-up positions: SetUp/FEN is the game's real start
         startFen: tags.FEN || null,
-        result: tags.Result || movetextResult || '*',
-        moves,
-    };
+        result: tags.Result || g.result || '*',
+        moves: g.moves,
+    });
 }
 
 function applyComment(move, body) {
@@ -131,7 +141,7 @@ function applyComment(move, body) {
 }
 
 function parsePgn(text) {
-    return splitGames(text).map(parseGame).filter(g => g.moves.length);
+    return splitGames(text).flatMap(parseGame).filter(g => g.moves.length);
 }
 
 // PGN dates are YYYY.MM.DD (and use `??` for the parts nobody recorded). Shown as DD.MM.YYYY, with

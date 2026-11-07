@@ -13490,6 +13490,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEWCORE-2: ...a ";" inside a brace comment is still brace text, and variations still drop',
        b.moves.map(m => m.san).join(' ') === 'e4 e5 Nf3' && b.moves[0].comment === 'a ; b', b.moves.map(m => [m.san, m.comment]));
 }
+// ---- audit 3.1.331 REVIEWCORE-3: tagless games pasted together are read as separate games ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const read = (t) => c.MephistoReviewCore.parsePgn(t).map(g => [g.result, g.moves.map(m => m.san).join(' ')]);
+    const two = read('1. e4 e5 2. Nf3 Nc6 1-0\n\n1. d4 d5 2. c4 e6 0-1\n');
+    ok('REVIEWCORE-3: two tagless games separated by a blank line are two games, each with its own result',
+       JSON.stringify(two) === JSON.stringify([['1-0', 'e4 e5 Nf3 Nc6'], ['0-1', 'd4 d5 c4 e6']]), two);
+    const tagged = c.MephistoReviewCore.parsePgn('[White "a"]\n[Result "1/2-1/2"]\n\n1. e4 e5 1/2-1/2\n1. d4 d5 *');
+    ok('REVIEWCORE-3: ...after a tagged game the tags stay with the first game only',
+       tagged.length === 2 && tagged[0].tags.White === 'a' && tagged[0].result === '1/2-1/2' && !tagged[1].tags.White && tagged[1].result === '*',
+       tagged.map(g => [g.tags, g.result]));
+    const tail = c.MephistoReviewCore.parsePgn('1. e4 {[%clk 0:01:00]} e5 1-0 {White wins}');
+    ok('REVIEWCORE-3: ...one game with a comment after its result is still one game',
+       tail.length === 1 && tail[0].moves.length === 2 && tail[0].result === '1-0', tail.map(g => g.moves.length));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
