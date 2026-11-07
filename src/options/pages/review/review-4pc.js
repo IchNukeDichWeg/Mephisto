@@ -142,12 +142,19 @@ function scoreText(cp) {
 async function runReview(pgn4Text, {movetime = 1000, onProgress, isCancelled} = {}) {
     const C = self.MephistoClassify;
     if (!C) throw new Error('the classifier is not loaded');
-    const {frames, terminations, tags, variant, mode} = await replay(pgn4Text);
+    const {frames, terminations, tags, variant, mode, setup} = await replay(pgn4Text);
     if (frames.length < 2) throw new Error('that PGN4 has no moves to review');
     const isFfa = /ffa/i.test(String(variant)) || String(mode) === '0';
     // Mode selects the net (the engine's bundle ships one per mode since v8); MultiPV gives the
     // FFA grader the lines it compares within. Sent once, before the first search.
-    await send('configure', {options: {Mode: isFfa ? 'ffa' : 'teams', MultiPV: 5}}).catch(() => {});
+    // Setup too, because the bundle picks the net by (mode, setup) and `position fen4` never changes
+    // the engine's setup: without it every game ran on the classic net, so a modern-setup game
+    // (chess.com's default) was searched by a net the bundle measures ~22 Elo worse there (audit
+    // 3.1.331 REVIEW4PC-3). Setup resets the engine's board, which is harmless: every search below
+    // sends the whole position. An old host that names no setup leaves the engine's own.
+    const options = {Mode: isFfa ? 'ffa' : 'teams', MultiPV: 5};
+    if (typeof setup === 'string' && setup) options.Setup = setup;
+    await send('configure', {options}).catch(() => {});
 
     const evals = new Array(frames.length).fill(null);
     for (let i = 0; i < frames.length; i++) {

@@ -13644,6 +13644,41 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW4PC-2: the 4-player eval line names the mover the review resolved, not the frame\'s stuck seat',
        /const side = ev\.mover \|\| f\.turn;/.test(body) && !/seatName\[f\.turn\]/.test(body));
 })();
+// ---- audit 3.1.331 REVIEW4PC-3: the 4-player review tells Tetrarch the game's setup, so it searches on that setup's net ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the REAL review-4pc.js over a fake host; the pgn4 reply carries `setup` as tetrarch-host.py sends it
+    const configured = async (setup) => {
+        const c = vm.createContext({console, setTimeout, Promise, Error, Map, Math, Array, Object, String, Number, JSON});
+        c.self = c;
+        const sent = [];
+        const nc = [false, false, false, false], T = [true, true, true, true];
+        const game = {variant: 'Teams', mode: '1', setup, tags: {}, terminations: [],
+            frames: [{ply: 0, fen4: 'f0', turn: 'R', alive: T, move: null, check: nc}, {ply: 1, fen4: 'f1', turn: 'B', alive: T, move: 'r1', token: 'r1', check: nc}]};
+        c.chrome = {runtime: {connect() {
+            const L = [];
+            return {onMessage: {addListener: (f) => L.push(f)}, onDisconnect: {addListener() {}}, disconnect() {},
+                postMessage(m) { sent.push(m); setTimeout(() => {
+                    const r = m.cmd === 'pgn4' ? game : m.cmd === 'configure' ? {ok: true} : {bestmove: 'x', lines: [{move: 'x', score: 10}]};
+                    L.forEach(f => f({...r, id: m.id}));
+                }, 0); }};
+        }}};
+        vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+        vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-4pc.js', 'utf8'), c);
+        await c.Mephisto4PC.runReview('x', {movetime: 50});
+        const cf = sent.filter(m => m.cmd === 'configure');
+        return {n: cf.length, opts: cf[0] && cf[0].options, firstAnalyse: sent.findIndex(m => m.cmd === 'analyse'), at: sent.indexOf(cf[0])};
+    };
+    try {
+        const m = await configured('modern');
+        ok('REVIEW4PC-3: a modern-setup game configures Setup modern, with Mode, before the first search',
+           m.n === 1 && m.opts.Setup === 'modern' && m.opts.Mode === 'teams' && m.opts.MultiPV === 5 && m.at < m.firstAnalyse, m);
+        const cl = await configured('classic');
+        ok('REVIEW4PC-3: ...a classic one configures Setup classic', cl.opts.Setup === 'classic', cl);
+        const none = await configured(undefined);
+        ok('REVIEW4PC-3: ...an old host that sends no setup gets no Setup option (the engine keeps its own)', none.n === 1 && !('Setup' in none.opts), none);
+    } catch (e) { fails++; console.log('FAIL REVIEW4PC-3: threw ' + e.message); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
