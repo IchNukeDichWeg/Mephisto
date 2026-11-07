@@ -630,7 +630,7 @@ function loadFromInput() {
                 // chess.js THROWS on an illegal SAN ("Invalid move: X") rather than returning null, so
                 // the page's own line never showed (follow-up L41); either way it is this message
                 let mv = null;
-                try { mv = c.move(san); } catch (e) { /* illegal here */ }
+                try { mv = san.includes('@') ? playDrop(c, san) : c.move(san); } catch (e) { /* illegal here */ }
                 if (!mv) throw new Error(`illegal move in the PGN: ${san}`);
                 const child = mkNode(c.fen(), c.turn(), mv.san, uciOfMove(mv), at, nodeExtras(at, mv));
                 at.children.push(child);
@@ -684,6 +684,20 @@ function checkStartPos(c, placement) {
 function uciOfMove(mv) {
     return mv.san?.includes('@') ? mv.san.replace(/[+#]$/, '')
          : mv.from + mv.to + (mv.promotion || '');
+}
+
+// A crazyhouse drop played by the rules. This chess.js plays ANY drop: onto an occupied square (the
+// king's included), a pawn onto the first or last rank, and a drop that leaves the mover's own king
+// in check. Such a drop was played and sent to Fairy, which then offered the king capture as its
+// best move (audit 3.1.331 ANALYSIS-2). Returns the move, or null when the drop is not legal -- the
+// board `c` is spent then, every caller discards it.
+function playDrop(c, san) {
+    const sq = /@([a-h][1-8])/.exec(san)?.[1];
+    const side = c.turn();
+    if (!sq || c.get(sq)) return null;
+    if ((san[0] === '@' || san[0].toLowerCase() === 'p') && /[18]$/.test(sq)) return null;
+    const mv = c.move(san);
+    return mv && !c._isKingAttacked(side) ? mv : null;
 }
 
 // The node state a move carries forward: crazyhouse pockets + promoted squares, three-check counts.
@@ -1415,11 +1429,12 @@ function playMove(from, to, promotion, drop) {
     try {
         const c = newChess(pos.fen);
         if (drop) {
-            // the page keeps the pockets (chess.js accepts ANY drop), so the pocket is the gate
+            // the page keeps the pockets (chess.js accepts ANY drop), so the pocket is the gate,
+            // and playDrop holds the square and the king to the rules
             const type = drop.toLowerCase();
             const side = pos.turn;
             if (!(pos.holdings?.[side] || '').includes(type)) return false;
-            mv = c.move(`${type === 'p' ? 'P' : type.toUpperCase()}@${to}`);
+            mv = playDrop(c, `${type === 'p' ? 'P' : type.toUpperCase()}@${to}`);
         } else {
             mv = c.move({from, to, promotion: promotion || 'q'});
         }
@@ -1461,9 +1476,9 @@ function legalTargets(from) {
 // ---- crazyhouse pockets ---------------------------------------------------------------------------
 // The pockets are the page's own state (see mkNode): two strips beside the board, the opponent's
 // above and ours below, following the flip. Clicking a held piece ARMS it; the next click on an
-// empty board square drops it there (chess.js validates the square -- no pawns on the back ranks --
-// and the page has already validated the pocket). Clicking the armed piece again, or pressing
-// Escape, disarms.
+// empty board square drops it there (playDrop validates the square -- no pawns on the back ranks --
+// and the own king, and the page has already validated the pocket). Clicking the armed piece again,
+// or pressing Escape, disarms.
 let armedDrop = null;   // 'p'|'n'|'b'|'r'|'q' from the side to move's pocket, or null
 
 function armDrop(type) {
@@ -1675,7 +1690,7 @@ function wireLineClicks(host) {
 function legalHere(fen, uci) {
     if (!uci) return false;
     try {
-        if (uci.includes('@')) return !!newChess(fen).move(uci.replace(/[+#]$/, ''));   // a drop line from Fairy
+        if (uci.includes('@')) return !!playDrop(newChess(fen), uci.replace(/[+#]$/, ''));   // a drop line from Fairy
         return !!newChess(fen).move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]});
     } catch (e) { return false; }
 }

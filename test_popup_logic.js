@@ -13869,6 +13869,53 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        res.legal?.status === 'Position loaded.' && res.legal?.engine === 1 && res.legalPgn?.engine === 1 && res.legalPgn?.kind !== 'err'
        && res.anti?.status === 'Position loaded.' && res.anti?.engine === 1, res);
 }
+// ---- audit 3.1.331 ANALYSIS-2: a crazyhouse drop is held to the rules (board, PGN replay, engine line) ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a), j = aj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return aj.slice(i, j); };
+    const c = {console, MephistoI18n: {t: (k, d) => d}};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    c.box = {value: ''}; c.st = [];
+    let res = {};
+    try {
+        vm.runInContext(`const Core = self.MephistoReviewCore; let nodeSeq = 0, treeRoot = null, treeNode = null, cursor = 0, positions = [], match = null;
+            const anVariant = () => 'crazyhouse'; const $ = (id) => (id === 'an_pgn' ? box : null); function status(t, k) { st.push([t, k]); }
+            const evalCache = new Map(), evalCache2 = new Map(), humanCache = new Map(), bandCache = new Map();
+            function relinkLine() { positions = [treeNode]; cursor = 0; } function buildBoard() {} function renderMoves() {} function renderPockets() {}
+            function go() {} function armDrop() {} function setCfg() {} function onVariantChange() {} const PGN_VARIANTS = {crazyhouse: 'crazyhouse'};
+            function newChess(fen) { return fen === undefined ? new Chess(anVariant()) : new Chess(anVariant(), fen); }
+            ${cut('function threeCheckCounts', '// crazyhouse only')}
+            ${cut('function mkNode', '// the flat view')}
+            ${cut('function loadFromInput', '// The line as it stands')}
+            ${cut('function playMove(', 'function panelPromotes(')}
+            ${cut('function legalHere(', 'function renderEngineLines(')}`, c);
+        const drop = (fen, piece, sq) => { c.box.value = fen; vm.runInContext('loadFromInput()', c);
+            return {played: vm.runInContext(`playMove(null, ${JSON.stringify(sq)}, null, ${JSON.stringify(piece)})`, c), fen: vm.runInContext('treeNode.fen', c)}; };
+        const check = '4r2k/8/8/8/8/8/8/4K3[N] w - - 0 1';   // white in check from e8, a knight in hand
+        res.inCheckElsewhere = drop(check, 'n', 'a3');
+        res.block = drop(check, 'n', 'e4');
+        res.pawnLast = drop('7k/8/8/8/8/8/8/4K3[P] w - - 0 1', 'p', 'e8');
+        res.pawnFirst = drop('7k/8/8/8/8/8/8/4K3[P] w - - 0 1', 'p', 'a1');
+        res.pawnOk = drop('7k/8/8/8/8/8/8/4K3[P] w - - 0 1', 'p', 'e4');
+        const pgn = (mv) => { c.st.length = 0; c.box.value = `[Variant "Crazyhouse"]\n[SetUp "1"]\n[FEN "${check}"]\n\n1. ${mv} *`;
+            vm.runInContext('loadFromInput()', c); return c.st[0]; };
+        res.pgnBad = pgn('N@a3'); res.pgnGood = pgn('N@e4');
+        res.legal = ['N@a3', 'N@e4', 'P@e1', 'P@e8'].map(u => vm.runInContext(`legalHere(${JSON.stringify(check)}, ${JSON.stringify(u)})`, c));
+    } catch (e) { res = {err: String(e.message || e)}; }
+    ok('331 ANALYSIS-2: a drop that leaves the own king in check is refused, a drop that blocks the check is played',
+       res.inCheckElsewhere?.played === false && res.block?.played === true && /^4r2k\/8\/8\/8\/4N3\//.test(res.block?.fen), res);
+    ok('331 ANALYSIS-2: a pawn cannot be dropped on the last or the first rank, and still can in between',
+       res.pawnLast?.played === false && res.pawnFirst?.played === false && res.pawnOk?.played === true, res);
+    ok('331 ANALYSIS-2: a PGN replaying an illegal drop is refused, a legal one loads',
+       res.pgnBad?.[1] === 'err' && /illegal move in the PGN: N@a3/.test(res.pgnBad?.[0]) && res.pgnGood?.[1] !== 'err', [res.pgnBad, res.pgnGood]);
+    ok('331 ANALYSIS-2: an engine drop line is legal here only when the drop is (not into check, not onto the king, not a back-rank pawn)',
+       JSON.stringify(res.legal) === JSON.stringify([false, true, false, false]), res.legal);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
