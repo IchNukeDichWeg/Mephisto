@@ -52,6 +52,30 @@ foreach ($c in @('py', 'python')) {
     if ($found) { $py = $found.Source; break }
 }
 if (-not $py) { Write-Error 'No Python found on PATH -- install Python 3 from python.org (tick "Add to PATH").' }
+# `py` needs -3 to start the interpreter tetrarch-host.bat starts.
+$pyArgs = @()
+if ((Split-Path -Leaf $py) -ieq 'py.exe') { $pyArgs = @('-3') }
+
+# --- the DLL has to LOAD, not just exist ---------------------------------------------------------
+# (audit 3.1.331 INSTALLPS1-1) A mingw-w64 build without -static imports libwinpthread-1.dll, which
+# lives only in MSYS2's mingw64\bin. Python 3.8+ resolves a ctypes DLL's imports from the DLL's own
+# folder and System32, never from PATH, so core.load() failed under the host's interpreter while the
+# existence check above passed and this printed Done. stderr is folded into stdout INSIDE Python:
+# Windows PowerShell 5.1 under ErrorActionPreference Stop turns redirected native stderr into a
+# terminating error.
+$load = & $py @pyArgs -c 'import sys; sys.stderr = sys.stdout; import ctypes; ctypes.CDLL(sys.argv[1])' $dll
+if ($LASTEXITCODE -ne 0) {
+    $why = $load | Select-Object -Last 1
+    Write-Error @"
+build\tetrarch.dll is there but Python cannot load it:
+    $why
+
+Usually a DLL it imports is missing. A mingw-w64 build imports libwinpthread-1.dll, which lives only in
+MSYS2's mingw64\bin, and Python looks for a DLL's imports beside the DLL, not on PATH. Copy it there:
+    copy C:\msys64\mingw64\bin\libwinpthread-1.dll '$Tetrarch\build\'
+A 32-bit Python cannot load the 64-bit DLL either: install the 64-bit Python 3 from python.org.
+"@
+}
 
 # --- deploy --------------------------------------------------------------------------------------
 # Out of the repo and into the user profile, for the same reason as the Unix installer: a
