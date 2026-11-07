@@ -54,7 +54,11 @@ async function permission() {
     const handle = await getHandle();
     if (!handle) return 'missing';
     try {
-        if (handle.queryPermission) return await handle.queryPermission({mode: 'read'});
+        // queryPermission also answers 'denied' (a refused Re-allow). Passed through, every caller
+        // read it as granted: Settings said "no .rtbw files" with Re-allow hidden, Check said "no
+        // folder set" and the worker went online with no localNeedsAllow (audit 3.1.331 STORES-1).
+        // Not usable without a gesture is 'prompt'; Choose folder stays offered beside Re-allow.
+        if (handle.queryPermission) return (await handle.queryPermission({mode: 'read'})) === 'granted' ? 'granted' : 'prompt';
         await handle.keys().next();
         return 'granted';
     } catch (e) {

@@ -15613,6 +15613,29 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const late = vm.runInContext('clickableBoardBounds()', c);   // what refreshBoardGeometry reads
     ok('CBPROBE-1: the late re-measure follows a 300 px scroll (board top 14, not the cached 314)', late && late.y === 14 && late.x === 154, late && [late.x, late.y]);
 }
+// ---- audit 3.1.331 STORES-1: a refused Re-allow ('denied') reads as "needs re-allowing", not as an empty folder ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the REAL tb-store.js over an in-memory IndexedDB that commits on the next tick
+    const mem = new Map();
+    const c = vm.createContext({setTimeout, indexedDB: {open() { const req = {}; setTimeout(() => {
+        req.result = {close() {}, transaction() { const tx = {}; tx.objectStore = () => ({
+            put(v, k) { mem.set(k, v); return {result: k}; }, get(k) { return {result: mem.get(k)}; },
+            delete(k) { mem.delete(k); return {result: undefined}; }});
+            setTimeout(() => tx.oncomplete && tx.oncomplete()); return tx; }};
+        req.onsuccess(); }); return req; }}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/tb-store.js', 'utf8'), c);
+    const S = c.MephistoTbStore;
+    const handle = (perm) => ({queryPermission: async () => perm,
+        async *values() { const e = new Error('denied'); e.name = 'NotAllowedError'; throw e; }});
+    const got = {};
+    for (const p of ['granted', 'prompt', 'denied']) { await S.saveHandle(handle(p)); got[p] = await S.permission(); }
+    await S.remove(); got.none = await S.permission();
+    ok('STORES-1: a grant Chrome reports as denied comes back as prompt, so Settings offers Re-allow and the worker flags localNeedsAllow',
+       got.denied === 'prompt', got);
+    ok('STORES-1: ...granted, prompt and no folder are unchanged', got.granted === 'granted' && got.prompt === 'prompt' && got.none === 'missing', got);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
