@@ -826,5 +826,6 @@
   "err.V01": "화면에서 체스판을 찾지 못했습니다. 체스판 주위를 드래그해 상자로 둘러싸세요.",
   "err.V04": "체스판 읽기에 실패했습니다({detail}). 체스판 주위를 드래그해 상자로 둘러싸세요.",
   "err.nothing_changed": "아무것도 변경되지 않았습니다.",
+  "set.update_in_folder": "v{version}은(는) 이미 확장 프로그램 폴더에 있지만 Chrome이 아직 로드하지 않았습니다. 확장 프로그램을 다시 로드합니다. 게임 탭도 다시 로드하세요.",
   "err.see_readme": "실패하면 메시지 앞에 MPH-U02 같은 코드가 표시됩니다. 모든 코드와 대처 방법은 README의 <a href=\"https://github.com/IchNukeDichWeg/Mephisto#error-codes\">Error codes</a>에 있습니다."
 }

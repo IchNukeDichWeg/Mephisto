@@ -826,5 +826,6 @@
   "err.V01": "Geen bord gevonden op het scherm. Sleep een kader om het bord.",
   "err.V04": "Het bord lezen is mislukt ({detail}). Sleep een kader om het bord.",
   "err.nothing_changed": "Er is niets gewijzigd.",
+  "set.update_in_folder": "v{version} staat al in de extensiemap, maar Chrome heeft hem nog niet geladen. De extensie wordt opnieuw geladen; herlaad je speltabbladen.",
   "err.see_readme": "Bij fouten staat een code zoals MPH-U02 voor de melding. Alle codes, met wat je moet doen, staan in de README onder <a href=\"https://github.com/IchNukeDichWeg/Mephisto#error-codes\">Error codes</a>."
 }

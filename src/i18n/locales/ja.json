@@ -826,5 +826,6 @@
   "err.V01": "画面上に盤が見つかりませんでした。盤の周りをドラッグして囲んでください。",
   "err.V04": "盤の読み取りに失敗しました（{detail}）。盤の周りをドラッグして囲んでください。",
   "err.nothing_changed": "何も変更されていません。",
+  "set.update_in_folder": "v{version} はすでに拡張機能フォルダーにありますが、Chrome はまだ読み込んでいません。拡張機能を再読み込みします。対局中のタブも再読み込みしてください。",
   "err.see_readme": "失敗すると、メッセージの前に MPH-U02 のようなコードが表示されます。すべてのコードと対処法は README の <a href=\"https://github.com/IchNukeDichWeg/Mephisto#error-codes\">Error codes</a> に載っています。"
 }

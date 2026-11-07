@@ -14905,6 +14905,80 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
        back.ok && await ver(r) === '3.1.331' && await get(r, 'lib/chess.js') === 'lib/chess.js 3.1.331' && await get(r, 'src/popup/popup.js') === 'src/popup/popup.js 3.1.331'
        && await get(r, 'src/scripts/new.js') === null, [back.e && back.e.message, await get(r, 'lib/chess.js'), await get(r, 'src/scripts/new.js')]);
 })().catch(e => { fails++; console.log('FAIL UPDATER-3 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 UPDATER-4: Install over an update written but not yet reloaded only reloads it ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const upSrc = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const enc = (s) => new TextEncoder().encode(s), dec = (b) => new TextDecoder().decode(b);
+    const mkdir = () => {
+        const kids = new Map();
+        return {kind: 'directory', kids, name: 'Mephisto', queryPermission: async () => 'granted', requestPermission: async () => 'granted',
+            getDirectoryHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = mkdir()); if (!k || k.kind !== 'directory') throw new Error('NotFoundError'); return k; },
+            getFileHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = {kind: 'file', bytes: new Uint8Array()}); if (!k || k.kind !== 'file') throw new Error('NotFoundError'); const f = k;
+                return {getFile: async () => ({size: f.bytes.length, arrayBuffer: async () => f.bytes.slice().buffer, text: async () => dec(f.bytes)}),
+                        createWritable: async () => { let buf; return {write: async (b) => { buf = b; }, close: async () => { if (f.fail) throw new Error('Simulated write failure'); f.bytes = new Uint8Array(buf); }}; }}; },
+            removeEntry: async (n) => { if (!kids.delete(n)) throw new Error('NotFoundError'); }};
+    };
+    const put = async (root, path, text) => { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p, {create: true}); const w = await (await d.getFileHandle(n, {create: true})).createWritable(); await w.write(enc(text)); await w.close(); };
+    const get = async (root, path) => { try { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p); return dec(new Uint8Array(await (await (await d.getFileHandle(n)).getFile()).arrayBuffer())); } catch (e) { return null; } };
+    // a stored (method 0) zip of {path: text}
+    const zip = (files) => {
+        const parts = [], cd = []; let off = 0;
+        for (const [name, text] of files) {
+            const nb = enc(name), data = enc(text), lh = new DataView(new ArrayBuffer(30)), c = new DataView(new ArrayBuffer(46));
+            lh.setUint32(0, 0x04034b50, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, nb.length, true);
+            c.setUint32(0, 0x02014b50, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, nb.length, true); c.setUint32(42, off, true);
+            parts.push(new Uint8Array(lh.buffer), nb, data); cd.push(new Uint8Array(c.buffer), nb); off += 30 + nb.length + data.length;
+        }
+        const e = new DataView(new ArrayBuffer(22));
+        e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+        e.setUint32(12, cd.reduce((a, b) => a + b.length, 0), true); e.setUint32(16, off, true);
+        const all = [...parts, ...cd, new Uint8Array(e.buffer)], out = new Uint8Array(all.reduce((a, b) => a + b.length, 0));
+        let p = 0; for (const a of all) { out.set(a, p); p += a.length; }
+        return out.buffer;
+    };
+    const NAME = 'Mephisto Chess Extension', GLUE = 'src/offscreen/engine-glue.txt';
+    const man = (v, extra) => JSON.stringify(Object.assign({name: NAME, version: v}, extra || {}));
+    const CODE = ['lib/chess.js', 'src/popup/popup.js', 'src/scripts/content-script.js'];
+    const release = (v, extra = []) => zip([...[...CODE, ...extra].map(p => [`Mephisto-${v}/${p}`, `${p} ${v}`]), [`Mephisto-${v}/manifest.json`, man(v)], [`Mephisto-${v}/${GLUE}`, 'g1\n']]);
+    const base = async (v, extra) => { const r = mkdir(); await put(r, 'manifest.json', man(v, extra)); for (const p of CODE) await put(r, p, `${p} ${v}`); await put(r, GLUE, 'g1\n'); return r; };
+    const isNewer = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i]; return false; };
+    // the REAL updater over `root`; `running` is the manifest Chrome runs, `latest` the newest release, `store` chrome.storage.local
+    const load = (root, {running, latest, key, store = {}, extra = []}) => {
+        const idbReq = (val) => { const q = {}; setTimeout(() => { q.result = val; q.onsuccess && q.onsuccess(); }); return q; };
+        const indexedDB = {open: () => idbReq({transaction: () => ({objectStore: () => ({get: () => idbReq(root), put: () => idbReq(), delete: () => idbReq()})}), close() {}})};
+        const buf = release(latest, extra);
+        const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise, setTimeout, indexedDB,
+            fetch: async () => ({ok: true, headers: {get: () => String(buf.byteLength)}, arrayBuffer: async () => buf}),
+            chrome: {runtime: {getManifest: () => Object.assign({name: NAME, version: running}, key ? {key} : {}),
+                               sendMessage: (m, cb) => cb({latest, newer: isNewer(latest, running), asset: 'https://example.invalid/u.zip'})},
+                     permissions: {contains: async () => true},
+                     storage: {local: {get: async (k) => Object.assign({auto_update: true}, store), set: async (o) => { Object.assign(store, o); }}}}});
+        c.self = c;
+        vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+        vm.runInContext(upSrc.replace('const MephistoUpdater =', 'var MephistoUpdater =').replace(/\nif \(typeof module[\s\S]*$/, ''), c);
+        return Object.assign(vm.runInContext('MephistoUpdater', c), {I: c.MephistoI18n});
+    };
+    const caught = async (p) => { try { return {ok: await p}; } catch (e) { return {e}; } };
+    const ver = async (r) => JSON.parse(await get(r, 'manifest.json')).version;
+    const r = await base('3.1.331'), store = {};
+    const first = await caught(load(r, {running: '3.1.331', latest: '3.1.332', store}).install());
+    store.mephisto_installed_version = first.ok && first.ok.installed;   // what Settings records before it reloads
+    // the reload never ran: Chrome still runs 3.1.331 over a folder that holds 3.1.332
+    const again = await caught(load(r, {running: '3.1.331', latest: '3.1.332', store}).install());
+    const bk = JSON.parse(await get(r, '.mephisto-backup/manifest.json') || 'null');
+    ok('UPDATER-4: Install again answers "already there, reload" and writes nothing',
+       again.ok && again.ok.already === true && again.ok.reload === true && again.ok.version === '3.1.332' && !r.kids.has('.mephisto-staging'),
+       again.ok || (again.e && again.e.message));
+    ok('UPDATER-4: ...so the backup is still the one of v3.1.331 Roll Back needs',
+       bk && bk.version === '3.1.331' && await get(r, '.mephisto-backup/3.1.331/lib/chess.js') === 'lib/chess.js 3.1.331', bk);
+    const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const a = g.indexOf('const res = await MephistoUpdater.install(say);'), blk = g.slice(a, g.indexOf('} else if (res.already) {', a));
+    ok('UPDATER-4: Settings says so and reloads the extension for that answer',
+       a > 0 && /if \(res\.already && res\.reload\)/.test(blk) && /MephistoI18n\.t\('set\.update_in_folder'/.test(blk) && /chrome\.runtime\.reload\(\)/.test(blk), blk.slice(0, 200));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').filter(f => f.endsWith('.json'));
+    ok('UPDATER-4: ...in every language, with its {version}', locs.length === 14 && locs.every(f => /\{version\}/.test(JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8'))['set.update_in_folder'] || '')));
+})().catch(e => { fails++; console.log('FAIL UPDATER-4 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

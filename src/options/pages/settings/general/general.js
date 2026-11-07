@@ -1361,7 +1361,12 @@ class GeneralSettings extends SettingsPage {
             buttons.forEach(b => b.disabled = true);
             try {
                 const res = await MephistoUpdater.install(say);
-                if (res.already) {
+                if (res.already && res.reload) {
+                    // the folder already holds it, Chrome has not loaded it yet (audit 3.1.331 UPDATER-4)
+                    say(MephistoI18n.t('set.update_in_folder', 'v{version} is already in the extension folder, but Chrome has not loaded it yet. Reloading the extension; reload your game tabs.', {version: res.version}));
+                    setTimeout(() => chrome.runtime.reload(), 1500);
+                    return; // this page is about to go away
+                } else if (res.already) {
                     say(`Up to date - v${res.version} is the newest release.`);
                 } else {
                     // The reload tears this page down, so the line has to be on screen first. It

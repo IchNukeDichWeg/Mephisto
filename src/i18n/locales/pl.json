@@ -826,5 +826,6 @@
   "err.V01": "Na ekranie nie znaleziono szachownicy. Zaznacz ramką szachownicę.",
   "err.V04": "Odczyt szachownicy nie powiódł się ({detail}). Zaznacz ramką szachownicę.",
   "err.nothing_changed": "Nic nie zostało zmienione.",
+  "set.update_in_folder": "v{version} jest już w folderze rozszerzenia, ale Chrome jeszcze jej nie wczytał. Przeładowuję rozszerzenie; przeładuj karty z partiami.",
   "err.see_readme": "Przy błędach przed komunikatem pojawia się kod, np. MPH-U02. Wszystkie kody, razem z tym, co zrobić, są w README w sekcji <a href=\"https://github.com/IchNukeDichWeg/Mephisto#error-codes\">Error codes</a>."
 }

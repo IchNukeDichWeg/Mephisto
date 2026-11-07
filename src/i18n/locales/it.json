@@ -826,5 +826,6 @@
   "err.V01": "Nessuna scacchiera trovata sullo schermo. Trascina un riquadro intorno alla scacchiera.",
   "err.V04": "Lettura della scacchiera non riuscita ({detail}). Trascina un riquadro intorno alla scacchiera.",
   "err.nothing_changed": "Non è stato modificato nulla.",
+  "set.update_in_folder": "La v{version} è già nella cartella dell'estensione, ma Chrome non l'ha ancora caricata. Ricarico l'estensione; ricarica le schede delle partite.",
   "err.see_readme": "Gli errori mostrano un codice come MPH-U02 davanti al messaggio. Tutti i codici, con cosa fare, sono nel README sotto <a href=\"https://github.com/IchNukeDichWeg/Mephisto#error-codes\">Error codes</a>."
 }

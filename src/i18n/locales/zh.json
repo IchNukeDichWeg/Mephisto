@@ -826,5 +826,6 @@
   "err.V01": "屏幕上未找到棋盘。请在棋盘周围框选一个区域。",
   "err.V04": "读取棋盘失败（{detail}）。请在棋盘周围框选一个区域。",
   "err.nothing_changed": "没有做任何更改。",
+  "set.update_in_folder": "v{version} 已在扩展程序文件夹中，但 Chrome 尚未加载它。正在重新加载扩展程序；请重新加载你的对局标签页。",
   "err.see_readme": "出现故障时，消息前会显示类似 MPH-U02 的代码。所有代码及对应的处理办法都列在 README 的 <a href=\"https://github.com/IchNukeDichWeg/Mephisto#error-codes\">Error codes</a> 一节。"
 }

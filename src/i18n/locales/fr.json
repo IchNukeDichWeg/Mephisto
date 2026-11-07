@@ -826,5 +826,6 @@
   "err.V01": "Aucun échiquier trouvé à l'écran. Tracez un cadre autour de l'échiquier.",
   "err.V04": "La lecture de l'échiquier a échoué ({detail}). Tracez un cadre autour de l'échiquier.",
   "err.nothing_changed": "Rien n'a été modifié.",
+  "set.update_in_folder": "La v{version} est déjà dans le dossier de l'extension, mais Chrome ne l'a pas encore chargée. Rechargement de l'extension ; rechargez vos onglets de partie.",
   "err.see_readme": "Les échecs affichent un code comme MPH-U02 devant le message. Tous les codes, avec la marche à suivre, figurent dans le README sous <a href=\"https://github.com/IchNukeDichWeg/Mephisto#error-codes\">Error codes</a>."
 }

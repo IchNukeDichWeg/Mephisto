@@ -826,5 +826,6 @@
   "err.V01": "No se encontró ningún tablero en la pantalla. Dibuja un recuadro alrededor del tablero.",
   "err.V04": "Falló la lectura del tablero ({detail}). Dibuja un recuadro alrededor del tablero.",
   "err.nothing_changed": "No se cambió nada.",
+  "set.update_in_folder": "La v{version} ya está en la carpeta de la extensión, pero Chrome aún no la ha cargado. Recargando la extensión; recarga tus pestañas de partida.",
   "err.see_readme": "Los fallos muestran un código como MPH-U02 delante del mensaje. Todos los códigos, con lo que hay que hacer, están en el README, en <a href=\"https://github.com/IchNukeDichWeg/Mephisto#error-codes\">Error codes</a>."
 }

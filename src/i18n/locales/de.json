@@ -826,5 +826,6 @@
   "err.V01": "Auf dem Bildschirm wurde kein Brett gefunden. Ziehe einen Rahmen um das Brett.",
   "err.V04": "Das Lesen des Bretts ist fehlgeschlagen ({detail}). Ziehe einen Rahmen um das Brett.",
   "err.nothing_changed": "Nichts wurde verändert.",
+  "set.update_in_folder": "v{version} liegt bereits im Erweiterungsordner, aber Chrome hat sie noch nicht geladen. Die Erweiterung wird neu geladen; lade deine Spiel-Tabs neu.",
   "err.see_readme": "Fehlschläge zeigen vor der Meldung einen Code wie MPH-U02. Alle Codes stehen mit der passenden Abhilfe im README unter <a href=\"https://github.com/IchNukeDichWeg/Mephisto#error-codes\">Error codes</a>."
 }

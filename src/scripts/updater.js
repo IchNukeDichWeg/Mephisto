@@ -594,6 +594,11 @@ const MephistoUpdater = (function () {
         const rel = await check({force: true});
         if (!rel.latest) throw fail('MPH-U06', null, 'the release lookup answered without a version');
         if (!rel.newer) return {already: true, version: rel.latest};
+        // `newer` is against the RUNNING build. An update of ours written but not yet reloaded (the
+        // page closed inside the reload delay, a second profile on the same folder) was applied again
+        // over itself, and its backup of the old version was replaced by one of the new: Roll Back
+        // offered a no-op. The folder already has it; it only needs loading (audit 3.1.331 UPDATER-4).
+        if (!isNewer(rel.latest, installed.version)) return {already: true, version: installed.version, reload: true};
         if (!rel.asset) throw fail('MPH-U07', null, `release v${rel.latest} has no update archive`);
 
         onStatus(`Downloading v${rel.latest}…`);
