@@ -679,26 +679,43 @@ class GeneralSettings extends SettingsPage {
         const tbParseIndex = (html) => [...html.matchAll(/href="(K[^"]+\.(?:rtbw|rtbz))"[^<]*<\/a>\s+\S+\s+\S+\s+(\d+)/g)]
             .map(m => ({name: m[1], size: +m[2]}));
 
-        let tbDownloading = false;
+        // ONE RUN AT A TIME, each with its OWN stop flag (audit 3.1.331 GENERAL-2). One shared
+        // `tbDownloading` let Stop-then-Download revive the stopped run: the new run set it back to
+        // true while the old workers were still inside a fetch, so both downloaded side by side into
+        // the same .part files and whichever finished first stopped the other ("Stopped." on a run
+        // nobody stopped). `tbRun` is claimed before the first await, so a double-click cannot start
+        // two runs either. Stop aborts the run's fetches and keeps the button disabled until that
+        // run has really settled, so the next Download starts on an idle folder.
+        let tbRun = null;
         $('tb_download')?.addEventListener('click', async () => {
             const btn = $('tb_download');
-            if (tbDownloading) { tbDownloading = false; btn.textContent = 'Download tables'; return; }
-            const dirs = tbChosenDirs();
-            const handle = await self.MephistoTbStore.getHandle().catch(() => null);
-            if (!handle) { say('Choose a folder first - that is where the tables go.', true); return; }
-            // The picker asked for READ; writing into that folder is a separate grant, and asking
-            // for it only now means nobody hands over write access for a feature they never used.
-            let perm = 'denied';
-            try { perm = await handle.requestPermission({mode: 'readwrite'}); } catch (e) { /* */ }
-            if (perm !== 'granted') { say(MephistoI18n.errText('MPH-T03'), true); return; }
-            let host = false;
-            try { host = await chrome.permissions.request({origins: ['https://tablebase.lichess.ovh/*']}); } catch (e) { /* */ }
-            if (!host) { say(MephistoI18n.errText('MPH-T04'), true); return; }
+            if (tbRun) {
+                // still in the permission checks below: the second half of a double-click, not a Stop
+                if (tbRun.started && !tbRun.stop) {
+                    tbRun.stop = true;
+                    tbRun.abort.abort();
+                    btn.disabled = true;
+                    btn.textContent = 'Download tables';
+                }
+                return;
+            }
+            const run = tbRun = {stop: false, started: false, abort: new AbortController()};
             // try/FINALLY around the whole run: anything that escapes below (a rejected worker,
-            // a revoked handle) used to leave tbDownloading true and the button reading "Stop"
+            // a revoked handle) used to leave the run claimed and the button reading "Stop"
             // forever -- the page had to be reloaded to download anything again.
             try {
-                tbDownloading = true;
+                const dirs = tbChosenDirs();
+                const handle = await self.MephistoTbStore.getHandle().catch(() => null);
+                if (!handle) { say('Choose a folder first - that is where the tables go.', true); return; }
+                // The picker asked for READ; writing into that folder is a separate grant, and asking
+                // for it only now means nobody hands over write access for a feature they never used.
+                let perm = 'denied';
+                try { perm = await handle.requestPermission({mode: 'readwrite'}); } catch (e) { /* */ }
+                if (perm !== 'granted') { say(MephistoI18n.errText('MPH-T03'), true); return; }
+                let host = false;
+                try { host = await chrome.permissions.request({origins: ['https://tablebase.lichess.ovh/*']}); } catch (e) { /* */ }
+                if (!host) { say(MephistoI18n.errText('MPH-T04'), true); return; }
+                run.started = true;
                 btn.textContent = 'Stop';
                 say('Reading the file list...');
                 const wanted = [];
@@ -706,16 +723,15 @@ class GeneralSettings extends SettingsPage {
                     let html = '';
                     try { html = await fetch(`${TB_BASE}/${dir}/`).then(r => r.ok ? r.text() : ''); } catch (e) { /* */ }
                     const files = tbParseIndex(html);
-                    if (!files.length) { console.warn('Mephisto tablebase: no file list for', dir); say(MephistoI18n.errText('MPH-T05'), true); tbDownloading = false; btn.textContent = 'Download tables'; return; }
+                    if (!files.length) { console.warn('Mephisto tablebase: no file list for', dir); say(MephistoI18n.errText('MPH-T05'), true); return; }
                     for (const f of files) wanted.push({...f, dir});
                 }
                 // ASKED AFTER THE LIST IS READ, so the number in the question is the real one rather
                 // than a constant in this file that can go stale when the server's tables change.
                 const wantGb = wanted.reduce((a, f) => a + f.size, 0) / 1073741824;
-                if (wantGb > 10 && !confirm(`${dirs.join(', ')}: ${wanted.length} files, about `
-                                            + `${wantGb.toFixed(0)} GB. Continue?`)) {
-                    tbDownloading = false;
-                    btn.textContent = 'Download tables';
+                // (not asked once Stop was pressed while the list loaded: that run ends as "Stopped.")
+                if (!run.stop && wantGb > 10 && !confirm(`${dirs.join(', ')}: ${wanted.length} files, about `
+                                                         + `${wantGb.toFixed(0)} GB. Continue?`)) {
                     say(`Cancelled - that would have been ${wantGb.toFixed(0)} GB.`);
                     return;
                 }
@@ -737,7 +753,7 @@ class GeneralSettings extends SettingsPage {
                 };
                 const queue = wanted.slice();
                 const worker = async () => {
-                    while (tbDownloading) {
+                    while (!run.stop) {
                         const f = queue.shift();
                         if (!f) return;
                         try {
@@ -746,7 +762,8 @@ class GeneralSettings extends SettingsPage {
                             if (existing && existing.size === f.size) { skipped++; skippedBytes += f.size; report(); continue; }
                         } catch (e) { /* not there -- fetch it */ }
                         let res;
-                        try { res = await fetch(`${TB_BASE}/${f.dir}/${f.name}`); } catch (e) { failed++; continue; }
+                        // a fetch cut by Stop is not a failed file
+                        try { res = await fetch(`${TB_BASE}/${f.dir}/${f.name}`, {signal: run.abort.signal}); } catch (e) { if (!run.stop) failed++; continue; }
                         if (!res.ok) { failed++; continue; }
                         // The read and the write are guarded like the fetch above and the rename below:
                         // a full disk, a revoked handle or a connection dropped mid-body used to reject
@@ -764,11 +781,12 @@ class GeneralSettings extends SettingsPage {
                             await w.write(buf);
                             await w.close();
                         } catch (e) {
+                            if (run.stop && e && e.name === 'AbortError') continue;   // body cut by Stop
                             failed++;
                             // Out of space is not a per-file problem: the remaining 145 files cannot fit
                             // either, so stop the whole run instead of failing every one of them in turn.
                             if (e && e.name === 'QuotaExceededError') {
-                                tbDownloading = false;   // the siblings read this in their while()
+                                run.stop = true;   // the siblings read this in their while()
                                 say(MephistoI18n.errText('MPH-T06'), true);
                             }
                             continue;
@@ -790,15 +808,15 @@ class GeneralSettings extends SettingsPage {
                 };
                 report();
                 await Promise.all(Array.from({length: tbParallel(dirs)}, worker));
-                const stopped = !tbDownloading;
-                tbDownloading = false;
+                const stopped = run.stop;
                 btn.textContent = 'Download tables';
                 say(`${stopped ? 'Stopped. ' : 'Done. '}${done} downloaded (${(bytes / 1048576).toFixed(0)} MB), `
                     + `${skipped} already there${failed ? `, ${failed} failed` : ''}. Press Check to verify.`,
                     failed > 0);
                 notifyWorker();
             } finally {
-                tbDownloading = false;      // also releases the siblings' while (tbDownloading)
+                tbRun = null;               // only now: this run's workers have all returned
+                btn.disabled = false;
                 btn.textContent = 'Download tables';
             }
         });

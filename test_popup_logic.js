@@ -14155,6 +14155,79 @@ globalThis.largeBoardTable = () => {
     if (resign) { resign.input.value = '900'; resign.btns[0].click(); }
     ok('GENERAL-1: ...Resign Below 900 with "-" gives 800, not 100', resign && +resign.input.value === 800, resign && resign.input.value);
 }
+// ---- audit 3.1.331 GENERAL-2: one tablebase download at a time (Stop then Download, double-click) ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const a = gj.indexOf("        const TB_BASE = "), b = gj.indexOf('\n        sync();', a);
+    const body = a < 0 || b < 0 ? '' : gj.slice(a, b);
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    // the real download handler over a 12-file 3-4-5 WDL listing, a folder in memory and a fetch that
+    // honours its abort signal; `live` counts the file fetches in flight at once
+    const env = () => {
+        const log = [], els = {}, files = {}, st = {fetches: 0, live: 0, maxLive: 0};
+        const mk = (id) => (els[id] = els[id] || {id, textContent: '', value: '', disabled: false, handlers: {}, addEventListener(ev, fn) { this.handlers[ev] = fn; }});
+        mk('tb_download_men').value = '345'; mk('tb_download_kind').value = 'wdl';
+        const handle = {
+            requestPermission: async () => 'granted', removeEntry: async () => {},
+            getFileHandle: async (name, o) => {
+                if (!files[name] && !(o && o.create)) throw new Error('NotFoundError');
+                files[name] = files[name] || {size: 0};
+                return {getFile: async () => ({size: files[name].size}),
+                    createWritable: async () => ({write: async (buf) => { await sleep(2); files[name].size = buf.byteLength; }, close: async () => {}}),
+                    move: async (to) => { files[to] = {size: files[name].size}; delete files[name]; }};
+            },
+        };
+        const listing = Array.from({length: 12}, (_, i) => `<a href="K${i}vK.rtbw">K${i}vK.rtbw</a>   07-Dec-2013 02:14   100`).join('\n');
+        const fetchFn = async (url, opt = {}) => {
+            if (url.endsWith('/')) return {ok: true, text: async () => listing};
+            st.fetches++; st.live++; st.maxLive = Math.max(st.maxLive, st.live);
+            try {
+                await new Promise((res, rej) => {
+                    const t = setTimeout(res, 30);
+                    opt.signal?.addEventListener('abort', () => { clearTimeout(t); const e = new Error('aborted'); e.name = 'AbortError'; rej(e); });
+                });
+            } finally { st.live--; }
+            return {ok: true, arrayBuffer: async () => new ArrayBuffer(100)};
+        };
+        const ctx = {$: mk, say: (t, bad) => log.push((bad ? '[BAD] ' : '') + t), notifyWorker() {}, fetch: fetchFn, confirm: () => true,
+            console: {warn() {}, log() {}}, AbortController, self: {MephistoTbStore: {getHandle: async () => handle}},
+            chrome: {permissions: {request: async () => true}}, MephistoI18n: {errText: (c) => `ERR ${c}`}};
+        new Function(...Object.keys(ctx), body)(...Object.values(ctx));
+        const btn = els.tb_download;
+        return {log, st, files, btn, click: () => (btn.disabled ? Promise.resolve() : btn.handlers.click())};
+    };
+    const done = (e) => Object.keys(e.files).filter(k => !k.endsWith('.part') && e.files[k].size === 100).length;
+    const last = (e) => e.log[e.log.length - 1] || '';
+    if (!body) { ok('GENERAL-2: the download handler slices out of general.js', false); return; }
+    // (a) Stop mid-run, press Download at once, then again once the button is back
+    {
+        const e = env();
+        const r1 = e.click();
+        await sleep(45);                  // first run is fetching
+        e.click();                        // Stop
+        const afterStop = {disabled: e.btn.disabled, text: e.btn.textContent};
+        const r2 = e.click();             // Download again straight away
+        await Promise.all([r1, r2]);
+        await sleep(10);
+        const stoppedLine = last(e);
+        await e.click();                  // Download again once that run has settled: the resume
+        await sleep(10);
+        ok('GENERAL-2: right after Stop the button is disabled until the stopped run has settled', afterStop.disabled === true, afterStop);
+        ok('GENERAL-2: ...a Download pressed then does not start a second run beside the stopped one (never more than 4 fetches in flight)', e.st.maxLive <= 4, e.st.maxLive);
+        ok('GENERAL-2: ...the stopped run ends as "Stopped." with nothing failed (an aborted fetch is not a failed file)', /^Stopped\. /.test(stoppedLine) && !/failed/.test(stoppedLine), stoppedLine);
+        ok('GENERAL-2: ...the resume then finishes the set: "Done.", all 12 files whole, button usable', /^Done\. /.test(last(e)) && done(e) === 12 && !e.btn.disabled && e.btn.textContent === 'Download tables',
+           [last(e), done(e), e.btn.disabled, e.btn.textContent]);
+        ok('GENERAL-2: ...and fetched each file at most twice over both runs (no doubled run)', e.st.fetches <= 12 + 4, e.st.fetches);
+    }
+    // (b) a double-click: the second click lands while the first is still in its permission checks
+    {
+        const e = env();
+        await Promise.all([e.click(), e.click()]);
+        await sleep(10);
+        ok('GENERAL-2: a double-click downloads the set once (12 fetches for 12 files) and ends "Done."', e.st.fetches === 12 && /^Done\. 12 downloaded/.test(last(e)), [e.st.fetches, last(e)]);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
