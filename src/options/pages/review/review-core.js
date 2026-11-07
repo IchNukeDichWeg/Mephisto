@@ -288,12 +288,14 @@ function toWhiteCp(score, mate, turn) {
 }
 
 
-// Lichess's win percentage (lila, WinPercent.scala). The panel has the same function; both are the
+// Lichess's move accuracy (lila, AccuracyPercent.scala). The panel has the same function; both are the
 // published formula rather than a house rule, and test_popup_logic.js pins the two copies together.
+// The +1 is lila's own "uncertainty bonus" for imperfect analysis: without it every non-perfect move
+// scored a point under lichess and under the Settings page's readout (audit 3.1.331 REVIEWCORE-5).
 function moveAccuracy(before, after) {
     const drop = Math.max(0, before - after);
     if (drop <= 0) return 100;
-    const acc = 103.1668 * Math.exp(-0.04354 * drop) - 3.1669;
+    const acc = 103.1668 * Math.exp(-0.04354 * drop) - 3.1669 + 1;
     return clamp(acc, 0, 100);
 }
 

@@ -9346,9 +9346,10 @@ async function run_self_test() {
 // measured a second way, which is the only reason the strip can agree with the review afterwards.
 //
 // Lichess's accuracy curve, the same one Game Review uses. A move is scored on the drop it caused
-// FOR THE SIDE THAT PLAYED IT; the other side's turn is not their responsibility.
+// FOR THE SIDE THAT PLAYED IT; the other side's turn is not their responsibility. The +1 is lila's
+// uncertainty bonus, as in review-core.js moveAccuracy (audit 3.1.331 REVIEWCORE-5).
 function accuracy_from_drop(drop) {
-    return Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * Math.max(0, drop)) - 3.1669));
+    return Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * Math.max(0, drop)) - 3.1669 + 1));
 }
 
 // HEALTH CHECK. "It did nothing" is the commonest report and the hardest to act on, and every fact

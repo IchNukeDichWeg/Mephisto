@@ -13521,6 +13521,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const back = c.MephistoReviewCore.parsePgn(c.MephistoReviewCore.annotatedPgn({moves: [{san: 'e4', clk: 59.96}, {san: 'e5', clk: 119.95}]}))[0];
     ok('REVIEWCORE-4: ...and reads back as the rounded clock', back.moves[0].clk === 60 && back.moves[1].clk === 120, back.moves.map(m => m.clk));
 }
+// ---- audit 3.1.331 REVIEWCORE-5: every move-accuracy copy carries lichess's +1 and agrees with the Settings readout ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const body = (src, name) => { const i = src.indexOf('function ' + name + '('); return i < 0 ? '' : src.slice(i, src.indexOf('\n}\n', i) + 3); };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const gsrc = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    vm.runInContext(body(psrc, 'accuracy_from_drop') + body(gsrc, 'moveQuality'), c);
+    // the 4-player report's own copy, as the expression it evaluates per move
+    const q = fs.readFileSync(ROOT + '/src/options/pages/review/review-4pc.js', 'utf8');
+    const m4 = /:\s*(Math\.max\(0, Math\.min\(100, 103\.1668 [^\n]*\))\);\s*$/m.exec(q);   // the line ends ")));": the last ")" closes the map
+    const fpc = (before, after) => vm.runInContext(`(m => ${m4 ? m4[1] : 'NaN'})({winBefore: ${before}, winAfter: ${after}})`, c);
+    // Settings' readout is driven by a cp loss from equal; take its own win-drop and score it everywhere
+    const rows = [30, 110, 230, 600].map(cp => {
+        const g = c.moveQuality(cp);
+        return [g.acc, c.MephistoReviewCore.moveAccuracy(50, 50 - g.drop), c.accuracy_from_drop(g.drop), fpc(50, 50 - g.drop)];
+    });
+    ok('REVIEWCORE-5: Game Review, the panel, the 4-player report and the Settings readout score the same drop the same',
+       rows.every(r => r.every(x => Math.abs(x - r[0]) < 1e-9)), rows);
+    const d10 = c.MephistoReviewCore.moveAccuracy(50, 40);
+    ok('REVIEWCORE-5: ...a 10% win drop scores lichess\'s 64.6, not 63.6', Math.abs(d10 - 64.58) < 0.01, d10);
+    ok('REVIEWCORE-5: ...a tiny drop is still capped at 100 and no drop is 100',
+       c.MephistoReviewCore.moveAccuracy(50, 49.99) === 100 && c.MephistoReviewCore.moveAccuracy(50, 50) === 100 && c.accuracy_from_drop(0) === 100,
+       [c.MephistoReviewCore.moveAccuracy(50, 49.99), c.accuracy_from_drop(0)]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

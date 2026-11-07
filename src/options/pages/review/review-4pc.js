@@ -183,7 +183,7 @@ async function runReview(pgn4Text, {movetime = 1000, onProgress, isCancelled} = 
         if (!mine.length) return null;
         const each = mine.map(m => C.moveAccuracy
             ? C.moveAccuracy(m.winBefore, m.winAfter)
-            : Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * Math.max(0, m.winBefore - m.winAfter)) - 3.1669)));
+            : Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * Math.max(0, m.winBefore - m.winAfter)) - 3.1669 + 1)));
         return Math.round(each.reduce((a, b) => a + b, 0) / each.length * 10) / 10;
     });
     const matched = groupNames.map((_, g) => {
