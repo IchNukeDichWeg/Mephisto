@@ -191,6 +191,16 @@ function tcnToUci(tcn) {
     return out;
 }
 
+// A daily row's SAN column -> the SAN tokens, or null. About one daily row in eight ends in the game
+// result ('Rf1+ Kxf1 Qe1# 0-1'); chess.js cannot play '0-1', so the whole row used to be dropped
+// (876 of 6,977 daily rows, audit 3.1.331 PUZZLEDB-1). Result and move-number tokens are not moves
+// and are removed. A row holding a variation in parentheses stays skipped: which side of the paren
+// is the main line cannot be told from the text, and storing a sideline would play a wrong answer.
+function ccDailySans(raw) {
+    if (/[()]/.test(raw)) return null;
+    return raw.split(/\s+/).filter(t => t && !/^(1-0|0-1|1\/2-1\/2|\*)$/.test(t) && !/^\d+\.+$/.test(t));
+}
+
 // One parsed chess.com row -> [key, solution] or null.
 //
 // WHOSE MOVE COMES FIRST DIFFERS BY ROW TYPE, and getting it wrong shifts every solution by a ply.
@@ -210,8 +220,9 @@ function ccRowToRecord(cols, sanToUci) {
     // chess.js is not loaded. The IMPORTER injects one (the options page has chess.js); without it
     // daily rows are skipped rather than guessed at.
     const raw = String(cols[CC_COLS.tcn] || '').trim();
+    const sans = id.startsWith('daily-') && sanToUci ? ccDailySans(raw) : null;
     const moves = id.startsWith('daily-')
-        ? (sanToUci ? sanToUci(String(cols[CC_COLS.initialFen] || fen3), raw.split(/\s+/).filter(Boolean)) : null)
+        ? (sans ? sanToUci(String(cols[CC_COLS.initialFen] || fen3), sans) : null)
         : tcnToUci(raw);
     if (!moves || !moves.length) return null;
 

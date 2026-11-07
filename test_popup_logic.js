@@ -15444,6 +15444,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     pick('Q');
     ok('...a promotion rejected while a match runs does the same', log.join() === 'e7d8n,e7e8q' && JSON.stringify(shown()) === '{"sel":[],"dots":[]}', [log, shown()]);
 }
+// ---- audit 3.1.331 PUZZLEDB-1: a chess.com daily row whose SAN ends in the game result is imported, not dropped ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/puzzle-db.js', 'utf8'), c);
+    // the importer's SAN -> UCI, as general.js builds it
+    const gsrc = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const g0 = gsrc.indexOf('const sanToUci = (fen, sans) =>'), g1 = gsrc.indexOf('\n                };', g0) + 19;
+    const sanToUci = vm.runInContext('(() => { ' + gsrc.slice(g0, g1) + ' return sanToUci; })()', c);
+    const fen = '2b1r2k/4q1p1/1p5p/1P5P/1N1N4/R1P2RP1/2Q2KP1/4r3 b -';
+    const row = (sans) => [fen, 'daily-55', '', fen + ' - 0 1', sans, '', '', '', '', '', ''];
+    const rec = (sans) => JSON.stringify(c.PuzzleDB.ccRowToRecord(row(sans), sanToUci));
+    const want = JSON.stringify(['2b1r2k/4q1p1/1p5p/1P5P/1N1N4/R1P2RP1/2Q2KP1/4r3 b', {s: 'e1f1 f2f1 e7e1'}]);
+    ok('PUZZLEDB-1: daily-55 as published ("Rf1+ Kxf1 Qe1# 0-1") is stored with its solution', rec('Rf1+ Kxf1 Qe1# 0-1') === want, rec('Rf1+ Kxf1 Qe1# 0-1'));
+    ok('PUZZLEDB-1: ...the same with 1-0, 1/2-1/2, * and move numbers in the list', ['1-0', '1/2-1/2', '*'].every(r => rec('Rf1+ Kxf1 Qe1# ' + r) === want) && rec('1... Rf1+ 2. Kxf1 Qe1#') === want);
+    ok('PUZZLEDB-1: a row with a variation in parentheses is still skipped (its main line is ambiguous)', rec('Rf1+ Kxf1 Qe1#) Qe1+') === 'null', rec('Rf1+ Kxf1 Qe1#) Qe1+'));
+    ok('PUZZLEDB-1: an unplayable SAN still drops the row', rec('Rf1+ Kxf1 Qe9#') === 'null');
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
