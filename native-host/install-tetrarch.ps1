@@ -46,15 +46,26 @@ The C core has to be built for Windows before any of this works. Under MSYS2 (mi
 }
 
 # --- a python that can run the host --------------------------------------------------------------
-$py = $null
-foreach ($c in @('py', 'python')) {
-    $found = Get-Command $c -ErrorAction SilentlyContinue
-    if ($found) { $py = $found.Source; break }
+# (audit 3.1.331 INSTALLPS1-2) RUN, not just looked up, and picked the way tetrarch-host.bat picks it:
+# `py -3` whenever py exists, `python` only when it does not. Get-Command alone passed the Microsoft
+# Store's python.exe alias, on PATH by default with no Python behind it, and a Python without numpy,
+# which the engine needs and which Tetrarch's setup.sh installs into MSYS2's python3, not this one.
+# Neither run redirects stderr: Windows PowerShell 5.1 under Stop makes redirected stderr terminating.
+$py = $null; $pyArgs = @()
+if (Get-Command py -ErrorAction SilentlyContinue) { $py = 'py'; $pyArgs = @('-3') }
+elseif (Get-Command python -ErrorAction SilentlyContinue) { $py = 'python' }
+if ($py) {
+    $null = & $py @pyArgs -c 'import sys'
+    if ($LASTEXITCODE -ne 0) { $py = $null }
 }
-if (-not $py) { Write-Error 'No Python found on PATH -- install Python 3 from python.org (tick "Add to PATH").' }
-# `py` needs -3 to start the interpreter tetrarch-host.bat starts.
-$pyArgs = @()
-if ((Split-Path -Leaf $py) -ieq 'py.exe') { $pyArgs = @('-3') }
+if (-not $py) {
+    Write-Error 'No working Python 3 found -- install Python 3 from python.org (tick "Add to PATH"). The "python" that opens the Microsoft Store is only an alias.'
+}
+$pyCmd = (@($py) + $pyArgs) -join ' '
+$null = & $py @pyArgs -c 'import sys; sys.stderr = sys.stdout; import numpy'
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "numpy is missing from the Python the host runs ($pyCmd). Install it with:  $pyCmd -m pip install numpy"
+}
 
 # --- the DLL has to LOAD, not just exist ---------------------------------------------------------
 # (audit 3.1.331 INSTALLPS1-1) A mingw-w64 build without -static imports libwinpthread-1.dll, which

@@ -624,7 +624,8 @@ powershell -ExecutionPolicy Bypass -File native-host\install-tetrarch.ps1 -ExtId
 ```
 
 Add `-Tetrarch C:\path\to\Tetrarch` if the checkout isn't beside the Mephisto folder (in the same parent folder). No
-administrator rights needed; Python 3 must be on `PATH`.
+administrator rights needed; Python 3 must be on `PATH`, with numpy in it (`py -3 -m pip install numpy`): setup.sh
+installs numpy into MSYS2's Python, not that one.
 
 > The Windows path is **built and symbol-checked but not yet run on a real Windows machine**. If something
 > misbehaves, [please open an issue](https://github.com/IchNukeDichWeg/Mephisto/issues/new/choose) - see
