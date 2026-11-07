@@ -3751,6 +3751,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         var last_eval = {fen: ${JSON.stringify(START)}, lines: [{pv: 'd4c5'}]};
         var PANEL_ROOT = {getElementById: () => null}; var board = {position() {}};
         function i18n(k, d) { return d; } function setup_fen_msg() {} function abandon_search() {} function update_turn_badge() {} function render_panel_line() {}
+        function stash_setup_state() {}
         function pv_moves(pv) { return String(pv || '').split(' ').filter(Boolean); }
         function on_new_pos(fen) { shown.push(fen); last_eval = {fen, lines: [{pv: fen.includes(' b ') ? 'e7c5' : 'b2b4'}]}; }
         ${code}`, c);
@@ -12854,6 +12855,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('POPUP2-5: ...a slower one still collapses to the 200 ms floor', JSON.stringify(slow) === '{"think_time":0,"think_variance":0,"move_time":200,"move_variance":0}', slow);
     const edge = pace({think_time: 0, think_variance: 0, move_time: 150, move_variance: 100});
     ok('POPUP2-5: ...as does one whose variance can carry it past the floor', edge.move_time === 200 && edge.move_variance === 0, edge);
+}
+// ---- audit 3.1.331 POPUP2-6: walking the panel line stashes the walked-to position, so a panel rebuild restores it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.search(new RegExp('^function ' + name + '\\(', 'm')); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const store = {};
+    const c = vm.createContext({JSON, MephistoConfig: {get: (k) => store[k], set: (k, v) => { store[k] = v; }}});
+    const base = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const f1 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+    const f2 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2';
+    let err = null;
+    try {
+        vm.runInContext(`const SETUP_STASH_KEY = 'setup_stash';
+            var setup_fen = ${JSON.stringify(f2)}, snap_crop = null, setup_view = null, snap_flipped = false, turn = 'w', last_eval = {}, prev_ply_count,
+                explorer_out_of_book, explorer_data, explorer_empty_streak, panel_line_idx = 1, shown = null;
+            var panel_line_base = ${JSON.stringify(base)}, panel_line = [{fen: ${JSON.stringify(f1)}}, {fen: ${JSON.stringify(f2)}}];
+            var PANEL_ROOT = {getElementById: () => null}, board = {position() {}, orientation() {}};
+            var setup_fen_msg = () => {}, abandon_search = () => {}, update_turn_badge = () => {}, render_panel_line = () => {},
+                update_snap_follow_button = () => {}, is_legal_position = () => true, on_new_pos = (f) => { shown = f; };`
+            + ['stash_setup_state', 'restore_setup_state', 'panel_line_goto'].map(fn).join('\n'), c);
+        vm.runInContext('stash_setup_state(); panel_line_goto(0); setup_fen = null; shown = null; restore_setup_state();', c);
+    } catch (e) { err = e.message; }
+    const back = err ? err : vm.runInContext('[setup_fen, shown]', c);
+    ok('POPUP2-6: a rebuild after walking back one move restores the walked-to position, not the line\'s tip',
+       !err && back[0] === f1 && back[1] === f1, back);
+    if (!err) vm.runInContext('panel_line_goto(-1); setup_fen = null; restore_setup_state();', c);
+    ok('POPUP2-6: ...and walking to the line\'s start stashes that too', !err && vm.runInContext('setup_fen', c) === base, err || vm.runInContext('setup_fen', c));
 }
 // ==== END FIX CHECKS ====
 

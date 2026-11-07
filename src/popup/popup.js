@@ -4796,6 +4796,9 @@ function panel_line_goto(idx) {
     if (!fen) return;
     panel_line_idx = idx;
     setup_fen = fen;
+    // stashed like every other setup_fen change, or an Engine/Variant/Elo rebuild restored the line's
+    // tip instead of the position walked back to (audit 3.1.331 POPUP2-6)
+    stash_setup_state();
     const input = PANEL_ROOT.getElementById('setup_fen_input');
     if (input) input.value = fen;
     const row = PANEL_ROOT.getElementById('setup-fen-row');
