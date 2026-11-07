@@ -43,15 +43,21 @@ class AppearanceSettings extends SettingsPage {
         // answerable. These are Okabe-Ito, the standard eight-hue set chosen to stay distinct under
         // every common form; the families past the eighth take neutrals, since there are more arrow
         // families than there are hues that survive.
-        // ponytail: eight hues, fifteen families -- the four least likely to share a board take grey.
+        // ponytail: fifteen families -- the eight Okabe-Ito colours (black is one), three greys and
+        // four dark or saturated extras. Every family gets its OWN colour: tablebase used to repeat
+        // line 3's orange and refutation the threat's vermillion, and each of those pairs is drawn
+        // together (audit 3.1.331 APPEARANCE-1). The new ones were picked by worst CIELAB distance
+        // under simulated deutan, protan and tritan vision (Machado 2009): violet tablebase >= 33
+        // from every other family, dark-red refutation >= 31, and forced-theirs moved off human
+        // reply's grey (5 -> 23).
         const COLORBLIND = {
             arrow_color_line1: '#0072b2', arrow_color_line2: '#009e73', arrow_color_line3: '#e69f00',
             arrow_color_line4: '#56b4e9', arrow_color_line5: '#cc79a7',
-            arrow_color_forced_ours: '#f0e442', arrow_color_forced_theirs: '#8c8c8c',
+            arrow_color_forced_ours: '#f0e442', arrow_color_forced_theirs: '#bbbbbb',
             arrow_color_pv_walk: '#5a5a5a', arrow_color_threat: '#d55e00',
             arrow_color_book: '#000000', arrow_color_human_reply: '#7f7f7f',
-            arrow_color_safety_net: '#004c6d', arrow_color_tb: '#e69f00',
-            arrow_color_refute: '#d55e00', arrow_color_human_error: '#332288',
+            arrow_color_safety_net: '#004c6d', arrow_color_tb: '#9900ff',
+            arrow_color_refute: '#772200', arrow_color_human_error: '#332288',
         };
         document.getElementById('arrow_colorblind')?.addEventListener('click', () => {
             // JSON.stringify, like every other setting: the panel reads these with JSON.parse, so a

@@ -14271,6 +14271,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('GENERAL-3: out of space, the line left on screen is MPH-T06 (marked bad), with the counts after it', /^\[BAD\] ERR MPH-T06 \d+ downloaded/.test(last) && /failed\. Press Check to verify\.$/.test(last), last);
     ok('GENERAL-3: ...not the "Stopped." summary a pressed Stop gives', !/Stopped\./.test(last), last);
 })();
+// ---- audit 3.1.331 APPEARANCE-1: the colour-blind palette gives every arrow family its own colour ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.js', 'utf8');
+    const CB = vm.runInNewContext('(' + /const COLORBLIND = (\{[\s\S]*?\});/.exec(aj)[1] + ')');
+    const fams = [...aj.matchAll(/\['(arrow_color_\w+)', '#[0-9a-f]{6}'\]/g)].map(m => m[1]);
+    ok('APPEARANCE-1: the palette sets exactly the families the page has', fams.length === 15
+       && Object.keys(CB).sort().join() === fams.sort().join(), Object.keys(CB));
+    const by = {};
+    for (const [k, v] of Object.entries(CB)) (by[v.toLowerCase()] ||= []).push(k);
+    const dup = Object.values(by).filter(ks => ks.length > 1);
+    ok('APPEARANCE-1: no two families share a colour (tablebase was line 3, refutation was the threat)', !dup.length, dup);
+    const rgb = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+    const dist = (a, b) => Math.hypot(...rgb(CB[a]).map((x, n) => x - rgb(CB[b])[n]));
+    ok('APPEARANCE-1: ...and the greys sit well apart (forced-theirs vs human reply was 22.5 RGB units)',
+       dist('arrow_color_forced_theirs', 'arrow_color_human_reply') > 60 && dist('arrow_color_pv_walk', 'arrow_color_human_reply') > 60,
+       [dist('arrow_color_forced_theirs', 'arrow_color_human_reply'), dist('arrow_color_pv_walk', 'arrow_color_human_reply')]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
