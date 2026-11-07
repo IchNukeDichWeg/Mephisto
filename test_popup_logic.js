@@ -13120,6 +13120,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('CONTENT1-3: ...graded counts still win when present (a graded-clean side stays "clean")',
        named === 'White 71% · 1 blunderBlack 71% · clean' && /2 mistakes/.test(g), [named, g]);
 }
+// ---- audit 3.1.331 CONTENT2-1: a 4PC pawn CAPTURE writes no en-passant field (was 'NaN:<sq>', which Tetrarch refuses) ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = csrc.indexOf('const FOURPC_SEATS = '), e = csrc.indexOf('function fourPCEnPassant('), b = csrc.indexOf('\n}\n', e) + 3;
+    const c = vm.createContext({console, Set, Math, parseInt, JSON, location: {pathname: '/variants/4-player-chess/game/1'}, site: 'chesscom'});
+    vm.runInContext('var lastScrapeFail;' + csrc.slice(a, b), c);
+    const ep = (board, prev) => vm.runInContext(`fourPCEnPassant(${JSON.stringify(board)}, ${JSON.stringify(prev)})`, c);
+    const P = (seat) => ({seat, type: 'P'});
+    const red = ep({f3: P('R'), h1: {seat: 'R', type: 'K'}}, {e2: P('R'), f3: {seat: 'B', type: 'N'}, h1: {seat: 'R', type: 'K'}});
+    ok('CONTENT2-1: Red pawn e2xf3 leaves every en-passant field empty', JSON.stringify(red) === '["","","",""]', red);
+    const blue = ep({c6: P('B')}, {b5: P('B'), c6: {seat: 'Y', type: 'B'}});
+    ok('CONTENT2-1: ...so does a Blue pawn capture b5xc6', JSON.stringify(blue) === '["","","",""]', blue);
+    ok('CONTENT2-1: a Red double push still writes e3:e4', JSON.stringify(ep({e4: P('R')}, {e2: P('R')})) === '["e3:e4","","",""]', ep({e4: P('R')}, {e2: P('R')}));
+    ok('CONTENT2-1: a Blue double push along the rank still writes c7:d7', JSON.stringify(ep({d7: P('B')}, {b7: P('B')})) === '["","c7:d7","",""]', ep({d7: P('B')}, {b7: P('B')}));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

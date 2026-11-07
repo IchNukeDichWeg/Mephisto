@@ -3391,9 +3391,14 @@ function fourPCEnPassant(board, prev) {
     if (d.arrived !== 1 || d.vacated !== 1) return ep;
     const to = d.to, from = d.from, moved = d.moved;
     if (!moved || moved.type !== 'P') return ep;
+    // fourPCDiff counts a CAPTURE as arrived 1 / vacated 1 too (its destination changed occupant),
+    // so the count above no longer rules one out: the destination must have been empty. A diagonal
+    // pawn capture also passes |df|+|dr| === 2 and then halves df=+-1 into FOURPC_FILES[x.5], which
+    // wrote 'NaN:f3' into the FEN4 and Tetrarch refused the position (audit 3.1.331 CONTENT2-1).
+    if (prev[to]) return ep;
     const f = (sq) => sq.replace(/\d+$/, ''), r = (sq) => parseInt(sq.match(/\d+$/)[0], 10);
     const df = FOURPC_FILES.indexOf(f(to)) - FOURPC_FILES.indexOf(f(from)), dr = r(to) - r(from);
-    if (Math.abs(df) + Math.abs(dr) !== 2) return ep;          // not a two-square push
+    if (Math.abs(df) + Math.abs(dr) !== 2 || (df !== 0 && dr !== 0)) return ep;   // not a straight two-square push
     const mid = (df !== 0)
         ? FOURPC_FILES[FOURPC_FILES.indexOf(f(from)) + df / 2] + r(from)
         : f(from) + (r(from) + dr / 2);
