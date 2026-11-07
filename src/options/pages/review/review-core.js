@@ -70,14 +70,18 @@ function parseGame(text) {
     const tags = parseTags(tagBlock);
     let movetext = firstMove < 0 ? '' : text.slice(firstMove);
 
-    // comments are pulled out BEFORE variations are stripped: a `(` inside a comment is text
+    // comments are pulled out BEFORE variations are stripped: a `(` inside a comment is text.
+    // Brace and `;` rest-of-line comments go in ONE left-to-right pass, whichever opens first: with
+    // the `;` ones removed after the variations, a `(` in one opened a variation that never closed
+    // and a `{` in one swallowed the moves up to the next `}`, both cutting the game short without
+    // a word (audit 3.1.331 REVIEWCORE-2).
     const comments = [];
-    movetext = movetext.replace(/\{([^}]*)\}/g, (m, body) => {
+    movetext = movetext.replace(/\{([^}]*)\}|;[^\n]*/g, (m, body) => {
+        if (body === undefined) return ' ';                // rest-of-line comment: dropped
         comments.push(body);
         return ` ${comments.length - 1} `;
     });
     movetext = stripVariations(movetext);
-    movetext = movetext.replace(/;[^\n]*/g, ' ');          // rest-of-line comment
     movetext = movetext.replace(/\$\d+/g, ' ');            // NAGs
     movetext = movetext.replace(/\d+\s*\.(\s*\.\.)?/g, ' ');  // move numbers, incl. black's "12..." and "12. ..."
 

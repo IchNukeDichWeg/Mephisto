@@ -13472,6 +13472,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        Core.evidence(pre, {}).filter(e => e.key === 'fast'));
     ok('REVIEWCORE-1: ...and the same game with the opening at normal speed counts the same quick real moves', slow.fastN === 5 && slow.fastTop1 === 0.4, [slow.fastN, slow.fastTop1]);
 }
+// ---- audit 3.1.331 REVIEWCORE-2: a ';' comment holding '(' or '{' does not cut the game short ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const one = (t) => c.MephistoReviewCore.parsePgn(t)[0];
+    const sans = (t) => one(t).moves.map(m => m.san).join(' ');
+    ok('REVIEWCORE-2: a "(" inside a ";" comment is comment text, not a variation that swallows the game',
+       sans('[Event "x"]\n[Result "*"]\n\n1. e4 e5 ; best by test (Fischer\n2. Nf3 Nc6 3. Bb5 a6 *') === 'e4 e5 Nf3 Nc6 Bb5 a6',
+       sans('[Event "x"]\n[Result "*"]\n\n1. e4 e5 ; best by test (Fischer\n2. Nf3 Nc6 3. Bb5 a6 *'));
+    const g = one('[Event "x"]\n\n1. e4 e5 ; a {brace\n2. Nf3 {[%clk 0:01:00]} Nc6 3. Bb5 a6 *');
+    ok('REVIEWCORE-2: ...and a "{" inside one does not eat the moves and clocks up to the next "}"',
+       g.moves.map(m => m.san).join(' ') === 'e4 e5 Nf3 Nc6 Bb5 a6' && g.moves[2].clk === 60, g.moves.map(m => [m.san, m.clk]));
+    const b = one('1. e4 {a ; b} e5 (1... c5 ; x\n) 2. Nf3 *');
+    ok('REVIEWCORE-2: ...a ";" inside a brace comment is still brace text, and variations still drop',
+       b.moves.map(m => m.san).join(' ') === 'e4 e5 Nf3' && b.moves[0].comment === 'a ; b', b.moves.map(m => [m.san, m.comment]));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
