@@ -14606,6 +14606,76 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('ENGINES-3: a configure the dead host never answered fails the request, and the next request configures again',
        err && /native host unavailable/.test(err.message) && last.got[0]?.cmd === 'configure' && last.got[1]?.cmd === 'analyse', [err && err.message, last.got.map(m => m.cmd)]);
 })().catch(e => { fails++; console.log('FAIL ENGINES-3 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 SYZYGY-1: the local tablebase answer counts the halfmove clock (a 50-move save is blessed-loss, not loss) ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const cut = (s, from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const c = vm.createContext({console: {log() {}, warn() {}}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/syzygy.js', 'utf8'), c);
+    const S = c.MephistoSyzygy;
+    // KQvKP, Black to move and lost on the tables (dtz -8); every reply wins for White in 7 plies.
+    // At clock 93 only the pawn push b4b3 (clock back to 0) hands White the win; every king move
+    // leaves 94 + 7 = 101 plies, so the 50-move rule saves Black (lichess: blessed-loss, a5a4 first).
+    const FEN = (clock) => `7K/8/8/k7/1p6/8/7Q/8 b - - ${clock} 80`;
+    const answer = (clock, wdlOnly) => {
+        const tb = new S.Tablebase(c.Chess);
+        tb.probeWdl = (b) => (b.turnWhite() ? 2 : -2);
+        tb.probeDtz = (b) => { if (wdlOnly) throw new S.DtzAbsentError('KQvKP'); return b.turnWhite() ? 7 : -8; };
+        try { return tb.probeResponse(FEN(clock)); } catch (e) { return {error: String(e.message)}; }
+    };
+    const r = answer(93);
+    const kingMoves = (r.moves || []).filter(m => m.uci !== 'b4b3');
+    ok('SYZYGY-1: at halfmove 93 a lost root the 50-move rule saves reads blessed-loss (it read loss)', r.category === 'blessed-loss', r.category);
+    ok('SYZYGY-1: ...the zeroing pawn push stays a win for them, every king move is a cursed win',
+       r.moves?.find(m => m.uci === 'b4b3')?.category === 'win' && kingMoves.length > 0 && kingMoves.every(m => m.category === 'cursed-win'),
+       r.moves?.map(m => m.uci + ' ' + m.category));
+    // the online dtm merge gives every move a mate distance; the longest mate is the pawn push
+    for (const m of r.moves || []) m.dtm = m.uci === 'b4b3' ? 21 : 19;
+    if (S.sortMovesLikeLichess) S.sortMovesLikeLichess(r.moves || []);
+    ok('SYZYGY-1: ...so with dtm merged the top move keeps the save (it played b4b3 into the loss)', r.moves?.[0]?.uci !== 'b4b3', r.moves?.[0]);
+    const r0 = answer(0);
+    ok('SYZYGY-1: at halfmove 0 the verdicts are the plain tables (loss, every reply a win)',
+       r0.category === 'loss' && r0.moves?.every(m => m.category === 'win'), [r0.category, r0.moves?.map(m => m.category)]);
+    const rw = answer(93, true);
+    ok('SYZYGY-1: with no DTZ table (WDL only) the clock cannot apply and the WDL verdict stands',
+       rw.category === 'loss' && rw.moves?.every(m => m.category === 'win' && m.dtz === null), [rw.category, rw.moves?.[0]]);
+    // a WDL-only local answer whose distances come from the online merge is judged by the clock too
+    Object.assign(c, {setTimeout, clearTimeout, AbortController});
+    try { vm.runInContext(`var TABLEBASE_HOST = 'https://tb', lichess_blocked = () => false, lichess_note_response = () => {};
+        var fetch = async () => ({ok: true, json: async () => ({dtm: -21, dtz: -9, category: 'blessed-loss', moves: [
+            {uci: 'b4b3', category: 'win', dtz: 7, dtm: 21}, {uci: 'a5a4', category: 'cursed-win', dtz: 8, dtm: 19}]})});\n`
+        + cut(bg, 'async function tbMergeOnlineDtm(', '\n}\n') + '\n}\nthis.merge = tbMergeOnlineDtm;', c); }
+    catch (e) { console.log('slice threw: ' + e.message); }
+    (async () => {
+        const local = {category: 'loss', dtz: null, source: 'local', moves: [
+            {uci: 'b4b3', category: 'win', dtz: null, zeroing: true}, {uci: 'a5a4', category: 'win', dtz: null, zeroing: false}]};
+        try { await c.merge(local, FEN(93), 'standard'); } catch (e) { local.err = String(e.message); }
+        ok('SYZYGY-1: a WDL-only answer given online distances reads blessed-loss and ranks the saving king move first',
+           local.category === 'blessed-loss' && local.moves[0].uci === 'a5a4' && local.moves[0].category === 'cursed-win', local);
+    })();
+    // the native host's do_tbprobe, run over a stub tablebase that answers like the one above
+    const py = `import ast, sys, os
+src = open(sys.argv[1], encoding='utf-8-sig').read()
+keep = {'_tb_cache', '_TB_CATEGORY', '_tb_halfmove_category', 'do_tbprobe'}
+body = [n for n in ast.parse(src).body if (isinstance(n, ast.FunctionDef) and n.name in keep)
+        or (isinstance(n, ast.Assign) and any(getattr(t, 'id', '') in keep for t in n.targets))]
+g = {'os': os}
+exec(compile(ast.Module(body=body, type_ignores=[]), 'host', 'exec'), g)
+class TB:
+    def probe_wdl(self, b): return 2 if b.turn else -2
+    def probe_dtz(self, b): return 7 if b.turn else -8
+g['_tb_open'] = lambda p: TB()
+r = g['do_tbprobe']({'fen': sys.argv[2], 'path': 'x'})
+print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorted(set(m['category'] for m in r['moves'] if m['uci'] != 'b4b3'))),
+      next(m['category'] for m in r['moves'] if m['uci'] == 'b4b3'))`;
+    const hr = require('child_process').spawnSync('python3', ['-I', '-B', '-c', py, ROOT + '/native-host/uci-native-host.py', FEN(93)], {encoding: 'utf8'});
+    if (/No module named 'chess'/.test(hr.stderr || '')) console.log('ok   SYZYGY-1: native host check skipped (no python-chess)');
+    else ok('SYZYGY-1: the native host answers the same: blessed-loss root, king moves cursed-win, the pawn push a win',
+            /^blessed-loss \S+ cursed-win win$/.test((hr.stdout || '').trim()), (hr.stdout || '') + (hr.stderr || '').slice(-300));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

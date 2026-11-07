@@ -1218,11 +1218,21 @@ async function tbMergeOnlineDtm(local, fen, path) {
     const byUci = new Map(online.moves.map(m => [m.uci, m]));
     const withDtm = typeof online.dtm === 'number';
     if (withDtm) local.dtm = online.dtm;
-    if (local.dtz == null && typeof online.dtz === 'number') local.dtz = online.dtz;
+    // a distance filled in here lets the halfmove clock judge the verdict, as probeResponse does when
+    // the local set has the DTZ table itself (audit 3.1.331 SYZYGY-1)
+    const {halfmoveCategory} = self.MephistoSyzygy;
+    const clock = parseInt(fen.split(' ')[4], 10) || 0;
+    if (local.dtz == null && typeof online.dtz === 'number') {
+      local.dtz = online.dtz;
+      local.category = halfmoveCategory(local.category, local.dtz, clock);
+    }
     for (const m of local.moves) {
       const o = byUci.get(m.uci);
       if (withDtm && typeof o?.dtm === 'number') m.dtm = o.dtm;
-      if (m.dtz == null && typeof o?.dtz === 'number') m.dtz = o.dtz;
+      if (m.dtz == null && typeof o?.dtz === 'number') {
+        m.dtz = o.dtz;
+        m.category = halfmoveCategory(m.category, m.dtz, m.zeroing ? 0 : clock + 1);
+      }
     }
     self.MephistoSyzygy.sortMovesLikeLichess(local.moves);
   } catch (e) { /* offline / aborted: the local answer stands alone */ }

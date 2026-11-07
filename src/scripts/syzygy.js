@@ -1200,6 +1200,7 @@ class Tablebase {
         };
         const wdl = this.probeWdl(board);
         const dtz = dtzOrNull(board);
+        const clock = board.halfmoveClock();
 
         const moves = [];
         for (const mv of board.allMoves()) {
@@ -1213,16 +1214,29 @@ class Tablebase {
             } finally {
                 board.pop();
             }
+            const zeroing = mv.flags.includes('c') || mv.flags.includes('e') || mv.piece === 'p';
             moves.push({
                 uci: mv.lan, san: mv.san,
-                category: CATEGORY[String(childWdl)] || 'unknown', dtz: childDtz,
-                checkmate: mate, stalemate: stale,
-                zeroing: mv.flags.includes('c') || mv.flags.includes('e') || mv.piece === 'p',
+                category: halfmoveCategory(CATEGORY[String(childWdl)] || 'unknown', childDtz, zeroing ? 0 : clock + 1),
+                dtz: childDtz, checkmate: mate, stalemate: stale, zeroing,
             });
         }
         sortMovesLikeLichess(moves);
-        return {category: CATEGORY[String(wdl)] || 'unknown', dtz, moves, source: 'local'};
+        return {category: halfmoveCategory(CATEGORY[String(wdl)] || 'unknown', dtz, clock), dtz, moves, source: 'local'};
     }
+}
+
+// The tables answer for a position reached by a zeroing move (halfmove clock 0); the board's own
+// clock is what decides the 50-move rule. A win whose zeroing move lies more than 100 plies past
+// the clock is a 50-move draw, as lila-tablebase reports it: cursed-win / blessed-loss. Each move is
+// judged at its child's clock (0 after a capture or pawn move, clock + 1 otherwise), so a losing
+// side is no longer steered into a zeroing move that gives up the save, and the auto-resign veto
+// sees the saved position (audit 3.1.331 SYZYGY-1). With no distance (a WDL-only set) the clock
+// cannot apply and the pure WDL verdict stands. dtz can read one ply short (python-chess's
+// rounding), so a position exactly on the edge may still read win/loss.
+function halfmoveCategory(category, dtz, clock) {
+    if (typeof dtz !== 'number' || !(clock > 0) || clock + Math.abs(dtz) <= 100) return category;
+    return category === 'win' ? 'cursed-win' : category === 'loss' ? 'blessed-loss' : category;
 }
 
 // lila-tablebase's MoveInfo::sort_key, translated. Each move's fields are from the perspective
@@ -1251,7 +1265,7 @@ function sortMovesLikeLichess(moves) {
     return moves;
 }
 
-const api = {Tablebase, ShimBoard, MissingTableError, DtzAbsentError, isTablename, normalizeTablename, tableDependencies, calcKey, sortMovesLikeLichess, TBW_MAGIC, TBZ_MAGIC};
+const api = {Tablebase, ShimBoard, MissingTableError, DtzAbsentError, isTablename, normalizeTablename, tableDependencies, calcKey, sortMovesLikeLichess, halfmoveCategory, TBW_MAGIC, TBZ_MAGIC};
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 else self.MephistoSyzygy = api;
 
