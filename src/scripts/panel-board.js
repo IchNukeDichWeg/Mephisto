@@ -255,7 +255,17 @@
         // Re-render once on the next frame, when layout has settled. Cheap and self-healing.
         requestAnimationFrame(() => render());
         return {
-            position(arg) { if (arg === undefined) return {...pos}; pos = fenToObj(arg); render(); },
+            position(arg) {
+                if (arg === undefined) return {...pos};
+                const next = fenToObj(arg);
+                // The dots were worked out for the old position and the next click is submitted from
+                // `selected`, so a NEW placement (the site's move) drops both: kept, they showed stale
+                // moves and a click on one played from a square that may now be empty or hold another
+                // piece. The same placement re-rendered keeps them (audit 3.1.331 PANELBOARD-1).
+                const key = (o) => Object.keys(o).sort().map(k => k + o[k]).join();
+                if (key(next) !== key(pos)) { selected = null; targets = []; }
+                pos = next; render();
+            },
             orientation(o) { if (o === undefined) return orientation; orientation = o; render(); },
             resize() { render(); },
             clearSelection() { if (selected) { selected = null; render(); } },

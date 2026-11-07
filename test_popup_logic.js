@@ -15332,6 +15332,37 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
     const b = await run(true);
     ok('PUZPROBE-2: ...and a body the page reads with res.json() is still emitted once', b.wheres.length === 1 && b.parsed === 1, b);
 })().catch(e => { fails++; console.log('FAIL PUZPROBE-2 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 PANELBOARD-1: a new position on the panel board drops the old selection and its dots ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pb = fs.readFileSync(ROOT + '/src/scripts/panel-board.js', 'utf8');
+    const el = (tag) => ({tag, style: {}, classList: [], children: [], on: {}, className: '',
+        appendChild(c) { this.children.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; }, remove() { this.gone = true; }});
+    const host = el('div'); host.clientWidth = 400;
+    Object.defineProperty(host, 'innerHTML', {set() { host.children = []; }});
+    const c = vm.createContext({Math, requestAnimationFrame() {}, window: {addEventListener() {}, removeEventListener() {}},
+        document: {createElement: el, body: el('body')}});
+    c.self = c;
+    vm.runInContext(pb, c);
+    const log = [];
+    const b = c.MephistoBoard(host, {position: 'start', onMove: (f, t) => { log.push(f + t); return true; },
+        legalTargets: (sq) => sq === 'e2' ? ['e3', 'e4'] : []});
+    const sq = (alg) => host.children[0].children[8 - +alg[1]].children['abcdefgh'.indexOf(alg[0])];   // white at the bottom
+    const shown = () => { const sel = [], dots = [];
+        for (const f of 'abcdefgh') for (let r = 1; r <= 8; r++) { const s = sq(f + r);
+            if (s.style.boxShadow) sel.push(f + r);
+            if (s.children.some(x => x.tag === 'div')) dots.push(f + r); }
+        return {sel, dots: dots.sort()}; };
+    sq('e2').on.click();
+    ok('PANELBOARD-1: clicking e2 selects it and dots e3 and e4', JSON.stringify(shown()) === '{"sel":["e2"],"dots":["e3","e4"]}', shown());
+    b.position(b.position());
+    ok('...a same-position re-render keeps the selection', JSON.stringify(shown()) === '{"sel":["e2"],"dots":["e3","e4"]}', shown());
+    b.position('rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2');
+    ok('PANELBOARD-1: a new position drops the highlight and the dots worked out for the old one',
+       JSON.stringify(shown()) === '{"sel":[],"dots":[]}', shown());
+    sq('e3').on.click();
+    ok('...and a click on a stale dot plays no move from the now-empty e2', log.length === 0, log);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
