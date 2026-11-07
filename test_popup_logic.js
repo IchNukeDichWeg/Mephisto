@@ -13269,6 +13269,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('...status, ok and headers reach the caller unchanged', g.status === 429 && g.ok === false && g.headers.get('Retry-After') === '7' && await g.text() === 'slow down', g.status);
     } finally { srv.closeAllConnections && srv.closeAllConnections(); srv.close(); }
 })().catch(e => { fails++; console.log('FAIL BACKGROUND-4 check threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 BACKGROUND-5: a Black mate in chess.com's review (a ten-byte negative varint) decodes negative ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const src = b.slice(b.indexOf('// >>> CCR_DECODE_BEGIN'), b.indexOf('// <<< CCR_DECODE_END'));
+    const d = new Function(src + '; return {ccrDecodeReview, ccrWalk};')();
+    // protobuf spec varint (int32/int64: a negative is sign-extended to 64 bits, ten bytes) and a length-delimited field
+    const vi = (n) => { let v = BigInt.asUintN(64, BigInt(n)); const o = []; while (v > 127n) { o.push(Number(v & 127n) | 128); v >>= 7n; } o.push(Number(v)); return o; };
+    const vf = (f, n) => [...vi(f * 8), ...vi(n)], mf = (f, bytes) => [...vi(f * 8 + 2), ...vi(bytes.length), ...bytes];
+    // outer.f2 game -> game.f3 moves -> f3 entry -> f2 annotation (f1 squares, f4.f1 score: f2 mate or f1 zigzag cp, f5 commentary)
+    const review = (scores) => d.ccrDecodeReview(Uint8Array.from(mf(2, mf(3, [].concat(...scores.map(s =>
+        mf(3, mf(2, [...mf(1, [...vf(1, 13), ...vf(2, 29)]), ...mf(4, mf(1, s)), ...mf(5, [])]))))))));
+    const r = review([vf(2, 3), vf(2, -1), vf(2, -3), vf(1, 109)]);
+    const mates = r.moves.map(m => m.mateIn);
+    ok('BACKGROUND-5: White mate 3, Black mates -1 and -3 (ten-byte varints) decode as 3, -1, -3', JSON.stringify(mates.slice(0, 3)) === '[3,-1,-3]', mates);
+    ok('...a zigzag score and the squares still decode as before (109 is -0.55, e2-e4)', r.moves[3].cp === -55 && r.moves[3].mateIn === null && r.moves[0].from === 'e2' && r.moves[0].to === 'e4', r.moves[3]);
+    const five = Uint8Array.from([0x10, 0xff, 0xff, 0xff, 0xff, 0x0f]);   // a uint32-style -1, five bytes
+    ok('...a five-byte uint32-style -1 still reads -1, and a nine-byte positive is unchanged',
+       review([[...five]]).moves[0].mateIn === -1 && d.ccrWalk(Uint8Array.from(vf(1, 2 ** 53 - 1)))[0].v === 2 ** 53 - 1,
+       review([[...five]]).moves[0].mateIn);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

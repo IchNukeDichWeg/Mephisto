@@ -1348,7 +1348,17 @@ function ccrEncodeGameReview(g) {
 // >>> CCR_DECODE_BEGIN  (pure; the ladder slices this and decodes the captured 5107-byte response)
 function ccrWalk(b) {
   const out = []; let i = 0;
-  const varint = () => { let v = 0, s = 0; for (;;) { const x = b[i++]; v += (x & 0x7f) * 2 ** s; if (!(x & 0x80)) return v; s += 7; } };
+  // A TEN-BYTE VARINT IS A NEGATIVE NUMBER. Protobuf sign-extends a negative int32/int64 to 64 bits,
+  // so -1 arrives as 2^64-1, and a double cannot hold that: every small negative rounded to 2^64
+  // and a Black mate read about 1.8e19 (audit 3.1.331 BACKGROUND-5). Only that form is re-read,
+  // exactly, as a signed 64-bit value; every shorter varint decodes as before.
+  const varint = () => {
+    const at = i; let v = 0, s = 0;
+    for (;;) { const x = b[i++]; v += (x & 0x7f) * 2 ** s; if (!(x & 0x80)) break; s += 7; }
+    if (s < 63) return v;
+    let n = 0n; for (let k = i - 1; k >= at; k--) n = (n << 7n) | BigInt((b[k] | 0) & 0x7f);
+    return Number(BigInt.asIntN(64, n));
+  };
   while (i < b.length) {
     const t = varint(), f = t >>> 3, w = t & 7;
     if (w === 0) out.push({f, w, v: varint()});
@@ -1372,6 +1382,8 @@ const ccrZig = (v) => (v == null) ? null : ((v >>> 1) ^ -(v & 1));
 // Mate distance is a PLAIN varint, not zigzag: plies 39-44 of that game decode to 3,2,2,1,1,0,
 // matching our engine's M3,M2,M2,M1,M1 exactly (zigzag would have read the first as -2).
 // Only White mates appear in the capture, so a negative (Black) mate is inferred, not measured.
+// A spec encoder sends it as a ten-byte varint, which ccrWalk already returns negative; the 2^32
+// branch is kept for a five-byte uint32-style form (BACKGROUND-5).
 const ccrSigned = (v) => (v == null) ? null : (v > 0x7fffffff ? v - 0x100000000 : v);
 
 function ccrIsMsg(b) {
