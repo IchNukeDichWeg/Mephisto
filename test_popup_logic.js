@@ -15563,6 +15563,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...the exchange continues on the en passant square, so a retake there makes it a pawn trade', covered === false, covered);
     ok('...a single push onto an attacked square still counts as before', single === true, single);
 }
+// ---- audit 3.1.331 CLASSIFYCORE-2: a recapture that queens inside the exchange counts its promotion ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    const sac = (fen, uci) => vm.runInContext(`self.MephistoClassify.sacrificesMaterial(Chess, 'chess', ${JSON.stringify(fen)}, ${JSON.stringify(uci)})`, c);
+    // 1.Qc8+ Rxc8 2.bxc8=Q+: a queen for a rook and a new queen, White comes out a rook ahead
+    const deflect = sac('3r2k1/1P6/8/8/8/8/2Q5/6K1 w - - 0 1', 'c2c8');
+    // 1.Rb8+ Nxb8 2.axb8=Q: the same with a rook and a knight
+    const rook = sac('7k/P2n4/8/8/8/8/8/1R5K w - - 0 1', 'b1b8');
+    // without the a7 pawn the rook really is given for the knight
+    const plain = sac('7k/3n4/8/8/8/8/8/1R5K w - - 0 1', 'b1b8');
+    ok('CLASSIFYCORE-2: a deflection the mover wins back by queening on the recapture is not a sacrifice', deflect === false, deflect);
+    ok('...the same with Rb8+ Nxb8 axb8=Q', rook === false, rook);
+    ok('...a rook given for a knight with no promotion behind it still counts as offered', plain === true, plain);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

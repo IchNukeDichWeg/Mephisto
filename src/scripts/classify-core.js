@@ -67,12 +67,19 @@ function sacrificesMaterial(Chess, variant, fenBefore, uci) {
         for (let ply = 0; ply < 8; ply++) {
             const caps = c.moves({verbose: true}).filter(m => m.captured && (m.to === sq || (ply === 0 && m.flags.includes('e'))));
             if (!caps.length) break;
-            caps.sort((a, b) => PIECE_VAL[a.piece] - PIECE_VAL[b.piece]);
+            // a pawn capturing onto the last rank comes once per piece, knight first in chess.js: take the queen
+            caps.sort((a, b) => PIECE_VAL[a.piece] - PIECE_VAL[b.piece]
+                || (PIECE_VAL[b.promotion] || 0) - (PIECE_VAL[a.promotion] || 0));
             const cheapest = caps[0];
-            balance.push({side, wins: onSquare, with: PIECE_VAL[cheapest.piece]});
+            // A capture that promotes also wins the pawn-to-piece gain and then stakes the new piece.
+            // Counted as the captured piece alone with a pawn standing, a recapture that queens and
+            // survives (Qc8 Rxc8 bxc8=Q) lost its +8, and the mover's winning deflection read as a
+            // sacrifice and could be graded Brilliant (audit 3.1.331 CLASSIFYCORE-2).
+            const promo = cheapest.promotion ? PIECE_VAL[cheapest.promotion] : 0;
+            balance.push({side, wins: onSquare + (promo ? promo - PIECE_VAL.p : 0), with: PIECE_VAL[cheapest.piece]});
             c.move({from: cheapest.from, to: cheapest.to, promotion: cheapest.promotion});
             sq = cheapest.to;
-            onSquare = PIECE_VAL[cheapest.piece];
+            onSquare = promo || PIECE_VAL[cheapest.piece];
             side = side === 'them' ? 'us' : 'them';
         }
         if (!balance.length) return false;                    // nothing can take: nothing was offered
