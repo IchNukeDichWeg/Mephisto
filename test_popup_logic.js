@@ -15508,6 +15508,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const clr = await settle(c.PuzzleDB.clear('li'));
     ok('PUZZLEDB-3: ...and so does Remove', clr === 'rejected QuotaExceededError', clr);
 })();
+// ---- audit 3.1.331 BOTGAMES-1: Bot Tricks plays only from the standard start, and stops at the first desync ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bsrc = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const at = bsrc.indexOf('func: (req) => {', bsrc.indexOf('async function botExploit('));
+    const body = bsrc.slice(at + 'func: '.length, bsrc.indexOf('\n    },\n  });', at) + 6);
+    const c = vm.createContext({setTimeout}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/bot-games.js', 'utf8'), c);
+    // the page board stand-in: like chess.com's game.move(), a refused SAN does nothing and throws nothing
+    vm.runInContext(`var board; var document = {querySelector: () => board};
+        function setBoard(fen) { const x = new Chess(undefined, fen); board = {chess: x, game: {
+            getPlayingAs: () => 1, getOptions: () => ({flipped: false}), agreeDraw() {},
+            getFEN: () => x.fen(), move: (m) => { try { x.move(m); } catch (e) { /* refused */ } }}}; }
+        var botFunc = ${body};`, c);
+    const scholars = vm.runInContext(`self.MephistoBotGames.find(g => g.id === 'scholars').moves`, c);
+    const run = async (fen, between) => {
+        vm.runInContext(`setBoard(${JSON.stringify(fen)})`, c);
+        const r = vm.runInContext(`botFunc({what: 'mate', moves: ${JSON.stringify(scholars)}, winner: 'white', delay: 0})`, c);
+        if (between) vm.runInContext(between, c);
+        for (let k = 0; k < 20; k++) await new Promise(res => setTimeout(res, 1));
+        return {r, hist: vm.runInContext('board.chess.history()', c), mate: vm.runInContext('board.chess.isCheckmate()', c)};
+    };
+    const std = await run('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+    ok('BOTGAMES-1: from the standard start the line still plays through to mate', std.r.ok && std.mate && std.hist.length === 7, std);
+    const c960 = await run('bbqnnrkr/pppppppp/8/8/8/8/PPPPPPPP/BBQNNRKR w - - 0 1');
+    ok('BOTGAMES-1: a Chess960 start with white to move at move 1 is refused before a move is made',
+       !c960.r.ok && c960.r.why === 'not-move-1' && c960.hist.length === 0, c960);
+    const noCastle = await run('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
+    ok('BOTGAMES-1: a set-up of the start without castling rights is refused too', !noCastle.r.ok && noCastle.r.why === 'not-move-1', noCastle);
+    // a piece moved by hand (1...d5) before the replay's next move: the line's "e5" would now push WHITE's pawn, and
+    // the replay would go on handing moves to the wrong side
+    const desync = await run('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', `board.game.move('d5')`);
+    ok('BOTGAMES-1: a move made on the board mid-replay stops the replay, no line move lands after it',
+       desync.r.ok && JSON.stringify(desync.hist) === JSON.stringify(['e4', 'd5']), desync.hist);
+})().catch(e => { fails++; console.log('FAIL BOTGAMES-1 check threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -1672,6 +1672,11 @@ async function botExploit(tab, req) {
       // is NaN, and NaN > 1 is false -- the load-bearing "start of game" gate silently PASSED on a
       // malformed position. This invariant is what keeps the delivered line aimed at the bot.
       if (f.length < 6 || f[1] !== 'w' || !(Number(f[5]) <= 1)) return {ok: false, why: 'not-move-1', side, fen: before};
+      // THE STANDARD START, not just "white to move at move 1" (audit 3.1.331 BOTGAMES-1). Every line
+      // is legal only from the normal setup, and a set-up position or a Chess960 start carries the same
+      // "w ... 0 1" tail. There the first move can still be legal, the no-effect oracle below passes,
+      // and the rest of the line lands scattered, some of it for the bot's side.
+      if (f[0] !== 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR' || f[2] !== 'KQkq') return {ok: false, why: 'not-move-1', side, fen: before};
       if (!side) return {ok: false, why: 'no-side'};
       // Never played on a hunch: the wrong colour's line hands the mate to the bot instead. A line
       // that ends in a DRAW has no winner and is fine from either side.
@@ -1699,13 +1704,23 @@ async function botExploit(tab, req) {
       // and an MV3 worker sleeps; awaiting it here would tie the whole line to a worker that is
       // allowed to die halfway through. Everything diagnosable was checked above, so what is left
       // is replaying moves already known to be legal from this position.
+      // ...as long as the board is still the line's. A piece dragged during the replay (which also
+      // wakes the bot) or a refused move desyncs it, and from then on the remaining SANs would land by
+      // coincidence, some for the wrong side. So the position is compared before each move and
+      // checked to have changed after it, and the first mismatch stops the replay and skips the
+      // draw claim (audit 3.1.331 BOTGAMES-1).
       const mean = Math.max(0, Math.min(5000, Number(req.delay) || 0));
+      let last = String(game.getFEN() || '');
       (async () => {
         for (let i = 1; i < moves.length; i++) {
           // Jittered, not a metronome. chess.com keeps a per-move clock time in the game archive,
           // and 80 moves at exactly 500ms apart is a signature no human produces.
           await new Promise(r => setTimeout(r, mean * (0.7 + Math.random() * 0.6)));
+          if (String(game.getFEN() || '') !== last) return;
           try { game.move(moves[i]); } catch (e) { return; }
+          const now = String(game.getFEN() || '');
+          if (now === last) return;
+          last = now;
         }
         // The claim goes in here, at the end of the same detached loop, so it lands after the last
         // move rather than 90 moves before it. No pause before it: one was added on the theory that
