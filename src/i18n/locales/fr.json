@@ -785,6 +785,7 @@
   "err.U15": "La mise à jour préparée est incomplète. Appuyez sur « Installer la mise à jour » pour la télécharger à nouveau.",
   "err.U16": "Cette version a été construite pour d'autres fichiers de moteur que ceux de cette installation, et une mise à jour ne peut pas les apporter. Téléchargez le zip complet depuis la page Releases et installez-le à la main.",
   "err.U17": "Ce dossier contient Mephisto v{folder}, mais le Mephisto que Chrome exécute est en v{running}. Choisissez le dossier que chrome://extensions indique pour Mephisto, ou rechargez-y l'extension si vous l'avez mise à jour à la main.",
+  "err.U18": "L'écriture dans le dossier de l'extension s'est arrêtée en cours de route : il contient maintenant des morceaux de deux versions. Appuyez ci-dessous sur Terminer la mise à jour interrompue ou sur Revenir en arrière, selon ce qui s'affiche, pour revenir à une seule version.",
   "err.P01": "C'est le fichier compressé. Décompressez-le d'abord (unzstd lichess_db_puzzle.csv.zst), puis choisissez le .csv.",
   "err.P02": "L'import de la base de problèmes a échoué. Ce qui a déjà été importé est conservé ; relancez-le pour continuer.",
   "err.P03": "Aucun problème n'a été reconnu dans ce fichier. Choisissez lichess_db_puzzle.csv ou un CSV de problèmes Chess.com.",

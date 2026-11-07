@@ -785,6 +785,7 @@
   "err.U15": "A atualização preparada está incompleta. Carrega em «Instalar atualização» para a transferir de novo.",
   "err.U16": "Esta versão foi feita para ficheiros de motor diferentes dos desta instalação, e uma atualização não os pode trazer. Transfere o zip completo da página Releases e instala-o manualmente.",
   "err.U17": "Essa pasta contém o Mephisto v{folder}, mas o Mephisto que o Chrome está a executar é a v{running}. Escolhe a pasta que chrome://extensions mostra para o Mephisto, ou recarrega lá a extensão se a atualizaste à mão.",
+  "err.U18": "A escrita na pasta da extensão parou a meio, por isso ela tem agora partes de duas versões. Carrega em baixo em Concluir atualização interrompida ou Reverter, o que estiver visível, para a deixar numa só.",
   "err.P01": "Esse é o ficheiro comprimido. Descomprime-o primeiro (unzstd lichess_db_puzzle.csv.zst) e escolhe depois o .csv.",
   "err.P02": "A importação da base de problemas falhou. O que já foi importado fica guardado; executa-a de novo para continuar.",
   "err.P03": "Nenhum problema foi reconhecido nesse ficheiro. Escolhe lichess_db_puzzle.csv ou um CSV de problemas do Chess.com.",

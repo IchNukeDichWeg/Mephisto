@@ -1268,13 +1268,17 @@ class GeneralSettings extends SettingsPage {
         // A failure line. A coded error (MPH-U..) shows its translated message and nothing else of
         // the technical detail, which goes to the console; anything uncoded (the browser's own text)
         // keeps `fallback` in front of it, as before. `changed` is the reassurance after a failure
-        // that touched nothing.
+        // that touched nothing -- never after one that stopped part-way through writing the folder
+        // (MPH-U18, `partial`), which did change it (audit 3.1.331 UPDATER-6).
         const oops = (e, fallback, changed) => {
             console.warn('Mephisto updater:', e);
             if (!(e && e.code)) return `${fallback}: ${e?.message || e}`;
             return MephistoI18n.errMsg(e)
-                + (changed ? ' ' + MephistoI18n.t('err.nothing_changed', 'Nothing was changed.') : '');
+                + (changed && !e.partial ? ' ' + MephistoI18n.t('err.nothing_changed', 'Nothing was changed.') : '');
         };
+        // After a failure the buttons on offer can have changed (a write that stopped part-way leaves a
+        // Finish or a Roll Back to press, UPDATER-6), so the section is drawn again, then the line shown.
+        const failed = async (line) => { await render().catch(() => {}); say(line); };
         const buttons = [checkBtn, folderBtn, installBtn, rollbackBtn, resumeBtn].filter(Boolean);
         const current = chrome.runtime.getManifest().version;
         let latest = null; // last release seen, so Install can name it
@@ -1389,7 +1393,7 @@ class GeneralSettings extends SettingsPage {
                     return; // leave the buttons disabled: this page is about to go away
                 }
             } catch (e) {
-                say(oops(e, 'Update failed, and nothing was changed', true));
+                await failed(oops(e, 'Update failed, and nothing was changed', true));
             }
             buttons.forEach(b => b.disabled = false);
         };
@@ -1404,7 +1408,7 @@ class GeneralSettings extends SettingsPage {
                 setTimeout(() => chrome.runtime.reload(), 1500);
                 return; // this page is about to go away
             } catch (e) {
-                say(oops(e, 'Roll back failed, and nothing was changed', true));
+                await failed(oops(e, 'Roll back failed, and nothing was changed', true));
             }
             buttons.forEach(b => b.disabled = false);
         });
@@ -1423,7 +1427,7 @@ class GeneralSettings extends SettingsPage {
                 setTimeout(() => chrome.runtime.reload(), 1500);
                 return;
             } catch (e) {
-                say(oops(e, 'Could not finish the update, and nothing was changed', true));
+                await failed(oops(e, 'Could not finish the update, and nothing was changed', true));
             }
             buttons.forEach(b => b.disabled = false);
         });

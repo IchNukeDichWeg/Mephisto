@@ -785,6 +785,7 @@
   "err.U15": "Das bereitgestellte Update ist unvollständig. Klicke auf „Update installieren“, um es erneut herunterzuladen.",
   "err.U16": "Dieses Release wurde für andere Engine-Dateien gebaut, als diese Installation hat, und ein Update kann sie nicht mitbringen. Lade das vollständige Zip von der Releases-Seite herunter und installiere es von Hand.",
   "err.U17": "Dieser Ordner enthält Mephisto v{folder}, aber Chrome führt Mephisto v{running} aus. Wähle den Ordner, den chrome://extensions für Mephisto anzeigt, oder lade die Erweiterung dort neu, wenn du sie von Hand aktualisiert hast.",
+  "err.U18": "Das Schreiben in den Erweiterungsordner brach mittendrin ab, daher enthält er jetzt Teile zweier Versionen. Drücke unten „Unterbrochenes Update abschließen“ oder „Zurücksetzen“, je nachdem, was angezeigt wird, um wieder eine einzige Version zu haben.",
   "err.P01": "Das ist die komprimierte Datei. Entpacke sie zuerst (unzstd lichess_db_puzzle.csv.zst) und wähle dann die .csv.",
   "err.P02": "Der Import der Taktik-Datenbank ist fehlgeschlagen. Bereits Importiertes bleibt erhalten; starte ihn erneut, um fortzufahren.",
   "err.P03": "In dieser Datei wurden keine Taktikaufgaben erkannt. Wähle lichess_db_puzzle.csv oder eine Chess.com-Aufgaben-CSV.",

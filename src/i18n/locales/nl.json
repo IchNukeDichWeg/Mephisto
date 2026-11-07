@@ -785,6 +785,7 @@
   "err.U15": "De klaargezette update is onvolledig. Klik op 'Update installeren' om hem opnieuw te downloaden.",
   "err.U16": "Deze release is gebouwd voor andere enginebestanden dan deze installatie heeft, en een update kan die niet meebrengen. Download de volledige zip van de Releases-pagina en installeer die handmatig.",
   "err.U17": "Die map bevat Mephisto v{folder}, maar de Mephisto die Chrome draait is v{running}. Kies de map die chrome://extensions voor Mephisto toont, of herlaad de extensie daar als je hem handmatig hebt bijgewerkt.",
+  "err.U18": "Het schrijven naar de extensiemap stopte halverwege, dus die bevat nu delen van twee versies. Druk hieronder op Onderbroken update afronden of Terugdraaien, welke er ook staat, om weer één versie te hebben.",
   "err.P01": "Dat is het gecomprimeerde bestand. Pak het eerst uit (unzstd lichess_db_puzzle.csv.zst) en kies dan de .csv.",
   "err.P02": "Het importeren van de puzzeldatabase is mislukt. Wat al is geïmporteerd blijft bewaard; start de import opnieuw om verder te gaan.",
   "err.P03": "In dat bestand zijn geen puzzels herkend. Kies lichess_db_puzzle.csv of een puzzel-CSV van Chess.com.",

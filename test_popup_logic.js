@@ -4321,7 +4321,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('updater: the wiring that shows it: Settings uses errMsg for the coded error and keeps the console detail',
        (() => { const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
            return /const oops = \(e, fallback, changed\) => \{\s*console\.warn\('Mephisto updater:', e\);[\s\S]{0,300}MephistoI18n\.errMsg\(e\)/.test(g)
-               && /say\(oops\(e, 'Update failed, and nothing was changed', true\)\)/.test(g) && /say\(oops\(e, 'Could not use that folder', false\)\)/.test(g); })());
+               && /(say|failed)\(oops\(e, 'Update failed, and nothing was changed', true\)\)/.test(g) && /say\(oops\(e, 'Could not use that folder', false\)\)/.test(g); })());
     // ---- the panel: a coded engine message (a model download, MPH-N..) is shown as its registry line ----
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     const hs = psrc.indexOf('const err_line ='), helpers = psrc.slice(hs, psrc.indexOf('// Background-play tracing from the PANEL side', hs));
@@ -15033,6 +15033,98 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
        front.pages.join() === 'settings/general' && late.pages.join() === 'settings/general' && behind.pages.length === 0,
        [front.pages, late.pages, behind.pages]);
 })().catch(e => { fails++; console.log('FAIL UPDATER-5 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.331 UPDATER-6: a write failure part-way through putting files in place is MPH-U18, never "nothing was changed" ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const upSrc = fs.readFileSync(ROOT + '/src/scripts/updater.js', 'utf8');
+    const enc = (s) => new TextEncoder().encode(s), dec = (b) => new TextDecoder().decode(b);
+    const mkdir = () => {
+        const kids = new Map();
+        return {kind: 'directory', kids, name: 'Mephisto', queryPermission: async () => 'granted', requestPermission: async () => 'granted',
+            getDirectoryHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = mkdir()); if (!k || k.kind !== 'directory') throw new Error('NotFoundError'); return k; },
+            getFileHandle: async (n, o = {}) => { let k = kids.get(n); if (!k && o.create) kids.set(n, k = {kind: 'file', bytes: new Uint8Array()}); if (!k || k.kind !== 'file') throw new Error('NotFoundError'); const f = k;
+                return {getFile: async () => ({size: f.bytes.length, arrayBuffer: async () => f.bytes.slice().buffer, text: async () => dec(f.bytes)}),
+                        createWritable: async () => { let buf; return {write: async (b) => { buf = b; }, close: async () => { if (f.fail) throw new Error('Simulated write failure'); f.bytes = new Uint8Array(buf); }}; }}; },
+            removeEntry: async (n) => { if (!kids.delete(n)) throw new Error('NotFoundError'); }};
+    };
+    const put = async (root, path, text) => { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p, {create: true}); const w = await (await d.getFileHandle(n, {create: true})).createWritable(); await w.write(enc(text)); await w.close(); };
+    const get = async (root, path) => { try { const parts = path.split('/'), n = parts.pop(); let d = root; for (const p of parts) d = await d.getDirectoryHandle(p); return dec(new Uint8Array(await (await (await d.getFileHandle(n)).getFile()).arrayBuffer())); } catch (e) { return null; } };
+    // a stored (method 0) zip of {path: text}
+    const zip = (files) => {
+        const parts = [], cd = []; let off = 0;
+        for (const [name, text] of files) {
+            const nb = enc(name), data = enc(text), lh = new DataView(new ArrayBuffer(30)), c = new DataView(new ArrayBuffer(46));
+            lh.setUint32(0, 0x04034b50, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, nb.length, true);
+            c.setUint32(0, 0x02014b50, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, nb.length, true); c.setUint32(42, off, true);
+            parts.push(new Uint8Array(lh.buffer), nb, data); cd.push(new Uint8Array(c.buffer), nb); off += 30 + nb.length + data.length;
+        }
+        const e = new DataView(new ArrayBuffer(22));
+        e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+        e.setUint32(12, cd.reduce((a, b) => a + b.length, 0), true); e.setUint32(16, off, true);
+        const all = [...parts, ...cd, new Uint8Array(e.buffer)], out = new Uint8Array(all.reduce((a, b) => a + b.length, 0));
+        let p = 0; for (const a of all) { out.set(a, p); p += a.length; }
+        return out.buffer;
+    };
+    const NAME = 'Mephisto Chess Extension', GLUE = 'src/offscreen/engine-glue.txt';
+    const man = (v, extra) => JSON.stringify(Object.assign({name: NAME, version: v}, extra || {}));
+    const CODE = ['lib/chess.js', 'src/popup/popup.js', 'src/scripts/content-script.js'];
+    const release = (v, extra = []) => zip([...[...CODE, ...extra].map(p => [`Mephisto-${v}/${p}`, `${p} ${v}`]), [`Mephisto-${v}/manifest.json`, man(v)], [`Mephisto-${v}/${GLUE}`, 'g1\n']]);
+    const base = async (v, extra) => { const r = mkdir(); await put(r, 'manifest.json', man(v, extra)); for (const p of CODE) await put(r, p, `${p} ${v}`); await put(r, GLUE, 'g1\n'); return r; };
+    const isNewer = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i]; return false; };
+    // the REAL updater over `root`; `running` is the manifest Chrome runs, `latest` the newest release, `store` chrome.storage.local
+    const load = (root, {running, latest, key, store = {}, extra = []}) => {
+        const idbReq = (val) => { const q = {}; setTimeout(() => { q.result = val; q.onsuccess && q.onsuccess(); }); return q; };
+        const indexedDB = {open: () => idbReq({transaction: () => ({objectStore: () => ({get: () => idbReq(root), put: () => idbReq(), delete: () => idbReq()})}), close() {}})};
+        const buf = release(latest, extra);
+        const c = vm.createContext({console, TextDecoder, TextEncoder, DataView, Uint8Array, Blob, Response, Set, JSON, Promise, setTimeout, indexedDB,
+            fetch: async () => ({ok: true, headers: {get: () => String(buf.byteLength)}, arrayBuffer: async () => buf}),
+            chrome: {runtime: {getManifest: () => Object.assign({name: NAME, version: running}, key ? {key} : {}),
+                               sendMessage: (m, cb) => cb({latest, newer: isNewer(latest, running), asset: 'https://example.invalid/u.zip'})},
+                     permissions: {contains: async () => true},
+                     storage: {local: {get: async (k) => Object.assign({auto_update: true}, store), set: async (o) => { Object.assign(store, o); }}}}});
+        c.self = c;
+        vm.runInContext(fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8'), c);
+        vm.runInContext(upSrc.replace('const MephistoUpdater =', 'var MephistoUpdater =').replace(/\nif \(typeof module[\s\S]*$/, ''), c);
+        return Object.assign(vm.runInContext('MephistoUpdater', c), {I: c.MephistoI18n});
+    };
+    const caught = async (p) => { try { return {ok: await p}; } catch (e) { return {e}; } };
+    const ver = async (r) => JSON.parse(await get(r, 'manifest.json')).version;
+    const fileAt = async (r, path) => { const parts = path.split('/'), n = parts.pop(); let d = r; for (const p of parts) d = await d.getDirectoryHandle(p); return d.kids.get(n); };
+    // Install: lib/chess.js goes in, then src/popup/popup.js fails
+    let r = await base('3.1.331');
+    (await fileAt(r, 'src/popup/popup.js')).fail = true;
+    const mid = await caught(load(r, {running: '3.1.331', latest: '3.1.332'}).install());
+    ok('UPDATER-6: Install that fails after a file went in is MPH-U18, marked partial, with the browser\'s text in the log only',
+       mid.e && mid.e.code === 'MPH-U18' && mid.e.partial === true && /Simulated write failure/.test(mid.e.message) && await get(r, 'lib/chess.js') === 'lib/chess.js 3.1.332',
+       mid.e ? [mid.e.code, mid.e.message] : mid.ok);
+    // Finish over the same folder, failing again part-way; then Roll Back, failing part-way
+    const fin = await caught(load(r, {running: '3.1.331', latest: '3.1.332'}).finishStaged());
+    (await fileAt(r, 'src/popup/popup.js')).fail = false;
+    (await fileAt(r, 'src/scripts/content-script.js')).fail = true;
+    const back = await caught(load(r, {running: '3.1.331', latest: '3.1.332'}).rollback());
+    ok('UPDATER-6: ...and so are Finish Interrupted Update and Roll Back when they stop part-way',
+       fin.e && fin.e.code === 'MPH-U18' && fin.e.partial && back.e && back.e.code === 'MPH-U18' && back.e.partial,
+       [fin.e && fin.e.code, back.e && back.e.code]);
+    // a failure on the very first write left the folder as it was: not partial
+    r = await base('3.1.331');
+    (await fileAt(r, 'lib/chess.js')).fail = true;
+    const first = await caught(load(r, {running: '3.1.331', latest: '3.1.332'}).install());
+    ok('UPDATER-6: a failure on the first file is not MPH-U18 (nothing in the folder changed)',
+       first.e && !first.e.code && !first.e.partial && await get(r, 'lib/chess.js') === 'lib/chess.js 3.1.331', first.e && [first.e.code, first.e.message]);
+    // Settings: no "Nothing was changed." after a partial failure, the section drawn again, then the line
+    const g = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const ga = g.indexOf('        const oops = (e, fallback, changed) => {'), gb = g.indexOf('        const buttons = [', ga);
+    const said = [], c = vm.createContext({console: {warn() {}}, said, renders: 0,
+        MephistoI18n: {errMsg: (e) => e.code + ': msg', t: (k, en) => en}});
+    vm.runInContext('var say = (t) => said.push(t); var render = async () => { renders++; say("drawn"); };\n' + g.slice(ga, gb) + '\nvar o = oops, f = failed;', c);
+    const coded = c.o({code: 'MPH-U16'}, 'x', true), part = c.o({code: 'MPH-U18', partial: true}, 'x', true);
+    await c.f(part);
+    ok('UPDATER-6: Settings drops "Nothing was changed." for a partial failure only, and shows the line after drawing the section again',
+       /Nothing was changed\.$/.test(coded) && part === 'MPH-U18: msg' && c.renders === 1 && said.join('|') === 'drawn|MPH-U18: msg', [coded, part, said]);
+    ok('UPDATER-6: ...for Install, Roll Back and Finish alike',
+       ["'Update failed, and nothing was changed'", "'Roll back failed, and nothing was changed'", "'Could not finish the update, and nothing was changed'"]
+           .every(f => g.includes('await failed(oops(e, ' + f + ', true));')));
+})().catch(e => { fails++; console.log('FAIL UPDATER-6 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

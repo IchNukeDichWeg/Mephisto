@@ -468,7 +468,7 @@ const MephistoUpdater = (function () {
         }
         let n = 0;
         for (const f of restore) {
-            await writeFile(dir, f.path, f.bytes);
+            await writeFile(dir, f.path, f.bytes).catch(e => { throw stoppedPartWay(e, n); });
             if (++n % 40 === 0 || n === restore.length) onStatus(`Restoring… ${n}/${restore.length}`);
         }
         // Files the update ADDED have no earlier version. Leaving them behind would mix two builds,
@@ -536,7 +536,7 @@ const MephistoUpdater = (function () {
         }
         let n = 0;
         for (const f of manifestLast(files)) {
-            await writeFile(dir, f.path, f.bytes);
+            await writeFile(dir, f.path, f.bytes).catch(e => { throw stoppedPartWay(e, n); });
             if (++n % 40 === 0 || n === files.length) onStatus(`Installing… ${n}/${files.length}`);
         }
         await removeEntry(dir, STAGING);
@@ -551,6 +551,16 @@ const MephistoUpdater = (function () {
     }
 
     // --- writing --------------------------------------------------------------------------------
+    // A WRITE THAT FAILS PART-WAY THROUGH PUTTING FILES IN PLACE (audit 3.1.331 UPDATER-6) leaves the
+    // folder holding parts of two builds, which the extension loads at its next start. Settings said
+    // "nothing was changed" for every uncoded error, the browser's write failures included. Once a
+    // file has gone in it is MPH-U18, marked `partial`; before the first one the folder is as it was.
+    function stoppedPartWay(e, written) {
+        if (!written || (e && e.partial)) return e;
+        const err = fail('MPH-U18', null, (e && (e.message || e.name)) || String(e));
+        err.partial = true;
+        return err;
+    }
     async function writeFile(root, relPath, bytes) {
         const parts = relPath.split('/');
         const name = parts.pop();
@@ -650,7 +660,7 @@ const MephistoUpdater = (function () {
         // arrived, and it is what finishes the job if this loop is interrupted.
         n = 0;
         for (const f of manifestLast(files)) {
-            await writeFile(dir, f.path, f.bytes);
+            await writeFile(dir, f.path, f.bytes).catch(e => { throw stoppedPartWay(e, n); });
             if (++n % 40 === 0 || n === files.length) onStatus(`Installing… ${n}/${files.length}`);
         }
         await removeEntry(dir, STAGING);
