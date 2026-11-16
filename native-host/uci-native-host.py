@@ -260,7 +260,8 @@ def _apply_variant_net(variant):
     else:
         _dbg(f"no net for {prefix} in {_NNUE_DIR} -- classical eval ({_setup_hint('nets')})")
 
-# The board states Stockfish 19 refuses with a CRITICAL ERROR and exit 1 (each one run against it).
+# The board states Stockfish 19 refuses with a CRITICAL ERROR and exit 1 (each one run against it);
+# the piece budget beyond the starting set is _over_promotion_budget below.
 # Not here: BAD_CASTLING_RIGHTS and the too-many/impossible-check states (searched without
 # complaint), and INVALID_EP_SQUARE (repaired in do_analyse instead).
 _ENGINE_KILLING_STATUS = (chess.STATUS_EMPTY | chess.STATUS_NO_WHITE_KING | chess.STATUS_NO_BLACK_KING
@@ -268,6 +269,19 @@ _ENGINE_KILLING_STATUS = (chess.STATUS_EMPTY | chess.STATUS_NO_WHITE_KING | ches
                           | chess.STATUS_OPPOSITE_CHECK | chess.STATUS_TOO_MANY_WHITE_PAWNS
                           | chess.STATUS_TOO_MANY_BLACK_PAWNS | chess.STATUS_TOO_MANY_WHITE_PIECES
                           | chess.STATUS_TOO_MANY_BLACK_PIECES)
+
+def _over_promotion_budget(board):
+    # Stockfish 19's FEN parser also refuses a side whose pieces beyond the starting set (a 2nd queen,
+    # a 3rd rook, bishop or knight) outnumber its missing pawns: "Unsupported position. Too many
+    # pieces for WHITE" and exit 1, on boards python-chess rates status 0 (8 pawns plus a 2nd queen,
+    # a scraped h1 rook read as a queen). Same formula as its Position::set (audit 3.1.332
+    # UCINATIVEHOST-1). Only the base FEN needs it: a legal promotion spends a pawn for its piece.
+    for color in chess.COLORS:
+        extra = sum(max(0, len(board.pieces(pt, color)) - base)
+                    for pt, base in ((chess.KNIGHT, 2), (chess.BISHOP, 2), (chess.ROOK, 2), (chess.QUEEN, 1)))
+        if extra > 8 - len(board.pieces(chess.PAWN, color)):
+            return True
+    return False
 
 def do_analyse(data, mid):
     global request_counter, current_analysis
@@ -308,6 +322,9 @@ def do_analyse(data, mid):
             bad = status & _ENGINE_KILLING_STATUS
             if bad:
                 _dbg(f"refused {data['fen']!r}: status {int(bad):#x}")
+                raise ValueError('illegal position')
+            if _over_promotion_budget(board):
+                _dbg(f"refused {data['fen']!r}: more promoted pieces than missing pawns")
                 raise ValueError('illegal position')
         else:
             board = chess.variant.find_variant(variant)(data['fen'])

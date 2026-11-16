@@ -17752,6 +17752,44 @@ print(r['moves'][0]['uci'], r['moves'][0]['category'], m['category'])`;
     else ok('SYZYGY-1 (332): the native host answers the same: mate a7a8 first as loss, the mated root a loss',
             (hr.stdout || '').trim() === 'a7a8 loss loss', (hr.stdout || '') + (hr.stderr || '').slice(-300));
 }
+// ---- UCINATIVEHOST-1 (audit 3.1.332): the native host refuses boards Stockfish 19 rejects for having more
+// promoted pieces than missing pawns (it exits on them), with the same budget formula as its FEN parser ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pyRun = (args, opts) => new Promise(res => require('child_process').execFile('python3', args,
+        Object.assign({encoding: 'utf8', timeout: 60000}, opts),
+        (e, stdout, stderr) => res({error: e && e.code === 'ENOENT' ? e : null, status: e ? e.code : 0, stdout, stderr})));
+    const host = fs.readFileSync(ROOT + '/native-host/uci-native-host.py', 'utf8');
+    const da = host.slice(host.indexOf('def do_analyse('), host.indexOf("board = chess.variant.find_variant"));
+    ok('UCINATIVEHOST-1: do_analyse refuses an over-budget standard board as an illegal position',
+       /if _over_promotion_budget\(board\):[\s\S]{0,200}raise ValueError\('illegal position'\)/.test(da));
+    // the budget function is lifted out of the host with ast and fed boards SF19 was run on (1 = refused)
+    const py = `import ast, json, sys
+try:
+    import chess
+except ImportError:
+    print('null'); sys.exit(0)
+tree = ast.parse(open(sys.argv[1], encoding='utf-8-sig').read())
+body = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_over_promotion_budget']
+ns = {'chess': chess}
+exec(compile(ast.Module(body=body, type_ignores=[]), sys.argv[1], 'exec'), ns)
+print(json.dumps([int(ns['_over_promotion_budget'](chess.Board(f))) for f in sys.argv[2:]]))`;
+    const fens = {
+        '4k3/8/8/8/8/8/PPPPPPPP/QQ2K3 w - - 0 1': 1, 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNQ w Qkq - 0 1': 1,
+        '4k3/8/8/8/8/8/PPPPPPPP/NNN1K3 w - - 0 1': 1, '4k3/8/8/8/8/8/1PPPPPPP/QQQ1K3 w - - 0 1': 1,
+        '4k3/8/8/8/8/8/1PPPPPPP/NNNBBBK1 w - - 0 1': 1, '4k3/pppppppp/8/8/8/8/8/1qq1K3 w - - 0 1': 1,
+        '4k3/8/8/8/8/8/PPPPPPP1/QQ2K3 w - - 0 1': 0, '4k3/8/8/8/8/8/2PPPPPP/QQQ1K3 w - - 0 1': 0,
+        '4k3/8/8/8/8/8/PPPPPPPP/RR2K3 w - - 0 1': 0, 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1': 0,
+        '4k3/8/8/8/8/R7/2PPPPPP/QQ2K2R w - - 0 1': 0, 'qqk5/8/8/8/8/8/8/4K3 w - - 0 1': 0};
+    const r = await pyRun(['-I', '-B', '-c', py, ROOT + '/native-host/uci-native-host.py', ...Object.keys(fens)]);
+    if (r.error) console.log('ok   UCINATIVEHOST-1: skipped (no python3 here)');
+    else if (r.stdout.trim() === 'null') console.log('ok   UCINATIVEHOST-1: skipped (no python-chess here)');
+    else {
+        let got = null; try { got = JSON.parse(r.stdout); } catch (e) { got = r.stdout + r.stderr; }
+        ok('UCINATIVEHOST-1: the promotion budget refuses exactly the boards Stockfish 19 refuses',
+           Array.isArray(got) && JSON.stringify(got) === JSON.stringify(Object.values(fens)), got);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
