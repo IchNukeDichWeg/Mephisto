@@ -5119,11 +5119,20 @@ function grindCancel(why) {
 // sitting there a moment later, click the element itself: this is a lichess button with an ordinary
 // listener, not a move on the board, so nothing here depends on the click being trusted.
 const GRIND_VERIFY_MS = 800;
+// Would a click at (x, y) land on `el`? A CDP click is hit-tested, and our own panel (pointer-events
+// on, top right) covers lichess's end-of-game row at common window sizes, so a trusted click sent
+// there pressed a PANEL control while the element fallback quietly started the game (audit 3.1.332
+// CONTENT2-4). Same check pressControl makes; anything unreadable counts as covered.
+function clickLandsOn(el, x, y) {
+    try { const hit = document.elementFromPoint(x, y); return !!hit && (hit === el || el.contains(hit)); }
+    catch (e) { return false; }
+}
 function grindClick(el) {
     const r = el.getBoundingClientRect();
     if (!r.width || !r.height) return;
     const x = r.left + r.width / 2, y = r.top + r.height / 2;
-    try {
+    // covered: no coordinate click at all; the check below clicks the element itself
+    if (clickLandsOn(el, x, y)) try {
         chrome.runtime.sendMessage({cdpClick: true, x, y, travelMs: 0},
             () => void chrome.runtime.lastError);
     } catch (e) { /* silent by design */ }
@@ -5315,8 +5324,10 @@ function rematchTick() {
         grindCancel('the opponent offered a rematch');
         bgLogAlways('rematch: accepting the opponent\'s offer', {site});
         const r = btn.getBoundingClientRect();
-        try {
-            chrome.runtime.sendMessage({cdpClick: true, x: r.left + r.width / 2, y: r.top + r.height / 2, travelMs: 0},
+        const x = r.left + r.width / 2, y = r.top + r.height / 2;
+        // covered by our panel (CONTENT2-4): no coordinate click; the still-glowing check below presses it
+        if (clickLandsOn(btn, x, y)) try {
+            chrome.runtime.sendMessage({cdpClick: true, x, y, travelMs: 0},
                 () => void chrome.runtime.lastError);
         } catch (e) { /* silent by design */ }
         // Only while the offer still glows: a second click on a rematch already accepted would be

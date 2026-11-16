@@ -3368,6 +3368,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
           simulateClickSquare: () => { c.pressed.push('next'); return Promise.resolve(); },
           grindNewGameButton: () => ({textContent: 'New'}), grindClick: () => c.pressed.push('grind'), grindCancel() {},
           rematchOffer: () => ({getBoundingClientRect: () => ({left: 0, top: 0, width: 1, height: 1}), classList: {contains: () => false}}),
+          clickLandsOn: () => true,   // the offer is on top at its centre: CONTENT2-4 sends the trusted click only then
           GRIND_SITES: {lichess: {box: () => ({})}}});
       vm.runInContext(`var site = 'lichess', config, grindSeenFollowUp, puzzleNextClicked, puzzleNextTimer, grindTimer, rematchTimer, REMATCH_PAUSE_MS = [0, 0], REMATCH_VERIFY_MS = 0;`
           + cut('function panelRunning() {', 'function schedulePush() {') + cut('function grindTick() {', 'setInterval(grindTick') + cut('function rematchTick() {', 'setInterval(rematchTick'), c);
@@ -17042,6 +17043,40 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     ok('CONTENT2-3: lichess 1.5+1 / 1.5+0 read as a 90 s base', got === '90,90,90', got);
     const old = vm.runInContext("[tcBaseSeconds('5+3 • Rated • Blitz'), tcBaseSeconds('½+0'), tcBaseSeconds('1½+1'), tcBaseSeconds('¾+0'), tcBaseSeconds('3 | 2'), tcBaseSeconds('10 min'), tcBaseSeconds('30 sec'), tcBaseSeconds('')].join()", cc);
     ok('CONTENT2-3: ...and every other spelling reads as before', old === '300,30,90,45,180,600,30,', old);
+}
+// ---- audit 3.1.332 CONTENT2-4: Grind Mode and Accept Rematch send no trusted click into our panel when it covers the button ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from, to) => { const i = csrc.indexOf(from); return csrc.slice(i, csrc.indexOf(to, i)); };
+    const panel = {id: 'panel', contains: () => false};
+    const mkBtn = () => { const b = {clicks: 0, click() { b.clicks++; }, getBoundingClientRect: () => ({left: 100, top: 200, width: 40, height: 20}),
+        contains: (n) => n === b, classList: {contains: () => true}, offsetParent: {}, disabled: false}; return b; };
+    const run = (covered, which) => {
+        const btn = mkBtn(), sent = [], timers = [];
+        const c = vm.createContext({console, Math, site: 'lichess', bgLogAlways() {}, grindCancel() {},
+            document: {elementFromPoint: (x, y) => (x === 120 && y === 210) ? (covered ? panel : btn) : null, contains: () => true},
+            chrome: {runtime: {sendMessage: (m) => sent.push(m), lastError: null}},
+            setTimeout: (f) => { timers.push(f); return timers.length; }, clearTimeout() {},
+            GRIND_SITES: {lichess: {box: () => ({})}}, panelRunning: () => true,
+            config: {accept_rematch: true, autoplay: true}, rematchOffer: () => btn, REMATCH_PAUSE_MS: [0, 0], REMATCH_VERIFY_MS: 0});
+        vm.runInContext('var rematchTimer = null; const GRIND_VERIFY_MS = 0;' + cut('function clickLandsOn(', 'function grindClick(')
+            + cut('function grindClick(', '\n}\n') + '\n}\n' + cut('function rematchTick() {', 'setInterval(rematchTick'), c);
+        if (which === 'grind') vm.runInContext('grindClick', c)(btn);
+        else { vm.runInContext('rematchTick()', c); timers.shift()(); }
+        const cdp = sent.filter(m => m.cdpClick).length;
+        while (timers.length) timers.shift()();   // the verify fallbacks
+        return {cdp, clicks: btn.clicks};
+    };
+    let r;
+    r = run(true, 'grind');
+    ok('CONTENT2-4: Grind Mode under the panel sends no coordinate click and clicks the button itself once', r.cdp === 0 && r.clicks === 1, r);
+    r = run(false, 'grind');
+    ok('CONTENT2-4: ...an uncovered button still gets the trusted click', r.cdp === 1, r);
+    r = run(true, 'rematch');
+    ok('CONTENT2-4: Accept Rematch under the panel sends no coordinate click and clicks the offer itself once', r.cdp === 0 && r.clicks === 1, r);
+    r = run(false, 'rematch');
+    ok('CONTENT2-4: ...an uncovered offer still gets the trusted click', r.cdp === 1, r);
 }
 // ==== END FIX CHECKS ====
 
