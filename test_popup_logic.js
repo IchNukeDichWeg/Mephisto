@@ -8261,6 +8261,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
             const ENGINES = [{id: 'sf18-native', label: 'Stockfish 18 (native)', kind: 'native'}, {id: 'stockfish-18-nnue', label: 'Stockfish 18', kind: 'wasm'}];
             ${cut('const NATIVE_960_WASM', 'let engineChain')}
             ${aj.includes('function swapNote(') ? cut('function swapNote(', '// One box takes either') : ''}
+            const FAIRY_ENGINE = 'fairy-stockfish-14-nnue', FAIRY_ONLY = ['crazyhouse'];
+            ${aj.includes('function refuseFairyOnly(') ? cut('function refuseFairyOnly(', '// The line for an engine engineFor()') : ''}
             ${cut("$('an_engine_select')?.addEventListener('change', ", "this.registerFormElement('an_game'")}`, c);
         const pick = (variant, engine) => { c.said.length = 0; Object.assign(c.conf, {an_variant: variant, an_engine: engine}); c.handlers.an_engine_select(); return c.said.slice(); };
         res = {c960: pick('fischerandom', 'sf18-native'), std: pick('chess', 'sf18-native'), wasm: pick('fischerandom', 'stockfish-18-nnue'), reloads: c.reloads};
@@ -17358,6 +17360,38 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const real = await check(async (v) => ({ok: v === '1.125.0', status: v === '1.125.0' ? 200 : 404}));
     ok('EEHOST-1: the measured CDN still takes ten HEADs', real.v === '1.125.0' && real.calls === 10, real);
 })();
+// ---- audit 3.1.332 ANALYSIS-1: the Engine / Second-engine selects refuse a mainline Stockfish under a Fairy-only variant ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a); return i < 0 ? '' : aj.slice(i, aj.indexOf(b, i)); };
+    const store = {}, sels = {an_engine_select: {value: ''}, an_engine2_select: {value: ''}};
+    const c = vm.createContext({CFG: {an_variant: 'chess', an_engine: 'stockfish-18-nnue', an_engine2: ''},
+        MephistoConfig: {get: (k) => store[k], set: (k, v) => { store[k] = v; }},
+        MephistoI18n: {t: (k, d, vars) => d.replace(/\{(\w+)\}/g, (_, n) => vars[n])},
+        ENGINES: [{id: 'stockfish-18-nnue', label: 'Stockfish 18'}, {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish 14'}],
+        $: (id) => sels[id] || null});
+    try {
+        vm.runInContext(cut('const AN_VARIANTS', '// Three-check counters') + cut('function cfg(key)', '\n\n')
+            + cut('function refuseFairyOnly', '\n}\n') + '\n}\n', c);
+    } catch (e) { console.log('ANALYSIS-1 slice threw: ' + e.message); }
+    const set = (k, v) => { store[k] = JSON.stringify(v); };
+    const run = (k, fb) => { try { return vm.runInContext(`refuseFairyOnly(${JSON.stringify(k)}, ${JSON.stringify(fb)})`, c); } catch (e) { return 'threw ' + e.message; } };
+    set('an_variant', '3check'); set('an_engine', 'stockfish-18-nnue');
+    const n1 = run('an_engine', 'fairy-stockfish-14-nnue');
+    ok('ANALYSIS-1: picking Stockfish 18 as Engine under Three-check puts Fairy back and says why',
+       /Three-check/.test(n1) && /Stockfish 18/.test(n1) && store.an_engine === '"fairy-stockfish-14-nnue"' && sels.an_engine_select.value === 'fairy-stockfish-14-nnue', [n1, store.an_engine]);
+    set('an_variant', 'crazyhouse'); set('an_engine2', 'stockfish-18-nnue');
+    const n2 = run('an_engine2', '');
+    ok('ANALYSIS-1: ...a mainline Second engine under Crazyhouse is cleared', !!n2 && store.an_engine2 === '""' && sels.an_engine2_select.value === '', [n2, store.an_engine2]);
+    set('an_engine', 'fairy-stockfish-14-nnue');
+    ok('ANALYSIS-1: ...Fairy itself stands', run('an_engine', 'fairy-stockfish-14-nnue') === '');
+    set('an_variant', 'fischerandom'); set('an_engine', 'stockfish-18-nnue');
+    ok('ANALYSIS-1: ...and any engine stands under Chess960 / standard', run('an_engine', 'fairy-stockfish-14-nnue') === '' && store.an_engine === '"stockfish-18-nnue"');
+    ok('ANALYSIS-1: ...both select handlers run the check before loading',
+       /an_engine_select'\)\?\.addEventListener\('change', \(\) => \{\s*const refused = refuseFairyOnly\('an_engine', FAIRY_ENGINE\)/.test(aj)
+       && /an_engine2_select'\)\?\.addEventListener\('change', \(\) => \{\s*const refused = refuseFairyOnly\('an_engine2', ''\)/.test(aj));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

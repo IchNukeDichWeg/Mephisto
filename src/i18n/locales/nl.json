@@ -761,6 +761,7 @@
   "an.lg_err_hand": "stukken in de hand bestaan alleen bij shogi",
   "an.lg_err_extra": "na het zetnummer mag niets meer volgen (zoals \"moves …\")",
   "an.err_king_en_prise": "de partij die niet aan zet is staat schaak, dus deze stelling kan niet bestaan -- controleer wie aan zet is",
+  "an.fairy_only_pick": "Alleen Fairy-Stockfish speelt {variant}; {engine} is niet geladen.",
   "an.lg_no_moves": "Geen legale zetten: de kant aan zet heeft verloren.",
   "an.lg_promote": "Dit stuk promoveren?",
   "an.lg_to_move": "{side} aan zet",

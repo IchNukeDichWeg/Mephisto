@@ -761,6 +761,7 @@
   "an.lg_err_hand": "peças na mão só existem no shogi",
   "an.lg_err_extra": "nada pode vir depois do número do lance (como \"moves …\")",
   "an.err_king_en_prise": "o lado que não joga está em xeque, então esta posição é impossível -- verifique de quem é a vez",
+  "an.fairy_only_pick": "Só o Fairy-Stockfish joga {variant}; {engine} não foi carregado.",
   "an.lg_no_moves": "Nenhum lance legal: o lado a jogar perdeu.",
   "an.lg_promote": "Promover esta peça?",
   "an.lg_to_move": "{side} joga",

@@ -761,6 +761,7 @@
   "an.lg_err_hand": "i pezzi in mano esistono solo nello shogi",
   "an.lg_err_extra": "dopo il numero della mossa non può seguire nulla (come \"moves …\")",
   "an.err_king_en_prise": "il lato che non muove è sotto scacco, quindi questa posizione è impossibile -- controlla a chi tocca",
+  "an.fairy_only_pick": "Solo Fairy-Stockfish gioca a {variant}; {engine} non è stato caricato.",
   "an.lg_no_moves": "Nessuna mossa legale: la parte al tratto ha perso.",
   "an.lg_promote": "Promuovere questo pezzo?",
   "an.lg_to_move": "Muove {side}",

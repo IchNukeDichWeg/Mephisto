@@ -208,7 +208,9 @@ class AnalysisPage extends SettingsPage {
         $('an_human_select')?.addEventListener('change', () => { syncBandRow(); reloadHuman(); });
         $('an_band_select')?.addEventListener('change', () => reloadHuman());
         $('an_engine_select')?.addEventListener('change', () => {
+            const refused = refuseFairyOnly('an_engine', FAIRY_ENGINE);
             reloadEngine();
+            if (refused) { status(refused); return; }
             // Picking a native engine on a Chess960 board swaps it to the WASM build just as a variant
             // change does, but only that door said so: the select read the native engine while the
             // first column, whose header names no engine, ran the WASM one (audit 3.1.330 ANALYSISA-4).
@@ -220,7 +222,11 @@ class AnalysisPage extends SettingsPage {
         this.registerFormElement('an_variant', 'Variant:', 'select', CFG.an_variant);
         this.registerFormElement('an_engine2', 'Second engine:', 'select', CFG.an_engine2);
         $('an_variant_select')?.addEventListener('change', () => onVariantChange());
-        $('an_engine2_select')?.addEventListener('change', () => reloadEngine2());
+        $('an_engine2_select')?.addEventListener('change', () => {
+            const refused = refuseFairyOnly('an_engine2', '');
+            reloadEngine2();
+            if (refused) status(refused);
+        });
         for (const id of ['an_lines_input', 'an_threads_input', 'an_hash_input'])
             $(id)?.addEventListener('change', () => reloadEngine());
         // The -/+ boxes beside those three. SettingsPage.initSteppers does this for the settings
@@ -556,6 +562,21 @@ function onVariantChange(quiet) {
         const kind = / an-(\w+)$/.exec(el?.className || '')?.[1];
         status([...notes, el?.textContent || ''].filter(Boolean).join(' '), kind);
     }
+}
+
+// The Engine and Second-engine selects apply the rule onVariantChange applies: under a Fairy-only
+// variant a mainline Stockfish gets no UCI_Variant (offscreen sets it for the Fairy builds only) and
+// reads the pocket / check-counter FEN as standard chess, or dies on it (audit 3.1.332 ANALYSIS-1).
+// A refused pick is put back to `fallback` (Fairy for the first engine, none for the second) and the
+// note is returned; '' when the pick stands.
+function refuseFairyOnly(key, fallback) {
+    const v = anVariant(), id = cfg(key);
+    if (!id || id === FAIRY_ENGINE || !FAIRY_ONLY.includes(v)) return '';
+    setCfg(key, fallback);
+    const sel = $(key + '_select');
+    if (sel) sel.value = fallback;
+    return MephistoI18n.t('an.fairy_only_pick', 'Only Fairy-Stockfish plays {variant}; {engine} was not loaded.',
+        {variant: (AN_VARIANTS.find(x => x[0] === v) || [v, v])[1], engine: ENGINES.find(e => e.id === id)?.label || id});
 }
 
 // The line for an engine engineFor() swaps on this board, '' for one it runs as picked. Given on a
