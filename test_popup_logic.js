@@ -17907,6 +17907,39 @@ print(json.dumps([int(ns['_over_promotion_budget'](chess.Board(f))) for f in sys
     ok('PUZPROBE-2: ...and both the subclass and a plain socket are still tapped for message frames',
        r.subTapped && r.plainTapped && r.plainIs, r);
 }
+// ---- audit 3.1.332 PANELBOARD-1: a touch drag the browser cancels (pointercancel) disarms the drag and drops its ghost ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pb = fs.readFileSync(ROOT + '/src/scripts/panel-board.js', 'utf8');
+    const el = (tag) => ({tag, style: {}, classList: [], children: [], on: {}, className: '',
+        appendChild(c) { this.children.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; }, remove() { this.gone = true; }});
+    const host = el('div'); host.clientWidth = 400;
+    Object.defineProperty(host, 'innerHTML', {set() { host.children = []; }});
+    const win = {};
+    const body = el('body');
+    let under = 'e5';
+    const c = vm.createContext({Math, requestAnimationFrame() {},
+        window: {addEventListener: (t, f) => { (win[t] = win[t] || []).push(f); }, removeEventListener: (t, f) => { win[t] = (win[t] || []).filter(x => x !== f); }},
+        document: {createElement: el, body,
+                   elementFromPoint: () => under && {closest: () => ({classList: ['square-55d63', 'square-' + under]})}}});
+    c.self = c;
+    vm.runInContext(pb, c);
+    const log = [];
+    c.MephistoBoard(host, {position: 'start', onMove: (f, t) => { log.push(f + t); return true; }});
+    const sq = (alg) => host.children[0].children[8 - +alg[1]].children['abcdefgh'.indexOf(alg[0])];   // white at the bottom
+    const fire = (t, e) => { for (const f of [...(win[t] || [])]) f(e); };
+    ok('PANELBOARD-1: a square holding a piece takes touch drags itself (touch-action:none), an empty one still pans the page',
+       sq('e2').style.touchAction === 'none' && sq('e4').style.touchAction !== 'none', [sq('e2').style.touchAction, sq('e4').style.touchAction]);
+    sq('e2').on.pointerdown({button: 0, clientX: 10, clientY: 10, preventDefault() {}});
+    fire('pointermove', {clientX: 10, clientY: 30});
+    const ghost = body.children.find(x => x.tag === 'img');
+    fire('pointercancel', {clientX: 10, clientY: 30});
+    ok('PANELBOARD-1: pointercancel removes the drag ghost and every window listener',
+       ghost && ghost.gone && !(win.pointermove || []).length && !(win.pointerup || []).length && !(win.pointercancel || []).length,
+       [!!ghost, ghost && ghost.gone, Object.keys(win).map(k => k + ':' + win[k].length)]);
+    fire('pointerup', {clientX: 10, clientY: 60});
+    ok('...and a later tap elsewhere plays no move from the old square', log.length === 0, log);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

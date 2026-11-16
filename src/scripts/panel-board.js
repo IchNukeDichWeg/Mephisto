@@ -102,9 +102,22 @@
                     dragGhost.style.top = (e.clientY - sz / 2) + 'px';
                 }
             };
+            // A touch drag the browser takes as a pan ends in pointercancel, never pointerup: left
+            // armed, the ghost stayed over the site and the next tap anywhere played a move from the
+            // old square (audit 3.1.332 PANELBOARD-1). Cancel = put the piece back, submit nothing.
+            const cancel = () => {
+                window.removeEventListener('pointermove', move, true);
+                window.removeEventListener('pointerup', up, true);
+                window.removeEventListener('pointercancel', cancel, true);
+                const dragged = !!dragGhost;
+                dragFrom = null;
+                if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+                if (dragged) { selected = null; targets = []; render(); }
+            };
             const up = (e) => {
                 window.removeEventListener('pointermove', move, true);
                 window.removeEventListener('pointerup', up, true);
+                window.removeEventListener('pointercancel', cancel, true);
                 const from = dragFrom; dragFrom = null;
                 const dragged = !!dragGhost;
                 if (dragGhost) { dragGhost.remove(); dragGhost = null; }
@@ -121,6 +134,7 @@
             };
             window.addEventListener('pointermove', move, true);
             window.addEventListener('pointerup', up, true);
+            window.addEventListener('pointercancel', cancel, true);
         }
 
         // Underpromotion. The caller decides whether a move promotes (it owns the rules); the board
@@ -230,6 +244,9 @@
                         // shadow root and can be swallowed by the page). A press that travels less than
                         // a few pixels is left to the click handler, so both gestures coexist.
                         s.addEventListener('pointerdown', (ev) => dragStart(ev, alg));
+                        // A finger on a piece drags it rather than panning the page (without this the
+                        // browser cancels the drag as a scroll, PANELBOARD-1); empty squares still pan.
+                        if (pos[alg]) s.style.touchAction = 'none';
                     }
                     const p = pos[alg];
                     const pUrl = p ? pieceUrl(p) : '';
