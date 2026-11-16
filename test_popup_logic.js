@@ -17237,6 +17237,49 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     eq('332 REVIEWCORE-1: "½-½" is the result, not a move', [g.moves.map(m => m.san), g.result], [['e4', 'e5'], '1/2-1/2']);
     eq('332 REVIEWCORE-1: comment text keeps its ellipsis', g.moves[0].comment, 'a … in a comment');
 }
+// ---- audit 3.1.332 REVIEW4PC-1: a Teams game ending on a terminator token (R/T/#/S) leaves that last frame unscored, not 0.00 ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the REAL review-4pc.js over a fake host; the terminator frame is shaped like Tetrarch's pgn4.replay
+    // (move null, the leaving seat dead, turn on the next seat) and the host refuses to search it
+    const run = async (game) => {
+        const c = vm.createContext({console, setTimeout, Promise, Error, Map, Math, Array, Object, String, Number, JSON});
+        c.self = c;
+        c.chrome = {runtime: {connect() {
+            const L = [];
+            return {onMessage: {addListener: (f) => L.push(f)}, onDisconnect: {addListener() {}}, disconnect() {},
+                postMessage(m) { setTimeout(() => {
+                    const r = m.cmd === 'pgn4' ? game : m.cmd === 'configure' ? {ok: true}
+                        : m.fen4 === 'end' ? {error: 'Tetrarch: search failed: ValueError: Teams ends when a seat is mated, so no seat is dead during search'}
+                        : m.fen4 === 'mated' ? {bestmove: '0000', lines: [{move: '0000', pv: ['0000']}]}
+                        : {bestmove: 'x1', lines: [{move: 'x1', score: -225}]};
+                    L.forEach(f => f({...r, id: m.id}));
+                }, 0); }};
+        }}};
+        vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+        vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-4pc.js', 'utf8'), c);
+        const r = await c.Mephisto4PC.runReview('x', {movetime: 50});
+        r.MATE = c.MephistoClassify.MATE_CP;
+        return r;
+    };
+    const T = [true, true, true, true], nc = [false, false, false, false];
+    const fr = (i, turn, move) => ({ply: i, fen4: 'f' + i, turn, alive: T, move, token: move, check: nc});
+    const end = (tok) => ({ply: 5, fen4: 'end', turn: 'B', alive: [false, true, true, true], move: null, token: tok, check: nc});
+    const game = (tok) => ({variant: 'Teams', mode: '1', setup: 'classic', tags: {}, terminations: [],
+        frames: [fr(0, 'R', null), fr(1, 'B', 'r1'), fr(2, 'Y', 'b1'), fr(3, 'G', 'y1'), fr(4, 'R', 'g1'), end(tok)]});
+    try {
+        for (const tok of ['R', '#']) {
+            const r = await run(game(tok));
+            ok(`REVIEW4PC-1 (3.1.332): a Teams game ending '${tok}' leaves the terminator frame unscored, not a 0.00 draw`,
+               r.evals[5].teamCp === null && r.evals[4].teamCp === -225 && r.moves.length === 4, r.evals.map(e => e.teamCp));
+        }
+        // the mated end position WITHOUT a terminator (chess.com) is still filled from the check flags
+        const g = game('R'); g.frames.pop(); g.frames[4].fen4 = 'mated'; g.frames[4].check = [true, false, false, false];
+        const r = await run(g);
+        ok('REVIEW4PC-1 (3.1.332): ...a mated end frame with no terminator still reads as mated (#-0)',
+           r.evals[4].teamCp === -r.MATE, r.evals.map(e => e.teamCp));
+    } catch (e) { fails++; console.log('FAIL REVIEW4PC-1 (3.1.332): threw ' + e.message); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

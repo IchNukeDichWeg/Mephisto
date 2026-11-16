@@ -191,9 +191,13 @@ async function runReview(pgn4Text, {movetime = 1000, onProgress, isCancelled} = 
         // had nothing to be graded against. The rules say what it is worth, as the two-player
         // assemble fills it: the side to move mated loses (Teams: the first mate wins, RULES.md 7),
         // a stalemate is a draw. Only with the host's `check` flags; without them it stays unscored.
+        // Not on a terminator frame (an R/T/#/S token: no move, the leaving seat dead, `turn` already on
+        // the NEXT seat): the host refuses to search it, and that next seat is not in check, so the fill
+        // scored a won game 0.00, a draw, on the frame the report opens on (audit 3.1.332 REVIEW4PC-1).
         const f = frames[i], seatIdx = SEATS.indexOf(f.turn);
+        const ended = (f.move == null && !!f.token) || (Array.isArray(f.alive) && f.alive.includes(false));
         if (!isFfa && cp == null && !lines.length && (!res.bestmove || res.bestmove === '0000')
-            && Array.isArray(f.check) && seatIdx >= 0) {
+            && !ended && Array.isArray(f.check) && seatIdx >= 0) {
             cp = f.check[seatIdx] ? -C.MATE_CP : 0;
         }
         evals[i] = {
