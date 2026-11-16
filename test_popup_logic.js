@@ -17940,6 +17940,39 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     fire('pointerup', {clientX: 10, clientY: 60});
     ok('...and a later tap elsewhere plays no move from the old square', log.length === 0, log);
 }
+// ---- audit 3.1.332 PANELBOARD-2: a click on a capture target that jitters past the drag threshold still plays the capture ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pb = fs.readFileSync(ROOT + '/src/scripts/panel-board.js', 'utf8');
+    const el = (tag) => ({tag, style: {}, classList: [], children: [], on: {}, className: '',
+        appendChild(c) { this.children.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; }, remove() { this.gone = true; }});
+    const host = el('div'); host.clientWidth = 400;
+    Object.defineProperty(host, 'innerHTML', {set() { host.children = []; }});
+    const win = {};
+    let under = null;
+    const c = vm.createContext({Math, requestAnimationFrame() {},
+        window: {addEventListener: (t, f) => { win[t] = f; }, removeEventListener: (t, f) => { if (win[t] === f) delete win[t]; }},
+        document: {createElement: el, body: el('body'),
+                   elementFromPoint: () => under && {closest: () => ({classList: ['square-55d63', 'square-' + under]})}}});
+    c.self = c;
+    vm.runInContext(pb, c);
+    const log = [];
+    c.MephistoBoard(host, {position: '4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1', onMove: (f, t) => { log.push(f + t); return true; },
+        legalTargets: (sq) => sq === 'e4' ? ['e5', 'd5'] : []});
+    const sq = (alg) => host.children[0].children[8 - +alg[1]].children['abcdefgh'.indexOf(alg[0])];   // white at the bottom
+    // a press that wanders 6px but is released on the square it started on
+    const jitter = (alg) => { under = alg; sq(alg).on.pointerdown({button: 0, clientX: 10, clientY: 10, preventDefault() {}});
+        win.pointermove({clientX: 16, clientY: 12}); win.pointerup({clientX: 16, clientY: 12}); };
+    sq('e4').on.click();
+    jitter('d5');
+    ok('PANELBOARD-2: with e4 selected, a 6px-jittery click on the enemy pawn on d5 plays e4d5', log.join() === 'e4d5', log);
+    log.length = 0;
+    jitter('e4');
+    ok('...a jittery press on a piece with nothing selected plays nothing', log.length === 0, log);
+    sq('e4').on.click();
+    jitter('e4');
+    ok('...and a jittery click on the selected piece itself plays nothing', log.length === 0, log);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -78,6 +78,7 @@
         function dragStart(ev, alg) {
             if (!pos[alg] || ev.button !== 0) return; // only a real piece, only the left button
             dragFrom = alg; dragX = ev.clientX; dragY = ev.clientY;
+            const selectedBefore = selected; // a press on a capture target is a click that may wobble
             ev.preventDefault();
             const root = cfg.root || document;
             const move = (e) => {
@@ -130,6 +131,12 @@
                 // earlier click with nothing selected (audit 3.1.331 PANELBOARD-2)
                 selected = null; targets = [];
                 if (to && to !== from) { if (submitMove(from, to) === false) render(); }
+                // Released on the square it was pressed on, with another piece picked up: that is a
+                // click on a capture target that moved over 4px. It dropped the capture, while the
+                // same wobble on an empty target played its move (audit 3.1.332 PANELBOARD-2).
+                else if (to && selectedBefore && selectedBefore !== from) {
+                    if (submitMove(selectedBefore, from) === false) render();
+                }
                 else render();
             };
             window.addEventListener('pointermove', move, true);
