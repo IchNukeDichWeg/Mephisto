@@ -158,13 +158,14 @@ function placementViolations(squares) {
     const v = [];
     for (const [K, P, side] of [['K', 'P', 'white'], ['k', 'p', 'black']]) {
         const kings = bySym[K] || [], pawns = bySym[P] || [];
-        if (kings.length > 1) v.push({rule: `two ${side} kings`, offenders: kings});
-        if (kings.length === 0) v.push({rule: `no ${side} king`, missing: K});
-        if (pawns.length > 8) v.push({rule: `${pawns.length} ${side} pawns`, offenders: pawns});
+        // excess = how many squares away from legal the rule is (3 kings: 2), what repairPlacement scores
+        if (kings.length > 1) v.push({rule: `${kings.length === 2 ? 'two' : kings.length} ${side} kings`, offenders: kings, excess: kings.length - 1});
+        if (kings.length === 0) v.push({rule: `no ${side} king`, missing: K, excess: 1});
+        if (pawns.length > 8) v.push({rule: `${pawns.length} ${side} pawns`, offenders: pawns, excess: pawns.length - 8});
         const backRank = pawns.filter(sq => sq.square[1] === '1' || sq.square[1] === '8');
-        if (backRank.length) v.push({rule: `${side} pawn on the back rank`, offenders: backRank});
+        if (backRank.length) v.push({rule: `${side} pawn on the back rank`, offenders: backRank, excess: backRank.length});
         const total = squares.filter(sq => sq.piece && (sq.piece === sq.piece.toUpperCase()) === (K === 'K')).length;
-        if (total > 16) v.push({rule: `${total} ${side} pieces`,
+        if (total > 16) v.push({rule: `${total} ${side} pieces`, excess: total - 16,
             offenders: squares.filter(sq => sq.piece && (sq.piece === sq.piece.toUpperCase()) === (K === 'K'))});
     }
     return v;
@@ -192,10 +193,19 @@ function repairPlacement(squares) {
     // helps by one takes exactly the flip it always took. Still greedy, not a search: on 90,148
     // synthetic boards with 1-2 misreads it changed 334 outcomes, recovering the true board in 109 of
     // them (first-that-helps: 11), with fewer rules left broken in 146 and more in 3.
-    const countAfter = (cand) => { flip(cand); const n = placementViolations(squares).length; flip(cand); return n; };
-    for (let pass = 0; pass < 12; pass++) {           // bounded: <= one flip per violation family
+    //
+    // Scored by total EXCESS, not by how many rules are broken. Two misread pawns give '10 white
+    // pawns' + '18 white pieces', and either flip only takes that to 9 and 17: the same two rules,
+    // so a rule count saw no flip help and fixed nothing, with the right runner-up on both squares
+    // (three kings and two back-rank pawns the same way; audit 3.1.332 VISION-1). On 30,000 synthetic
+    // boards with 1-3 misreads it recovered the true board in 1,484 more and in none fewer, and left
+    // 739 squares of excess where the rule count left 15,934.
+    const excess = (vs) => vs.reduce((t, v) => t + v.excess, 0);
+    const countAfter = (cand) => { flip(cand); const n = excess(placementViolations(squares)); flip(cand); return n; };
+    for (let pass = 0; pass < 64; pass++) {           // bounded: each pass flips a new square and lowers the excess
         const violations = placementViolations(squares);
         if (!violations.length) break;
+        const now = excess(violations);
         let best = null;
         for (const v of violations) {
             const cands = v.missing
@@ -208,7 +218,7 @@ function repairPlacement(squares) {
                                      .sort((a, b) => a.prob - b.prob);
             for (const c of cands) {
                 const n = countAfter(c);
-                if (n < violations.length && (!best || n < best.n)) best = {cand: c, rule: v.rule, n};
+                if (n < now && (!best || n < best.n)) best = {cand: c, rule: v.rule, n};
             }
         }
         if (!best) break;                              // nothing improves anything -- report what remains

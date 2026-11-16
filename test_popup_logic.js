@@ -18077,6 +18077,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
                res.every(([, n]) => n === 2) && sent.filter(m => m.ensureOffscreen).length === 6, res);
         } catch (e) { ok('OFFSCREEN-1: ran', false, e.message); }
     })(); }
+// ---- audit 3.1.332 VISION-1: placement repair fixes a rule broken twice over (10 pawns, 3 kings, 2 back-rank pawns) ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const v = fs.readFileSync(ROOT + '/src/offscreen/vision.js', 'utf8');
+    const sl = (a, b) => { const i = v.indexOf(a), j = v.indexOf(b, i); return i < 0 || j < 0 ? '' : v.slice(i, j); };
+    const c = vm.createContext({});
+    vm.runInContext(sl('function placementViolations(', '// squares (rank 8 first') + sl('function placementOf(', 'async function readBoard('), c);
+    // every square read confidently, runner-up empty; spec overrides squares
+    vm.runInContext(`function board(fen, spec) { const sq = [], rows = fen.split('/');
+        for (let r = 0; r < 8; r++) { let f = 0; for (const ch of rows[r]) { const k = /\\d/.test(ch) ? +ch : 1;
+            for (let i = 0; i < k; i++, f++) { const n = String.fromCharCode(97 + f) + (8 - r);
+                sq.push(Object.assign({square: n, piece: /\\d/.test(ch) ? '' : ch, prob: 0.95, alt: /\\d/.test(ch) ? 'P' : '', altProb: 0.02}, spec[n] || {})); } } }
+        return sq; }`, c);
+    const run = (fen, spec) => vm.runInContext(`(() => { const s = board(${JSON.stringify(fen)}, ${JSON.stringify(spec)}); const r = repairPlacement(s); return {p: placementOf(s), r}; })()`, c);
+    const S = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+    const a = run(S, {e4: {piece: 'P', prob: 0.55, alt: '', altProb: 0.45}, d4: {piece: 'P', prob: 0.60, alt: '', altProb: 0.40}});
+    ok('VISION-1: two empty squares misread as white pawns (10 pawns, 18 pieces) are both flipped back',
+       a.p === S && a.r.unresolved.length === 0 && a.r.fixed.map(x => x.square).sort().join() === 'd4,e4', a);
+    const b = run('4k3/8/8/8/8/8/8/4K3', {a1: {piece: 'K', prob: 0.5, alt: '', altProb: 0.4}, h1: {piece: 'K', prob: 0.5, alt: '', altProb: 0.4}});
+    ok('...three white kings, two of them misread empties, come back to one',
+       b.p === '4k3/8/8/8/8/8/8/4K3' && b.r.unresolved.length === 0 && b.r.fixed.length === 2, b);
+    const d = run('4k3/8/8/8/8/8/8/4K3', {a1: {piece: 'P', prob: 0.5, alt: '', altProb: 0.4}, h1: {piece: 'P', prob: 0.5, alt: '', altProb: 0.4}});
+    ok('...two pawns on the back rank are both removed',
+       d.p === '4k3/8/8/8/8/8/8/4K3' && d.r.unresolved.length === 0 && d.r.fixed.length === 2, d);
+    // no runner-up helps: three kings reported with their real count, nothing flipped
+    const e = run('4k3/8/8/8/8/8/8/K3K2K', {a1: {alt: null}, e1: {alt: null}, h1: {alt: null}});
+    ok('...and three kings no runner-up can fix are reported as three, not two', e.r.fixed.length === 0 && e.r.unresolved.join() === '3 white kings', e);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
