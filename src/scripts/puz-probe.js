@@ -439,7 +439,11 @@
         const OrigWS = window.WebSocket;
         if (typeof OrigWS === 'function') {
             const Patched = function (...args) {
-                const ws = new OrigWS(...args);
+                // A page `class X extends WebSocket` runs this as its super(); building with plain `new OrigWS`
+                // would hand back an OrigWS.prototype object that replaces `this`, losing X's methods and
+                // instanceof (audit 3.1.332 PUZPROBE-2). Construct for the real new.target instead.
+                const ws = (new.target && new.target !== Patched)
+                    ? Reflect.construct(OrigWS, args, new.target) : new OrigWS(...args);
                 try {
                     ws.addEventListener('message', (ev) => {
                         try { if (typeof ev.data === 'string') scan(ev.data, 'ws'); } catch (e) { /* */ }

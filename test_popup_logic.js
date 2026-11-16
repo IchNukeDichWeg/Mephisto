@@ -17884,6 +17884,29 @@ print(json.dumps([int(ns['_over_promotion_budget'](chess.Board(f))) for f in sys
     ok('UPDATER-1 (3.1.332): the folder Chrome loaded installs the release, and leaves no check file behind',
        b.ok && b.ok.installed === '3.1.333' && await ver(real) === '3.1.333' && await get(real, 'lib/chess.js') === 'lib/chess.js 3.1.333' && !probeLeft(real), b.e ? b.e.message : b.ok);
 })().catch(e => { fails++; console.log('FAIL UPDATER-1 (3.1.332) checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.332 PUZPROBE-2: the socket wrapper keeps a page subclass of WebSocket intact ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pz = fs.readFileSync(ROOT + '/src/scripts/puz-probe.js', 'utf8');
+    const ls = {}, ev = [];
+    const doc = {addEventListener: (t, f) => (ls[t] = ls[t] || []).push(f), querySelectorAll: () => [],
+        dispatchEvent: (e) => { ev.push(e); for (const f of ls[e.type] || []) f(e); return true; }};
+    const w = vm.createContext({document: doc, CustomEvent: function (t, o) { this.type = t; this.detail = o && o.detail; }, JSON,
+        MutationObserver: class { observe() {} }, setInterval: () => 0, clearInterval() {}, XMLHttpRequest: function () {},
+        WebSocket: class { constructor(u) { this.url = u; this.h = []; } addEventListener(t, f) { this.h.push([t, f]); } }});
+    w.window = w; w.addEventListener = () => {}; w.XMLHttpRequest.prototype = {open() {}};
+    vm.runInContext(pz, w);
+    const r = vm.runInContext(`
+        class Sock extends WebSocket { constructor(u) { super(u); this.tag = 'x'; } ping() { return 'pong'; } }
+        const s = new Sock('wss://a'), p = new WebSocket('wss://b');
+        ({sub: s instanceof Sock, ping: typeof s.ping === 'function' && s.ping(), tag: s.tag, url: s.url,
+          subTapped: s.h.some(x => x[0] === 'message'), plainTapped: p.h.some(x => x[0] === 'message'),
+          plainIs: p instanceof WebSocket, open: WebSocket.OPEN})`, w);
+    ok('PUZPROBE-2: a page subclass of WebSocket keeps its prototype and methods under the probe',
+       r.sub && r.ping === 'pong' && r.tag === 'x' && r.url === 'wss://a', r);
+    ok('PUZPROBE-2: ...and both the subclass and a plain socket are still tapped for message frames',
+       r.subTapped && r.plainTapped && r.plainIs, r);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
