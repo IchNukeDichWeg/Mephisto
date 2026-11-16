@@ -16696,6 +16696,42 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     const tet = fs.readFileSync(ROOT + '/native-host/tetrarch-host.py', 'utf8');
     ok('TETRARCHHOST-1: tetrarch-host.py reports the panel\'s protocol', +((tet.match(/^HOST_PROTOCOL = (\d+)$/m) || [])[1]) === want);
 }
+// ---- audit 3.1.332 POPUP1-2: a known puzzle move armed in the pause is not sent once Puzzle Mode is off or Simon Says on ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (a, b) => { const s = psrc.indexOf(a), e = psrc.indexOf(b, s + 1); if (s < 0 || e < 0) throw new Error('POPUP1-2 slice ' + a); return psrc.slice(s, e); };
+    // runs the REAL maybe_play_puzzle_move and request_automove; the pause timer is fired by hand
+    const run = (flip) => {
+        const timers = [];
+        const c = vm.createContext({console: {log() {}, warn() {}}, Date, setTimeout: (f) => { timers.push(f); return timers.length; }, clearTimeout() {}});
+        c.self = c;
+        vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+        vm.runInContext(`var PANEL_BOOTED = true, detected_prefix = 'li', last_eval = {fen: ''}, puzzle_solutions = null, sent = [], setup_fen = null,
+            analysed_push_key = 'k', our_turn_at = 0, session_counted_fen = null;
+            var config = {variant: 'chess', autoplay: true, puzzle_mode: true, help_mode: false, manual_mode: false, simon_says_mode: false};
+            var MephistoConfig = {get: k => k === 'puzzle_delay' ? '300' : null}; function our_side() { return 'white'; } function abandon_search() {}
+            function show_puzzle_answer() {} function watch_puzzle_move() {} function bgTrace() {} function safe_deselect_square() { return null; }
+            function fresh_timing() { return {}; } function move_situation() {} function session_note_move() {} function send_to_active_tab(m) { sent.push(m); }`, c);
+        for (const [a, b] of [['const PUZZLE_DB_SITES', '// Walk the solution'], ['function puzzle_expand', '// --- Puzzle Storm'],
+            ['function premove_reply_playable', '// A physical premove is SAFE'], ['function puzzle_pick', '// Called at the end of on_new_pos'],
+            ['const PUZZLE_MOVE_DELAY_MS', '// WHICH SCRAPE THIS PANEL'], ['const PUZZLE_MOVE_RETRY_MS', '// Did the move we just sent'],
+            ['let puzzle_last_sent', '// Queue two forced premoves']]) vm.runInContext(cut(a, b), c);
+        const fen = 'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 2 3';
+        vm.runInContext(`last_eval.fen = ${JSON.stringify(fen)}; puzzle_solutions = puzzle_expand(last_eval.fen, 'f3f7');`, c);
+        const armed = vm.runInContext('maybe_play_puzzle_move(last_eval.fen)', c);
+        vm.runInContext(flip, c);
+        timers.splice(0).forEach(f => f());
+        return {armed, sent: vm.runInContext('sent.map(m => m.move || (m.pv || [])[0])', c)};
+    };
+    let r;
+    try { r = {none: run('0'), puzzle_off: run('config.puzzle_mode = false'), simon: run('config.simon_says_mode = true'), autoplay_off: run('config.autoplay = false')}; }
+    catch (e) { r = {err: e.message}; }
+    ok('POPUP1-2: the armed move is sent when nothing changed in the pause',
+       r.none && r.none.armed === true && JSON.stringify(r.none.sent) === '["f3f7"]', r);
+    ok('POPUP1-2: ...and not sent once Puzzle Mode is switched off, Simon Says on, or Autoplay off during the pause',
+       r.puzzle_off && [r.puzzle_off, r.simon, r.autoplay_off].every(x => x.armed === true && x.sent.length === 0), r);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

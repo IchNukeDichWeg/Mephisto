@@ -4537,7 +4537,10 @@ function maybe_play_puzzle_move(fen, opts = {}) {
             console.log('Puzzle DB: position moved on during the pre-move pause -- not sending');
             return;
         }
-        if (!puzzle_send_still_wanted()) return;
+        // The whole readiness test again, not just the Autoplay/Help/Manual gates: Puzzle Mode
+        // switched off or Simon Says on during the pause still clicked the move armed before
+        // (audit 3.1.332 POPUP1-2). Nothing is on record yet (request_automove has not run).
+        if (!puzzle_send_still_wanted() || puzzle_move_ready(fen) !== uci) return;
         request_automove(uci, null, false, {paused: true, retry: opts.retry});
         watch_puzzle_move(fen, uci);
     }, puzzle_move_delay_ms());
