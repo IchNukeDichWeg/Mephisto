@@ -3757,7 +3757,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         var last_eval = {fen: ${JSON.stringify(START)}, lines: [{pv: 'd4c5'}]};
         var PANEL_ROOT = {getElementById: () => null}; var board = {position() {}};
         function i18n(k, d) { return d; } function setup_fen_msg() {} function abandon_search() {} function update_turn_badge() {} function render_panel_line() {}
-        function stash_setup_state() {}
+        function stash_setup_state() {} function snap_follow_stop() {}
         function pv_moves(pv) { return String(pv || '').split(' ').filter(Boolean); }
         function on_new_pos(fen) { shown.push(fen); last_eval = {fen, lines: [{pv: fen.includes(' b ') ? 'e7c5' : 'b2b4'}]}; }
         ${code}`, c);
@@ -12886,7 +12886,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
             var panel_line_base = ${JSON.stringify(base)}, panel_line = [{fen: ${JSON.stringify(f1)}}, {fen: ${JSON.stringify(f2)}}];
             var PANEL_ROOT = {getElementById: () => null}, board = {position() {}, orientation() {}};
             var setup_fen_msg = () => {}, abandon_search = () => {}, update_turn_badge = () => {}, render_panel_line = () => {},
-                update_snap_follow_button = () => {}, is_legal_position = () => true, on_new_pos = (f) => { shown = f; };`
+                update_snap_follow_button = () => {}, is_legal_position = () => true, on_new_pos = (f) => { shown = f; }, snap_follow_stop = () => {};`
             + ['stash_setup_state', 'restore_setup_state', 'panel_line_goto'].map(fn).join('\n'), c);
         vm.runInContext('stash_setup_state(); panel_line_goto(0); setup_fen = null; shown = null; restore_setup_state();', c);
     } catch (e) { err = e.message; }
@@ -16731,6 +16731,50 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
        r.none && r.none.armed === true && JSON.stringify(r.none.sent) === '["f3f7"]', r);
     ok('POPUP1-2: ...and not sent once Puzzle Mode is switched off, Simon Says on, or Autoplay off during the pause',
        r.puzzle_off && [r.puzzle_off, r.simon, r.autoplay_off].every(x => x.armed === true && x.sent.length === 0), r);
+}
+// ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.indexOf('\nfunction ' + name + '(') + 1; return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({console, i18n: (k, d) => d});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    const followed = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2';
+    let err = null;
+    try {
+        vm.runInContext(`var config = {variant: 'chess'}, setup_fen = null, last_eval = {fen: ''}, panel_line = [], panel_line_base = '', panel_line_idx = -1,
+                snap_follow_timer = null, snap_crop = {x: 1}, setup_view = null, turn = 'w', prev_ply_count = 0, msg = '';
+            var PANEL_ROOT = {getElementById: () => null}, board = {position() {}, orientation() {}};
+            var setup_fen_msg = (m) => { msg = m; }, abandon_search = () => {}, update_turn_badge = () => {}, render_panel_line = () => {},
+                update_snap_follow_button = () => {}, is_legal_position = () => true, on_new_pos = () => {}, stash_setup_state = () => {},
+                clear_setup_fen = () => {}, clearTimeout = () => {};
+            function panel_line_push(san, uci, fen) { panel_line.push({san, uci, fen}); panel_line_idx = panel_line.length - 1; }
+            function panel_line_reset(base) { panel_line = []; panel_line_base = base; panel_line_idx = -1; }
+            var follow = (fen) => { setup_fen = fen; snap_follow_timer = 7; snap_crop = {x: 1}; };`
+            + ['snap_following', 'snap_follow_stop', 'play_on_panel_board', 'panel_line_goto', 'apply_setup_fen'].map(fn).join('\n'), c);
+    } catch (e) { err = e.message; }
+    const run = (code) => { if (err) return err; try { return vm.runInContext(code, c); } catch (e) { return 'threw: ' + e.message; } };
+    ok('POPUP2-1: a move played on the panel board while following stops the follow (it read the paused screen back over it)',
+       !err && run(`follow(${JSON.stringify(followed)}); [play_on_panel_board('b8', 'c6'), snap_following(), !!snap_crop]`).join() === 'true,false,true',
+       run(`[setup_fen, snap_following(), !!snap_crop]`));
+    ok('POPUP2-1: walking the panel line while following stops the follow too',
+       !err && run(`snap_follow_timer = 7; panel_line_goto(-1); [setup_fen === ${JSON.stringify(followed)}, snap_following()]`).join() === 'true,false',
+       run(`[setup_fen, snap_following()]`));
+    const box = {value: ''};
+    if (!err) c.PANEL_ROOT = {getElementById: (id) => id === 'setup_fen_input' ? box : null};
+    box.value = '8/5k2/8/8/8/2K5/6Q1/8 w - - 0 1';
+    ok('POPUP2-1: a typed FEN while following stops the follow and drops the screen region',
+       !err && run(`follow(${JSON.stringify(followed)}); apply_setup_fen(); [setup_fen.split(' ')[0], snap_following(), !!snap_crop]`).join() === '8/5k2/8/8/8/2K5/6Q1/8,false,false',
+       run(`[setup_fen, snap_following(), !!snap_crop]`));
+    box.value = followed.replace(' b ', ' w ');
+    ok('POPUP2-1: ...but fixing the side to move of the followed board keeps following',
+       !err && run(`follow(${JSON.stringify(followed)}); apply_setup_fen(); [setup_fen.split(' ')[1], snap_following()]`).join() === 'w,true',
+       run(`[setup_fen, snap_following()]`));
+    box.value = '8/8/8/8/8/2K5/6Q1/5k2 w - - 0 1';
+    ok('POPUP2-1: ...and so does the Flip button (apply_setup_fen(true))',
+       !err && run(`follow(${JSON.stringify(followed)}); apply_setup_fen(true); snap_following() && !!snap_crop`) === true,
+       run(`[setup_fen, snap_following(), !!snap_crop]`));
 }
 // ==== END FIX CHECKS ====
 

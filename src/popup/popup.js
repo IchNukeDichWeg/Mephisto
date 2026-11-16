@@ -1091,7 +1091,7 @@ async function initPanel(root, tabId) {
         snap_flipped = !snap_flipped;   // and every FOLLOWED read from here on is rotated to match
         const flipped = rotate_fen_180(current);
         if (box) box.value = flipped;
-        apply_setup_fen();
+        apply_setup_fen(true);   // the same board turned round: a follow keeps going (audit 3.1.332 POPUP2-1)
     });
     PANEL_ROOT.getElementById('setup_fen_input')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); apply_setup_fen(); }
@@ -4795,6 +4795,11 @@ function panel_line_goto(idx) {
     if (!fen) return;
     panel_line_idx = idx;
     setup_fen = fen;
+    // The panel takes over from Follow Screen here, as the message below says. A follow left running
+    // read the paused screen 0.5 s later and adopted it over the walked-to position, with the side to
+    // move inverted when one ply undid the other (audit 3.1.332 POPUP2-1). snap_crop is kept so Follow
+    // can be switched back on.
+    snap_follow_stop();
     // stashed like every other setup_fen change, or an Engine/Variant/Elo rebuild restored the line's
     // tip instead of the position walked back to (audit 3.1.331 POPUP2-6)
     stash_setup_state();
@@ -4907,6 +4912,10 @@ function play_on_panel_board(from, to, promotion) {
     if (!panel_line.length && !panel_line_base) panel_line_base = base;
     panel_line_push(san, `${from}${to}${promotion || ''}`, next);
     setup_fen = next;
+    // Playing on the panel board ends Follow Screen (audit 3.1.332 POPUP2-1): the next read of the
+    // paused screen "explained" ...Nc6 as the other side playing Nb8 and took the screen position back
+    // with the wrong side to move. snap_crop is kept so Follow can be switched back on.
+    snap_follow_stop();
     stash_setup_state();
     // SHOW the setup row: it carries the "not following the page" message and the live FEN, and a
     // hidden row would leave that state invisible -- the board would just stop tracking the game with
@@ -5638,7 +5647,7 @@ function toggle_setup_fen() {
     if (input) { input.value = last_eval.fen || ''; input.focus(); input.select(); }
 }
 
-function apply_setup_fen() {
+function apply_setup_fen(keep_follow = false) {
     const input = PANEL_ROOT.getElementById('setup_fen_input');
     const fen = (input?.value || '').trim();
     if (!fen) return clear_setup_fen();
@@ -5662,6 +5671,15 @@ function apply_setup_fen() {
     if (!is_legal_position(parsed)) {
         setup_fen_msg(i18n('panel.fen.illegal', 'Illegal position'));
         return;
+    }
+    // A typed position replaces the followed one, so Follow Screen ends with it: left running it
+    // re-seeded the screen board over the typed FEN 2 s later (audit 3.1.332 POPUP2-1). snap_crop goes
+    // too, or Help Mode drew the typed position's arrows onto the screen region. Kept following: the
+    // Flip button (keep_follow), and an edit of the followed position that keeps its placement (the
+    // side to move fixed after "Re-seeded - check the side to move").
+    if (keep_follow !== true && parsed.split(' ')[0] !== (setup_fen || '').split(' ')[0]) {
+        snap_follow_stop();
+        snap_crop = null;
     }
     setup_fen = parsed;
     stash_setup_state();
