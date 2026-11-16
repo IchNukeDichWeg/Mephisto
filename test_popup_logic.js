@@ -18105,6 +18105,37 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const e = run('4k3/8/8/8/8/8/8/K3K2K', {a1: {alt: null}, e1: {alt: null}, h1: {alt: null}});
     ok('...and three kings no runner-up can fix are reported as three, not two', e.r.fixed.length === 0 && e.r.unresolved.join() === '3 white kings', e);
 }
+// ---- audit 3.1.332 MAIA-1: Maia-2's SelfElo is the rating of the side to move, so the opponent's turn swaps the pair ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fnSrc = (head) => { const i = psrc.indexOf(head); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const a = psrc.indexOf('        if (want_multipv !== search_multipv_set) {');
+    const block = psrc.slice(a, psrc.indexOf('        if (moves) {', a));   // the per-search setoption gap, real source
+    const sent = [];
+    const c = vm.createContext({config: {engine: 'maia2', maia2_self_elo: 1500, maia2_oppo_elo: 1900},
+        search_multipv_set: 1, search_maia2_elos_set: null, want_multipv: 1, our_turn: true,
+        send_engine_uci: (l) => sent.push(l), MephistoConfig: {set() {}}, PANEL_ROOT: null,
+        push_config() {}, abandon_search() {}, last_eval: {fen: 'x'}});
+    vm.runInContext(fnSrc('function maia2_turn_elos(our_turn) {') + fnSrc('function set_maia2_oppo(v, store = true) {'), c);
+    const run = (ours) => { sent.length = 0; c.our_turn = ours; vm.runInContext(block, c); return sent.filter(l => /Elo/.test(l)); };
+    const opp = run(false);
+    ok('MAIA-1: on the opponent\'s turn Maia-2 is asked as the opponent (SelfElo 1900) against the user (OppoElo 1500)',
+       JSON.stringify(opp) === JSON.stringify(['setoption name SelfElo value 1900', 'setoption name OppoElo value 1500']), opp);
+    const again = run(false);
+    ok('MAIA-1: ...an unchanged pair is not re-sent on the next opponent-turn search', again.length === 0, again);
+    const ours = run(true);
+    ok('MAIA-1: on our turn the pair goes back to SelfElo = the user\'s rating',
+       JSON.stringify(ours) === JSON.stringify(['setoption name SelfElo value 1500', 'setoption name OppoElo value 1900']), ours);
+    // a new opponent rating sends only OppoElo itself; the next search must re-send the turn's full pair
+    c.our_turn = false; sent.length = 0;
+    try { vm.runInContext('set_maia2_oppo(2000)', c); } catch (e) { sent.push('threw ' + e.message); }
+    const after = run(false);
+    ok('MAIA-1: after the opponent rating changes, the next opponent-turn search re-sends the swapped pair',
+       JSON.stringify(after) === JSON.stringify(['setoption name SelfElo value 2000', 'setoption name OppoElo value 1500']), after);
+    c.config.engine = 'maia3';
+    ok('MAIA-1: other engines get no Elo setoption from the search gap', run(false).length === 0);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

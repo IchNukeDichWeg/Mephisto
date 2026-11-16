@@ -203,6 +203,7 @@ let last_pos = {startFen: null, moves: ''}; // the position's own start + UCI mo
 let premove_tracker = {fen: '', lines: {}}; // per-multipv reply stability while the opponent thinks
 let search_threads_set = null; // last Threads value pushed to the engine; opponent-turn search is capped unless Pondering
 let search_multipv_set = null; // last MultiPV pushed to the WASM engine, so an unchanged width is not re-sent
+let search_maia2_elos_set = null; // last 'self/oppo' Elo pair pushed to Maia-2 (see maia2_turn_elos); null = re-send
 let remote_multipv_set = null; // last MultiPV pushed to a NATIVE host (it stores options; a native analyse also carries it)
 let remote_elo_refused = false; // the HTTP Remote Engine's engine took no Elo cap (no UCI_Elo, e.g. Lc0); see note_remote_elo
 let premove_lines = 2; // top-N lines premove tracks/certifies; widened to the ponder width while pondering (see ponder_line_count)
@@ -1503,6 +1504,7 @@ function init_quick_settings() {
                 send_engine_uci(`setoption name SelfElo value ${v}`);
                 // Maia-3 plays both sides at the one rating; Maia-2's opponent is the opponent's own
                 if (config.engine !== 'maia2') send_engine_uci(`setoption name OppoElo value ${v}`);
+                search_maia2_elos_set = null;   // the next search re-sends Maia-2's pair for its turn (MAIA-1)
                 abandon_search();
                 // re-analyse the current position at the new rating; a held position gets no page
                 // scrape to do that, so it is searched again here (audit 3.1.332 POPUP1-1)
@@ -1919,6 +1921,7 @@ async function initialize_engine(reuseWarm = false) {
         remote_multipv_set = null;           // WASM path: no host to have configured
         send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
         search_multipv_set = effective_multipv();   // baseline for the same reason as Threads
+        search_maia2_elos_set = null;               // a fresh net holds the init pair; on_new_pos sets the turn's
         // Win/Draw/Loss readout under the score. Modern Stockfish (dev/18) reports `wdl W D L` per
         // info line once this is on; SF11/Fairy don't declare it and silently ignore this line.
         send_engine_uci('setoption name UCI_ShowWDL value true');
@@ -6261,6 +6264,19 @@ function on_new_pos(fen, startFen, moves) {
         if (want_multipv !== search_multipv_set) {
             send_engine_uci(`setoption name MultiPV value ${want_multipv}`);
             search_multipv_set = want_multipv;
+        }
+        // Maia-2's SelfElo is the rating of the side TO MOVE (its reference sets elo_self to the
+        // mover's Elo). It was only ever set to the user's rating, so on the opponent's turn the net
+        // answered what a <user-rating> player would play against <opponent-rating> -- the prediction
+        // shown and premoved against was the wrong player's (audit 3.1.332 MAIA-1). Swapped per turn,
+        // only when the pair changes, same gap and same reason as MultiPV above.
+        if (config.engine === 'maia2') {
+            const [self_elo, oppo_elo] = maia2_turn_elos(our_turn);
+            if (`${self_elo}/${oppo_elo}` !== search_maia2_elos_set) {
+                send_engine_uci(`setoption name SelfElo value ${self_elo}`);
+                send_engine_uci(`setoption name OppoElo value ${oppo_elo}`);
+                search_maia2_elos_set = `${self_elo}/${oppo_elo}`;
+            }
         }
         if (moves) {
             send_engine_uci(`position fen ${startFen} moves ${moves}`);
@@ -11273,6 +11289,7 @@ function watch_config_changes() {
                         abandon_search();
                         send_engine_uci(`setoption name SelfElo value ${config.maia3_elo}`);
                         if (config.engine === 'maia3') send_engine_uci(`setoption name OppoElo value ${config.maia3_elo}`);
+                        search_maia2_elos_set = null;   // re-sent for the turn by the next search (MAIA-1)
                         last_eval.fen = '';
                         resync_after_config_change = true;
                     }
@@ -11281,6 +11298,7 @@ function watch_config_changes() {
                 if ((key === 'maia2_self_elo' || key === 'maia2_oppo_elo') && config.engine === 'maia2') {
                     abandon_search();
                     send_engine_uci(`setoption name ${key === 'maia2_self_elo' ? 'SelfElo' : 'OppoElo'} value ${config[key]}`);
+                    search_maia2_elos_set = null;   // re-sent for the turn by the next search (MAIA-1)
                     last_eval.fen = '';
                     resync_after_config_change = true;
                 }
@@ -11394,6 +11412,14 @@ function mark_autoplay_overridden() {
         : '';
 }
 
+// Maia-2's [SelfElo, OppoElo] for a search: SelfElo is the mover's rating, so the opponent's turn
+// gets the pair swapped (audit 3.1.332 MAIA-1). The :m2 reply client always asks for OUR move and
+// keeps [self, oppo].
+function maia2_turn_elos(our_turn) {
+    return our_turn ? [config.maia2_self_elo, config.maia2_oppo_elo]
+                    : [config.maia2_oppo_elo, config.maia2_self_elo];
+}
+
 // Maia-2's opponent rating, from its box or from the page: tell the net, drop the stale answer.
 // Only the box's value is stored. A page rating is this tab's opponent: stored, it reached every
 // other open panel through the live-config listener, which adopted it and re-asked its own page,
@@ -11411,6 +11437,7 @@ function set_maia2_oppo(v, store = true) {
     if (store) MephistoConfig.set('maia2_oppo_elo', JSON.stringify(v));
     if (config.engine === 'maia2') {
         send_engine_uci(`setoption name OppoElo value ${v}`);
+        search_maia2_elos_set = null;   // re-sent for the turn by the next search (MAIA-1)
         abandon_search();
         last_eval.fen = '';   // the old answer was for another matchup
     }
