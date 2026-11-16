@@ -3004,9 +3004,14 @@ function puzzleTcnToUci(tcn) {
 // to mean anything, so it is read here against the fen that came beside it. Without this every daily
 // capture was counted unread and dropped (audit 3.1.331 PUZPROBE-1). Only a line legal all the way
 // through comes back; anything else is null, and the TCN reading is still offered beside it.
+// The field carries the same tokens the importer meets in it (puzzle-db.js ccDailySans): about one
+// line in eight ends in the result ('Rd8+ Kh7 Rb1 1-0') and some carry move numbers, and chess.js
+// cannot play either, so they rejected the whole capture. They are dropped here by the same rule; a
+// variation in parentheses is still refused, as there (audit 3.1.332 CONTENT1-1 / PUZPROBE-1).
 function puzzleSanToUci(fen, text) {
     if (typeof fen !== 'string' || !fen.trim() || typeof text !== 'string') return null;
-    const san = text.trim().split(/\s+/).filter(Boolean);
+    if (/[()]/.test(text)) return null;
+    const san = text.trim().split(/\s+/).filter(t => t && !/^(1-0|0-1|1\/2-1\/2|\*)$/.test(t) && !/^\d+\.+$/.test(t));
     if (!san.length || san.length > 400) return null;
     try {
         const c = new Chess('chess', fen.trim());

@@ -16896,6 +16896,25 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
             ok(`POPUP3-2: a ply the classifier grades ${g} is not toasted as a blunder from the raw drop`, run(g).length === 0, run(g));
     } catch (e) { ok('POPUP3-2: harness ran', false, e.message); }
 }
+// ---- audit 3.1.332 CONTENT1-1 / PUZPROBE-1: a Daily Puzzle SAN capture with a result or move-number token still decodes ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = cs.indexOf('function puzzleSanToUci('), b = cs.indexOf('// Does this whole line replay from this position?', a);
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    try { vm.runInContext(cs.slice(a, b), c); } catch (e) { ok('CONTENT1-1: puzzleSanToUci slice loads', false, e.message); }
+    const fen = '6k1/5pp1/7p/8/8/8/5PPP/R2R2K1 w - - 0 1', want = 'd1d8 g8h7 a1b1';
+    const run = (t) => { try { return c.puzzleSanToUci(fen, t); } catch (e) { return 'threw ' + e.message; } };
+    ok('CONTENT1-1: a plain SAN line still decodes', run('Rd8+ Kh7 Rb1') === want, run('Rd8+ Kh7 Rb1'));
+    ok('CONTENT1-1: a trailing result token (1-0, *, 1/2-1/2) is dropped, not a reason to reject the line',
+       run('Rd8+ Kh7 Rb1 1-0') === want && run('Rd8+ Kh7 Rb1 *') === want && run('Rd8+ Kh7 Rb1 1/2-1/2') === want,
+       [run('Rd8+ Kh7 Rb1 1-0'), run('Rd8+ Kh7 Rb1 *'), run('Rd8+ Kh7 Rb1 1/2-1/2')]);
+    ok('CONTENT1-1: move-number tokens (1. / 1...) are dropped', run('1. Rd8+ Kh7 2. Rb1') === want && run('1. Rd8+ 1... Kh7 2. Rb1 1-0') === want,
+       [run('1. Rd8+ Kh7 2. Rb1'), run('1. Rd8+ 1... Kh7 2. Rb1 1-0')]);
+    ok('CONTENT1-1: a line with a parenthesised variation is still refused', run('Rd8+ Kh7 (Kh8) Rb1') === null, run('Rd8+ Kh7 (Kh8) Rb1'));
+    ok('CONTENT1-1: a line that is only a result is null, not an empty answer', run('1-0') === null, run('1-0'));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
