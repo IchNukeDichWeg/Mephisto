@@ -1241,14 +1241,15 @@ async function tbMergeOnlineDtm(local, fen, path) {
     const clock = parseInt(fen.split(' ')[4], 10) || 0;
     if (local.dtz == null && typeof online.dtz === 'number') {
       local.dtz = online.dtz;
-      local.category = halfmoveCategory(local.category, local.dtz, clock);
+      // a lost root with no legal move is checkmate, a loss at any clock (audit 3.1.332 SYZYGY-1)
+      local.category = halfmoveCategory(local.category, local.dtz, clock, local.category === 'loss' && local.moves.length === 0);
     }
     for (const m of local.moves) {
       const o = byUci.get(m.uci);
       if (withDtm && typeof o?.dtm === 'number') m.dtm = o.dtm;
       if (m.dtz == null && typeof o?.dtz === 'number') {
         m.dtz = o.dtz;
-        m.category = halfmoveCategory(m.category, m.dtz, m.zeroing ? 0 : clock + 1);
+        m.category = halfmoveCategory(m.category, m.dtz, m.zeroing ? 0 : clock + 1, m.checkmate);
       }
     }
     self.MephistoSyzygy.sortMovesLikeLichess(local.moves);

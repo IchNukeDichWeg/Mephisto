@@ -17682,6 +17682,76 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('...a plain click still navigates', s.calls.join() === 'analysis,review' && s.loc.hash === '#review', s.calls);
     })();
 }
+// ---- audit 3.1.332 SYZYGY-1: a checkmating move is a loss at any halfmove clock, so mate in 1 at halfmove 99 ranks first ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const cut = (s, from, to) => { const a = s.indexOf(from), b = s.indexOf(to, a); return (a < 0 || b < 0) ? '' : s.slice(a, b); };
+    const c = vm.createContext({console: {log() {}, warn() {}}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/syzygy.js', 'utf8'), c);
+    const S = c.MephistoSyzygy;
+    // KRQ v KN, White to move at halfmove 99: a7a8 mates; Qxd2 is a zeroing capture into a loss.
+    // Stub tables like the real 3-4-5 set: White wins (dtz 1), a mated Black has dtz -1, any other Black position -2.
+    const MATE_FEN = '7k/R7/6K1/8/8/8/3n4/3Q4 w - - 99 120', MATED_FEN = 'R6k/8/6K1/8/8/8/8/8 b - - 100 120';
+    const answer = (fen) => {
+        const tb = new S.Tablebase(c.Chess);
+        tb.probeWdl = (b) => (b.turnWhite() ? 2 : -2);
+        tb.probeDtz = (b) => (b.turnWhite() ? 1 : b.isCheckmate() ? -1 : -2);
+        try { return tb.probeResponse(fen); } catch (e) { return {error: String(e.message)}; }
+    };
+    const r = answer(MATE_FEN);
+    const mate = r.moves?.find(m => m.uci === 'a7a8');
+    ok('SYZYGY-1 (332): at halfmove 99 the mating move reads loss, not blessed-loss', mate?.category === 'loss' && mate?.checkmate === true, mate);
+    ok('SYZYGY-1 (332): ...and ranks first, ahead of the zeroing capture d1d2 (it played Qxd2)', r.moves?.[0]?.uci === 'a7a8', r.moves?.slice(0, 2));
+    ok('SYZYGY-1 (332): ...a quiet rook move still reads blessed-loss (the 50-move rule is unchanged)',
+       r.moves?.find(m => m.uci === 'a7b7')?.category === 'blessed-loss', r.moves?.find(m => m.uci === 'a7b7'));
+    const rm = answer(MATED_FEN);
+    ok('SYZYGY-1 (332): a checkmated root at halfmove 100 reads loss', rm.category === 'loss' && (rm.moves || []).length === 0, rm);
+    ok('SYZYGY-1 (332): halfmoveCategory keeps a mate a loss and still demotes a non-mate',
+       S.halfmoveCategory('loss', -1, 100, true) === 'loss' && S.halfmoveCategory('loss', -1, 100) === 'blessed-loss');
+    // the online merge into a WDL-only local answer: lichess sends dtz -1 and dtm null for the mate
+    Object.assign(c, {setTimeout, clearTimeout, AbortController});
+    try { vm.runInContext(`var TABLEBASE_HOST = 'https://tb', lichess_blocked = () => false, lichess_note_response = () => {};
+        var fetch = async () => ({ok: true, json: async () => ({dtm: 1, dtz: 1, category: 'win', moves: [
+            {uci: 'a7a8', category: 'loss', dtz: -1, dtm: null, checkmate: true}, {uci: 'd1d2', category: 'loss', dtz: -2, dtm: -2, zeroing: true},
+            {uci: 'a7b7', category: 'loss', dtz: -2, dtm: -4}]})});\n`
+        + cut(bg, 'async function tbMergeOnlineDtm(', '\n}\n') + '\n}\nthis.merge = tbMergeOnlineDtm;', c); }
+    catch (e) { console.log('slice threw: ' + e.message); }
+    (async () => {
+        const local = {category: 'win', dtz: null, source: 'local', moves: [
+            {uci: 'a7b7', category: 'loss', dtz: null, checkmate: false, zeroing: false},
+            {uci: 'd1d2', category: 'loss', dtz: null, checkmate: false, zeroing: true},
+            {uci: 'a7a8', category: 'loss', dtz: null, checkmate: true, zeroing: false}]};
+        try { await c.merge(local, MATE_FEN, 'standard'); } catch (e) { local.err = String(e.message); }
+        ok('SYZYGY-1 (332): a WDL-only answer given online distances keeps the mate a loss and ranks it first',
+           local.moves[0].uci === 'a7a8' && local.moves[0].category === 'loss', local.moves);
+        const root = {category: 'loss', dtz: null, source: 'local', moves: []};
+        Object.assign(c, {fetch: async () => ({ok: true, json: async () => ({dtz: -1, category: 'loss', checkmate: true, moves: []})})});
+        try { await c.merge(root, MATED_FEN, 'standard'); } catch (e) { root.err = String(e.message); }
+        ok('SYZYGY-1 (332): ...and a mated root given its online dtz at halfmove 100 stays a loss', root.category === 'loss' && root.dtz === -1, root);
+    })();
+    // the native host's do_tbprobe over the same stub tables
+    const py = `import ast, sys, os
+src = open(sys.argv[1], encoding='utf-8-sig').read()
+keep = {'_tb_cache', '_TB_CATEGORY', '_tb_halfmove_category', 'do_tbprobe'}
+body = [n for n in ast.parse(src).body if (isinstance(n, ast.FunctionDef) and n.name in keep)
+        or (isinstance(n, ast.Assign) and any(getattr(t, 'id', '') in keep for t in n.targets))]
+g = {'os': os}
+exec(compile(ast.Module(body=body, type_ignores=[]), 'host', 'exec'), g)
+class TB:
+    def probe_wdl(self, b): return 2 if b.turn else -2
+    def probe_dtz(self, b): return 1 if b.turn else (-1 if b.is_checkmate() else -2)
+g['_tb_open'] = lambda p: TB()
+r = g['do_tbprobe']({'fen': sys.argv[2], 'path': 'x'})
+m = g['do_tbprobe']({'fen': sys.argv[3], 'path': 'x'})
+print(r['moves'][0]['uci'], r['moves'][0]['category'], m['category'])`;
+    const hr = require('child_process').spawnSync('python3', ['-I', '-B', '-c', py, ROOT + '/native-host/uci-native-host.py', MATE_FEN, MATED_FEN], {encoding: 'utf8'});
+    if (/No module named 'chess'/.test(hr.stderr || '')) console.log('ok   SYZYGY-1 (332): native host check skipped (no python-chess)');
+    else ok('SYZYGY-1 (332): the native host answers the same: mate a7a8 first as loss, the mated root a loss',
+            (hr.stdout || '').trim() === 'a7a8 loss loss', (hr.stdout || '') + (hr.stderr || '').slice(-300));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

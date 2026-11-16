@@ -1217,12 +1217,12 @@ class Tablebase {
             const zeroing = mv.flags.includes('c') || mv.flags.includes('e') || mv.piece === 'p';
             moves.push({
                 uci: mv.lan, san: mv.san,
-                category: halfmoveCategory(CATEGORY[String(childWdl)] || 'unknown', childDtz, zeroing ? 0 : clock + 1),
+                category: halfmoveCategory(CATEGORY[String(childWdl)] || 'unknown', childDtz, zeroing ? 0 : clock + 1, mate),
                 dtz: childDtz, checkmate: mate, stalemate: stale, zeroing,
             });
         }
         sortMovesLikeLichess(moves);
-        return {category: halfmoveCategory(CATEGORY[String(wdl)] || 'unknown', dtz, clock), dtz, moves, source: 'local'};
+        return {category: halfmoveCategory(CATEGORY[String(wdl)] || 'unknown', dtz, clock, board.isCheckmate()), dtz, moves, source: 'local'};
     }
 }
 
@@ -1233,9 +1233,12 @@ class Tablebase {
 // side is no longer steered into a zeroing move that gives up the save, and the auto-resign veto
 // sees the saved position (audit 3.1.331 SYZYGY-1). With no distance (a WDL-only set) the clock
 // cannot apply and the pure WDL verdict stands. dtz can read one ply short (python-chess's
-// rounding), so a position exactly on the edge may still read win/loss.
-function halfmoveCategory(category, dtz, clock) {
-    if (typeof dtz !== 'number' || !(clock > 0) || clock + Math.abs(dtz) <= 100) return category;
+// rounding), so a position exactly on the edge may still read win/loss. A checkmated position is a
+// loss at any clock: mate takes precedence over the 50-move rule, and lila reports it as 'loss'.
+// Its dtz of -1 at clock 100 read blessed-loss, so at halfmove 99 a zeroing capture outranked
+// mate in 1 (audit 3.1.332 SYZYGY-1).
+function halfmoveCategory(category, dtz, clock, mate) {
+    if (mate || typeof dtz !== 'number' || !(clock > 0) || clock + Math.abs(dtz) <= 100) return category;
     return category === 'win' ? 'cursed-win' : category === 'loss' ? 'blessed-loss' : category;
 }
 

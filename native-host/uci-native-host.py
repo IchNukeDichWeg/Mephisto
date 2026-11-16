@@ -499,8 +499,9 @@ def do_tbprobe(data):
     # clock decides the 50-move rule. A win whose zeroing move lies more than 100 plies past the
     # clock is a 50-move draw, as lila-tablebase reports it (audit 3.1.331 SYZYGY-1; syzygy.js
     # halfmoveCategory is the in-browser twin). No distance (WDL-only set): the WDL verdict stands.
-    def _tb_halfmove_category(category, dtz, clock):
-        if dtz is None or clock <= 0 or clock + abs(dtz) <= 100:
+    # A checkmate is a loss at any clock (mate beats the 50-move rule; audit 3.1.332 SYZYGY-1).
+    def _tb_halfmove_category(category, dtz, clock, mate=False):
+        if mate or dtz is None or clock <= 0 or clock + abs(dtz) <= 100:
             return category
         return {'win': 'cursed-win', 'loss': 'blessed-loss'}.get(category, category)
     try:
@@ -521,7 +522,7 @@ def do_tbprobe(data):
             child_clock = board.halfmove_clock    # 0 after a zeroing move, the root's + 1 otherwise
             board.pop()
             moves.append({'uci': mv.uci(), 'san': san,
-                          'category': _tb_halfmove_category(_TB_CATEGORY.get(child_wdl, 'unknown'), child_dtz, child_clock),
+                          'category': _tb_halfmove_category(_TB_CATEGORY.get(child_wdl, 'unknown'), child_dtz, child_clock, mate),
                           'dtz': child_dtz,
                           'checkmate': mate, 'stalemate': stale, 'zeroing': zeroing})
         # lila-tablebase's MoveInfo::sort_key: category, a mating move, a stalemating move, then
@@ -539,7 +540,8 @@ def do_tbprobe(data):
             not m['stalemate'],
             m['zeroing'] != (m['category'] not in ('win', 'cursed-win')),
             -m['dtz'] if all_dtz else 0))
-        return {'category': _tb_halfmove_category(_TB_CATEGORY.get(wdl, 'unknown'), dtz, board.halfmove_clock),
+        return {'category': _tb_halfmove_category(_TB_CATEGORY.get(wdl, 'unknown'), dtz, board.halfmove_clock,
+                                                  board.is_checkmate()),
                 'dtz': dtz, 'moves': moves, 'source': 'local'}
     except (_s.MissingTableError, KeyError) as e:
         return {'error': f'missing table: {e}'}
