@@ -16868,6 +16868,34 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
         } catch (e) { ok('POPUP3-1: harness ran', false, e.message); }
     })();
 }
+// ---- audit 3.1.332 POPUP3-2: the opponent alert stays silent when the classifier grades the move outside the alert classes ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const cut = (from) => { const a = s.indexOf(from); return s.slice(a, s.indexOf('\n}\n', a) + 3); };
+    const run = (graded) => {
+        const c = vm.createContext({Math, sent: [], graded});
+        vm.runInContext(`var config = {opp_alert: true, variant: 'chess'};
+            const OPP_ALERT_MIN_DEPTH = 14; const ALERT_CLASSES = ['blunder', 'miss', 'mistake', 'inaccuracy'];
+            var last_eval = {fen: 'F2', lastMove: 'g8g5'};
+            var last_pos_eval = {fen: 'F2', cpWhite: -100, depth: 20, sideToMove: 'w'};
+            var opp_alert_armed = {beforeCpWhite: -900, oppColor: 'b', beforeFen: 'F1'};
+            function win_percent(cp) { return 50 + 50 * (2 / (1 + Math.exp(-0.00368206 * cp)) - 1); }
+            function uci_to_san(f, u) { return u; }
+            function classify_history() { return graded ? ['best', graded] : []; }
+            function send_to_active_tab(m) { sent.push(m); }
+            ${cut('function win_drop_label(drop) {')}
+            ${cut('function opp_alert_maybe_fire() {')}
+            opp_alert_maybe_fire();`, c);
+        return c.sent.map(m => m.label);
+    };
+    try {
+        ok('POPUP3-2: control: an ungraded ply with a 37-point drop still toasts the drop label', JSON.stringify(run(null)) === '["blunder"]', run(null));
+        ok('POPUP3-2: control: a ply graded Miss toasts Miss', JSON.stringify(run('miss')) === '["miss"]', run('miss'));
+        for (const g of ['best', 'forced', 'good', 'great'])
+            ok(`POPUP3-2: a ply the classifier grades ${g} is not toasted as a blunder from the raw drop`, run(g).length === 0, run(g));
+    } catch (e) { ok('POPUP3-2: harness ran', false, e.message); }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

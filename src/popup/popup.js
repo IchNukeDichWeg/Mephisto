@@ -9635,7 +9635,10 @@ function opp_alert_maybe_fire() {
     // nothing to say (no history recorded), the old drop label still fires.
     const classes = classify_history();
     const graded = classes.length ? classes[classes.length - 1] : null;
-    const label = (graded && ALERT_CLASSES.includes(graded)) ? graded : win_drop_label(drop);
+    // A graded ply outside ALERT_CLASSES (Best, Forced, Good...) stays SILENT: falling back to the
+    // drop there toasted a tablebase conversion the strip calls Best, or a forced move, as a
+    // blunder from the alert's own latest-depth numbers (audit 3.1.332 POPUP3-2).
+    const label = graded ? (ALERT_CLASSES.includes(graded) ? graded : null) : win_drop_label(drop);
     opp_alert_armed = null; // fire at most once per opponent move
     if (label) send_to_active_tab({oppAlert: true, label, drop: Math.round(drop), san, uci});
 }
