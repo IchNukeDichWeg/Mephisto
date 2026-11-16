@@ -3423,9 +3423,19 @@ function fourPCDiff(board, prev) {
     return {from, to, moved, cleanPly, arrived: arrived.length, vacated: vacated.length};
 }
 
-function fourPCEnPassant(board, prev) {
-    const ep = ['', '', '', ''];
+function fourPCEnPassant(board, prev, carry) {
     const d = fourPCDiff(board, prev);
+    // The square belongs to the PUSHER and lives until that same seat moves again (Tetrarch RULES.md
+    // 5.1: three plies, one per other seat). Starting from four empty entries every ply dropped it after
+    // one ply, so the seat two plies after the pusher never saw its legal capture (audit 3.1.332
+    // CONTENT2-1). So carry the other seats' entries across ONE clean ply, clearing only the mover's own
+    // (as athena's make_move does) and any whose pushed pawn is gone (taken, en passant or not). A
+    // multi-ply or unreadable diff cannot say who moved in between, so it starts empty as before.
+    const ep = (d && d.cleanPly && Array.isArray(carry)) ? carry.map((e, i) => {
+        if (!e || FOURPC_SEATS[i] === d.moved.seat) return '';
+        const p = board[e.split(':')[1]];
+        return p && p.seat === FOURPC_SEATS[i] && p.type === 'P' ? e : '';
+    }) : ['', '', '', ''];
     if (!d) return ep;
     // a double push is one piece moving to an empty square: anything else (capture, castle) is not
     // an en-passant opportunity even when the geometry happens to look like one
@@ -3563,7 +3573,7 @@ function scrapePosition4PC() {
     // the capture could never be chosen.
     const boardKey = Object.keys(board).sort().map(k => k + board[k].seat + board[k].type).join();
     if (boardKey !== fourPCPrevKey) {
-        fourPCEp = fourPCEnPassant(board, fourPCPrev);
+        fourPCEp = fourPCEnPassant(board, fourPCPrev, fourPCEp);
         fourPCPrev = board;
         fourPCPrevKey = boardKey;
     }

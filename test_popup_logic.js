@@ -16950,6 +16950,38 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
         ok('CONTENT1-2: no config yet still arms the plain 15 s grace', c.st().movingBudget === 15000, c.st());
     } catch (e) { ok('CONTENT1-2: beginMoving ran', false, e.message); }
 }
+// ---- audit 3.1.332 CONTENT2-1: a 4PC en-passant square lasts until the PUSHER moves again, not one ply ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = csrc.indexOf('const FOURPC_SEATS = '), e = csrc.indexOf('function fourPCEnPassant('), b = csrc.indexOf('\n}\n', e) + 3;
+    const c = vm.createContext({console, Set, Math, parseInt, JSON, Array, location: {pathname: '/variants/4-player-chess/game/1'}, site: 'chesscom'});
+    vm.runInContext('var lastScrapeFail;' + csrc.slice(a, b), c);
+    const P = (seat) => ({seat, type: 'P'});
+    // the same bookkeeping scrapePosition4PC does: each board change feeds the previous field back in
+    let prev = null, field = null;
+    const ply = (board) => { field = vm.runInContext(`fourPCEnPassant(${JSON.stringify(board)}, ${JSON.stringify(prev)}, ${JSON.stringify(field)})`, c); prev = board; return JSON.stringify(field); };
+    const b0 = {g2: P('R'), h4: P('G'), c5: P('B'), e13: P('Y')};
+    ply(b0);
+    const b1 = {g4: P('R'), h4: P('G'), c5: P('B'), e13: P('Y')};
+    ok('CONTENT2-1: Red g2-g4 writes g3:g4', ply(b1) === '["g3:g4","","",""]', field);
+    const b2 = {g4: P('R'), h4: P('G'), d5: P('B'), e13: P('Y')};
+    ok('CONTENT2-1: ...it survives Blue\'s move', ply(b2) === '["g3:g4","","",""]', field);
+    const b3 = {g4: P('R'), h4: P('G'), d5: P('B'), e12: P('Y')};
+    ok('CONTENT2-1: ...and Yellow\'s, so Green to move still sees h4xg3 e.p.', ply(b3) === '["g3:g4","","",""]', field);
+    const b4 = {g4: P('R'), h5: P('G'), d5: P('B'), e12: P('Y')};
+    ok('CONTENT2-1: ...Green moving does not clear it', ply(b4) === '["g3:g4","","",""]', field);
+    const b5 = {g5: P('R'), h5: P('G'), d5: P('B'), e12: P('Y')};
+    ok('CONTENT2-1: Red moving again clears its own entry', ply(b5) === '["","","",""]', field);
+    // a Blue double push, then Yellow's pawn captures that Blue pawn: the entry goes with the pawn
+    prev = {b7: P('B'), c8: P('Y')}; field = ['', '', '', ''];
+    ok('CONTENT2-1: a Blue push along the rank writes c7:d7', ply({d7: P('B'), c8: P('Y')}) === '["","c7:d7","",""]', field);
+    ok('CONTENT2-1: ...and is dropped once that pawn is taken', ply({d7: P('Y')}) === '["","","",""]', field);
+    // a multi-ply jump (missed scrapes) cannot say who moved in between: it starts empty
+    prev = b0; field = ['g3:g4', '', '', ''];
+    ok('CONTENT2-1: a multi-ply diff carries nothing', ply({g4: P('R'), h5: P('G'), d5: P('B'), e12: P('Y')}) === '["","","",""]', field);
+    ok('CONTENT2-1: scrapePosition4PC feeds the previous field back in', /fourPCEp = fourPCEnPassant\(board, fourPCPrev, fourPCEp\);/.test(csrc));
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
