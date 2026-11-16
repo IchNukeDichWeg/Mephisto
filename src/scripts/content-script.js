@@ -3230,6 +3230,7 @@ const FOURPC_BACK = {R: ['rank', 1], B: ['file', 'a'], Y: ['rank', 14], G: ['fil
 let fourPCPrev = null;   // previous board, for the en-passant diff
 let fourPCPrevKey = null, fourPCEp = null;   // ...its identity, and the field that diff produced
 let fourPCTurn = null;   // last KNOWN side to move; sticky across scrapes that saw no move
+let fourPCLastMover = null;   // {seat, lastFilled, key}: the last clean diff's mover, while the table lags
 let fourPCCastleMem = null;   // seat -> {k, short, long}: castling rights only ever DECREASE in a game
 // KEYED BY PATH, like fourPCModeCache below already is (audit finding #4, 2026-08-26): chess.com is
 // a client-routed SPA, so browsing from a lobby preview or a finished game into a live one keeps
@@ -3241,6 +3242,7 @@ function fourPCResetIfNavigated() {
     fourPCPrevPath = location.pathname;
     fourPCPrev = fourPCPrevKey = fourPCEp = null;
     fourPCTurn = null;
+    fourPCLastMover = null;
     fourPCCastleMem = null;
 }
 
@@ -3556,7 +3558,18 @@ function scrapePosition4PC() {
     const cells = [...document.querySelectorAll('.moves-table-cell.moves-move')];
     let lastFilled = -1;
     for (let i = 0; i < cells.length; i++) if (cells[i].textContent.trim()) lastFilled = i;
-    const turn = fourPCTurnFrom(lastFilled, d && d.moved && d.cleanPly ? d.moved.seat : null, alive);
+    // The diff names the mover on the FIRST scrape of a new board only: fourPCPrev advances to it on
+    // that same scrape, so a second scrape before the table catches up diffed the board against itself
+    // and fell back to the lagging table, flipping the turn back to the seat that just moved -- a new
+    // FEN4 the panel searched (and could autoplay) for the wrong seat (audit 3.1.332 CONTENT2-2). So
+    // the diff's mover stands while the board AND the table are both unchanged since it was seen; any
+    // table change hands the turn back to the table, which stays the authority.
+    let movedSeat = d && d.moved && d.cleanPly ? d.moved.seat : null;
+    const moverKey = Object.keys(board).sort().map(k => k + board[k].seat + board[k].type).join();
+    if (movedSeat) fourPCLastMover = {seat: movedSeat, lastFilled, key: moverKey};
+    else if (fourPCLastMover && fourPCLastMover.lastFilled === lastFilled && fourPCLastMover.key === moverKey) movedSeat = fourPCLastMover.seat;
+    else fourPCLastMover = null;
+    const turn = fourPCTurnFrom(lastFilled, movedSeat, alive);
     if (turn !== fourPCTurn) {
         bgLogAlways('4PC turn', {turn, lastFilled, cells: cells.length,
             diff: d && d.moved && d.moved.seat, dead: FOURPC_SEATS.filter(x => !alive(x)).join('') || 'none'});

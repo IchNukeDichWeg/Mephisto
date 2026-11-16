@@ -16982,6 +16982,56 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     ok('CONTENT2-1: a multi-ply diff carries nothing', ply({g4: P('R'), h5: P('G'), d5: P('B'), e12: P('Y')}) === '["","","",""]', field);
     ok('CONTENT2-1: scrapePosition4PC feeds the previous field back in', /fourPCEp = fourPCEnPassant\(board, fourPCPrev, fourPCEp\);/.test(csrc));
 }
+// ---- audit 3.1.332 CONTENT2-2: a 4PC re-scrape while the move table lags keeps the turn the board diff gave ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = csrc.indexOf('const FOURPC_SEATS = '), b = csrc.indexOf('// --- 4PC promotion picker');
+    // a fake chess.com 4PC DOM: coordinate labels, translated .piece nodes, the four-column move table
+    const SZ = 50, files = 'abcdefghijklmn', seatIdx = {R: 0, B: 1, Y: 2, G: 3};
+    let pieces = {}, cells = [];
+    const labels = [];
+    for (let r = 1; r <= 14; r++) labels.push({textContent: String(r), getAttribute: k => ({x: '0.1', y: String(14 - r + 0.5)})[k]});
+    for (let i = 0; i < 14; i++) labels.push({textContent: files[i], getAttribute: k => ({x: String(i + 0.5), y: '13.9'})[k]});
+    const svg = {getAttribute: () => 'Coordinates', querySelectorAll: () => labels, parentElement: null};
+    const document = {
+        body: {innerText: ''},
+        querySelector: (s) => s === '.TheBoard-squares' ? {getBoundingClientRect: () => ({width: 14 * SZ, left: 0, top: 0})}
+                           : s === '.game-details-type' ? {innerText: '2 | 10 Teams'} : null,
+        querySelectorAll: (s) => {
+            if (s === 'svg') return [svg];
+            if (s === '.moves-table-cell.moves-move') return cells.map(t => ({textContent: t}));
+            if (s === '.piece') return Object.entries(pieces).map(([sq, [seat, type]]) => {
+                const col = files.indexOf(sq[0]), row = 14 - parseInt(sq.slice(1));
+                return {hasAttribute: () => false,
+                        getAttribute: k => ({style: `transform: translate(${col * SZ}px, ${row * SZ}px)`, 'data-piece': type, 'data-color': String(seatIdx[seat])})[k]};
+            });
+            return [];
+        },
+    };
+    const c = vm.createContext({console, Set, Map, Math, parseInt, parseFloat, JSON, Object, Array, String, Number, RegExp,
+        document, location: {pathname: '/variants/4-player-chess/game/123', search: ''}, site: 'chesscom', config: {},
+        bgLogAlways: () => {}, getComputedStyle: () => ({transform: 'none'})});
+    let turns = null;
+    try {
+        vm.runInContext('var lastScrapeFail;' + csrc.slice(a, b), c);
+        const turn = () => { const f = vm.runInContext('scrapePosition4PC()', c); return f ? f.split(':')[3].split('-')[0] : f; };
+        pieces = {h1: ['R', 'K'], e2: ['R', 'P'], a8: ['B', 'K'], b5: ['B', 'P'], g14: ['Y', 'K'], e13: ['Y', 'P'], n7: ['G', 'K'], m6: ['G', 'P']};
+        cells = ['e4', 'b6', 'e12'];   // Red, Blue, Yellow played: Green to move
+        turns = [turn()];
+        delete pieces.m6; pieces.l6 = ['G', 'P'];   // Green m6-l6 repaints; the table has not caught up
+        turns.push(turn(), turn());                  // the first scrape of the new board, then a second one
+        cells.push('l6');                           // the table catches up
+        turns.push(turn());
+        delete pieces.e2; pieces.e4 = ['R', 'P'];   // Red e2-e4, table lagging again
+        turns.push(turn(), turn());
+    } catch (e) { turns = String(e && e.message || e); }
+    ok('CONTENT2-2: the harness scraped all six positions', Array.isArray(turns) && turns.every(Boolean), turns);
+    ok('CONTENT2-2: Green to move, then Red after Green\'s move while the table lags', Array.isArray(turns) && turns[0] === 'G' && turns[1] === 'R', turns);
+    ok('CONTENT2-2: ...a second scrape of that board still says Red, not Green again', Array.isArray(turns) && turns[2] === 'R', turns);
+    ok('CONTENT2-2: ...and it stays Red once the table catches up', Array.isArray(turns) && turns[3] === 'R', turns);
+    ok('CONTENT2-2: Red\'s own move then gives Blue on both scrapes of the lagging table', Array.isArray(turns) && turns[4] === 'B' && turns[5] === 'B', turns);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
