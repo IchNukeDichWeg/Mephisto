@@ -44,7 +44,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const stylesheetsElem = document.querySelector('head');
 
     function onClick(e) {
-        injectPage(e.target.hash.substring(1));
+        const pagePath = e.target.hash.substring(1);
+        // A CLICK ON THE PAGE ALREADY LOADING OR SHOWN DOES NOTHING. The hash does not change, so no
+        // hashchange fires and a page's leave hook (Analysis's teardown) never runs, yet its onInit ran
+        // again on fresh markup: Analysis's resize observer stayed on the old, detached board and the
+        // new board no longer followed the window size (audit 3.1.332 OPTIONSFRAMEWORK-1). loadingPath
+        // is never cleared, so it names the page on screen once its load is done. A forced re-init (the
+        // update flag below) calls injectPage directly and is not affected.
+        if (pagePath === loadingPath) return;
+        injectPage(pagePath);
         if (e.target.id === 'logo-container') {
             e.target.parentElement.classList.remove('active');
             document.getElementById('about').parentElement.classList.add('active');

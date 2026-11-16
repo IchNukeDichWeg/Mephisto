@@ -17563,6 +17563,64 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            && !p2.puzzle_db_btn.disabled && !p2.puzzle_db_clear_btn.disabled, [p2.puzzle_db_status.textContent, p2.puzzle_db_btn.disabled]);
     }
 })();
+// ---- audit 3.1.332 OPTIONSFRAMEWORK-1: a click on the nav entry of the page already shown re-runs nothing ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const osrc = fs.readFileSync(ROOT + '/src/options/options.js', 'utf8').replace(/^import .*$/m, '');
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const settle = async () => { for (let i = 0; i < 6; i++) await sleep(5); };   // microtasks and 0 ms hashchange timers only
+    // the real options.js shell on a stub DOM (same stub as the 3.1.331 OPTIONSFRAMEWORK-1/2 checks)
+    const shell = (hash) => {
+        const doc = {}, win = {}, calls = [];
+        const on = (m) => (t, f) => (m[t] = m[t] || []).push(f);
+        const cls = {add() {}, remove() {}, contains: () => false, toggle() {}};
+        const navUl = {id: 'nav-mobile', tagName: 'UL', classList: cls};
+        const anchors = {};
+        for (const p of ['settings/general', 'analysis', 'review']) {
+            const li = {id: '', tagName: 'LI', classList: cls, parentElement: navUl};
+            anchors[p] = {id: p, tagName: 'A', hash: '#' + p, classList: cls, parentElement: li, addEventListener(t, f) { this.onclick = f; }};
+        }
+        const content = {innerHTML: ''}, title = {innerText: ''};
+        const loc = {h: hash, get hash() { return this.h; }, set hash(v) {
+            v = v.startsWith('#') ? v : '#' + v; if (v === this.h) return; this.h = v;
+            setTimeout(() => (win.hashchange || []).forEach(f => f({})), 0); }};
+        const titles = {'settings/general': 'General Settings', analysis: 'Analysis', review: 'Game Review'};
+        const c = vm.createContext({console, setTimeout, Promise, JSON, Array, location: loc,
+            history: {replaceState: (s, t, u) => { loc.h = u; }},
+            M: {Sidenav: {init() {}}, ScrollSpy: {init: () => []}, Tooltip: {init() {}}},
+            MephistoConfig: {get: () => null, ready: Promise.resolve()},
+            chrome: {storage: {onChanged: {addListener() {}}}},
+            MephistoI18n: {use: async () => {}, apply() {}, lang: 'en'},
+            document: {addEventListener: on(doc), documentElement: {classList: cls},
+                getElementById: (id) => anchors[id] || ({title, header: {scrollIntoView() {}}})[id] || null,
+                querySelector: (s) => s === 'head' ? {appendChild() {}} : content,
+                querySelectorAll: (s) => s === '#nav-mobile a.menu-item' ? Object.values(anchors) : [],
+                getElementsByClassName: () => []},
+            require: async (path, type = 'js') => {
+                const p = path.replace(/^pages\//, '').replace(/\/[^/]+$/, '');
+                if (type === 'html') return {innerHTML: 'html:' + p};
+                if (type === 'css') return {};
+                return {title: titles[p], page: {onInit() { calls.push(p); }}};
+            }});
+        c.window = c; c.addEventListener = on(win);
+        vm.runInContext(osrc, c);
+        doc.DOMContentLoaded.forEach(f => f());
+        return {calls, anchors, loc, title, content};
+    };
+    (async () => {
+        const s = shell('#analysis');
+        await settle();
+        const a = s.anchors.analysis;
+        a.onclick({target: a, button: 0}); s.loc.hash = a.hash;   // handler, then the link's own (same-hash) navigation
+        await settle();
+        ok('OPTIONSFRAMEWORK-1 (3.1.332): re-clicking Analysis while it is shown does not run its onInit again (no leave hook runs, so its resize observer stayed on the old board)',
+           s.calls.join() === 'analysis', s.calls);
+        const r = s.anchors.review;
+        r.onclick({target: r, button: 0}); s.loc.hash = r.hash;
+        await settle();
+        ok('...a click on another page still loads it once', s.calls.join() === 'analysis,review' && s.title.innerText === 'Game Review', s.calls);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
