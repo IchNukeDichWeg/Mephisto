@@ -16915,6 +16915,41 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     ok('CONTENT1-1: a line with a parenthesised variation is still refused', run('Rd8+ Kh7 (Kh8) Rb1') === null, run('Rd8+ Kh7 (Kh8) Rb1'));
     ok('CONTENT1-1: a line that is only a result is null, not an empty answer', run('1-0') === null, run('1-0'));
 }
+// ---- audit 3.1.332 CONTENT1-2: a move sent with think=null budgets the configured think, so the watchdog never drops the guard mid-think ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const a = cs.indexOf('let movingWatchdog = null;'), b = cs.indexOf('// ASK THE PANEL, AND KEEP ASKING.', a);
+    let T = 0, timers = [], pushes = 0;
+    const c = vm.createContext({console, Number, Date: {now: () => T},
+        setTimeout: (f, ms) => { timers.push({at: T + ms, f}); return timers.length; }, clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].f = null; },
+        schedulePush: () => { pushes++; }});
+    try { vm.runInContext('var moving = false; var config;\n' + cs.slice(a, b) + '\nthis.st = () => ({moving, movingBudget});', c); }
+    catch (e) { ok('CONTENT1-2: beginMoving slice loads', false, e.message); }
+    const runTo = (t) => { T = t; for (const x of timers) if (x.f && x.at <= t) { const f = x.f; x.f = null; f(); } };
+    try {
+        // plain Simulated Think Time of 20 s: the panel sends think=null, the timing rides in config
+        c.config = {think_time: 20000, think_variance: 0, move_time: 400, move_variance: 400};
+        c.beginMoving(null, false);
+        runTo(15001);
+        ok('CONTENT1-2: a 20 s configured think with think=null keeps the guard past 15 s', c.st().moving === true && pushes === 0, [c.st(), pushes]);
+        runTo(20000 + 1280 + 14999);
+        ok('CONTENT1-2: ...through the think, the clicks at the Fitts ceiling and the 15 s grace', c.st().moving === true, c.st());
+        runTo(20000 + 1280 + 15001);
+        ok('CONTENT1-2: ...and the watchdog still frees a move that never resolves after that', c.st().moving === false && pushes === 1, [c.st(), pushes]);
+        // the variance is part of the largest think the draw can give
+        T = 0; timers = []; pushes = 0;
+        c.config = {think_time: 10000, think_variance: 8000, move_time: 0, move_variance: 0};
+        c.beginMoving(undefined, false);
+        ok('CONTENT1-2: think_time + think_variance is budgeted (undefined think too)', c.st().movingBudget === 33000, c.st());
+        // an explicit per-move think (humanize) still wins over the configured one
+        c.beginMoving(3000, false);
+        ok('CONTENT1-2: an explicit think is budgeted as sent, not the configured one', c.st().movingBudget === 18000, c.st());
+        c.config = undefined;
+        c.beginMoving(null, false);
+        ok('CONTENT1-2: no config yet still arms the plain 15 s grace', c.st().movingBudget === 15000, c.st());
+    } catch (e) { ok('CONTENT1-2: beginMoving ran', false, e.message); }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

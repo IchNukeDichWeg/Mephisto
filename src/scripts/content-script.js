@@ -3920,7 +3920,7 @@ let movingBudget = 0;
 let movingSpeculative = false; // the in-flight session is a blind premove, not a real move
 let moveGen = 0;               // identifies a session, so a superseded one can't clear its successor
 
-function beginMoving(thinkMs = 0, speculative = false) {
+function beginMoving(thinkMs = null, speculative = false) {
     moving = true;
     // A BLIND PREMOVE is speculative: it is queued at the site during the OPPONENT'S turn, for a
     // move they may never make. A real on-turn move is not. The panel already tells them apart --
@@ -3928,7 +3928,15 @@ function beginMoving(thinkMs = 0, speculative = false) {
     // difference matters here because a speculative session must never outrank a real move.
     movingSpeculative = !!speculative;
     movingSince = Date.now();
-    movingBudget = (Number(thinkMs) || 0) + 15000;
+    // A move with no explicit think (plain autoplay, Puzzle Mode, 4PC: the panel sends think=null)
+    // still waits one: getThinkTime draws config.think_time + random * think_variance from the timing
+    // the caller has just applied, and that is uncapped, scaled for mates and complexity, and under
+    // Human Move Times a log-normal draw well past 15 s. Budgeting 0 for it let the watchdog drop the
+    // guard mid-think (audit 3.1.332 CONTENT1-2), so the budget takes the largest think that draw can
+    // give, plus the largest click budget (move_time + variance at Fitts' 1.6 ceiling).
+    const num = (v) => Number(v) || 0;
+    const think = (thinkMs != null) ? num(thinkMs) : num(config?.think_time) + num(config?.think_variance);
+    movingBudget = think + (num(config?.move_time) + num(config?.move_variance)) * 1.6 + 15000;
     // Safety net: while `moving` is true the content-script ignores ALL scrape requests, so a move
     // simulation that never resolves (a hung click / promotion) would freeze the extension ("gets
     // stuck and doesn't play anything"). The grace sits ON TOP of this move's think, which is
