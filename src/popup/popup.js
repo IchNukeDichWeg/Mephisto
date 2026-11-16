@@ -6679,7 +6679,10 @@ function tablebase_reason(fen, uci) {
     const me = moves.find(m => m.uci === uci);
     if (!me) return '';
     const root = tablebase_data.category;
-    const wins = (m) => m.category === 'loss' || m.category === 'blessed-loss';
+    // Under a real 'win' a child 'blessed-loss' is the opponent saved by the 50-move rule: that move
+    // throws the win away, so only 'loss' counts. Under 'cursed-win' every winning child is
+    // 'blessed-loss' (audit 3.1.332 POPUP2-3).
+    const wins = (m) => m.category === 'loss' || (root === 'cursed-win' && m.category === 'blessed-loss');
     const holds = (m) => m.category === 'draw';
     // dtm/dtz on a child are negative while THEY are losing, so the largest value is the fastest
     // finish; with no mate distances the same comparison on dtz is the fastest conversion.

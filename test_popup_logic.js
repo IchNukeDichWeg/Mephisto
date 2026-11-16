@@ -16812,6 +16812,21 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     ok('POPUP2-2: a live follow still re-seeds on the 4th unexplained read, and stop and start reset the count',
        Array.isArray(got) && got.join() === '1,0,0', got);
 })().catch(e => { fails++; console.log('FAIL POPUP2-2 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.332 POPUP2-3: under a real win, a reply the 50-move rule saves (blessed-loss) is not a winning move ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function tablebase_reason(fen, uci)');
+    const c = vm.createContext({});
+    vm.runInContext('var tablebase_data = null;' + psrc.slice(i, psrc.indexOf('\n}\n', i) + 3), c);
+    const why = (data, uci) => { c.tablebase_data = Object.assign({fen: 'F'}, data); return vm.runInContext(`tablebase_reason('F', ${JSON.stringify(uci)})`, c); };
+    const win = {category: 'win', moves: [{uci: 'a1a2', category: 'loss', dtz: -15}, {uci: 'b1b2', category: 'blessed-loss', dtz: -120}]};
+    ok('POPUP2-3: the one move that wins inside the 50-move rule is "only move that wins"', why(win, 'a1a2') === 'only move that wins', why(win, 'a1a2'));
+    ok('POPUP2-3: ...and the move that only wins past it gets no "keeps the win"', why(win, 'b1b2') === '', why(win, 'b1b2'));
+    const cursed = {category: 'cursed-win', moves: [{uci: 'a1a2', category: 'blessed-loss', dtz: -101}, {uci: 'b1b2', category: 'blessed-loss', dtz: -130}]};
+    ok('POPUP2-3: under a cursed win the blessed-loss replies still form the pool (fastest one named)',
+       why(cursed, 'a1a2') === 'converts fastest' && why(cursed, 'b1b2') === 'keeps the win', [why(cursed, 'a1a2'), why(cursed, 'b1b2')]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
