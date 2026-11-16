@@ -5462,7 +5462,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
     ok('panelWasOpen answers false in popup mode, and switching to it clears panelTabs',
        /if \(msg\.panelWasOpen\) \{\s*chrome\.storage\.local\.get\('ui_mode', \(\{ui_mode\}\) => \{\s*if \(ui_mode === 'popup'\) return sendResponse\(\{open: false\}\);/.test(b)
-       && /chrome\.storage\.session\.set\(\{panelTabs: \{\}\}\);/.test(b));
+       && /editPanelTabs\(\(\) => \(\{\}\)\);/.test(b));
 }
 // ---- audit 3.1.328 SYS-3 / PAGE-5: switching the debugger capture off stops it on open tabs ----
 {
@@ -17097,6 +17097,52 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
        err || r.moves);
     ok('...ccrText(null) is an empty string', (() => { try { return d.ccrText(null) === ''; } catch (e) { return false; } })());
 }
+// ---- audit 3.1.332 BACKGROUND-2: concurrent panelTabs updates from different tabs are all kept ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    // the REAL worker, with its onMessage / onRemoved / storage.onChanged listeners captured; storage.session is
+    // a FIFO queue like Chrome's (ops run in issue order, callbacks after), so get A, get B, set A, set B is possible
+    const listeners = {msg: [], removed: [], changed: []};
+    let store = {}; const q = []; let busy = false, pending = 0;
+    const pump = () => { if (busy || !q.length) return; busy = true; setTimeout(() => { q.shift()(); busy = false; pump(); }, 1); };
+    const clone = (o) => JSON.parse(JSON.stringify(o));
+    const session = {
+        get(k, cb) { pending++; return new Promise(res => { q.push(() => { const s = {}; if (k in store) s[k] = clone(store[k]); setTimeout(() => { pending--; cb && cb(s); res(s); }, 0); }); pump(); }); },
+        set(o, cb) { pending++; return new Promise(res => { q.push(() => { Object.assign(store, clone(o)); setTimeout(() => { pending--; cb && cb(); res(); }, 0); }); pump(); }); },
+    };
+    const ev = (arr) => ({addListener: (f) => arr.push(f), removeListener() {}, hasListener: () => false});
+    const anyEv = () => ({addListener() {}, removeListener() {}, hasListener: () => false});
+    const handler = {get: (t, p) => (p in t ? t[p] : (t[p] = new Proxy(function () {}, handler)))};
+    const auto = () => new Proxy(function () {}, {get: (t, p) => p === 'then' ? undefined : (/^on[A-Z]/.test(p) ? anyEv() : auto()), apply: () => undefined});
+    const chrome = new Proxy({
+        runtime: new Proxy({onMessage: ev(listeners.msg), sendMessage() {}, lastError: undefined, getURL: (p) => p, id: 'x',
+                            getManifest: () => ({version: '0'}), getContexts: async () => []}, {get: (t, p) => p in t ? t[p] : (/^on[A-Z]/.test(p) ? anyEv() : auto())}),
+        tabs: new Proxy({onRemoved: ev(listeners.removed), query: (o, cb) => cb && cb([]), sendMessage() {}}, {get: (t, p) => p in t ? t[p] : (/^on[A-Z]/.test(p) ? anyEv() : auto())}),
+        storage: {session, onChanged: ev(listeners.changed),
+                  local: {get: (k, cb) => { cb && cb({}); return Promise.resolve({}); }, set: (o, cb) => { cb && cb(); return Promise.resolve(); }, remove() {}}},
+    }, {get: (t, p) => p in t ? t[p] : auto()});
+    let loadErr = null;
+    try {
+        const c = vm.createContext({chrome, console: {log() {}, warn() {}, error() {}, debug() {}, info() {}}, setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {},
+            Promise, URL, TextDecoder, TextEncoder, fetch: async () => { throw new Error('no net'); }, self: {}, navigator: {userAgent: ''}, importScripts() {}, AbortController});
+        c.globalThis = c;
+        vm.runInContext(b, c, {filename: 'background-script.js'});
+    } catch (e) { loadErr = e.message; }
+    const msgL = listeners.msg[0], rmL = listeners.removed[0];
+    if (!msgL || !rmL) { ok('BACKGROUND-2: the worker loads and registers its listeners', false, loadErr); return; }
+    // done when no storage op is queued or awaiting its callback across a few idle turns (timing-free: the suite runs loaded)
+    const settle = async () => { for (let idle = 0, n = 0; idle < 5 && n < 2000; n++) { await new Promise(r => setTimeout(r, 2)); idle = pending ? 0 : idle + 1; } };
+    const panel = (state, tab) => msgL({panelState: state}, {tab: {id: tab}}, () => {});
+    store = {panelTabs: {7: 1}}; panel('open', 11); rmL(7); await settle();
+    ok('BACKGROUND-2: tab 11 opening its panel while tab 7 closes keeps 11 and drops 7', JSON.stringify(store.panelTabs) === '{"11":1}', store.panelTabs);
+    store = {panelTabs: {}}; panel('open', 11); panel('open', 12); panel('open', 13); await settle();
+    ok('...three tabs opening at once are all remembered', JSON.stringify(store.panelTabs) === '{"11":1,"12":1,"13":1}', store.panelTabs);
+    store = {panelTabs: {5: 1}}; panel('closed', 5); panel('open', 9); await settle();
+    ok('...a panel closed while another tab opens is not written back (no unwanted reopen)', JSON.stringify(store.panelTabs) === '{"9":1}', store.panelTabs);
+    store = {panelTabs: {}}; panel('open', 11); listeners.changed.forEach(f => { try { f({ui_mode: {newValue: 'popup'}}, 'local'); } catch (e) {} }); await settle();
+    ok('...switching to toolbar-popup mode clears every tab, even one whose open was still in flight', JSON.stringify(store.panelTabs) === '{}', store.panelTabs);
+})().catch(e => { fails++; console.log('FAIL BACKGROUND-2 check threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

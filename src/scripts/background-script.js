@@ -160,6 +160,21 @@ function cloudEnvelope(pv, mateWhite, cpWhite, depth, turn) {
   return {bestmove: pv[0], threat: pv[1] || '(none)', lines: [line]};
 }
 
+// EVERY panelTabs read-modify-write goes through this one queue. Each writer used to get the whole
+// object, change its copy and set it back, so two tabs at once (one opening while another closes)
+// started from the same snapshot and the last set() dropped the other's change: a panel that did not
+// come back on the next load, or one that came back after it was closed (audit 3.1.332 BACKGROUND-2).
+// edit(panelTabs) returns the object to store, or nothing to leave it as is.
+let panelTabsQueue = Promise.resolve();
+function editPanelTabs(edit) {
+  panelTabsQueue = panelTabsQueue.then(() => new Promise((done) => {
+    chrome.storage.session.get('panelTabs', ({panelTabs = {}} = {}) => {
+      const next = edit(panelTabs);
+      if (next) chrome.storage.session.set({panelTabs: next}, () => done()); else done();
+    });
+  })).catch(() => {});
+}
+
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   // the content-script asks for its own tab id so its popup iframe can talk to ONLY this tab
   // (not whatever tab is active) -- otherwise a background tab's popup drives the foreground tab.
@@ -173,9 +188,9 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   // Map would forget. Keyed by tab, cleared with the tab and with the browser.
   if (msg.panelState) {
     const id = sender.tab?.id;
-    if (id != null) chrome.storage.session.get('panelTabs', ({panelTabs = {}}) => {
+    if (id != null) editPanelTabs((panelTabs) => {
       if (msg.panelState === 'open') panelTabs[id] = 1; else delete panelTabs[id];
-      chrome.storage.session.set({panelTabs});
+      return panelTabs;
     });
     return;
   }
@@ -2563,8 +2578,8 @@ chrome.debugger.onEvent?.addListener((src, method, params) => {
 // don't need the "tabs" permission. clientId == String(tabId), matching ENGINE_CLIENT in popup.js.
 chrome.tabs.onRemoved.addListener((tabId) => {
   warmRefused.delete(tabId);
-  chrome.storage.session.get('panelTabs', ({panelTabs = {}}) => {
-    if (panelTabs[tabId]) { delete panelTabs[tabId]; chrome.storage.session.set({panelTabs}); }
+  editPanelTabs((panelTabs) => {
+    if (panelTabs[tabId]) { delete panelTabs[tabId]; return panelTabs; }
   });
   chrome.runtime.sendMessage({toOffscreen: true, clientId: String(tabId), cmd: 'dispose'},
     () => void chrome.runtime.lastError);
@@ -2637,7 +2652,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (mode === 'popup') { // tear down any overlay that's open when the user switches to the safe mode
     chrome.tabs.query({}, tabs => tabs.forEach(t => t.id &&
       chrome.tabs.sendMessage(t.id, {closeOverlay: true}, () => void chrome.runtime.lastError)));
-    chrome.storage.session.set({panelTabs: {}});   // ...including tabs that could not hear it (SYS-2)
+    editPanelTabs(() => ({}));   // ...including tabs that could not hear it (SYS-2); queued behind any open in flight
   }
 });
 
