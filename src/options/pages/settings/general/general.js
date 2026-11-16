@@ -46,6 +46,16 @@ function fill_bot_games() {
     add('pgn', 'Your own game, pasted below');
 }
 
+// THE LONG JOBS OUTLIVE THE PAGE (audit 3.1.332 GENERAL-1). Leaving General and coming back (or the
+// panel's "click to install" re-opening it) swaps the page HTML and runs onInit again with no
+// teardown, while a running tablebase download or puzzle import keeps going. Their state lived in
+// the init's closure, so the new page started at "idle": Download read "Download tables" and began a
+// second run over the same files beside the first, whose Stop was the detached old button, and the
+// import's buttons were enabled under a 30-minute import. This module is loaded once per options tab
+// (require.js caches it), so state kept here is the same object every re-init sees.
+const tbDownload = {run: null};
+const puzzleImport = {running: false, line: ''};
+
 class GeneralSettings extends SettingsPage {
     init() {
         // The bot-game dropdown is built from the shared library BEFORE Materialize wraps the
@@ -589,6 +599,9 @@ class GeneralSettings extends SettingsPage {
             } else {
                 const inv = await self.MephistoTbStore.inventory().catch(() => null);
                 if (!inv || !inv.tables) { say(MephistoI18n.errText('MPH-T01'), true); return; }
+                // a download still running from before a re-init owns the line: its progress, not a
+                // count that includes its half-done set (audit 3.1.332 GENERAL-1)
+                if (tbDownload.run?.report) { tbDownload.run.report(); return; }
                 const men = Object.keys(inv.men).sort().map(n => `${n}-man: ${inv.men[n]}`).join(', ');
                 say(`${inv.tables} tables (${men}). Endgame Tablebase answers from this folder first, in-browser.` + bigNote(inv.men));
             }
@@ -686,20 +699,27 @@ class GeneralSettings extends SettingsPage {
         // nobody stopped). `tbRun` is claimed before the first await, so a double-click cannot start
         // two runs either. Stop aborts the run's fetches and keeps the button disabled until that
         // run has really settled, so the next Download starts on an idle folder.
-        let tbRun = null;
+        // The run lives in module-level `tbDownload`, not here, and the button is looked up by id
+        // each time it is set: a re-init mid-run gets a new button that shows that run and stops it
+        // (audit 3.1.332 GENERAL-1).
+        const tbBtn = (text, disabled) => {
+            const b = $('tb_download');
+            if (!b) return;
+            if (text !== undefined) b.textContent = text;
+            if (disabled !== undefined) b.disabled = disabled;
+        };
         $('tb_download')?.addEventListener('click', async () => {
-            const btn = $('tb_download');
-            if (tbRun) {
+            const live = tbDownload.run;
+            if (live) {
                 // still in the permission checks below: the second half of a double-click, not a Stop
-                if (tbRun.started && !tbRun.stop) {
-                    tbRun.stop = true;
-                    tbRun.abort.abort();
-                    btn.disabled = true;
-                    btn.textContent = 'Download tables';
+                if (live.started && !live.stop) {
+                    live.stop = true;
+                    live.abort.abort();
+                    tbBtn('Download tables', true);
                 }
                 return;
             }
-            const run = tbRun = {stop: false, started: false, abort: new AbortController()};
+            const run = tbDownload.run = {stop: false, started: false, abort: new AbortController(), report: null};
             // try/FINALLY around the whole run: anything that escapes below (a rejected worker,
             // a revoked handle) used to leave the run claimed and the button reading "Stop"
             // forever -- the page had to be reloaded to download anything again.
@@ -716,7 +736,7 @@ class GeneralSettings extends SettingsPage {
                 try { host = await chrome.permissions.request({origins: ['https://tablebase.lichess.ovh/*']}); } catch (e) { /* */ }
                 if (!host) { say(MephistoI18n.errText('MPH-T04'), true); return; }
                 run.started = true;
-                btn.textContent = 'Stop';
+                tbBtn('Stop');
                 say('Reading the file list...');
                 const wanted = [];
                 for (const dir of dirs) {
@@ -807,10 +827,12 @@ class GeneralSettings extends SettingsPage {
                         report();
                     }
                 };
+                run.report = report;
                 report();
                 await Promise.all(Array.from({length: tbParallel(dirs)}, worker));
                 const stopped = run.stop;
-                btn.textContent = 'Download tables';
+                run.report = null;
+                tbBtn('Download tables');
                 // OUT OF SPACE STAYS THE HEADLINE: it used to be replaced within milliseconds by the
                 // same "Stopped." summary a pressed Stop gives, so the reason never stayed on screen
                 // and the next Download just failed again (audit 3.1.331 GENERAL-3).
@@ -819,11 +841,12 @@ class GeneralSettings extends SettingsPage {
                     failed > 0);
                 notifyWorker();
             } finally {
-                tbRun = null;               // only now: this run's workers have all returned
-                btn.disabled = false;
-                btn.textContent = 'Download tables';
+                tbDownload.run = null;      // only now: this run's workers have all returned
+                tbBtn('Download tables', false);
             }
         });
+        // arriving while a run from an earlier visit is still going: this button is that run's
+        if (tbDownload.run?.started) tbBtn(tbDownload.run.stop ? 'Download tables' : 'Stop', !!tbDownload.run.stop);
 
         sync();
     }
@@ -1489,6 +1512,19 @@ class GeneralSettings extends SettingsPage {
         const status = document.getElementById('puzzle_db_status');
         if (!btn || !file || !status) return; // stale cached page html
         const n = (x) => x.toLocaleString();
+        // The import writes its lines through this, by id, so they reach the page on screen after a
+        // re-init rather than the detached one it started on (audit 3.1.332 GENERAL-1).
+        const say = (t) => {
+            puzzleImport.line = t;
+            const el = document.getElementById('puzzle_db_status');
+            if (el) el.textContent = t;
+        };
+        const busy = (on) => {
+            for (const id of ['puzzle_db_btn', 'puzzle_db_clear_btn']) {
+                const b = document.getElementById(id);
+                if (b) b.disabled = on;
+            }
+        };
         const idle = async () => {
             try {
                 // Reported per database, because they are separate stores and only the one for the
@@ -1506,7 +1542,8 @@ class GeneralSettings extends SettingsPage {
                 status.textContent = MephistoI18n.errText('MPH-P04');
             }
         };
-        idle();
+        // an import from before a re-init is still running: keep its buttons off and its line up
+        if (puzzleImport.running) { busy(true); status.textContent = puzzleImport.line; } else idle();
         btn.addEventListener('click', () => file.click());
         // Remove all, or one site at a time -- clear(site) already exists; the point of the per-site
         // buttons is testing the live page-capture, where an imported Chess.com database would answer
@@ -1533,8 +1570,9 @@ class GeneralSettings extends SettingsPage {
                 status.textContent = MephistoI18n.errText('MPH-P01');
                 return;
             }
-            btn.disabled = clearBtn.disabled = true;
-            status.textContent = 'Reading… (this takes a few minutes; leave this page open)';
+            puzzleImport.running = true;
+            busy(true);
+            say('Reading… (this takes a few minutes; leave this page open)');
             try {
                 const t0 = Date.now();
                 // SAN -> UCI for the chess.com daily rows. Built here rather than inside
@@ -1556,8 +1594,8 @@ class GeneralSettings extends SettingsPage {
                 };
                 const res = await PuzzleDB.importCsv(f, ({rows, kept}) => {
                     const mins = (Date.now() - t0) / 60000;
-                    status.textContent = `Importing… ${n(kept)} positions from ${n(rows)} puzzles ` +
-                        `(${mins.toFixed(1)} min)`;
+                    say(`Importing… ${n(kept)} positions from ${n(rows)} puzzles ` +
+                        `(${mins.toFixed(1)} min)`);
                 }, {sanToUci});
                 // COUNT, not `kept`. The key is the position, and two puzzles can be generated from
                 // the same one, so the store holds slightly fewer records than rows read -- reporting
@@ -1569,18 +1607,19 @@ class GeneralSettings extends SettingsPage {
                 // 0 ... loaded", which reads as a success. Nothing was written, so this is the
                 // failure it looks like.
                 if (!res.kept) {
-                    status.textContent = MephistoI18n.errText('MPH-P03');
+                    say(MephistoI18n.errText('MPH-P03'));
                     return;
                 }
                 const stored = await PuzzleDB.count(res.site);
                 const which = res.site === 'cc' ? 'Chess.com' : 'Lichess';
-                status.textContent = `Done - ${n(stored)} ${which} puzzle positions loaded from ` +
-                    `${n(res.rows)} puzzles. Puzzle Mode will play the known solution.`;
+                say(`Done - ${n(stored)} ${which} puzzle positions loaded from ` +
+                    `${n(res.rows)} puzzles. Puzzle Mode will play the known solution.`);
             } catch (e) {
                 console.warn('Mephisto puzzle import:', e);
-                status.textContent = MephistoI18n.errText('MPH-P02');
+                say(MephistoI18n.errText('MPH-P02'));
             } finally {
-                btn.disabled = clearBtn.disabled = false;
+                puzzleImport.running = false;
+                busy(false);
             }
         });
     }

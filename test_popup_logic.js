@@ -14199,7 +14199,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         };
         const ctx = {$: mk, say: (t, bad) => log.push((bad ? '[BAD] ' : '') + t), notifyWorker() {}, fetch: fetchFn, confirm: () => true,
             console: {warn() {}, log() {}}, AbortController, self: {MephistoTbStore: {getHandle: async () => handle}},
-            chrome: {permissions: {request: async () => true}}, MephistoI18n: {errText: (c) => `ERR ${c}`}};
+            chrome: {permissions: {request: async () => true}}, MephistoI18n: {errText: (c) => `ERR ${c}`}, tbDownload: {run: null}};
         new Function(...Object.keys(ctx), body)(...Object.values(ctx));
         const btn = els.tb_download;
         return {log, st, files, btn, click: () => (btn.disabled ? Promise.resolve() : btn.handlers.click())};
@@ -14270,7 +14270,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     };
     const ctx = {$: mk, say: (t, bad) => log.push((bad ? '[BAD] ' : '') + t), notifyWorker() {}, fetch: fetchFn, confirm: () => true,
         console: {warn() {}, log() {}}, AbortController, self: {MephistoTbStore: {getHandle: async () => handle}},
-        chrome: {permissions: {request: async () => true}}, MephistoI18n: {errText: (c) => `ERR ${c}`}};
+        chrome: {permissions: {request: async () => true}}, MephistoI18n: {errText: (c) => `ERR ${c}`}, tbDownload: {run: null}};
     new Function(...Object.keys(ctx), body)(...Object.values(ctx));
     await els.tb_download.handlers.click();
     await sleep(10);
@@ -17473,6 +17473,96 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        JSON.stringify(c.started) === '[["dispose"]]' && vm.runInContext('human', c) === null, c.started);
     ok('ANALYSIS-4: ...and a variant change frees the loaded net', /if \(v !== 'chess' && human\) reloadHuman\(\);/.test(fn('function onVariantChange(')));
 })().catch(e => { fails++; console.log('FAIL ANALYSIS-4 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.332 GENERAL-1: a tablebase download / puzzle import survives a re-init of the General page ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    // (a) the real download handler, initialised twice over ONE folder and ONE module state, with the
+    // page's elements swapped in between the way options.js injectPage swaps #content
+    {
+        const a = gj.indexOf("        const TB_BASE = "), b = gj.indexOf('\n        sync();', a);
+        const body = a < 0 || b < 0 ? '' : gj.slice(a, b);
+        if (!body) { ok('GENERAL-1: the download handler slices out of general.js', false); return; }
+        const files = {}, st = {fetches: 0}, log = [];
+        let els = {};
+        const mk = (id) => (els[id] = els[id] || {id, textContent: id === 'tb_download' ? 'Download tables' : '', value: '', disabled: false,
+                                                   handlers: {}, addEventListener(ev, fn) { this.handlers[ev] = fn; }});
+        const handle = {
+            requestPermission: async () => 'granted', removeEntry: async () => {},
+            getFileHandle: async (name, o) => {
+                if (!files[name] && !(o && o.create)) throw new Error('NotFoundError');
+                files[name] = files[name] || {size: 0};
+                return {getFile: async () => ({size: files[name].size}),
+                    createWritable: async () => ({write: async (buf) => { files[name].size = buf.byteLength; }, close: async () => {}}),
+                    move: async (to) => { files[to] = {size: files[name].size}; delete files[name]; }};
+            },
+        };
+        const listing = Array.from({length: 12}, (_, i) => `<a href="K${i}vK.rtbw">K${i}vK.rtbw</a>   07-Dec-2013 02:14   100`).join('\n');
+        const fetchFn = async (url, opt = {}) => {
+            if (url.endsWith('/')) return {ok: true, text: async () => listing};
+            st.fetches++;
+            await new Promise((res, rej) => {
+                const t = setTimeout(res, 30);
+                opt.signal?.addEventListener('abort', () => { clearTimeout(t); const e = new Error('aborted'); e.name = 'AbortError'; rej(e); });
+            });
+            return {ok: true, arrayBuffer: async () => new ArrayBuffer(100)};
+        };
+        const tbDownload = {run: null};   // module scope: the same object on every init
+        const init = () => {
+            els = {};
+            mk('tb_download_men').value = '345'; mk('tb_download_kind').value = 'wdl';
+            const ctx = {$: mk, say: (t) => log.push(t), notifyWorker() {}, fetch: fetchFn, confirm: () => true,
+                console: {warn() {}, log() {}}, AbortController, self: {MephistoTbStore: {getHandle: async () => handle}},
+                chrome: {permissions: {request: async () => true}}, MephistoI18n: {errText: (c) => `ERR ${c}`}, tbDownload};
+            new Function(...Object.keys(ctx), body)(...Object.values(ctx));
+            return els.tb_download;
+        };
+        const b1 = init();
+        const r1 = b1.handlers.click();
+        await sleep(45);                          // the first run is fetching
+        const b2 = init();                        // nav away and back
+        const arrived = {text: b2.textContent, disabled: b2.disabled};
+        const r2 = b2.disabled ? Promise.resolve() : b2.handlers.click();   // the user presses what the page offers
+        await Promise.all([r1, r2]);
+        await sleep(10);
+        const last = log[log.length - 1] || '';
+        ok('GENERAL-1: back on General mid-download, the button reads Stop (the run is still going)', arrived.text === 'Stop' && !arrived.disabled, arrived);
+        ok('GENERAL-1: ...pressing it stops that run: no second run over the same files (at most 12 fetches)', st.fetches <= 12, st.fetches);
+        ok('GENERAL-1: ...the run ends "Stopped." and the new button is usable again', /^Stopped\. /.test(last) && !b2.disabled && b2.textContent === 'Download tables',
+           [last, b2.disabled, b2.textContent]);
+        ok('GENERAL-1: ...and the module state is released for the next Download', tbDownload.run === null);
+    }
+    // (b) the real initPuzzleDb, initialised twice while one import is still running
+    {
+        const a = gj.indexOf('    initPuzzleDb() {'), b = gj.indexOf('\n}\n\ndefine({', a);
+        if (a < 0 || b < 0) { ok('GENERAL-1: initPuzzleDb slices out of general.js', false); return; }
+        let els = {};
+        const el = (id) => (els[id] = els[id] || {id, textContent: '', disabled: false, files: [], value: '', handlers: {},
+                                                  addEventListener(ev, fn) { this.handlers[ev] = fn; }, click() {}});
+        let finish;
+        const PuzzleDB = {count: async (site) => site ? 5 : {li: 0, cc: 0}, clear: async () => {},
+            importCsv: (f, progress) => { progress({rows: 10, kept: 5}); return new Promise(r => { finish = () => r({kept: 5, rows: 10, site: 'li'}); }); }};
+        const c = vm.createContext({PuzzleDB, Chess: function () {}, MephistoI18n: {errText: (k) => `ERR ${k}`}, console: {warn() {}},
+            document: {getElementById: (id) => el(id)}, puzzleImport: {running: false, line: ''}, Date});
+        vm.runInContext('var P = class {\n' + gj.slice(a, b) + '\n};', c);
+        const init = () => { els = {}; vm.runInContext('new P().initPuzzleDb()', c); return els; };
+        const p1 = init();
+        p1.puzzle_db_file.files = [{name: 'lichess_db_puzzle.csv'}];
+        const run = p1.puzzle_db_file.handlers.change();
+        await sleep(5);
+        const p2 = init();                        // nav away and back mid-import
+        await sleep(5);
+        const arrived = {imp: p2.puzzle_db_btn.disabled, clr: p2.puzzle_db_clear_btn.disabled, line: p2.puzzle_db_status.textContent};
+        finish();
+        await run;
+        await sleep(5);
+        ok('GENERAL-1: back on General mid-import, Import and Remove are disabled', arrived.imp && arrived.clr, arrived);
+        ok('GENERAL-1: ...the status shows the running import, not the idle count', /^Importing/.test(arrived.line), arrived.line);
+        ok('GENERAL-1: ...its "Done" line lands on the page on screen, whose buttons come back', /^Done - /.test(p2.puzzle_db_status.textContent)
+           && !p2.puzzle_db_btn.disabled && !p2.puzzle_db_clear_btn.disabled, [p2.puzzle_db_status.textContent, p2.puzzle_db_btn.disabled]);
+    }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
