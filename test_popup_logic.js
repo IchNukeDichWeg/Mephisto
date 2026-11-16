@@ -2989,7 +2989,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     // blocks held the loop was already overdue when it woke, and fired before the click's own 60 ms ack
     // timers could run -- the checks read HUNG at a load average of 30 with the click path unchanged.
     const settle = (p) => Promise.race([p.then(() => 'resolved', e => 'rejected: ' + e.message),
-        new Promise(r => { let n = 0; const tick = () => ++n >= 50 ? r('HUNG') : setTimeout(tick, 30); tick(); })]);
+        new Promise(r => { let n = 0; const tick = () => ++n >= 200 ? r('HUNG') : setTimeout(tick, 30); tick(); })]);
 
     let r = rig('never');
     const out1 = await settle(r.cdpClick(9, 100, 100, 200));
@@ -3006,7 +3006,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     await settle(r.cdpClick(9, 120, 120, 5));
     ok('...nor does the single-step snap click', r.sent.join() === 'mousePressed,mouseReleased', r.sent);
 
-    r = rig('fast');
+    r = rig('fast', 1000);   // the real ack: at load ~30 a 0 ms reply came after a 60 ms ack and cut the path short
     await settle(r.cdpClick(4, 100, 100, 120));
     ok('a tab that is rendering keeps its full cursor path (the fix does not touch the visible case)',
        r.sent.filter(t => t === 'mouseMoved').length >= 3 && r.sent.slice(-2).join() === 'mousePressed,mouseReleased' && !r.moveStalled.has(4), r.sent);
@@ -6914,7 +6914,9 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     eng.uci('go');
     eng.uci('position fen r1bqk2r/1pppbppp/p1n2n2/4p3/B3P3/5N2/PPPP1PPP/RNBQ1RK1 w kq - 6 6');   // ply 10: Maia-2's
     eng.uci('go');
-    await new Promise(r => setTimeout(r, 150));
+    // wait for both answers (up to 5 s), not a fixed 150 ms: at load ~30 the 60 ms net load plus the
+    // inference outran 150 ms and the check read [] with the ordering code unchanged
+    for (let t = 0; t < 100 && heard.filter(l => /^bestmove/.test(l)).length < 2; t++) await new Promise(r => setTimeout(r, 50));
     const best = heard.filter(l => /^bestmove/.test(l));
     ok('PLAY-2: an opening go still loading its net is answered before the ply-10 go asked after it',
        best.length === 2 && best[0] === 'bestmove h7h6' && best[1] !== 'bestmove h7h6', best);
@@ -13250,26 +13252,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const i = b.indexOf('async function archiveFetch(');
     const fn = b.slice(i, b.indexOf('\n}\n', i) + 3);
     const http = require('http');
-    // /stall: headers and one chunk, then nothing; /slow: four chunks 120 ms apart (longer in all than the limit)
+    // /stall: headers and one chunk, then nothing; /slow: four chunks 400 ms apart (longer in all than the
+    // 1000 ms limit). Was 120 ms chunks under a 300 ms limit, which aborted /slow at load ~30.
     const srv = http.createServer((req, res) => {
         res.writeHead(req.url === '/gone' ? 429 : 200, {'Content-Type': 'text/plain', 'Retry-After': '7'});
         if (req.url === '/stall') { res.write('[Event "x"]\n'); return; }
         if (req.url === '/gone') { res.end('slow down'); return; }
-        let n = 0; const t = setInterval(() => { res.write(`part${n}\n`); if (++n === 4) { clearInterval(t); res.end(); } }, 120);
+        let n = 0; const t = setInterval(() => { res.write(`part${n}\n`); if (++n === 4) { clearInterval(t); res.end(); } }, 400);
     });
     await new Promise(r => srv.listen(0, '127.0.0.1', r));
     const base = `http://127.0.0.1:${srv.address().port}`;
     const c = vm.createContext({fetch, AbortController, Response, Blob, setTimeout, clearTimeout});
-    vm.runInContext('const ARCHIVE_TIMEOUT_MS = 300;\n' + fn, c);
+    vm.runInContext('const ARCHIVE_TIMEOUT_MS = 1000;\n' + fn, c);
     try {
         const t0 = Date.now();
         const stalled = await Promise.race([
             c.archiveFetch(base + '/stall', {}).then(r => r.text()).then(t => 'resolved ' + t.length, e => 'rejected ' + (e && e.name)),
-            new Promise(r => setTimeout(() => r('still pending'), 2500))]);
+            new Promise(r => setTimeout(() => r('still pending'), 6000))]);
         ok('BACKGROUND-4: a body that stalls after the headers ends the fetch within the timeout instead of holding it',
-           /^rejected/.test(stalled) && Date.now() - t0 < 2000, stalled);
+           /^rejected/.test(stalled) && Date.now() - t0 < 5000, stalled);
         const slow = await c.archiveFetch(base + '/slow', {}).then(r => r.text());
-        ok('...an inactivity limit, not a deadline: a body that keeps arriving (480 ms in all, 300 ms limit) is read whole', slow === 'part0\npart1\npart2\npart3\n', slow);
+        ok('...an inactivity limit, not a deadline: a body that keeps arriving (1600 ms in all, 1000 ms limit) is read whole', slow === 'part0\npart1\npart2\npart3\n', slow);
         const g = await c.archiveFetch(base + '/gone', {});
         ok('...status, ok and headers reach the caller unchanged', g.status === 429 && g.ok === false && g.headers.get('Retry-After') === '7' && await g.text() === 'slow down', g.status);
     } finally { srv.closeAllConnections && srv.closeAllConnections(); srv.close(); }
