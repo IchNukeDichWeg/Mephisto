@@ -15503,7 +15503,9 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const file = {stream: () => ({pipeThrough: () => ({getReader() { let sent = false;
         return {read: async () => (sent ? {done: true} : (sent = true, {value: line, done: false}))}; }})})};
     const settle = (p) => Promise.race([p.then(() => 'resolved', (e) => 'rejected ' + (e && e.name)),
-                                        new Promise((r) => setTimeout(() => r('hung'), 300))]);
+                                        // 5 s, not 300 ms: under a fully loaded box (load ~40) 300 ms read a working
+                                        // reject as 'hung' on every run; the race only costs time when it really hangs
+                                        new Promise((r) => setTimeout(() => r('hung'), 5000))]);
     const imp = await settle(c.PuzzleDB.importCsv(file, null, {}));
     ok('PUZZLEDB-3: an import whose batch commit aborts rejects with the abort\'s error (the page shows it and re-enables its buttons)', imp === 'rejected QuotaExceededError', imp);
     const clr = await settle(c.PuzzleDB.clear('li'));
