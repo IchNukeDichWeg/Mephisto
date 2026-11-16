@@ -3919,9 +3919,11 @@ function tcBaseSeconds(text) {
     const t = String(text || '');
     const sec = t.match(/(\d+)\s*sec/i);
     if (sec) return parseInt(sec[1]);
-    const m = t.match(/(\d*)([½¼¾]?)\s*(?:[+|]|min\b)/);
+    // a decimal minute count too: lichess writes a 90 s base as "1.5" (scalachess Clock limitString), and
+    // the digits-only pattern matched just its "5+", reading 1.5+1 as a 5-minute base (audit 3.1.332 CONTENT2-3)
+    const m = t.match(/(\d+(?:\.\d+)?)?([½¼¾]?)\s*(?:[+|]|min\b)/);
     if (!m || (!m[1] && !m[2])) return null;
-    const v = (m[1] ? parseInt(m[1]) : 0) + ({'½': 0.5, '¼': 0.25, '¾': 0.75}[m[2]] || 0);
+    const v = (m[1] ? parseFloat(m[1]) : 0) + ({'½': 0.5, '¼': 0.25, '¾': 0.75}[m[2]] || 0);
     return v > 0 ? Math.round(v * 60) : null;
 }
 

@@ -17032,6 +17032,17 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     ok('CONTENT2-2: ...and it stays Red once the table catches up', Array.isArray(turns) && turns[3] === 'R', turns);
     ok('CONTENT2-2: Red\'s own move then gives Blue on both scrapes of the lagging table', Array.isArray(turns) && turns[4] === 'B' && turns[5] === 'B', turns);
 }
+// ---- audit 3.1.332 CONTENT2-3: lichess's "1.5+1" is a 90 s base, not 5 minutes ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const c0 = csrc.indexOf('function tcBaseSeconds('), c1 = csrc.indexOf('\n}\n', c0) + 3;
+    const cc = vm.createContext({}); vm.runInContext(csrc.slice(c0, c1), cc);
+    const got = vm.runInContext("[tcBaseSeconds('1.5+1 • Casual • Bullet'), tcBaseSeconds('1.5+0'), tcBaseSeconds('\\n 1.5+1\\n • Rated • Bullet')].join()", cc);
+    ok('CONTENT2-3: lichess 1.5+1 / 1.5+0 read as a 90 s base', got === '90,90,90', got);
+    const old = vm.runInContext("[tcBaseSeconds('5+3 • Rated • Blitz'), tcBaseSeconds('½+0'), tcBaseSeconds('1½+1'), tcBaseSeconds('¾+0'), tcBaseSeconds('3 | 2'), tcBaseSeconds('10 min'), tcBaseSeconds('30 sec'), tcBaseSeconds('')].join()", cc);
+    ok('CONTENT2-3: ...and every other spelling reads as before', old === '300,30,90,45,180,600,30,', old);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
