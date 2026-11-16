@@ -16827,6 +16827,47 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     ok('POPUP2-3: under a cursed win the blessed-loss replies still form the pool (fastest one named)',
        why(cursed, 'a1a2') === 'converts fastest' && why(cursed, 'b1b2') === 'keeps the win', [why(cursed, 'a1a2'), why(cursed, 'b1b2')]);
 }
+// ---- audit 3.1.332 POPUP3-1: a failed 4PC analyse releases the dedupe, so the same board is searched again ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fi = s.indexOf('function on_new_pos_4pc(payload) {');
+    const fn = s.slice(fi, s.indexOf('\n}\n', fi) + 3);
+    const di = s.indexOf('function fourpc_drain() {');
+    const drain = s.slice(di, s.indexOf('\n}\n', di) + 3);
+    const c = vm.createContext({console: {log() {}, warn() {}}, Promise, Number, Math, String, sent: [], calc: [], searches: 0});
+    vm.runInContext(`var config = {autoplay: true, help_mode: false, manual_mode: false, compute_time: 300, multiple_lines: 1};
+        var fourpc_last = '', fourpc_busy = false, fourpc_pending = null, board4pc = null;
+        const FOURPC_SEAT_NAME = {R: 'Red', B: 'Blue', Y: 'Yellow', G: 'Green'};
+        const PANEL_ROOT = {getElementById() { return null; }};
+        function clear_idle_reason() {} function show_4pc_board() {} function set_detection_status() {}
+        function is_fourpc_engine() { return true; } function update_best_move() {} function update_evaluation() {}
+        function request_remote_configure() { return Promise.resolve(); } function effective_multipv() { return 1; }
+        function toggle_calculating(v) { calc.push(v); } function format_nps() { return ''; } function fourpc_arrow_specs() { return []; }
+        function render_alt_lines_4pc() {} function update_eval_bar_4pc() {} function request_draw_hint() {}
+        function request_clear_hint() {} function request_console_log() {} function err_line(c) { return c; }
+        function native_host_missing() { return false; } function native_error_detail(e) { return String(e && e.message); }
+        function native_send() { searches++; return searches === 1 ? Promise.reject(new Error('Tetrarch: bestmove timeout'))
+            : Promise.resolve({bestmove: 'd2d4', lines: []}); }
+        function request_automove_4pc(m) { sent.push(m); }
+        ${drain}
+        ${fn}`, c);
+    const P = 'R:teams:R-0,0,0,0-1,1,1,1-1,1,1,1-0,0,0,0-0-x';
+    (async () => {
+        try {
+            const tick = () => new Promise(r => setTimeout(r, 0));
+            const push = async () => { vm.runInContext('on_new_pos_4pc', c)(P); for (let i = 0; i < 4; i++) await tick(); };
+            await push();
+            ok('POPUP3-1: the first analyse of our turn fails and plays nothing', c.searches === 1 && c.sent.length === 0, [c.searches, c.sent]);
+            ok('POPUP3-1: ...the failure releases the dedupe and turns the calculating indicator off',
+               vm.runInContext('fourpc_last', c) === '' && c.calc[c.calc.length - 1] === false, [vm.runInContext('fourpc_last', c), c.calc]);
+            await push();
+            ok('POPUP3-1: the next poll of the same board searches again and Autoplay moves', c.searches === 2 && c.sent.length === 1, [c.searches, c.sent]);
+            await push();
+            ok('POPUP3-1: after a successful search the same board is still deduped', c.searches === 2 && c.sent.length === 1, [c.searches, c.sent]);
+        } catch (e) { ok('POPUP3-1: harness ran', false, e.message); }
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

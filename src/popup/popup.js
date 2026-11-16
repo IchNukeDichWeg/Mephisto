@@ -10312,6 +10312,13 @@ function on_new_pos_4pc(payload) {
         })
         .catch((e) => {
             fourpc_busy = false;
+            toggle_calculating(false);
+            // Release the dedupe for the position that FAILED. It was claimed before the search, so
+            // every later poll of the same board stopped at `fen4 === fourpc_last` and the position
+            // was never searched again: on our turn the board cannot change until we move, so
+            // Autoplay sat until the flag (audit 3.1.332 POPUP3-1). The retry rate is bounded by the
+            // fen poll (>= 1 s), not a loop. Only if no newer position has claimed it meanwhile.
+            if (fourpc_last === fen4) fourpc_last = '';
             fourpc_drain();
             // Tetrarch is the ONE engine with nothing bundled behind it -- every other entry in the
             // dropdown either ships as WASM or degrades to one. So "host not found" here almost
