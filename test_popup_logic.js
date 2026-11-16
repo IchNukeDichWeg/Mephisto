@@ -18021,6 +18021,30 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('PUZZLEDB-2 (3.1.332): ...and so is "1...Rf1+ 2.Kxf1 Qe1#" with the numbers glued on', rec(f2, '1...Rf1+ 2.Kxf1 Qe1#') === want, rec(f2, '1...Rf1+ 2.Kxf1 Qe1#'));
     ok('PUZZLEDB-2 (3.1.332): the 3.1.331 result-token and paren rules still hold', rec(f2, 'Rf1+ Kxf1 Qe1# 0-1') === want && rec(f2, 'Rf1+ (Qe1+) Kxf1 Qe1#') === 'null');
 }
+// ---- audit 3.1.332 CLASSIFYCORE-1: a pushed pawn taken free on its own square stays offered when en passant is also on ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    const sac = (fen, uci) => vm.runInContext(`self.MephistoClassify.sacrificesMaterial(Chess, 'chess', ${JSON.stringify(fen)}, ${JSON.stringify(uci)})`, c);
+    // 1.c4: bxc3 e.p. is met by bxc3, but Nxc4 takes the pawn for nothing
+    const knight = sac('4k3/8/1n6/8/1p6/8/1PP5/4K3 w - - 0 1', 'c2c4');
+    // the black mirror: 1...d5 with exd6 e.p. retaken by cxd6, but Nxd5 is free
+    const mirror = sac('4k3/2pp4/8/4P3/8/4N3/8/4K3 b - - 0 1', 'd7d5');
+    // c4 covered by d3: Nxc4 dxc4 loses the knight, and the ep line is a pawn trade
+    const covered = sac('4k3/8/1n6/8/1p6/3P4/1PP5/4K3 w - - 0 1', 'c2c4');
+    // the position is not changed by valuing two exchanges
+    const fen = '4k3/8/1n6/8/1p6/8/1PP5/4K3 w - - 0 1';
+    ok('CLASSIFYCORE-1 (3.1.332): a double push a knight takes free on its square is offered even with en passant on', knight === true, knight);
+    ok('...the same for Black: ...d5 with Nxd5 free beside exd6 e.p.', mirror === true, mirror);
+    ok('...with the push square covered and the ep capture retaken it is still no sacrifice', covered === false, covered);
+    ok('...the 3.1.331 en passant cases still hold', sac('4k3/8/8/8/1p6/8/2P5/4K3 w - - 0 1', 'c2c4') === true
+        && sac('4k3/8/8/8/1p6/8/2PP4/4K3 w - - 0 1', 'c2c4') === false);
+    ok('...a repeat call answers the same', sac(fen, 'c2c4') === knight);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -55,38 +55,44 @@ function sacrificesMaterial(Chess, variant, fenBefore, uci) {
         // queen to a rook that is then recaptured trades a pawn for a rook, but counted at 9 every
         // routine defended promotion read as a queen sacrifice and was graded Brilliant
         // (audit 3.1.330 REVIEWB-2).
-        let onSquare = mv.promotion ? PIECE_VAL.p : PIECE_VAL[standing.type];
-        // cheapest opponent capture of that square, then our cheapest recapture, alternating
-        let side = 'them';
-        const balance = [];
-        // The square being fought over. After a double push the first reply can be en passant: it
-        // takes the pushed pawn but lands on the square behind it, so a to-only filter never saw it
-        // and a gambit pawn read as offering nothing; the rest of the swap is then fought on the ep
-        // square (audit 3.1.331 CLASSIFYCORE-1).
-        let sq = to;
-        for (let ply = 0; ply < 8; ply++) {
-            const caps = c.moves({verbose: true}).filter(m => m.captured && (m.to === sq || (ply === 0 && m.flags.includes('e'))));
-            if (!caps.length) break;
-            // a pawn capturing onto the last rank comes once per piece, knight first in chess.js: take the queen
-            caps.sort((a, b) => PIECE_VAL[a.piece] - PIECE_VAL[b.piece]
-                || (PIECE_VAL[b.promotion] || 0) - (PIECE_VAL[a.promotion] || 0));
-            const cheapest = caps[0];
-            // A capture that promotes also wins the pawn-to-piece gain and then stakes the new piece.
-            // Counted as the captured piece alone with a pawn standing, a recapture that queens and
-            // survives (Qc8 Rxc8 bxc8=Q) lost its +8, and the mover's winning deflection read as a
-            // sacrifice and could be graded Brilliant (audit 3.1.331 CLASSIFYCORE-2).
-            const promo = cheapest.promotion ? PIECE_VAL[cheapest.promotion] : 0;
-            balance.push({side, wins: onSquare + (promo ? promo - PIECE_VAL.p : 0), with: PIECE_VAL[cheapest.piece]});
-            c.move({from: cheapest.from, to: cheapest.to, promotion: cheapest.promotion});
-            sq = cheapest.to;
-            onSquare = promo || PIECE_VAL[cheapest.piece];
-            side = side === 'them' ? 'us' : 'them';
-        }
-        if (!balance.length) return false;                    // nothing can take: nothing was offered
-        // Walk the exchange from the back, the way a player does: at each point the side to move
-        // takes only if taking leaves them better off.
-        let value = 0;
-        for (let i = balance.length - 1; i >= 0; i--) value = Math.max(0, balance[i].wins - value);
+        const staked = mv.promotion ? PIECE_VAL.p : PIECE_VAL[standing.type];
+        // One swap-off: cheapest opponent capture of the square, then our cheapest recapture,
+        // alternating. Returns what the OPPONENT nets by starting it; the board is put back after.
+        const swapOff = (firstOf) => {
+            let side = 'them', sq = null, onSquare = staked, made = 0;
+            const balance = [];
+            for (let ply = 0; ply < 8; ply++) {
+                const caps = c.moves({verbose: true}).filter(m => m.captured && (ply === 0 ? firstOf(m) : m.to === sq));
+                if (!caps.length) break;
+                // a pawn capturing onto the last rank comes once per piece, knight first in chess.js: take the queen
+                caps.sort((a, b) => PIECE_VAL[a.piece] - PIECE_VAL[b.piece]
+                    || (PIECE_VAL[b.promotion] || 0) - (PIECE_VAL[a.promotion] || 0));
+                const cheapest = caps[0];
+                // A capture that promotes also wins the pawn-to-piece gain and then stakes the new piece.
+                // Counted as the captured piece alone with a pawn standing, a recapture that queens and
+                // survives (Qc8 Rxc8 bxc8=Q) lost its +8, and the mover's winning deflection read as a
+                // sacrifice and could be graded Brilliant (audit 3.1.331 CLASSIFYCORE-2).
+                const promo = cheapest.promotion ? PIECE_VAL[cheapest.promotion] : 0;
+                balance.push({side, wins: onSquare + (promo ? promo - PIECE_VAL.p : 0), with: PIECE_VAL[cheapest.piece]});
+                c.move({from: cheapest.from, to: cheapest.to, promotion: cheapest.promotion});
+                made++;
+                sq = cheapest.to;
+                onSquare = promo || PIECE_VAL[cheapest.piece];
+                side = side === 'them' ? 'us' : 'them';
+            }
+            while (made--) c.undo();
+            // Walk the exchange from the back, the way a player does: at each point the side to move
+            // takes only if taking leaves them better off.
+            let value = 0;
+            for (let i = balance.length - 1; i >= 0; i--) value = Math.max(0, balance[i].wins - value);
+            return value;
+        };
+        // After a double push the pawn can be taken twice over: en passant, after which the swap is
+        // fought on the square behind it (audit 3.1.331 CLASSIFYCORE-1), or by a capture on `to`.
+        // Each is a separate exchange and the opponent picks the better one. One merged
+        // cheapest-first list always followed the ep pawn, so a pushed pawn a knight takes for free
+        // read as an even trade on the ep square (audit 3.1.332 CLASSIFYCORE-1).
+        const value = Math.max(swapOff(m => m.to === to), swapOff(m => m.flags.includes('e')));
         // `value` is what the OPPONENT nets by starting the exchange; we paid `gain` less than that
         return value - gain > 0.5;
     } catch (e) {
