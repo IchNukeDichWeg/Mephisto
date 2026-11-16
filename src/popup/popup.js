@@ -10857,8 +10857,10 @@ function native_host_available(portName) {
 // made before them, and the dot showed those hosts healthy. Every host now reports its `protocol` in
 // the ping; below this, or none (any host from before the field), it is out of date. Bump together
 // with HOST_PROTOCOL in every native-host/*-host.py: the installer copies them all in one run, so one
-// number covers them, and the suite pins that they agree.
-const NATIVE_HOST_PROTOCOL = 1;
+// number covers them, and the suite pins that they agree. 2 = 3.1.332: the Tetrarch host discards an
+// abandoned search, orders configure/analyse on one worker and turns `search failed` into an error
+// frame review-4pc.js relies on; a 3.1.331 copy (protocol 1) still desyncs (audit 3.1.332 TETRARCHHOST-1).
+const NATIVE_HOST_PROTOCOL = 2;
 const native_host_outdated = (frame) => !(Number(frame && frame.protocol) >= NATIVE_HOST_PROTOCOL);
 // The setup step for this OS, never the installer script's name: Windows has no script for the engine
 // hosts (audit 3.1.330 follow-up L42). Never throws, like i18n().

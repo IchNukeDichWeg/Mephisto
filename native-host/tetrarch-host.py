@@ -394,7 +394,7 @@ def do_pgn4(data):
 # extension, so updating the extension never updates the host Chrome runs. `ping` reports this
 # number; the panel calls a host below its NATIVE_HOST_PROTOCOL (or one that reports none) out of date
 # and says to re-run the installer. Bump it in every native-host/*-host.py and in popup.js together.
-HOST_PROTOCOL = 1
+HOST_PROTOCOL = 2
 
 def handle(msg):
     mid = msg.get('id')

@@ -16679,6 +16679,20 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     ok('POPUP1-1: ...with no held position the page scrape re-drives it, as before (fen cleared, no extra request)',
        free.calls && !free.calls.includes('search_same_position') && free.fen === '' && free.calls.includes('push_config'), free);
 }
+// ---- audit 3.1.332 TETRARCHHOST-1: a host left behind by the 3.1.332 host changes is reported out of date ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const want = +((psrc.match(/const NATIVE_HOST_PROTOCOL = (\d+);/) || [])[1]);
+    const outdated = vm.runInNewContext(psrc.match(/const native_host_outdated = [^\n]+/)[0] + '; native_host_outdated', {NATIVE_HOST_PROTOCOL: want, Number});
+    // 3.1.331 hosts answered protocol 1; 3.1.332 changed the Tetrarch host contract (abandoned-search discard,
+    // one ordered worker, `search failed` as an error frame review-4pc.js relies on), so 1 must now be stale
+    ok('TETRARCHHOST-1: the panel expects host protocol 2 or later', want >= 2, want);
+    ok('TETRARCHHOST-1: a 3.1.331 host (ping protocol 1) is out of date', outdated({id: 1, ok: true, protocol: 1}) === true);
+    ok('TETRARCHHOST-1: a host at the current protocol is not', outdated({id: 1, ok: true, protocol: want}) === false);
+    const tet = fs.readFileSync(ROOT + '/native-host/tetrarch-host.py', 'utf8');
+    ok('TETRARCHHOST-1: tetrarch-host.py reports the panel\'s protocol', +((tet.match(/^HOST_PROTOCOL = (\d+)$/m) || [])[1]) === want);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
