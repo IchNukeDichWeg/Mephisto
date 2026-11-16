@@ -6302,7 +6302,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const ENGINES = [{id: 'sf18-native', label: 'Stockfish 18 (native)', kind: 'native'}, {id: 'stockfish-18-nnue', label: 'Stockfish 18', kind: 'wasm'},
                          {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish', kind: 'wasm'}];
         const FAIRY_ONLY = ['crazyhouse']; const FAIRY_ENGINE = 'fairy-stockfish-14-nnue';
-        function syncBandRow() {} function reloadEngine() {} function reloadEngine2() {}
+        function syncBandRow() {} function reloadEngine() {} function reloadEngine2() {} let human = null;
         function loadFromInput() { status(...loadLine); }
         ${cut('function status(', '\n}\n')}
         }
@@ -6365,7 +6365,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const c = vm.createContext({Promise, game: 'shogi', asked: 0, swept: 0, made: []});
     vm.runInContext(`let bandRun = 0, human = null, humanKey = null, engine = null, engine2 = null, analyseChain = Promise.resolve(), humanChain = Promise.resolve();
         const cursor = 0, positions = [{fen: 'start', turn: 'w'}], humanCache = new Map(), bandCache = new Map(), CFG = {an_band: 1500};
-        const cfg = (k) => (k === 'an_human' ? 'maia3' : k === 'an_game' ? game : 1500);
+        const cfg = (k) => (k === 'an_human' ? 'maia3' : k === 'an_game' ? game : 1500); const anVariant = () => 'chess';
         const $ = () => null; function syncBandRow() {} function stopMatch() {} async function stopSearch() {} function showLargeGame() {}
         function largeOpts() {} function hideLargeGame() {} function takesRating() { return true; } function ratingFor(k, b) { return b; }
         function renderHumanLines() {} function render() {} function status() {}
@@ -7392,7 +7392,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const ENGINES = [{id: 'sf18-native', label: 'Stockfish 18 (native)', kind: 'native'}, {id: 'stockfish-18-nnue', label: 'Stockfish 18', kind: 'wasm'},
                          {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish', kind: 'wasm'}];
         const FAIRY_ONLY = ['crazyhouse']; const FAIRY_ENGINE = 'fairy-stockfish-14-nnue';
-        function syncBandRow() {} function reloadEngine() {} function reloadEngine2() {}
+        function syncBandRow() {} function reloadEngine() {} function reloadEngine2() {} let human = null;
         function loadFromInput() { status(...loadLine); }
         ${cut('function status(', '\n}\n')}
         }
@@ -8212,7 +8212,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
             const FAIRY_ONLY = ['crazyhouse', '3check']; const FAIRY_ENGINE = 'fairy-stockfish-14-nnue';
             const evalCache = new Map(), evalCache2 = new Map(), humanCache = new Map(), bandCache = new Map();
             function relinkLine() {} function buildBoard() {} function renderMoves() {} function renderPockets() {} function go() {}
-            function syncBandRow() {} function reloadEngine() {} function reloadEngine2() {}
+            function syncBandRow() {} function reloadEngine() {} function reloadEngine2() {} let human = null;
             ${cut('const AN_VARIANTS = [', '// the variants only Fairy')}
             ${cut('function status(', '\n}\n')}
             }
@@ -13932,7 +13932,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext(`let bandRun = 0, human = {dispose() {}}, humanKey = 'maia|1500', humanChain = Promise.resolve();
         const cursor = 0, positions = [{fen: 'start', turn: 'w'}], humanCache = new Map(), bandCache = new Map(), CFG = {an_band: 1500};
         const evalCache = new Map([['start', {lines: [{pv: ['e2e4']}]}]]);
-        const cfg = (k) => (k === 'an_human' ? kind : 1500);
+        const cfg = (k) => (k === 'an_human' ? kind : 1500); const anVariant = () => 'chess';
         function syncBandRow() {} function largeGame() { return false; } function takesRating() { return false; } function ratingFor(k, b) { return b; }
         function renderHumanLines() {} function render() { calls.push('render'); } function status() {}
         function ensureHuman() { return Promise.resolve(null); } async function humanFor() {}
@@ -17445,6 +17445,34 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        lichessE4 !== '' && lichessE4 === played && /^B00/.test(played), [lichessE4, played]);
     ok('ANALYSIS-3: ...and the lichess FEN after 1.e4 c5 reads the Sicilian', /^B20 Sicilian/.test(sicilian), sicilian);
 })().catch(e => { fails++; console.log('FAIL ANALYSIS-3 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.332 ANALYSIS-4: no human net is built, or kept, for a chess-variant board ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const fn = (sig) => { const i = aj.indexOf(sig); if (i < 0) throw new Error('slice ' + sig); let d = 0, j = aj.indexOf('{', i);
+        for (; j < aj.length; j++) { if (aj[j] === '{') d++; else if (aj[j] === '}' && !--d) break; } return aj.slice(i, j + 1); };
+    const store = {an_variant: '"crazyhouse"', an_human: '"maia3"', an_band: '"1500"', an_game: ''};
+    const c = vm.createContext({store, started: []});
+    vm.runInContext(`const MephistoConfig = {get: (k) => store[k]}; const CFG = {an_band: '1500', an_variant: 'chess'};
+        ${fn('function cfg(key)')}
+        let pageGen = 0, human = null, humanKey = null, bandRun = 0, cursor = 0, positions = [{fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'}];
+        const humanCache = new Map(), bandCache = new Map(); let humanChain = Promise.resolve();
+        function syncBandRow() {} function renderHumanLines() {} function render() {} function renderBands() {} function renderArrows() {} function status() {}
+        function takesRating(k) { return k === 'maia3'; } function ratingFor(k, b) { return b; } function engineOpts() { return {}; } function leftDuringLoad() { return false; }
+        function humanCacheKey(f) { return f; } function bandKey(f, k) { return f + k; } const evalCache = new Map();
+        function makeEngine(kind) { return {start: async () => { started.push(['start', kind]); }, dispose() { started.push(['dispose']); }, send() {}, analyse: async () => ({lines: []})}; }
+        ${['function anVariant()', 'function largeGame()', 'function ensureHuman(', 'async function buildHuman(', 'async function reloadHuman('].map(fn).join('\n')}`, c);
+    await vm.runInContext('reloadHuman()', c);
+    await vm.runInContext('humanChain', c);
+    ok('ANALYSIS-4: the page-open change event under a saved Crazyhouse loads no human net',
+       !c.started.some(x => x[0] === 'start') && vm.runInContext('human', c) === null, c.started);
+    vm.runInContext(`human = {dispose() { started.push(['dispose']); }, send() {}}; humanKey = 'maia3|1500';`, c);
+    c.started.length = 0;
+    await vm.runInContext('reloadHuman()', c);
+    ok('ANALYSIS-4: ...a net loaded on chess is freed once the board is a variant, not retuned and kept',
+       JSON.stringify(c.started) === '[["dispose"]]' && vm.runInContext('human', c) === null, c.started);
+    ok('ANALYSIS-4: ...and a variant change frees the loaded net', /if \(v !== 'chess' && human\) reloadHuman\(\);/.test(fn('function onVariantChange(')));
+})().catch(e => { fails++; console.log('FAIL ANALYSIS-4 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

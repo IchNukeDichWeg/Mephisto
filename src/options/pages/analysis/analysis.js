@@ -553,6 +553,7 @@ function onVariantChange(quiet) {
         if (note) notes.push(note);
     }
     syncBandRow();
+    if (v !== 'chess' && human) reloadHuman();   // frees the net the variant cannot use (ANALYSIS-4)
     reloadEngine2();
     reloadEngine();   // clears the eval caches and re-analyses via go(cursor)
     loadFromInput();  // reload whatever is in the box under the new rules (empty box = start position)
@@ -1066,6 +1067,14 @@ async function reloadHuman() {
     // and ran a ratings sweep on the hidden chess board (audit 3.1.329 ANALYSIS-6). Switching back
     // to chess rebuilds it on the first position asked about.
     if (largeGame()) return;
+    // NOR UNDER A CHESS VARIANT: the nets know standard chess only and humanFor answers null there, so
+    // a saved Crazyhouse + Maia 3 loaded the 92MB net on every page open and kept it for the visit,
+    // unused (audit 3.1.332 ANALYSIS-4). A loaded one is freed; back on chess, humanFor rebuilds it.
+    if (anVariant() !== 'chess') {
+        if (human) { try { human.dispose?.(); } catch (e) { /* */ } human = null; humanKey = null; }
+        if (positions[cursor]) renderHumanLines(positions[cursor], null);
+        return;
+    }
     // MAIA 3 IS ONE NET WITH A DIAL: a band change retunes the LIVE engine (SelfElo/OppoElo, the
     // same pair the sweep sends) instead of disposing it and reloading 92MB -- which is what the
     // panel has done since v3.1.280, and what this page did not. The rebuild was also the hang:
