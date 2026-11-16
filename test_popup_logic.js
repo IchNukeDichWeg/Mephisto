@@ -17621,6 +17621,67 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('...a click on another page still loads it once', s.calls.join() === 'analysis,review' && s.title.innerText === 'Game Review', s.calls);
     })();
 }
+// ---- audit 3.1.332 OPTIONSFRAMEWORK-2: a modifier-click on a nav entry leaves the current tab where it is ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const osrc = fs.readFileSync(ROOT + '/src/options/options.js', 'utf8').replace(/^import .*$/m, '');
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const settle = async () => { for (let i = 0; i < 6; i++) await sleep(5); };   // microtasks and 0 ms hashchange timers only
+    // the real options.js shell on a stub DOM (same stub as the 3.1.331 OPTIONSFRAMEWORK-1/2 checks)
+    const shell = (hash) => {
+        const doc = {}, win = {}, calls = [];
+        const on = (m) => (t, f) => (m[t] = m[t] || []).push(f);
+        const cls = {add() {}, remove() {}, contains: () => false, toggle() {}};
+        const navUl = {id: 'nav-mobile', tagName: 'UL', classList: cls};
+        const anchors = {};
+        for (const p of ['settings/general', 'analysis', 'review']) {
+            const li = {id: '', tagName: 'LI', classList: cls, parentElement: navUl};
+            anchors[p] = {id: p, tagName: 'A', hash: '#' + p, classList: cls, parentElement: li, addEventListener(t, f) { this.onclick = f; }};
+        }
+        const content = {innerHTML: ''}, title = {innerText: ''};
+        const loc = {h: hash, get hash() { return this.h; }, set hash(v) {
+            v = v.startsWith('#') ? v : '#' + v; if (v === this.h) return; this.h = v;
+            setTimeout(() => (win.hashchange || []).forEach(f => f({})), 0); }};
+        const titles = {'settings/general': 'General Settings', analysis: 'Analysis', review: 'Game Review'};
+        const c = vm.createContext({console, setTimeout, Promise, JSON, Array, location: loc,
+            history: {replaceState: (s, t, u) => { loc.h = u; }},
+            M: {Sidenav: {init() {}}, ScrollSpy: {init: () => []}, Tooltip: {init() {}}},
+            MephistoConfig: {get: () => null, ready: Promise.resolve()},
+            chrome: {storage: {onChanged: {addListener() {}}}},
+            MephistoI18n: {use: async () => {}, apply() {}, lang: 'en'},
+            document: {addEventListener: on(doc), documentElement: {classList: cls},
+                getElementById: (id) => anchors[id] || ({title, header: {scrollIntoView() {}}})[id] || null,
+                querySelector: (s) => s === 'head' ? {appendChild() {}} : content,
+                querySelectorAll: (s) => s === '#nav-mobile a.menu-item' ? Object.values(anchors) : [],
+                getElementsByClassName: () => []},
+            require: async (path, type = 'js') => {
+                const p = path.replace(/^pages\//, '').replace(/\/[^/]+$/, '');
+                if (type === 'html') return {innerHTML: 'html:' + p};
+                if (type === 'css') return {};
+                return {title: titles[p], page: {onInit() { calls.push(p); }}};
+            }});
+        c.window = c; c.addEventListener = on(win);
+        vm.runInContext(osrc, c);
+        doc.DOMContentLoaded.forEach(f => f());
+        return {calls, anchors, loc, title, content};
+    };
+    (async () => {
+        const s = shell('#analysis');
+        await settle();
+        const r = s.anchors.review;
+        const res = {};
+        for (const k of ['metaKey', 'ctrlKey', 'shiftKey', 'altKey']) {
+            r.onclick({target: r, button: 0, [k]: true});   // the browser's default opens the new tab/window; this tab's URL does not move
+            await settle();
+            res[k] = {calls: s.calls.join(), hash: s.loc.hash, title: s.title.innerText};
+        }
+        ok('OPTIONSFRAMEWORK-2 (3.1.332): Cmd/Ctrl/Shift/Alt-click on Game Review keeps Analysis loaded in this tab (no hash change, no load, so no teardown)',
+           Object.values(res).every(v => v.calls === 'analysis' && v.hash === '#analysis' && v.title === 'Analysis'), res);
+        r.onclick({target: r, button: 0}); s.loc.hash = r.hash;
+        await settle();
+        ok('...a plain click still navigates', s.calls.join() === 'analysis,review' && s.loc.hash === '#review', s.calls);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

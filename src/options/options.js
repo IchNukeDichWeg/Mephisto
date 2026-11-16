@@ -44,6 +44,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const stylesheetsElem = document.querySelector('head');
 
     function onClick(e) {
+        // A MODIFIER CLICK IS THE BROWSER'S. Cmd/Ctrl/Shift/Alt-click opens the link in a new tab or
+        // window (or saves it); routing this tab as well set its hash, whose hashchange ran Analysis's
+        // teardown and freed its engines, so the game the user wanted to keep beside the new tab was
+        // gone (audit 3.1.332 OPTIONSFRAMEWORK-2). `> 0`, not `!== 0`: a synthetic click has no button.
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button > 0) return;
         const pagePath = e.target.hash.substring(1);
         // A CLICK ON THE PAGE ALREADY LOADING OR SHOWN DOES NOTHING. The hash does not change, so no
         // hashchange fires and a page's leave hook (Analysis's teardown) never runs, yet its onInit ran
