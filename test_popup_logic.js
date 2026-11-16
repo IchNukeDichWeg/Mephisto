@@ -18000,6 +18000,27 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     await run;
     ok('PUZZLEDB-1 (3.1.332): ...and all four are enabled again when it ends', dis().every((d) => !d), dis());
 })();
+// ---- audit 3.1.332 PUZZLEDB-2: a chess.com daily row whose SAN starts '.Nf4+' (from '1...Nf4+') or castles as '0-0' is imported, not dropped ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/puzzle-db.js', 'utf8'), c);
+    const gsrc = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const g0 = gsrc.indexOf('const sanToUci = (fen, sans) =>'), g1 = gsrc.indexOf('\n                };', g0) + 19;
+    const sanToUci = vm.runInContext('(() => { ' + gsrc.slice(g0, g1) + ' return sanToUci; })()', c);
+    const row = (fen, sans) => [fen, 'daily-77', '', fen + ' - 0 1', sans, '', '', '', '', '', ''];
+    const rec = (fen, sans) => JSON.stringify(c.PuzzleDB.ccRowToRecord(row(fen, sans), sanToUci));
+    // daily-2881 as published: white castles with zeros
+    const f1 = '8/8/5NqB/8/8/2p2kp1/6Rr/4K2R w K';
+    ok('PUZZLEDB-2 (3.1.332): daily-2881 "0-0" is stored as e1g1', rec(f1, '0-0') === JSON.stringify(['8/8/5NqB/8/8/2p2kp1/6Rr/4K2R w', {s: 'e1g1'}]), rec(f1, '0-0'));
+    // a black-to-move line written '1...Rf1+' and split as '1..' '.Rf1+' or '.Rf1+' alone
+    const f2 = '2b1r2k/4q1p1/1p5p/1P5P/1N1N4/R1P2RP1/2Q2KP1/4r3 b -';
+    const want = JSON.stringify(['2b1r2k/4q1p1/1p5p/1P5P/1N1N4/R1P2RP1/2Q2KP1/4r3 b', {s: 'e1f1 f2f1 e7e1'}]);
+    ok('PUZZLEDB-2 (3.1.332): a first SAN with a leading dot (".Rf1+ Kxf1 Qe1#") is stored', rec(f2, '.Rf1+ Kxf1 Qe1#') === want, rec(f2, '.Rf1+ Kxf1 Qe1#'));
+    ok('PUZZLEDB-2 (3.1.332): ...and so is "1...Rf1+ 2.Kxf1 Qe1#" with the numbers glued on', rec(f2, '1...Rf1+ 2.Kxf1 Qe1#') === want, rec(f2, '1...Rf1+ 2.Kxf1 Qe1#'));
+    ok('PUZZLEDB-2 (3.1.332): the 3.1.331 result-token and paren rules still hold', rec(f2, 'Rf1+ Kxf1 Qe1# 0-1') === want && rec(f2, 'Rf1+ (Qe1+) Kxf1 Qe1#') === 'null');
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

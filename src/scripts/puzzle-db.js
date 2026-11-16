@@ -196,9 +196,14 @@ function tcnToUci(tcn) {
 // (876 of 6,977 daily rows, audit 3.1.331 PUZZLEDB-1). Result and move-number tokens are not moves
 // and are removed. A row holding a variation in parentheses stays skipped: which side of the paren
 // is the main line cannot be told from the text, and storing a sideline would play a wrong answer.
+// A move number glued to its move ('1...Nf4+', or the '.Nf4+' a split left) is stripped, and '0-0'
+// / '0-0-0' castling becomes O-O / O-O-O: chess.js accepts neither, and 3 of 6,977 daily rows
+// (daily-2881, -8678, -8780) were dropped for it (audit 3.1.332 PUZZLEDB-2).
 function ccDailySans(raw) {
     if (/[()]/.test(raw)) return null;
-    return raw.split(/\s+/).filter(t => t && !/^(1-0|0-1|1\/2-1\/2|\*)$/.test(t) && !/^\d+\.+$/.test(t));
+    return raw.split(/\s+/).filter(t => t && !/^(1-0|0-1|1\/2-1\/2|\*)$/.test(t))
+        .map(t => t.replace(/^\d*\.+/, '').replace(/^0-0(-0)?(?=[+#]?$)/, (m, q) => (q ? 'O-O-O' : 'O-O')))
+        .filter(Boolean);
 }
 
 // One parsed chess.com row -> [key, solution] or null.
