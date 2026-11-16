@@ -17194,6 +17194,32 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     c.selIdx = 0; change();
     ok('an idle pick syncs at once', c.rvChessVariant() === 'chess' && status.textContent === '2 games read. Game type set to Chess from the PGN.', status.textContent);
 }
+// ---- audit 3.1.332 REVIEW-2: a Maia-1 band engine whose start fails is disposed by the strength pass ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = src.indexOf('const STRENGTH_MULTIPV'), b = src.indexOf('// A maximum-likelihood rating over a SET');
+    ok('the strength pass is found', a > 0 && b > a);
+    const made = [];
+    const c = {console, cancel: false, MAIA_BANDS: [1100, 1200, 1300], takesRating: k => k === 'maia3',
+        ratingSteps: () => [1500], ratingFor: () => 1500, cfg: k => ({rv_human: 'maia', rv_strength: true})[k],
+        Core: {gamePhases: () => ({}), phaseOf: () => 'opening'},
+        makeEngine: (kind, opts, id) => {
+            const e = {id, disposed: 0, async start() { throw new Error('Maia net failed to load'); },
+                dispose() { this.disposed++; }, send() {}, async analyse() { return {lines: []}; }};
+            made.push(e);
+            return e;
+        }};
+    vm.runInNewContext(src.slice(a, b) + ';this.strengthPass = strengthPass;', c);
+    (async () => {
+        const moves = Array.from({length: 10}, (_, i) => ({ply: i, color: i % 2 ? 'b' : 'w', san: 'x', uci: 'e2e4', isBook: false, onlyMove: false}));
+        const positions = Array.from({length: 11}, () => ({fen: 'f', turn: 'w'}));
+        const r = await c.strengthPass(positions, moves, {plan() {}, tick() {}}, {opts: {variant: 'chess'}, human: null});
+        ok('a failed band start still costs only the estimate', r === null, r);
+        ok('...and the band engine it made is disposed', made.length === 1 && made[0].disposed === 1,
+           made.map(e => [e.id, e.disposed]));
+    })().catch(e => { fails++; console.log('FAIL REVIEW-2 check threw: ' + e); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

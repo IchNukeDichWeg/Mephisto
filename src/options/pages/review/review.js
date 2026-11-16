@@ -534,7 +534,10 @@ async function strengthPass(positions, moves, prog, rig) {
                 e = makeEngine('maia', {variant: 'chess', multipv: STRENGTH_MULTIPV, maiaLevel: band,
                                         limitKind: 'depth', limitValue: 1, threads: 1, hash: 16},
                                `review-strength-${band}`);
-                await e.start();
+                // Disposed here or nowhere: a failed start lands in the catch below and the finally
+                // disposes only `shared`, so its 15 s lease ping and listener outlived the run (audit
+                // 3.1.332 REVIEW-2, the startRig leak of audit 3.1.330 REVIEWA-4).
+                try { await e.start(); } catch (err) { try { e.dispose(); } catch (e2) { /* */ } throw err; }
             } else {
                 e.send(`setoption name SelfElo value ${band}`);   // NOT UCI_Elo -- see maia3.js
                 e.send(`setoption name OppoElo value ${band}`);
