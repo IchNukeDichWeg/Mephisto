@@ -18045,6 +18045,38 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         && sac('4k3/8/8/8/1p6/8/2PP4/4K3 w - - 0 1', 'c2c4') === false);
     ok('...a repeat call answers the same', sac(fen, 'c2c4') === knight);
 }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // OFFSCREEN-1: the host threw ':hr' away (abandon sweep + idle close); a timed-out ask must make the
+    // next one re-run ensureOffscreen + init, for all three askers on the shared client
+    const cut = (from, to) => { const a = psrc.indexOf(from); return psrc.slice(a, psrc.indexOf(to, a)); };
+    const code = cut('let threat_human_id = null;', '// asked from the same branch that arms the threat arrow')
+        + cut('async function safety_human_ask(fen) {', '// ---- Humanize') + cut('async function humanize_maia_ask(fen) {', '// asked whenever the net is watching our turn');
+    const timers = []; const sent = []; let listeners = [];
+    const c = vm.createContext({Promise, Number, Math, Error, Map, sent,
+        setTimeout: (f, ms) => { const t = {f, ms, on: true}; timers.push(t); return t; }, clearTimeout: (t) => { if (t) t.on = false; },
+        chrome: {runtime: {onMessage: {addListener: (f) => listeners.push(f), removeListener: (f) => { listeners = listeners.filter(x => x !== f); }},
+            sendMessage: async (m) => { sent.push(m);   // the host answers the init and nothing else: the client is gone
+                if (m.cmd === 'init') Promise.resolve().then(() => { for (const f of [...listeners]) f({fromOffscreen: true, clientId: m.clientId, kind: 'ready'}); }); }}}});
+    vm.runInContext(`var config = {threat_human_elo: 1500, maia3_elo: 1500}, ENGINE_CLIENT = '7', safety_human_cache = new Map();
+        ${code}`, c);
+    const flush = async () => { for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); };
+    const fire15 = () => { for (const t of timers) if (t.on && t.ms === 15000) { t.on = false; t.f(); } };
+    const inits = () => sent.filter(m => m.cmd === 'init').length;
+    (async () => {
+        try {
+            const res = [];
+            for (const ask of ['threat_human_ask', 'safety_human_ask', 'humanize_maia_ask']) {
+                const before = inits();
+                const p = c[ask]('8/8/8/8/8/8/8/K6k w - - 0 1');
+                await flush(); fire15(); await p; await flush();
+                const q = c[ask]('8/8/8/8/8/8/8/K6k b - - 0 1');
+                await flush(); fire15(); await q; await flush();
+                res.push([ask, inits() - before]);
+            }
+            ok('OFFSCREEN-1: after a timed-out ask, each of Human Reply, the Safety Net and Humanize\'s Maia read re-inits the lost :hr client',
+               res.every(([, n]) => n === 2) && sent.filter(m => m.ensureOffscreen).length === 6, res);
+        } catch (e) { ok('OFFSCREEN-1: ran', false, e.message); }
+    })(); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

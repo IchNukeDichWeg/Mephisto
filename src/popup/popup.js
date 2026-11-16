@@ -11846,6 +11846,19 @@ function dispose_threat_human() {
     human_inflight.clear();
 }
 
+// AN UNANSWERED QUESTION MEANS THE CLIENT IS GONE. With a native, Remote or cloud engine ':hr' is
+// often the offscreen document's only client: nothing pings it, so the host's 5-minute abandon sweep
+// disposes it, the document closes 30 s later and takes the respawn state with it. The resolved init
+// was still handed back, so every later ask went to no receiver (or to a recreated document that
+// queues it forever) and timed out, until the panel was reopened (audit 3.1.332 OFFSCREEN-1). A
+// timeout now forgets the init the ask ran on, so the next ask re-runs ensureOffscreen + init.
+// Only that init: one a newer ask has already started is not thrown away.
+function threat_human_lost(ready) {
+    if (threat_human_ready !== ready) return;
+    threat_human_ready = null;
+    threat_human_elo_loaded = null;
+}
+
 // one forward pass for the position after `fen` -- resolves {uci, prob} or null
 // ONE QUESTION PER POSITION IN FLIGHT. The cache below fills only when Maia ANSWERS, and this is
 // asked on every multipv-1 info line of our turn -- so each engine frame before the answer sent
@@ -11877,9 +11890,10 @@ function human_in_turn(ask) {
 }
 
 async function threat_human_ask(fenAfter) {
-    await ensure_threat_human();
+    const ready = ensure_threat_human();
+    await ready;
     const answer = await human_in_turn(() => new Promise((resolve) => {
-        const timer = setTimeout(() => { cleanup(); resolve(null); }, 15000);
+        const timer = setTimeout(() => { cleanup(); threat_human_lost(ready); resolve(null); }, 15000);
         let top = null;
         const onMsg = (m) => {
             if (!m || !m.fromOffscreen || m.clientId !== threat_human_id || m.kind !== 'line') return;
@@ -12107,9 +12121,10 @@ async function safety_human_choices(fen) {
 }
 
 async function safety_human_ask(fen) {
-    await ensure_threat_human();
+    const ready = ensure_threat_human();
+    await ready;
     const answer = await human_in_turn(() => new Promise((resolve) => {
-        const timer = setTimeout(() => { cleanup(); resolve(null); }, 15000);
+        const timer = setTimeout(() => { cleanup(); threat_human_lost(ready); resolve(null); }, 15000);
         const list = [];
         const onMsg = (m) => {
             if (!m || !m.fromOffscreen || m.clientId !== threat_human_id || m.kind !== 'line') return;
@@ -12146,7 +12161,8 @@ function request_humanize_maia(fen) {
         .then(() => { if (last_eval.fen === fen) refresh_human_error(false); }).catch(() => {});
 }
 async function humanize_maia_ask(fen) {
-    await ensure_threat_human();
+    const ready = ensure_threat_human();
+    await ready;
     const elo = Math.max(600, Math.min(2600, Math.round(Number(config.maia3_elo) || 1500)));
     const answer = await human_in_turn(() => new Promise((resolve) => {
         const send = (line) => chrome.runtime.sendMessage({toOffscreen: true, clientId: threat_human_id, cmd: 'uci', line});
@@ -12159,7 +12175,7 @@ async function humanize_maia_ask(fen) {
             send('setoption name MultiPV value 5');
             resolve(v);
         };
-        const timer = setTimeout(() => done(null), 15000);
+        const timer = setTimeout(() => { done(null); threat_human_lost(ready); }, 15000);
         const onMsg = (m) => {
             if (!m || !m.fromOffscreen || m.clientId !== threat_human_id || m.kind !== 'line') return;
             const info = /info .*maiaprob (\d+) pv ([a-h][1-8][a-h][1-8][qrbn]?)/.exec(m.line || '');
