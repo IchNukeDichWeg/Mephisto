@@ -1422,8 +1422,10 @@ async function compareNets() {
     // here but nothing stops the user stepping through the game meanwhile. The table would then be
     // filled in for the position they LEFT -- internally consistent (same `pos` for the search and
     // for sanOf), so it looks right and says nothing. The ply is stamped either way, so a stale
-    // table is self-identifying even if this guard is ever lost.
-    if (positions[atPly] !== pos) {
+    // table is self-identifying even if this guard is ever lost. Compared with the board's position,
+    // not with positions[atPly]: stepping along the same line keeps that node in place, so the old
+    // test passed and the ply-5 table was drawn under a ply-10 board (audit 3.1.332 ANALYSIS-2).
+    if (positions[cursor] !== pos) {
         meta.textContent = `discarded - the board moved on (was ply ${atPly}, at ${band})`;
         return;
     }

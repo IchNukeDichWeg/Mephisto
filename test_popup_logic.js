@@ -17392,6 +17392,32 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /an_engine_select'\)\?\.addEventListener\('change', \(\) => \{\s*const refused = refuseFairyOnly\('an_engine', FAIRY_ENGINE\)/.test(aj)
        && /an_engine2_select'\)\?\.addEventListener\('change', \(\) => \{\s*const refused = refuseFairyOnly\('an_engine2', ''\)/.test(aj));
 }
+// ---- audit 3.1.332 ANALYSIS-2: a compare-nets table is discarded when the user steps along the same line meanwhile ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const i = aj.indexOf('async function compareNets()'), j = aj.indexOf('function renderCmp(', i);
+    const els = {an_cmp_out: {innerHTML: ''}, an_cmp_meta: {textContent: ''}, an_cmp: {disabled: false}};
+    const c = vm.createContext({els, drawn: [], step: null});
+    vm.runInContext(`var positions = [], cursor = 0; const $ = (id) => els[id];
+        const CMP_NETS = [{id: 'maia3', label: 'Maia-3'}]; const CFG = {an_band: '1500'}; const MAIA2_FIRST_PLY = 0;
+        const anVariant = () => 'chess', cfg = () => '1500', nearestMaia1Band = (b) => b, fenPly = () => 9, engineOpts = () => ({});
+        const makeEngine = () => ({start: async () => {}, dispose() {}, analyse: async () => { if (step) step(); return {lines: [{pv: ['e2e4'], prob: 0.5}]}; }});
+        function renderCmp(pos, cols) { drawn.push(pos.ply); }
+        ${i < 0 ? '' : aj.slice(i, j)}`, c);
+    // one line of nodes; stepping rebuilds nothing, it only moves the cursor (go() keeps the same node objects)
+    const run = async (from, to) => {
+        c.drawn.length = 0; els.an_cmp_meta.textContent = '';
+        vm.runInContext(`positions = Array.from({length: 12}, (_, k) => ({ply: k, fen: 'f' + k, turn: 'w'})); cursor = ${from};`, c);
+        c.step = () => vm.runInContext(`cursor = ${to};`, c);
+        await vm.runInContext('compareNets()', c);
+        return {drawn: c.drawn.slice(), meta: els.an_cmp_meta.textContent};
+    };
+    const moved = await run(5, 10), stayed = await run(5, 5);
+    ok('ANALYSIS-2: asked at ply 5, the board stepped to ply 10 on the same line: the table is discarded, not drawn',
+       moved.drawn.length === 0 && /discarded/.test(moved.meta), moved);
+    ok('ANALYSIS-2: ...a board still at ply 5 gets its table', JSON.stringify(stayed.drawn) === '[5]' && /ply 5/.test(stayed.meta), stayed);
+})().catch(e => { fails++; console.log('FAIL ANALYSIS-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
