@@ -1519,8 +1519,11 @@ class GeneralSettings extends SettingsPage {
             const el = document.getElementById('puzzle_db_status');
             if (el) el.textContent = t;
         };
+        // ALL the Remove buttons, not just Remove all: importCsv commits batch by batch, so a per-site
+        // Remove mid-import ran between two batches, the import kept writing, and it ended in 'Done'
+        // over a store holding only the file's tail (audit 3.1.332 PUZZLEDB-1).
         const busy = (on) => {
-            for (const id of ['puzzle_db_btn', 'puzzle_db_clear_btn']) {
+            for (const id of ['puzzle_db_btn', 'puzzle_db_clear_btn', 'puzzle_db_clear_li_btn', 'puzzle_db_clear_cc_btn']) {
                 const b = document.getElementById(id);
                 if (b) b.disabled = on;
             }

@@ -17973,6 +17973,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     jitter('e4');
     ok('...and a jittery click on the selected piece itself plays nothing', log.length === 0, log);
 }
+// ---- audit 3.1.332 PUZZLEDB-1: every Remove button is disabled while a puzzle import runs, so a removal cannot be silently undone ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const a = gj.indexOf('    initPuzzleDb() {'), b = gj.indexOf('\n    }\n', a);
+    if (a < 0 || b < 0) { ok('PUZZLEDB-1 (3.1.332): initPuzzleDb slices out of general.js', false); return; }
+    const el = (id) => { const h = {}; return {id, disabled: false, textContent: '', value: '', files: [],
+        addEventListener: (t, f) => { h[t] = f; }, fire: (t) => h[t](), click() {}}; };
+    const els = {};
+    for (const id of ['puzzle_db_btn', 'puzzle_db_clear_btn', 'puzzle_db_clear_li_btn', 'puzzle_db_clear_cc_btn', 'puzzle_db_file', 'puzzle_db_status']) els[id] = el(id);
+    let finish;
+    const c = vm.createContext({console, Date, puzzleImport: {running: false, line: ''}, document: {getElementById: (id) => els[id] || null},
+        MephistoI18n: {errText: (k) => k},
+        PuzzleDB: {count: async () => ({li: 1, cc: 0}), clear: async () => {},
+                   importCsv: () => new Promise((r) => { finish = r; })}});
+    const init = vm.runInContext('(function ' + gj.slice(a + 4, b + 6) + ')', c);
+    init.call({});
+    const dis = () => ['puzzle_db_btn', 'puzzle_db_clear_btn', 'puzzle_db_clear_li_btn', 'puzzle_db_clear_cc_btn'].map((id) => els[id].disabled);
+    els.puzzle_db_file.files = [{name: 'lichess_db_puzzle.csv'}];
+    const run = els.puzzle_db_file.fire('change');
+    await new Promise((r) => setImmediate(r));
+    ok('PUZZLEDB-1 (3.1.332): during an import the Import, Remove all, Remove Lichess and Remove Chess.com buttons are all disabled',
+       dis().every(Boolean), dis());
+    finish({rows: 1, kept: 1, site: 'li'});
+    await run;
+    ok('PUZZLEDB-1 (3.1.332): ...and all four are enabled again when it ends', dis().every((d) => !d), dis());
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
