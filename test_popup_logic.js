@@ -17418,6 +17418,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        moved.drawn.length === 0 && /discarded/.test(moved.meta), moved);
     ok('ANALYSIS-2: ...a board still at ply 5 gets its table', JSON.stringify(stayed.drawn) === '[5]' && /ply 5/.test(stayed.meta), stayed);
 })().catch(e => { fails++; console.log('FAIL ANALYSIS-2 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.332 ANALYSIS-3: a pasted FEN with '-' for en passant after a double step still gets its opening name ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const cut = (a, b) => { const i = aj.indexOf(a), j = aj.indexOf(b, i); if (i < 0 || j < 0) throw new Error('slice ' + a); return aj.slice(i, j); };
+    const table = fs.readFileSync(ROOT + '/src/options/pages/review/openings.json', 'utf8');
+    const opEl = {textContent: 'x'};
+    const c = vm.createContext({opEl, table});
+    vm.runInContext(`let openingBook = null, tbCache = new Map(); var positions = [], cursor = 0;
+        const $ = (id) => id === 'an_opening' ? opEl : null, anVariant = () => 'chess';
+        const chrome = {runtime: {getURL: (p) => p}}; const fetch = async () => ({ok: true, json: async () => JSON.parse(table)});
+        ${cut('async function loadOpeningBook()', 'function pieceCount(')}
+        ${cut('async function renderExtras(pos)', '    if (tbEl) {')}}
+        ${cut('function keyOf(fen)', '\n}\n')}\n}`, c);
+    const name = async (fens) => {
+        vm.runInContext(`positions = ${JSON.stringify(fens.map(f => ({fen: f})))}; cursor = positions.length - 1;`, c);
+        opEl.textContent = 'x';
+        await vm.runInContext('renderExtras(positions[cursor])', c);
+        return opEl.textContent;
+    };
+    const lichessE4 = await name(['rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1']);
+    const played = await name(['rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1']);
+    const sicilian = await name(['rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2']);
+    ok('ANALYSIS-3: the lichess FEN after 1.e4 (ep "-") is named like 1.e4 played on the board',
+       lichessE4 !== '' && lichessE4 === played && /^B00/.test(played), [lichessE4, played]);
+    ok('ANALYSIS-3: ...and the lichess FEN after 1.e4 c5 reads the Sicilian', /^B20 Sicilian/.test(sicilian), sicilian);
+})().catch(e => { fails++; console.log('FAIL ANALYSIS-3 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -182,7 +182,7 @@ let bookMoves = null;    // {name, entries: Map(positionKey -> [{uci, weight}])}
 let boardResizeObs = null;
 let searchTimer = null;  // the budget's stopwatch; null whenever the budget is the infinite notch
 let lastBands = null;    // the chart as last drawn, so the export can describe what is on screen
-let openingBook = null;  // fen(4 fields) -> name, lazily fetched from the review's bundled table
+let openingBook = null;  // keyOf(fen) -> name, lazily fetched from the review's bundled table
 let tbCache = new Map(); // fen -> tablebase answer (or null for "asked, nothing"), so a revisit is free
 
 // ---- page ---------------------------------------------------------------------------------------
@@ -2152,8 +2152,13 @@ async function loadOpeningBook() {
     if (openingBook) return openingBook;
     try {
         const r = await fetch(chrome.runtime.getURL('src/options/pages/review/openings.json'));
-        openingBook = r.ok ? await r.json() : {};
-    } catch (e) { openingBook = {}; }
+        // Keyed through keyOf on both sides: the table carries this chess.js's en-passant square
+        // after every double step, while a FEN pasted from lichess, python-chess or Stockfish has '-',
+        // so the loaded position itself (1.e4, 1.e4 c5) had no name (audit 3.1.332 ANALYSIS-3). No
+        // two of the 3,810 keys fold onto one.
+        const table = r.ok ? await r.json() : {};
+        openingBook = new Map(Object.entries(table).map(([k, name]) => [keyOf(k), name]));
+    } catch (e) { openingBook = new Map(); }
     return openingBook;
 }
 
@@ -2181,7 +2186,7 @@ async function renderExtras(pos) {
         // through the names too
         let name = null;
         for (let i = 0; i <= cursor && i < positions.length; i++) {
-            const hit = book[positions[i].fen.split(' ').slice(0, 4).join(' ')];
+            const hit = book.get(keyOf(positions[i].fen));
             if (hit) name = hit;
         }
         opEl.textContent = name || '';
