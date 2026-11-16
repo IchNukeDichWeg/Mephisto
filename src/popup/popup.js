@@ -5283,11 +5283,13 @@ function snap_following() {
 function snap_follow_stop() {
     if (snap_follow_timer !== null) clearTimeout(snap_follow_timer);
     snap_follow_timer = null;
+    snap_unexplained = 0;   // a count left from this session must not shorten the next one's re-seed (audit 3.1.332 POPUP2-2)
     update_snap_follow_button();
 }
 
 function snap_follow_start() {
     if (snap_following() || !snap_crop) return;
+    snap_unexplained = 0;   // a fresh session earns its own re-seed (audit 3.1.332 POPUP2-2)
     // Chained, NOT setInterval. A read is a full-tab PNG capture plus a 59MB ONNX pass, and
     // chrome.tabs.captureVisibleTab is throttled by Chrome to about 2 calls/second -- so a fixed
     // 250ms clock did not produce 4 reads/second, it produced quota errors and ticks dropped by the
@@ -5365,6 +5367,10 @@ async function snap_follow_tick() {
     snap_follow_busy = true;
     try {
         const res = await chrome.runtime.sendMessage({captureAndRecognize: {crop: snap_crop}, tabId: await resolve_click_tab()});
+        // The read takes ~0.5 s. Re-detect, Stop following or the panel taking over in that window must
+        // win: a read landing after it re-seeded a held screen position over the live game the user had
+        // just asked to follow (audit 3.1.332 POPUP2-2).
+        if (snap_follow_timer === null || !snap_crop || !setup_fen) return;
         if (res?.error) {
             // Surfaced, not swallowed. The usual one is Chrome's captureVisibleTab quota (~2/sec),
             // and a silent skip made that look like "the recogniser is slow" rather than "we asked

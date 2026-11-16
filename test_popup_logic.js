@@ -16776,6 +16776,42 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
        !err && run(`follow(${JSON.stringify(followed)}); apply_setup_fen(true); snap_following() && !!snap_crop`) === true,
        run(`[setup_fen, snap_following(), !!snap_crop]`));
 }
+// ---- audit 3.1.332 POPUP2-2: a follow read in flight when following ends is dropped, and the re-seed count starts over ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.indexOf('\nfunction ' + name + '(') + 1; return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const a = psrc.indexOf('let snap_last_error = null;'), b = psrc.indexOf('\n}\n', psrc.indexOf('async function snap_follow_tick()')) + 3;
+    const screen = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R';
+    const held = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2';
+    const c = vm.createContext({console: {log: console.log, warn() {}}, i18n: (k, d) => d, setTimeout: () => 99, clearTimeout: () => {}});
+    let err = null;
+    try {
+        vm.runInContext(`var setup_fen = null, snap_crop = null, snap_follow_timer = null, snap_follow_busy = false, snap_flipped = false, turn = 'w',
+                last_eval = {fen: ''}, shown = [], msg = '', during = () => {};
+            var document = {hidden: false}, PANEL_ROOT = {getElementById: () => null}, board = {position() {}};
+            var chrome = {runtime: {sendMessage: async () => { during(); return {placement: ${JSON.stringify(screen)}}; }}};
+            var resolve_click_tab = async () => 1, follow_infer_ply = () => null, is_legal_position = () => true, flip_fen_turn = (f) => f,
+                rotate_fen_180 = (f) => f, stash_setup_state = () => {}, update_turn_badge = () => {}, update_snap_follow_button = () => {},
+                on_new_pos = (f) => { shown.push(f); }, setup_fen_msg = (m) => { msg = m; }, err_line = (x) => x;`
+            + ['snap_following', 'snap_follow_stop', 'snap_follow_start'].map(fn).join('\n') + '\n' + psrc.slice(a, b), c);
+    } catch (e) { err = e.message; }
+    const run = async (code) => { if (err) return err; try { return await vm.runInContext(code, c); } catch (e) { return 'threw: ' + e.message; } };
+    const arm = `setup_fen = ${JSON.stringify(held)}; snap_crop = {x: 1}; snap_follow_timer = 7; shown = []; msg = ''; snap_unexplained = 3;`;
+    // Re-detect lands while the read is in flight: the read that comes back must not re-seed the held position
+    let got = await run(`(async () => { ${arm} during = () => { setup_fen = null; snap_crop = null; snap_follow_stop(); };
+        await snap_follow_tick(); return [setup_fen, shown.length, msg]; })()`);
+    ok('POPUP2-2: a read in flight when Re-detect is pressed does not re-seed a held position over the live game',
+       Array.isArray(got) && got[0] === null && got[1] === 0 && got[2] === '', got);
+    got = await run(`(async () => { ${arm} during = () => { snap_follow_stop(); };
+        await snap_follow_tick(); return [setup_fen === ${JSON.stringify(held)}, shown.length]; })()`);
+    ok('POPUP2-2: ...nor one in flight when Stop following is pressed', Array.isArray(got) && got[0] === true && got[1] === 0, got);
+    got = await run(`(async () => { ${arm} during = () => {}; await snap_follow_tick(); const live = shown.length;
+        snap_unexplained = 2; snap_follow_stop(); const afterStop = snap_unexplained;
+        snap_unexplained = 2; snap_follow_timer = null; snap_crop = {x: 1}; snap_follow_start(); return [live, afterStop, snap_unexplained]; })()`);
+    ok('POPUP2-2: a live follow still re-seeds on the 4th unexplained read, and stop and start reset the count',
+       Array.isArray(got) && got.join() === '1,0,0', got);
+})().catch(e => { fails++; console.log('FAIL POPUP2-2 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
