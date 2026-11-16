@@ -17078,6 +17078,25 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     r = run(false, 'rematch');
     ok('CONTENT2-4: ...an uncovered offer still gets the trusted click', r.cdp === 1, r);
 }
+// ---- audit 3.1.332 BACKGROUND-1: one review ply without a commentary field costs one empty string, not the whole review ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const src = b.slice(b.indexOf('// >>> CCR_DECODE_BEGIN'), b.indexOf('// <<< CCR_DECODE_END'));
+    const d = new Function(src + '; return {ccrDecodeReview, ccrText};')();
+    const vi = (n) => { const o = []; while (n > 127) { o.push((n & 127) | 128); n >>>= 7; } o.push(n); return o; };
+    const vf = (f, n) => [...vi(f * 8), ...vi(n)], mf = (f, bytes) => [...vi(f * 8 + 2), ...vi(bytes.length), ...bytes];
+    const txt = [...'A fine move'].map(ch => ch.charCodeAt(0));
+    // a played-move annotation: f1 squares, f4.f1 score (zigzag 40 = +20), f5 commentary only when given
+    const ply = (comment) => mf(3, mf(2, [...mf(1, [...vf(1, 13), ...vf(2, 29)]), ...mf(4, mf(1, vf(1, 40))), ...(comment ? mf(5, mf(1, comment)) : [])]));
+    let r, err = null;
+    try { r = d.ccrDecodeReview(Uint8Array.from(mf(2, mf(3, [...ply(txt), ...ply(null), ...ply(txt)])))); } catch (e) { err = e.message; }
+    ok('BACKGROUND-1: a review whose middle ply has no f5 commentary still decodes (no throw)', err === null, err);
+    ok('...the uncommented ply reads an empty commentary, its neighbours keep theirs, and every score survives',
+       !err && JSON.stringify(r.moves.map(m => [m.commentary, m.cp, m.from, m.to])) === JSON.stringify([['A fine move', 20, 'e2', 'e4'], ['', 20, 'e2', 'e4'], ['A fine move', 20, 'e2', 'e4']]),
+       err || r.moves);
+    ok('...ccrText(null) is an empty string', (() => { try { return d.ccrText(null) === ''; } catch (e) { return false; } })());
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

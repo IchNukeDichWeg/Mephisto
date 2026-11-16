@@ -1414,6 +1414,9 @@ function ccrIsMsg(b) {
 }
 
 function ccrText(b) {
+  // A ply with no commentary sub-message (proto3 omits an unset field) reaches here as null, and
+  // ccrWalk(null) threw: one bare ply lost the whole review's decode (audit 3.1.332 BACKGROUND-1).
+  if (!b) return '';
   const parts = [];
   const rec = (x) => {
     for (const {f, w, v} of ccrWalk(x)) {
