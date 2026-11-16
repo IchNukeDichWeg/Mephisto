@@ -16644,6 +16644,41 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
            && staged.slice(0, 3).every(f => fs.statSync(path.join(out, f)).size === 8), {r, staged, man});
     } finally { fs.rmSync(tmp, {recursive: true, force: true}); }
 })().catch(e => { fails++; console.log('FAIL RELEASETOOLS-4 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.332 POPUP1-1: a mode toggle or the Maia-3 rating on a HELD position searches it again ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const s = psrc.indexOf('function init_quick_settings()'), e = psrc.indexOf('// N1: the WASM engine now lives', s);
+    // runs the REAL init_quick_settings; every name it does not find here is a recording no-op
+    const drive = (ids, engine, held, act) => {
+        const calls = [], els = {};
+        const el = (id) => els[id] ||= {id, checked: false, value: '', style: {}, dataset: {}, listeners: {}, options: [],
+            addEventListener(t, f) { (this.listeners[t] ||= []).push(f); }, setAttribute() {}, classList: {toggle() {}}};
+        const FEN = '8/8/8/4k3/8/8/4P3/4K3 w - - 0 1';
+        const st = {PANEL_ROOT: {getElementById: (id) => ids.includes(id) ? el(id) : null, querySelectorAll: () => []},
+            config: {help_mode: false, autoplay: false, clock_mode: false, mirror_mode: false, manual_mode: false, engine, maia3_elo: 1500},
+            setup_fen: held ? FEN : null, last_eval: {fen: FEN}, search_active: true, MephistoConfig: {set() {}}, navigator: {hardwareConcurrency: 8},
+            search_same_position() { calls.push('search_same_position'); st.last_eval.fen = ''; }};
+        const known = new Set(Object.keys(st));
+        const S = new Proxy(st, {has: (t, k) => !(k in globalThis) || known.has(k),
+            get: (t, k) => { if (k in t) return t[k]; if (k === Symbol.unscopables) return undefined;
+                return (...a) => { calls.push(k); if (k === 'our_side') return 'white'; if (k === 'is_remote') return false; }; },
+            set: (t, k, v) => { t[k] = v; return true; }});
+        try { new Function('S', `with (S) { ${psrc.slice(s, e)}; init_quick_settings(); }`)(S); } catch (err) { return {err: err.message}; }
+        calls.length = 0; act(el);
+        return {calls, fen: st.last_eval.fen};
+    };
+    const flip = (id) => (el) => { el(id).checked = true; el(id).listeners.change.forEach(f => f()); };
+    const got = {};
+    for (const id of ['qs_help', 'qs_clock', 'qs_mirror', 'qs_manual']) got[id] = drive([id], 'stockfish-18-nnue', true, flip(id));
+    got.maia3 = drive(['qs_maia3_row', 'qs_maia3_elo', 'qs_maia3_val'], 'maia3', true, (el) => { el('qs_maia3_elo').value = '1700'; el('qs_maia3_elo').listeners.change.forEach(f => f()); });
+    ok('POPUP1-1: Help, Clock, Mirror, Manual and the Maia-3 rating each search a held position again',
+       Object.values(got).every(r => r.calls && r.calls.includes('abandon_search') && r.calls.includes('search_same_position')
+           && r.calls.indexOf('abandon_search') < r.calls.indexOf('search_same_position')), got);
+    const free = drive(['qs_help'], 'stockfish-18-nnue', false, flip('qs_help'));
+    ok('POPUP1-1: ...with no held position the page scrape re-drives it, as before (fen cleared, no extra request)',
+       free.calls && !free.calls.includes('search_same_position') && free.fen === '' && free.calls.includes('push_config'), free);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

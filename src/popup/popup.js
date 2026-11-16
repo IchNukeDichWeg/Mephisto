@@ -1333,9 +1333,11 @@ function init_quick_settings() {
                     return;
                 }
                 // the go mode (infinite vs movetime) / search budget depends on these; abandon the
-                // current search and re-analyse the position under the new mode on the next push
+                // current search and re-analyse the position under the new mode on the next push.
+                // A held position (Set Position, a capture) drops every page scrape, so no push ever
+                // re-drives it: search it again here, as Re-analyse does (audit 3.1.332 POPUP1-1)
                 abandon_search();
-                last_eval.fen = '';
+                if (setup_fen) search_same_position(); else last_eval.fen = '';
             }
             push_config();
         });
@@ -1502,7 +1504,9 @@ function init_quick_settings() {
                 // Maia-3 plays both sides at the one rating; Maia-2's opponent is the opponent's own
                 if (config.engine !== 'maia2') send_engine_uci(`setoption name OppoElo value ${v}`);
                 abandon_search();
-                last_eval.fen = '';   // re-analyse the current position at the new rating
+                // re-analyse the current position at the new rating; a held position gets no page
+                // scrape to do that, so it is searched again here (audit 3.1.332 POPUP1-1)
+                if (setup_fen) search_same_position(); else last_eval.fen = '';
                 push_config();
             });
         }
