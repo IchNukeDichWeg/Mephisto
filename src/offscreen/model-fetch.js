@@ -161,11 +161,18 @@ async function fetchModelOnce(dir, file, onNote) {
     const url = entry && releaseUrl(entry.tag, file);
     if (!url) throw coded('MPH-N04', `${file} is not in this build and not in its engine manifest`);
     const cache = await caches.open(MODEL_CACHE).catch(() => null);
-    const hit = cache && await cache.match(url);
-    if (hit) {
-        const buf = await hit.arrayBuffer();
-        if (await matches(buf, entry)) return buf;
-        // corrupt, or cached before the manifest existed and not the file it names: fetch it again
+    try {
+        const hit = cache && await cache.match(url);
+        if (hit) {
+            const buf = await hit.arrayBuffer();
+            if (await matches(buf, entry)) return buf;
+            // corrupt, or cached before the manifest existed and not the file it names: fetch it again
+            await cache.delete(url).catch(() => {});
+        }
+    } catch (e) {
+        // An entry whose body can no longer be read (match or arrayBuffer rejects: a damaged Cache
+        // Storage blob) used to escape uncaught and stay cached, so every later load failed the same
+        // way for the life of the profile. Drop it and download, as a SHA mismatch does (audit 3.1.332 MODELFETCH-1).
         await cache.delete(url).catch(() => {});
     }
     onNote?.(`downloading ${file}`);

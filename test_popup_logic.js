@@ -18136,6 +18136,41 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     c.config.engine = 'maia3';
     ok('MAIA-1: other engines get no Elo setoption from the search gap', run(false).length === 0);
 }
+// ---- audit 3.1.332 MODELFETCH-1: an unreadable cache entry is dropped and downloaded again, not a permanent failure ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const good = Buffer.from('cached net bytes. '.repeat(40));
+    const sha = require('crypto').createHash('sha256').update(good).digest('hex');
+    const REL = 'https://github.com/IchNukeDichWeg/Mephisto/releases/download/models-v1/x.onnx';
+    for (const mode of ['body', 'match']) {
+        let deletes = 0, downloads = 0;
+        const store = new Map([[REL, 'damaged']]);
+        const c = vm.createContext({crypto: globalThis.crypto, Response, console, setTimeout, clearTimeout, AbortController,
+            fetch: async (u) => {
+                if (u === '/src/offscreen/engine-assets.json') return new Response(JSON.stringify({files: {'x.onnx': {size: good.length, sha256: sha, tag: 'models-v1'}}}));
+                if (u.startsWith('/')) throw new TypeError('Failed to fetch');   // not bundled
+                downloads++; return new Response(good);
+            },
+            caches: {open: async () => ({
+                match: async (u) => {
+                    if (!store.has(u)) return undefined;
+                    if (store.get(u) !== 'damaged') return new Response(store.get(u));
+                    if (mode === 'match') throw new Error('UnknownError: Unexpected internal error');
+                    return {arrayBuffer: async () => { throw new Error('NotReadableError: Failed to read blob'); }};
+                },
+                put: async (u, r) => { store.set(u, Buffer.from(await r.arrayBuffer())); },
+                delete: async (u) => { deletes++; return store.delete(u); },
+            })}});
+        vm.runInContext(fs.readFileSync(ROOT + '/src/offscreen/model-fetch.js', 'utf8').replace(/^export /gm, ''), c);
+        const fetchModel = vm.runInContext('fetchModel', c);
+        let r1, r2;
+        try { r1 = Buffer.from(await fetchModel('/lib/engine/m', 'x.onnx')).equals(good); } catch (e) { r1 = String(e); }
+        try { r2 = Buffer.from(await fetchModel('/lib/engine/m', 'x.onnx')).equals(good); } catch (e) { r2 = String(e); }
+        ok(`MODELFETCH-1 (${mode} read fails): the load still succeeds by downloading, the bad entry is deleted and replaced, the next load is served from the cache`,
+           r1 === true && r2 === true && deletes === 1 && downloads === 1 && Buffer.isBuffer(store.get(REL)) && store.get(REL).equals(good),
+           {r1, r2, deletes, downloads});
+    }
+})().catch(e => { fails++; console.log('FAIL MODELFETCH-1 block threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
