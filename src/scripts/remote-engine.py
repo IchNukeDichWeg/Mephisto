@@ -185,8 +185,10 @@ def apply_option(opt):
     set_option(key.strip(), value.strip())
 
 
-# What a position may get wrong and still be searched: Stockfish reads stale castling rights, a stale
-# en passant square and an impossible check without complaint (measured with Stockfish 19).
+# What a position may get wrong and still be searched: Stockfish reads stale castling rights, an en
+# passant square with no pawn behind it and an impossible check without complaint (measured with
+# Stockfish 19). An en passant square on the wrong rank for the side to move kills it, so build_board
+# drops any invalid one first (audit 3.1.332 REMOTEENGINE-1).
 PLAYABLE_ANYWAY = (chess.STATUS_BAD_CASTLING_RIGHTS | chess.STATUS_INVALID_EP_SQUARE
                    | chess.STATUS_IMPOSSIBLE_CHECK | chess.STATUS_TOO_MANY_CHECKERS)
 
@@ -204,6 +206,11 @@ def build_board(fen, moves):
     else:
         VariantBoard = chess.variant.find_variant(variant)
         board = VariantBoard(fen)
+    if board.status() & chess.STATUS_INVALID_EP_SQUARE:
+        # python-chess sends the root FEN with the en passant field exactly as given
+        # (fen(en_passant='fen')), and Stockfish exits with CRITICAL ERROR on 'w ... e3'; '-' keeps
+        # the rest of the position searchable (audit 3.1.332 REMOTEENGINE-1).
+        board.ep_square = None
     bad = board.status() & ~PLAYABLE_ANYWAY
     if bad:
         why = [name[7:].lower().replace('_', ' ') for name in dir(chess)
