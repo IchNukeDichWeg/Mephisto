@@ -13344,7 +13344,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-1: single mode, game 1 (crazyhouse) picked: reviewed as crazyhouse', r.seen.join() === 'crazyhouse', r.seen);
     vm.runInContext('detectVariantFrom(games[1])', r.c);
     ok('REVIEW-1: picking the untagged game 2 sets the Game type back to Chess', r.store.rv_variant === 'chess', r.store);
-    ok('REVIEW-1: ...and the list wires that pick to the detection', /\$\('rv_game_select'\)\?\.addEventListener\('change', \(\) => \{\s*if \(games\.length > 1 && !running\) note\([^\n]*detectVariantFrom\(selectedGame\(\)\)\);/.test(rj));
+    ok('REVIEW-1: ...and the list wires that pick to the detection', /const said = detectVariantFrom\(selectedGame\(\)\);[\s\S]{0,200}\$\('rv_game_select'\)\?\.addEventListener\('change', \(\) => \{ clearTimeout\(pickTimer\); syncPick\(false\); \}\);/.test(rj));
     ok('REVIEW-1: the real startRig takes a game\'s own rules ahead of the dropdown', /const variant = override \? 'chess' : \(rules \|\| rvChessVariant\(\)\);/.test(rj));
     ok('REVIEW-1: parsePgnBox marks every game\'s rules', /games = text\.trim\(\) \? Core\.parsePgn\(text\) : \[\];\s*markGameRules\(games\);/.test(rj));
 })().catch(e => { fails++; console.log('FAIL REVIEW-1 checks threw: ' + (e && e.stack || e)); });
@@ -17143,6 +17143,57 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     store = {panelTabs: {}}; panel('open', 11); listeners.changed.forEach(f => { try { f({ui_mode: {newValue: 'popup'}}, 'local'); } catch (e) {} }); await settle();
     ok('...switching to toolbar-popup mode clears every tab, even one whose open was still in flight', JSON.stringify(store.panelTabs) === '{}', store.panelTabs);
 })().catch(e => { fails++; console.log('FAIL BACKGROUND-2 check threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.332 REVIEW-1: a game picked from the list during a run gets its Game type when the run ends ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const c = {console: {log() {}}, URLSearchParams};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    // the page wiring from just after the comment above the pick listener through the listener itself
+    const a = src.indexOf("$('rv_pgn').addEventListener('input', parsePgnBox);");
+    const b = src.indexOf("$('rv_file_btn').addEventListener(", a);
+    const wiring = src.slice(a + "$('rv_pgn').addEventListener('input', parsePgnBox);".length, b);
+    ok('the pick wiring is found', a > 0 && b > a && /rv_game_select/.test(wiring));
+    const store = {}, status = {textContent: ''}, timers = [];
+    let change = null;
+    Object.assign(c, {MephistoConfig: {get: k => store[k], set: (k, v) => { store[k] = v; }},
+        CFG_DEFAULTS: {rv_variant: 'chess', rv_variant_which: 'crazyhouse'}, Core: c.MephistoReviewCore, selIdx: 0,
+        setTimeout: (f, ms, ...args) => { timers.push(() => f(...args)); return timers.length; }, clearTimeout: () => {},
+        $: id => id === 'rv_game_select' ? {value: String(c.selIdx), addEventListener: (ev, f) => { change = f; }}
+            : id === 'rv_pgn_status' ? status : null,
+        note: t => { status.textContent = t || ''; }});
+    vm.runInContext('var games = [], running = false;'
+        + 'function selectedGame() { return games[+$("rv_game_select").value] || games[0]; }'
+        + src.slice(src.indexOf('function cfg(key)'), src.indexOf('// ---- the run ---'))
+        + ';(function () {' + wiring + '})();', c);
+    const drain = () => { while (timers.length) timers.shift()(); };
+    const scenario = (pgn) => {
+        for (const k in store) delete store[k];
+        timers.length = 0;
+        vm.runInContext('games = Core.parsePgn(pgn); markGameRules(games); selIdx = 0; detectVariantFrom(selectedGame()); running = true;',
+            Object.assign(c, {pgn}));
+        const during = c.rvChessVariant();
+        c.selIdx = 1; change();                       // picked while game 1 is being analysed
+        timers.shift()?.();                           // a tick while the run still holds the page
+        const still = c.rvChessVariant();
+        status.textContent = 'Stopped.';              // the run's own outcome line
+        vm.runInContext('running = false;', c);
+        drain();
+        return {during, still, after: c.rvChessVariant(), status: status.textContent};
+    };
+    let r = scenario('[Variant "Crazyhouse"]\n\n1. e4 e5 *\n\n[Event "b"]\n\n1. e4 e5 2. Nf3 Nc6 *\n');
+    ok('crazyhouse then a standard pick mid-run: the next single run is chess',
+       r.during === 'crazyhouse' && r.still === 'crazyhouse' && r.after === 'chess', r);
+    ok('...and the change joins the run outcome line', r.status === 'Stopped. Game type set to Chess from the PGN.', r.status);
+    r = scenario('[Event "a"]\n\n1. e4 e5 *\n\n[Variant "Crazyhouse"]\n\n1. e4 d5 *\n');
+    ok('standard then a crazyhouse pick mid-run: the next single run is crazyhouse', r.during === 'chess' && r.after === 'crazyhouse', r);
+    // an idle pick still syncs at once with the list sentence
+    c.selIdx = 0; change();
+    ok('an idle pick syncs at once', c.rvChessVariant() === 'chess' && status.textContent === '2 games read. Game type set to Chess from the PGN.', status.textContent);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -3218,10 +3218,21 @@ class ReviewPage {
 
         $('rv_pgn').addEventListener('input', parsePgnBox);
         // the game picked from a list sets the Game type as the first one did when the list was read
-        // (audit 3.1.331 REVIEW-1); not parsePgnBox, which rebuilds the list and loses the pick
-        $('rv_game_select')?.addEventListener('change', () => {
-            if (games.length > 1 && !running) note(`${games.length} games read.` + detectVariantFrom(selectedGame()));
-        });
+        // (audit 3.1.331 REVIEW-1); not parsePgnBox, which rebuilds the list and loses the pick.
+        // A pick made during a run waits for the run to end: the run has already read its type, and
+        // skipping the sync left the next single-game Analyse on the earlier game's rules, a standard
+        // game searched with pockets in its FEN (audit 3.1.332 REVIEW-1). Its sentence then joins the
+        // run's own outcome line instead of replacing it.
+        let pickTimer = null;
+        const syncPick = (late) => {
+            pickTimer = null;
+            if (running) { pickTimer = setTimeout(syncPick, 250, true); return; }
+            if (games.length < 2) return;
+            const said = detectVariantFrom(selectedGame());
+            if (!late) note(`${games.length} games read.` + said);
+            else if (said && $('rv_pgn_status')) $('rv_pgn_status').textContent += said;
+        };
+        $('rv_game_select')?.addEventListener('change', () => { clearTimeout(pickTimer); syncPick(false); });
         $('rv_file_btn').addEventListener('click', () => $('rv_file').click());
 
         // ---- chess.com review (DEBUG STAGE): send the loaded game, show the raw JSON ----------
