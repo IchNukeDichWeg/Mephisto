@@ -17220,6 +17220,23 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            made.map(e => [e.id, e.disposed]));
     })().catch(e => { fails++; console.log('FAIL REVIEW-2 check threw: ' + e); });
 }
+// audit 3.1.332 REVIEWCORE-1: black's move number written with the Unicode ellipsis ("1… e5",
+// "12…Nf6", "1. … e5") was pushed as a SAN and the whole game rejected; "½-½" was read as a move
+{
+    const rc = {console};
+    rc.self = rc;
+    vm.createContext(rc);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), rc);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), rc);
+    const P = (t) => rc.MephistoReviewCore.parsePgn(t)[0];
+    const sans = (t) => P(t).moves.map(m => m.san);
+    eq('332 REVIEWCORE-1: "1… e5" is a move number, not a move', sans('1. e4 {Best by test} 1… e5 2. Nf3 *'), ['e4', 'e5', 'Nf3']);
+    eq('332 REVIEWCORE-1: "3…a6" with no space reads as a6', sans('1. e4 e5 2. Nf3 Nc6 3. Bb5 3…a6 *'), ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6']);
+    eq('332 REVIEWCORE-1: "1. … e5" (spaced ellipsis) reads as e5', sans('1. e4 1. … e5 *'), ['e4', 'e5']);
+    const g = P('1. e4 {a … in a comment} e5 ½-½');
+    eq('332 REVIEWCORE-1: "½-½" is the result, not a move', [g.moves.map(m => m.san), g.result], [['e4', 'e5'], '1/2-1/2']);
+    eq('332 REVIEWCORE-1: comment text keeps its ellipsis', g.moves[0].comment, 'a … in a comment');
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

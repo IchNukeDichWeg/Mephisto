@@ -86,6 +86,11 @@ function parseGame(text) {
     });
     movetext = stripVariations(movetext);
     movetext = movetext.replace(/\$\d+/g, ' ');            // NAGs
+    // Books, web pages and ChessBase text write black's move number with the typographic ellipsis
+    // ("1… e5", "12…Nf6") and a draw as "½-½". Neither matched the ASCII rules below, so the token was
+    // pushed as a SAN and the whole game rejected as illegal (audit 3.1.332 REVIEWCORE-1). Done after
+    // the comments are pulled out, so their text keeps its own spelling.
+    movetext = movetext.replace(/\u2026/g, '...').replace(/(^|\s)\u00bd-\u00bd(?=\s|$)/g, '$11/2-1/2');
     movetext = movetext.replace(/\d+\s*\.(\s*\.\.)?/g, ' ');  // move numbers, incl. black's "12..." and "12. ..."
 
     const games = [];
