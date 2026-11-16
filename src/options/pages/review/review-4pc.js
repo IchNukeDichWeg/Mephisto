@@ -130,7 +130,11 @@ function lineCp(l, MATE_CP) {
 // the engine, resolving the stuck seat on load, searches for that seat too. Taking `turn` as the
 // mover credited the next move, its eval and its tally to a seat already out of the game (audit
 // 3.1.331 REVIEW4PC-2). The mover is the first seat from `turn` on that is still alive after it.
+// Not when `next` is an explicit terminator (R/T/#/S, no move): there the seat that leaves IS `turn`,
+// dead in `next`, and the scan named the seat after it as the one to move while the engine had
+// searched for `turn` (audit 3.1.332 REVIEW4PC-2).
 function moverOf(f, next) {
+    if (next && next.move == null) return f.turn;
     const alive = next && next.alive;
     let k = SEATS.indexOf(f.turn);
     if (!Array.isArray(alive) || k < 0) return f.turn;

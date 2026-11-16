@@ -17280,6 +17280,48 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            r.evals[4].teamCp === -r.MATE, r.evals.map(e => e.teamCp));
     } catch (e) { fails++; console.log('FAIL REVIEW4PC-1 (3.1.332): threw ' + e.message); }
 })();
+// ---- audit 3.1.332 REVIEW4PC-2: the position before an explicit R/T/#/S token names the seat that leaves as the one to move ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the REAL review-4pc.js over a fake host; the terminator frame is shaped like Tetrarch's pgn4.replay
+    // (move null, the leaving seat dead, turn on the next seat)
+    const run = async (game) => {
+        const c = vm.createContext({console, setTimeout, Promise, Error, Map, Math, Array, Object, String, Number, JSON});
+        c.self = c;
+        c.chrome = {runtime: {connect() {
+            const L = [];
+            return {onMessage: {addListener: (f) => L.push(f)}, onDisconnect: {addListener() {}}, disconnect() {},
+                postMessage(m) { setTimeout(() => {
+                    const r = m.cmd === 'pgn4' ? game : m.cmd === 'configure' ? {ok: true}
+                        : m.fen4 === 'end' ? {error: 'Tetrarch: search failed: ValueError: no seat is dead during search'}
+                        : {bestmove: 'x1', lines: [{move: 'x1', score: 20}]};
+                    L.forEach(f => f({...r, id: m.id}));
+                }, 0); }};
+        }}};
+        vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+        vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-4pc.js', 'utf8'), c);
+        return c.Mephisto4PC.runReview('x', {movetime: 50});
+    };
+    const T = [true, true, true, true], nc = [false, false, false, false];
+    const fr = (i, turn, move, alive) => ({ply: i, fen4: 'f' + i, turn, alive: alive || T, move, token: move, check: nc});
+    try {
+        for (const variant of ['Teams', 'FFA']) {
+            // Red resigns on its own turn: frame 4 is Red to move, frame 5 the 'R' token with Red out
+            const game = {variant, mode: variant === 'FFA' ? '0' : '1', setup: 'classic', tags: {}, terminations: [],
+                frames: [fr(0, 'R', null), fr(1, 'B', 'r1'), fr(2, 'Y', 'b1'), fr(3, 'G', 'y1'), fr(4, 'R', 'g1'),
+                         {ply: 5, fen4: 'end', turn: 'B', alive: [false, true, true, true], move: null, token: 'R', check: nc}]};
+            const r = await run(game);
+            ok(`REVIEW4PC-2 (3.1.332): ${variant}: the position before Red's resignation names Red to move, not Blue`,
+               r.evals[4].mover === 'R' && r.evals[3].mover === 'G', r.evals.map(e => e.mover));
+        }
+        // the implied elimination (no token, the 3.1.331 case) still skips the dead seat
+        const ffa = {variant: 'FFA', mode: '0', setup: 'classic', tags: {}, terminations: [],
+            frames: [fr(0, 'R', null), fr(1, 'B', 'r1'), fr(2, 'Y', 'b1'), fr(3, 'G', 'y1'), fr(4, 'B', 'r2', [true, true, true, false])]};
+        const r = await run(ffa);
+        ok('REVIEW4PC-2 (3.1.332): ...an implied elimination (no token) still credits the next live seat',
+           r.evals[3].mover === 'R' && r.moves[3].seat === 'R', [r.evals.map(e => e.mover), r.moves.map(m => m.seat)]);
+    } catch (e) { fails++; console.log('FAIL REVIEW4PC-2 (3.1.332): threw ' + e.message); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
