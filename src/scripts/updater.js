@@ -134,7 +134,33 @@ const MephistoUpdater = (function () {
                 throw fail('MPH-U17', vars, `holds v${manifest.version}, the running extension is v${running.version}`);
             }
         }
+        await servedHere(handle);
         return manifest;
+    }
+
+    // ...AND NOT WHICH COPY OF THAT VERSION EITHER (audit 3.1.332 UPDATER-1). Two extractions of one
+    // release, or the stale copy the 3.1.331 bug had already updated next to a hand-installed real
+    // folder, carry the same name, version and key. Install then wrote that copy, the record named the
+    // new version, and every later press answered "already in the folder" and reloaded the unchanged
+    // real one. Only the folder Chrome loaded serves its files at chrome-extension://<id>/, read from
+    // disk per request for an unpacked extension, so a file written into the picked folder comes back
+    // under getURL only when that IS the loaded folder. Not a dot-name, and removed again either way.
+    async function servedHere(handle) {
+        const name = `mephisto-folder-probe-${Date.now().toString(36)}${Math.random().toString(36).slice(2)}.txt`;
+        const nonce = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+        try {
+            await writeFile(handle, name, new TextEncoder().encode(nonce));
+        } catch (e) {
+            await removeEntry(handle, name);
+            throw fail('MPH-U05', null, `could not write the folder check: ${(e && (e.message || e.name)) || e}`);
+        }
+        let back = null;
+        try {
+            const res = await fetch(chrome.runtime.getURL(name), {cache: 'no-store'});
+            if (res.ok) back = await res.text();
+        } catch (e) { /* not served: another folder */ }
+        await removeEntry(handle, name);
+        if (back !== nonce) throw fail('MPH-U19', null, 'a file written into it is not served by the running extension');
     }
 
     async function pickFolder() {
@@ -504,6 +530,7 @@ const MephistoUpdater = (function () {
     async function finishStaged(onStatus = () => {}) {
         const dir = await folder({prompt: true});
         if (!dir) throw fail('MPH-U05');
+        await servedHere(dir);   // the Finish button writes too (audit 3.1.332 UPDATER-1)
         const staging = await dir.getDirectoryHandle(STAGING).catch(() => null);
         if (!staging) throw fail('MPH-U14');
         const raw = await readFileAt(staging, STAGED_MARKER);
@@ -586,6 +613,8 @@ const MephistoUpdater = (function () {
         if (!(await hasPermission())) throw fail('MPH-U04');
         const dir = await folder({prompt: true});
         if (!dir) throw fail('MPH-U05');
+        // A stored handle on another copy is neither finished nor cleaned (audit 3.1.332 UPDATER-1).
+        await servedHere(dir);
         // AN INTERRUPTED UPDATE IS FINISHED, NEVER STARTED OVER. If the last run died while putting
         // files in place, this folder is a mix of two versions and its manifest may already be the
         // new one. Starting again from here read that manifest as "installed", deleted the good

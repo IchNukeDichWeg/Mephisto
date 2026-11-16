@@ -181,6 +181,7 @@ const ERRORS = Object.freeze(Object.fromEntries([
     ['MPH-U16', 'err.U16', 'This release was built for different engine files than this install has, and an update cannot bring them. Download the full zip from the Releases page and install it by hand.'],
     ['MPH-U17', 'err.U17', 'That folder holds Mephisto v{folder}, but the Mephisto Chrome is running is v{running}. Pick the folder chrome://extensions shows for Mephisto, or reload the extension there if you updated it by hand.'],
     ['MPH-U18', 'err.U18', 'Writing the extension folder stopped part-way, so it now holds parts of two versions. Press Finish Interrupted Update or Roll Back below, whichever is shown, to bring it back to one.'],
+    ['MPH-U19', 'err.U19', 'That folder holds a copy of Mephisto, but not the one Chrome is running. Pick the folder chrome://extensions shows for Mephisto.'],
 
     ['MPH-P01', 'err.P01', 'That is the compressed file. Decompress it first (unzstd lichess_db_puzzle.csv.zst), then pick the .csv.'],
     ['MPH-P02', 'err.P02', 'The puzzle import failed. What was already imported is kept; run it again to continue.'],
