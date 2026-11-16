@@ -17322,6 +17322,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            r.evals[3].mover === 'R' && r.moves[3].seat === 'R', [r.evals.map(e => e.mover), r.moves.map(m => m.seat)]);
     } catch (e) { fails++; console.log('FAIL REVIEW4PC-2 (3.1.332): threw ' + e.message); }
 })();
+// ---- audit 3.1.332 EEHOST-1: Check for update stops after a bounded number of probes when every HEAD answers 200 ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/ee-host.js', 'utf8');
+    const isrc = fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8');
+    const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+    const check = async (answer) => {
+        let calls = 0;
+        const c = vm.createContext({Promise, Number, Math, String, Error, Object, RegExp, setTimeout, console, navigator: {platform: 'MacIntel'},
+            fetch: async (url, opt) => {
+                // harness guard: the old loop never ends on its own
+                if (++calls > 5000) throw new Error('harness: unbounded');
+                return answer(url.match(/explanation-engine\/([\d.]+)\//)[1], opt);
+            }});
+        c.self = c;
+        vm.runInContext(isrc, c); c.MephistoI18n.setFallback(en);
+        const ee = vm.runInContext(src.replace(/^export \{[^}]*\};?\s*$/m, '') + '\n({eeCheckUpdate})', c);
+        try { return {v: await ee.eeCheckUpdate('1.124.57'), calls}; }
+        catch (e) { return {err: c.MephistoI18n.errMsg(e), raw: String(e && e.message), calls}; }
+    };
+    const r03 = 'MPH-R03: ' + en['err.R03'];
+    const all = await check(async () => ({ok: true, status: 200}));
+    ok('EEHOST-1: a 200 on every probe ends with "could not get an answer from chess.com"', all.err === r03, all);
+    ok('EEHOST-1: ...after a bounded number of HEADs, not the harness guard', all.calls <= 200 && !/harness/.test(all.raw || ''), all);
+    const redir = await check(async () => ({ok: true, status: 200, redirected: true}));
+    ok('EEHOST-1: a followed redirect to a 200 page is the same error', redir.err === r03 && redir.calls <= 200, redir);
+    // a real long patch run inside a new minor is still found under the cap
+    const long = await check(async (v) => {
+        const [, m, p] = v.split('.').map(Number);
+        const live = (m === 124 && p <= 57) || (m === 125 && p <= 80);
+        return {ok: live, status: live ? 200 : 404};
+    });
+    ok('EEHOST-1: a live 1.125.80 among 404s is still found', long.v === '1.125.80', long);
+    const real = await check(async (v) => ({ok: v === '1.125.0', status: v === '1.125.0' ? 200 : 404}));
+    ok('EEHOST-1: the measured CDN still takes ten HEADs', real.v === '1.125.0' && real.calls === 10, real);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

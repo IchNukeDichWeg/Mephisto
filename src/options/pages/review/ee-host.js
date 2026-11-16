@@ -197,21 +197,30 @@ async function eeExists(v) {
 // installed minor, then newer minors and the patch run inside the newest live one. Ten HEAD
 // requests at most, and only when the user presses the button.
 const EE_PROBE_MISSES = 3;
+// Only a 404 ends a walk, so a middlebox that answers 200 to every HEAD (a TLS-inspecting proxy's
+// block page, a soft-404 CDN) kept the loop probing forever with the button disabled (audit 3.1.332
+// EEHOST-1). 200 leaves room for a patch run several times longer than the 57 measured above; past it
+// the answers say nothing about the builds, so it is the same "no answer" error as a 403.
+const EE_PROBE_MAX = 200;
 
 async function eeCheckUpdate(from) {
     const cur = from || eeVer;
     const [maj, min, pat] = cur.split('.').map(Number);
     if (![maj, min, pat].every(Number.isFinite)) return cur;
-    let best = cur;
+    let best = cur, probes = 0;
+    const exists = (v) => {
+        if (++probes > EE_PROBE_MAX) throw self.MephistoI18n.fail('MPH-R03', null, `HEAD ${v}: ${EE_PROBE_MAX} probes all answered, no 404 to end the walk`);
+        return eeExists(v);
+    };
     for (let p = pat + 1, miss = 0; miss < EE_PROBE_MISSES; p++) {
-        if (await eeExists(`${maj}.${min}.${p}`)) { best = `${maj}.${min}.${p}`; miss = 0; } else miss++;
+        if (await exists(`${maj}.${min}.${p}`)) { best = `${maj}.${min}.${p}`; miss = 0; } else miss++;
     }
     for (let m = min + 1, miss = 0; miss < EE_PROBE_MISSES; m++) {
-        if (!await eeExists(`${maj}.${m}.0`)) { miss++; continue; }
+        if (!await exists(`${maj}.${m}.0`)) { miss++; continue; }
         miss = 0;
         best = `${maj}.${m}.0`;
         for (let p = 1, pm = 0; pm < EE_PROBE_MISSES; p++) {
-            if (await eeExists(`${maj}.${m}.${p}`)) { best = `${maj}.${m}.${p}`; pm = 0; } else pm++;
+            if (await exists(`${maj}.${m}.${p}`)) { best = `${maj}.${m}.${p}`; pm = 0; } else pm++;
         }
     }
     return eeNewer(cur, best) ? best : cur;
