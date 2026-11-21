@@ -79,7 +79,7 @@ export class SettingsPage {
         M.Tooltip.init(document.querySelectorAll('.tooltipped'), {enterDelay: 250});
     }
 
-    // A SEARCH BOX OVER THE ROWS. Fifty-eight controls on General alone: typing "premove" should get
+    // A SEARCH BOX OVER THE ROWS. Over a hundred controls on General alone: typing "premove" should get
     // you there faster than scrolling does. Matching is over everything a person can see about a row
     // -- its label AND its tooltip -- so "engine strength" finds the Elo cap even though neither word
     // is in its label. Sections with no surviving row fold away, headings included; emptying the box
