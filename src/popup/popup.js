@@ -1392,7 +1392,7 @@ function init_quick_settings() {
     }
     // Settings that apply WITHOUT rebuilding the panel. Threads and Hash cannot be set mid-search, so
     // they are queued and flushed at the next `go` (see flush_engine_options); the running search
-    // finishes on the settings it began with. Line count and the fallback poll apply immediately.
+    // finishes on the settings it began with. Line count applies immediately.
     //
     // These used to be in the reload group below, which is why nudging Threads restarted a search in
     // progress -- and, worse, discarded a captured position along with the whole panel.
@@ -1400,7 +1400,6 @@ function init_quick_settings() {
         ['qs_threads', 'threads', v => parseInt(v) || MephistoConfig.defaultThreads()],
         ['qs_memory', 'memory', v => parseInt(v) || 512],
         ['qs_lines', 'multiple_lines', v => parseInt(v) || 1],
-        ['qs_fen', 'fen_refresh', v => Math.max(1000, parseInt(v) || 1000)], // floor 1s (see interval clamp)
     ]) {
         const elem = PANEL_ROOT.getElementById(id);
         if (!elem) continue;
@@ -1671,8 +1670,8 @@ function init_quick_settings() {
         eloSlider.addEventListener('input', paint_elo_slider);
         eloSlider.addEventListener('change', () => { save('elo', elo_stops(config.engine)[+eloSlider.value]); panel_reload(); });
     }
-    // range sliders show their value in the label while dragging ('change' above still does the
-    // save+reload when the thumb is released). Only Memory is still a slider -- Threads and Multi
+    // range sliders show their value in the label while dragging ('change' above saves and restarts
+    // the search with the new Hash, no reload). Only Memory is still a slider -- Threads and Multi
     // Lines are steppers now, and a stepper shows its value in the field itself.
     for (const id of ['qs_memory']) {
         const slider = PANEL_ROOT.getElementById(id);
