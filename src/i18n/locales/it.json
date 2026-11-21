@@ -335,7 +335,7 @@
   "set.move_notation": "Notazione delle mosse",
   "set.notation_san": "SAN (Nf3)",
   "set.notation_uci": "UCI (g1f3)",
-  "set.tip.move_notation": "Come si scrivono le mosse ovunque l'estensione ne mostri una: la lettura, le linee alternative, le etichette delle frecce. SAN è Cf3, UCI è g1f3 -- la stessa mossa in entrambi i casi.",
+  "set.tip.move_notation": "Come si scrivono le mosse ovunque l'estensione ne mostri una: la lettura, le linee alternative, le etichette delle frecce. SAN è Nf3, UCI è g1f3 -- la stessa mossa in entrambi i casi.",
   "set.arrow_labels": "Valutazione sulle frecce",
   "set.tip.arrow_labels": "Scrive su ogni freccia la sua valutazione: +0.35, o #3 per un matto, dal lato del Bianco come ogni altro punteggio del pannello, o dal lato scelto in Valutazione frecce dal lato di. Con Maia mostra invece quanto è probabile la mossa. Il numero di rango (1 per la linea migliore) è Numera le frecce. Disattivato di default -- utile, ma anche più inchiostro sulla scacchiera.",
   "set.arrow_eval_side": "Valutazione frecce dal lato di",

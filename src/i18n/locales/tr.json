@@ -335,7 +335,7 @@
   "set.move_notation": "Hamle gösterimi",
   "set.notation_san": "SAN (Nf3)",
   "set.notation_uci": "UCI (g1f3)",
-  "set.tip.move_notation": "Eklentinin hamle gösterdiği her yerde hamlelerin nasıl yazıldığı: okuma, alternatif varyantlar, ok etiketleri. SAN Af3'tür, UCI g1f3 -- iki türlü de aynı hamle.",
+  "set.tip.move_notation": "Eklentinin hamle gösterdiği her yerde hamlelerin nasıl yazıldığı: okuma, alternatif varyantlar, ok etiketleri. SAN Nf3'tür, UCI g1f3 -- iki türlü de aynı hamle.",
   "set.arrow_labels": "Oklarda değerlendirme",
   "set.tip.arrow_labels": "Her okun üzerine kendi değerlendirmesini yazar: +0.35 veya mat için #3, paneldeki diğer puanlar gibi beyazın tarafından ya da \"Ok değerlendirmesi kimin açısından\" ayarında seçilen taraftan. Maia ile bunun yerine hamlenin olasılığını gösterir. Sıra numarası (en iyi varyant için 1) Okları numaralandır ayarıdır. Varsayılan olarak kapalı -- kullanışlı, ama tahtada daha fazla yazı da demek.",
   "set.arrow_eval_side": "Ok değerlendirmesi kimin açısından",

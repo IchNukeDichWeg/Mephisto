@@ -335,7 +335,7 @@
   "set.move_notation": "Notacja ruchów",
   "set.notation_san": "SAN (Nf3)",
   "set.notation_uci": "UCI (g1f3)",
-  "set.tip.move_notation": "Jak zapisywane są ruchy wszędzie, gdzie rozszerzenie jakiś pokazuje: odczyt, warianty alternatywne, etykiety strzałek. SAN to Sf3, UCI to g1f3 -- ten sam ruch tak czy tak.",
+  "set.tip.move_notation": "Jak zapisywane są ruchy wszędzie, gdzie rozszerzenie jakiś pokazuje: odczyt, warianty alternatywne, etykiety strzałek. SAN to Nf3, UCI to g1f3 -- ten sam ruch tak czy tak.",
   "set.arrow_labels": "Ocena na strzałkach",
   "set.tip.arrow_labels": "Wypisuje na każdej strzałce jej własną ocenę: +0.35 lub #3 dla mata, z perspektywy białych, jak każdy inny wynik w panelu, albo strony wybranej w Ocena strzałek z perspektywy. Przy Maia pokazuje zamiast tego, jak prawdopodobny jest ruch. Numer pozycji (1 dla najlepszej linii) to Numeruj strzałki. Domyślnie wyłączone -- przydatne, ale to też więcej tuszu na planszy.",
   "set.arrow_eval_side": "Ocena strzałek z perspektywy",
