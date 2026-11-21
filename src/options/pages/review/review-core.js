@@ -635,12 +635,18 @@ function estimate(evidenceLines, ind) {
         high: 'Several numbers sit well above the usual range at once, which is less easily explained.',
         strong: 'Most of the numbers that are hard to reach by playing well are at their top band together.',
     };
-    const WHY = {
-        weak: 'On very little: a short game, no clock times, no human model.',
-        limited: 'On a partial picture. More moves, the clock times, or the human model would sharpen it.',
-        reasonable: 'On the fullest picture this page can build from one game -- which is still one game.',
-    };
-    return {level, score, confidence, text: `${TEXT[level]} ${WHY[confidence]}`};
+    // Names only what is actually missing: the fixed sentences said "no clock times" for a game
+    // that had them (audit 3.1.333 REVIEWCORE-2).
+    const missing = [];
+    if (ind.moves < 30) missing.push('more moves');
+    if (ind.secCv == null) missing.push('the clock times');
+    if (!(ind.maiaN >= 8)) missing.push('the human model');
+    if (!(ind.sharpN >= 6)) missing.push('more sharp positions');
+    const list = missing.length > 1 ? `${missing.slice(0, -1).join(', ')} or ${missing[missing.length - 1]}` : missing[0];
+    const why = confidence === 'reasonable'
+        ? 'On the fullest picture this page can build from one game -- which is still one game.'
+        : `${confidence === 'weak' ? 'On very little.' : 'On a partial picture.'} ${list[0].toUpperCase()}${list.slice(1)} would sharpen it.`;
+    return {level, score, confidence, text: `${TEXT[level]} ${why}`};
 }
 
 // ---- annotated PGN ------------------------------------------------------------------------------

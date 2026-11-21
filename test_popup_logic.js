@@ -18224,6 +18224,20 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEWCORE-1 (3.1.333): two runs of 4 are 4 per game, 8 only when pooled (the bug the batch had)',
        K.indicators(mv(4).map((m, i) => ({...m, ply: i, color: 'w'})), 'w', 1, null, {}).streak === 4
        && K.indicators(mv(8).map((m, i) => ({...m, ply: i, color: 'w'})), 'w', 1, null, {}).streak === 8); }
+// ---- audit 3.1.333 REVIEWCORE-2: the confidence sentence names only what is missing ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const K = c.MephistoReviewCore;
+    const a = K.estimate([], {moves: 40, secCv: 0.5, maiaN: 0, sharpN: 0}).text;
+    ok('REVIEWCORE-2 (3.1.333): a long timed game without Maia does not say "no clock times" or ask for more moves',
+       !/clock/.test(a) && !/more moves/.test(a) && /human model/.test(a) && /sharp/.test(a), a);
+    const b = K.estimate([], {moves: 14, secCv: null, maiaN: 0, sharpN: 0}).text;
+    ok('REVIEWCORE-2 (3.1.333): a short untimed game names all four gaps',
+       /^.*On very little\. More moves, the clock times, the human model or more sharp positions would sharpen it\.$/.test(b), b);
+    const r = K.estimate([], {moves: 60, secCv: 0.5, maiaN: 20, sharpN: 10}).text;
+    ok('REVIEWCORE-2 (3.1.333): a full picture keeps its sentence', /fullest picture/.test(r), r); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
