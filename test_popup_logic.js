@@ -14780,7 +14780,11 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
     const other = await vf('3.1.331', k, {key: 'KEY-B'});
     const none = await vf('3.1.331', k);
     ok('UPDATER-1: where the running manifest has a key, only a folder with that key passes',
-       keyed.ok && other.e && other.e.code === 'MPH-U17' && none.e && none.e.code === 'MPH-U17', [keyed.e && keyed.e.code, other.ok, none.ok]);
+       keyed.ok && other.e && none.e, [keyed.e && keyed.e.code, other.ok, none.ok]);
+    // audit 3.1.333 LOCALEEN-14: a key mismatch is "not the copy Chrome runs" (U19), never U17's
+    // "holds v3.1.331, but ... running is v3.1.331"
+    ok('LOCALEEN-14: a folder with another key (or none) is MPH-U19, not a version mismatch',
+       other.e && other.e.code === 'MPH-U19' && none.e && none.e.code === 'MPH-U19', [other.e && other.e.code, none.e && none.e.code]);
 })().catch(e => { fails++; console.log('FAIL UPDATER-1 checks threw: ' + (e && e.stack || e)); });
 // ---- audit 3.1.331 UPDATER-2: Roll Back after an interrupted update also drops its staging ----
 (async () => {

@@ -126,7 +126,9 @@ const MephistoUpdater = (function () {
         // (recorded, and newer than what runs: an older record is from before an update by hand). A
         // key, where the running manifest has one, pins the id and must be the same.
         const vars = {folder: manifest.version || '?', running: running.version};
-        if (running.key && manifest.key !== running.key) throw fail('MPH-U17', vars, 'its manifest key is not the running one');
+        // A different key is another copy, not another version: U19 says that; U17 would name the same
+        // version twice when the versions match (audit 3.1.333 LOCALEEN-14).
+        if (running.key && manifest.key !== running.key) throw fail('MPH-U19', null, 'its manifest key is not the running one');
         if (manifest.version !== running.version) {
             const rec = await chrome.storage.local.get('mephisto_installed_version')
                 .then(v => v && v.mephisto_installed_version, () => null);
