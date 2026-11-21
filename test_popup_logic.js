@@ -18248,6 +18248,13 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const got = ['1. e4 e5 2. Nf3 Nc6 1–0', '1. e4 e5 2. Nf3 Nc6 0—1', '1. e4 e5 2. Nf3 Nc6 ½–½', '1. e4 e5 2. Nf3 Nc6 ½-½'].map(rd);
     ok('REVIEWCORE-4 (3.1.333): 1–0, 0—1, ½–½ and ½-½ end a 4-move game with the right result',
        JSON.stringify(got) === JSON.stringify([['1-0', 4], ['0-1', 4], ['1/2-1/2', 4], ['1/2-1/2', 4]]), got); }
+// ---- audit 3.1.333 REVIEWCORE-3: the win% window that differs from lila is said, not hidden ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cc = fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8');
+    ok('REVIEWCORE-3 (3.1.333): classify-core says its +-2000 window and mate=100 differ from lila\'s +-1000',
+       /lila ceils the cp at \+-1000/.test(cc) && cc.includes('clamp(cp, -2000, 2000)'));
+    ok('REVIEWCORE-3 (3.1.333): the README says the ceiling is wider than Lichess\'s',
+       fs.readFileSync(ROOT + '/README.md', 'utf8').includes("Lichess's formulas (with a wider ceiling")); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

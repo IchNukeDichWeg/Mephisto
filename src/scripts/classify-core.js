@@ -11,6 +11,10 @@ function clamp(x, lo, hi) { return x < lo ? lo : (x > hi ? hi : x); }
 const MATE_CP = 100000;   // a mate score, kept far outside any real eval so ordering still works
 function isMateScore(cp) { return Math.abs(cp) > MATE_CP - 1000; }
 
+// lila's WinPercent.scala curve with a WIDER window: lila ceils the cp at +-1000 and counts a mate as
+// that ceiling (97.5%), this clamps at +-2000 and puts a mate at 100/0. The grades and the eval graph
+// are tuned on this window, so it stays; the docs say "Lichess's curve", not "Lichess's numbers",
+// because past +10 or with a mate on the board the two differ (audit 3.1.333 REVIEWCORE-3).
 function winPercent(cp) {
     if (isMateScore(cp)) return cp > 0 ? 100 : 0;
     return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * clamp(cp, -2000, 2000))) - 1);

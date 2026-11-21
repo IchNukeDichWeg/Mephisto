@@ -200,7 +200,7 @@ Copy FEN/PGN, the engine's lines next to what a human of a chosen rating would p
   lines. **Engines at once** (default 2) runs a worker pool; measured 64.7s down to 25.7s on the same game. The depth
   box also offers chess.com's own Game Review depths (18, 22, 24, 26), because two accuracy numbers only describe the
   same thing if they came from the same search.
-- **Accuracy and move quality** on Lichess's formulas and the same bands the panel judges live moves by, so a review
+- **Accuracy and move quality** on Lichess's formulas (with a wider ceiling: past +10 or with a mate on the board the numbers run higher than Lichess's) and the same bands the panel judges live moves by, so a review
   agrees with what the panel said at the time.
 - **Eval graph**, **openings named offline** (from a bundled copy of
   [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings), CC0) and **think time** from the

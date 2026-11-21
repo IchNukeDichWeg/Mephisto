@@ -4,7 +4,8 @@ import {refreshLimitWarnings} from "../../../util/limits.js";
 
 // What a move that gives up `lossCp` centipawns is worth. Both formulas are Lichess's own, so a cp
 // figure here reads the same as a Lichess game review:
-//   winPercent -- lila WinPercent.scala, the PR #11148 regression (NOT Stockfish's own formula)
+//   winPercent -- lila WinPercent.scala, the PR #11148 regression (NOT Stockfish's own formula),
+//                 clamped at +-2000 cp where lila clamps at +-1000 (classify-core.js says why)
 //   accuracy   -- lila AccuracyPercent.scala, derived from the before/after win%
 // Taken from an EQUAL position (win% 50 before the move), which is the standard way these are
 // illustrated: 110cp = a 10% win-drop = Inaccuracy, 230cp = 20% = Mistake, 377cp = 30% = Blunder,
@@ -1202,7 +1203,8 @@ class GeneralSettings extends SettingsPage {
 
     // Per-category centipawn thresholds, each with a live accuracy/win-drop readout. The two formulas
     // are Lichess's own, so "what does this cp cost" reads the same as a Lichess game review:
-    //   winPercent(cp)  -- lila WinPercent.scala, the PR #11148 regression (NOT SF's own formula)
+    //   winPercent(cp)  -- lila WinPercent.scala, the PR #11148 regression (NOT SF's own formula),
+    //                      clamped at +-2000 cp where lila clamps at +-1000
     //   accuracy        -- lila AccuracyPercent.scala, from the before/after win%
     // The readout takes an equal position as the reference (win% 50 before the move), the standard way
     // these are illustrated: a 110cp loss is a 10% win-drop = Inaccuracy, 230cp = 20% = Mistake,
