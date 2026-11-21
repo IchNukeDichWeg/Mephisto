@@ -841,7 +841,7 @@ function opponentUsername() {
         const el = document.querySelector(oppBox(sel));
         const raw = (el?.textContent || '').trim();
         // strip a rating suffix and any title prefix -- "GM Hikaru (3210)" -> "Hikaru"
-        const name = raw.replace(/\s*\(\d+\)\s*$/, '').replace(/^(GM|IM|FM|WGM|WIM|WFM|CM|NM|WCM|WNM)\s+/i, '').trim();
+        const name = raw.replace(/\s*\(\d+\)\s*$/, '').replace(/^(GM|IM|FM|WGM|WIM|WFM|CM|NM|WCM|WNM|LM|BOT)\s+/i, '').trim();
         if (/^[\w.-]{2,30}$/.test(name)) return name;
     }
     return null;
