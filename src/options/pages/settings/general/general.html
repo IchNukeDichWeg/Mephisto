@@ -1847,28 +1847,34 @@
                             <th data-i18n="set.category">Category</th>
                             <th>
                                 <span data-i18n="set.humanize_move_mix" data-i18n-tip="set.tip.humanize_move_mix_how_often" class="tooltipped" data-position="left"
-                                      data-tooltip="Humanize move mix: how often each quality of move is played. Make the seven
-                                                    values add up to 100 -- the Total row shows what to add or remove. Each category
-                                                    is a band of how-much-worse-than-best, set in centipawns just below (Move-Quality
-                                                    Thresholds); a rolled category plays a random move inside its band, or the best
-                                                    move if nothing that bad exists. Nothing past the Blunder threshold is ever
-                                                    played, and blunders never fire in an already-decided game. Giving a share to any
-                                                    category worse than the near-best (Third line and below) makes the engine search a
-                                                    wider list so it has a move that bad to choose from -- otherwise that roll just
-                                                    replays the top move. That costs search depth, so a pure Top + Second mix keeps the
-                                                    cheaper search. Changes apply to the very next move, no reload needed.">
+                                      data-tooltip="Humanize move mix: how often each quality of move is
+                                                    played. Make the seven values add up to 100 -- the Total
+                                                    row shows what to add or remove. Each category is a band
+                                                    of how-much-worse-than-best, set in centipawns in the
+                                                    Threshold cp column; a rolled category plays a random move
+                                                    inside its band, or the best move if nothing that bad
+                                                    exists. Nothing past the Blunder threshold is ever played,
+                                                    and blunders never fire in an already-decided game. Giving
+                                                    a share to any category worse than the near-best (Third
+                                                    line and below) makes the engine search a wider list so it
+                                                    has a move that bad to choose from -- otherwise that roll
+                                                    just replays the top move. That costs search depth, so a
+                                                    pure Top + Second mix keeps the cheaper search. Changes
+                                                    apply to the very next move, no reload needed.">
                                     Share % <i class="material-icons info-tooltip">info</i>
                                 </span>
                             </th>
                             <th>
-                                <span data-i18n-tip="set.tip.how_much_worse_than_the" class="tooltipped" data-position="left"
-                                      data-tooltip="How much worse than the best move each category may be, in centipawns
-                                                    (100cp = 1 pawn). Each is the top of its band; the bottom is the category
-                                                    above it, so Second line is 0 up to its value, Third from there up to its
-                                                    value, and so on. The accuracy % under each is what a move that bad scores
-                                                    on Lichess's own move-accuracy formula (from an equal position); the
-                                                    win-drop % is Lichess's move-quality measure -- ~10% = Inaccuracy, ~20% =
-                                                    Mistake, ~30% = Blunder. The defaults sit exactly on those boundaries.">
+                                <span data-i18n="set.threshold_cp" data-i18n-tip="set.tip.how_much_worse_than_the" class="tooltipped" data-position="left"
+                                      data-tooltip="How much worse than the best move each category may be, in
+                                                    centipawns (100cp = 1 pawn). Each is the top of its band;
+                                                    the bottom is the category above it, so Second line is 0
+                                                    up to its value, Third from there up to its value, and so
+                                                    on. The Accuracy column is what a move that bad scores on
+                                                    Lichess's own move-accuracy formula (from an equal
+                                                    position); the win-drop % is Lichess's move-quality
+                                                    measure -- ~10% = Inaccuracy, ~20% = Mistake, ~30% =
+                                                    Blunder. The defaults sit exactly on those boundaries.">
                                     Threshold cp <i class="material-icons info-tooltip">info</i>
                                 </span>
                             </th>

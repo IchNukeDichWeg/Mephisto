@@ -9041,7 +9041,7 @@ function humanize_pick(best, overridden = false) {
                    : cand ? `played ${cand.move} at -${cand.drop.toFixed(1)}% win` : `played ${best}`));
         } else {
             // Each non-top category is a (lo, hi] centipawn band whose edges the user sets in the options
-            // page (Move-Quality Thresholds); pick a random alternative whose loss falls in the rolled
+            // page (the Threshold cp column of the move-mix table); pick a random alternative whose loss falls in the rolled
             // band. A move worse than the top of the blunder band is never played -- that's a hanging
             // queen, not a human error -- so an out-of-band roll falls back to the best move.
             const bands = humanize_band_bounds();
