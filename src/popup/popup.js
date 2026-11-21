@@ -9124,7 +9124,7 @@ function humanize_pick(best, overridden = false) {
 
 
     // ---- clock pacing (only when a clock-aware toggle is on and a clock was read).
-    // Mirror Time (its own toggle): spend what the opponent spent on their last move, minus 10%,
+    // Mirror Time (its own toggle): spend what the opponent spent on their last move times Mirror Ratio (default 90%),
     // so our clock tracks theirs while slowly pulling ahead (plus 30% extra haste whenever we're
     // actually behind on time). Falls back to Clock Mode's T/30 + 0.6*increment budget when their
     // spend hasn't been measured (first move, unreadable clock) -- and Clock Mode alone uses that
