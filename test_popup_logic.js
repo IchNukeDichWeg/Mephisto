@@ -2191,7 +2191,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
     const t0 = ej.indexOf('    toLine(l, turn) {'), t1 = ej.indexOf('\n    }\n', t0);
     vm.runInContext('const Core = self.MephistoReviewCore;\n'
-        + rj.slice(rj.indexOf('function scoreText'), rj.indexOf('// The same eight colours'))
+        + rj.slice(rj.indexOf('function scoreText'), rj.indexOf('// The same eleven colours'))
         + 'function ' + ej.slice(t0, t1).trim() + '\n}', c);
     const wasmCp = vm.runInContext('Core.toWhiteCp(undefined, 3, "b")', c);             // UCI: score mate 3
     const nativeCp = vm.runInContext('toLine({mate: -3, pv: []}, "b").cp', c);           // host: .white() -> -3
@@ -18331,6 +18331,17 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
     ok('REVIEW-9 (3.1.333): rvWarn listens to change as well as input', /for \(const ev of \['input', 'change'\]\) \$\(id\)\?\.addEventListener\(ev, rvWarn\)/.test(rsrc)); }
+// ---- audit 3.1.333 REVIEW-10: every verdict review.css colours has an arrow and export colour ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const css = fs.readFileSync(ROOT + '/src/options/pages/review/review.css', 'utf8');
+    const kinds = [...css.matchAll(/^\.rv-c-(\w+)\s*\{ --rv-c: (#[0-9a-f]{6})/gm)].map(m => [m[1], m[2]]);
+    const cc = rsrc.slice(rsrc.indexOf('const CLASS_COLOUR = {'), rsrc.indexOf('};', rsrc.indexOf('const CLASS_COLOUR = {')));
+    const missing = kinds.filter(([k, c]) => !cc.includes(k + ": '" + c + "'")).map(([k]) => k);
+    ok('REVIEW-10 (3.1.333): CLASS_COLOUR has every review.css verdict colour', kinds.length === 11 && !missing.length, missing);
+    const dark = rsrc.slice(rsrc.indexOf('const EXPORT_RESET'), rsrc.indexOf('`;', rsrc.indexOf('const EXPORT_RESET')));
+    const darkMissing = kinds.map(([k]) => k).filter(k => !dark.includes('.rv-c-' + k + ' {'));
+    ok('REVIEW-10 (3.1.333): ...and the exported dark block covers them all', !darkMissing.length, darkMissing); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

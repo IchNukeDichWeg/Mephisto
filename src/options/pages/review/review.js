@@ -1130,10 +1130,11 @@ function scoreText(cp, mate) {
     return (cp >= 0 ? '+' : '') + (cp / 100).toFixed(2);
 }
 
-// The same eight colours review.css declares, as literals -- the export carries no stylesheet of
-// ours, and a second list that drifts is worse than one list read from two places.
+// The same eleven colours review.css declares, as literals -- the export carries no stylesheet of
+// ours. Brilliant, Great and Miss were missing, so those moves were drawn in the Good grey
+// (audit 3.1.333 REVIEW-10).
 const CLASS_COLOUR = {
-    best: '#2f7d41', excellent: '#4c9a5e', good: '#7d8a91', book: '#8a6d3b', forced: '#5b6b8a',
+    brilliant: '#1aada6', great: '#5c8bb0', miss: '#d06c6c', best: '#2f7d41', excellent: '#4c9a5e', good: '#7d8a91', book: '#8a6d3b', forced: '#5b6b8a',
     inaccuracy: '#b8860b', mistake: '#cc7722', blunder: '#b03030',
 };
 
@@ -2220,6 +2221,7 @@ const EXPORT_RESET = `
       --mp-text: #e8eaec; --mp-dim: #b7bbc0; --mp-mute: #6b7079; --mp-on: #3f9d54;
       --mp-on-soft: #16311e; --mp-track: #3a3a42;
     }
+    .rv-c-brilliant { --rv-c: #26c2b8; } .rv-c-great { --rv-c: #7aa9cf; } .rv-c-miss { --rv-c: #e08585; }
     .rv-c-best { --rv-c: #4bb265; } .rv-c-excellent { --rv-c: #63b478; }
     .rv-c-good { --rv-c: #98a3aa; } .rv-c-book { --rv-c: #b08d55; }
     .rv-c-forced { --rv-c: #8095c0; } .rv-c-inaccuracy { --rv-c: #d8a628; }
