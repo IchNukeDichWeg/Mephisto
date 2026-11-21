@@ -182,7 +182,7 @@ export async function createMaiaEngine(level, listen, net = null) {
         for (let i = 0; i < n; i++)
             listen(`info depth 1 multipv ${i + 1} score cp ${cp} `
                  + `maiaprob ${Math.round(scored[i][1] * 10000)} pv ${scored[i][0]}`);
-        console.log(`[Maia] level ${level} played ${scored[0][0]} (${(scored[0][1] * 100).toFixed(1)}%) - net pass ${(performance.now() - t0).toFixed(1)}ms`);
+        console.log(`[Maia] ${net ? file : `level ${level}`} played ${scored[0][0]} (${(scored[0][1] * 100).toFixed(1)}%) - net pass ${(performance.now() - t0).toFixed(1)}ms`);
         listen(`bestmove ${scored[0][0]}`);
     }
 
