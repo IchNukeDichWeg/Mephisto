@@ -67,10 +67,10 @@ const RV_PGN_VARIANTS = {
 
 // chess.com's 4-player games carry their MODE in the Variant tag ("Teams", "FFA"), not the words
 // "4-player" -- so a real PGN4 was refused with "which this page cannot review" while the 4-player
-// review sat right there. Free-for-all is recognised too, and refused for the honest reason:
-// Tetrarch searches Teams only (PROTOCOL.md).
+// review sat right there. Free-for-all is recognised too and reviewed: Tetrarch searches it with its
+// own net, and the lane reads the mode off the game (see PROTOCOL.md).
 const RV_PGN4_VARIANTS = {'teams': 'teams', 'ffa': 'ffa', 'free-for-all': 'ffa', 'solo': 'ffa'};
-let is4pcGame = false;   // set by the parse when the pasted game is four-player Teams
+let is4pcGame = false;   // set by the parse when the pasted game is four-player (Teams or FFA)
 
 function rvChessVariant() {
     const v = String(cfg('rv_variant') || 'chess');
@@ -663,8 +663,9 @@ function strengthForSide(rec, side, bands, phases) {
 // the one configured on this page -- their explanation engine is fed the evals it is given, so
 // agreeing with their verdict means agreeing with their evals. That is the engine, the depth, the
 // line count AND the thread count: they run four single-threaded workers, one position each, so a
-// position is searched by one thread. Ours searches positions serially, and a multi-threaded search
-// is not bit-reproducible, so one thread is both closer to theirs and steadier run to run. Hash
+// position is searched by one thread. Ours runs several positions at once across the rv_workers
+// engines, each position on one thread, and a multi-threaded search is not bit-reproducible, so one
+// thread is both closer to theirs and steadier run to run. Hash
 // stays the user's: it changes how fast the same search runs, not what it finds. No human pass
 // either -- not part of their verdict, and it would double the wait for nothing.
 async function startRig(override, rules) {
@@ -2780,8 +2781,7 @@ async function onRun() {
 // Build the struct chess.com's v2 review wants, from a PGN. The MOVES are the load-bearing part --
 // from/to squares chess.js gives us, converted to chess.com's 1-based index (a1=1..h8=64); the rest
 // is metadata off the PGN tags. Player UUIDs are not in a PGN and are omitted (the worker notes the
-// consequence). Castling/promotion move encoding is unverified upstream, so this refuses a game with
-// one rather than send a guess that reads as a wrong move.
+// consequence). Castling and promotion are encoded too: a castle as its rook pair, a promotion as its piece.
 // The decoded review as readable text (the pane is a <pre>). SAN is merged in from the PGN we sent,
 // since the response gives from/to squares, not SAN. The classification enum was mapped from a full
 // capture (futzmutz111 vs dgango66): all 76 moves + the site's per-side counts + ten named moves
@@ -2909,7 +2909,7 @@ const EE_THREADS = 1;     // ...on one thread, as their four single-threaded wor
 //     accuracy (CAPS) apart    mean 0.32 points, median 0.17, worst 1.94
 //
 // We agree with them MORE than they agree with themselves, which is not a boast: our run is
-// deterministic (one worker, positions in order) so it has no race to lose, while two of their runs
+// deterministic (one thread per position, and the positions are independent) so it has no race to lose, while two of their runs
 // each land somewhere slightly different. There is nothing left to chase here.
 //
 // The fallback engine, for when their Stockfish has not been downloaded, is the full-net Stockfish:
@@ -2963,7 +2963,7 @@ function applyEeVerdict(built, verdict) {
 //
 // It works because the classifier is engine-agnostic: eeCommands feeds it `variation <pv> cp <n>
 // depth <d>` built from whatever searched (see the note above sfSearchOne), so handing it our own
-// review's positions is the same shape it always gets -- just deeper, since our default depth is 22
+// review's positions is the same shape it always gets -- just deeper, since our default depth is 16
 // against their 10.
 //
 // `disagreed` is kept and shown rather than hidden: their sentence is written about their own label,
