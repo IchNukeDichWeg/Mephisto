@@ -160,9 +160,9 @@ class GeneralSettings extends SettingsPage {
         setTimeout(limitsWarn, 300);   // once the stored values have been pulled into the form
 
         // WHAT THE EXTENSION IS COSTING IN STORAGE. The puzzle database lives in IndexedDB and can
-        // run to gigabytes; nothing on any page said so. One estimate() call answers it -- and the
-        // IndexedDB slice is named as the puzzle database because that is the only thing this
-        // extension keeps there at scale. Chrome-only detail: usageDetails is not in the spec, so
+        // run to gigabytes; nothing on any page said so. One estimate() call answers it. The IndexedDB
+        // slice is the puzzle database, the own opening book and the Game Review page's cached engines
+        // together, and is named as all three (audit 3.1.333 GENERALJS-1). Chrome-only detail: usageDetails is not in the spec, so
         // its absence just drops the parenthesis rather than the line.
         const storEl = document.getElementById('storage_row');
         if (storEl && navigator.storage?.estimate) {
@@ -173,7 +173,7 @@ class GeneralSettings extends SettingsPage {
                 storEl.textContent = MephistoI18n.t('set.storage',
                     'Storage: {used} used{idb} - of {quota} available to this browser profile.', {
                         used: fmt(est.usage || 0),
-                        idb: idb > 1e6 ? ` (${fmt(idb)} of it the puzzle database)` : '',
+                        idb: idb > 1e6 ? ` (${MephistoI18n.t('set.storage_idb', '{size} of it in IndexedDB: puzzles, opening book, Game Review engines', {size: fmt(idb)})})` : '',
                         quota: fmt(est.quota || 0),
                     });
             }).catch(() => { /* the readout is an extra; a refusal costs nothing */ });

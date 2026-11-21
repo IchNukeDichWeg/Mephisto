@@ -448,6 +448,7 @@
   "an.tip.book": "नीचे लोड की गई किताब से इस स्थिति की पुस्तक-चालें दिखाएँ।",
   "set.filter_ph": "इन सेटिंग्स में खोजें…",
   "set.storage": "स्टोरेज: {used} उपयोग में{idb} - इस ब्राउज़र प्रोफ़ाइल के लिए उपलब्ध {quota} में से।",
+  "set.storage_idb": "इसमें से {size} IndexedDB में: पहेलियाँ, ओपनिंग बुक, खेल समीक्षा के इंजन",
   "panel.tetrarch_setup": "Tetrarch अभी इंस्टॉल नहीं है - macOS, Linux और Windows पर सेटअप के लिए README का «Four-player chess» खंड देखें",
   "panel.incomplete_install": "इंजन गायब हैं - आपके पास केवल-अपडेट डाउनलोड है। पूरा zip लें।",
   "panel.native_host_old": "नेटिव होस्ट पुराना है - {hint}, फिर पेज रीलोड करें।",

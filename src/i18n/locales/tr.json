@@ -448,6 +448,7 @@
   "an.tip.book": "Aşağıda yüklediğiniz bir kitaptan bu konumun kitap hamlelerini göster.",
   "set.filter_ph": "Bu ayarlarda ara…",
   "set.storage": "Depolama: {used} kullanımda{idb} - bu tarayıcı profiline açık {quota} içinden.",
+  "set.storage_idb": "{size} kadarı IndexedDB'de: bulmacalar, açılış kitabı, Oyun incelemesi motorları",
   "panel.tetrarch_setup": "Tetrarch henüz kurulu değil - macOS, Linux ve Windows kurulumu için README'deki «Four-player chess» bölümüne bakın",
   "panel.incomplete_install": "Motorlar eksik - yalnızca güncelleme indirmesine sahipsiniz. Tam zip'i indirin.",
   "panel.native_host_old": "Yerel sunucu güncel değil - {hint}, sonra sayfayı yeniden yükle.",

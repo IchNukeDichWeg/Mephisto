@@ -448,6 +448,7 @@
   "an.tip.book": "下で読み込んだ定跡書から、この局面の定跡手を表示します。",
   "set.filter_ph": "この設定内を検索…",
   "set.storage": "ストレージ: {used} 使用中{idb} - このブラウザプロファイルで利用可能な {quota} のうち。",
+  "set.storage_idb": "うち {size} は IndexedDB：パズル、定跡ブック、棋譜レビューのエンジン",
   "panel.tetrarch_setup": "Tetrarch はまだインストールされていません - macOS・Linux・Windows でのセットアップは README の「Four-player chess」を参照してください",
   "panel.incomplete_install": "エンジンがありません - 更新専用版をダウンロードしています。完全版の zip を入手してください。",
   "panel.native_host_old": "ネイティブホストが古くなっています - {hint}。その後ページを再読み込みしてください。",

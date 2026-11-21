@@ -448,6 +448,7 @@
   "an.tip.book": "Mostra le mosse di libro per la posizione da un libro caricato sotto.",
   "set.filter_ph": "Cerca in queste impostazioni…",
   "set.storage": "Spazio: {used} in uso{idb} - su {quota} disponibili per questo profilo del browser.",
+  "set.storage_idb": "{size} in IndexedDB: problemi, libro di aperture, motori dell'Analisi partita",
   "panel.tetrarch_setup": "Tetrarch non è ancora installato - vedi la sezione «Four-player chess» del README per la configurazione su macOS, Linux e Windows",
   "panel.incomplete_install": "Motori mancanti - hai il download di solo aggiornamento. Scarica lo zip completo.",
   "panel.native_host_old": "Host nativo non aggiornato - {hint}, poi ricarica la pagina.",

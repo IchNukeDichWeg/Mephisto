@@ -448,6 +448,7 @@
   "an.tip.book": "Boekzetten voor de stelling tonen uit een boek dat je hieronder laadt.",
   "set.filter_ph": "Zoek in deze instellingen…",
   "set.storage": "Opslag: {used} in gebruik{idb} - van {quota} beschikbaar voor dit browserprofiel.",
+  "set.storage_idb": "{size} daarvan in IndexedDB: puzzels, openingsboek, engines van Partij-analyse",
   "panel.tetrarch_setup": "Tetrarch is nog niet geïnstalleerd - zie de README-sectie “Four-player chess” voor installatie op macOS, Linux en Windows",
   "panel.incomplete_install": "Engines ontbreken - je hebt de update-only download. Haal de volledige zip.",
   "panel.native_host_old": "Native host verouderd - {hint} en herlaad daarna de pagina.",

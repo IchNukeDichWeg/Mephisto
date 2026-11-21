@@ -448,6 +448,7 @@
   "an.tip.book": "아래에서 불러온 오프닝 북에서 이 포지션의 북 수를 표시합니다.",
   "set.filter_ph": "이 설정에서 검색…",
   "set.storage": "저장 공간: {used} 사용 중{idb} - 이 브라우저 프로필에 허용된 {quota} 중.",
+  "set.storage_idb": "그중 {size}는 IndexedDB: 퍼즐, 오프닝 북, 기보 분석 엔진",
   "panel.tetrarch_setup": "Tetrarch가 아직 설치되지 않았습니다 - macOS·Linux·Windows 설치는 README의 «Four-player chess» 절을 참고하세요",
   "panel.incomplete_install": "엔진이 없습니다 - 업데이트 전용 다운로드를 받으셨습니다. 전체 zip을 받으세요.",
   "panel.native_host_old": "네이티브 호스트가 오래되었습니다 - {hint}. 그런 다음 페이지를 새로 고치세요.",

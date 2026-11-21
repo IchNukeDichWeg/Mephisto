@@ -448,6 +448,7 @@
   "an.tip.book": "Показывать книжные ходы для позиции из книги, загруженной ниже.",
   "set.filter_ph": "Поиск по этим настройкам…",
   "set.storage": "Хранилище: занято {used}{idb} - из {quota}, доступных этому профилю браузера.",
+  "set.storage_idb": "{size} из них в IndexedDB: задачи, дебютная книга, движки Разбора партии",
   "panel.tetrarch_setup": "Tetrarch ещё не установлен - см. раздел «Four-player chess» в README о настройке на macOS, Linux и Windows",
   "panel.incomplete_install": "Движки отсутствуют - у вас загрузка только с обновлением. Скачайте полный zip.",
   "panel.native_host_old": "Нативный хост устарел - {hint}, затем перезагрузите страницу.",

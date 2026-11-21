@@ -121,6 +121,7 @@
   "set.restore_defaults": "Restore Defaults",
   "set.filter_ph": "Search these settings…",
   "set.storage": "Storage: {used} used{idb} - of {quota} available to this browser profile.",
+  "set.storage_idb": "{size} of it in IndexedDB: puzzles, opening book, Game Review engines",
   "set.export_settings": "Export Settings",
   "set.import_settings": "Import Settings",
   "set.chess": "Chess",
