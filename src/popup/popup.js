@@ -11277,7 +11277,10 @@ function watch_config_changes() {
                 // the lookups there never ran: no verdict or book arrow until the next move, and with
                 // Autoplay on that move was the engine's (audit 3.1.330 OPT-3).
                 if (key === 'tablebase' && last_eval.fen) request_tablebase(last_eval.fen);
-                if (key === 'explorer' || key === 'book_play') {
+                // explorer_db too: a new database kept the old one's answer (the fen guard) and its
+                // out-of-book latch for the rest of the game (audit 3.1.333 POPUP4-3)
+                if (key === 'explorer_db') explorer_data = null;
+                if (key === 'explorer' || key === 'book_play' || key === 'explorer_db') {
                     explorer_out_of_book = false; explorer_empty_streak = 0;   // the latch is per game
                     render_explorer();
                     own_book = null;
