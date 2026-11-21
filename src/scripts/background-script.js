@@ -802,7 +802,7 @@ const EXPLORER_DB = {
   masters: {path: '/masters', params: {}},
   lichess: {path: '/lichess', params: {variant: 'standard'}},
   club:    {path: '/lichess',
-            params: {variant: 'standard', ratings: '1600,1800,2000,2200', speeds: 'blitz,rapid,classical'}},
+            params: {variant: 'standard', ratings: '1600,1800,2000', speeds: 'blitz,rapid,classical'}},  // each group runs to the next: 2200 meant 2200-2499 (audit 3.1.333 BACKGROUND-4)
 };
 const explorerCache = new Map(); // `${db}|${fen}` -> response; the fallback poll rescrapes the same
 const EXPLORER_CACHE_MAX = 300;  // position constantly, so without this every rescan is a request
