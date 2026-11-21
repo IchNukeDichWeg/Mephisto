@@ -316,7 +316,7 @@
   "rv.batch": "Her oyunu analiz et",
   "rv.across_games": "Oyunlar arası",
   "rv.human_likeness": "İnsana benzerlik",
-  "rv.tip.human_report": "Aynı oyunun motor yerine insan modelince ikinci okunuşu: her hamle o puandaki bir oyuncudan ne kadar BEKLENİRDİ, ne kadar iyiydi değil. Yukarıda seçilmiş bir insan modeli ister ve koştuğu geçişe mal olur. Varsayılan olarak kapalı.",
+  "rv.tip.human_report": "Aynı oyunun motor yerine insan modelince ikinci okunuşu: her hamle o puandaki bir oyuncudan ne kadar BEKLENİRDİ, ne kadar iyiydi değil. Yukarıda seçilmiş bir insan modeli ister. İnsan geçişi bir model seçiliyse her zaman çalışır; bu yalnızca bölümünü gösterir ya da gizler. Varsayılan olarak kapalı.",
   "rv.tip.batch": "Yukarıda seçilen yerine kutudaki HER oyunu analiz et ve her oyuncunun sayılarını hepsinde birleştiren bir özet ekle. Tek oyun bir adil oyun sorusunu yanıtlayamaz; bir sezon yanıtlamaya başlar. Motor tüm küme için bir kez yüklenir, bu yüzden tek tek koşturmaktan çok daha ucuzdur.",
   "set.lichess_token": "Lichess API belirteci",
   "set.tip.lichess_token": "Lichess artık açılış gezgininde jeton istiyor -- olmadan 401 yanıtlar ve hem Açılış Gezgini hem Kitaptan Oyna çalışmaz olur. lichess.org/account/oauth/token/create adresinde HİÇBİR kapsam işaretlemeden kişisel jeton oluşturun: gezginin tek bilmesi gereken isteğin bir sahibi olduğu. Bu makinede diğer her ayar gibi saklanır, lichess dışında hiçbir yere gönderilmez ve Tanılamayı Kopyala'dan da dışa aktarılmış ayar dosyasından da hariçtir. Tek istisna: Oyun İncelemesi'ndeki \"Çalışmama ekle\" çalışmana bir bölüm yazar ve study:write kapsamını ister; kullanıyorsan yalnızca o kapsamı işaretle.",
