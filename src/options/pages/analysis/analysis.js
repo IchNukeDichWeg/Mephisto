@@ -668,9 +668,11 @@ function loadFromInput() {
             // half-copied game silently
             let n = 0;
             for (let x = treeRoot; x.children[0]; x = x.children[0]) n++;
+            // n counts plies (half-moves); the page counts moves as Math.ceil(plies / 2) elsewhere (audit 3.1.333 ANALYSIS-5)
+            const moves = Math.ceil(n / 2);
             say(n === 0 ? 'No moves were understood in that text.'
-                 : n < 3 ? `Only ${n} move${n === 1 ? '' : 's'} understood -- check the text.`
-                 : `Loaded ${n} moves.`, n === 0 ? 'err' : undefined);
+                 : n < 3 ? `Only ${moves} move${moves === 1 ? '' : 's'} understood -- check the text.`
+                 : `Loaded ${moves} moves.`, n === 0 ? 'err' : undefined);
         }
     } catch (e) {
         return say(String(e.message || e), 'err');

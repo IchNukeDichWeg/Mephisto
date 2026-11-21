@@ -8138,13 +8138,13 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         res.checks = vm.runInContext('treeRoot.children[0].children[0].children[0].children[0].children[0].checksLeft', c);
     } catch (e) { res = {err: String(e.message || e)}; }
     ok('ANALYSISA-1: a panel Copy PGN tagged "3check" loads as Three-check, the check counted',
-       res?.three?.variant === '3check' && JSON.stringify(res.three.last) === JSON.stringify(['Loaded 5 moves.', null])
+       res?.three?.variant === '3check' && JSON.stringify(res.three.last) === JSON.stringify(['Loaded 3 moves.', null])
        && JSON.stringify(res.checks) === JSON.stringify({w: 2, b: 3}), res);
     ok('...one tagged "chess" loads as standard from a Crazyhouse board',
-       res?.std?.variant === 'chess' && JSON.stringify(res.std.last) === JSON.stringify(['Loaded 3 moves.', null]), res?.std);
+       res?.std?.variant === 'chess' && JSON.stringify(res.std.last) === JSON.stringify(['Loaded 2 moves.', null]), res?.std);
     ok('...an unknown tag really switches to standard, and its warning survives the load line',
        res?.duck?.variant === 'chess' && res.duckStd?.variant === 'chess'
-       && JSON.stringify(res.duck.last) === JSON.stringify(['Variant "duck" is not one this board can play -- loading as standard. Loaded 3 moves.', 'err'])
+       && JSON.stringify(res.duck.last) === JSON.stringify(['Variant "duck" is not one this board can play -- loading as standard. Loaded 2 moves.', 'err'])
        && JSON.stringify(res.duckStd.last) === JSON.stringify(res.duck.last), [res?.duck, res?.duckStd]);
     ok('...the lichess spelling still maps', res?.lichess?.variant === '3check', res?.lichess);
     const rv = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
@@ -8252,12 +8252,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     } catch (e) { res = {err: String(e.message || e)}; }
     ok('ANALYSISA-3: Crazyhouse picked over a Standard-tagged game: the engine is not switched to Fairy and no note names crazyhouse',
        res?.zh?.variant === 'chess' && res.zh.engine === 'stockfish-18-nnue' && !/Fairy|crazyhouse/.test(res.zh.status)
-       && res.zh.status === 'The game in the box is tagged [Variant "Standard"], so it is analysed as Standard; clear the box to analyse Crazyhouse. Loaded 3 moves.', res?.zh);
+       && res.zh.status === 'The game in the box is tagged [Variant "Standard"], so it is analysed as Standard; clear the box to analyse Crazyhouse. Loaded 2 moves.', res?.zh);
     ok('...REGRESS-1: Chess960 picked over a Crazyhouse-tagged game says nothing about Chess960 castling, and the Fairy switch it did make is named',
        res?.c960?.variant === 'crazyhouse' && res.c960.engine === 'fairy-stockfish-14-nnue' && !/castle/.test(res.c960.status)
-       && /^The game in the box is tagged \[Variant "Crazyhouse"\], so it is analysed as Crazyhouse; clear the box to analyse Chess960\. Engine switched to Fairy-Stockfish: only it plays crazyhouse\. Loaded 3 moves\.$/.test(res.c960.status), res?.c960);
+       && /^The game in the box is tagged \[Variant "Crazyhouse"\], so it is analysed as Crazyhouse; clear the box to analyse Chess960\. Engine switched to Fairy-Stockfish: only it plays crazyhouse\. Loaded 2 moves\.$/.test(res.c960.status), res?.c960);
     ok('...an untagged game keeps the pick and its Chess960 swap note',
-       res?.plain?.variant === 'fischerandom' && res.plain.status === 'Stockfish 18 (native) cannot castle in Chess960; using Stockfish 18 here. Loaded 3 moves.', res?.plain);
+       res?.plain?.variant === 'fischerandom' && res.plain.status === 'Stockfish 18 (native) cannot castle in Chess960; using Stockfish 18 here. Loaded 2 moves.', res?.plain);
 }
 // ---- audit 3.1.330 ANALYSISA-4: picking a native engine on a Chess960 board says it runs the WASM build ----
 {
