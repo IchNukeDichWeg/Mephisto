@@ -43,8 +43,9 @@ request_lock = threading.Lock()
 app = Flask(__name__)
 
 
-# The sites the extension runs on (mirrors manifest.json content_scripts matches). The panel runs in
-# the page's isolated world, so its fetches carry the SITE's Origin - not chrome-extension://.
+# The sites this guard lists for direct page fetches. It is not a mirror of manifest.json (which matches
+# all URLs). The panel's own calls arrive through the extension's service worker (backendFetch), so they
+# carry the chrome-extension:// Origin; the list never decides a real panel request.
 ALLOWED_HOSTS = {'www.chess.com', 'lichess.org', 'blitztactics.com', 'taketaketake.com',
                  'www.taketaketake.com', 'tactics.chessbase.com'}
 
@@ -52,7 +53,7 @@ ALLOWED_HOSTS = {'www.chess.com', 'lichess.org', 'blitztactics.com', 'taketaketa
 @app.before_request
 def _reject_foreign_origins():
     # Only the extension may drive this server (issue #36 §2): allow extension-context fetches,
-    # fetches from the sites the panel runs on, and no-Origin callers (curl / manual testing) - 
+    # the listed sites (direct page fetches), and no-Origin callers (curl / manual testing) - 
     # the guard targets requests from arbitrary web pages. An Origin header can't be spoofed by
     # page script.
     origin = request.headers.get('Origin', '')
