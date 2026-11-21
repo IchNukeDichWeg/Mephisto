@@ -17,11 +17,11 @@
          initPanel down with it, and every scrape response after that threw too. The popup
          looked like a broken scraper; it was a missing script tag. -->
     <script src="/src/i18n/i18n.js"></script>
-    <!-- classic (not a module) so the same file also loads as a content script; `defer` keeps the
-         post-parse timing the module had, so document.body exists when it boots the panel -->
+    <!-- classic (not a module) so the same file also loads as a content script -->
     <script src="/src/scripts/bot-games.js"></script>
     <!-- the move classifier, shared with the Game Review (self.MephistoClassify) -->
     <script src="/src/scripts/classify-core.js"></script>
+    <!-- `defer` keeps the post-parse timing the module had, so document.body exists when popup.js boots the panel -->
     <script defer src="popup.js"></script>
 </head>
 
@@ -87,8 +87,8 @@
         </div>
     </div>
 
-    <!-- Pinned: Autoplay decides whether the extension plays at all, and engine/strength are what
-         get changed mid-game. The tabs below may scroll; this never does. -->
+    <!-- Pinned: Autoplay decides whether the extension plays at all, and the engine is what
+         gets changed mid-game. The tabs below may scroll; this never does. -->
     <div class="qs-pinned">
     <div class="qs-row qs-toggle">
         <input id="qs_autoplay" type="checkbox" class="qs-cb">
