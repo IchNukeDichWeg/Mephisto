@@ -2375,7 +2375,8 @@ function renderBook() {
                                    : (bookMoves.entries?.get(keyOf(pos.fen)) || []);
     const list = raw.slice().sort((a, b) => b.weight - a.weight).slice(0, 5);
     if (meta) meta.textContent = bookMoves.name;
-    const total = list.reduce((a, b) => a + b.weight, 0) || 1;
+    // a share of the whole book entry, not of the five rows shown (audit 3.1.333 ANALYSIS-4)
+    const total = raw.reduce((a, b) => a + b.weight, 0) || 1;
     host.innerHTML = list.length ? list.map((m, i) =>
         lineRow(i, '#7d8a91', sanOf(pos.fen, m.uci), '', `${Math.round(m.weight / total * 100)}%`,
                 Core.clamp(m.weight / total * 100, 2, 100), m.uci)).join('')
