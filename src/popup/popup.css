@@ -1149,7 +1149,7 @@ body.mephisto-book:not(.mephisto-compact) {
 body.mephisto-compact {
     height: 280px; /* keep in sync with COMPACT_H in content-script.js. Fits the taller of the two
                       columns: the turn switch, Autoplay and Engine on the right, or status + move + score +
-                      4 alternative lines on the left, above the button row. */
+                      3 alternative lines on the left, above the button row. */
 }
 body.mephisto-compact #board,
 body.mephisto-compact #eval-bar,
@@ -1173,7 +1173,9 @@ body.mephisto-compact #quick-settings .qs-pinned { border-bottom: 0; }
 /* Alternative lines survive compact (they're the point of Multi Lines), capped to 3 rows: the
    panel is short, and render_alt_lines already hides the whole block when Multi Lines is 1. */
 body.mephisto-compact #alt-lines {
-    max-height: 84px; /* 4 x the 21px line-height; #alt-lines already clips the overflow */
+    /* the 14px EVAL header + 3 x the 21px line-height. 84px showed a 7px sliver of a 4th line
+       (audit 3.1.333 POPUPHTML-4); #alt-lines already clips the overflow */
+    max-height: 77px;
 }
 
 /* Native-engine health dot. Native engines are a separate process that may not be installed --
