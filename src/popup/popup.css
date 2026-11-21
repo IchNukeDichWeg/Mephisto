@@ -925,7 +925,8 @@ body.mephisto-dark {
 }
 body.mephisto-dark #moves,
 body.mephisto-dark #evaluation,
-body.mephisto-dark #chess_line_1,
+/* not #chess_line_1: it holds the best move inside #moves and inherits the readout colour; nothing
+   overrode its grey, so in dark mode the move was dimmer than the score (audit 3.1.333 POPUPHTML-3) */
 body.mephisto-dark #next-move,
 body.mephisto-dark #nps,
 body.mephisto-dark #wdl,
