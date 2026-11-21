@@ -54,7 +54,7 @@
   "set.note.the_panel_button_row_bottom": "面板的按钮行（左下角）还有一个<b>设置局面</b>按钮 &mdash; 自检旁边的网格图标。它会打开一个输入框用于粘贴 <b>FEN</b>：按下回车，就会分析该局面而非页面上的棋盘。设定局面期间，面板会停止跟随页面，以免被覆盖；再次点击该按钮（或重新检测）即可回到实时对局。无效或不合法的 FEN 会被拒绝并说明原因。",
   "set.note.the_floating_panel_is_embedded": "⚠️ <b>浮动面板</b>嵌入在网页之中，这会让棋类网站更容易检测到本扩展。<b>工具栏弹窗</b>运行在浏览器内，不在页面中放置面板（打开期间只绘制你开启的棋盘叠加层）—— 纯<b>分析</b>用途下更安全的选择。注意：该弹窗在你点击棋盘时会关闭，因此<b>自动走子和预走仅在浮动面板下可用</b>。",
   "set.note.download_lichess_db_puzzle_csv": "从 <a href=\"https://database.lichess.org/#puzzles\" target=\"_blank\">database.lichess.org</a> 下载 <b>lichess_db_puzzle.csv.zst</b>，解压它（<code>unzstd lichess_db_puzzle.csv.zst</code>），然后在此选择该 <b>.csv</b> 文件。它约有六百万个局面，因此导入需要<b>大约半小时</b> -  - 请让本页保持打开。这只需做一次；即使中途中断也不会丢失任何内容：再运行一次，它会补上缺少的部分。",
-  "set.note.keyboard_shortcuts_that_work_while": "在对局页面上可用的键盘快捷键（仅在浮动面板打开时生效）。点击某个键即可重新绑定 -  - 你按下的下一个键（可带任意 Ctrl/Alt/Shift/Meta）将成为新的绑定；按 <b>Esc</b> 取消，按 <b>Backspace/Delete</b> 清除。默认值为<b>单个字母</b>；走子键是空格键。若某个键与网站本身的快捷键冲突，可用任意 Ctrl/Alt/Shift/Meta 组合重新绑定。",
+  "set.note.keyboard_shortcuts_that_work_while": "在对局页面上可用的键盘快捷键（仅在浮动面板打开时生效）。点击某个键即可重新绑定 -  - 你按下的下一个键（可带任意 Ctrl/Alt/Shift/Meta）将成为新的绑定；按 <b>Esc</b> 取消，按 <b>Backspace/Delete</b> 清除。默认值为<b>单个字母</b>，另有走子用的空格键、逐步查看变例的方向键，以及打开速查表的 <b>?</b>。若某个键与网站本身的快捷键冲突，可用任意 Ctrl/Alt/Shift/Meta 组合重新绑定。",
   "set.multiple_lines": "多变例",
   "set.search_time_ms": "搜索时间（毫秒）",
   "ui.off": "关",
