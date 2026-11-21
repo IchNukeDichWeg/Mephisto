@@ -733,11 +733,12 @@ function annotatedPgn(game) {
         if (bits.length) out.push(`{ ${bits.join(' ')} }`);
     }
     out.push(result);
-    // 80-column lines, the export format's limit; a token is never split.
+    // Lines under 80 columns (79 at most), the export format's limit (PGN standard 8.2.3); a token is
+    // never split. It wrote lines of exactly 80 (audit 3.1.333 REVIEWCORE-7).
     const lines = [];
     let line = '';
     for (const tok of out) {
-        if (line && line.length + 1 + tok.length > 80) { lines.push(line); line = tok; }
+        if (line && line.length + 1 + tok.length > 79) { lines.push(line); line = tok; }
         else line = line ? `${line} ${tok}` : tok;
     }
     if (line) lines.push(line);

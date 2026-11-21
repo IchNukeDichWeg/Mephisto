@@ -1923,8 +1923,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const bad = toks.filter(t => !(/^\d+\.(\.\.)?$/.test(t) || /^\$\d+$/.test(t) || t === '{}' || t === '0-1'
                                    || g2.move(t)));
     ok('annotated PGN: movetext is only numbers, legal SAN, NAGs, comments and the result', !bad.length, bad);
-    ok('annotated PGN: braces balance and no line runs past 80 columns',
-       (pgn.match(/\{/g) || []).length === (pgn.match(/\}/g) || []).length && pgn.split('\n').every(l => l.length <= 80));
+    ok('annotated PGN: braces balance and every line is under 80 columns (PGN 8.2.3)',
+       (pgn.match(/\{/g) || []).length === (pgn.match(/\}/g) || []).length && pgn.split('\n').every(l => l.length <= 79));
     ok('annotated PGN: black\'s move after a comment carries its own "N..." number', /\}\s+1\.\.\.\s+d5\s/.test(body) && /\}\s+2\.\.\.\s+Qxd5\s/.test(body), body.slice(0, 120));
     // a set-up position with black to move numbers from the FEN
     const fen = 'r3k3/8/8/8/8/8/8/4K2R b Kq - 0 30';
