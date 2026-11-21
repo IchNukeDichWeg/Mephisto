@@ -179,6 +179,7 @@
   "panel.eta.now": "Joue maintenant ({source}){suffix}",
   "panel.eta.in": "Jouera dans {secs} s ({source}){suffix}",
   "panel.calibrated": "Cette machine atteint {nps}M nps - ",
+  "panel.calibrated_apply": "Un temps de recherche de {want} ms correspond à la force de référence (actuellement {now} ms). Touchez pour appliquer.",
   "panel.engine_advice_native": "{name} est installé et tourne hors du navigateur, plus rapide ici. Touchez pour changer.",
   "panel.engine_advice_small": "{cores} cœurs ici : {from} mesure {a}k nps, {to} mesure {b}k. Touchez pour changer.",
   "panel.update_available": "Mise à jour disponible - v{latest} (vous avez la v{current})",

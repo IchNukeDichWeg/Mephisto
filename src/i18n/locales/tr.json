@@ -179,6 +179,7 @@
   "panel.eta.now": "Şimdi oynuyor ({source}){suffix}",
   "panel.eta.in": "{secs} sn sonra oynayacak ({source}){suffix}",
   "panel.calibrated": "Bu makine {nps}M nps ölçüyor - ",
+  "panel.calibrated_apply": "Arama süresi {want} ms referans güce denk geliyor (şu an {now} ms). Uygulamak için dokunun.",
   "panel.engine_advice_native": "{name} kurulu ve tarayıcı dışında çalışıyor, burada daha hızlı. Değiştirmek için dokunun.",
   "panel.engine_advice_small": "{cores} çekirdek burada: {from} {a}k nps ölçüyor, {to} {b}k ölçüyor. Değiştirmek için dokunun.",
   "panel.update_available": "Güncelleme var - v{latest} (sende v{current})",

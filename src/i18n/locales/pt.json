@@ -179,6 +179,7 @@
   "panel.eta.now": "A jogar agora ({source}){suffix}",
   "panel.eta.in": "Joga daqui a {secs} s ({source}){suffix}",
   "panel.calibrated": "Esta máquina atinge {nps}M nps - ",
+  "panel.calibrated_apply": "Tempo de pesquisa de {want} ms corresponde à força de referência (agora {now} ms). Toque para aplicar.",
   "panel.engine_advice_native": "{name} está instalado e corre fora do navegador, mais rápido aqui. Toque para trocar.",
   "panel.engine_advice_small": "{cores} núcleos aqui: {from} mede {a}k nps, {to} mede {b}k. Toque para trocar.",
   "panel.update_available": "Atualização disponível - v{latest} (tens a v{current})",

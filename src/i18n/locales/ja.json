@@ -179,6 +179,7 @@
   "panel.eta.now": "今すぐ着手（{source}）{suffix}",
   "panel.eta.in": "{secs} 秒後に着手（{source}）{suffix}",
   "panel.calibrated": "このマシンの実測は {nps}M nps - ",
+  "panel.calibrated_apply": "探索時間 {want} ミリ秒で基準の強さになります（現在 {now} ミリ秒）。タップで適用。",
   "panel.engine_advice_native": "{name} はインストール済みで、ブラウザ外で動くためこの環境では高速です。タップで切り替え。",
   "panel.engine_advice_small": "コア数 {cores}: {from} は {a}k nps、{to} は {b}k。タップで切り替え。",
   "panel.update_available": "更新があります - v{latest}（お使いのバージョン v{current}）",

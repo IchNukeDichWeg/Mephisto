@@ -13378,7 +13378,8 @@ function maybe_suggest_calibration() {
         const el = PANEL_ROOT.getElementById('calibrate-notice');
         if (!el) return;
         el.textContent = i18n('panel.calibrated', 'This machine measures {nps}M nps - ', {nps: (median / 1e6).toFixed(1)}) +
-            `Search Time ${want}ms matches the reference strength (now ${config.compute_time}ms). Tap to apply.`;
+            i18n('panel.calibrated_apply', 'Search Time {want}ms matches the reference strength (now {now}ms). Tap to apply.',
+                {want, now: config.compute_time});
         el.hidden = false;
         el.onclick = (e) => {
             e.preventDefault();

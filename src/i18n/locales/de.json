@@ -179,6 +179,7 @@
   "panel.eta.now": "Spielt jetzt ({source}){suffix}",
   "panel.eta.in": "Spielt in {secs} s ({source}){suffix}",
   "panel.calibrated": "Dieser Rechner erreicht {nps} Mio. NPS - ",
+  "panel.calibrated_apply": "Suchzeit {want} ms entspricht der Referenzstärke (jetzt {now} ms). Zum Übernehmen tippen.",
   "panel.engine_advice_native": "{name} ist installiert und läuft außerhalb des Browsers, hier schneller. Zum Wechseln tippen.",
   "panel.engine_advice_small": "{cores} Kerne hier: {from} misst {a}k NPS, {to} misst {b}k. Zum Wechseln tippen.",
   "panel.update_available": "Update verfügbar - v{latest} (installiert: v{current})",
