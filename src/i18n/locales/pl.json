@@ -262,7 +262,7 @@
   "set.sec.diagnostics": "Diagnostyka",
   "set.verbose_logging": "Szczegółowe logowanie",
   "set.tip.the_trace_is_normally_quiet": "Ślad zwykle milczy, gdy karta partii ma fokus, by zwykła gra nie zapełniała konsoli. To właściwy domyślny stan i coś, czego nie powinno się zgadywać: włącz to, by widzieć każdą decyzję na bieżąco, w konsoli service workera. Nie kosztuje nic prócz szumu.",
-  "set.note.the_panel_s_clipboard_button": "Przycisk <b>schowka</b> panelu kopiuje raport do wklejenia prosto w zgłoszenie błędu: wersja, silnik, co wykryto, czemu ostatni ruch zagrano lub nie, i ostatnie 200 linii śladu. Celowo nie niesie <b>adresów ani niczego, co cię identyfikuje</b> - bez pełnego URL, bez query stringa, bez id rozszerzenia.",
+  "set.note.the_panel_s_clipboard_button": "Przycisk powyżej - oraz <b>D</b> na stronie gry, do zmiany w Skrótach klawiszowych - kopiuje raport do wklejenia prosto w zgłoszenie błędu: wersja, silnik, co wykryto, czemu ostatni ruch zagrano lub nie, i ostatnie 200 linii śladu. Celowo nie niesie <b>adresów ani niczego, co cię identyfikuje</b> - bez pełnego URL, bez query stringa, bez id rozszerzenia.",
   "set.roll_back": "Przywróć",
   "set.finish_update": "Dokończ przerwaną aktualizację",
   "set.note.every_update_is_undoable": "Każda aktualizacja jest <b>odwracalna</b>. Zanim cokolwiek zostanie nadpisane, nowa wersja trafia do folderu przejściowego, a zastępowane pliki do kopii zapasowej - więc <b>Cofnij</b> przywraca poprzednią wersję od razu, a aktualizację przerwaną w połowie można dokończyć bez ponownego pobierania. Trzymane jest jedno pokolenie, a dołączone silniki nigdy nie są jego częścią.",

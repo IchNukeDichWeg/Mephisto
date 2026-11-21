@@ -262,7 +262,7 @@
   "set.sec.diagnostics": "Diagnóstico",
   "set.verbose_logging": "Registo detalhado",
   "set.tip.the_trace_is_normally_quiet": "O rastreio normalmente cala enquanto a aba da partida tem foco, para o jogo comum não encher o console. É o padrão certo e a coisa errada de ter que adivinhar: ligue isto para ver cada decisão acontecendo, no console do service worker. Não custa nada além de ruído.",
-  "set.note.the_panel_s_clipboard_button": "O botão de <b>área de transferência</b> do painel copia um relatório para colar direto num relato de bug: versão, motor, o que foi detectado, por que o último lance foi jogado ou não, e as últimas 200 linhas de rastreio. Deliberadamente não carrega <b>endereços nem nada que identifique você</b> - sem URL completa, sem query string, sem id da extensão.",
+  "set.note.the_panel_s_clipboard_button": "O botão acima - e <b>D</b> na página do jogo, reatribuível em Atalhos de teclado - copia um relatório para colar direto num relato de bug: versão, motor, o que foi detectado, por que o último lance foi jogado ou não, e as últimas 200 linhas de rastreio. Deliberadamente não carrega <b>endereços nem nada que identifique você</b> - sem URL completa, sem query string, sem id da extensão.",
   "set.roll_back": "Reverter",
   "set.finish_update": "Concluir atualização interrompida",
   "set.note.every_update_is_undoable": "Toda atualização é <b>reversível</b>. Antes de sobrescrever qualquer coisa, a versão nova é gravada numa pasta de preparação e os arquivos substituídos copiados para um backup - assim <b>Reverter</b> devolve a versão anterior direto, e uma atualização interrompida no meio pode ser concluída sem baixar de novo. Uma geração é mantida, e os motores embutidos nunca fazem parte dela.",

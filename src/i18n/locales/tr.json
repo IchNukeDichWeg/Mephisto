@@ -262,7 +262,7 @@
   "set.sec.diagnostics": "Tanılama",
   "set.verbose_logging": "Ayrıntılı günlük",
   "set.tip.the_trace_is_normally_quiet": "Oyun sekmesi odaktayken iz olağan biçimde susar, sıradan oyun konsolu doldurmaz. Doğru varsayılan budur ve tahmin edilmesi gereken yanlış şeydir: her kararı olurken görmek için bunu açın, service worker konsolunda. Gürültüden başka bedeli yok.",
-  "set.note.the_panel_s_clipboard_button": "Panelin <b>pano</b> düğmesi doğrudan hata bildirimine yapıştırabileceğiniz bir rapor kopyalar: sürüm, motor, ne algılandığı, son hamlenin neden oynanıp oynanmadığı ve son 200 iz satırı. Bilerek <b>adres ve sizi tanıtacak hiçbir şey taşımaz</b> - tam URL yok, sorgu dizesi yok, eklenti kimliği yok.",
+  "set.note.the_panel_s_clipboard_button": "Yukarıdaki düğme - ve oyun sayfasında <b>D</b>, Kısayol tuşları'ndan değiştirilebilir - doğrudan hata bildirimine yapıştırabileceğiniz bir rapor kopyalar: sürüm, motor, ne algılandığı, son hamlenin neden oynanıp oynanmadığı ve son 200 iz satırı. Bilerek <b>adres ve sizi tanıtacak hiçbir şey taşımaz</b> - tam URL yok, sorgu dizesi yok, eklenti kimliği yok.",
   "set.roll_back": "Geri al",
   "set.finish_update": "Yarım kalan güncellemeyi tamamla",
   "set.note.every_update_is_undoable": "Her güncelleme <b>geri alınabilir</b>. Bir şeyin üzerine yazılmadan önce yeni sürüm bir hazırlık klasörüne yazılır ve değiştirdiği dosyalar yedeğe kopyalanır - böylece <b>Geri Al</b> önceki sürümü doğrudan geri koyar ve yarıda kesilen bir güncelleme yeniden indirilmeden tamamlanabilir. Bir kuşak saklanır ve paketlenmiş motorlar asla dahil değildir.",
