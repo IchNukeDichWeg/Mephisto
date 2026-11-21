@@ -5836,7 +5836,8 @@ function show_puzzle_answer(uci) {
             + (puzzle_solutions ? ` [${puzzle_solutions.size} plies mapped]` : '');
     } catch (e) { last_puzzle_answer = `${uci} (context unavailable)`; }
     toggle_calculating(false);
-    update_best_move(i18n('panel.msg.puzzle_solution', 'Puzzle solution: {move}', {move: uci}));
+    // in the Move Notation the rest of the readout uses, not raw UCI (audit 3.1.333 POPUP2-4)
+    update_best_move(i18n('panel.msg.puzzle_solution', 'Puzzle solution: {move}', {move: notate(last_eval.fen, uci)}));
     // Nothing searched this position, so the number in the readout belongs to a DIFFERENT one --
     // usually the previous puzzle. Left there it reads as a live evaluation. What this slot has to
     // say is that there is NO score; where the move came from is the line above it, which already
