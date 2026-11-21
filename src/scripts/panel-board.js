@@ -292,8 +292,9 @@
                 // moves and a click on one played from a square that may now be empty or hold another
                 // piece. The same placement re-rendered keeps them (audit 3.1.331 PANELBOARD-1).
                 const key = (o) => Object.keys(o).sort().map(k => k + o[k]).join();
-                if (key(next) !== key(pos)) { selected = null; targets = []; }
-                pos = next; render();
+                // an identical placement keeps the old object, so a caller's memo on `pos` still hits (audit 3.1.333 PROBES-6)
+                if (key(next) !== key(pos)) { selected = null; targets = []; pos = next; }
+                render();
             },
             orientation(o) { if (o === undefined) return orientation; orientation = o; render(); },
             resize() { render(); },
