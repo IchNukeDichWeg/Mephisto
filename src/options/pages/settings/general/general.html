@@ -866,24 +866,26 @@
                 <div class="set-row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.how_the_mephisto_panel_is" class="tooltipped" data-position="right"
-                              data-tooltip="How the Mephisto panel is shown. Floating = the draggable window over the
-                                            board; it lives in the page, so a chess site can detect it more easily.
-                                            Toolbar popup = the classic bubble in the browser toolbar; it leaves NO
-                                            trace in the page (the safer choice).">
+                              data-tooltip="How the Mephisto panel is shown. Floating = the draggable window
+                                            over the board; it lives in the page, so a chess site can detect
+                                            it more easily. Toolbar popup = the classic bubble in the browser
+                                            toolbar; it puts no panel in the page - only board overlays you
+                                            switch on (Eval Bar, Help Mode and the like) are drawn there while
+                                            it is open (the safer choice).">
                             Panel Style <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
                     <div class="set-ctl">
                         <select name="ui_mode" id="ui_mode_select">
                             <option data-i18n="set.floating_panel_over_the_board" value="floating">Floating panel (over the board)</option>
-                            <option data-i18n="set.toolbar_popup_safer_no_page" value="popup">Toolbar popup (safer - no page footprint)</option>
+                            <option data-i18n="set.toolbar_popup_safer_no_page" value="popup">Toolbar popup (safer - no panel in the page)</option>
                         </select>
                     </div>
                 </div>
                 <p data-i18n-html="set.note.the_floating_panel_is_embedded" id="ui_mode_note" class="set-note">
                     ⚠️ The <b>floating panel</b> is embedded in the web page, which makes the extension easier for a
-                    chess site to detect. The <b>toolbar popup</b> runs entirely in the browser and leaves no page
-                    footprint - the safer choice for pure <b>analysis</b>. Note: the popup closes when you click the
+                    chess site to detect. The <b>toolbar popup</b> runs in the browser and puts no panel in the
+                    page (only board overlays you switch on are drawn while it is open) - the safer choice for pure <b>analysis</b>. Note: the popup closes when you click the
                     board, so <b>Autoplay and Premove work only with the Floating panel</b>.
                 </p>
                 <p data-i18n-html="set.note.the_panel_button_row_bottom" class="set-note">
