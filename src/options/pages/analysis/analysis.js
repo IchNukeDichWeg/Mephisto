@@ -2253,7 +2253,8 @@ async function renderExtras(pos) {
         // while the panel says so (audit 3.1.330 CONTEXT-3, follow-up L33): the same note, same string.
         const allow = tb.localNeedsAllow
             ? ' ' + MephistoI18n.t('panel.tb.local_allow', '(online: the local folder needs Re-allow in Settings)') : '';
-        tbEl.textContent = `Tablebase: ${tbWords(tb)}${san && tb.category !== 'draw' ? ` - ${san}` : ''}${allow}`;
+        const words = tbWords(tb);
+        tbEl.textContent = words ? `Tablebase: ${words}${san && tb.category !== 'draw' ? ` - ${san}` : ''}${allow}` : '';
     }
 }
 
@@ -2269,7 +2270,14 @@ function tbWords(tb) {
     if (c === 'loss') return hasDtm ? `mated in ${m}` : hasDtz ? `losing, DTZ ${n}` : 'losing';
     if (c === 'cursed-win') return hasDtz ? `winning, DTZ ${n} (50-move drawn)` : 'winning (50-move drawn)';
     if (c === 'blessed-loss') return 'loss (50-move drawn)';
-    return c;
+    // lichess's other categories in words, not their raw tokens; 'unknown' says nothing at all
+    // (audit 3.1.333 ANALYSIS-9)
+    if (c === 'maybe-win') return 'winning, or drawn by the 50-move rule';
+    if (c === 'maybe-loss') return 'losing, or drawn by the 50-move rule';
+    if (c === 'syzygy-win') return hasDtz ? `winning, DTZ ${n}` : 'winning';
+    if (c === 'syzygy-loss') return hasDtz ? `losing, DTZ ${n}` : 'losing';
+    if (c === 'draw') return 'draw';
+    return '';
 }
 
 // ---- opening book -------------------------------------------------------------------------------
