@@ -1922,7 +1922,7 @@ async function initialize_engine(reuseWarm = false) {
         send_engine_uci(`setoption name MultiPV value ${effective_multipv()}`);
         search_multipv_set = effective_multipv();   // baseline for the same reason as Threads
         search_maia2_elos_set = null;               // a fresh net holds the init pair; on_new_pos sets the turn's
-        // Win/Draw/Loss readout under the score. Modern Stockfish (dev/18) reports `wdl W D L` per
+        // Win/Draw/Loss readout under the score. Modern Stockfish (19/18) reports `wdl W D L` per
         // info line once this is on; SF11/Fairy don't declare it and silently ignore this line.
         send_engine_uci('setoption name UCI_ShowWDL value true');
         // Chess960: a mainline Stockfish must be told, or it treats the game as standard chess and
@@ -2093,7 +2093,7 @@ function paint_elo_slider() {
     if (!eloSlider || !eloLabel) return;
     const stops = elo_stops(config.engine);
     const v = stops[+eloSlider.value];
-    // the right-hand full-strength stop shows the engine's OWN ceiling (SF dev 3190,
+    // the right-hand full-strength stop shows the engine's OWN ceiling (SF 19/18 3190,
     // SF 11 / Fairy 2850), not the internal 3200 sentinel -- stops[len-2] is that max.
     // TRANSLATED HERE, not by a data-i18n on the span: MephistoI18n.apply rewrote the number this
     // writes, so a non-English panel with a cap of 1500 said "Off / Full Strength" (audit 3.1.328
