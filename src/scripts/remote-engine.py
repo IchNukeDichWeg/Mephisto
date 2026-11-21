@@ -194,6 +194,19 @@ PLAYABLE_ANYWAY = (chess.STATUS_BAD_CASTLING_RIGHTS | chess.STATUS_INVALID_EP_SQ
                    | chess.STATUS_IMPOSSIBLE_CHECK | chess.STATUS_TOO_MANY_CHECKERS)
 
 
+def over_promotion_budget(board):
+    # Stockfish 19's FEN parser also refuses a side whose pieces beyond the starting set (a 2nd queen,
+    # a 3rd rook, bishop or knight) outnumber its missing pawns, and exits; python-chess rates such a
+    # board status 0. The same guard as native-host/uci-native-host.py (audit 3.1.332 UCINATIVEHOST-1),
+    # which this copy lacked (audit 3.1.333 NATIVEHOSTS-2). Only the base FEN needs it.
+    for color in chess.COLORS:
+        extra = sum(max(0, len(board.pieces(pt, color)) - base)
+                    for pt, base in ((chess.KNIGHT, 2), (chess.BISHOP, 2), (chess.ROOK, 2), (chess.QUEEN, 1)))
+        if extra > 8 - len(board.pieces(chess.PAWN, color)):
+            return True
+    return False
+
+
 def build_board(fen, moves):
     # Build the position, raising ValueError with a clear message on bad input. An illegal move or a
     # position that is not chess (the side not to move in check, a missing king, a pawn on the back
@@ -217,6 +230,8 @@ def build_board(fen, moves):
         why = [name[7:].lower().replace('_', ' ') for name in dir(chess)
                if name.startswith('STATUS_') and getattr(chess, name) & bad]
         raise ValueError(f"not a legal position ({', '.join(why)})")
+    if variant in (None, 'fischerandom') and over_promotion_budget(board):
+        raise ValueError('not a legal position (more promoted pieces than missing pawns)')
     for (ply, move) in enumerate((moves or '').split(), 1):
         try:
             parsed = board.parse_uci(move)
