@@ -555,7 +555,7 @@
   "panel.tip.autoplay": "Hamleyi tahtada senin yerine oynar. Kapalıyken panel sadece analiz eder; buradaki her şey oynanacak bir hamleyle ilgilidir.",
   "panel.tip.engine": "Hangi motorun analiz ettiği. (local) yerel host ister ve en hızlısıdır; WASM tarayıcıda çalışır; (online) pozisyonu başkasının makinesine gönderir.",
   "panel.tip.move_time_var": "Hamle seçildikten sonra farenin onu oynamasinin ne kadar sürdüğü (uzun hamlelerde daha uzun) ve bunun rastgele ne kadar değiştiği. Öncesindeki duraklama Benzetilmis düşünme süresidir.",
-  "panel.tip.puzzle_mode": "Bir problemin tek hamlesini degil tum cozumunu oynar ve problem sayfalarinda kendiliginden acilir. Elle ayarlanirsa asla ezilmez.",
+  "panel.tip.puzzle_mode": "Bir problemin tek hamlesi yerine tüm çözümünü oynar. Bir problem sayfası açınca kendiliğinden açılır, ayrılınca kapanır; kendin açtıysan ayrılmak onu kapatmaz.",
   "panel.tip.bot_game": "chess.com botuna bitmis bir partiyi hamle hamle yürümesi için verir. Yalnizca yeni bir bot partisinin başlangıç pozisyonundan.",
   "panel.tip.variant": "Pozisyonun hangi kurallara göre değerlendirildiği. Egzotik varyantları yalnızca Fairy motorlari oynar; normal Stockfish standart satranç ve Chess960 oynar.",
   "panel.tip.fourpc_mode": "Bunun hangi dört kişilik oyun olduğu. Otomatik algılama bunu sayfadan okur; hem Takımlar hem herkes kendine analiz edilir.",

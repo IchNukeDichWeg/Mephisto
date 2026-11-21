@@ -555,7 +555,7 @@
   "panel.tip.autoplay": "Gioca la mossa sulla scacchiera al posto tuo. Spento, il pannello analizza soltanto: tutto il resto qui riguarda una mossa che verrà giocata.",
   "panel.tip.engine": "Quale motore analizza. (local) richiede l'host nativo ed è il più veloce; WASM gira nel browser; (online) manda la posizione sulla macchina di qualcun altro.",
   "panel.tip.move_time_var": "Quanto impiega il mouse a giocare la mossa una volta scelta (di più per le mosse lunghe), e quanto varia a caso. La pausa prima è il Tempo di riflessione simulato.",
-  "panel.tip.puzzle_mode": "Gioca l'intera soluzione di un problema invece di una mossa, e si accende da sola sulle pagine dei problemi. Impostata a mano non viene mai sovrascritta.",
+  "panel.tip.puzzle_mode": "Gioca l'intera soluzione di un problema invece di una mossa. Si accende da solo quando apri una pagina di problemi e si spegne quando la lasci; se l'hai acceso tu, lasciarla non lo spegne.",
   "panel.tip.bot_game": "Dà a un bot di chess.com una partita finita da ripercorrere, mossa per mossa. Solo dalla posizione iniziale di una partita nuova.",
   "panel.tip.variant": "Con quali regole viene giudicata la posizione. Solo i motori Fairy giocano le varianti esotiche; gli Stockfish classici giocano scacchi standard e Chess960.",
   "panel.tip.fourpc_mode": "Quale partita a quattro è. Il rilevamento automatico lo legge dalla pagina; vengono analizzate sia la modalità a squadre sia tutti contro tutti.",

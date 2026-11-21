@@ -555,7 +555,7 @@
   "panel.tip.autoplay": "Juega la jugada en el tablero por ti. Apagado, el panel solo analiza; todo lo demás aquí trata de una jugada que se va a jugar.",
   "panel.tip.engine": "Qué motor analiza. (local) necesita el host nativo y es el más rápido; WASM corre en el navegador; (online) envia la posición a otra máquina.",
   "panel.tip.move_time_var": "Cuánto tarda el ratón en jugar la jugada una vez elegida (más en jugadas largas), y cuánto varía eso al azar. La pausa previa es el Tiempo de reflexión simulado.",
-  "panel.tip.puzzle_mode": "Juega la solucion completa de un problema en vez de una jugada, y se enciende sola en las paginas de problemas. Puesto a mano, nunca se anula.",
+  "panel.tip.puzzle_mode": "Juega la solución completa de un problema en vez de una jugada. Se enciende solo al abrir una página de problemas y se apaga al salir; si lo encendiste tú, salir no lo apaga.",
   "panel.tip.bot_game": "Da a un bot de chess.com una partida terminada para recorrerla jugada a jugada. Solo desde la posición inicial de una partida nueva.",
   "panel.tip.variant": "Con qué reglas se juzga la posición. Solo los motores Fairy juegan las exóticas; los Stockfish normales juegan ajedrez estándar y Chess960.",
   "panel.tip.fourpc_mode": "Qué partida de cuatro jugadores es. La detección automática la lee de la página; se analizan tanto Equipos como todos contra todos.",

@@ -555,7 +555,7 @@
   "panel.tip.autoplay": "Gra ruch na szachownicy za ciebie. Wyłączone, panel tylko analizuje - cała reszta tutaj dotyczy ruchu, który zostanie zagrany.",
   "panel.tip.engine": "Który silnik analizuje. (local) wymaga hosta natywnego i jest najszybszy; WASM działa w przegladarce; (online) wysyla pozycję na cudzą maszynę.",
   "panel.tip.move_time_var": "Jak długo mysz wykonuje wybrany ruch (dłużej przy długich ruchach) i jak bardzo to się losowo waha. Pauza przed nim to Symulowany czas namysłu.",
-  "panel.tip.puzzle_mode": "Gra cale rozwiazanie zadania zamiast jednego ruchu i wlacza sie sam na stronach z zadaniami. Ustawiony recznie nigdy nie jest nadpisywany.",
+  "panel.tip.puzzle_mode": "Gra całe rozwiązanie zadania zamiast jednego ruchu. Włącza się sam po otwarciu strony z zadaniem i wyłącza po jej opuszczeniu; jeśli włączyłeś go sam, opuszczenie strony go nie wyłącza.",
   "panel.tip.bot_game": "Daje botowi chess.com skończoną partię do przejścia ruch po ruchu. Tylko z pozycji początkowej świeżej partii z botem.",
   "panel.tip.variant": "Według jakich reguł oceniana jest pozycja. Tylko silniki Fairy grają egzotyczne warianty; zwykłe Stockfishe grają szachy standardowe i Chess960.",
   "panel.tip.fourpc_mode": "Która to partia czteroosobowa. Autowykrywanie odczytuje to ze strony; analizowane są oba tryby: drużynowy i każdy na każdego.",

@@ -555,7 +555,7 @@
   "panel.tip.autoplay": "Joue le coup sur l'échiquier pour vous. Désactivé, le panneau ne fait qu'analyser - tout le reste ici concerne un coup qui va être joué.",
   "panel.tip.engine": "Quel moteur analyse. (local) exige l'hôte natif et va le plus vite ; WASM tourne dans le navigateur ; (online) envoie la position sur une autre machine.",
   "panel.tip.move_time_var": "Combien de temps la souris met à jouer le coup une fois choisi (plus long pour les longs coups), et de combien cela varie au hasard. La pause avant est le Temps de réflexion simulé.",
-  "panel.tip.puzzle_mode": "Joue toute la solution d'un probleme au lieu d'un coup, et s'active seule sur les pages de problemes. Reglee a la main, elle n'est jamais ecrasee.",
+  "panel.tip.puzzle_mode": "Joue toute la solution d'un problème au lieu d'un coup. S'active seul à l'ouverture d'une page de problèmes et se désactive en la quittant ; si vous l'avez activé vous-même, la quitter ne le désactive pas.",
   "panel.tip.bot_game": "Donne à un bot chess.com une partie terminée à rejouer, coup par coup. Seulement depuis la position de départ d'une nouvelle partie.",
   "panel.tip.variant": "Selon quelles règles la position est jugée. Seuls les moteurs Fairy jouent les variantes exotiques ; les Stockfish classiques jouent les échecs standard et le Chess960.",
   "panel.tip.fourpc_mode": "De quelle partie à quatre il s'agit. La détection automatique la lit sur la page ; Équipes et chacun pour soi sont tous deux analysés.",
