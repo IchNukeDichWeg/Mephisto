@@ -4882,8 +4882,13 @@ function render_panel_line() {
     if (!panel_line.length) { el.hidden = true; el.textContent = ''; return; }
     el.hidden = false;
     const parts = [`<span class="pl-move${panel_line_idx === -1 ? ' pl-current' : ''}" data-idx="-1">start</span>`];
+    // Numbered from the base position's side to move and move number, as current_pgn does: a line
+    // tried with Black to move or mid-game read "1. Nf6" (audit 3.1.333 POPUP2-5).
+    const bf = String(panel_line_base || '').split(' ');
+    const black0 = bf[1] === 'b', move0 = Math.max(1, parseInt(bf[5], 10) || 1);
     panel_line.forEach((m, i) => {
-        const num = (i % 2 === 0) ? `${Math.floor(i / 2) + 1}.` : '';
+        const ply = i + (black0 ? 1 : 0), n = move0 + Math.floor(ply / 2);
+        const num = ply % 2 === 0 ? `${n}.` : (i === 0 ? `${n}...` : '');
         parts.push(`<span class="pl-move${i === panel_line_idx ? ' pl-current' : ''}" data-idx="${i}">${num}${m.san}</span>`);
     });
     el.innerHTML = parts.join(' ');
