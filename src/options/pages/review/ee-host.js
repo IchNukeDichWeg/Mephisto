@@ -34,8 +34,12 @@ const SF_BUILD = 'stockfish-18-lite-single-a7c6773';
 // calls it "Stockfish 16"; the asset on their own CDN is 16.1, and they serve four of them --
 // lite/full x single/threaded. FOUND by probing their CDN, not guessed.
 //
-// THE FULL NET, not the lite one, and that is the single biggest accuracy lever here. Measured over
-// ten games x 16 moves a side against chess.com's own Game Review:
+// THE FULL NET, not the lite one, and that is the single biggest accuracy lever here. The table below
+// is from the EARLIER book-heavy campaign (see "An earlier campaign" under EE_TIERS). Its FULL depth 22
+// cell (97.40%) fits no k/320 count of its stated 320 plies and its source data is not in the repo, so
+// do not quote that cell. The 337-ply re-measurement put the full net about three points above lite
+// (audit 3.1.333 EEHOST-6).
+// Measured over ten games x 16 moves a side against chess.com's own Game Review:
 //     lite  depth 18  92.19%      lite  depth 24  93.44%
 //     lite  depth 22  93.44%      lite  depth 26  94.06%
 //     FULL  depth 18  95.31%      FULL  depth 22  97.40%
