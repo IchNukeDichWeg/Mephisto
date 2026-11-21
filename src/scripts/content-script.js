@@ -1410,9 +1410,10 @@ function clearHintArrow() {
 // The page board's arrows honour the same opacity setting the panel's do. Clamped so a slider at
 // zero cannot render an invisible arrow that reads as "help mode is broken".
 function arrowAlpha() {
-    // a PERCENTAGE from the panel (1..100); <= 1 is the pre-3.1.229 fraction, kept working
+    // a PERCENTAGE from the panel (1..100); < 1 is the pre-3.1.229 fraction, kept working (1 is the
+    // slider's 1%, not the fraction 1.0: audit 3.1.333 CONTENT1-1)
     const raw = Number(config?.arrow_opacity);
-    const pct = !Number.isFinite(raw) || raw <= 0 ? 75 : (raw <= 1 ? raw * 100 : raw);
+    const pct = !Number.isFinite(raw) || raw <= 0 ? 75 : (raw < 1 ? raw * 100 : raw);
     return Math.max(0.05, Math.min(1, pct / 100)).toFixed(3);
 }
 

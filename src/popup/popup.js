@@ -12974,7 +12974,9 @@ function draw_threat() {
 function read_arrow_opacity() {
     const raw = JSON.parse(MephistoConfig.get('arrow_opacity'));
     if (!Number.isFinite(raw) || raw <= 0) return 75;
-    return Math.max(1, Math.min(100, raw <= 1 ? Math.round(raw * 100) : Math.round(raw)));
+    // < 1, not <= 1: the slider's own stop 1 (1%) read as the old fraction 1.0, full strength (audit
+    // 3.1.333 CONTENT1-1). A pre-3.1.229 value of exactly 1.0 now reads 1%, the one cost of the fix.
+    return Math.max(1, Math.min(100, raw < 1 ? Math.round(raw * 100) : Math.round(raw)));
 }
 
 // The configured opacity, scaled against whatever this overlay's baseline was, so a slider at its
