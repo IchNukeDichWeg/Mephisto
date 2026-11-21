@@ -110,14 +110,15 @@ const CFG_DEFAULTS = {
     rv_variant_which: 'crazyhouse',   // which Fairy variant, when rv_variant is 'variant'
 };
 
-// A game whose clocks and blunders make the whole report show something. Deliberately a famous
-// short one: it finishes analysing in seconds even on the small net, so the first thing a new user
-// clicks does not take a minute.
 // Switching between the two budgets has to move the NUMBER as well: 16 means something as a depth
 // and nothing as a millisecond count.
 const DEPTH_DEFAULT = 16;
+// Not read anywhere: review.js uses TIME_DEFAULT_MS_UI (500 ms) for the time budget.
 const TIME_DEFAULT_MS = 1000;
 
+// A famous short game, so the first thing a new user clicks does not take a minute: it finishes
+// analysing in seconds even on the small net. It has no %clk comments, so the clock-based parts of
+// the report stay empty for it.
 const SAMPLE_PGN = `[Event "Immortal Game"]
 [Site "London"]
 [Date "1851.06.21"]
