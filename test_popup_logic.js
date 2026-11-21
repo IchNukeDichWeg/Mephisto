@@ -18187,6 +18187,13 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const de = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/de.json', 'utf8'));
     ok('LOCALEWEST-1 (3.1.333): de panel.tb.mated differs from panel.tb.mate beyond letter case',
        de['panel.tb.mated'].toLowerCase() !== de['panel.tb.mate'].toLowerCase(), [de['panel.tb.mate'], de['panel.tb.mated']]); }
+// ---- audit 3.1.333 POPUP1-1: the panel Move Time tooltip describes the mouse time, not the think pause ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+    const html = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
+    ok('POPUP1-1 (3.1.333): panel.tip.move_time_var names the mouse and the think pause, not a search inside the time',
+       /mouse/.test(en['panel.tip.move_time_var']) && /Simulated Think Time/.test(en['panel.tip.move_time_var']) && !/search happens inside/.test(en['panel.tip.move_time_var']));
+    ok('POPUP1-1 (3.1.333): the popup.html fallback matches en.json', html.includes('data-tooltip="' + en['panel.tip.move_time_var'] + '">Move Time')); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

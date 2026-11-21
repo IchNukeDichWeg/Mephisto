@@ -553,7 +553,7 @@
   "set.style_quiet": "Tranquilo",
   "panel.tip.autoplay": "Joga o lance no tabuleiro por si. Desligado, o painel so analisa - tudo o resto aqui diz respeito a um lance que vai ser jogado.",
   "panel.tip.engine": "Que motor analisa. (local) precisa do host nativo e e o mais rapido; WASM corre no navegador; (online) envia a posicao para outra maquina.",
-  "panel.tip.move_time_var": "Quanto tempo o lance espera antes de ser jogado, e quanto essa espera varia ao acaso. A pesquisa acontece dentro desse tempo, nao depois.",
+  "panel.tip.move_time_var": "Quanto tempo o rato leva a jogar o lance depois de escolhido (mais em lances longos), e quanto isso varia ao acaso. A pausa antes e o Tempo de reflexao simulado.",
   "panel.tip.puzzle_mode": "Joga a solucao inteira de um problema em vez de um lance, e liga-se sozinho nas paginas de problemas. Definido a mao, nunca e substituido.",
   "panel.tip.bot_game": "Da a um bot do chess.com uma partida acabada para percorrer, lance a lance. So a partir da posicao inicial de uma partida nova.",
   "panel.tip.variant": "Por que regras a posicao e julgada. So os motores Fairy jogam as exoticas; os Stockfish normais jogam xadrez padrao e Chess960.",

@@ -553,7 +553,7 @@
   "set.style_quiet": "Ruhig",
   "panel.tip.autoplay": "Spielt den Zug fuer dich auf dem Brett. Ausgeschaltet analysiert das Panel nur - alles andere hier betrifft einen Zug, der gespielt wird.",
   "panel.tip.engine": "Welche Engine analysiert. (local) braucht den Native-Host und ist am schnellsten; WASM laeuft im Browser; (online) schickt die Stellung auf einen fremden Rechner.",
-  "panel.tip.move_time_var": "Wie lange der Zug wartet, bevor er gespielt wird, und wie stark diese Wartezeit zufaellig schwankt. Die Suche laeuft innerhalb dieser Zeit, nicht danach.",
+  "panel.tip.move_time_var": "Wie lange die Maus braucht, um den gewaehlten Zug auszufuehren (laenger bei langen Zuegen), und wie stark das zufaellig schwankt. Die Pause davor ist die Simulierte Bedenkzeit.",
   "panel.tip.puzzle_mode": "Spielt die ganze Loesung eines Puzzles statt eines Zuges und schaltet sich auf Puzzle-Seiten selbst ein. Manuell gesetzt wird das nie ueberschrieben.",
   "panel.tip.bot_game": "Gibt einem chess.com-Bot eine fertige Partie zum Nachspielen, Zug um Zug. Nur aus der Startstellung einer frischen Bot-Partie.",
   "panel.tip.variant": "Nach welchen Regeln die Stellung bewertet wird. Nur die Fairy-Engines spielen die exotischen; die Mainline-Stockfishes spielen Standard und Chess960.",

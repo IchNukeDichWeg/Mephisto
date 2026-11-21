@@ -552,7 +552,7 @@
   "set.style_quiet": "Quiet",
   "panel.tip.autoplay": "Plays the move on the board for you. With it off the panel only analyses - everything else here is about a move that is going to be played.",
   "panel.tip.engine": "Which engine analyses. (local) needs the native host installed and is the fastest; WASM runs inside the browser; (online) sends the position to someone else's machine.",
-  "panel.tip.move_time_var": "How long the move waits before it is played, and how much that wait varies at random. The search happens inside this time, not after it.",
+  "panel.tip.move_time_var": "How long the mouse takes to play the move once it is chosen (longer for long moves), and how much that varies at random. The pause before it is Simulated Think Time.",
   "panel.tip.puzzle_mode": "Plays a puzzle's whole solution instead of one move, and turns itself on when you open a puzzle page. Setting it by hand is never overridden.",
   "panel.tip.bot_game": "Hands a chess.com bot a finished game to walk into, move by move. Only from the starting position of a fresh bot game.",
   "panel.tip.variant": "Which rules the position is judged by. Only the Fairy engines play the exotic ones; the mainline Stockfishes play standard chess and Chess960.",

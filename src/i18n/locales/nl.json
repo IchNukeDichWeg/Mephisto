@@ -553,7 +553,7 @@
   "set.style_quiet": "Rustig",
   "panel.tip.autoplay": "Speelt de zet voor je op het bord. Uit analyseert het paneel alleen - al het andere hier gaat over een zet die gespeeld gaat worden.",
   "panel.tip.engine": "Welke engine analyseert. (local) heeft de native host nodig en is het snelst; WASM draait in de browser; (online) stuurt de stelling naar een andere machine.",
-  "panel.tip.move_time_var": "Hoe lang de zet wacht voordat hij gespeeld wordt, en hoeveel die wachttijd willekeurig varieert. De zoektocht gebeurt binnen die tijd, niet erna.",
+  "panel.tip.move_time_var": "Hoe lang de muis erover doet om de gekozen zet te spelen (langer bij lange zetten), en hoeveel dat willekeurig varieert. De pauze ervoor is de Gesimuleerde denktijd.",
   "panel.tip.puzzle_mode": "Speelt de hele oplossing van een puzzel in plaats van een zet, en gaat vanzelf aan op puzzelpagina's. Handmatig gezet wordt nooit overschreven.",
   "panel.tip.bot_game": "Geeft een chess.com-bot een afgemaakte partij om zet voor zet in te lopen. Alleen vanuit de beginstelling van een verse botpartij.",
   "panel.tip.variant": "Volgens welke regels de stelling beoordeeld wordt. Alleen de Fairy-engines spelen de exotische; de gewone Stockfishes spelen standaardschaak en Chess960.",
