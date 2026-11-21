@@ -363,7 +363,7 @@
   "set.forced_lines": "İleriye zorunlu diziler",
   "set.tip.forced_lines": "Hamleden önce ön-hamlelenebilir devamınızı çiz: rakibin her yanıtı TEK yasal hamlesi olduğu sürece, motor varyantından sizin sonraki hamleleriniz eflatun, onların zorunlu yanıtları camgöbeği çizilir (varsayılan renkler, Görünüm altında değiştirilebilir). Rakibin gerçek seçeneği olan ilk konum zinciri bitirir -- çizilen her şey, yalnız sizin seçimleriniz verili kesin. 0 kapalıdır.",
   "set.premove_confidence": "Ön hamle güveni",
-  "set.tip.premove_confidence": "Bir ön hamle kurulmadan önce aramanın kendisiyle ne kadar derin uyuşması gerektiği: (onların hamlesi, bizim yanıt) çifti bu derinlikte, bir öncekinde ve son bildirilen derinlikte özdeş olmalı. 14 ölçülmüş varsayılandır. Rakibin TEK yasal hamlesi olan yanıt kurallarca onaylıdır ve bu kadranı tümüyle yok sayar.",
+  "set.tip.premove_confidence": "Bir ön hamle kurulmadan önce aramanın kendisiyle ne kadar derin uyuşması gerektiği: (onların hamlesi, bizim yanıt) çifti bu derinlikte, bir öncekinde ve son bildirilen derinlikte özdeş olmalı. 14 ölçülmüş varsayılandır. Tahmin edilen hamle rakibin TEK yasal hamlesiyse kararlılık denetimi atlanır, ama yanıtımız yine de bu kadranın bir altındaki derinliğe ulaşmalıdır.",
   "set.premove_plies": "Ön hamle yarı hamleleri",
   "set.tip.premove_plies": "Zorunlu bir dizinin tek tıklama oturumunda kaç ön hamle sıralayabileceği, 1-5 (varsayılan 2). Chess.com hepsini sıralar; lichess sıradaki ön hamleyi bir yenisini eklemek yerine DEĞİŞTİRİR, yani ilkinden sonrası yalnız chess.com içindir. Sıralanan her hamle zorunlu-dizi oklarıyla aynı kesinlik kuralına uyar: rakibin yanıtları tek yasal hamlesi olmalı ve motorun varyantıyla uyuşmalı.",
   "set.pv_walk": "PV okları",
