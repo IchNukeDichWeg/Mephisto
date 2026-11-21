@@ -540,6 +540,8 @@ class GeneralSettings extends SettingsPage {
         const host = $('live_classify_which');
         const row = $('live_classify_which_row');
         const toggle = $('live_classify_checkbox');
+        // the panel filters Classification On The Board by the same list (audit 3.1.333 GENERALJS-2)
+        const onBoard = $('class_on_board_checkbox');
         if (!host || !row) return;
         const ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'book', 'forced',
                        'inaccuracy', 'mistake', 'miss', 'blunder'];
@@ -566,8 +568,9 @@ class GeneralSettings extends SettingsPage {
             MephistoConfig.set('live_classify_which', JSON.stringify(shown));
             paint();
         });
-        const syncRow = () => { row.style.display = toggle?.checked ? '' : 'none'; };
+        const syncRow = () => { row.style.display = (toggle?.checked || onBoard?.checked) ? '' : 'none'; };
         toggle?.addEventListener('change', syncRow);
+        onBoard?.addEventListener('change', syncRow);
         paint();
         syncRow();
         setTimeout(syncRow, 300);   // after the stored value has been pulled into the form
