@@ -3857,7 +3857,7 @@ function pv_walk_moves(fen, pv, maxPlies) {
 // search path then plays it, through the book and tablebase.
 function premove_yields_to_book(fen) {
     if (!fen) return false;
-    if (tablebase_enabled() && piece_count(fen) <= TABLEBASE_MAX_MEN) return true;
+    if (tablebase_enabled() && piece_count(fen) <= tablebase_max_men()) return true;
     if (config.puzzle_mode) return false;
     if (player_book_at(fen)) return true;
     if (!config.book_play || (config.variant && config.variant !== 'chess')) return false;
@@ -4008,7 +4008,11 @@ let explorer_empty_streak = 0; // consecutive empty lookups; 3 = genuinely out o
 // the answer has not landed by the time the engine's move is ready, the engine's move is played and
 // the probe is simply skipped for that move. A slow or blocked endpoint cannot delay a move or eat
 // into a Clock/Mirror budget.
-const TABLEBASE_MAX_MEN = 7;   // the largest Syzygy set lichess serves
+const TABLEBASE_MAX_MEN = 7;   // the largest Syzygy set lichess serves (standard chess)
+// Atomic and antichess stop at 6 men there: a 7-man probe came back 'unknown' with every move
+// 'unknown', and moves[0] was played as if solved (audit 3.1.333 POPUP2-1).
+const TABLEBASE_VARIANT_MEN = {chess: 7, atomic: 6, antichess: 6};
+function tablebase_max_men() { return TABLEBASE_VARIANT_MEN[config?.variant || 'chess'] ?? TABLEBASE_MAX_MEN; }
 let tablebase_data = null;     // {fen, category, dtz, dtm, moves:[...]} for the last position probed
 let tablebase_wanted = null;   // the position request_tablebase was last asked about
 
@@ -4037,10 +4041,13 @@ function request_tablebase(fen) {
     // A hidden tab makes no third-party requests -- unless Background Play is on, in which case the
     // game IS still being played and a tablebase answer is exactly as wanted as it is in front of you.
     if (document.hidden && !config.background_play) return;
-    if (piece_count(fen) > TABLEBASE_MAX_MEN) return;  // out of range -- don't ask
+    if (piece_count(fen) > tablebase_max_men()) return;  // out of range -- don't ask
     if (tablebase_data?.fen === fen) return;           // already have this position
     chrome.runtime.sendMessage({tablebaseLookup: {fen, variant: config.variant || 'chess'}}, (res) => {
         if (chrome.runtime.lastError || !res || res.error || !res.moves?.length) return;
+        // 'unknown' is lichess saying it has no table for this position (a castling right, a set it
+        // does not hold): its moves are unranked, so moves[0] is not a solved move (POPUP2-1).
+        if (res.category === 'unknown') return;
         if (fen !== tablebase_wanted) return;
         tablebase_data = {fen, ...res};
         console.log(`Tablebase: ${res.category} (dtz ${res.dtz}, dtm ${res.dtm}) -> ${res.moves[0].uci}`);
@@ -9413,7 +9420,7 @@ function health_state() {
         playerBook: config?.player_book
             ? {who: parse_player_book_user(), loaded: !!player_book, games: player_book_games} : null,
         tablebase: tablebase_enabled()
-            ? {men, inRange: men != null && men <= TABLEBASE_MAX_MEN,
+            ? {men, max: tablebase_max_men(), inRange: men != null && men <= tablebase_max_men(),
                answered: !!(tablebase_data && fen && tablebase_data.fen === fen)} : null,
     };
 }
@@ -9439,7 +9446,7 @@ function feature_rows(st) {
     const tb = st.tablebase;
     row('Tablebase', tb ? (tb.inRange ? !!tb.answered : null) : null,
         !tb ? 'switched off'
-            : !tb.inRange ? `${tb.men ?? '?'} men on the board -- solved play starts at ${TABLEBASE_MAX_MEN}`
+            : !tb.inRange ? `${tb.men ?? '?'} men on the board -- solved play starts at ${tb.max ?? TABLEBASE_MAX_MEN}`
             : tb.answered ? 'this position is solved'
             : 'no answer for this position yet');
     return rows;

@@ -7850,6 +7850,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext(`var config, premove_tracker, last_eval, premove_lines = 1, explorer_out_of_book = false, own_book = null,
         own_book_absent = false, player_book = null, detected_prefix = 'lc', sent = [];
         const PLAYER_BOOK_MIN = 2, TABLEBASE_MAX_MEN = 7, TABLEBASE_VARIANTS = ['chess', 'atomic', 'antichess'];
+        var tablebase_max_men = () => TABLEBASE_MAX_MEN;
         var our_side = () => 'white', premove_certified = () => true, premove_is_safe = () => true,
             premove_human_reflex = () => true, request_automove = (m) => sent.push(m), request_double_premove = () => {},
             forced_premove_moves = () => [];`
@@ -18198,6 +18199,18 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('POPUP1-1 (3.1.333): panel.tip.move_time_var names the mouse and the think pause, not a search inside the time',
        /mouse/.test(en['panel.tip.move_time_var']) && /Simulated Think Time/.test(en['panel.tip.move_time_var']) && !/search happens inside/.test(en['panel.tip.move_time_var']));
     ok('POPUP1-1 (3.1.333): the popup.html fallback matches en.json', html.includes('data-tooltip="' + en['panel.tip.move_time_var'] + '">Move Time')); }
+// ---- audit 3.1.333 POPUP2-1: tablebase asks only inside each variant's tables and drops 'unknown' answers ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const c = vm.createContext({});
+    vm.runInContext('var config = {};\n' + psrc.slice(psrc.indexOf('const TABLEBASE_MAX_MEN = 7;'), psrc.indexOf('let tablebase_data = null;')), c);
+    const men = (v) => { c.config = {variant: v}; return vm.runInContext('tablebase_max_men()', c); };
+    ok('POPUP2-1 (3.1.333): 7 men for standard chess, 6 for atomic and antichess', men('chess') === 7 && men(undefined) === 7 && men('atomic') === 6 && men('antichess') === 6,
+       [men('chess'), men('atomic'), men('antichess')]);
+    const req = psrc.slice(psrc.indexOf('function request_tablebase(fen)'), psrc.indexOf('function clamp_compute_time'));
+    ok('POPUP2-1 (3.1.333): request_tablebase uses the per-variant limit and drops an answer whose category is unknown',
+       /piece_count\(fen\) > tablebase_max_men\(\)/.test(req) && /if \(res\.category === 'unknown'\) return;/.test(req));
+    ok('POPUP2-1 (3.1.333): premove holding uses the same limit', /tablebase_enabled\(\) && piece_count\(fen\) <= tablebase_max_men\(\)/.test(psrc)); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
