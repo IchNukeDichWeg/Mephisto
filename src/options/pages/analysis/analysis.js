@@ -578,7 +578,9 @@ function refuseFairyOnly(key, fallback) {
     setCfg(key, fallback);
     const sel = $(key + '_select');
     if (sel) sel.value = fallback;
-    return MephistoI18n.t('an.fairy_only_pick', 'Only Fairy-Stockfish plays {variant}; {engine} was not loaded.',
+    // "(WASM)": the native Fairy host is refused here too, and the note named it as the only engine
+    // that plays the variant (audit 3.1.333 ANALYSIS-3)
+    return MephistoI18n.t('an.fairy_only_pick', 'Only Fairy-Stockfish (WASM) plays {variant}; {engine} was not loaded.',
         {variant: (AN_VARIANTS.find(x => x[0] === v) || [v, v])[1], engine: ENGINES.find(e => e.id === id)?.label || id});
 }
 

@@ -769,7 +769,7 @@
   "an.lg_err_hand": "las piezas en mano solo existen en shogi",
   "an.lg_err_extra": "nada puede ir después del número de jugada (como \"moves …\")",
   "an.err_king_en_prise": "el bando que no mueve está en jaque, así que esta posición no puede darse -- comprueba a quién le toca",
-  "an.fairy_only_pick": "Solo Fairy-Stockfish juega {variant}; {engine} no se ha cargado.",
+  "an.fairy_only_pick": "Solo Fairy-Stockfish (WASM) juega {variant}; {engine} no se ha cargado.",
   "an.lg_no_moves": "No hay jugadas legales: el bando que juega ha perdido.",
   "an.lg_promote": "¿Promover esta pieza?",
   "an.lg_to_move": "Juega {side}",

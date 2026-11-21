@@ -769,7 +769,7 @@
   "an.lg_err_hand": "持ち駒は将棋にしかありません",
   "an.lg_err_extra": "手数の後には何も書けません（\"moves …\" など）",
   "an.err_king_en_prise": "手番でない側がチェックされているため、この局面はありえません -- 手番を確認してください",
-  "an.fairy_only_pick": "{variant} を指せるのは Fairy-Stockfish だけです。{engine} は読み込まれませんでした。",
+  "an.fairy_only_pick": "{variant} を指せるのは Fairy-Stockfish (WASM) だけです。{engine} は読み込まれませんでした。",
   "an.lg_no_moves": "合法手がありません。手番の側の負けです。",
   "an.lg_promote": "この駒を成りますか？",
   "an.lg_to_move": "{side}の手番",

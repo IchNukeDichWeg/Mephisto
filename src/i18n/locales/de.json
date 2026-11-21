@@ -769,7 +769,7 @@
   "an.lg_err_hand": "Figuren in der Hand gibt es nur im Shogi",
   "an.lg_err_extra": "nach der Zugnummer darf nichts mehr folgen (etwa „moves …“)",
   "an.err_king_en_prise": "die Seite, die nicht am Zug ist, steht im Schach, diese Stellung ist also unmöglich -- prüfe, wer am Zug ist",
-  "an.fairy_only_pick": "Nur Fairy-Stockfish spielt {variant}; {engine} wurde nicht geladen.",
+  "an.fairy_only_pick": "Nur Fairy-Stockfish (WASM) spielt {variant}; {engine} wurde nicht geladen.",
   "an.lg_no_moves": "Keine legalen Züge: die Seite am Zug hat verloren.",
   "an.lg_promote": "Diese Figur befördern?",
   "an.lg_to_move": "{side} am Zug",

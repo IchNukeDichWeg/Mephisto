@@ -769,7 +769,7 @@
   "an.lg_err_hand": "pieces in hand are only for shogi",
   "an.lg_err_extra": "nothing may follow the move number (such as \"moves …\")",
   "an.err_king_en_prise": "the side not to move is in check, so this position cannot happen -- check whose turn it is",
-  "an.fairy_only_pick": "Only Fairy-Stockfish plays {variant}; {engine} was not loaded.",
+  "an.fairy_only_pick": "Only Fairy-Stockfish (WASM) plays {variant}; {engine} was not loaded.",
   "an.lg_no_moves": "No legal moves: the side to move has lost.",
   "an.lg_promote": "Promote this piece?",
   "an.lg_to_move": "{side} to move",

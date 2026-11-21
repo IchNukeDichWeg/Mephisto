@@ -769,7 +769,7 @@
   "an.lg_err_hand": "손에 든 기물은 쇼기에만 있습니다",
   "an.lg_err_extra": "수 번호 뒤에는 아무것도 올 수 없습니다 (\"moves …\" 등)",
   "an.err_king_en_prise": "차례가 아닌 쪽이 체크 상태이므로 이 포지션은 나올 수 없습니다 -- 누구 차례인지 확인하세요",
-  "an.fairy_only_pick": "{variant}은(는) Fairy-Stockfish만 둘 수 있습니다. {engine}은(는) 불러오지 않았습니다.",
+  "an.fairy_only_pick": "{variant}은(는) Fairy-Stockfish (WASM)만 둘 수 있습니다. {engine}은(는) 불러오지 않았습니다.",
   "an.lg_no_moves": "합법 수가 없습니다: 차례인 쪽이 졌습니다.",
   "an.lg_promote": "이 기물을 승격할까요?",
   "an.lg_to_move": "{side} 차례",
