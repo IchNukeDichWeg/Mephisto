@@ -10,8 +10,9 @@
 // and the points are therefore the engine's answers, not a second implementation of them.
 //
 // SCORES: Tetrarch reports from the SIDE TO MOVE'S TEAM (PROTOCOL.md), and the seat rotates every
-// ply, so a raw score flips sign every move. Everything here is normalised to the RED/YELLOW team
-// once, at the source, so a graph, a verdict and an accuracy all mean the same thing all game.
+// ply, so a raw score flips sign every move. In Teams everything is normalised to the RED/YELLOW team
+// once, at the source, so an eval, a verdict and an accuracy all mean the same thing all game. FFA
+// scores stay in the mover's own terms (see the FFA block below).
 (function (root) {
 'use strict';
 
@@ -22,8 +23,10 @@ const TEAM_OF = {R: 0, Y: 0, B: 1, G: 1};
 const TEAM_NAME = ['Red & Yellow', 'Blue & Green'];
 
 // --- the native host, from an options page -----------------------------------------------------
-// Same port the panel uses; the worker relays it to com.tetrarch.host. One port for the page's
-// lifetime, ids matched per request, and a disconnect rejects everything in flight rather than
+// Same port name as the panel ('tetrarch-native'); the worker relays it to com.tetrarch.host under
+// its own `#options<n>` key, so this host process is separate from the panel's. One port per review
+// run (run4pcReview disconnects when it ends), ids matched per request, and a disconnect rejects
+// everything in flight rather than
 // leaving a run hanging on a promise that can never settle.
 let port = null, seq = 0;
 const pending = new Map();
