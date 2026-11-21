@@ -1416,7 +1416,10 @@ async function compareNets() {
             // MAIA-1 HAS ONLY ITS BANDS. The rating comes from a dial that reaches 2600, and a band
             // with no net behind it came back as a raw "maia-2600.onnx is not in this build" in the
             // Maia-1 column (3.1.321 audit F15). That column plays the nearest band it has and says so.
-            const netBand = net.id === 'maia' ? nearestMaia1Band(band) : band;
+            // Maia-2 buckets: 600 or 2600 would answer as "<1100" or ">=2000" while the header read as
+            // a precise rating, so it gets the rating it can tell apart, and says so (audit 3.1.333 ANALYSIS-6)
+            const netBand = net.id === 'maia' ? nearestMaia1Band(band)
+                : net.id === 'maia2' ? ratingFor('maia2', band) : band;
             // Maia-2 hands its first plies to Maia-3 (offscreen/maia2.js), so there the two columns
             // are one net's answer twice; the header says so rather than implying an agreement.
             const label = netBand !== band ? `${net.label} (${netBand})`

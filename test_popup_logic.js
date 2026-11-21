@@ -3814,7 +3814,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...the Maia-2 column says when it is Maia-3\'s opening answer, on the same ply limit as offscreen/maia2.js',
        asrc.match(/const MAIA2_FIRST_PLY = (\d+);/)[1] === fs.readFileSync(ROOT + '/src/offscreen/maia2.js', 'utf8').match(/export const MAIA2_FIRST_PLY = (\d+);/)[1]
        && /net\.id === 'maia2' && fenPly\(pos\.fen\) < MAIA2_FIRST_PLY\) \? `\$\{net\.label\} \(Maia-3 in the opening\)`/.test(asrc));
-    ok('...and the column is labelled with the band it actually played', /const netBand = net\.id === 'maia' \? nearestMaia1Band\(band\) : band;/.test(asrc) && /maiaLevel: netBand,\s*elos: \[netBand, netBand\]/.test(asrc)); }
+    ok('...and the column is labelled with the band it actually played (Maia-2 at the rating it can tell apart, ANALYSIS-6)', /const netBand = net\.id === 'maia' \? nearestMaia1Band\(band\)\s*: net\.id === 'maia2' \? ratingFor\('maia2', band\) : band;/.test(asrc) && /maiaLevel: netBand,\s*elos: \[netBand, netBand\]/.test(asrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     // a finished position is never sent to a cloud engine (F5: chess-api.com errors on it)
     const a = psrc.indexOf('    if (uses_cloud()) {', psrc.indexOf('async function request_remote_analysis(')), seg = psrc.slice(a, psrc.indexOf('cloudAnalyse', a));
