@@ -570,7 +570,9 @@ async function strengthPass(positions, moves, prog, rig) {
             // Hand the engine back exactly as the human pass runs it: a batch review reuses this rig
             // for the next game, and its human pass assumes five lines at the configured rating.
             shared.send('setoption name MultiPV value 5');
-            const back = ratingFor(cfg('rv_human'), cfg('rv_maia3_elo'));
+            // the rating the RUN started with, not the dial now: a batch's next game must not change
+            // level halfway through because the dial moved (audit 3.1.333 REVIEW-13)
+            const back = rig?.opts?.humanLevel ?? ratingFor(cfg('rv_human'), cfg('rv_maia3_elo'));
             shared.send(`setoption name SelfElo value ${back}`);
             shared.send(`setoption name OppoElo value ${back}`);
         } else { shared?.dispose?.(); }
@@ -2125,7 +2127,7 @@ function renderDetail(pos, played) {
         if (played.cpLoss > 0) bits.push(`gave up ${Math.round(played.cpLoss)}cp`);
         if (played.rank) bits.push(`engine's #${played.rank}`);
         else if (played.best) bits.push(`engine played ${esc(uciToSan(report.positions[played.ply].fen, played.best))}`);
-        if (played.seconds != null) bits.push(`${played.seconds.toFixed(1)}s on the clock`);
+        if (played.seconds != null) bits.push(`${played.seconds.toFixed(1)}s spent`);
         if (played.maiaMove) {
             bits.push(played.maiaMatch
                 ? 'the human model expected this'
@@ -2652,7 +2654,7 @@ function parsePgnBox() {
     if (!text.trim()) note('');
     else if (!games.length) note('No games found in that text. A PGN needs at least one move.', true);
     else note(`${games.length} game${games.length > 1 ? 's' : ''} read`
-        + (games.length === 1 ? ` - ${games[0].moves.length} moves` : '') + '.'
+        + (games.length === 1 ? ` - ${Math.ceil(games[0].moves.length / 2)} moves` : '') + '.'
         + detectVariantFrom(selectedGame()));
 }
 

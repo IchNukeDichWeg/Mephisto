@@ -18342,6 +18342,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const dark = rsrc.slice(rsrc.indexOf('const EXPORT_RESET'), rsrc.indexOf('`;', rsrc.indexOf('const EXPORT_RESET')));
     const darkMissing = kinds.map(([k]) => k).filter(k => !dark.includes('.rv-c-' + k + ' {'));
     ok('REVIEW-10 (3.1.333): ...and the exported dark block covers them all', !darkMissing.length, darkMissing); }
+// ---- audit 3.1.333 REVIEW-11/12/13: move count, think-time label, the rating a borrowed Maia gets back ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    ok('REVIEW-11 (3.1.333): the "1 game read" note counts full moves, not plies', rsrc.includes('Math.ceil(games[0].moves.length / 2)} moves'));
+    ok('REVIEW-12 (3.1.333): seconds spent on a move are not called "on the clock"', !rsrc.includes('s on the clock`') && rsrc.includes('s spent`'));
+    ok('REVIEW-13 (3.1.333): strengthPass hands Maia back at the run\'s own rating', /const back = rig\?\.opts\?\.humanLevel \?\? ratingFor/.test(rsrc)); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
