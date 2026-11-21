@@ -625,6 +625,12 @@ class GeneralSettings extends SettingsPage {
         $('tb_check')?.addEventListener('click', () => {
             say('Checking…');
             chrome.runtime.sendMessage({tbInfo: true}, (res) => {
+                // each worker state gets its own remedy: Re-allow, a folder with .rtbw files, or the
+                // native host's own install/update line -- only an unknown failure means choosing
+                // the folder again (audit 3.1.333 GENERALJS-4)
+                if (res?.error && /re-allowing/.test(res.error)) { say(MephistoI18n.errText('MPH-T02'), true); return; }
+                if (res?.error && /holds no Syzygy/.test(res.error)) { say(MephistoI18n.errText('MPH-T01'), true); return; }
+                if (res?.error && /native (engine )?host/.test(res.error)) { say(res.error, true); return; }
                 if (!res || res.error) { say(MephistoI18n.errText('MPH-T07', {detail: res?.error || 'no answer'}), true); return; }
                 if (!res.tables) { say(MephistoI18n.errText('MPH-T01'), true); return; }
                 const men = Object.keys(res.men).sort().map(n => `${n}-man: ${res.men[n]}`).join(', ');
