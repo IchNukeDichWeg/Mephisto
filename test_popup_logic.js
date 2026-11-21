@@ -18435,6 +18435,18 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const seg = pj.slice(i, i + 800);
     ok('POPUP3-4 (3.1.333): tooBig bars drop class >= 3 while winning', /const tooBig = \(l\) => winning && hz_drop_class\(Math\.max\(0, wpBest - win_percent\(line_cp_ours\(l\)\)\)\) >= 3;/.test(seg));
     ok('POPUP3-4 (3.1.333): the match pool filters on tooBig', /alts\.filter\(l => loss\(l\) <= cap && safe\(l\) && !tooBig\(l\)/.test(seg)); }
+// ---- audit 3.1.333 POPUP3-7: the Player book row names why no player could be used ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const c = {console}; c.self = c; vm.createContext(c);
+    vm.runInContext('var TABLEBASE_MAX_MEN = 7;\n'
+        + pj.slice(pj.indexOf('// THE WAYS THE PANEL CAN BE WORKING AND STILL DOING NOTHING'), pj.indexOf('function live_stats(')), c);
+    const d = (pb) => c.feature_rows({lines: 1, needsLines: [], playerBook: pb, tablebase: null}).find(r => r.label === 'Player book').detail;
+    ok('POPUP3-7 (3.1.333): empty box says no player named', /no player named/.test(d({who: null, raw: '', valid: false})));
+    ok('POPUP3-7 (3.1.333): a bad name says it is not valid', /"a b" is not a valid username/.test(d({who: null, raw: 'a b', valid: false})));
+    ok('POPUP3-7 (3.1.333): a bare name off lichess/chess.com asks for the site', /cannot tell which site/.test(d({who: null, raw: 'magnus', valid: true})));
+    const re = new Function(pj.match(/const PLAYER_BOOK_USER_RE = (\/.*\/i);/)[0] + ' return PLAYER_BOOK_USER_RE;')();
+    ok('POPUP3-7 (3.1.333): the shared regex keeps lichess:name and refuses a space', re.test('lichess:abc') && !re.test('a b')); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

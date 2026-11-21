@@ -9449,7 +9449,9 @@ function health_state() {
         lines: effective_multipv(),
         needsLines: MULTIPV_FLOOR_MODES.filter(k => config?.[k]),
         playerBook: config?.player_book
-            ? {who: parse_player_book_user(), loaded: !!player_book, games: player_book_games} : null,
+            ? {who: parse_player_book_user(), loaded: !!player_book, games: player_book_games,
+               raw: String(config.player_book_user || '').trim(),
+               valid: PLAYER_BOOK_USER_RE.test(String(config.player_book_user || '').trim())} : null,
         tablebase: tablebase_enabled()
             ? {men, max: tablebase_max_men(), inRange: men != null && men <= tablebase_max_men(),
                answered: !!(tablebase_data && fen && tablebase_data.fen === fen)} : null,
@@ -9471,7 +9473,10 @@ function feature_rows(st) {
     const pb = st.playerBook;
     row('Player book', pb ? !!pb.loaded : null,
         !pb ? 'switched off'
-            : !pb.who ? 'no player named -- put a username in Settings'
+            // three reasons for no player, each with its own remedy (audit 3.1.333 POPUP3-7)
+            : !pb.who ? (!pb.raw ? 'no player named -- put a username in Settings'
+                         : !pb.valid ? `"${pb.raw}" is not a valid username`
+                         : 'cannot tell which site -- write lichess:name or chesscom:name')
             : pb.loaded ? `${pb.games} of ${pb.who.name}'s games`
             : 'the archive has not answered yet');
     const tb = st.tablebase;
@@ -12718,9 +12723,9 @@ let player_book_failed = null;    // {who: key, at}: the last lookup that failed
 // "name", "lichess:name", "chesscom:name" -> {site, name}. A bare name means the site you are on,
 // which is the common case and the one nobody should have to spell out. null when there is nothing
 // usable in the box, which is also what an empty box gives.
+const PLAYER_BOOK_USER_RE = /^(?:(lichess|chesscom|li|cc)\s*[:/]\s*)?([\w.-]{2,30})$/i;
 function parse_player_book_user() {
-    const m = /^(?:(lichess|chesscom|li|cc)\s*[:/]\s*)?([\w.-]{2,30})$/i
-        .exec(String(config.player_book_user || '').trim());
+    const m = PLAYER_BOOK_USER_RE.exec(String(config.player_book_user || '').trim());
     if (!m) return null;
     const tag = (m[1] || '').toLowerCase();
     const site = tag ? (tag[0] === 'l' ? 'lichess' : 'chesscom')
