@@ -198,8 +198,8 @@ const MephistoUpdater = (function () {
 
     // --- zip ------------------------------------------------------------------------------------
     // `git archive --format=zip -9` writes exactly two storage methods -- 0 (stored, for whatever
-    // did not compress) and 8 (deflate) -- and no zip64 records, because the update archive is six
-    // megabytes with a few hundred entries. Anything else is refused rather than guessed at.
+    // did not compress) and 8 (deflate) -- and no zip64 records, because the update archive is about
+    // seven megabytes with a few hundred entries. Anything else is refused rather than guessed at.
     function readZip(buf) {
         const dv = new DataView(buf);
         // The end-of-central-directory record is found by scanning BACK for its signature: it ends
