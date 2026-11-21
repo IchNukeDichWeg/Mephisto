@@ -4633,7 +4633,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     const i = psrc.indexOf('function search_same_position()'), j = psrc.indexOf('// The restart budget is for a build that traps REPEATEDLY');
     const c = vm.createContext({timers: [], setTimeout: (f) => { c.timers.push(f); }, answers: [], idle: [], Math});
-    vm.runInContext(`var last_eval = {fen: 'P'}, fen_request_inflight = true, setup_fen = null, PANEL_BOOTED = true, asked = 0;
+    vm.runInContext(`var last_eval = {fen: 'P'}, fen_request_inflight = true, setup_fen = null, PANEL_BOOTED = true, asked = 0, config = {engine: 'stockfish-native'};
         function on_new_pos() {} function request_fen() { asked++; last_eval.fen = 'P'; }
         function on_engine_response(r) { answers.push(r); } function set_idle_reason(t) { idle.push(t); }` + psrc.slice(i, j), c);
     vm.runInContext(`on_remote_result({bestmove: 'e2e4'})`, c);

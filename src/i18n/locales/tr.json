@@ -480,6 +480,7 @@
   "panel.msg.resign_failed": "Otomatik terk burada terk düğmesini bulamadı, bu yüzden oyun devam ediyor.",
   "panel.msg.net_failed": "Ağ bu konuma yanıt veremedi. Neden tanılama bölümünde.",
   "panel.msg.native_busy": "Başka bir sekme veya sayfa bu yerel motoru kullanıyor. Onu kapatın veya burada başka bir motor seçin.",
+  "panel.msg.remote_busy": "Başka bir sekme veya istemci bu uzak motor sunucusunu kullanıyor. Onu kapatın veya burada başka bir motor seçin.",
   "panel.msg.downloading_net": "{file} indiriliyor: %{pct} / {mb} MB (yalnızca ilk kullanımda)",
   "panel.msg.remote_unreachable": "Uzak motor: localhost:9090 üzerinde yanıt veren yok. remote-engine.py'yi başlat ya da başka bir motor seç.",
   "panel.fen.auto_flipped": "Ekrandan okundu - siyah alttaydı, tahta çevrildi. Tahtayı çevir bunu geri alır.",

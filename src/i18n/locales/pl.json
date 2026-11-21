@@ -480,6 +480,7 @@
   "panel.msg.resign_failed": "Automatyczne poddanie nie znalazło tu przycisku poddania, więc gra toczy się dalej.",
   "panel.msg.net_failed": "Sieć nie mogła odpowiedzieć na tę pozycję. Przyczyna jest w diagnostyce.",
   "panel.msg.native_busy": "Inna karta lub strona używa tego natywnego silnika. Zamknij ją lub wybierz tu inny silnik.",
+  "panel.msg.remote_busy": "Inna karta lub klient używa tego serwera zdalnego silnika. Zamknij go albo wybierz tutaj inny silnik.",
   "panel.msg.downloading_net": "Pobieranie {file}: {pct}% z {mb} MB (tylko przy pierwszym użyciu)",
   "panel.msg.remote_unreachable": "Silnik zdalny: nic nie odpowiada na localhost:9090. Uruchom remote-engine.py lub wybierz inny silnik.",
   "panel.fen.auto_flipped": "Odczytano z ekranu - czarne były na dole, więc szachownica została obrócona. Obróć szachownicę cofa to.",

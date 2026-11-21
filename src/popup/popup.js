@@ -2178,7 +2178,10 @@ function on_remote_result(res) {
     if (!res?.superseded) { superseded_tries = 0; return on_engine_response(res); }
     if (++superseded_tries > SUPERSEDED_TRIES) {
         superseded_tries = 0;
-        set_idle_reason(i18n('panel.msg.native_busy', 'Another tab or page is using this native engine. Close it, or pick another engine here.'));
+        // the HTTP Remote Engine comes through here too; it is a server, not a native engine (audit 3.1.333 POPUP1-7)
+        set_idle_reason(config.engine === 'remote'
+            ? i18n('panel.msg.remote_busy', 'Another tab or client is using this Remote Engine server. Close it, or pick another engine here.')
+            : i18n('panel.msg.native_busy', 'Another tab or page is using this native engine. Close it, or pick another engine here.'));
         return;
     }
     const fen = last_eval.fen;

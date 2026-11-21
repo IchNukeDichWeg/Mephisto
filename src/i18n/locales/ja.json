@@ -480,6 +480,7 @@
   "panel.msg.resign_failed": "自動投了はここで投了ボタンを見つけられなかったため、対局を続けます。",
   "panel.msg.net_failed": "ネットはこの局面に答えられませんでした。原因は診断情報にあります。",
   "panel.msg.native_busy": "別のタブまたはページがこのネイティブエンジンを使用しています。閉じるか、ここで別のエンジンを選んでください。",
+  "panel.msg.remote_busy": "別のタブまたはクライアントがこのリモートエンジンサーバーを使用中です。それを閉じるか、ここで別のエンジンを選んでください。",
   "panel.msg.downloading_net": "{file} をダウンロード中: {mb} MB 中 {pct}%（初回のみ）",
   "panel.msg.remote_unreachable": "リモートエンジン: localhost:9090 で応答するものがありません。remote-engine.py を起動するか、別のエンジンを選んでください。",
   "panel.fen.auto_flipped": "画面から読み取りました - 黒が下だったため盤を反転しました。盤を反転で元に戻せます。",
