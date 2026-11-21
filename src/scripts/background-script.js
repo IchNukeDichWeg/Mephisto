@@ -579,7 +579,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         if (!out.value && out.retry) {
           await new Promise(r => setTimeout(r, out.rateLimited ? CLOUD_429_PAUSE_MS : CLOUD_RETRY_PAUSE_MS));
           const second = await attempt();
-          out = second.value ? second : {error: `${out.error} (retried once)`};
+          out = second.value ? second : {error: `${second.error} (retried once)`};  // the cause it ended on (audit 3.1.333 BACKGROUND-5)
         }
         const answer = out.value || {error: out.error};
         if (out.value) {
