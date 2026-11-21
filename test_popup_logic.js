@@ -18414,6 +18414,20 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            back[0] === 1 && back[1] === 0 && back[2] === 0, back);
     } catch (e) { fails++; console.log('FAIL MAIA-1 (3.1.333): threw ' + e.message); }
 })();
+// ---- audit 3.1.333 OPTIONSPAGES-10: polyglotKey against the format's own published keys ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console}; c.self = c; vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/polyglot-random.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/util/polyglot.js', 'utf8'), c);
+    // the polyglot book format's own test vectors: start, e4, e4 d5, e4 d5 e5 f5, ... Ke2 Kf7
+    const V = [['rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 0x463b96181691fc9cn],
+               ['rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1', 0x823c9b50fd114196n],
+               ['rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2', 0x0756b94461c50fb0n],
+               ['rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3', 0x22a48b5a8e47ff78n],
+               ['rnbq1bnr/ppp1pkpp/8/3pPp2/8/8/PPPPKPPP/RNBQ1BNR w - - 0 4', 0x00fdd303c946bdd9n]];
+    const got = V.map(([f]) => c.MephistoPolyglot.polyglotKey(f).toString(16));
+    ok('OPTIONSPAGES-10 (3.1.333): polyglotKey matches the format\'s published keys (start, e4, e4 d5, ...e5 f5, ...Ke2 Kf7)',
+       V.every(([, k], i) => c.MephistoPolyglot.polyglotKey(V[i][0]) === k), got); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

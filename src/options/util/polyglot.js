@@ -24,7 +24,7 @@ const RANDOM_TURN = 780;       // 1, added when WHITE is to move
 // Polyglot's piece order is black-first within each type: bp, wp, bn, wn, bb, wb, br, wr, bq, wq, bk, wk
 const KIND = {p: 0, n: 2, b: 4, r: 6, q: 8, k: 10};
 
-// `board` is chess.js-like: .get('e4') -> {type, color}, plus the fen fields we read directly.
+// `fen` is a FEN string: placement, turn, castling and en passant are read from it directly.
 function polyglotKey(fen) {
     const [placement, turn, castling, ep] = String(fen).trim().split(/\s+/);
     let key = 0n;
