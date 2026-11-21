@@ -322,7 +322,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('humanize_guards', 'Humanize Guards:', 'checkbox', true);
         // opt-in: scales the error shares by time control, clock left and phase (HUMANIZE TIME CONTROL)
         this.registerFormElement('humanize_tc_scale', 'Scale Errors to the Clock:', 'checkbox', false);
-        // opt-in, Stage B: Maia-3 at the Play-like rating picks the deviation (B1) and where (B2)
+        // ON by default since 3.1.325 (HZ_MAIA_DEFAULT), Stage B: Maia-3 at the Play-like rating picks the deviation (B1) and where (B2)
         this.registerFormElement('humanize_maia', 'Human-Like Mistakes:', 'checkbox', true);
         this.registerFormElement('humanize_maia_where', 'Mistakes Where People Make Them:', 'checkbox', false);
         // ON by default since 3.1.323 (HZ_MATCH_DEFAULT): each move's quality from the Play-like
@@ -461,16 +461,10 @@ class GeneralSettings extends SettingsPage {
         })
     }
 
-    // Humanize move mix: five independent slider+number pairs. No auto-rescaling -- the user
-    // balances them by hand, and the Total row shows the sum plus what's off: "90 (-10)" means
-    // add 10 somewhere, "110 (+10)" means remove 10. (The popup normalizes by the sum when
-    // picking, so an off-100 mix still behaves proportionally in the meantime.) NOT FormElements:
-    // one logical setting spans two inputs per row. Values persist per-key in localStorage; the
-    // popup reads them fresh on every pick, so edits apply to the very next move.
     // Panel Style: 'floating' (in-page overlay) or 'popup' (toolbar bubble = no page footprint).
-    // Unlike every other setting this one lives in chrome.storage.local, NOT localStorage: the
-    // background service worker flips the toolbar popup on/off (chrome.action.setPopup) and can't
-    // read the popup page's localStorage. Writing it fires chrome.storage.onChanged in the worker.
+    // Unlike a JSON setting, this is a raw key the background worker reads, so it lives in
+    // chrome.storage.local: the background service worker flips the toolbar popup on/off
+    // (chrome.action.setPopup) and can't read the popup page's localStorage. Writing it fires chrome.storage.onChanged in the worker.
     // Hotkeys: one rebindable key per action, stored together in config.hotkeys (a single JSON key,
     // so settings export/import carries them). Defaults and labels both live in config-store.js
     // (HOTKEY_DEFAULTS / HOTKEY_LABELS). Clicking a key captures the next keydown (Esc cancels,
@@ -669,8 +663,8 @@ class GeneralSettings extends SettingsPage {
             return out;
         };
         // The host is somebody else's; four at a time is polite and fast. But each worker holds its
-        // whole file in memory as an ArrayBuffer, and a six-man table is up to ~9 GB where a 3-4-5 one
-        // is single-digit MB -- four of those at once is a tab that dies with no message. Two while a
+        // whole file in memory as an ArrayBuffer, and a six-man file is up to ~2 GB where a 3-4-5 one
+        // is at most ~30 MB -- four of those at once is a tab that dies with no message. Two while a
         // `6-*` directory is in the run. (Streaming the body straight into the writable would remove
         // the buffer entirely; it also removes the fallback path's second write, so it is a bigger
         // change than this one and is not made here.)
@@ -1123,6 +1117,12 @@ class GeneralSettings extends SettingsPage {
         show();
     }
 
+    // Humanize move mix: seven number fields, stored via MephistoConfig. No auto-rescaling -- the user
+    // balances them by hand, and the Total row shows the sum plus what's off: "90 (-10)" means
+    // add 10 somewhere, "110 (+10)" means remove 10. (The popup normalizes by the sum when
+    // picking, so an off-100 mix still behaves proportionally in the meantime.) NOT FormElements:
+    // the Total row is computed from the rows. The popup reads them fresh on every pick, so edits
+    // apply to the very next move.
     initHumanizeMix() {
         const MIX = [
             ['humanize_top', 50], ['humanize_second', 40], ['humanize_third', 4],
