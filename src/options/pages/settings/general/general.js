@@ -114,7 +114,7 @@ class GeneralSettings extends SettingsPage {
         const analysis_limit_label = (mode, pos) => {
             const v = analysis_limit_value(mode, pos);
             if (v == null) return MephistoI18n.t('set.no_limit', 'No Limit');
-            if (mode === 'depth') return MephistoI18n.t('set.limit_depth_at', 'depth {n}', {n: v});
+            if (mode === 'depth') return MephistoI18n.t('set.limit_depth_at', 'Depth {n}', {n: v});
             if (mode === 'time') return `${v / 1000}s`;
             return v >= 1e9 ? `${(v / 1e9).toFixed(1)}B nodes`
                  : v >= 1e6 ? `${(v / 1e6).toFixed(v < 1e7 ? 1 : 0)}M nodes` : `${v} nodes`;
@@ -1028,7 +1028,7 @@ class GeneralSettings extends SettingsPage {
             // used to be allowed; only macro clashes were refused.)
             const owner = MephistoConfig.hotkeyOwner(k, mi);
             if (owner && owner !== capturing) {
-                say(t('set.macro_key_clash', '{key} is already used by "{owner}" - pick another key, or Esc to cancel.',
+                say(t('set.macro_key_clash', '{key} is already used by “{owner}” - pick another key, or Esc to cancel.',
                     {key: pretty(k), owner: ownerName(owner)}));
                 return;
             }
