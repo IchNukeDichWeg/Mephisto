@@ -13,7 +13,8 @@
 // move numbers, `{...}` comments (chess.com puts the clock in one as `[%clk 0:02:31.4]`), NAGs, and
 // recursive variations in parentheses. Variations are SKIPPED rather than parsed -- a review is of
 // the game that was played. `lib/chess.js` here has no PGN loader (it was stripped for the panel),
-// so this is the only reader in the extension.
+// so the review reads its own PGN. Other PGN readers exist for other features: popup.js pgn_san_tokens
+// (full tokenizer, '%' escape lines) and background-script.js splitPgnGames (archive PGNs for Opponent Prep).
 
 // One `[Tag "value"]` per line, quotes escaped with a backslash.
 function parseTags(block) {
@@ -24,7 +25,7 @@ function parseTags(block) {
     return tags;
 }
 
-// "0:02:31.4" / "2:31" / "31.4" -> seconds. chess.com writes h:mm:ss(.d), lichess m:ss.
+// "0:02:31.4" / "2:31" / "31.4" -> seconds. chess.com writes h:mm:ss.d, lichess h:mm:ss (no fraction).
 function clockToSeconds(text) {
     if (!text) return null;
     const parts = String(text).trim().split(':').map(Number);
