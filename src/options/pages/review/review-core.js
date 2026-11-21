@@ -621,7 +621,7 @@ function estimate(evidenceLines, ind) {
     // Too little to say anything at all. A ten-move game has no opinion worth having.
     if (!ind || ind.moves < MIN_MOVES) {
         return {level: 'normal', confidence: 'none', score: 0,
-                text: `Only ${ind ? ind.moves : 0} moves. That is too few for any of this to mean anything.`};
+                text: `Only ${ind ? ind.moves : 0} move${ind && ind.moves === 1 ? '' : 's'}. That is too few for any of this to mean anything.`};
     }
     let got = 0, max = 0;
     for (const e of evidenceLines) {

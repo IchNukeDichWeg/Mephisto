@@ -18265,6 +18265,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const keys = (n) => K.evidence(ind(n), {}).map(e => e.key);
     ok('REVIEWCORE-5 (3.1.333): an 8-move side gets no top1, uniform or time line', !keys(8).some(k => ['top1', 'uniform', 'time'].includes(k)), keys(8));
     ok('REVIEWCORE-5 (3.1.333): ...a 12-move side gets all three', ['top1', 'uniform', 'time'].every(k => keys(12).includes(k)), keys(12)); }
+// ---- audit 3.1.333 REVIEWCORE-6: "Only 1 move." ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const K = c.MephistoReviewCore;
+    const t = K.estimate([], {moves: 1}).text;
+    ok('REVIEWCORE-6 (3.1.333): a one-move side reads "Only 1 move.", two read "Only 2 moves."',
+       t.startsWith('Only 1 move. ') && K.estimate([], {moves: 2}).text.startsWith('Only 2 moves. '), t); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
