@@ -27,6 +27,7 @@ importScripts('/src/scripts/book-store.js');
 importScripts('/lib/chess.js');
 importScripts('/src/scripts/syzygy.js');
 importScripts('/src/scripts/tb-store.js');
+// This mark's time also covers chess.js, syzygy.js and tb-store.js, imported above it (not just book-store.js).
 mark('book-store');
 // The language list + the locale loader, shared with the options page and the panel so there is one
 // definition of which codes exist -- which is also what makes the fetch below safe, since `lang`
@@ -181,8 +182,6 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg.getTabId) {
     sendResponse({tabId: sender.tab?.id});
   }
-  // The tab's page zoom, for the Python click backend (content-script toClickXY): a page cannot read
-  // its own zoom reliably, and Chrome's value is exact whatever DevTools is docked beside it.
   // WHICH TABS HAVE THE PANEL OPEN, so a full page load in the same tab (lichess starts every new
   // game and rematch with one) can put it back. Kept in session storage: this worker sleeps, and a
   // Map would forget. Keyed by tab, cleared with the tab and with the browser.
@@ -204,6 +203,8 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     });
     return true;
   }
+  // The tab's page zoom, for the Python click backend (content-script toClickXY): a page cannot read
+  // its own zoom reliably, and Chrome's value is exact whatever DevTools is docked beside it.
   if (msg.getZoom) {
     try { chrome.tabs.getZoom(sender.tab?.id, (z) => sendResponse(chrome.runtime.lastError ? 1 : (z || 1))); }
     catch (e) { sendResponse(1); }
@@ -324,8 +325,8 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     tbInfoForSettings().then(sendResponse).catch(e => sendResponse({error: String(e)}));
     return true; // async sendResponse
   }
-  // THE CLASSIFIER, ON DEMAND. It is 7.6KB that only three opt-in features need (Live Stats, Move
-  // Classification, the opponent alert), so it is not in the per-page bundle -- the panel asks for
+  // THE CLASSIFIER, ON DEMAND. It is about 11KB, wanted only by opt-in features (Live Stats, Move
+  // Classification, the board badges, the opponent alert, Refute, Game Log), so it is not in the per-page bundle -- the panel asks for
   // it the moment one of them is on, and it lands in the SAME isolated world the content scripts
   // share. Injecting twice is harmless (the file re-assigns its one global).
   if (msg.needClassifier) {
@@ -466,8 +467,6 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     sendResponse({ok: true});
     return;
   }
-  // One local IndexedDB read. No network and no cache: it is already a disk lookup, and a puzzle
-  // position is asked about once.
   // Background-play tracing from the page. Printed HERE because this worker has its own console in
   // its own window -- opening DevTools on the game tab would disable the background throttling that
   // is usually the thing under investigation.
@@ -498,6 +497,8 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     buildDiagnostics(msg.diagnostics).then(sendResponse).catch(e => sendResponse({error: String(e)}));
     return true; // async sendResponse
   }
+  // One local IndexedDB read. No network and no cache: it is already a disk lookup, and a puzzle
+  // position is asked about once.
   if (msg.puzzleLookup) {
     PuzzleDB.lookup(msg.puzzleLookup.fen, msg.puzzleLookup.site)
       .then(rec => sendResponse({solution: rec?.s || null, rating: rec?.r ?? null}))
@@ -1089,7 +1090,7 @@ const TABLEBASE_CACHE_MAX = 300;
 // Blob reads instead of whole-file buffers.)
 let tbJs = null;             // {tb, names, maxMen, loaded} -- per worker life
 const TB_JS_LOAD_CAP = 64;   // missing-table retries per probe; each loads exactly one file
-// Each table is read WHOLE into this worker and kept. A 3-4-5 file is single-digit MB, but a 6-man
+// Each table is read WHOLE into this worker and kept. A 3-4-5 file is at most ~30 MB, but a 6-man
 // one runs to hundreds of MB and more: one probe loads the root's pair plus its children's, which
 // fails the allocation (and the lookup goes online anyway) or grows the extension by GBs mid-game
 // (audit 3.1.330 ANALYSISB-2). So 6-7 man positions go to the native host or online. Upgrade path:
@@ -2039,13 +2040,12 @@ const cdpDispatch = (target, params, paced = false, retried = false) => new Prom
 // cursor always travels to the square first (issue #36 / audit M2). The path is eased (accelerate,
 // decelerate), gently bowed, and jittered so it isn't a ruler-straight teleport, and it is spread
 // across travelMs so the motion actually consumes the caller's move-time budget instead of snapping.
-// How many mouseMoved events a path of this length is worth. Shared with cdpClick, which needs to
-// know whether the path is a single snap BEFORE it decides to batch.
+// How many mouseMoved events a path of this length is worth. cdpClick decides whether to batch on
+// travelMs (against CDP_SNAP_MS), not on this count.
 //
 // SIZED BY WHAT A DISPATCH ACTUALLY COSTS HERE, not by 60fps. The old rate assumed 16ms a step; a
 // dispatch measures ~26ms on a real machine, so every path overran the budget it was given -- a
-// 183ms travel drew 13 events and took 372ms. The press and release are part of that bill too, so
-// they come out of the count rather than being added on top of a full-length path.
+// 183ms travel drew 13 events and took 372ms.
 //
 // Self-calibrating: it reads this worker's own running average once there is enough of one to
 // trust, and falls back to the old assumption until then. A slow machine therefore draws a shorter
@@ -2121,7 +2121,7 @@ async function cdpMove(target, fromX, fromY, x, y, travelMs, held = false, expir
   // matters (the press is not the cursor's first appearance at that point); steps two and three
   // bought nothing and cost two more chances to be descheduled. Above ~48ms the rate picks the
   // count as before, so a real path is unchanged.
-  const steps = pathSteps(travelMs); // ~60fps, bounded either way
+  const steps = pathSteps(travelMs); // rate from stepCostMs (8-40 ms a step), bounded either way
   const px = dist ? -(y - fromY) / dist : 0, py = dist ? (x - fromX) / dist : 0; // perpendicular unit
   // The two control points: a quarter and three quarters along the chord, each pushed sideways by
   // its own amount so the arc is asymmetric. Same envelope as the old bow (15% of the distance,
@@ -2223,7 +2223,7 @@ function cdpClick(tabId, x, y, travelMs = 0) {
         //
         // The DevTools protocol keeps command order per session, so a snap click's events can be
         // issued in ONE task and awaited together instead of one at a time. Only when the path is a
-        // single step: a real path has to be PACED, and pacing is what the awaits are for.
+        // snap (travelMs <= CDP_SNAP_MS): a real path has to be PACED, and pacing is what the awaits are for.
         const deadline = Date.now() + Math.max(0, travelMs) + CDP_CLICK_GRACE_MS;
         const expired = () => Date.now() > deadline;
         if (travelMs <= CDP_SNAP_MS) {
