@@ -2463,8 +2463,8 @@ const MATCH_VARIANTS = ['chess', 'fischerandom'];
 // A game still going after 200 moves is adjudicated a draw rather than left to run all night.
 const MATCH_MAX_PLIES = 400;
 const MATCH_HASH = 32;       // MB per side: two engines, and a depth/ms budget that never fills more
-// The offscreen host stops a search whose owner has been silent for 60s (its orphan lease), so a
-// longer per-move budget would be cut short there anyway; the cap says so up front.
+// The cap keeps a match bounded in time: a per-move budget is never longer than this, however
+// the form is set. (The offscreen lease no longer cuts a longer move: engines ping every 15 s.)
 const MATCH_MAX_MS = 60000;
 let match = null;            // {running, stopped, engines, games, names, budget} -- the last match stays for its table
 
