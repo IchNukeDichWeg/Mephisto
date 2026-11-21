@@ -1155,6 +1155,8 @@ body.mephisto-compact #board,
 body.mephisto-compact #eval-bar,
 body.mephisto-compact #wdl,
 body.mephisto-compact #nps,
+/* compact budgets no room for the Explorer rows, so they ran under the buttons (audit 3.1.333 POPUPHTML-5) */
+body.mephisto-compact #book-lines,
 /* the move/threat arrows are SVG overlays positioned where the board is; the board is hidden in
    compact but these are separate layers, so they'd float over the collapsed panel -- hide them too */
 body.mephisto-compact #move-annotations,
