@@ -11710,8 +11710,12 @@ function draw_moves() {
     const tb_pick = tablebase_pick(last_eval.fen);
     const tb_arrow = (tb_pick && tb_show_tb()) ? tb_pick : null;
     if (tb_arrow) {
-        const tb_label = tablebase_data?.dtm != null
-            ? '#' + Math.ceil(Math.abs(tablebase_data.dtm) / 2) : 'TB';
+        // dtm is the side to move's (negative: it gets mated). Signed into White's view and then the
+        // Arrow Evals From view like every engine arrow: Math.abs read a lost ending as a mate for
+        // the mover, "#8" (audit 3.1.333 POPUP4-6).
+        const tb_mate = tablebase_data?.dtm
+            ? Math.sign(tablebase_data.dtm) * Math.ceil(Math.abs(tablebase_data.dtm) / 2) * (turn === 'b' ? -1 : 1) : 0;
+        const tb_label = tb_mate ? `#${arrow_pov_sign(turn) * tb_mate}` : 'TB';
         const tb_col = user_color('arrow_color_tb', TB_COLOR);
         draw_move(tb_arrow, tb_col, PANEL_ROOT.getElementById('move-annotations'), 0.25, 0, tb_label);
         if (page_arrows) hint_arrows.push({move: tb_arrow, width: 0.25, color: tb_col, rank: 0, label: tb_label});
