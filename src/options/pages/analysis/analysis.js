@@ -1262,6 +1262,9 @@ async function analyseNow(gen) {
         try {
             const e2 = await ensureEngine2();
             if (e2 && cursor === at && positions[at]?.fen === pos.fen) {
+                // the header still showed the previous position's depth (audit 3.1.333 ANALYSIS-2)
+                const m2 = $('an_engine2_meta');
+                if (m2) m2.textContent = 'thinking…';
                 liveSearch2 = e2.startInfinite(engineFen(pos), pos.turn, (res) => {
                     if (cursor !== at || positions[at]?.fen !== pos.fen) return;
                     evalCache2.set(pos.fen, res);
@@ -1277,7 +1280,15 @@ async function analyseNow(gen) {
                     status(`Second engine unavailable (${err.message || err})`, 'err');
                 }});
             }
-        } catch (err) { status(`Second engine unavailable (${err.message || err})`, 'err'); }
+        } catch (err) {
+            // a second engine that never started stops claiming a search, as the first one does
+            // (3.1.321 F1; audit 3.1.333 ANALYSIS-2)
+            const m2 = $('an_engine2_meta');
+            if (m2) m2.textContent = 'not running';
+            const l2 = $('an_engine2_lines');
+            if (l2) l2.innerHTML = '<div class="an-lrow"><span></span><span class="an-lval">not running</span><span></span></div>';
+            status(`Second engine unavailable (${err.message || err})`, 'err');
+        }
     }
     // THE BUDGET IS A CHOICE (user call 2026-08-15). The last notch means the search runs until the
     // position changes, the way an analysis board always did; every other notch stops it after that
