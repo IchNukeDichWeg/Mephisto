@@ -1311,9 +1311,10 @@
                                             With this on, a move that ENDS THE GAME as a draw on the spot - a
                                             threefold, a fifty-move, a stalemate, insufficient material - is
                                             passed over for the best move that does not, as long as that move
-                                            costs no more than the Contempt setting below. When the top move
-                                            is not one of those, nothing changes: this never touches an
-                                            ordinary position. It raises Multi Lines to 2 by itself, and it
+                                            costs no more than the Contempt setting below. A move the engine
+                                            scores level (within 15cp) whose own line reaches such a draw
+                                            within 8 plies counts too. When the top move is not one of those,
+                                            nothing changes. It raises Multi Lines to 2 by itself, and it
                                             never walks into a mate to dodge a draw."><span data-i18n="set.contempt">Play For The Win</span> <i class="material-icons info-tooltip">info</i></span>
                     </div>
                     <div class="set-ctl">

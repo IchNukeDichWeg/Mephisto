@@ -8047,14 +8047,14 @@ function playstyle_pick(best) {
 // The engine is perfectly happy with a draw. When you are not -- the last round of a tournament, a
 // match you are behind in -- the repetition it offers at 0.00 is half a point gone, and no setting
 // could say so. This one can: it spends up to `contempt_cp` centipawns to avoid a move that ENDS
-// THE GAME as a draw on the spot, and nothing else. When the top move is not one of those it returns
+// THE GAME as a draw, on the spot or down its own level line. When the top move is not one of those it returns
 // the engine's move untouched, so in an ordinary game the dial changes nothing at all.
 //
 // "Ends the game" is a fact here, not an estimate: the candidate is replayed on a board carrying the
 // game's own history, so a threefold, a fifty-move, a stalemate and insufficient material are all
 // chess.js's own verdict rather than a guess from the score. A repetition the engine merely SEES
-// three plies deep is not caught -- that would need the PV, and a PV is a prediction about the
-// opponent. Ceiling stated; the upgrade path is to walk the PV when one is trusted that far.
+// further down is caught too, but only down a line it scores level and only CONTEMPT_PV_PLIES deep
+// (drawing_moves below): past that the PV is a prediction about the opponent.
 const CONTEMPT_MAX_CP = 200;   // more than two pawns is not contempt any more, it is a worse move
 
 function contempt_cp() {
