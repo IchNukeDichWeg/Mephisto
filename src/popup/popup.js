@@ -9678,7 +9678,10 @@ function opp_alert_maybe_fire() {
     // blunder from the alert's own latest-depth numbers (audit 3.1.332 POPUP3-2).
     const label = graded ? (ALERT_CLASSES.includes(graded) ? graded : null) : win_drop_label(drop);
     opp_alert_armed = null; // fire at most once per opponent move
-    if (label) send_to_active_tab({oppAlert: true, label, drop: Math.round(drop), san, uci});
+    // The drop is shown only when it is what the label came from: a classifier verdict is read at
+    // its own reference depth, and this drop at another, so a Mistake arrived with "(−0%)" or
+    // "(−-3%)" (audit 3.1.333 CONTENT1-4).
+    if (label) send_to_active_tab({oppAlert: true, label, drop: graded ? null : Math.round(drop), san, uci});
 }
 
 // ---- Manual Mode: play the engine's current best move on YOUR keypress (the play-move hotkey).
