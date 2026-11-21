@@ -1589,7 +1589,8 @@ function init_quick_settings() {
     if (eloRow) eloRow.style.display = (isMaia || isMaiaEntry || NO_ELO_ENGINES.includes(config.engine)) ? 'none' : '';
     const variantRow = PANEL_ROOT.getElementById('qs_variant_row');
     if (variantRow) {
-        if (isMaia || NO_CHESS960_ENGINES.includes(config.engine)) {
+        // Tetrarch too: its 4-player Mode row sits in this row's place (audit 3.1.333 POPUP1-5)
+        if (isMaia || NO_CHESS960_ENGINES.includes(config.engine) || FOURPC_ENGINES.includes(config.engine)) {
             variantRow.style.display = 'none';
         } else {
             const fairy = FAIRY_ENGINES.includes(config.engine);
