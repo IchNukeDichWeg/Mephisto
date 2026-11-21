@@ -629,15 +629,16 @@
                 <div class="set-row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.complexity_clock" class="tooltipped" data-position="right"
-                              data-tooltip="Think by how hard the position is. A fixed think time spends the same
-                                            seconds on a position with one move as on one with five; a person bangs
-                                            out the obvious move and sits on the hard one. This reads how far apart
-                                            the engine's own top two lines are - free, because the search already
-                                            produced it - and stretches the think up to 1.6x when they are within
-                                            15cp of each other, or cuts it to 0.6x when one move is ahead by more
-                                            than 250cp. It scales whatever else is deciding the think, Humanize
-                                            included, and the clock caps still sit above it. NEEDS MULTI LINES 2 OR
-                                            MORE, and it never stretches a reflex."><span data-i18n="set.complexity_clock">Complexity Clock</span> <i class="material-icons info-tooltip">info</i></span>
+                              data-tooltip="Think by how hard the position is. A fixed think time spends the
+                                            same seconds on a position with one move as on one with five; a
+                                            person bangs out the obvious move and sits on the hard one. This
+                                            reads how far apart the engine's own top two lines are - free,
+                                            because the search already produced it - and stretches the think
+                                            up to 1.6x when they are within 15cp of each other, or cuts it to
+                                            0.6x when one move is ahead by more than 250cp. It scales whatever
+                                            else is deciding the think, Humanize included, and the clock caps
+                                            still sit above it. It raises Multi Lines to 2 by itself, and it
+                                            never stretches a reflex."><span data-i18n="set.complexity_clock">Complexity Clock</span> <i class="material-icons info-tooltip">info</i></span>
                     </div>
                     <div class="set-ctl">
                         <input id="complexity_clock_checkbox" type="checkbox" class="set-cb">
@@ -1305,14 +1306,15 @@
                 <div class="set-row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.contempt" class="tooltipped" data-position="right"
-                              data-tooltip="For a game you have to WIN. The engine is perfectly happy with a draw,
-                                            and the repetition it offers at 0.00 is half a point gone. With this on,
-                                            a move that ENDS THE GAME as a draw on the spot - a threefold, a
-                                            fifty-move, a stalemate, insufficient material - is passed over for the
-                                            best move that does not, as long as that move costs no more than the
-                                            Contempt setting below. When the top move is not one of those, nothing
-                                            changes: this never touches an ordinary position. NEEDS MULTI LINES 2 OR
-                                            MORE, and it never walks into a mate to dodge a draw."><span data-i18n="set.contempt">Play For The Win</span> <i class="material-icons info-tooltip">info</i></span>
+                              data-tooltip="For a game you have to WIN. The engine is perfectly happy with a
+                                            draw, and the repetition it offers at 0.00 is half a point gone.
+                                            With this on, a move that ENDS THE GAME as a draw on the spot - a
+                                            threefold, a fifty-move, a stalemate, insufficient material - is
+                                            passed over for the best move that does not, as long as that move
+                                            costs no more than the Contempt setting below. When the top move
+                                            is not one of those, nothing changes: this never touches an
+                                            ordinary position. It raises Multi Lines to 2 by itself, and it
+                                            never walks into a mate to dodge a draw."><span data-i18n="set.contempt">Play For The Win</span> <i class="material-icons info-tooltip">info</i></span>
                     </div>
                     <div class="set-ctl">
                         <input id="contempt_checkbox" type="checkbox" class="set-cb">
