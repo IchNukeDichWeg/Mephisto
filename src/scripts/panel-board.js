@@ -1,6 +1,6 @@
 // Minimal drop-in replacement for chessboard.js (N1 Phase 4a).
 // The panel uses only a tiny slice of chessboard.js: position get/set, orientation get/set, on a
-// DISPLAY-ONLY board (draggable:false). chessboard.js needs jQuery and looks its board element up via
+// playable board (click or drag to move; onMove decides legality). chessboard.js needs jQuery and looks its board element up via
 // `document`, so it can't live in a shadow root -- this can. It emits the SAME DOM class names
 // chessboard.js does (.board-b72b1 / .square-55d63 / .white-1e1d7 / .black-3c85d / .piece-417db /
 // .notation-322f9 / .alpha-d2270 / .numeric-fc462), so popup.css + chessboard.css style it unchanged.
@@ -66,7 +66,7 @@
             return theme ? theme.replace('{piece}', p) : '';
         };
 
-        // Click-to-move rather than drag: the panel lives in a closed shadow root inside an
+        // Click-to-move plus pointer-event drag, not HTML5 drag-and-drop: the panel lives in a closed shadow root inside an
         // arbitrary page, where HTML5 drag events are unreliable and a page's own handlers can eat
         // them. Two clicks (pick up, put down) work everywhere. Clicking the same square, or an
         // empty one with nothing selected, just clears the selection.
