@@ -122,11 +122,11 @@
         // three places reading one list cannot disagree about what "u" does.
         HOTKEY_LABELS: {
             manual_play: 'Play move (Manual Mode)', manual_mode: 'Toggle Manual Mode', autoplay: 'Toggle Autoplay',
-            premove: 'Toggle Premove', explorer: 'Toggle Opening Explorer', book_play: 'Toggle Book Moves',
+            premove: 'Toggle Premove', explorer: 'Toggle Explorer', book_play: 'Toggle Book Moves',
             help_mode: 'Toggle Help Mode', humanize: 'Toggle Humanize', clock_mode: 'Toggle Clock Mode',
             clock_pace: 'Toggle Pace to Clock', mirror_mode: 'Toggle Mirror Time', eval_bar: 'Toggle Eval Bar',
             eval_history: 'Toggle Eval History', live_stats: 'Toggle Live Stats',
-            tablebase: 'Toggle Endgame Tablebase', puzzle_mode: 'Toggle Puzzle Mode',
+            tablebase: 'Toggle Tablebase', puzzle_mode: 'Toggle Puzzle Mode',
             copy_fen: 'Copy FEN', copy_pgn: 'Copy PGN', copy_diagnostics: 'Copy Diagnostics',
             redetect: 'Re-detect game', compact: 'Compact view', minimize: 'Minimize / restore panel',
             bot_trick: 'Bot Tricks - play the chosen game at a bot',

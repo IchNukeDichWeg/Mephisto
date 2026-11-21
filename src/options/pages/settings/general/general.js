@@ -492,8 +492,8 @@ class GeneralSettings extends SettingsPage {
             try { info = await self.MephistoBooks.info(); } catch (e) { /* no store yet */ }
             $('own_book_remove')?.classList.toggle('hidden', !info);
             say(info
-                ? `${info.name} - ${info.entries.toLocaleString()} positions (${(info.bytes / 1048576).toFixed(1)} MB). Play Book Moves uses this book.`
-                : 'No book loaded - Play Book Moves uses the online database.');
+                ? `${info.name} - ${info.entries.toLocaleString()} positions (${(info.bytes / 1048576).toFixed(1)} MB). Book Moves uses this book.`
+                : 'No book loaded - Book Moves uses the online database.');
         };
         $('own_book_load')?.addEventListener('click', () => $('own_book_file')?.click());
         $('own_book_file')?.addEventListener('change', async (e) => {
@@ -588,7 +588,7 @@ class GeneralSettings extends SettingsPage {
             $('tb_forget')?.classList.toggle('hidden', perm === 'missing');
             $('tb_allow')?.classList.toggle('hidden', perm !== 'prompt');
             if (perm === 'missing') {
-                say('No folder chosen - the Endgame Tablebase uses the online lookup.');
+                say('No folder chosen - Tablebase uses the online lookup.');
             } else if (perm === 'prompt') {
                 say(MephistoI18n.errText('MPH-T02'), true);
             } else {
@@ -598,7 +598,7 @@ class GeneralSettings extends SettingsPage {
                 // count that includes its half-done set (audit 3.1.332 GENERAL-1)
                 if (tbDownload.run?.report) { tbDownload.run.report(); return; }
                 const men = Object.keys(inv.men).sort().map(n => `${n}-man: ${inv.men[n]}`).join(', ');
-                say(`${inv.tables} tables (${men}). Endgame Tablebase answers from this folder first, in-browser.` + bigNote(inv.men));
+                say(`${inv.tables} tables (${men}). Tablebase answers from this folder first, in-browser.` + bigNote(inv.men));
             }
         };
         $('tb_choose')?.addEventListener('click', async () => {
@@ -627,7 +627,7 @@ class GeneralSettings extends SettingsPage {
                 if (!res.tables) { say(MephistoI18n.errText('MPH-T01'), true); return; }
                 const men = Object.keys(res.men).sort().map(n => `${n}-man: ${res.men[n]}`).join(', ');
                 const how = res.route === 'browser' ? 'in-browser' : 'via the native host';
-                say(`${res.tables} tables (${men}). Endgame Tablebase answers from this folder first, ${how}.`
+                say(`${res.tables} tables (${men}). Tablebase answers from this folder first, ${how}.`
                     + (res.route === 'browser' ? bigNote(res.men) : ''));
             });
         });

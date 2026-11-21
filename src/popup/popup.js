@@ -13187,7 +13187,7 @@ function backend_refused(e) {
         : e && e.backendStatus
         ? i18n('panel.msg.backend_error', 'mephisto-clicker.py answered with an error ({reason}), so moves are using normal clicks for now. Its window shows the details.',
                {reason: e.backendReason})
-        : i18n('panel.msg.backend_down', 'Python Autoplay Backend is not answering on localhost:8080, so moves are using normal clicks. Start mephisto-clicker.py, or switch the setting off.'));
+        : i18n('panel.msg.backend_down', 'Python Backend is not answering on localhost:8080, so moves are using normal clicks. Start mephisto-clicker.py, or switch the setting off.'));
     idle_hold_until = Date.now() + 10000;
     return {backendFailed: true};
 }
