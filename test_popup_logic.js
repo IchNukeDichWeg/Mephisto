@@ -18171,6 +18171,11 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            {r1, r2, deletes, downloads});
     }
 })().catch(e => { fails++; console.log('FAIL MODELFETCH-1 block threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.333 POPUP4-1: Python Autoplay Backend changed on Settings reaches an open panel ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const live = psrc.slice(psrc.indexOf('const LIVE_CONFIG_KEYS = ['), psrc.indexOf('\n];\n', psrc.indexOf('const LIVE_CONFIG_KEYS = [')));
+    ok('POPUP4-1 (3.1.333): python_autoplay_backend is a live config key, so a Settings change is pushed to the content script', live.includes("'python_autoplay_backend'")); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

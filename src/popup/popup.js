@@ -11035,6 +11035,7 @@ const LIVE_CONFIG_KEYS = [
     // read by the content script from the snapshot this panel pushes, and by nothing else: left out
     // of this list, switching Grind Mode OFF on the Settings page did not stop the next game
     'grind_mode', 'grind_delay', 'accept_rematch', 'streamer_alert', 'puzzle_capture', 'puzzle_capture_cdp',
+    'python_autoplay_backend', // content-script-only too: Settings-only switch (audit 3.1.333 POPUP4-1)
     'explorer', 'book_play', 'explorer_db', 'help_mode', 'humanize', 'clock_mode', 'mirror_mode',
     'manual_mode', 'eval_bar', 'eval_history', 'live_stats', 'puzzle_mode', 'simon_says_mode', 'threat_analysis',
     'threat_human', 'threat_human_elo',
