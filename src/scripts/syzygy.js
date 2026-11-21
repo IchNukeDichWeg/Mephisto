@@ -1,8 +1,8 @@
 // Syzygy tablebase probing IN JAVASCRIPT -- a faithful port of python-chess's chess/syzygy.py
 // (the exact code the native-host route runs), restricted to standard chess. Tables are plain
-// ArrayBuffers (loaded from the extension's IndexedDB), so probing needs no filesystem, no
-// native host and no network: the panel's tablebase feature works out of the box once the user
-// has imported their .rtbw/.rtbz files.
+// ArrayBuffers, read on demand from the folder the user picked in Settings > Local Tablebases
+// (tb-store.js keeps that folder handle in IndexedDB). Probing needs no native host and no network:
+// the panel's tablebase feature works out of the box once the user has chosen the folder.
 //
 // Port notes, for anyone diffing against the reference:
 // - Constant tables (TRIANGLE .. MFACTOR) were EXTRACTED from the installed python-chess module
