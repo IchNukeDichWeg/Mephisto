@@ -79,7 +79,7 @@ function send(clientId, payload) {
 // from the wild: ~400% CPU with everything closed.) chrome.tabs.onRemoved covers only the case where
 // the tab is CLOSED, which is the one case that was never the problem.
 //
-// So: a panel renews a lease while it is searching (cmd:'ping', see popup.js), and a search whose
+// So: a panel renews a lease every 15 s while it is open (cmd:'ping', see popup.js), and a search whose
 // owner has gone quiet is stopped. The engine INSTANCE is kept -- a panel that comes back gets it
 // warm, and an idle engine costs nothing. Only the burn ends.
 // ponytail: stop, not dispose. Freeing the worker's memory too would need a second, much longer
@@ -168,7 +168,7 @@ function disposeClient(clientId) {
 // The workers belong to this DOCUMENT, so closing it is what reclaims them -- including any that
 // were stranded before this code existed. Only once nothing is left and nothing has come back for
 // a while, since the panel re-inits on every engine switch and closing under that would just add a
-// reload to each one. The service worker owns the offscreen lifecycle, so it does the closing.
+// reload to each one. The document closes itself (see below).
 const IDLE_CLOSE_MS = 30000;
 let idleTimer = null;
 // An engine being LOADED is deliberately not in clients[] yet (see initEngine: publishing early
