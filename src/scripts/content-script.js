@@ -5235,8 +5235,10 @@ function pressControl(el) {
 // panel is told, and the same position is pushed again so the move it held back gets played. A draw
 // offer withholds nothing and needs none of this.
 const RESIGN_CHECK_MS = 4000;
-function resignFailed() {
-    try { sendToPanel({gameActionFailed: 'resign'}); } catch (e) { /* panel not booted */ }
+// reason: 'not-found' (no rules or no control) or 'no-effect' (pressed, the game went on). One text
+// for both said "could not find the resign button" after pressing it (audit 3.1.333 CONTENT3-3).
+function resignFailed(reason = 'not-found') {
+    try { sendToPanel({gameActionFailed: 'resign', reason}); } catch (e) { /* panel not booted */ }
     lastPushKey = lastDisplayKey = null;
     resumePush = true;
     schedulePush();
@@ -5263,7 +5265,7 @@ function doGameAction(kind) {
         if (yes) pressControl(yes);
     }, 900);
     // A finished game has no resign button any more, so one still there means nothing happened.
-    if (kind === 'resign') setTimeout(() => { if (rules.resign()) resignFailed(); }, RESIGN_CHECK_MS);
+    if (kind === 'resign') setTimeout(() => { if (rules.resign()) resignFailed('no-effect'); }, RESIGN_CHECK_MS);
 }
 
 function grindTick() {

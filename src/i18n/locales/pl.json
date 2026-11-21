@@ -481,6 +481,7 @@
   "panel.msg.backend_error": "mephisto-clicker.py odpowiedział błędem ({reason}), więc na razie ruchy używają zwykłych kliknięć. Szczegóły widać w jego oknie.",
   "panel.msg.backend_old": "Uruchomiony mephisto-clicker.py to starsza kopia bez przeciągania, więc ten ruch użył zwykłych kliknięć. Uruchom go ponownie z folderu src/scripts tej wersji.",
   "panel.msg.resign_failed": "Automatyczne poddanie nie znalazło tu przycisku poddania, więc gra toczy się dalej.",
+  "panel.msg.resign_no_effect": "Automatyczne poddanie nacisnęło poddaj, ale partia się nie skończyła (może wciąż czeka potwierdzenie), więc partia trwa dalej.",
   "panel.msg.net_failed": "Sieć nie mogła odpowiedzieć na tę pozycję. Przyczyna jest w diagnostyce.",
   "panel.msg.native_busy": "Inna karta lub strona używa tego natywnego silnika. Zamknij ją lub wybierz tu inny silnik.",
   "panel.msg.remote_busy": "Inna karta lub klient używa tego serwera zdalnego silnika. Zamknij go albo wybierz tutaj inny silnik.",

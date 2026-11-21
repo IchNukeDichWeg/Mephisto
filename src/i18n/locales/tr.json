@@ -481,6 +481,7 @@
   "panel.msg.backend_error": "mephisto-clicker.py bir hatayla yanıt verdi ({reason}), bu yüzden hamleler şimdilik normal tıklamalarla yapılıyor. Ayrıntılar betiğin penceresinde görünür.",
   "panel.msg.backend_old": "Çalışan mephisto-clicker.py sürükleme desteği olmayan eski bir kopya, bu yüzden bu hamle normal tıklamalarla yapıldı. Onu bu sürümün src/scripts klasöründen yeniden başlatın.",
   "panel.msg.resign_failed": "Otomatik terk burada terk düğmesini bulamadı, bu yüzden oyun devam ediyor.",
+  "panel.msg.resign_no_effect": "Otomatik terk, terk et düğmesine bastı ama oyun bitmedi (bir onay adımı hâlâ açık olabilir), bu yüzden oyun sürüyor.",
   "panel.msg.net_failed": "Ağ bu konuma yanıt veremedi. Neden tanılama bölümünde.",
   "panel.msg.native_busy": "Başka bir sekme veya sayfa bu yerel motoru kullanıyor. Onu kapatın veya burada başka bir motor seçin.",
   "panel.msg.remote_busy": "Başka bir sekme veya istemci bu uzak motor sunucusunu kullanıyor. Onu kapatın veya burada başka bir motor seçin.",

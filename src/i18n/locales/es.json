@@ -481,6 +481,7 @@
   "panel.msg.backend_error": "mephisto-clicker.py respondió con un error ({reason}), así que por ahora las jugadas usan clics normales. Su ventana muestra los detalles.",
   "panel.msg.backend_old": "El mephisto-clicker.py en ejecución es una copia antigua sin soporte para arrastrar, así que esta jugada usó clics normales. Reinícialo desde la carpeta src/scripts de esta versión.",
   "panel.msg.resign_failed": "El abandono automático no encontró aquí el botón de abandonar, así que la partida continúa.",
+  "panel.msg.resign_no_effect": "El abandono automático pulsó abandonar, pero la partida no terminó (quizá queda una confirmación abierta), así que la partida sigue.",
   "panel.msg.net_failed": "La red no pudo responder a esta posición. El diagnóstico indica la causa.",
   "panel.msg.native_busy": "Otra pestaña o página está usando este motor nativo. Ciérrala o elige otro motor aquí.",
   "panel.msg.remote_busy": "Otra pestaña o cliente está usando este servidor de motor remoto. Ciérralo o elige otro motor aquí.",

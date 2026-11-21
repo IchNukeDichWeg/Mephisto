@@ -4550,9 +4550,11 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('a button that stays after the press counts as refused', run({}, false).sent === 1);
     ok('a button that went away is a finished game, nothing to report', run({}, true).sent === 0);
     const a = psrc.indexOf('let resign_refused = false;');
-    ok('the panel stops trying and clears what withheld the move', /function resign_gave_up\(\) \{\s*resign_refused = true;\s*end_game_sent = ''; end_game_key = ''; end_game_last = null;/.test(psrc)
+    ok('the panel stops trying and clears what withheld the move', /function resign_gave_up\(reason\) \{\s*resign_refused = true;\s*end_game_sent = ''; end_game_key = ''; end_game_last = null;/.test(psrc)
        && /config\.puzzle_mode \|\| resign_refused\) return null;/.test(psrc) && a > 0);
     ok('...for this game only', /end_game_last = null;\s*resign_refused = false;/.test(psrc));
+    ok('a press that did not end the game is told apart from a missing button (CONTENT3-3)', /resignFailed\('no-effect'\)/.test(csrc)
+       && /resign_gave_up\(response\.reason\)/.test(psrc) && /reason === 'no-effect'\s*\? i18n\('panel\.msg\.resign_no_effect'/.test(psrc));
 }
 // ---- ENG-6: the lease counts searches ----
 {

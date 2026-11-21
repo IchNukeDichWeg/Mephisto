@@ -743,7 +743,7 @@ async function initPanel(root, tabId) {
         // only traced: a move that silently does not happen is the least actionable bug report
         // there is, and it was the shape of three separate ones.
         if (response.moveDropped) { set_idle_reason(response.moveDropped); return; }
-        if (response.gameActionFailed) { resign_gave_up(); return; }
+        if (response.gameActionFailed) { resign_gave_up(response.reason); return; }
         // the arrows drawn on the site's board changed (see USER ARROWS)
         if (Array.isArray(response.userArrows)) {
             user_arrows = response.userArrows.filter(a => /^[a-h][1-8][a-h][1-8]$/.test(a));
@@ -12643,10 +12643,12 @@ function game_fullmove() {
     return Math.max(fromBoard, fromFen, Math.floor(plies / 2) + 1);
 }
 
-function resign_gave_up() {
+function resign_gave_up(reason) {
     resign_refused = true;
     end_game_sent = ''; end_game_key = ''; end_game_last = null;
-    set_idle_reason(i18n('panel.msg.resign_failed', 'Auto Resign could not find the resign button here, so the game goes on.'));
+    set_idle_reason(reason === 'no-effect'
+        ? i18n('panel.msg.resign_no_effect', 'Auto Resign pressed resign, but the game did not end (a confirm step may still be open), so the game goes on.')
+        : i18n('panel.msg.resign_failed', 'Auto Resign could not find the resign button here, so the game goes on.'));
     idle_hold_until = Date.now() + 10000;
 }
 

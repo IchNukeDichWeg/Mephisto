@@ -481,6 +481,7 @@
   "panel.msg.backend_error": "mephisto-clicker.py ha risposto con un errore ({reason}), quindi per ora le mosse usano clic normali. La sua finestra mostra i dettagli.",
   "panel.msg.backend_old": "Il mephisto-clicker.py in esecuzione è una copia vecchia senza trascinamento, quindi questa mossa ha usato clic normali. Riavvialo dalla cartella src/scripts di questa versione.",
   "panel.msg.resign_failed": "L'abbandono automatico non ha trovato qui il pulsante di abbandono, quindi la partita continua.",
+  "panel.msg.resign_no_effect": "L'abbandono automatico ha premuto Abbandona, ma la partita non è finita (forse c'è ancora una conferma aperta), quindi la partita continua.",
   "panel.msg.net_failed": "La rete non ha potuto rispondere a questa posizione. La diagnostica indica la causa.",
   "panel.msg.native_busy": "Un'altra scheda o pagina sta usando questo motore nativo. Chiudila o scegli qui un altro motore.",
   "panel.msg.remote_busy": "Un'altra scheda o un altro client sta usando questo server del motore remoto. Chiudilo o scegli un altro motore qui.",

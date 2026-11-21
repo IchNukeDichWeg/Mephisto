@@ -481,6 +481,7 @@
   "panel.msg.backend_error": "mephisto-clicker.py antwoordde met een fout ({reason}), dus zetten gebruiken voorlopig normale klikken. Het venster van het script toont de details.",
   "panel.msg.backend_old": "De draaiende mephisto-clicker.py is een oudere kopie zonder slepen, dus deze zet gebruikte normale klikken. Start hem opnieuw vanuit de map src/scripts van deze versie.",
   "panel.msg.resign_failed": "Automatisch opgeven kon hier de opgeefknop niet vinden, dus de partij gaat door.",
+  "panel.msg.resign_no_effect": "Automatisch opgeven drukte op opgeven, maar de partij is niet afgelopen (misschien staat er nog een bevestiging open), dus de partij gaat door.",
   "panel.msg.net_failed": "Het net kon deze stelling niet beantwoorden. De oorzaak staat in de diagnose.",
   "panel.msg.native_busy": "Een ander tabblad of andere pagina gebruikt deze native engine. Sluit die, of kies hier een andere engine.",
   "panel.msg.remote_busy": "Een ander tabblad of andere client gebruikt deze Remote Engine-server. Sluit die, of kies hier een andere engine.",

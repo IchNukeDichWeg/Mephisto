@@ -481,6 +481,7 @@
   "panel.msg.backend_error": "mephisto-clicker.py a répondu par une erreur ({reason}), les coups passent donc pour l'instant par des clics normaux. Sa fenêtre en donne le détail.",
   "panel.msg.backend_old": "Le mephisto-clicker.py en cours d'exécution est une ancienne copie sans glisser-déposer, ce coup est donc passé par des clics normaux. Relancez-le depuis le dossier src/scripts de cette version.",
   "panel.msg.resign_failed": "L'abandon automatique n'a pas trouvé le bouton d'abandon ici, la partie continue donc.",
+  "panel.msg.resign_no_effect": "L'abandon automatique a appuyé sur Abandonner, mais la partie n'est pas terminée (une confirmation est peut-être encore ouverte), donc la partie continue.",
   "panel.msg.net_failed": "Le réseau n'a pas pu répondre à cette position. Le diagnostic en donne la cause.",
   "panel.msg.native_busy": "Un autre onglet ou une autre page utilise ce moteur natif. Fermez-le ou choisissez un autre moteur ici.",
   "panel.msg.remote_busy": "Un autre onglet ou client utilise ce serveur de moteur distant. Fermez-le ou choisissez un autre moteur ici.",
