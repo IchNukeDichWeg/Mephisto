@@ -2345,15 +2345,20 @@ function animationStalled() {
 }
 
 let lastScrapeFail = '';
+// The 4-player lane's reason for THIS scrape's failure; the generic "board but N pieces" overwrote it
+// before any reader saw it (audit 3.1.333 CONTENT2-1).
+let scrapeFail4pc = null;
 
 function tryScrapePosition() {
     try {
+        scrapeFail4pc = null;
         const res = scrapePosition(); // undefined when there is no board
         animStallSince = 0; // scraped clean -- restart the stall clock
         if (!res || res === 'no') {
             let pieces = -1;
             try { pieces = getPieces().length; } catch (e) { /* selector itself failed */ }
-            lastScrapeFail = !getBoard() ? 'no board element' : `board but ${pieces} pieces`;
+            lastScrapeFail = scrapeFail4pc ? '4PC: ' + scrapeFail4pc
+                : !getBoard() ? 'no board element' : `board but ${pieces} pieces`;
         }
         return res || 'no';
     } catch (e) {
@@ -3260,6 +3265,7 @@ function fourPCResetIfNavigated() {
 const fourPCSeen = new Set();
 function fourPCFail(reason) {
     lastScrapeFail = '4PC: ' + reason;
+    scrapeFail4pc = reason;
     if (fourPCSeen.has(reason)) return undefined;
     fourPCSeen.add(reason);
     console.warn(`Mephisto 4PC: ${reason}`);
