@@ -37,14 +37,16 @@ function fill_bot_games() {
     const sel = document.getElementById('bot_trick_game_select');
     if (!sel || sel.options.length) return;
     const add = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; sel.appendChild(o); };
-    add('auto', 'Auto - fits the colour you were dealt');
+    // The panel's own keys, so the two lists read the same in every language (audit 3.1.333 GENERALJS-13)
+    const t = (k, d, v) => (self.MephistoI18n ? MephistoI18n.t(k, d, v) : d);
+    add('auto', t('panel.bot.auto', 'Auto (fits your colour)'));
     // Same shape as the panel's own list, result included: a game is quoted by its result, and the
     // drawn one is the entry where that matters most -- it ends the game and wins nothing.
     for (const g of (self.MephistoBotGames || [])) {
         const res = g.winner === 'white' ? '1-0' : g.winner === 'black' ? '0-1' : '\u00bd-\u00bd';
-        add(g.id, `${g.name} - ${Math.ceil(g.moves.length / 2)} moves (${res})`);
+        add(g.id, t('panel.bot.opt', '{name} - {n} ({res})', {name: g.name, n: Math.ceil(g.moves.length / 2), res}));
     }
-    add('pgn', 'Your own game, pasted below');
+    add('pgn', t('panel.bot.pgn_name', 'Your pasted game'));
 }
 
 // THE LONG JOBS OUTLIVE THE PAGE (audit 3.1.332 GENERAL-1). Leaving General and coming back (or the
