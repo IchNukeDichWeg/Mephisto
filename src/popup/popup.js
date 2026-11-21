@@ -10263,7 +10263,7 @@ function on_new_pos_4pc(payload) {
         {seat: FOURPC_SEAT_NAME[turn] || turn}));
     if (!is_fourpc_engine()) {
         update_best_move(i18n('panel.fourpc_needs_engine',
-            'Select the Tetrarch engine to analyse 4-player chess (Teams mode only)'));
+            'Select the Tetrarch engine to analyse 4-player chess'));
         return;
     }
     fourpc_busy = true;

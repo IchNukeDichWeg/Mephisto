@@ -3464,8 +3464,8 @@ function fourPCEnPassant(board, prev, carry) {
 // byte-identical. Field order is turn-dead-castleK-castleQ-points-halfmove[-{extra}]-board, board
 // LAST (RULES.md 11.1), rank 14 first, empty runs as counts.
 // Teams or free-for-all? It decides the RULES (promotion rank) and, more bluntly, whether Tetrarch
-// can analyse at all -- its FFA search is not implemented (PROTOCOL.md), so guessing "teams" on an
-// FFA board produces confident nonsense. Signals in order of trustworthiness; everything considered
+// searches under which rules -- Teams and FFA are searched differently (FFA since Tetrarch v8), so
+// guessing "teams" on an FFA board produces confident nonsense. Signals in order of trustworthiness; everything considered
 // is logged, so a mode we read wrongly can be pinned from one real game rather than guessed at twice.
 let fourPCModeCache = null;   // {path, override, mode}
 function fourPCMode() {
