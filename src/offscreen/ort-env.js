@@ -1,5 +1,5 @@
 // ONE writer for onnxruntime-web's environment, imported by every module that creates a session
-// (vision.js, maia.js, maia3.js). The wasm backend initialises ONCE per document, at the first
+// (vision.js, maia.js, maia2.js, maia3.js). The wasm backend initialises ONCE per document, at the first
 // InferenceSession.create, with whatever env values are set at that moment -- so when each engine
 // file wrote its own numThreads at import time, the thread count depended on which feature the user
 // happened to touch first: a Maia engine opened before the first screen read silently reverted the
