@@ -369,7 +369,7 @@ html, body {
 }
 
 /* alternative engine lines under the board (visible when Multi Lines > 1);
-   sized so all 5 lines (the slider max) fit WITHOUT scrolling: 5 x 21px = 105px.
+   sized so 5 lines fit WITHOUT scrolling (Multi Lines is a stepper up to 20): 5 x 21px = 105px.
    The .alt-head row ("EVAL" / "PROBABILITY") lives INSIDE this box and was added after the cap was
    set, so at 107px the fifth line was clipped through the middle -- which on screen reads as the
    line below (#move-reason) overlapping it. 14px header + 105px rows = 119px, plus the same few px
@@ -417,10 +417,10 @@ html, body {
     text-align: center;
 }
 
-/* The four icon buttons share one row with the FEN/PGN pair, which ends at x=152 in a 378px column,
-   so the row is genuinely full: widths are pinned and the spacing tightened to 56px to fit a fourth
-   (set-up-position) without colliding. Right-anchored, so they stay clear of the 190px quick
-   settings. Left edges land at 157 / 213 / 269 / 325 -- every gap >= 5px. */
+/* The five icon buttons share one row with the FEN/PGN pair, which ends at x=152 in a 378px column,
+   so the row is genuinely full: widths are pinned and the spacing tightened so the set-up-position
+   button fits without colliding. Right-anchored, so they stay clear of the 190px quick
+   settings. Left edges land at 156 / 201 / 246 / 291 / 336 on a 45px pitch (see the note below). */
 #config, #recheck, #selftest, #setupfen, #snapfen {
     position: absolute;
     bottom: 5px;
@@ -455,7 +455,7 @@ html, body {
     text-align: left;
     white-space: normal;
     /* Three parts: the turn switch + pinned controls, the tab strip, the panels. Only the panels
-       scroll, so Autoplay/engine/strength can never be scrolled away. */
+       scroll, so Autoplay and the engine can never be scrolled away. */
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -551,7 +551,7 @@ html, body {
 #quick-settings .qs-panels {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;   /* the ONLY scroller; at 672px no panel needs it */
+    overflow-y: auto;   /* the ONLY scroller; the Engine tab overflows this box (measured 961px of content in 482px) */
     padding: 6px 10px 10px;
 }
 #quick-settings .qs-panel { display: none; }
@@ -722,7 +722,6 @@ html, body {
 }
 /* Copy Diagnostics closes the panel, so it keeps the gap that separates it from the rows above. */
 #quick-settings .qs-row.qs-oneline:has(#qs_copydiag) { margin-top: 10px; }
-/* Same pill as the detect button beside it, just wide enough for a word. */
 /* Bot game. The row stacks: label, dropdown, then the two actions side by side -- the dropdown is
    a full-width .browser-default like every other select here, so the buttons cannot share its line.
    They wear the same pill as Copy Diagnostics rather than a new shape of their own.
@@ -839,8 +838,8 @@ html, body {
 
 /* Copy FEN / PGN: a tight pair of small buttons right after the analysis-board button, not the
    full-size action buttons the rest of the row uses. absolute like the others -- in normal flow
-   #copypgn pushed the board down and knocked the move arrows out of alignment. bottom:9 centres
-   the 28px button against the 36px analysis button beside it. */
+   #copypgn pushed the board down and knocked the move arrows out of alignment. bottom:5px keeps
+   the 28px button clear of the analysis-board button beside it (every button in this row is 28px). */
 #copyfen, #copypgn {
     position: absolute;
     bottom: 5px;         /* same baseline as every other button in the row */
@@ -980,7 +979,7 @@ body.mephisto-dark #quick-settings .qs-panels::-webkit-scrollbar-thumb {
     background: #34353d;
     border-radius: 4px;
 }
-/* flatten the two floating action buttons so they sit in the theme instead of glowing teal */
+/* flatten the floating action buttons so they sit in the theme instead of glowing teal (the !important block further down sets the same look) */
 body.mephisto-dark #config,
 body.mephisto-dark #recheck,
 body.mephisto-dark #setupfen,
@@ -1148,7 +1147,7 @@ body.mephisto-book:not(.mephisto-compact) {
 
 body.mephisto-compact {
     height: 280px; /* keep in sync with COMPACT_H in content-script.js. Fits the taller of the two
-                      columns: 7 toggles on the right (Autoplay..Manual), or status + move + score +
+                      columns: the turn switch, Autoplay and Engine on the right, or status + move + score +
                       4 alternative lines on the left, above the button row. */
 }
 body.mephisto-compact #board,
