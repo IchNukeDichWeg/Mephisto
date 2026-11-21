@@ -18238,6 +18238,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /^.*On very little\. More moves, the clock times, the human model or more sharp positions would sharpen it\.$/.test(b), b);
     const r = K.estimate([], {moves: 60, secCv: 0.5, maiaN: 20, sharpN: 10}).text;
     ok('REVIEWCORE-2 (3.1.333): a full picture keeps its sentence', /fullest picture/.test(r), r); }
+// ---- audit 3.1.333 REVIEWCORE-4: results written with an en dash are results, not moves ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const K = c.MephistoReviewCore;
+    const rd = (t) => { const g = K.parsePgn(t)[0]; return g && [g.result, g.moves.length]; };
+    const got = ['1. e4 e5 2. Nf3 Nc6 1–0', '1. e4 e5 2. Nf3 Nc6 0—1', '1. e4 e5 2. Nf3 Nc6 ½–½', '1. e4 e5 2. Nf3 Nc6 ½-½'].map(rd);
+    ok('REVIEWCORE-4 (3.1.333): 1–0, 0—1, ½–½ and ½-½ end a 4-move game with the right result',
+       JSON.stringify(got) === JSON.stringify([['1-0', 4], ['0-1', 4], ['1/2-1/2', 4], ['1/2-1/2', 4]]), got); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

@@ -91,7 +91,11 @@ function parseGame(text) {
     // ("1… e5", "12…Nf6") and a draw as "½-½". Neither matched the ASCII rules below, so the token was
     // pushed as a SAN and the whole game rejected as illegal (audit 3.1.332 REVIEWCORE-1). Done after
     // the comments are pulled out, so their text keeps its own spelling.
-    movetext = movetext.replace(/\u2026/g, '...').replace(/(^|\s)\u00bd-\u00bd(?=\s|$)/g, '$11/2-1/2');
+    // The same sources write a result with an en or em dash ("1\u20130", "\u00bd\u2013\u00bd"), which was read as a
+    // move and rejected the game the same way (audit 3.1.333 REVIEWCORE-4).
+    movetext = movetext.replace(/\u2026/g, '...')
+        .replace(/(^|\s)(1[\u2010-\u2015]0|0[\u2010-\u2015]1|\u00bd[-\u2010-\u2015]\u00bd)(?=\s|$)/g,
+                 (_, pre, r) => pre + (r[0] === '1' ? '1-0' : r[0] === '0' ? '0-1' : '1/2-1/2'));
     movetext = movetext.replace(/\d+\s*\.(\s*\.\.)?/g, ' ');  // move numbers, incl. black's "12..." and "12. ..."
 
     const games = [];
