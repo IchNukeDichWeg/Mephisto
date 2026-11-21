@@ -1,4 +1,4 @@
-// Lichess puzzle database -> IndexedDB, so Puzzle Mode can play the KNOWN solution instead of an
+// Lichess and chess.com puzzle databases -> IndexedDB, one store each, so Puzzle Mode can play the KNOWN solution instead of an
 // engine guess. Plain script, no module: the options page loads it with a <script> tag and the
 // service worker with importScripts(), and both then share ONE definition of the key format and the
 // store names -- which is the whole reason this is a file rather than fifteen lines duplicated twice.
@@ -9,13 +9,14 @@
 // for gzip and deflate but NOT for zstd. `unzstd lichess_db_puzzle.csv.zst` is one command on their
 // side; bundling a zstd decoder for a once-ever import is not worth the megabyte.
 //
-// LICHESS ONLY, by construction. chess.com's Puzzle Rush positions are not in this file, so an
-// exact-position lookup there will essentially never hit -- Puzzle Mode falls back to the engine,
-// exactly as it behaves today.
+// Both publishers are imported: lichess from its CSV (this file's rowToRecord), chess.com from its
+// Puzzle Rush rows (ccRowToRecord, STORE_CC). A position is looked up only in the store of the site
+// it came from, and a site with no imported database falls back to the engine.
 //
-// Only two columns are kept, FEN and Moves. Rating, RatingDeviation, Popularity, NbPlays, Themes,
-// GameUrl and OpeningTags are all dropped: nothing here ranks or filters puzzles, it answers "what
-// is the move in this exact position", so storing the rest would be ~4x the disk for no lookup.
+// Kept per puzzle: the solution line and, when the publisher gave one, the rating (shown in the
+// panel). RatingDeviation, Popularity, NbPlays, Themes, GameUrl and OpeningTags are dropped: nothing
+// here ranks or filters puzzles, it answers "what is the move in this exact position", so storing
+// the rest would be ~4x the disk for no lookup.
 (function (root) {
 'use strict';
 
@@ -123,8 +124,8 @@ function applyUci(placement, uci) {
 // -- and the one the panel scrapes off the page -- is the one AFTER Moves[0], and the solution starts
 // at Moves[1]. Index the FEN column as-is and every lookup misses while the code reads correctly.
 //
-// Returns [key, solution] or null. `solution` is the whole remaining line from that position, ours
-// and theirs alternating, starting with ours.
+// Returns [key, {s, r}] or null. `s` is the whole remaining line from that position, ours and theirs
+// alternating, starting with ours; `r` is the rating, present only when the publisher gave one.
 // One stored value. A rating is kept only when the publisher gave one (daily puzzles have none).
 function record(solution, rating) {
     const r = parseInt(rating, 10);
@@ -132,8 +133,8 @@ function record(solution, rating) {
 }
 
 function rowToRecord(line) {
-    // Only the first three fields are touched and none of them can contain a comma or a quote (a FEN
-    // and a UCI move list are spaces and alphanumerics). The columns that could -- Themes, GameUrl,
+    // Only the first four fields are touched (cols[3] is the rating) and none of them can contain a
+    // comma or a quote (a FEN and a UCI move list are spaces and alphanumerics, a rating is a number). The columns that could -- Themes, GameUrl,
     // OpeningTags -- are dropped, so there is no CSV quoting to honour here.
     const cols = line.split(',');
     if (cols.length < 3) return null;
@@ -206,7 +207,7 @@ function ccDailySans(raw) {
         .filter(Boolean);
 }
 
-// One parsed chess.com row -> [key, solution] or null.
+// One parsed chess.com row -> [key, {s, r}] or null.
 //
 // WHOSE MOVE COMES FIRST DIFFERS BY ROW TYPE, and getting it wrong shifts every solution by a ply.
 // A rated tactic stores the position BEFORE the opponent's setup move, exactly like Lichess: `fen3`
@@ -374,7 +375,8 @@ async function importCsv(file, onProgress, opts = {}) {
     }
 }
 
-// The solution line for one position, or null. One IndexedDB read; no network, ever.
+// The stored record ({s, r}, or a bare string from an older import) for one position, or null. One
+// IndexedDB read; no network, ever.
 async function lookup(fen, site = 'li') {
     const store = STORES[site];
     if (!store) return null;          // a site with no database of its own -- ask nothing
