@@ -1,16 +1,15 @@
 // The bot-game library: the games the Bot Tricks dropdown offers.
 //
 // A PLAIN DATA FILE, loaded by the panel AND by the settings page, because both offer the same
-// list and eight game names duplicated in two places is how they drift apart. Nothing here needs
+// list and the game names duplicated in two places is how they drift apart. Nothing here needs
 // chess.js: the replay, the PGN parsing and the colour matching all live with it in popup.js.
 // chess.com decides a game against a bot IN THE BROWSER, and its board object will take moves for
 // both sides, so a whole game can be handed to it move by move. The trick is only the delivery --
 // the chess is a fixed line, replayed.
 //
 // EVERY LINE MUST END THE GAME. A resignation stops with the bot still to move, and the bot then
-// answers for real -- there is no way to make it resign. Checkmate is what every entry here uses;
-// a pasted game may also end in a draw the client claims itself (stalemate, threefold, fifty-move,
-// dead position). That single rule is what decides which famous games can be here at all, and it
+// answers for real -- there is no way to make it resign. Every entry ends the game: mate, or a draw
+// the client claims itself at the end (stalemate, threefold, fifty-move, dead position, agreed draw). That single rule is what decides which famous games can be here at all, and it
 // is pinned in the suite by replaying each line through chess.js.
 //
 // The winner is recorded rather than derived so the page can refuse a line meant for the other
@@ -28,8 +27,8 @@ self.MephistoBotGames = [
     // The Blackburne Shilling trap, black's answer to the same idea.
     {id: 'blackburne', name: 'Blackburne Shilling Trap', winner: 'black',
         moves: ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Nd4', 'Nxe5', 'Qg5', 'Nxf7', 'Qxg2', 'Rf1', 'Qxe4+', 'Be2', 'Nf3#']},
-    // The Englund Gambit trap. Black gives the e-pawn and mates on c1 by move 8 if the queen is
-    // taken -- the second trap here, and the second one black springs.
+    // The Englund Gambit trap. Black gives the e-pawn and mates on c1 by move 8 if White's queen
+    // takes the c3 bishop -- the third trap here, after Légal and Blackburne, and the second one black springs.
     {id: 'englund', name: "Englund Gambit Trap", winner: 'black',
         moves: ['d4', 'e5', 'dxe5', 'Nc6', 'Nf3', 'Qe7', 'Bf4', 'Qb4+', 'Bd2', 'Qxb2', 'Bc3', 'Bb4', 'Qd2', 'Bxc3',
         'Qxc3', 'Qc1#']},
@@ -50,18 +49,18 @@ self.MephistoBotGames = [
             'Qb3', 'Qf6', 'e5', 'Qg6', 'Re1', 'Nge7', 'Ba3', 'b5', 'Qxb5', 'Rb8', 'Qa4', 'Bb6', 'Nbd2', 'Bb7',
             'Ne4', 'Qf5', 'Bxd3', 'Qh5', 'Nf6+', 'gxf6', 'exf6', 'Rg8', 'Rad1', 'Qxf3', 'Rxe7+', 'Nxe7', 'Qxd7+',
             'Kxd7', 'Bf5+', 'Ke8', 'Bd7+', 'Kf8', 'Bxe7#']},
-    // Edward Lasker's king walk: the black king is marched from h8 all the way to g1 and mated
+    // Edward Lasker's king walk: the black king is marched from g8 all the way to g1 and mated
     // there, by a king move.
     {id: 'lasker_thomas', name: "Lasker vs Thomas, 1912", winner: 'white',
         moves: ['d4', 'e6', 'Nf3', 'f5', 'Nc3', 'Nf6', 'Bg5', 'Be7', 'Bxf6', 'Bxf6', 'e4', 'fxe4', 'Nxe4', 'b6', 'Ne5',
         'O-O', 'Bd3', 'Bb7', 'Qh5', 'Qe7', 'Qxh7+', 'Kxh7', 'Nxf6+', 'Kh6', 'Neg4+', 'Kg5', 'h4+', 'Kf4', 'g3+',
         'Kf3', 'Be2+', 'Kg2', 'Rh2+', 'Kg1', 'Kd2#']},
-    // Canal's Peruvian Immortal: both rooks and the queen handed over, mate delivered by the one
-    // minor piece left.
+    // Canal's Peruvian Immortal: both rooks and the queen handed over, mate delivered with three
+    // minor pieces still on the board.
     {id: 'peruvian', name: "The Peruvian Immortal (1934)", winner: 'white',
         moves: ['e4', 'd5', 'exd5', 'Qxd5', 'Nc3', 'Qa5', 'd4', 'c6', 'Nf3', 'Bg4', 'Bf4', 'e6', 'h3', 'Bxf3', 'Qxf3',
         'Bb4', 'Be2', 'Nd7', 'a3', 'O-O-O', 'axb4', 'Qxa1+', 'Kd2', 'Qxh1', 'Qxc6+', 'bxc6', 'Ba6#']},
-    // Byrne-Fischer, New York 1956. The longest line here, and the only famous BLACK mate in it.
+    // Byrne-Fischer, New York 1956. A famous BLACK win.
     {id: 'century', name: 'Game of the Century (Fischer, 1956)', winner: 'black',
         moves: ['Nf3', 'Nf6', 'c4', 'g6', 'Nc3', 'Bg7', 'd4', 'O-O', 'Bf4', 'd5', 'Qb3', 'dxc4', 'Qxc4', 'c6',
             'e4', 'Nbd7', 'Rd1', 'Nb6', 'Qc5', 'Bg4', 'Bg5', 'Na4', 'Qa3', 'Nxc3', 'bxc3', 'Nxe4', 'Bxe7', 'Qb6',
@@ -129,9 +128,8 @@ self.MephistoBotGames = [
     // it stands. The wins in the match are the rapid tie-breaks, and those ended in resignation. So
     // again: the real game, then Stockfish 18 playing both sides to a finish.
     //
-    // The classical game is the exception and the long one. Played on from where the two of them
-    // shook hands, it repeats into a THREEFOLD at move 122 -- a draw the client claims itself, no
-    // agreement needed. It wins nothing. It is here because it is 122 moves of Carlsen.
+    // The classical game is the exception: the untouched G9 further down, stopped where the two of
+    // them agreed the draw, which the panel claims. It wins nothing.
     {id: 'cc_rapid1', name: "Carlsen vs Caruana, 2018 tie-break (played to mate)", winner: 'white',
         moves: ['c4', 'e5', 'Nc3', 'Nf6', 'g3', 'Bb4', 'e4', 'O-O', 'Nge2', 'c6', 'Bg2', 'a6', 'O-O', 'b5', 'd4', 'd6',
         'a3', 'Bxc3', 'Nxc3', 'bxc4', 'dxe5', 'dxe5', 'Na4', 'Be6', 'Qxd8', 'Rxd8', 'Be3', 'Nbd7', 'f3', 'Rab8',
