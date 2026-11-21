@@ -1757,16 +1757,21 @@ function renderBatch() {
     for (const r of batchReports) {
         for (const c of ['w', 'b']) {
             const key = (c === 'w' ? r.game.tags.White : r.game.tags.Black) || '?';
-            const p = players.get(key) || {name: key, games: 0, moves: [], accs: []};
+            const p = players.get(key) || {name: key, games: 0, moves: [], perGame: [], accs: []};
             p.games++;
-            p.moves.push(...r.moves.filter(m => m.color === c));
+            const mine = r.moves.filter(m => m.color === c);
+            p.moves.push(...mine);
+            p.perGame.push(mine);
             if (r.accuracy[c] != null) p.accs.push(r.accuracy[c]);
             players.set(key, p);
         }
     }
     const pooled = [...players.values()].map(p => {
-        const ind = Core.indicators(p.moves.map((m, i) => ({...m, ply: i, color: 'w'})), 'w',
-                                    report.opts.multipv, null, {});
+        const asOne = (list) => list.map((m, i) => ({...m, ply: i, color: 'w'}));
+        const ind = Core.indicators(asOne(p.moves), 'w', report.opts.multipv, null, {});
+        // A run of engine moves ends with its game: over the pooled list the last moves of one game
+        // and the first of the next joined into one streak (audit 3.1.333 REVIEWCORE-1).
+        ind.streak = Math.max(0, ...p.perGame.map(g => Core.indicators(asOne(g), 'w', report.opts.multipv, null, {}).streak));
         const ev = Core.evidence(ind, {});
         return {...p, ind, ev, est: Core.estimate(ev, ind),
                 acc: p.accs.length ? p.accs.reduce((a, b) => a + b, 0) / p.accs.length : null};

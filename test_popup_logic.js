@@ -18211,6 +18211,19 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('POPUP2-1 (3.1.333): request_tablebase uses the per-variant limit and drops an answer whose category is unknown',
        /piece_count\(fen\) > tablebase_max_men\(\)/.test(req) && /if \(res\.category === 'unknown'\) return;/.test(req));
     ok('POPUP2-1 (3.1.333): premove holding uses the same limit', /tablebase_enabled\(\) && piece_count\(fen\) <= tablebase_max_men\(\)/.test(psrc)); }
+// ---- audit 3.1.333 REVIEWCORE-1: the batch streak does not run across game boundaries ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    ok('REVIEWCORE-1 (3.1.333): the batch keeps each game\'s moves apart and takes the longest per-game streak',
+       rsrc.includes('p.perGame.push(mine)') && /ind\.streak = Math\.max\(0, \.\.\.p\.perGame\.map/.test(rsrc));
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const K = c.MephistoReviewCore;
+    const mv = (n) => Array.from({length: n}, () => ({best: 'e2e4', rank: 1}));
+    ok('REVIEWCORE-1 (3.1.333): two runs of 4 are 4 per game, 8 only when pooled (the bug the batch had)',
+       K.indicators(mv(4).map((m, i) => ({...m, ply: i, color: 'w'})), 'w', 1, null, {}).streak === 4
+       && K.indicators(mv(8).map((m, i) => ({...m, ply: i, color: 'w'})), 'w', 1, null, {}).streak === 8); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
