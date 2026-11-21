@@ -539,7 +539,8 @@ function onVariantChange(quiet) {
             setCfg('an_engine', FAIRY_ENGINE);
             const es = $('an_engine_select');
             if (es) es.value = FAIRY_ENGINE;
-            if (!quiet) notes.push(`Engine switched to Fairy-Stockfish: only it plays ${v}.`);
+            // the label, not the config id ('3check' -> 'Three-check'), as the notes beside this one do (audit 3.1.333 ANALYSIS-7)
+            if (!quiet) notes.push(`Engine switched to Fairy-Stockfish: only it plays ${(AN_VARIANTS.find(x => x[0] === v) || [v, v])[1]}.`);
         }
         if (cfg('an_engine2') && cfg('an_engine2') !== FAIRY_ENGINE) {
             setCfg('an_engine2', '');

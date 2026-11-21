@@ -6313,6 +6313,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const ENGINES = [{id: 'sf18-native', label: 'Stockfish 18 (native)', kind: 'native'}, {id: 'stockfish-18-nnue', label: 'Stockfish 18', kind: 'wasm'},
                          {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish', kind: 'wasm'}];
         const FAIRY_ONLY = ['crazyhouse']; const FAIRY_ENGINE = 'fairy-stockfish-14-nnue';
+        const AN_VARIANTS = [['crazyhouse', 'Crazyhouse']];
         function syncBandRow() {} function reloadEngine() {} function reloadEngine2() {} let human = null;
         function loadFromInput() { status(...loadLine); }
         ${cut('function status(', '\n}\n')}
@@ -6327,7 +6328,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     c.loadLine = ['illegal move in the PGN: Qxx9', 'err'];
     c.onVariantChange(false);
     ok('...a Fairy switch note too, and a load error keeps its error colour',
-       /^Engine switched to Fairy-Stockfish: only it plays crazyhouse\. illegal move/.test(el.textContent) && el.className === 'an-status an-err', [el.textContent, el.className]);
+       /^Engine switched to Fairy-Stockfish: only it plays Crazyhouse\. illegal move/.test(el.textContent) && el.className === 'an-status an-err', [el.textContent, el.className]);
     Object.assign(conf, {an_variant: 'chess', an_engine: 'sf18-native'});
     c.loadLine = [''];
     c.onVariantChange(false);
@@ -7403,6 +7404,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const ENGINES = [{id: 'sf18-native', label: 'Stockfish 18 (native)', kind: 'native'}, {id: 'stockfish-18-nnue', label: 'Stockfish 18', kind: 'wasm'},
                          {id: 'fairy-stockfish-14-nnue', label: 'Fairy-Stockfish', kind: 'wasm'}];
         const FAIRY_ONLY = ['crazyhouse']; const FAIRY_ENGINE = 'fairy-stockfish-14-nnue';
+        const AN_VARIANTS = [['crazyhouse', 'Crazyhouse']];
         function syncBandRow() {} function reloadEngine() {} function reloadEngine2() {} let human = null;
         function loadFromInput() { status(...loadLine); }
         ${cut('function status(', '\n}\n')}
@@ -8255,7 +8257,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && res.zh.status === 'The game in the box is tagged [Variant "Standard"], so it is analysed as Standard; clear the box to analyse Crazyhouse. Loaded 2 moves.', res?.zh);
     ok('...REGRESS-1: Chess960 picked over a Crazyhouse-tagged game says nothing about Chess960 castling, and the Fairy switch it did make is named',
        res?.c960?.variant === 'crazyhouse' && res.c960.engine === 'fairy-stockfish-14-nnue' && !/castle/.test(res.c960.status)
-       && /^The game in the box is tagged \[Variant "Crazyhouse"\], so it is analysed as Crazyhouse; clear the box to analyse Chess960\. Engine switched to Fairy-Stockfish: only it plays crazyhouse\. Loaded 2 moves\.$/.test(res.c960.status), res?.c960);
+       && /^The game in the box is tagged \[Variant "Crazyhouse"\], so it is analysed as Crazyhouse; clear the box to analyse Chess960\. Engine switched to Fairy-Stockfish: only it plays Crazyhouse\. Loaded 2 moves\.$/.test(res.c960.status), res?.c960);
     ok('...an untagged game keeps the pick and its Chess960 swap note',
        res?.plain?.variant === 'fischerandom' && res.plain.status === 'Stockfish 18 (native) cannot castle in Chess960; using Stockfish 18 here. Loaded 2 moves.', res?.plain);
 }
