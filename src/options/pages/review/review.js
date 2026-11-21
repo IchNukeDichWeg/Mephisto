@@ -790,6 +790,7 @@ async function run4pcReview() {
         note(cancel ? 'Stopped.' : String(e.message || e), !cancel);
     } finally {
         running = false; cancel = false;
+        settleStopNote();
         M.disconnect();   // the host is single-threaded and idle now; do not hold its port open
         // The page can be gone (another options page): an unguarded line threw here before the
         // disconnect and kept the Tetrarch host connected for the life of the tab (audit 3.1.331 REVIEW-3).
@@ -1072,6 +1073,15 @@ function progress(frac, text) {
 // REVIEWA-6). A note nobody could see is kept with the report it belongs to, and init shows it
 // once on the revisit; one that was shown is not replayed.
 let lastNote = null;
+
+// A run that ends without writing its own outcome to the Game line leaves "Stopping after this
+// position..." there for good: the classifier lane reports only to its own status, and Stop during the
+// own-engine run's Explain step has no note of its own. Every run's finally settles it (audit
+// 3.1.333 REVIEW-8).
+const STOPPING_NOTE = 'Stopping after this position...';
+function settleStopNote() {
+    if ($('rv_pgn_status')?.textContent === STOPPING_NOTE) note('Stopped.');
+}
 
 function note(text, bad) {
     const el = $('rv_pgn_status');
@@ -2777,6 +2787,7 @@ async function onRun() {
         disposeRig(rig);
         running = false;
         cancel = false;
+        settleStopNote();
         // The page is re-injected on every route change, so these can be gone by the time a long
         // run ends -- the run itself is module state and outlives the DOM it started from.
         if ($('rv_run')) $('rv_run').disabled = false;
@@ -3445,6 +3456,7 @@ class ReviewPage {
             } finally {
                 disposeRig(rig);
                 running = false; cancel = false;
+                settleStopNote();
                 if ($('rv_ee_run')) $('rv_ee_run').disabled = false;
                 if ($('rv_run')) $('rv_run').disabled = false;
                 if ($('rv_stop')) $('rv_stop').disabled = true;
@@ -3747,7 +3759,7 @@ class ReviewPage {
             for (const e of (activeEngines.length ? activeEngines : [activeEngine])) {
                 try { e?.stopSearch?.(); } catch (err) { /* already gone */ }
             }
-            note('Stopping after this position...');
+            note(STOPPING_NOTE);
         });
         $('rv_export').addEventListener('click', () => exportHtml($('rv_export')));
         $('rv_pgn_copy')?.addEventListener('click', copyPgn);

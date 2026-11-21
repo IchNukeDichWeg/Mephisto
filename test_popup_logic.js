@@ -5684,7 +5684,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const el = () => ({disabled: false, value: '', classList: {add() {}, remove() {}}, scrollIntoView() {}});
     const run = (bad) => {
         const c = vm.createContext({notes: [], rendered: 0, String, Error, console,
-            $: () => el(), note: (t, err) => c.notes.push([t, !!err]), progress() {}, startRig: async () => ({}), disposeRig() {},
+            $: () => el(), note: (t, err) => c.notes.push([t, !!err]), progress() {}, startRig: async () => ({}), disposeRig() {}, settleStopNote() {},
             cfg: k => (k === 'rv_batch' ? true : k === 'rv_variant' ? 'chess' : false), gameText: g => g.id, eeCached: async () => null,
             renderReport: () => { c.rendered++; }, renderBatch() {}, selectedGame: () => null,
             runReview: async (g) => { if (bad.includes(g.id)) throw Object.assign(new Error('Move 3. Nf6 is not legal'), {replayFailed: true}); return {id: g.id}; }});
@@ -6691,7 +6691,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const mk = (extra, withRunReview = false) => {
         const c = vm.createContext({console, Promise, setTimeout, Error, String, Object, Math,
             $: (id) => (els[id] = els[id] || el()), cfg: (k) => ({rv_batch: true, rv_explain: false, rv_variant: 'chess', rv_book: false}[k]),
-            note: (t, err) => { c.notes.push([t, !!err]); }, progress() {}, renderReport() {}, renderBatch() {}, disposeRig() {}, gameText: () => '',
+            note: (t, err) => { c.notes.push([t, !!err]); }, progress() {}, renderReport() {}, renderBatch() {}, disposeRig() {}, settleStopNote() {}, gameText: () => '',
             run4pcReview() {}, selectedGame: () => c.games[0], notes: [], ...extra});
         vm.runInContext('var running = false, cancel = false, report = null, batchReports = null, batchInputText = "", is4pcGame = false;\n'
             + fn('async function onRun() {') + (withRunReview ? '\n' + fn('async function runReview(game, rig, onProgress) {') : ''), c);
@@ -6738,7 +6738,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const c = vm.createContext({console, Promise, Error, String, notes: [], seenDuringRun: null,
             $: (id) => (els[id] = els[id] || {disabled: false, value: 'B', classList: {add() {}, remove() {}}, scrollIntoView() {}}),
             cfg: (k) => (k === 'rv_batch' ? batch : k === 'rv_variant' ? 'chess' : false), note: (t, e) => c.notes.push([t, !!e]),
-            progress() {}, renderReport() {}, renderBatch() {}, disposeRig() {}, gameText: () => 'B', run4pcReview() {}, startRig: async () => ({}),
+            progress() {}, renderReport() {}, renderBatch() {}, disposeRig() {}, settleStopNote() {}, gameText: () => 'B', run4pcReview() {}, startRig: async () => ({}),
             selectedGame: () => ({id: 'B'}), runReview: async (g) => { c.seenDuringRun = {report: vm.runInContext('report', c), exp: els.rv_export.disabled}; return runReview(g); }});
         els.rv_export = {disabled: false, classList: {add() {}, remove() {}}};   // game A's report is on screen: Export is live
         els.rv_fit = {disabled: false, classList: {add() {}, remove() {}}};
@@ -9007,7 +9007,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const els = {}, asked = [];
         const c = vm.createContext({console, Promise, setTimeout, Error, String, Object, Math,
             $: (id) => (els[id] = els[id] || el()), cfg: (k) => ({rv_batch: false, rv_explain: true, rv_variant: 'chess'}[k]),
-            note() {}, progress() {}, renderReport() {}, renderBatch() {}, disposeRig() {}, gameText: () => '', run4pcReview() {},
+            note() {}, progress() {}, renderReport() {}, renderBatch() {}, disposeRig() {}, settleStopNote() {}, gameText: () => '', run4pcReview() {},
             games: [{tags: {}}], selectedGame: () => ({tags: {}}),
             startRig: async () => ({opts: {variant}}),
             runReview: async () => ({positions: [], moves: [], opts: {variant}}),
@@ -10324,7 +10324,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const c = vm.createContext({console, Promise, Error, String, notes: [],
             $: (id) => (els[id] = els[id] || {disabled: false, value: 'B', classList: {add() {}, remove() {}}, scrollIntoView() {}}),
             cfg: (k) => (k === 'rv_batch' ? batch : k === 'rv_variant' ? 'chess' : false), note: (t, e) => c.notes.push(t),
-            progress() {}, renderReport() {}, renderBatch() {}, disposeRig() {}, gameText: () => 'B', run4pcReview() {}, startRig: async () => ({}),
+            progress() {}, renderReport() {}, renderBatch() {}, disposeRig() {}, settleStopNote() {}, gameText: () => 'B', run4pcReview() {}, startRig: async () => ({}),
             selectedGame: () => ({id: 'B'}),
             runReview: async (g) => { if (g.id === 2 || !batch) { vm.runInContext('cancel = true', c); return {strengthStopped: true}; } return {}; }});
         vm.runInContext('var running = false, cancel = false, is4pcGame = false, batchInputText = "", report = null, batchReports = null;\n'
@@ -10349,7 +10349,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const c = vm.createContext({console, Promise, Error, String, $: (id) => (dom ? (dom[id] = dom[id] || {value: '', textContent: '', disabled: false,
                 classList: {add() {}, remove() {}, toggle(k, on) { if (k === 'rv-bad') this.bad = on; }}, scrollIntoView() {}}) : null),
             document: {querySelector: () => null},
-            cfg: (k) => (k === 'rv_batch' ? batch : k === 'rv_variant' ? 'chess' : false), progress() {}, renderBatch() {}, disposeRig() {},
+            cfg: (k) => (k === 'rv_batch' ? batch : k === 'rv_variant' ? 'chess' : false), progress() {}, renderBatch() {}, disposeRig() {}, settleStopNote() {},
             gameText: (g) => 'pgn' + g.id, run4pcReview() {}, startRig: async () => ({}), selectedGame: () => ({id: 1}), eeCached: async () => null,
             renderCcrReport() {}, runReview: (g) => { dom = null; return runReview(g); }, parsePgnBox: () => c.note(`${batch ? 3 : 1} games read.`)});
         vm.runInContext('var running = false, cancel = false, is4pcGame = false, batchInputText = "", report = null, batchReports = null;\n'
@@ -10455,7 +10455,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     let dom = {};
     const el = (id) => (dom[id] = dom[id] || {id, value: '', textContent: '', disabled: false, classList: {add() {}, remove() {}, toggle() {}}, scrollIntoView() {}});
     const store = {rv_variant: '4pc', rv_limit_kind: 'time', rv_limit_value: 500};
-    const c = vm.createContext({console, Promise, Error, String, Math, $: el, cfg: (k) => store[k], note() {}, progress() {},
+    const c = vm.createContext({console, Promise, Error, String, Math, $: el, cfg: (k) => store[k], note() {}, progress() {}, settleStopNote() {},
         self: {Mephisto4PC: {runReview: async () => ({frames: [{}, {}, {}]}), disconnect() {}}},
         drawn: [], render4pc: () => { c.drawn.push({box: dom.rv_pgn?.value, board: vm.runInContext('typeof board4pc === "undefined" ? null : board4pc', c)}); },
         parsePgnBox() {}, renderReport() {}, renderBatch() {}});
@@ -11667,7 +11667,7 @@ print(json.dumps(out))`;
             sfSearch: async () => away(), EE_MULTIPV: 2, EE_DEPTH: 10,
             cfg: () => false, lookupOpening: async () => ({}), assemble: () => ({}), sfNiceName: () => 'SF',
             SF16_BUILD: 'y', eeRun: async () => ({}), eeCommands: () => [], eeElo: () => null, applyEeVerdict() {},
-            gameText: () => '', renderReport() {}, eeEngineLabel: () => '', eeInstalled: 1, disposeRig() {}}));
+            gameText: () => '', renderReport() {}, eeEngineLabel: () => '', eeInstalled: 1, disposeRig() {}, settleStopNote() {}}));
     ok('L24: a classifier run that ends on another options page keeps its success, not a TypeError',
        !ee.thrown && said.length > 0 && /^Classified by/.test(said[said.length - 1][0]) && !said.some(s => s[1]), said);
 
@@ -12289,7 +12289,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         eeCached: async () => ({}), eeSync() {}, eeTier: () => ({movetime: 1000, build: 'x', label: 'Card'}), sfCached: async () => ({}),
         buildPositions: () => ({positions: [], moves: []}), sfSearch: async () => { dom = null; }, EE_MULTIPV: 2, EE_DEPTH: 10,
         cfg: () => false, lookupOpening: async () => ({}), assemble: () => ({}), sfNiceName: () => 'SF', SF16_BUILD: 'y',
-        eeRun: async () => ({}), eeCommands: () => [], eeElo: () => null, applyEeVerdict() {}, eeEngineLabel: () => '', eeInstalled: 1, disposeRig() {},
+        eeRun: async () => ({}), eeCommands: () => [], eeElo: () => null, applyEeVerdict() {}, eeEngineLabel: () => '', eeInstalled: 1, disposeRig() {}, settleStopNote() {},
         ccrConsent: async () => true, buildCcrGame: () => ({}), MephistoI18n: {errText: (k) => k},
         chrome: {runtime: {sendMessage: async () => { dom = null; return {frames: ['AAA', 'BBB'], closeCode: 1000}; }}}});
     vm.runInContext('var running = false, cancel = false, report = null, batchReports = null, ccrJson = "", ccrLastError = "", ccrLastDetail = "";\n'
@@ -13331,7 +13331,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const c = vm.createContext({console, Promise, setTimeout, Error, String, Object, Math, JSON,
             $: (id) => (els[id] = els[id] || el()), cfg: (k) => store[k], setCfg: (k, v) => { store[k] = v; },
             note() {}, progress() {}, renderReport() {}, renderBatch() {}, gameText: () => '', run4pcReview() {},
-            disposeRig: (r) => { if (r) disposed.push(r.opts.variant); },
+            disposeRig: (r) => { if (r) disposed.push(r.opts.variant); }, settleStopNote() {},
             eeCached: async () => null,
             runReview: async (g, rig) => { seen.push(rig.opts.variant); return {positions: [], moves: [], opts: rig.opts}; }});
         vm.runInContext('var running = false, cancel = false, report = null, batchReports = null, batchInputText = "", games = [];\n'
@@ -18314,6 +18314,19 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
     const a = rsrc.indexOf('const humanPass = (async'), b = rsrc.indexOf('\n    })();', a);
     ok('REVIEW-2 (3.1.333): the human pass ticks once per move, as the total assumes', a > 0 && /tick\(`human model, move/.test(rsrc.slice(a, b))); }
+// ---- audit 3.1.333 REVIEW-8: "Stopping after this position..." never outlives the run ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const finals = rsrc.split('} finally {').length - 1, settled = (rsrc.match(/settleStopNote\(\);/g) || []).length;
+    ok('REVIEW-8 (3.1.333): all three review runs settle the Stop note in their finally', settled === 3, {finals, settled});
+    const fn = (name) => { const i = rsrc.indexOf('function ' + name + '('); return i < 0 ? '' : rsrc.slice(i, rsrc.indexOf('\n}\n', i) + 3); };
+    const el = {textContent: 'Stopping after this position...', classList: {toggle() {}}};
+    const c = vm.createContext({STOPPING_NOTE: 'Stopping after this position...', $: () => el, report: null, lastNote: null});
+    vm.runInContext(fn('note') + fn('settleStopNote'), c);
+    c.settleStopNote();
+    ok('REVIEW-8 (3.1.333): ...which turns the pending note into "Stopped."', el.textContent === 'Stopped.', el.textContent);
+    el.textContent = 'Classified'; c.settleStopNote();
+    ok('REVIEW-8 (3.1.333): ...and leaves any other line alone', el.textContent === 'Classified', el.textContent); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
