@@ -361,7 +361,7 @@
   "set.arrow_rank": "Pijlen nummeren",
   "set.tip.arrow_rank": "Nummer elke pijl met de rang van zijn variant: 1 voor de beste van de engine, 2 en hoger voor de rest. Standaard aan -- bij meer dan een paar varianten zijn de kleuren alleen niet meer genoeg om ze uit elkaar te houden.",
   "set.forced_lines": "Gedwongen lijnen vooruit",
-  "set.tip.forced_lines": "Teken je voorzetbare voortzetting vóór de zet: zolang elk antwoord van de tegenstander hun ENIGE legale zet is, worden je volgende zetten uit de engine-variant blauw getekend en hun gedwongen antwoorden violet. De eerste stelling waarin de tegenstander echte keuze heeft beëindigt de keten -- alles wat getekend is, is zeker gegeven alleen je eigen keuzes. 0 is uit.",
+  "set.tip.forced_lines": "Teken je voorzetbare voortzetting vóór de zet: zolang elk antwoord van de tegenstander hun ENIGE legale zet is, worden je volgende zetten uit de engine-variant magenta getekend en hun gedwongen antwoorden groenblauw (standaardkleuren, te wijzigen onder Weergave). De eerste stelling waarin de tegenstander echte keuze heeft beëindigt de keten -- alles wat getekend is, is zeker gegeven alleen je eigen keuzes. 0 is uit.",
   "set.premove_confidence": "Voorzet-zekerheid",
   "set.tip.premove_confidence": "Hoe diep de zoektocht met zichzelf moet overeenstemmen voordat een voorzet op scherp staat: het paar (hun zet, ons antwoord) moet identiek zijn op deze diepte, de diepte ervoor en de laatst gemelde. 14 is de gemeten standaard. Een antwoord dat de ENIGE legale zet van de tegenstander is, is door de regels gecertificeerd en negeert deze knop volledig.",
   "set.premove_plies": "Voorzet-halfzetten",

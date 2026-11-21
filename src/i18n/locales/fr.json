@@ -361,7 +361,7 @@
   "set.arrow_rank": "Numéroter les flèches",
   "set.tip.arrow_rank": "Numéroter chaque flèche du rang de sa ligne : 1 pour la meilleure du moteur, 2 et plus pour le reste. Activé par défaut -- au-delà de quelques lignes, les couleurs seules ne suffisent plus à les distinguer.",
   "set.forced_lines": "Lignes forcées en avance",
-  "set.tip.forced_lines": "Dessine votre continuation pré-jouable avant le coup : tant que chaque réponse adverse est son SEUL coup légal, vos coups suivants de la ligne du moteur sont dessinés en bleu et leurs réponses forcées en violet. La première position où l'adversaire a un vrai choix termine la chaîne -- tout ce qui est dessiné est certain, étant donné vos seuls choix. 0 désactive.",
+  "set.tip.forced_lines": "Dessine votre continuation pré-jouable avant le coup : tant que chaque réponse adverse est son SEUL coup légal, vos coups suivants de la ligne du moteur sont dessinés en magenta et leurs réponses forcées en bleu canard (couleurs par défaut, modifiables dans Apparence). La première position où l'adversaire a un vrai choix termine la chaîne -- tout ce qui est dessiné est certain, étant donné vos seuls choix. 0 désactive.",
   "set.premove_confidence": "Confiance du pré-coup",
   "set.tip.premove_confidence": "À quelle profondeur la recherche doit s'accorder avec elle-même avant d'armer un pré-coup : la paire (leur coup, notre réponse) doit être identique à cette profondeur, celle d'avant et la dernière rapportée. 14 est le défaut mesuré. Une réponse qui est le SEUL coup légal de l'adversaire est certifiée par les règles et ignore entièrement ce cadran.",
   "set.premove_plies": "Demi-coups de pré-coup",

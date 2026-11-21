@@ -361,7 +361,7 @@
   "set.arrow_rank": "Pfeile nummerieren",
   "set.tip.arrow_rank": "Nummeriere jeden Pfeil mit dem Rang seiner Variante: 1 für die beste der Engine, 2 aufwärts für den Rest. Standardmäßig an -- bei mehr als ein paar Varianten reichen die Farben allein nicht mehr, um sie auseinanderzuhalten.",
   "set.forced_lines": "Erzwungene Folgen voraus",
-  "set.tip.forced_lines": "Zeichne deine vorziehbare Fortsetzung vor dem Zug: Solange jede Gegnerantwort deren EINZIGER legaler Zug ist, werden deine nächsten Züge aus der Engine-Variante blau gezeichnet und die erzwungenen Antworten violett. Die erste Stellung, in der der Gegner echte Wahl hat, beendet die Kette -- alles Gezeichnete ist sicher, gegeben nur deine eigenen Entscheidungen. 0 ist aus.",
+  "set.tip.forced_lines": "Zeichne deine vorziehbare Fortsetzung vor dem Zug: Solange jede Gegnerantwort deren EINZIGER legaler Zug ist, werden deine nächsten Züge aus der Engine-Variante magenta gezeichnet und die erzwungenen Antworten türkis (Standardfarben, unter Darstellung änderbar). Die erste Stellung, in der der Gegner echte Wahl hat, beendet die Kette -- alles Gezeichnete ist sicher, gegeben nur deine eigenen Entscheidungen. 0 ist aus.",
   "set.premove_confidence": "Vorzug-Sicherheit",
   "set.tip.premove_confidence": "Wie tief die Suche mit sich selbst übereinstimmen muss, bevor ein Vorzug scharf ist: Das Paar (ihr Zug, unsere Antwort) muss bei dieser Tiefe, der davor und der zuletzt gemeldeten identisch sein. 14 ist der gemessene Standard. Eine Antwort, die der EINZIGE legale Zug des Gegners ist, ist durch die Regeln zertifiziert und ignoriert diesen Regler ganz.",
   "set.premove_plies": "Vorzug-Halbzüge",

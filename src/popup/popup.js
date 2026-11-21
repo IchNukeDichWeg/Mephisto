@@ -2962,7 +2962,7 @@ const LINE_COLORS = ['#0a5bd3', '#0f9d58', '#e0a400', '#e8710a', '#9333ea'];
 //
 // TWO ramps, one per side. Whose move an arrow is matters more than how deep it sits -- a chain
 // drawn in one colour reads as one player's plan, when half of it is the reply being forced OUT of
-// the opponent. Ours cool through blue, theirs through violet, and each ramp still darkens with
+// the opponent. Ours run through magenta, theirs through teal, and each ramp still darkens with
 // depth so the order inside a side is readable without a legend.
 // Magenta for ours, teal for theirs (user call 2026-08-14): the old blue/violet ramps sat next to
 // line #1's blue and line #5's purple in LINE_COLORS and read as engine lines on a busy board.

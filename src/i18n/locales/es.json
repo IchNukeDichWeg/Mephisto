@@ -361,7 +361,7 @@
   "set.arrow_rank": "Numerar flechas",
   "set.tip.arrow_rank": "Numera cada flecha con el rango de su línea: 1 para la mejor del motor, 2 en adelante para el resto. Activado por defecto -- con más de un par de líneas los colores solos dejan de bastar para distinguirlas.",
   "set.forced_lines": "Líneas forzadas por delante",
-  "set.tip.forced_lines": "Dibuja tu continuación premovible antes de la jugada: mientras cada respuesta del rival sea su ÚNICA jugada legal, tus siguientes jugadas de la línea del motor se dibujan en azul y sus respuestas forzadas en violeta. La primera posición donde el rival tiene elección real termina la cadena -- todo lo dibujado es seguro dadas solo tus propias decisiones. 0 es desactivado.",
+  "set.tip.forced_lines": "Dibuja tu continuación premovible antes de la jugada: mientras cada respuesta del rival sea su ÚNICA jugada legal, tus siguientes jugadas de la línea del motor se dibujan en magenta y sus respuestas forzadas en verde azulado (colores por defecto, cambiables en Apariencia). La primera posición donde el rival tiene elección real termina la cadena -- todo lo dibujado es seguro dadas solo tus propias decisiones. 0 es desactivado.",
   "set.premove_confidence": "Confianza de premovida",
   "set.tip.premove_confidence": "Qué tan profundo debe coincidir la búsqueda consigo misma antes de armar una premovida: el par (su jugada, nuestra respuesta) debe ser idéntico a esta profundidad, la anterior y la última reportada. 14 es el valor medido por defecto. Una respuesta que sea la ÚNICA jugada legal del rival queda certificada por las reglas e ignora este dial por completo.",
   "set.premove_plies": "Semijugadas de premovida",

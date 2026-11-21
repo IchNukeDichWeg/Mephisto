@@ -361,7 +361,7 @@
   "set.arrow_rank": "Numerar setas",
   "set.tip.arrow_rank": "Numere cada seta com o rank da sua linha: 1 para a melhor do motor, 2 em diante para o resto. Ligado por padrão -- com mais que umas poucas linhas as cores sozinhas deixam de bastar para distingui-las.",
   "set.forced_lines": "Linhas forçadas à frente",
-  "set.tip.forced_lines": "Desenha sua continuação pré-jogável antes do lance: enquanto cada resposta do adversário for o ÚNICO lance legal dele, seus próximos lances da linha do motor são desenhados em azul e as respostas forçadas em violeta. A primeira posição em que o adversário tem escolha real encerra a cadeia -- tudo desenhado é certo, dadas só as suas escolhas. 0 é desligado.",
+  "set.tip.forced_lines": "Desenha sua continuação pré-jogável antes do lance: enquanto cada resposta do adversário for o ÚNICO lance legal dele, seus próximos lances da linha do motor são desenhados em magenta e as respostas forçadas em verde-azulado (cores padrão, alteráveis em Aspeto). A primeira posição em que o adversário tem escolha real encerra a cadeia -- tudo desenhado é certo, dadas só as suas escolhas. 0 é desligado.",
   "set.premove_confidence": "Confiança do pré-lance",
   "set.tip.premove_confidence": "Quão fundo a busca deve concordar consigo mesma antes de armar um pré-lance: o par (lance deles, nossa resposta) deve ser idêntico nesta profundidade, na anterior e na última reportada. 14 é o padrão medido. Uma resposta que é o ÚNICO lance legal do adversário é certificada pelas regras e ignora este dial por completo.",
   "set.premove_plies": "Meios-lances de pré-lance",

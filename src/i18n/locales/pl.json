@@ -361,7 +361,7 @@
   "set.arrow_rank": "Numeruj strzałki",
   "set.tip.arrow_rank": "Numeruj każdą strzałkę rangą jej wariantu: 1 dla najlepszego silnika, 2 wzwyż dla reszty. Domyślnie włączone -- przy więcej niż paru wariantach same kolory przestają wystarczać do ich rozróżnienia.",
   "set.forced_lines": "Wymuszone linie naprzód",
-  "set.tip.forced_lines": "Rysuj swoją przedruchową kontynuację przed ruchem: dopóki każda odpowiedź przeciwnika jest jego JEDYNYM legalnym ruchem, twoje następne ruchy z wariantu silnika są niebieskie, a ich wymuszone odpowiedzi fioletowe. Pierwsza pozycja, w której przeciwnik ma prawdziwy wybór, kończy łańcuch -- wszystko narysowane jest pewne przy samych twoich wyborach. 0 wyłącza.",
+  "set.tip.forced_lines": "Rysuj swoją przedruchową kontynuację przed ruchem: dopóki każda odpowiedź przeciwnika jest jego JEDYNYM legalnym ruchem, twoje następne ruchy z wariantu silnika są purpurowe, a ich wymuszone odpowiedzi morskie (domyślne kolory, do zmiany w Wyglądzie). Pierwsza pozycja, w której przeciwnik ma prawdziwy wybór, kończy łańcuch -- wszystko narysowane jest pewne przy samych twoich wyborach. 0 wyłącza.",
   "set.premove_confidence": "Pewność przedruchu",
   "set.tip.premove_confidence": "Jak głęboko szukanie musi się zgadzać ze sobą, zanim przedruch zostanie uzbrojony: para (ich ruch, nasza odpowiedź) musi być identyczna na tej głębokości, poprzedniej i ostatniej zgłoszonej. 14 to zmierzony domyślny. Odpowiedź będąca JEDYNYM legalnym ruchem przeciwnika jest poświadczona przez zasady i całkiem ignoruje to pokrętło.",
   "set.premove_plies": "Półruchy przedruchu",

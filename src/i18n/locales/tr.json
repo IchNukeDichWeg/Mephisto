@@ -361,7 +361,7 @@
   "set.arrow_rank": "Okları numaralandır",
   "set.tip.arrow_rank": "Her oku varyantının sırasıyla numaralandır: motorun en iyisi 1, kalanlar 2 ve yukarısı. Varsayılan olarak açık -- birkaç varyantı geçince renkler tek başına ayırt etmeye yetmez olur.",
   "set.forced_lines": "İleriye zorunlu diziler",
-  "set.tip.forced_lines": "Hamleden önce ön-hamlelenebilir devamınızı çiz: rakibin her yanıtı TEK yasal hamlesi olduğu sürece, motor varyantından sizin sonraki hamleleriniz mavi, onların zorunlu yanıtları mor çizilir. Rakibin gerçek seçeneği olan ilk konum zinciri bitirir -- çizilen her şey, yalnız sizin seçimleriniz verili kesin. 0 kapalıdır.",
+  "set.tip.forced_lines": "Hamleden önce ön-hamlelenebilir devamınızı çiz: rakibin her yanıtı TEK yasal hamlesi olduğu sürece, motor varyantından sizin sonraki hamleleriniz eflatun, onların zorunlu yanıtları camgöbeği çizilir (varsayılan renkler, Görünüm altında değiştirilebilir). Rakibin gerçek seçeneği olan ilk konum zinciri bitirir -- çizilen her şey, yalnız sizin seçimleriniz verili kesin. 0 kapalıdır.",
   "set.premove_confidence": "Ön hamle güveni",
   "set.tip.premove_confidence": "Bir ön hamle kurulmadan önce aramanın kendisiyle ne kadar derin uyuşması gerektiği: (onların hamlesi, bizim yanıt) çifti bu derinlikte, bir öncekinde ve son bildirilen derinlikte özdeş olmalı. 14 ölçülmüş varsayılandır. Rakibin TEK yasal hamlesi olan yanıt kurallarca onaylıdır ve bu kadranı tümüyle yok sayar.",
   "set.premove_plies": "Ön hamle yarı hamleleri",
