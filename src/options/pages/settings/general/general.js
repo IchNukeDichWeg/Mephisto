@@ -451,13 +451,10 @@ class GeneralSettings extends SettingsPage {
                     variant_select.setValue('chess');
                 }
             }
-            if (engine_select.getValue() === 'remote') {
-                engineLabelTooltiped?.classList.remove('hidden');
-                engineLabelUntooltiped?.classList.add('hidden');
-            } else {
-                engineLabelTooltiped?.classList.add('hidden');
-                engineLabelUntooltiped?.classList.remove('hidden');
-            }
+            // The tooltip was a Remote Engine note once; it now describes every engine kind, the cloud
+            // privacy warning included, so it is shown for all of them (audit 3.1.333 GENERALJS-3).
+            engineLabelTooltiped?.classList.remove('hidden');
+            engineLabelUntooltiped?.classList.add('hidden');
             // LAST: the block above can reset the variant to `chess`, and the Playstyle row's answer
             // depends on the variant that ends up selected, not the one that was there on entry.
             sync_playstyle_row();
