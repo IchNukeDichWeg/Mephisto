@@ -1849,7 +1849,7 @@ async function explorerLookup({fen, db}) {
       if (lichess_note_response(r, 'explorer')) { out = {error: `HTTP ${r.status}`}; break; } // don't try the other host
       out = r.ok ? await r.json()
         : {error: r.status === 401
-            ? 'Lichess needs an API token for the opening explorer - Settings → General → Lichess API token'
+            ? 'Lichess needs an API token for the opening explorer - Settings > Beyond the engine > Lichess API token'
             : `HTTP ${r.status}`};
       // log the REQUEST, not just the verdict: "no moves" is indistinguishable from "wrong FEN"
       // without seeing exactly what was asked for
