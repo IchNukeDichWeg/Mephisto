@@ -1016,7 +1016,8 @@ async function updateCheck(force = false) {
         .find(l => l && !l.startsWith('#') && !l.startsWith('|') && !l.startsWith('>')) || '';
       // First SENTENCE, not first 240 characters: the notes open with a headline sentence followed
       // by context, and a character cap cut it mid-clause.
-      const plain = headline.replace(/\*\*|__|`/g, '');
+      // the panel already prints "Updated to v{v}", so drop the version the headline opens with (audit 3.1.333 BACKGROUND-2)
+      const plain = headline.replace(/\*\*|__|`/g, '').replace(/^v?\d+(\.\d+)*\s*-+\s*/, '');
       const stop = plain.search(/[.!?](\s|$)/);
       result = {latest, url: json.html_url, asset: asset?.browser_download_url || null,
                 size: asset?.size || 0, name: json.name || '',
