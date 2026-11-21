@@ -1,24 +1,25 @@
 // TakeTakeTake page-world probe. The taketaketake.com board is a WebGPU <canvas> -- there are no
 // DOM pieces, squares, aria labels or FEN anywhere in the document, so the usual scraping is
 // impossible. The full game state lives in the page's React tree as two XState actors:
-//   - the GAME MACHINE (mounted as a prop named `takePlayActor`): its context holds `.game` =
+//   - the GAME MACHINE (a prop named `takePlayActor` on bot games): its context holds `.game` =
 //     the server game object (fen, move list, both clocks in ms, viewer color) and
-//     `.matchmakingConfig` (increment). This exists on every kind of live game -- bot AND online.
+//     `.matchmakingConfig` (increment). Online games have no `.game`, so this is a bonus, not the anchor.
 //   - the BOARD actor (a prop on the canvas's own component): its context holds `.gameTree`, the
 //     OPTIMISTIC render tree that gains the user's own move ~10ms after the click, ~500ms before
 //     the server acknowledges it.
 //
-// Detection anchors on the GAME MACHINE, found by a bounded breadth-first walk of the fiber tree
-// (~0.9ms, <700 nodes) rather than by walking UP from the canvas: the board component varies by
-// surface (the old up-from-canvas walk worked on bot games but not online games or the replay
-// viewer), whereas the `takePlayActor` prop is a stable semantic anchor. The board actor is picked
-// up in the SAME walk when present, purely to read its optimistic move list for low latency; if
-// it's ever absent the probe falls back to the (slightly laggier) server move list and still works.
+// Detection anchors on the BOARD ACTOR (its gameTree and parentRef exist on every surface), found by
+// a bounded breadth-first walk of the fiber tree (~0.9ms, <700 nodes) rather than by walking UP from
+// the canvas: the component around the canvas varies by surface (the old up-from-canvas walk worked
+// on bot games but not online games). The game machine is picked up in the SAME walk when present,
+// for its `.game` on bot games. The board's optimistic move list is read for low latency; if the
+// board actor is absent the probe falls back to the (slightly laggier) server move list.
 //
 // Content scripts run in an ISOLATED world and cannot touch React fibers, so this probe is injected
 // into the MAIN world ("world": "MAIN") and bridges via DOM CustomEvents:
-//   - 'mephisto-tt-query'  is answered SYNCHRONOUSLY with 'mephisto-tt-state'.
-//   - 'mephisto-tt-update' is PUSHED on the game machine's subscription the instant the position
+//   - random per-session channels <sid>q (query), <sid>s (state) and <sid>u (update), handed over
+//     once on the 'm9' rendezvous. A query is answered SYNCHRONOUSLY on <sid>s.
+//   - <sid>u is PUSHED on the board actor's subscription (the machine's, when there is no board) the instant the position
 //     changes -- the canvas repaints without any DOM mutation, so without this the content-script
 //     would only notice a move on the 1s fallback poll.
 (() => {
