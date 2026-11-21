@@ -9150,7 +9150,9 @@ function humanize_pick(best, overridden = false) {
         } else {
             const cap = {instant: think, quick: budget * 0.35, normal: budget, long: budget * 2.5}[kind];
             think = Math.min(think, cap);
-            if (kind !== 'instant') source = 'Clock Mode';
+            // Mirror Time with no opponent spend yet falls back to this budget; it is still Mirror
+            // Time's move, not Clock Mode's (audit 3.1.333 POPUP3-5)
+            if (kind !== 'instant') source = config.mirror_mode ? 'Mirror Time' : 'Clock Mode';
         }
         if (T < 20) think = Math.min(think, 250);
         if (T < 8) think = 0;
@@ -9212,7 +9214,7 @@ function estimated_move_total_ms(fen) {
     const pace = paced_move_target_ms(fen);
     if (pace != null) {
         if (pace.ms <= 0) return null; // low clock -> effectively instant, nothing to count down
-        return {ms: pace.ms, source: (config.mirror_mode && opp_spend != null) ? 'Mirror Time' : 'Clock Mode'};
+        return {ms: pace.ms, source: config.mirror_mode ? 'Mirror Time' : 'Clock Mode'};
     }
     const hz = humanize_presearch_ms(fen);
     if (hz != null) return {ms: hz, source: 'Humanize'};
