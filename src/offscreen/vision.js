@@ -499,8 +499,9 @@ async function readBoard(bitmap, box) {
 // THE BOARD DOES NOT MOVE WHILE YOU PLAY. The detector is a 12MB model run on a 512x512 image, and
 // on a live page it answers the same box read after read -- the tab is the same size and the board
 // is where it was. So the last box is kept and REUSED while the image is the same shape, and the
-// detector only runs again when that stops being true or when the position model reports a read it
-// is not confident about (which is what a wrong box looks like from here). An explicit Read Position
+// detector only runs again when that stops being true or when a read comes back with no kings or
+// almost no pieces (which is what a wrong box looks like from here). No current caller reaches the
+// reuse path: the follow loop passes a crop and a Read Position press passes `fresh`. An explicit Read Position
 // press passes `fresh` and always re-detects (audit 3.1.331 VISION-2); the follow loop passes the
 // box it read from as a crop, so this cache is only for a caller that asks for neither.
 //
@@ -527,9 +528,9 @@ function boxCacheSet(key, box) {
 // the caller can force a fresh detection; it passes the same key its reads use
 export function resetBoardBox(key) { if (key === undefined) boxCache.clear(); else boxCache.delete(key); }
 
-// The frame that arrives is usually the frame that arrived last time: while the opponent thinks,
-// the follow loop captures a screen that has not changed. The crop hash below already skips the
-// MODEL for those, but the image still had to be decoded first (~23ms of a ~26ms cached read, which
+// This cache serves only crop-less reads, which today means a Read Position press: a frame that is
+// byte-identical to the last one is answered here. The follow loop always passes a crop, so it never
+// takes this path. The crop hash below skips the MODEL for repeated crops, but the image still had to be decoded first (~23ms of a ~26ms cached read, which
 // makes decoding the dominant cost once the model is skipped). A JPEG encoder given identical
 // pixels and identical settings emits identical bytes, so identical bytes mean an identical screen
 // -- and the whole read can be answered without decoding anything at all.
