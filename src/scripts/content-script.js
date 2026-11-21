@@ -1958,11 +1958,13 @@ function drawLiveStats(stats, bounds) {
     // classifier, so the strip, the board badge and the report cannot disagree.
     const C = self.MephistoClassify || {};
     const NOTABLE = C.CLASS_NOTABLE || ['blunder', 'mistake', 'inaccuracy'];
+    // the bare +'s' printed "misss" and "inaccuracys" (audit 3.1.333 CONTENT1-5)
+    const PLURAL = {miss: 'misses', inaccuracy: 'inaccuracies'};
     const side = (name, s) => {
         const acc = (s.accuracy == null) ? ' - ' : `${s.accuracy}%`;
         const c = s.counts || {};
         const nameAll = (n) => NOTABLE.filter(k => n[k]).slice(0, 3).map(k =>
-            `<span style="color:${(C.CLASS_COLOR || {})[k] || '#d8d8d8'}">${n[k]} ${(C.CLASS_LABEL || {})[k] || k}${n[k] > 1 ? 's' : ''}</span>`);
+            `<span style="color:${(C.CLASS_COLOR || {})[k] || '#d8d8d8'}">${n[k]} ${n[k] > 1 ? (PLURAL[k] || ((C.CLASS_LABEL || {})[k] || k) + 's') : ((C.CLASS_LABEL || {})[k] || k)}</span>`);
         const named = nameAll(c);
         // Nothing graded yet (classifier not loaded, or no ply pair deep enough): name the coarse
         // counters the same way. This printed only s.blunder, so 2 mistakes read "0 blunders"
