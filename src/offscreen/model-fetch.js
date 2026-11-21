@@ -183,7 +183,9 @@ async function fetchModelOnce(dir, file, onNote) {
     if (!await matches(buf, entry)) {
         throw coded('MPH-N03', `${file} failed its SHA-256 check against the engine manifest - not used, not kept`);
     }
-    try { await cache?.put(url, new Response(buf.slice(0))); } catch (e) { /* storage full: still usable now */ }
-    onNote?.(`${file} downloaded (${(buf.byteLength / 1e6).toFixed(1)} MB), kept for next time`);
+    // kept only when the put lands: no cache (caches.open failed) or a full store means the next load downloads again (audit 3.1.333 OFFSCREEN-3)
+    let kept = false;
+    try { if (cache) { await cache.put(url, new Response(buf.slice(0))); kept = true; } } catch (e) { /* storage full: still usable now */ }
+    onNote?.(`${file} downloaded (${(buf.byteLength / 1e6).toFixed(1)} MB), ${kept ? 'kept for next time' : 'not cached (storage unavailable or full)'}`);
     return buf;
 }
