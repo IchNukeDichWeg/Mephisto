@@ -135,9 +135,11 @@ function lineCp(l, MATE_CP) {
 // 3.1.331 REVIEW4PC-2). The mover is the first seat from `turn` on that is still alive after it.
 // Not when `next` is an explicit terminator (R/T/#/S, no move): there the seat that leaves IS `turn`,
 // dead in `next`, and the scan named the seat after it as the one to move while the engine had
-// searched for `turn` (audit 3.1.332 REVIEW4PC-2).
-function moverOf(f, next) {
-    if (next && next.move == null) return f.turn;
+// searched for `turn` (audit 3.1.332 REVIEW4PC-2). Except an FFA `#`/`S`: Tetrarch takes the stuck
+// seat out when it loads the position, so the engine searched for the NEXT live seat, and the scan
+// below is what names it (audit 3.1.333 REVIEW4PC-1).
+function moverOf(f, next, isFfa) {
+    if (next && next.move == null && !(isFfa && (next.token === '#' || next.token === 'S'))) return f.turn;
     const alive = next && next.alive;
     let k = SEATS.indexOf(f.turn);
     if (!Array.isArray(alive) || k < 0) return f.turn;
@@ -212,7 +214,7 @@ async function runReview(pgn4Text, {movetime = 1000, onProgress, isCancelled} = 
             teamCp: isFfa ? cp : toTeamCp(cp, frames[i].turn),
             best: (res.bestmove && res.bestmove !== '0000' ? res.bestmove : null) || lines[0]?.move || null,
             lines,
-            mover: moverOf(f, frames[i + 1]),   // whose search this is (REVIEW4PC-2)
+            mover: moverOf(f, frames[i + 1], isFfa),   // whose search this is (REVIEW4PC-2)
         };
     }
 
@@ -220,7 +222,7 @@ async function runReview(pgn4Text, {movetime = 1000, onProgress, isCancelled} = 
     for (let i = 0; i + 1 < frames.length; i++) {
         const f = frames[i], next = frames[i + 1];
         if (!next.move) continue;                       // a terminator, not a move
-        const seat = moverOf(f, next);
+        const seat = moverOf(f, next, isFfa);
         const rank = evals[i]?.lines?.findIndex(l => l.move === next.move);
         let winBefore = null, winAfter = null;
         if (isFfa) {

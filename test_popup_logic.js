@@ -18274,6 +18274,41 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const t = K.estimate([], {moves: 1}).text;
     ok('REVIEWCORE-6 (3.1.333): a one-move side reads "Only 1 move.", two read "Only 2 moves."',
        t.startsWith('Only 1 move. ') && K.estimate([], {moves: 2}).text.startsWith('Only 2 moves. '), t); }
+// ---- audit 3.1.333 REVIEW4PC-1: FFA, the position before a '#'/'S' token names the next live seat (the engine searched for it) ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the REAL review-4pc.js over a fake host; the terminator frame is shaped like Tetrarch's pgn4.replay
+    // (move null, the leaving seat dead, turn on the next seat)
+    const run = async (game) => {
+        const c = vm.createContext({console, setTimeout, Promise, Error, Map, Math, Array, Object, String, Number, JSON});
+        c.self = c;
+        c.chrome = {runtime: {connect() {
+            const L = [];
+            return {onMessage: {addListener: (f) => L.push(f)}, onDisconnect: {addListener() {}}, disconnect() {},
+                postMessage(m) { setTimeout(() => {
+                    const r = m.cmd === 'pgn4' ? game : m.cmd === 'configure' ? {ok: true}
+                        : m.fen4 === 'end' ? {error: 'Tetrarch: search failed: ValueError: no seat is dead during search'}
+                        : {bestmove: 'x1', lines: [{move: 'x1', score: 20}]};
+                    L.forEach(f => f({...r, id: m.id}));
+                }, 0); }};
+        }}};
+        vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+        vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-4pc.js', 'utf8'), c);
+        return c.Mephisto4PC.runReview('x', {movetime: 50});
+    };
+    const T = [true, true, true, true], nc = [false, false, false, false];
+    const fr = (i, turn, move, alive) => ({ply: i, fen4: 'f' + i, turn, alive: alive || T, move, token: move, check: nc});
+    try {
+        for (const [variant, tok, want] of [['FFA', '#', 'B'], ['FFA', 'S', 'B'], ['Teams', '#', 'R'], ['FFA', 'R', 'R']]) {
+            const game = {variant, mode: variant === 'FFA' ? '0' : '1', setup: 'classic', tags: {}, terminations: [],
+                frames: [fr(0, 'R', null), fr(1, 'B', 'r1'), fr(2, 'Y', 'b1'), fr(3, 'G', 'y1'), fr(4, 'R', 'g1'),
+                         {ply: 5, fen4: 'end', turn: 'B', alive: [false, true, true, true], move: null, token: tok, check: nc}]};
+            const r = await run(game);
+            ok(`REVIEW4PC-1 (3.1.333): ${variant} '${tok}' on Red: the position before it is ${want}'s search`,
+               r.evals[4].mover === want, r.evals.map(e => e.mover));
+        }
+    } catch (e) { fails++; console.log('FAIL REVIEW4PC-1 (3.1.333): threw ' + e.message); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
