@@ -6,8 +6,8 @@
 //   V35s.gameKernel.game.addOnCurPosChangedListener(fn)  -> fires on every move / navigation
 // Content scripts run in an ISOLATED world and cannot read page globals, so this probe is injected
 // into the MAIN world ("world": "MAIN") and bridges via DOM CustomEvents, mirroring tt-probe.js:
-//   - 'mephisto-cb-query'  is answered SYNCHRONOUSLY with 'mephisto-cb-state' (the current FEN).
-//   - 'mephisto-cb-update' is PUSHED on the model's onCurPosChanged the instant the position
+//   - the query channel (<sid>q) is answered SYNCHRONOUSLY on <sid>s with the current position as JSON {fen, geo}.
+//   - the update channel (<sid>u) is PUSHED on the model's onCurPosChanged the instant the position
 //     changes, so a solved/taken-back move is seen immediately instead of on the fallback poll.
 // Puzzles start from ARBITRARY positions, so the FEN is shipped whole (the content-script wraps it
 // as '***cbfen***' and the popup feeds it to the engine directly -- no move replay).
