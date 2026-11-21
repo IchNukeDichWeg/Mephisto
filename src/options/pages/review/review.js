@@ -421,6 +421,9 @@ async function runReview(game, rig, onProgress) {
                 // as one past the end so it counts against the match rate rather than vanishing.
                 moves[i].maiaRank = order.length ? (at >= 0 ? at + 1 : order.length + 1) : null;
                 moves[i].maiaMatch = moves[i].maiaRank === 1;
+                // the total counts these moves too, so the bar and the ETA must see them
+                // (audit 3.1.333 REVIEW-2: the bar stalled near half and the ETA doubled)
+                tick(`human model, move ${i + 1} of ${moves.length}`);
             }
         } catch (e) {
             if (cancel || engineFailed) return;   // the run's own note stands (see engineFailed)

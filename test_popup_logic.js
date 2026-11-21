@@ -18309,6 +18309,11 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         }
     } catch (e) { fails++; console.log('FAIL REVIEW4PC-1 (3.1.333): threw ' + e.message); }
 })();
+// ---- audit 3.1.333 REVIEW-2: the human pass advances the progress bar its moves are counted in ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rsrc.indexOf('const humanPass = (async'), b = rsrc.indexOf('\n    })();', a);
+    ok('REVIEW-2 (3.1.333): the human pass ticks once per move, as the total assumes', a > 0 && /tick\(`human model, move/.test(rsrc.slice(a, b))); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
