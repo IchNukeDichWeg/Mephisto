@@ -565,7 +565,7 @@
   "panel.tip.fourpc_mode": "Que partida de quatro jogadores é esta. A deteção automática lê-a da página; Equipas e todos contra todos são ambos analisados.",
   "panel.tip.threads": "Quantos threads de CPU o motor pode usar. Mais é mais forte até aos núcleos reais; acima disso é mais lento, não mais rápido.",
   "panel.tip.multi_lines": "Quantas linhas candidatas o motor reporta. Mais linhas significa que cada uma é pesquisada menos fundo.",
-  "panel.tip.memory": "A tabela hash do motor. Maior ajuda pesquisas longas; maior do que a máquina pode dispensar prejudica tudo.",
+  "panel.tip.memory": "A tabela hash do motor. Maior ajuda pesquisas longas; maior do que a máquina pode dispensar prejudica tudo. Os motores WASM usam no máximo 512 MB, mostre o controle o que mostrar; os nativos usam o valor inteiro.",
   "panel.tip.turn_switch": "De quem é a vez - toque para inverter se estiver errado (problemas / posições próprias).",
   "panel.tip.maia2_elos": "Maia-2 joga um CONFRONTO, não um nível: um modelo que recebe o teu Elo e o do adversário, por isso a mesma posição é respondida de forma diferente por um 1200 contra 2000 e por um 2000 contra 1200. Passos de 50, e ambos aplicam de imediato (sem recarregar).",
   "panel.maia2_self": "Maia-2 o teu Elo",

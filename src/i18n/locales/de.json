@@ -565,7 +565,7 @@
   "panel.tip.fourpc_mode": "Welches Vier-Spieler-Spiel das ist. Auto-Erkennung liest es von der Seite; analysiert werden Teams und Jeder-gegen-jeden.",
   "panel.tip.threads": "Wie viele CPU-Threads die Engine nutzen darf. Mehr ist stärker bis zur Zahl echter Kerne; darüber wird es langsamer, nicht schneller.",
   "panel.tip.multi_lines": "Wie viele Kandidatenzüge die Engine meldet. Mehr Linien heißt, jede wird weniger tief gerechnet.",
-  "panel.tip.memory": "Die Hashtabelle der Engine. Größer hilft langen Suchen; größer als der Rechner entbehren kann schadet allem.",
+  "panel.tip.memory": "Die Hashtabelle der Engine. Größer hilft langen Suchen; größer als der Rechner entbehren kann schadet allem. Die WASM-Engines nutzen höchstens 512 MB, egal was der Regler zeigt; native Engines nehmen den vollen Wert.",
   "panel.tip.turn_switch": "Wer am Zug ist - antippen, um zu wechseln, wenn es falsch ist (Puzzles / eigene Stellungen).",
   "panel.tip.maia2_elos": "Maia-2 spielt eine PAARUNG, keine Stufe: ein Modell, das deine Wertung und die des Gegners nimmt - dieselbe Stellung wird von einem 1200er gegen 2000 anders beantwortet als von einem 2000er gegen 1200. Schritte von 50, beide wirken sofort (kein Neuladen).",
   "panel.maia2_self": "Maia-2 deine Wertung",

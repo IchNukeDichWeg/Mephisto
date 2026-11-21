@@ -565,7 +565,7 @@
   "panel.tip.fourpc_mode": "Która to partia czteroosobowa. Autowykrywanie odczytuje to ze strony; analizowane są oba tryby: drużynowy i każdy na każdego.",
   "panel.tip.threads": "Ile wątków CPU może użyć silnik. Więcej znaczy silniej do liczby prawdziwych rdzeni; powyzej jest wolniej, nie szybciej.",
   "panel.tip.multi_lines": "Ile linii kandydujących raportuje silnik. Więcej linii oznacza, ze każda jest liczona płycej.",
-  "panel.tip.memory": "Tablica hash silnika. Większa pomaga długim obliczeniom; większa niż maszyna może oddac szkodzi wszystkiemu.",
+  "panel.tip.memory": "Tablica hash silnika. Większa pomaga długim obliczeniom; większa niż maszyna może oddać szkodzi wszystkiemu. Silniki WASM używają najwyżej 512 MB, cokolwiek pokazuje suwak; silniki natywne biorą pełną wartość.",
   "panel.tip.turn_switch": "Kto jest na posunięciu - dotknij, by zmienić, jeśli jest źle (zadania / własne pozycję).",
   "panel.tip.maia2_elos": "Maia-2 gra POJEDYNEK, nie poziom: jeden model bierze twój ranking i ranking przeciwnika, więc ta sama pozycja jest rozegrana inaczej przez 1200 przeciw 2000 niż przez 2000 przeciw 1200. Kroki co 50, oba działają natychmiast (bez przeładowania).",
   "panel.maia2_self": "Maia-2 twój ranking",

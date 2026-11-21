@@ -307,7 +307,9 @@
     </div>
     <div class="qs-row">
         <span class="qs-label tooltipped" data-i18n-tip="panel.tip.memory" data-position="left"
-              data-tooltip="The engine's hash table. Bigger helps long searches; bigger than the machine can spare hurts everything."><span data-i18n="panel.memory">Memory</span> (<span id="qs_memory_val">512</span> MB)</span>
+              data-tooltip="The engine's hash table. Bigger helps long searches; bigger than the machine can
+                            spare hurts everything. The WASM engines use at most 512 MB whatever the slider
+                            shows; native engines take the full value."><span data-i18n="panel.memory">Memory</span> (<span id="qs_memory_val">512</span> MB)</span>
         <input id="qs_memory" class="browser-default" type="range" min="32" max="4096" step="32">
     </div>
 <div class="qs-row qs-nums">

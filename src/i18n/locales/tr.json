@@ -565,7 +565,7 @@
   "panel.tip.fourpc_mode": "Bunun hangi dört kişilik oyun olduğu. Otomatik algılama bunu sayfadan okur; hem Takımlar hem herkes kendine analiz edilir.",
   "panel.tip.threads": "Motorun kullanabileceği CPU is parçacığı sayısı. Gerçek çekirdek sayısına kadar daha güçlü; ötesinde daha hızlı değil daha yavaştır.",
   "panel.tip.multi_lines": "Motorun bildirdiği aday varyant sayısı. Daha çok varyant, her birinin daha az derin arandığı anlamına gelir.",
-  "panel.tip.memory": "Motorun hash tablosu. Büyüğü uzun aramalara yardım eder; makinenin ayırabileceğinden büyüğü her seye zarar verir.",
+  "panel.tip.memory": "Motorun hash tablosu. Büyüğü uzun aramalara yardım eder; makinenin ayırabileceğinden büyüğü her şeye zarar verir. WASM motorları kaydırıcı ne gösterirse göstersin en fazla 512 MB kullanır; yerel motorlar değerin tamamını alır.",
   "panel.tip.turn_switch": "Sira kimde - yanlışsa değiştirmek için dokunun (problemler / özel pozisyonlar).",
   "panel.tip.maia2_elos": "Maia-2 bir EŞLEŞME oynar, seviye değil: modelin girdisi senin ve rakibinin puanı, yani aynı pozisyon 2000'e karşı 1200 tarafından başka, 1200'e karşı 2000 tarafından başka cevaplanır. 50'lik adımlar; ikisi de anında geçerli olur (yeniden yükleme yok).",
   "panel.maia2_self": "Maia-2 senin puanın",

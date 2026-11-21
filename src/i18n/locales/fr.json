@@ -565,7 +565,7 @@
   "panel.tip.fourpc_mode": "De quelle partie à quatre il s'agit. La détection automatique la lit sur la page ; Équipes et chacun pour soi sont tous deux analysés.",
   "panel.tip.threads": "Combien de threads le moteur peut utiliser. Plus est plus fort jusqu'au nombre de cœurs réels ; au-delà c'est plus lent, pas plus rapide.",
   "panel.tip.multi_lines": "Combien de lignes candidates le moteur rapporte. Plus de lignes, moins de profondeur pour chacune.",
-  "panel.tip.memory": "La table de hachage du moteur. Plus grande aide les longues recherches ; plus grande que ce que la machine peut ceder nuit à tout.",
+  "panel.tip.memory": "La table de hachage du moteur. Plus grande aide les longues recherches ; plus grande que ce que la machine peut céder nuit à tout. Les moteurs WASM utilisent au plus 512 Mo, quoi qu'affiche le curseur ; les moteurs natifs prennent la valeur entière.",
   "panel.tip.turn_switch": "À qui de jouer - touchez pour inverser si c'est faux (problèmes / positions personnalisées).",
   "panel.tip.maia2_elos": "Maia-2 joue un APPARIEMENT, pas un niveau : un modèle qui prend votre Elo et celui de l'adversaire, donc la même position reçoit une autre réponse d'un 1200 face à 2000 que d'un 2000 face à 1200. Pas de 50, et les deux s'appliquent aussitôt (sans rechargement).",
   "panel.maia2_self": "Maia-2 votre Elo",
