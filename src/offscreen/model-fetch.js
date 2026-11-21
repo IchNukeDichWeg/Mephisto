@@ -79,11 +79,12 @@ async function download(urls, entry, file, onNote) {
             try {
                 r = await fetch(url, {signal: ctl.signal});
             } catch (e) {
-                // The download host is an OPTIONAL permission (the same pair the self-updater asks for),
-                // so "no permission" and "no network" arrive identically here. Say what to do rather
-                // than leaving a bare TypeError in the console.
+                // No setting gates this: the host is covered by the required <all_urls> grant, so a
+                // failure here is the network (or something blocking the host). Say what to do rather
+                // than leaving a bare TypeError in the console. There was no "permission off in
+                // Settings" to turn on (audit 3.1.333 OFFSCREEN-2).
                 throw coded('MPH-N01', ctl.signal.aborted ? `${file}: no answer from the download host in ${STALL_MS / 1000} s`
-                    : `${file} is not bundled and could not be downloaded (offline, or permission off in Settings)`);
+                    : `${file} is not bundled and could not be downloaded (offline, or the download host is blocked)`);
             }
             if (!r.ok) throw coded('MPH-N01', `${file} could not be downloaded: HTTP ${r.status}`);
             const reader = r.body.getReader();
