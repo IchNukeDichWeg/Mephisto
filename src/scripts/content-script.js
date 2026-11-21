@@ -2968,6 +2968,8 @@ if (/(^|\.)taketaketake\.com$/.test(location.hostname) || location.hostname === 
 const puzzleCaptures = new Map();   // "placement stm" -> {line, id, where}
 let puzSid = null;
 let puzzleReported = 0;
+// unread-shape lines logged per page, capped like puzzleReported but kept apart so they cannot suppress the summary (audit 3.1.333 CONTENT2-2)
+let puzzleUnreadLogged = 0;
 // Bookkeeping for the diagnostics. "Nothing was captured" has three very different causes -- the
 // probe saw no payload, it saw one in an encoding we cannot read, or it read one and the moves did
 // not replay -- and a single count of zero cannot tell them apart. It cost a full round trip with a
@@ -3082,7 +3084,8 @@ function acceptPuzzleCaptures(found) {
                 unknown++;
                 puzzleUnread++;
                 puzzleSample = `unread ${f.raw.key}=${String(f.raw.value).slice(0, 90)}`;
-                if (puzzleReported < 3) {
+                if (puzzleUnreadLogged < 3) {
+                    puzzleUnreadLogged++;
                     console.log(`puzzle capture: a solution field "${f.raw.key}" in an encoding that is `
                               + `neither UCI nor TCN nor SAN nor move objects: ${String(f.raw.value).slice(0, 120)}`);
                 }
@@ -3179,7 +3182,7 @@ function acceptPuzzleCaptures(found) {
         let i = 0;
         for (const k of puzzleCaptures.keys()) { if (i++ >= drop) break; puzzleCaptures.delete(k); }
     }
-    // Say what was captured ONCE per page, and say it plainly: a shape we could not read is the one
+    // Say what was captured, at most 3 times per page, and say it plainly: a shape we could not read is the one
     // thing worth reporting, because it is the difference between "this site is not supported yet"
     // and "this site is supported and the position simply is not one of these".
     if ((kept || unknown) && puzzleReported < 3) {
