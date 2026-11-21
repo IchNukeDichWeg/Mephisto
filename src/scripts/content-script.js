@@ -808,15 +808,19 @@ function startDragSelect() {
 // an empty set, and the setting looks broken with no error anywhere. That is exactly how it was
 // reported. The list is broadened below, and applyHideOpponent now COUNTS what it matched so a
 // future rename is a line in the diagnostics rather than a mystery.
+// ONLY THE TOP BOX, the opponent's, as opponentUsername reads it (oppBox swaps it on a flipped
+// board). The list named no side, so it blurred your own name and avatar too (audit 3.1.333
+// CONTENT1-2); lichess's meta panel lists both players by colour and is left alone.
 const HIDE_OPP_SELECTORS = [
-    // chess.com -- board player boxes, the tagline under them, and the avatars
-    '.player-component .user-username-component', '.player-tagline .user-username-component',
-    '.user-tagline-username', '.player-avatar', '.user-avatar-component',
-    '.player-row-component .cc-user-username-component', '.cc-user-username-component',
-    '.player-component .user-username', '[data-test-element="user-tagline-username"]',
-    // lichess -- the game meta panel and the two player rows beside the board
-    '.game__meta .player .user-link', '.ruser a', '.ruser .name', '.game__meta .player .name',
-    '.player .user-link .name', '.game__meta__players .player a',
+    // chess.com -- the top player box across its layouts: name, tagline name, avatar
+    '#board-layout-player-top .user-username-component', '#board-layout-player-top .cc-user-username-component',
+    '#board-layout-player-top [data-test-element="user-tagline-username"]', '#board-layout-player-top .user-tagline-username',
+    '#board-layout-player-top .player-avatar', '#board-layout-player-top .user-avatar-component',
+    '.player-top .user-username-component', '.player-top .cc-user-username-component',
+    '.player-top .player-avatar', '.player-top .user-avatar-component',
+    '.board-layout-top .cc-user-username-component', '.board-layout-top .user-avatar-component',
+    // lichess -- the top player row beside the board
+    '.ruser-top a', '.ruser-top .name',
 ].join(', ');
 
 // IS THE OPPONENT STREAMING? Read their name off the TOP player box -- the board is always
@@ -896,18 +900,20 @@ let hideOppMatched = null;   // last match count, for the diagnostics; null = ne
 let hideOppStyle = null;      // by reference: an id on a node in the page is a name the page can look up
 function applyHideOpponent(on) {
     if (!on) { hideOppStyle?.remove(); hideOppStyle = null; hideOppMatched = null; return; }
+    const sel = oppBox(HIDE_OPP_SELECTORS);   // the opponent's box, whichever way the board faces
     if (!hideOppStyle?.isConnected) {
         const st = document.createElement('style');
         hideOppStyle = st;
-        // blur rather than hide: the layout stays intact, so the page looks normal
-        st.textContent = `${HIDE_OPP_SELECTORS} { filter: blur(6px) !important; }`;
         (document.head || document.documentElement).appendChild(st);
     }
+    // blur rather than hide: the layout stays intact, so the page looks normal
+    const css = `${sel} { filter: blur(6px) !important; }`;
+    if (hideOppStyle.textContent !== css) hideOppStyle.textContent = css;
     // A STYLESHEET THAT MATCHES NOTHING IS INDISTINGUISHABLE FROM ONE THAT WORKS, from in here --
     // which is why this was reported as "does not work" with nothing to go on. Count instead, and
     // say so once. Re-counted on every config push because these boxes render after the board.
     let n = 0;
-    try { n = document.querySelectorAll(HIDE_OPP_SELECTORS).length; } catch (e) { n = -1; }
+    try { n = document.querySelectorAll(sel).length; } catch (e) { n = -1; }
     if (n !== hideOppMatched) {
         hideOppMatched = n;
         bgLog('hide opponent', {matched: n, site});
