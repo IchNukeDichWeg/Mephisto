@@ -883,7 +883,8 @@ class GeneralSettings extends SettingsPage {
         // the content-script listener's own normalization (config-store.js), so what we store is
         // exactly what it compares
         const keyString = (e) => MephistoConfig.hotkeyString(e);
-        const pretty = (k) => !k ? ' - ' : k.split('+').map(p => p === ' ' ? 'Space' : (p.length === 1 ? p.toUpperCase() : p)).join(' + ');
+        // a '+' is a separator only when a key follows it, so the '+' key itself survives (audit 3.1.333 GENERALJS-16)
+        const pretty = (k) => !k ? ' - ' : k.split(/\+(?=.)/).map(p => p === ' ' ? 'Space' : (p.length === 1 ? p.toUpperCase() : p)).join(' + ');
         const save = (obj) => MephistoConfig.set('hotkeys', JSON.stringify(obj));
         let bindings = MephistoConfig.hotkeys();
         // the action being rebound, or 'macro:<index>' for a macro's key (hotkeyOwner's format)
