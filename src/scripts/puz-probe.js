@@ -294,8 +294,8 @@
         try { scan(String(e.detail || ''), 'cdp'); } catch (err) { /* */ }
     });
 
-    // replay: the isolated side asks once, when it wires its listener. That request is also the ack
-    // that stops the announcements above.
+    // replay: the isolated side asks once, when it wires its listener. That request does not stop the
+    // announcements above, which run for their full window.
     document.addEventListener(SID + 'r', () => {
         acked = true;
         if (!buf.length) return;
@@ -483,8 +483,8 @@
     // document_idle sees nothing at all, so the whole feature captured nothing on a real page while
     // the probe itself was working perfectly.
     //
-    // `acked` stops the retries the moment the other side asks for a replay, so the usual case is a
-    // couple of events and done.
+    // `acked` is set by the replay request but nothing reads it: the announcements run their full
+    // window (see below).
     const announce = () => {
         try { document.dispatchEvent(new CustomEvent(RDV, {detail: JSON.stringify({s: SID, t: 'puz'})})); }
         catch (e) { /* */ }
