@@ -18353,6 +18353,14 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const h = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
     const i = h.indexOf('id="rv_explain"'), row = h.lastIndexOf('<div class="set-row', i);
     ok('REVIEW-14 (3.1.333): the rv_explain row is own-engine only', /data-for="own"[ >]/.test(h.slice(row, i)), h.slice(row, row + 80)); }
+// ---- audit 3.1.333 REVIEW-16: variant messages use the dropdown's names ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (name) => { const i = rsrc.indexOf('function ' + name + '('); return i < 0 ? '' : rsrc.slice(i, rsrc.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({String, $: () => ({options: [{value: 'kingofthehill', textContent: 'King of the Hill'}, {value: '3check', textContent: 'Three-check'}]})});
+    vm.runInContext(fn('variantLabel'), c);
+    ok('REVIEW-16 (3.1.333): a chess.js id prints as its dropdown label', c.variantLabel('kingofthehill') === 'King of the Hill' && c.variantLabel('fischerandom') === 'Chess960' && c.variantLabel('xyz') === 'xyz', [c.variantLabel('kingofthehill'), c.variantLabel('fischerandom')]);
+    ok('REVIEW-16 (3.1.333): no "switched to 4-player" note when it already was', /if \(current === '4pc'\) return '';\s*setCfg\('rv_variant', '4pc'\)/.test(rsrc)); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

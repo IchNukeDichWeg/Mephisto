@@ -107,6 +107,15 @@ function looks960(fen) {
 
 // What a pasted game says about its own rules. Returns a sentence for the parse note when it
 // changed (or could not honour) the Game type, or '' when there is nothing to say.
+// The dropdown's own name for a rules id ('kingofthehill' -> 'King of the Hill'), so messages say
+// what the page shows instead of the chess.js id (audit 3.1.333 REVIEW-16).
+function variantLabel(id) {
+    if (id === 'chess') return 'Chess';
+    if (id === 'chess960' || id === 'fischerandom') return 'Chess960';
+    const opt = [...($('rv_variant_which')?.options || [])].find(o => o.value === id);
+    return opt ? opt.textContent.trim() : String(id);
+}
+
 function detectVariantFrom(game) {
     if (!game) return '';
     const current = String(cfg('rv_variant') || 'chess');
@@ -120,7 +129,8 @@ function detectVariantFrom(game) {
         // Teams AND free-for-all both review since Tetrarch v8, which searches FFA paranoid with
         // its own net; the lane reads the mode off the game and grades accordingly.
         is4pcGame = true;
-        if (current !== '4pc') { setCfg('rv_variant', '4pc'); syncGameTypeUi(); }
+        if (current === '4pc') return '';
+        setCfg('rv_variant', '4pc'); syncGameTypeUi();
         return ' Four-player game - switched Game type to 4-player chess.';
     }
     is4pcGame = false;
@@ -147,14 +157,14 @@ function detectVariantFrom(game) {
         // nothing decisive in the PGN: remind when a non-chess type is in force, so a run under
         // unusual rules is never a surprise
         return current !== 'chess' && current !== '4pc'
-            ? ` Reviewing under the ${current === 'chess960' ? 'Chess960' : String(cfg('rv_variant_which'))} rules set above.`
+            ? ` Reviewing under the ${current === 'chess960' ? 'Chess960' : variantLabel(String(cfg('rv_variant_which')))} rules set above.`
             : '';
     }
     if (current === want && (!which || String(cfg('rv_variant_which')) === which)) return '';
     setCfg('rv_variant', want);
     if (which) setCfg('rv_variant_which', which);
     syncGameTypeUi();
-    const label = want === 'chess' ? 'Chess' : want === 'chess960' ? 'Chess960' : which;
+    const label = want === 'chess' ? 'Chess' : want === 'chess960' ? 'Chess960' : variantLabel(which);
     return ` Game type set to ${label} from the PGN.`;
 }
 
@@ -252,7 +262,7 @@ function buildPositions(game, variant = 'chess') {
         }
         if (!mv) {
             const {num, white} = Core.plyMove(positions[0].fen, i);
-            const rules = variant === 'chess' ? 'standard chess' : variant;
+            const rules = variant === 'chess' ? 'standard chess' : variantLabel(variant);
             throw new Error(`Move ${num}${white ? '.' : '...'} ${san} is not legal in this position `
                 + `(ply ${i + 1}) under ${rules}. Check the Game type at the top of Analysis.`);
         }
@@ -691,7 +701,7 @@ async function startRig(override, rules) {
     // the run status rather than done silently.
     let engineId = override?.engineId || cfg('rv_engine');
     if (!override && RV_FAIRY_ONLY.includes(variant) && engineId !== RV_FAIRY_ENGINE) {
-        note(`Engine switched to Fairy-Stockfish for this run: only it plays ${variant}.`);
+        note(`Engine switched to Fairy-Stockfish for this run: only it plays ${variantLabel(variant)}.`);
         engineId = RV_FAIRY_ENGINE;
     }
     if (!override && variant === 'fischerandom'
