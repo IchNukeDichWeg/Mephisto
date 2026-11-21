@@ -1578,7 +1578,7 @@ class GeneralSettings extends SettingsPage {
             }
             puzzleImport.running = true;
             busy(true);
-            say('Reading… (this takes a few minutes; leave this page open)');
+            say('Reading… (this takes roughly half an hour for the Lichess file; leave this page open)');
             try {
                 const t0 = Date.now();
                 // SAN -> UCI for the chess.com daily rows. Built here rather than inside
