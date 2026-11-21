@@ -1308,6 +1308,9 @@ async function analyseNow(gen) {
                 if (cursor !== at || positions[at]?.fen !== pos.fen) return;
                 const m = $('an_engine_meta');
                 if (m && !/done/.test(m.textContent)) m.textContent += ` · done (${secs}s)`;
+                // stop() sets stopped=true, so the second engine's own done frame never arrives; mark its row here (audit 3.1.333 ANALYSIS-8)
+                const m2 = $('an_engine2_meta');
+                if (m2 && /^depth /.test(m2.textContent) && !/done/.test(m2.textContent)) m2.textContent += ` · done (${secs}s)`;
             });
         }, secs * 1000);
     }
