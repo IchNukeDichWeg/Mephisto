@@ -1497,7 +1497,7 @@ class GeneralSettings extends SettingsPage {
             // The folder grant lapses across a browser restart, and asking for it again needs a
             // click, which a page opened by the panel has not had: install() threw "Update failed".
             if (await MephistoUpdater.folder()) runInstall();
-            else say('One click needed: the browser wants the folder confirmed. Press Install.');
+            else say('One click needed: the browser wants the folder confirmed. Press Install Update.');
         };
 
         render().then(autostart);
