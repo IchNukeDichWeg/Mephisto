@@ -3431,8 +3431,8 @@ class ReviewPage {
                         limitValue: tier.movetime || tier.depth,
                         engineName: `chess.com's ${sfNiceName(tier.build)}`});
                 } else if (tier.build === SF16_BUILD) {
-                    // The Game Review tiers are chess.com's ENGINE at a time budget. Without it there
-                    // is nothing to imitate -- our own build at the same seconds is a different
+                    // The Game Review tiers are chess.com's ENGINE at a fixed depth. Without it there
+                    // is nothing to imitate -- our own build at the same depth is a different
                     // engine, and saying "Deep" over it would be a claim we have not measured.
                     eeSay(`${tier.label} needs chess.com\u2019s Stockfish 16.1 \u2014 press Download Stockfish 16.1 first.`, true);
                     return;

@@ -482,7 +482,7 @@
                               data-tooltip="How hard the engine looks before their classifier judges the move.
                                             The first setting reproduces chess.com's free post-game card exactly --
                                             their engine at their depth. The other four mirror the strength tiers
-                                            their Game Review offers, which are time budgets PER POSITION, with
+                                            their Game Review offers, which are search depths (18/22/24/26), with
                                             chess.com's own advertised ratings. Deeper is slower: a 40-move game at
                                             Maximum is over an hour of searching.">
                             Search budget <i class="material-icons info-tooltip">info</i>
@@ -497,7 +497,8 @@
                         <span class="tooltipped" data-position="right"
                               data-tooltip="chess.com's own move classifier -- the one behind the Book/Best/Excellent
                                             card you get after a game -- running HERE, offline. Our engine does the
-                                            searching at their settings (depth 10, 2 lines) and their explanation
+                                            searching at their settings (depth 10, 2 lines on the post-game card; the
+                                            Search budget's depth on the other four) and their explanation
                                             engine decides the verdicts, so the labels and the accuracy match theirs
                                             rather than ours. Their engine is a 28.7 MB download from chess.com the
                                             first time, kept afterwards; the game itself never leaves this machine.">
@@ -519,7 +520,7 @@
                 <div class="set-row">
                     <div class="set-lbl">
                         <span class="tooltipped" data-position="right"
-                              data-tooltip="chess.com's own Stockfish 18 Lite - the exact engine their review searches with. Optional: without it the classifier is fed our Stockfish 18 Small instead, which agrees on most moves but differs by 30-60 centipawns here and there, and that is enough to move a move between Good and Excellent. With it, both halves of the review are theirs. 7.3 MB from chess.com, kept afterwards. GPLv3.">
+                              data-tooltip="chess.com's own search engine - the exact one their review searches with, and the row follows the Search budget. For the post-game card it is their Stockfish 18 Lite (7.3 MB) and optional: without it the classifier is fed our Stockfish 19 (WASM) instead, which agrees on most moves but differs by 30-60 centipawns here and there, enough to move a move between Good and Excellent. Fast, Standard, Deep and Maximum need their Stockfish 16.1 (69 MB) and do not run without it. Kept afterwards. GPLv3.">
                             Chess.com search engine <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
