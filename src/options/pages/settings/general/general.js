@@ -1357,7 +1357,8 @@ class GeneralSettings extends SettingsPage {
             say(`Update available - v${rel.latest} (${(rel.size / 1048576).toFixed(1)} MB). Press Install Update.`);
         };
 
-        // Turning it ON is the permission prompt, and a refusal has to snap the switch back --
+        // Turning it ON asks Chrome for the release hosts (already covered by <all_urls>, so no prompt
+        // shows: audit 3.1.333 SMALLSCRIPTS-3), and a refusal has to snap the switch back --
         // otherwise the page claims a permission Chrome did not give.
         cb.addEventListener('change', async () => {
             if (cb.checked) {

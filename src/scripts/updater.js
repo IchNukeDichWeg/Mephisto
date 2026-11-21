@@ -1,7 +1,8 @@
 // Self-update from this project's own GitHub releases.
 //
 // STRICT OPT-IN, and the gate is OURS. Nothing here runs until the Updates section is switched on,
-// which is the same moment Chrome is asked for the two release hosts. install() refuses outright
+// which is also when the extension asks Chrome for the two release hosts (no prompt shows: <all_urls>
+// already covers them, audit 3.1.333 SMALLSCRIPTS-3). install() refuses outright
 // while that grant is missing, and the buttons stay disabled -- that check is the enforcement.
 //
 // MEASURED, because the obvious assumption is wrong: in Chrome 151 an extension PAGE can fetch and
@@ -9,8 +10,8 @@
 // full 5,884,500-byte read of a real release asset both succeeded from the options page with
 // nothing granted (headless Chrome 151.0.7922.72, macOS, 2026-08-06). So the permission is not what
 // makes the download possible. It is kept anyway, for two reasons that are worth the four lines:
-// it is a visible, revocable record of what was agreed to (chrome://extensions shows it, and
-// switching the toggle off hands it back), and it keeps working on any build that DOES enforce CORS
+// it records that the extension may reach the release hosts (<all_urls> in host_permissions, which
+// chrome://extensions lists; a required grant, so the toggle cannot revoke it), and it keeps working on any build that DOES enforce CORS
 // here. What it is not is a substitute for the hasPermission() check below.
 //
 // WHY THIS IS NEEDED AT ALL. Chrome never auto-updates an unpacked extension -- `update_url` is
