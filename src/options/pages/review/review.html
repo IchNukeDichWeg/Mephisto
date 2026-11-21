@@ -156,10 +156,12 @@
                 <div class="set-row" data-for="own">
                     <div class="set-lbl">
                         <span data-i18n="panel.engine" data-i18n-tip="rv.tip.engine" class="tooltipped" data-position="right"
-                              data-tooltip="Which engine judges the game. The WASM builds run inside the extension and
-                                            need nothing installed. The native entries are the full-power local
-                                            engines and are much faster, but only appear once their host is installed
-                                            and answering -- and they take a time budget only, never a depth.">
+                              data-tooltip="Which engine judges the game. The WASM builds run inside the
+                                            extension and need nothing installed. The native entries are the
+                                            full-power local engines and are much faster; they are listed but
+                                            greyed out until their host is installed. They take a depth or a
+                                            time budget alike -- an older host that does not understand depth
+                                            falls back to its time cap.">
                             Engine <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
@@ -398,10 +400,11 @@
                 <div class="set-row set-toggle" data-for="own local" data-chess-only>
                     <div class="set-lbl">
                         <span data-i18n="rv.opening_book" data-i18n-tip="rv.tip.opening_book" class="tooltipped" data-position="right"
-                              data-tooltip="Look the opening up in the Lichess masters database, so book moves are
-                                            named rather than scored. It stops at the first position the database
-                                            does not know, so it is a handful of requests at the start of the game
-                                            and nothing after that.">
+                              data-tooltip="Name the opening from a table that ships with the extension
+                                            (lichess-org/chess-openings), so book moves are named rather than
+                                            scored. No network request: it walks the whole game and keeps the
+                                            last position the table names, so a transposition back into theory
+                                            still counts.">
                             Name the opening <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
