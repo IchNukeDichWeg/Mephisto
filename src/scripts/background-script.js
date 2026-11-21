@@ -907,7 +907,8 @@ async function buildDiagnostics(ctx = {}) {
     // one-entry list as "only that one is installed" cost a detour on 2026-09-12, when every host on
     // the machine was installed and answering a ping in under a quarter second. The word is the fix.
     `hosts     ${Object.keys(nativePorts).join(', ') || 'none'} connected (not a list of what is installed)`,
-    `optional  ${(perm.origins || []).length} host permission(s) granted`,
+    // getAll() lists required host_permissions and content-script matches; none is optional (audit 3.1.333 BACKGROUND-3)
+    `perms     ${(perm.origins || []).length} host permission(s) granted (all required)`,
     `lichess   API token ${hasToken ? 'set' : 'not set'}`,
     ctx.site ? `site      ${ctx.site}${ctx.path ? '  ' + ctx.path : ''}` : null,
     ctx.engine ? `engine    ${ctx.engine}` : null,
