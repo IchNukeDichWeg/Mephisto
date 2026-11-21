@@ -507,6 +507,11 @@ def start_engine(path):
 
 if __name__ == '__main__':
     engine = start_engine(args.executable)
+    # Stockfish prints `wdl` only with UCI_ShowWDL on, and nothing sent it, so the WDL branch in
+    # format_line never ran (audit 3.1.333 NATIVEHOSTS-1). Kept in engine_options, so a relaunch
+    # sets it again.
+    if 'UCI_ShowWDL' in engine.options:
+        set_option('UCI_ShowWDL', True)
     for option in args.options or []:
         apply_option(option)
     replaced = panel_owned(args.options)
