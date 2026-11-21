@@ -9026,8 +9026,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        ['fischerandom', 'crazyhouse', 'atomic'].every(v => res[v].asked === 0 && res[v].prose === null), res);
     const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
     const row = /<div class="set-row"([^>]*)>\s*<div class="set-lbl">\s*<span[^>]*\s+data-tooltip="Adds chess\.com's coach commentary/.exec(html);
-    ok('...and its settings row stands down for other game types while staying in every review mode for chess',
-       !!row && /data-chess-only/.test(row[1]) && /data-for="own local online"/.test(row[1]), row && row[1]);
+    ok('...and its settings row stands down for other game types and shows only in the own-engine review, the one run that reads it (3.1.333 REVIEW-14)',
+       !!row && /data-chess-only/.test(row[1]) && /data-for="own"/.test(row[1]), row && row[1]);
 })();
 // ---- audit 3.1.330 REVIEWB-7: an annotation glyph standing alone in the movetext is not read as a move ----
 {
@@ -18348,6 +18348,11 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-11 (3.1.333): the "1 game read" note counts full moves, not plies', rsrc.includes('Math.ceil(games[0].moves.length / 2)} moves'));
     ok('REVIEW-12 (3.1.333): seconds spent on a move are not called "on the clock"', !rsrc.includes('s on the clock`') && rsrc.includes('s spent`'));
     ok('REVIEW-13 (3.1.333): strengthPass hands Maia back at the run\'s own rating', /const back = rig\?\.opts\?\.humanLevel \?\? ratingFor/.test(rsrc)); }
+// ---- audit 3.1.333 REVIEW-14: Explain the moves shows only where it does something ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const h = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    const i = h.indexOf('id="rv_explain"'), row = h.lastIndexOf('<div class="set-row', i);
+    ok('REVIEW-14 (3.1.333): the rv_explain row is own-engine only', /data-for="own"[ >]/.test(h.slice(row, i)), h.slice(row, row + 80)); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

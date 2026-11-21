@@ -352,8 +352,10 @@
                     </div>
                 </div>
 
-                <!-- every review mode, but chess only: chess.com's coach reads standard chess (audit 3.1.330 REVIEWB-6) -->
-                <div class="set-row" data-for="own local online" data-chess-only>
+                <!-- own-engine review only: the classifier and online modes always carry chess.com's commentary,
+                     and only onRun reads rv_explain (audit 3.1.333 REVIEW-14). Chess only: the coach reads
+                     standard chess (audit 3.1.330 REVIEWB-6) -->
+                <div class="set-row" data-for="own" data-chess-only>
                     <div class="set-lbl">
                         <span class="tooltipped" data-position="right"
                               data-tooltip="Adds chess.com's coach commentary to THIS review - a sentence per move and a
