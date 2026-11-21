@@ -18327,6 +18327,10 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-8 (3.1.333): ...which turns the pending note into "Stopped."', el.textContent === 'Stopped.', el.textContent);
     el.textContent = 'Classified'; c.settleStopNote();
     ok('REVIEW-8 (3.1.333): ...and leaves any other line alone', el.textContent === 'Classified', el.textContent); }
+// ---- audit 3.1.333 REVIEW-9: the threads/hash warning follows the -/+ steppers ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    ok('REVIEW-9 (3.1.333): rvWarn listens to change as well as input', /for \(const ev of \['input', 'change'\]\) \$\(id\)\?\.addEventListener\(ev, rvWarn\)/.test(rsrc)); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

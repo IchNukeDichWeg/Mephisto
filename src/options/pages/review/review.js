@@ -3622,8 +3622,8 @@ class ReviewPage {
         bindNumber('rv_threads', 'rv_threads');
         bindNumber('rv_hash', 'rv_hash');
         const rvWarn = () => refreshLimitWarnings($('rv_limits_warn'), $('rv_threads')?.value, $('rv_hash')?.value);
-        $('rv_threads')?.addEventListener('input', rvWarn);
-        $('rv_hash')?.addEventListener('input', rvWarn);
+        // 'change' too: the -/+ steppers (bindSteppers) fire only that (audit 3.1.333 REVIEW-9)
+        for (const id of ['rv_threads', 'rv_hash']) for (const ev of ['input', 'change']) $(id)?.addEventListener(ev, rvWarn);
         setTimeout(rvWarn, 300);
         bindNumber('rv_maia3_elo', 'rv_maia3_elo');
         bindSteppers();
