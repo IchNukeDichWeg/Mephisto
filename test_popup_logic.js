@@ -9707,7 +9707,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         call_backend: async (url, data) => { c.calls.push([url.replace('http://localhost:8080', ''), data]); return {ok: c.status < 300, status: c.status, text: async () => ''}; }});
     vm.runInContext(cut('function backend_refused(', 'async function dispatch_click_event(')
         + cut('async function dispatch_drag_event(', 'function resolve_click_tab(')
-        + cut('async function backend_clicked(', '// Both the HTTP "Remote Engine"'), c);
+        + cut('async function backend_clicked(', '// --- Machine calibration'), c);
     (async () => {
         const r = await c.dispatch_drag_event(10, 20, 30, 40, 7, 250, true);
         ok('CLICKA-3: the backend gets ONE /performDrag with both points and the drag floor',

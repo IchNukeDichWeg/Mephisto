@@ -810,7 +810,7 @@ async function initPanel(root, tabId) {
             } catch (e) {
                 turn = turn_before;
                 console.warn('Mephisto: skipping unparseable scrape:', e.message);
-                return; // transient scrape garbage - the next poll (100ms) retries
+                return; // transient scrape garbage - the next poll (fen_refresh, at least 1 s) retries
             }
             // stamped before anything can reject this push; promoted to `analysed_push_key` only
             // once the position is actually accepted (see on_new_pos)
@@ -1526,7 +1526,7 @@ function init_quick_settings() {
             panel_reload();
         });
     }
-    // MAIA-2'S OPPONENT: the page's own rating when the scrape found one (onScrapedOppRating), else
+    // MAIA-2'S OPPONENT: the page's own rating when the scrape found one (response.oppRating), else
     // this box. Steps of 50, live.
     const maia2Oppo = PANEL_ROOT.getElementById('qs_maia2_oppo_row');
     if (maia2Oppo) {
@@ -1931,7 +1931,7 @@ async function initialize_engine(reuseWarm = false) {
         if (config.variant === 'fischerandom' && config.engine !== 'fairy-stockfish-14-nnue') {
             send_engine_uci('setoption name UCI_Chess960 value true');
         }
-        // Strength cap: every Stockfish/Fairy build clamps UCI_Elo to its own range, so send it raw.
+        // Strength cap: UCI_Elo is clamped to the engine's own range by engine_elo() before it is sent.
         // The native troll engines don't declare the option. 0 = full strength (leave limiting off).
         if (!NO_ELO_ENGINES.includes(config.engine)) {
             // Cap only within the engine's own range; 0 (Off) or anything above its max (the
@@ -3242,6 +3242,8 @@ function paint_lines() {
     }
 }
 
+// Both the HTTP "Remote Engine" and the serverless native engines speak the same request/response
+// shape and reuse the same remote branch in on_engine_response.
 function on_engine_response(message) {
     console.log('on_engine_response', message);
     if (typeof message === 'string' && message.startsWith('info string mephisto-unsupported-variant')) {
@@ -3514,16 +3516,16 @@ function is_legal_position(fen) {
 // "Premove" without the blunder risk: while the opponent thinks we certify a reply to their
 // PREDICTED move (max 2 candidate lines). It only fires if the new position is EXACTLY the
 // predicted one -- any other move discards the table and searches normally, so a wrong guess
-// costs nothing. Certification = the reply is identical at depth 13, depth 14 and the latest
-// depth (>= 14) -- see PREMOVE_DEPTH_PREV/LAST. Residual risk is only a marginally weaker
+// costs nothing. Certification = the reply is identical at depth N-1, depth N (Premove Confidence,
+// default 14) and the latest depth -- see premove_cert_prev/premove_cert_last. Residual risk is only a marginally weaker
 // (still certified) move, never a move meant for a different position.
 // Final gate before ANY premove reply is clicked: it must move OUR piece, and when it is already
 // our turn (an instant reply, not a premove queued during the opponent's turn) it must be fully
 // legal right now. This rejects a stale/mismatched chain that would otherwise click the opponent's
 // move or an illegal move (the observed "it plays the opponent's move and gets stuck" bug).
 // Premove certification window. A (their move, our reply) pair is only trusted once the search has
-// reached PREMOVE_DEPTH_LAST and has not changed its mind over the final two iterations: the pair
-// must be identical at depth 13, at depth 14, and at the latest depth reported. Raised from the old
+// reached premove_cert_last() and has not changed its mind over the final two iterations: the pair
+// must be identical at depth N-1, at depth N (default 14), and at the latest depth reported. Raised from the old
 // 6 / 9 / >=10 window -- a pair that is merely stable in shallow search still flips often enough by
 // depth 14 that premoves were firing on replies the engine went on to abandon.
 // The certification depth is the CONFIDENCE dial (Settings -> Premove Confidence): the pair must
@@ -3686,7 +3688,7 @@ function maybe_premove_forced_reply(line) {
     const mover = (premove_tracker.fen.split(' ')[1] === 'w') ? 'white' : 'black';
     if (mover === our_side()) return; // only while the opponent is to move
     if (premove_tracker.safe === undefined) {
-        // cached per position; certification pins (pred, reply) via the depth-13 snapshot,
+        // cached per position; certification pins (pred, reply) via the depth N-1 snapshot,
         // so at most one pair can ever be checked here per position
         premove_tracker.safe = premove_is_safe(premove_tracker.fen, line.pred, line.reply);
     }
@@ -3720,12 +3722,6 @@ function maybe_premove_forced_reply(line) {
     }
 }
 
-// Second premove for a DOUBLE premove. Returns its UCI, or null if the line isn't forced enough to
-// stack one safely. chess.com only, standard chess only. The bar is "1 legal move back to back": the
-// opponent's move (pred) must be their ONLY legal move here, and after our reply the opponent must be
-// forced again (1 legal move), and our follow-up then forced (1 legal move) -- that lone move is the
-// second premove. Anything less and a different opponent move could leave the second premove in a
-// position it was never meant for, so we return null and queue just the one.
 // THE WHOLE FORCED CHAIN, not just the next move. Walks the engine's line forward while every reply
 // is genuinely forced -- the side to move has exactly one legal move -- and returns each ply.
 //
@@ -3754,7 +3750,7 @@ function forced_chain(fen, pv, maxPlies) {
 function forced_chain_now(fen, pv, maxPlies) {
     const out = [];
     if (!Number.isFinite(maxPlies) || maxPlies <= 0) return out;
-    // STANDARD CHESS ONLY, like forced_second_premove and for a harder reason: in drop variants the
+    // STANDARD CHESS ONLY, for a harder reason: in drop variants the
     // bundled chess.js never generates pocket drops in moves(), so "one legal move" there is a fact
     // about an incomplete move list, not about the rules -- and this function's whole contract is
     // that a forced ply is a rules fact. Chess960 shares variant 'chess' and is fine.
@@ -3940,7 +3936,7 @@ const BOOK_MIN_GAMES = 20;   // drop 3-game oddities -- the move must be statist
 const BOOK_MAX_LOSS = 40;    // cp: the engine's veto. A book move this far below its best is "worse"
 let explorer_wanted = null;  // the position the explorer was last asked about (request_explorer)
 let explorer_data = null;    // {fen, moves:[...], opening} for the position we last looked up
-let explorer_out_of_book = false; // latched per game: first empty answer stops all further lookups
+let explorer_out_of_book = false; // latched per game: three empty answers in a row stop all further lookups
 let explorer_error = null;   // last lookup failure, shown in the overlay instead of drawing nothing
 const INITIAL_PLACEMENT = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR'; // standard start array
 let setup_fen = null;        // a manually set position: while held, page scrapes are IGNORED
@@ -4992,7 +4988,7 @@ function our_side() {
 
 // ---- bot-game tricks: the panel half ---------------------------------------------------------
 // The LIBRARY itself lives in src/scripts/bot-games.js, because the settings page offers the same
-// list and duplicating eight game names in two files is how they drift apart. Only the parts that
+// list and duplicating the game names in two files is how they drift apart. Only the parts that
 // need chess.js and the translation layer are here.
 const BOT_GAMES = (typeof self !== 'undefined' && self.MephistoBotGames) || [];
 
@@ -5336,7 +5332,7 @@ function snap_follow_toggle() {
 //
 // Null is the important return. At this poll rate a settled board is one ply from the last one, so a
 // placement that NO legal move produces is not a position: it is a frame caught mid-animation, or a
-// square the recogniser got wrong. Skipping it is free (the next read is 250ms away) and accepting it
+// square the recogniser got wrong. Skipping it is free (the next read is about 500 ms away) and accepting it
 // is not: the panel would analyse a position that never existed, and any turn flip made on the way in
 // would stay wrong for good.
 //
@@ -6238,7 +6234,7 @@ function on_new_pos(fen, startFen, moves) {
             // have no opponent to save cores for, so they keep the full count -- as does our own move.
             //
             // 2, not 1: this search is what Premove certifies from, and certification now needs the
-            // pair stable at depth 13 AND 14 (see PREMOVE_DEPTH_PREV/LAST). One thread frequently
+            // pair stable at depth N-1 AND N (see premove_cert_prev/premove_cert_last). One thread frequently
             // never got there inside the move time, so premoves stopped firing with Pondering off.
             // Two roughly doubles the nodes for the same wall clock while still leaving the machine
             // to the browser. Never ABOVE the user's own budget -- if they set 1 thread, they get 1.
@@ -7238,9 +7234,10 @@ let fen_request_inflight = false;
 let fen_request_timer = null;
 
 function request_fen() {
-    // don't pile up overlapping fen requests when the scrape round-trip is slower than the poll
-    // interval (10ms). Self-heals: the content-script skips replying while it performs a move (or
-    // before config arrives), so a 500ms fallback clears the flag -- polling can never wedge.
+    // don't pile up overlapping fen requests when the scrape round-trip is slower than the fallback
+    // poll (at least 1 s) or the event-driven callers. Self-heals: the 500ms timer clears the flag
+    // when no reply ever comes (no or orphaned content script, sendMessage error), so polling can
+    // never wedge. The content script answers 'no' while it performs a move.
     if (fen_request_inflight) return;
     fen_request_inflight = true;
     clearTimeout(fen_request_timer);
@@ -7278,7 +7275,7 @@ function safe_deselect_square(fen, move) {
 // How many lines the ENGINE searches. Humanize picks its move out of that list, so the list has to
 // actually contain the move it wants; the DISPLAY still honours config.multiple_lines.
 //
-// The mistake/blunder bands (200-400cp / 400-600cp worse, see humanize_pick) can only be filled by
+// The mistake/blunder bands (by default 230-377cp / 377-600cp worse, see humanize_thresholds) can only be filled by
 // moves the engine ranks LOW. Its top 3 all sit within ~40cp of each other, so at MultiPV 3 those
 // pools were always empty and every mistake/blunder roll silently fell back to the best move --
 // which is exactly why the mix produced 97%-accuracy, 0-mistake games. Moves that bad usually start
@@ -8331,7 +8328,8 @@ function hz_where_k(state, pErr, fullmove) {
 // Hold-out (2025-09) chi2/dof 2.5-7 against 22-120 for the logistic fit it replaces.
 // What the data says, which is not the heuristic it replaces: at the SAME rating, rapid and
 // classical err about as often per move as blitz (0.8-1.1x); bullet 1.0-1.9x and ultrabullet
-// 1.3-2.7x, rising with rating. The CLOCK is the big lever: under 5% of the base, 1.3-1.5x the
+// 1.3-2.7x, rising with rating (blunder rows reach 2.3x for bullet and 4.0x for ultrabullet at 2600).
+// The CLOCK is the big lever: under 5% of the base, 1.3-1.5x the
 // inaccuracies and 1.9-2.6x the blunders; at a full clock (the first moves) 0.2-0.8x. Phase:
 // the middlegame 1.1-1.25x, the opening 0.7-0.95x.
 // level[band] = [ultrabullet, bullet, blitz, rapid, classical] relative to blitz at that band;
@@ -8355,7 +8353,7 @@ const HZ_TC_TABLES = {
 };
 const HZ_TCS = ['ultrabullet', 'bullet', 'blitz', 'rapid', 'classical'];
 const HZ_CLOCK_EDGES = [0.05, 0.10, 0.20, 0.35, 0.50, 0.75, 1.0];
-const HZ_TC_MULT_MAX = 3;    // a rate never scaled past 3x (2800 ultrabullet blunders measure 2.5x)
+const HZ_TC_MULT_MAX = 3;    // the level table reaches 4.0x (2600 ultrabullet blunders); the product is capped at 3x
 
 // lichess Speed: estimated duration base + 40 * increment (seconds), as the study classified.
 function hz_tc_class(base, inc) {
@@ -10705,14 +10703,14 @@ function record_eval_history(frac) {
 let eval_seen = [];      // per ply: was this position actually evaluated, or is it filler?
 let ply_facts = [];      // per ply: the position and the engine's lines AS PLAYED FROM
 let last_logged_class = [];   // so the trace prints a verdict once, not once per frame
-// A verdict is only as good as the two searches behind it. 10 plies is the floor the opponent
-// alert already trusts; 4 plies of slack lets a normal live game grade while refusing the pairs
+// A verdict is only as good as the two searches behind it. 10 plies is the floor for a grade
+// (CLASSIFY_MIN_DEPTH); the opponent alert waits for 14 (OPP_ALERT_MIN_DEPTH); 4 plies of slack lets a normal live game grade while refusing the pairs
 // that differ enough for the engine to have changed its mind.
 const CLASSIFY_MIN_DEPTH = 10, CLASSIFY_DEPTH_SLACK = 4;
 let move_classes = [];   // per ply: the class of the move played there
 let move_class_key = '';
 
-// The classifier is not shipped on every page (7.6KB for three opt-in features). Ask the worker to
+// The classifier is not shipped on every page (about 11KB, for six opt-in features). Ask the worker to
 // inject it the first time something needs it; until it lands, grading simply produces nothing,
 // which is exactly how these features behave before the first evaluation anyway.
 let classifier_asked = false;
@@ -10909,8 +10907,9 @@ function needs_fairy_engine(v) {
     return v && v !== 'chess' && v !== 'fischerandom';
 }
 
-// Is a native host actually installed? Open a throwaway port to it and `ping` (the host answers that
-// WITHOUT launching the engine); any reply means installed, a 'fatal'/disconnect means not. ~1s cap.
+// Is a native host actually installed? Open a throwaway port to it and `ping`; any reply means
+// installed, a 'fatal'/disconnect means not. ~1s cap. uci-native-host.py answers without launching
+// its engine.
 function native_host_available(portName) {
     return native_host_probe(portName).then(Boolean);
 }
@@ -11967,8 +11966,8 @@ function request_threat_human(fen, best) {
 
 // ==== USER ARROWS ====
 // EVALS ON YOUR ARROWS. The arrows YOU draw on the site's board (right-drag, on lichess and
-// chess.com) get the engine's verdict: the eval after that move, written at its head from White's
-// side like every score in the panel. With Replies on Your Arrows, the opponent's best answers to the
+// chess.com) get the engine's verdict: the eval after that move, written at its head from the side
+// Arrow Evals From names, like every score in the panel. With Replies on Your Arrows, the opponent's best answers to the
 // arrow drawn last are drawn too, thin and numbered, so a bad number explains itself. Asked for in the issue tracker
 // as a training mode: rate the move I am considering instead of handing me the engine's.
 //
@@ -12954,9 +12953,6 @@ function draw_threat() {
     }
 }
 
-// An arrow's own evaluation, from White's point of view like every other score the panel shows, so
-// a line does not read one way on the board and the other way in the panel. Mate is written as #N
-// rather than as a centipawn score, because a mate is not a number of pawns: #3 White mates, #-3 Black.
 // See the config note: values <= 1 are the pre-3.1.229 fraction, everything else is a percentage.
 function read_arrow_opacity() {
     const raw = JSON.parse(MephistoConfig.get('arrow_opacity'));
@@ -12995,6 +12991,10 @@ function arrow_pov(white, stm) {
     return white.mate != null ? {mate: s * white.mate} : {cp: s * white.cp};
 }
 
+// An arrow's own evaluation, from the side Arrow Evals From names (White by default, see
+// arrow_pov_sign), so a line reads the same on the board and in the panel. Mate is written as #N
+// rather than as a centipawn score, because a mate is not a number of pawns: #3 is a mate for the
+// side named, #-3 a mate against it.
 function arrow_label(line) {
     // A human model's lines all carry ONE position eval (a single forward pass), so an eval label
     // says nothing -- the number that identifies a Maia line is how likely the move is. It rides
@@ -13304,12 +13304,6 @@ async function request_backend_drag(x0, y0, x1, y1, ms) {
     return call_backend('http://localhost:8080/performDrag', {x0, y0, x1, y1, ms: Number.isFinite(ms) ? ms : 0}).then(backend_clicked);
 }
 
-// Both the HTTP "Remote Engine" and the serverless native engines speak the same request/response
-// shape and reuse the same on_engine_response remote branch.
-// Compare the newest published release against the running build and, only if it is actually newer,
-// reveal the notice. Everything here fails silent: no network, a rate-limited API, a malformed reply
-// or a missing element all end with the notice staying hidden. Version compare is numeric per part,
-// so 3.1.9 -> 3.1.10 reads as an upgrade (a string compare would call it a downgrade).
 // --- Machine calibration ------------------------------------------------------------------------
 // The shipped defaults (300ms search) are a number, not a measurement: the same 300ms is a shallow
 // search on a laptop and a deep one on a 24-core desktop, so "the defaults" mean different playing
