@@ -17,9 +17,10 @@ import {readyEnv} from '/src/offscreen/ort-env.js';
 //   - the legal mask MULTIPLIES the logits and the softmax is taken over the whole vocabulary. That
 //     is not the same as masking with -inf, and copying it is deliberate: it is what the model's own
 //     numbers mean.
-//   - the value head is `(v / 2 + 0.5)` clamped to [0,1], and it is flipped for black.
+//   - the value head is `(v / 2 + 0.5)` clamped to [0,1], kept for the side to move and NOT flipped
+//     (see go(); inference.py flips it to White's view, which would be wrong for UCI).
 const MOVE_PLANES = 18;
-let TABLES = null;   // {moves: [...1880 uci], moveIdx: Map, buckets: [...]}
+let TABLES = null;   // {moves: [...1880 uci], moveIdx: Map, eloDict: {...}}
 
 async function loadTables(note) {
     if (TABLES) return TABLES;
