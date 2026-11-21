@@ -2621,14 +2621,17 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 if (fought !== best && !fight_ok) {
                     console.warn('Mephisto: ignoring a contempt move that is not ours/legal here:', fought);
                 }
+                // book_ok, not book: each log names the pick that was actually played. A Contempt or
+                // Playstyle pick was also logged as a book move (audit 3.1.333 POPUP1-8).
+                const book_ok = !!book && premove_reply_playable(last_eval.fen, book);
                 const played = tb_ok ? tb
-                    : (book && premove_reply_playable(last_eval.fen, book)) ? book
+                    : book_ok ? book
                     : fight_ok ? fought
                     : style_ok ? styled : best;
-                if (fight_ok && !tb_ok && !book) console.log(`Contempt (${contempt_cp()}cp): playing ${fought} over ${best}, which draws on the spot`);
-                if (style_ok && !fight_ok && !tb_ok && !book) console.log(`Playstyle (${config.playstyle}): playing ${styled} over ${best}`);
+                if (fight_ok && !tb_ok && !book_ok) console.log(`Contempt (${contempt_cp()}cp): playing ${fought} over ${best}, which draws on the spot`);
+                if (style_ok && !fight_ok && !tb_ok && !book_ok) console.log(`Playstyle (${config.playstyle}): playing ${styled} over ${best}`);
                 if (tb_ok && tb !== best) console.log(`Tablebase: playing ${tb} over ${best} (solved position)`);
-                if (!tb_ok && played !== best) console.log(`Book: playing ${played} over ${best} (weighted random)`);
+                if (!tb_ok && book_ok && played !== best) console.log(`Book: playing ${played} over ${best} (weighted random)`);
                 if ((config.humanize || clock_aware()) && !config.puzzle_mode) {
                     // tb_ok must be explicit here: now that the readout substitutes the tablebase
                     // move into `best`, played === best on a tablebase hit -- and without this,
