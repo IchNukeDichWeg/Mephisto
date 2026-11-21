@@ -2963,13 +2963,15 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
     const region = b.slice(b.indexOf('const attached = new Set();'), b.indexOf('chrome.debugger.onDetach?.addListener'))
         .replace('CDP_MOVE_ACK_MS = 1000', 'CDP_MOVE_ACK_MS = ' + 'ACKMS')
-        .replace('CDP_CLICK_GRACE_MS = 3000', 'CDP_CLICK_GRACE_MS = 40')
+        .replace('CDP_CLICK_GRACE_MS = 3000', 'CDP_CLICK_GRACE_MS = GRACEMS')
         .replace('ATTACH_SETTLE_MS = 450', 'ATTACH_SETTLE_MS = 0');
     ok('the sliced region really holds the click path (guards against the slice silently emptying)',
-       /function cdpClick\(/.test(region) && /function cdpDrag\(/.test(region) && /function cdpMove\(/.test(region) && /CDP_MOVE_ACK_MS = ACKMS/.test(region));
+       /function cdpClick\(/.test(region) && /function cdpDrag\(/.test(region) && /function cdpMove\(/.test(region) && /CDP_MOVE_ACK_MS = ACKMS/.test(region) && /CDP_CLICK_GRACE_MS = GRACEMS/.test(region));
     // A fake debugger. `hover` says how a mouseMoved behaves: 'never' (hidden tab: no reply),
     // 'slow' (answers after 150 ms), or 'fast'. Everything else answers at once. Late replies are real timers.
-    function rig(hover, ackMs = 60) {
+    // graceMs: the click's deadline slack. 40 ms for the expiry check; the hover checks take 60 s, since
+    // at a load of 30 a 40 ms slack expired the click before the path they test had run
+    function rig(hover, ackMs = 60, graceMs = 40) {
         const sent = [], chromeStub = {runtime: {lastError: null}, debugger: {
             attach: (t, v, cb) => cb(),
             sendCommand: (t, m, p, cb) => {
@@ -2979,7 +2981,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
             }}};
         const api = new Function('chrome', 'setTimeout', 'clearTimeout',
             'let cdpPending = 0, cdpHung = 0, cdpCalls = 0, cdpTotalMs = 0, cdpWorstMs = 0;'
-            + 'const CDP_HUNG_MS = 1e9;' + region.replace('ACKMS', ackMs)
+            + 'const CDP_HUNG_MS = 1e9;' + region.replace('ACKMS', ackMs).replace('GRACEMS', graceMs)
             + 'return {cdpClick, cdpDrag, moveStalled, pending: () => cdpPending};')(chromeStub, quiet, clearTimeout);
         return {sent, ...api};
     }
@@ -2988,10 +2990,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     // The watchdog counts event-loop turns, not wall-clock time: a 1500 ms timer armed while later sync
     // blocks held the loop was already overdue when it woke, and fired before the click's own 60 ms ack
     // timers could run -- the checks read HUNG at a load average of 30 with the click path unchanged.
-    const settle = (p) => Promise.race([p.then(() => 'resolved', e => 'rejected: ' + e.message),
-        new Promise(r => { let n = 0; const tick = () => ++n >= 200 ? r('HUNG') : setTimeout(tick, 30); tick(); })]);
+    // `turns` 200 by default; the full-path check below takes 1000, since a 5 s ack per hover at a load
+    // of 30 needs more than 200 turns to walk a whole path (it read 1 to 6 hovers and no press there)
+    const settle = (p, turns = 200) => Promise.race([p.then(() => 'resolved', e => 'rejected: ' + e.message),
+        new Promise(r => { let n = 0; const tick = () => ++n >= turns ? r('HUNG') : setTimeout(tick, 30); tick(); })]);
 
-    let r = rig('never');
+    let r = rig('never', 60, 60000);
     const out1 = await settle(r.cdpClick(9, 100, 100, 200));
     ok('a click into a tab that never answers a mouseMoved still settles, and still presses and releases',
        out1 === 'resolved' && r.sent.includes('mousePressed') && r.sent.includes('mouseReleased'), {out1, sent: r.sent});
@@ -3006,8 +3010,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     await settle(r.cdpClick(9, 120, 120, 5));
     ok('...nor does the single-step snap click', r.sent.join() === 'mousePressed,mouseReleased', r.sent);
 
-    r = rig('fast', 1000);   // the real ack: at load ~30 a 0 ms reply came after a 60 ms ack and cut the path short
-    await settle(r.cdpClick(4, 100, 100, 120));
+    r = rig('fast', 5000, 60000);   // the real ack: at load ~30 a 0 ms reply came after a 60 ms ack (and after 1000 ms) and cut the path short
+    await settle(r.cdpClick(4, 100, 100, 120), 1000);
     ok('a tab that is rendering keeps its full cursor path (the fix does not touch the visible case)',
        r.sent.filter(t => t === 'mouseMoved').length >= 3 && r.sent.slice(-2).join() === 'mousePressed,mouseReleased' && !r.moveStalled.has(4), r.sent);
 
@@ -3032,7 +3036,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
             setTimeout(() => { cb(); stub5.runtime.lastError = null; }, 0); }}};
     const d5 = new Function('chrome', 'setTimeout', 'clearTimeout',
         'let cdpPending = 0, cdpHung = 0, cdpCalls = 0, cdpTotalMs = 0, cdpWorstMs = 0;'
-        + 'const CDP_HUNG_MS = 1e9;' + region.replace('ACKMS', 60)
+        + 'const CDP_HUNG_MS = 1e9;' + region.replace('ACKMS', 60).replace('GRACEMS', 40)
         + 'return cdpDrag;')(stub5, quiet, clearTimeout);
     // travel 0: press, (no moves), final land-move errors with a non-"not attached" failure
     stub5.debugger.sendCommand = (t, m, p, cb) => { sent5.push(p.type);
