@@ -681,7 +681,8 @@ class GeneralSettings extends SettingsPage {
             const totalMb = Math.max(0, totalBytes - skippedBytes) / 1048576;
             const rate = elapsed > 0 ? mb / elapsed : 0;
             const left = Math.max(0, totalMb - mb);
-            return {mb, totalMb, rate, eta: rate > 0 ? left / rate : 0};
+            // no rate yet and bytes still to fetch: there is no ETA to give (audit 3.1.333 GENERALJS-10)
+            return {mb, totalMb, rate, eta: rate > 0 ? left / rate : (left > 0 ? null : 0)};
         };
         // `KRBvKR.rtbw   07-Dec-2013 02:14   739600` -- name and size, which is all we need.
         const tbParseIndex = (html) => [...html.matchAll(/href="(K[^"]+\.(?:rtbw|rtbz))"[^<]*<\/a>\s+\S+\s+\S+\s+(\d+)/g)]
@@ -763,7 +764,7 @@ class GeneralSettings extends SettingsPage {
                     const pct = Math.round((done + skipped) * 100 / total);
                     say(`${pct}%  ${done + skipped}/${total} files  ${mb.toFixed(0)}/${totalMb.toFixed(0)} MB  `
                         + `${rate.toFixed(1)} MB/s  elapsed ${Math.floor(el / 60)}m${String(Math.floor(el % 60)).padStart(2, '0')}s  `
-                        + `ETA ${Math.floor(eta / 60)}m${String(Math.floor(eta % 60)).padStart(2, '0')}s`
+                        + (eta === null ? 'ETA --' : `ETA ${Math.floor(eta / 60)}m${String(Math.floor(eta % 60)).padStart(2, '0')}s`)
                         + (failed ? `  (${failed} failed)` : ''));
                 };
                 const queue = wanted.slice();
