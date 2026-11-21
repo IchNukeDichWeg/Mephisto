@@ -4884,7 +4884,7 @@ function render_panel_line() {
     if (!el) return;
     if (!panel_line.length) { el.hidden = true; el.textContent = ''; return; }
     el.hidden = false;
-    const parts = [`<span class="pl-move${panel_line_idx === -1 ? ' pl-current' : ''}" data-idx="-1">start</span>`];
+    const parts = [`<span class="pl-move${panel_line_idx === -1 ? ' pl-current' : ''}" data-idx="-1">${i18n('panel.line_start', 'start')}</span>`];
     // Numbered from the base position's side to move and move number, as current_pgn does: a line
     // tried with Black to move or mid-game read "1. Nf6" (audit 3.1.333 POPUP2-5).
     const bf = String(panel_line_base || '').split(' ');
@@ -5510,25 +5510,25 @@ function render_unsure(low, unresolved, lead) {
     // a repaired square is ALWAYS shown, whatever its numbers now say: it was changed on rule
     // grounds, and its chip (whose runner-up is the original reading) is the one-click undo
     const unsure = (low || []).filter(sq => sq.prob < 0.9 || sq.repaired);
-    el.textContent = lead || 'Read from screen - turn with the king switch, orientation with Flip board';
+    el.textContent = lead || i18n('panel.fen.read_lead', 'Read from screen - turn with the king switch, orientation with Flip board');
     // a rule the runners-up could not fix is worth a plain sentence: the position on the board
     // genuinely breaks it, and the chips below are where to correct it by hand
     if (unresolved && unresolved.length) {
-        el.textContent += ` · could not fix: ${unresolved.join(', ')}`;
+        el.textContent += ` · ${i18n('panel.fen.could_not_fix', 'could not fix: {list}', {list: unresolved.join(', ')})}`;
     }
     if (!unsure.length) return;
-    el.appendChild(document.createTextNode(' · least sure: '));
+    el.appendChild(document.createTextNode(` · ${i18n('panel.fen.least_sure', 'least sure:')} `));
     unsure.forEach((sq, i) => {
         if (i) el.appendChild(document.createTextNode(', '));
-        const name = (p) => (p ? p : 'empty');
+        const name = (p) => (p ? p : i18n('panel.fen.empty', 'empty'));
         const chip = document.createElement('span');
         chip.className = 'mephisto-fix-chip';
         chip.textContent = `${sq.square} ${name(sq.piece)} ${Math.round(sq.prob * 100)}%`;
-        if (sq.repaired) chip.textContent += ' (rule fix)';
+        if (sq.repaired) chip.textContent += ` ${i18n('panel.fen.rule_fix', '(rule fix)')}`;
         if (sq.alt !== undefined && sq.alt !== null && sq.alt !== sq.piece) {
             chip.title = sq.repaired
-                ? `Changed because the read had ${sq.repaired}. Click to put back ${name(sq.alt)}.`
-                : `Click to make ${sq.square} ${name(sq.alt)} (${Math.round((sq.altProb || 0) * 100)}%)`;
+                ? i18n('panel.fen.chip_put_back', 'Changed because the read had {why}. Click to put back {piece}.', {why: sq.repaired, piece: name(sq.alt)})
+                : i18n('panel.fen.chip_make', 'Click to make {square} {piece} ({pct}%)', {square: sq.square, piece: name(sq.alt), pct: Math.round((sq.altProb || 0) * 100)});
             chip.dataset.square = sq.square;
             chip.dataset.alt = sq.alt;
             chip.addEventListener('click', () => apply_square_fix(sq.square, sq.alt));
@@ -5559,7 +5559,7 @@ function apply_square_fix(square, piece) {
         return;                                             // an edit that does not make a position
     }
     if (!next || !is_legal_position(next)) {
-        setup_fen_msg(`Making ${square} ${piece || 'empty'} would not be a legal position.`);
+        setup_fen_msg(i18n('panel.fen.fix_illegal', 'Making {square} {piece} would not be a legal position.', {square, piece: piece || i18n('panel.fen.empty', 'empty')}));
         return;
     }
     setup_fen = next;
@@ -5568,7 +5568,7 @@ function apply_square_fix(square, piece) {
     stash_setup_state();
     panel_line_reset(next);
     abandon_search();
-    setup_fen_msg(`${square} is ${piece || 'empty'} now.`);
+    setup_fen_msg(i18n('panel.fen.fix_done', '{square} is {piece} now.', {square, piece: piece || i18n('panel.fen.empty', 'empty')}));
     on_new_pos(next, next, '');
 }
 
@@ -6835,6 +6835,24 @@ function move_reason(fen, uci) {
 
 let move_reason_key = null, move_reason_memo = '';
 
+// move_reason and tablebase_reason answer in English (the suite pins those phrases); each phrase is
+// translated here, at the one place it is shown (audit 3.1.333 POPUP2-6). A phrase with no key
+// stays as it is rather than vanishing.
+const WHY_KEY = (() => {
+    const k = {'checkmate': 'checkmate', 'only move that wins': 'only_wins', 'keeps the win': 'keeps_win',
+        'fastest mate': 'fastest_mate', 'converts fastest': 'converts_fastest', 'only move that draws': 'only_draws',
+        'holds the draw': 'holds_draw', 'holds out longest': 'holds_out', 'wins material': 'wins_material',
+        'a fork': 'fork', 'a fork with check': 'fork_check', 'check': 'check'};
+    for (const [l, n] of Object.entries({p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen'})) {
+        if (l !== 'p') k[`promotes to a ${n}`] = `promotes_${l}`;
+        k[`wins a ${n}`] = `wins_${l}`; k[`saves the ${n}`] = `saves_${l}`; k[`threatens the ${n}`] = `threatens_${l}`;
+    }
+    return k;
+})();
+function why_text(text) {
+    return text.split(', ').map(p => WHY_KEY[p] ? i18n(`panel.why.${WHY_KEY[p]}`, p) : p).join(', ');
+}
+
 function render_move_reason(uci) {
     const el = PANEL_ROOT.getElementById('move-reason');
     if (!el) return;
@@ -6850,7 +6868,7 @@ function render_move_reason(uci) {
         move_reason_memo = move_reason(last_eval.fen, uci);
     }
     const text = move_reason_memo;
-    el.textContent = text ? `Why: ${text}` : '';
+    el.textContent = text ? i18n('panel.why', 'Why: {text}', {text: why_text(text)}) : '';
     el.hidden = !text;
 }
 

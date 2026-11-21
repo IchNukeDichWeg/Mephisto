@@ -18447,6 +18447,21 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('POPUP3-7 (3.1.333): a bare name off lichess/chess.com asks for the site', /cannot tell which site/.test(d({who: null, raw: 'magnus', valid: true})));
     const re = new Function(pj.match(/const PLAYER_BOOK_USER_RE = (\/.*\/i);/)[0] + ' return PLAYER_BOOK_USER_RE;')();
     ok('POPUP3-7 (3.1.333): the shared regex keeps lichess:name and refuses a space', re.test('lichess:abc') && !re.test('a b')); }
+// ---- audit 3.1.333 POPUP2-6: the Why line and the read-position strings go through i18n ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+    const a = pj.indexOf('const WHY_KEY = (() => {'), b = pj.indexOf('\n}\n', pj.indexOf('function why_text(text)')) + 3;
+    const c = vm.createContext({}); vm.runInContext('var i18n = (k, d) => `T(${k})`;\n' + pj.slice(a, b) + '\nvar KEYS = Object.values(WHY_KEY), WK = WHY_KEY;', c);
+    ok('POPUP2-6 (3.1.333): each phrase of the Why line is looked up on its own',
+       c.why_text('a fork, wins a queen, holds out longest') === 'T(panel.why.fork), T(panel.why.wins_q), T(panel.why.holds_out)', c.why_text('a fork, wins a queen, holds out longest'));
+    ok('POPUP2-6 (3.1.333): a phrase with no key is kept, not dropped', c.why_text('something new') === 'something new');
+    const missing = c.KEYS.map(k => 'panel.why.' + k).filter(k => !(k in en));
+    ok('POPUP2-6 (3.1.333): every Why phrase has an en.json key', missing.length === 0, missing);
+    const enOf = Object.fromEntries(Object.entries(c.WK).map(([p, k]) => [p, en['panel.why.' + k]]));
+    ok('POPUP2-6 (3.1.333): en.json says what move_reason says', Object.entries(enOf).every(([p, v]) => p === v), enOf);
+    ok('POPUP2-6 (3.1.333): no English left in the read-position chips',
+       !/lead \|\| 'Read from screen|` · could not fix: \$\{|createTextNode\(' · least sure: '\)|\+= ' \(rule fix\)'|`Making \$\{square\}|`\$\{square\} is \$\{piece|`Why: \$\{text\}`/.test(pj)); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
