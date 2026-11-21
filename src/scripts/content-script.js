@@ -219,7 +219,7 @@ function handleExtensionMessage(response, sender, sendResponse) {
         // ALWAYS answer so the popup's in-flight poll guard clears immediately -- otherwise a poll
         // sent while we're mid-move (or before config) gets no reply and the board freezes for up
         // to the fallback timeout. While moving/unconfigured the DOM is transient, so answer 'no'
-        // (skip); the next 10ms poll picks up the real position the instant we're idle again.
+        // (skip); the next push or the >=1s fallback poll picks up the real position once we're idle.
         let res = 'no', orient;
         if (!moving && config) {
             res = tryScrapePosition();
@@ -511,7 +511,7 @@ self.MephistoContent = {
 // to an action and hands it to the panel (do_hotkey in popup.js). Bindings are ACTION -> key-combo
 // in config.hotkeys (one JSON key -> rides along in settings export/import); defaults + merge live in
 // config-store.js so the listener, the rebind UI and the panel labels can't drift.
-// canonical combo string for a keydown: "Alt+a", "Shift+Ctrl+k", " " (space), "ArrowUp", "?".
+// canonical combo string for a keydown: "Alt+a", "Ctrl+Shift+k", " " (space), "ArrowUp", "?".
 // The rule itself lives in config-store.js so the options page stores exactly what this compares.
 function hotkeyString(e) {
     return MephistoConfig.hotkeyString(e);
@@ -920,8 +920,8 @@ function applyHideOpponent(on) {
 
 function removeOverlay() {
     // Stop the search + go inert BEFORE tearing the panel DOM down, so nothing keeps burning cores
-    // while the panel is closed. The engine stays warm (not disposed) so reopening is instant --
-    // see MephistoPanel.suspend. tabs.onRemoved still frees it on real tab close.
+    // while the panel is closed. MephistoPanel.suspend also disposes the engine (offscreen dispose
+    // plus native port close), so a closed panel costs nothing and reopening pays a normal engine init.
     try { self.MephistoPanel?.suspend?.(); } catch (e) { /* not yet booted */ }
     overlayOpenGen++;            // an open still waiting on its assets is cancelled by this close
     overlayListeners?.abort();   // the window listeners go with the panel they belong to (C1)
@@ -2306,8 +2306,9 @@ let mismatchAborts = 0; // surfaced in the console; a rising count means the boa
 // clicked into a live one: measured three times, each a previous puzzle's answer played into the
 // next puzzle, legal enough for the site to accept it.
 //
-// Absent (four-player, a pasted FEN, the panel's own board) it falls back to lastPushKey, which is
-// the check exactly as it was.
+// Absent (a pasted FEN, the panel's own board) it falls back to lastPushKey, which is the check
+// exactly as it was. Four-player never reaches here: every caller skips this guard for 4PC, because
+// the 8x8 re-scrape cannot match a 14x14 board (see the automove handler).
 function boardStillMatchesAnalysis(forPush) {
     const reference = forPush || lastPushKey;
     if (!reference) return true; // nothing analysed yet -- nothing to contradict
@@ -2875,7 +2876,7 @@ function spriteLightness(piece) {
 // -------------------------------------------------------------------------------------------
 // TakeTakeTake (taketaketake.com): the board is a WebGPU canvas with NO DOM pieces/squares, so
 // the position comes from the page's React state via tt-probe.js (MAIN-world content script).
-// The probe answers a 'mephisto-tt-query' CustomEvent SYNCHRONOUSLY with 'mephisto-tt-state'
+// The probe answers its query event SYNCHRONOUSLY on a random per-session state channel (tt-probe.js)
 // (JSON: fen, moves[{san,uci}], myColor, clocks in ms, increment), so ttQuery() is a plain
 // synchronous read from the scrapers' point of view.
 
@@ -3535,8 +3536,8 @@ function scrapePosition4PC() {
     // stops being true the moment a seat is eliminated or skipped -- and the counts already do not
     // reconcile (24 cells against rows of 4,4,4,4,4,1). So ask the BOARD instead: the piece that
     // appeared since the last scrape names the seat that just moved, and the turn is the next seat
-    // still holding a king. Falls back to the modulo only on the first scrape, where there is no
-    // previous position to diff and nothing better is available.
+    // still holding a king. When the diff names no clean mover, the move table's last filled column
+    // (its index, not a count) decides, on every scrape.
     const alive = (seat) => Object.values(board).some(p => p.seat === seat && p.type === 'K');
     fourPCResetIfNavigated();   // a different page's leftover board must never seed this diff
     const d = fourPCDiff(board, fourPCPrev);
@@ -3802,9 +3803,9 @@ function scrapePositionTT() {
 // -------------------------------------------------------------------------------------------
 // ChessBase Tactics (tactics.chessbase.com): the board is ChessBase's proprietary CB.* engine, with
 // no scrapeable FEN in the DOM. cb-probe.js (MAIN-world content script) reads the live model at
-// window.V35s.gameKernel.getCurPos().toFEN() and bridges it: 'mephisto-cb-query' is answered
-// synchronously with 'mephisto-cb-state', and 'mephisto-cb-update' is PUSHED on every move so a
-// newly-solved/taken-back position is seen instantly instead of on the fallback poll.
+// window.V35s.gameKernel.getCurPos().toFEN() and bridges it: the query channel is answered
+// synchronously on the state channel (random per-session names), and the update channel is PUSHED
+// on every move so a newly-solved/taken-back position is seen instantly instead of on the fallback poll.
 
 // cbState + its state/update listeners are wired in the shared 'm9' rendezvous handler above
 // (same mechanism as tt); cbQuery just fires a query on the captured random channel.
@@ -4052,9 +4053,9 @@ function startPositionObserver() {
 }
 
 // Debounce: fire one scrape 30ms after the FIRST mutation of a burst (a piece animation is dozens
-// of mutations). Re-arms on later mutations, so a settling burst always ends with one final scrape
-// ~30ms after its LAST mutation; during a continuous burst this samples at most ~33/s, and a
-// mid-animation sample is rejected by the scrapers ('no') without being pushed.
+// of mutations). Later mutations in that window ride along, so a burst still ends with a scrape
+// after its last mutation (0-30ms later). During a continuous burst this samples at most ~33/s, and
+// a mid-animation sample is rejected by the scrapers ('no') without being pushed.
 // Re-push once the board has stopped moving.
 //
 // schedulePush's 30ms debounce is far shorter than a piece animation (~200ms on lichess), so a
@@ -5015,14 +5016,14 @@ function writeStartPos(url, startPos) {
 }
 
 // --- GRIND MODE ------------------------------------------------------------------------------
-// When a game ends on Lichess, click the button that starts the next one. Opt-in, and gated on
+// When a game ends on Lichess or Chess.com, click the button that starts the next one. Opt-in, and gated on
 // AUTOPLAY being on (user call): grinding games without the engine playing them is not a thing
 // anyone asked for, and it makes the mode impossible to trigger by accident.
 //
 // Lichess renders its end-of-game controls into `.follow-up` -- captured live rather than guessed:
 // a computer game shows `button.fbt.rematch` plus an analysis link; a pool game shows the
 // "New <time control>" button instead ("New 1+1"). The analysis link is excluded by construction,
-// and a rematch is NOT a new opponent, so it is only used when nothing better is offered.
+// and a rematch is NOT a new opponent and is never clicked here (Accept Rematch handles offers).
 //
 // EVERY FAILURE HERE IS SILENT. It is a convenience on someone else's markup: if the button is not
 // where it was, the right outcome is that nothing happens and the game simply stays finished.
@@ -5116,7 +5117,7 @@ function grindCancel(why) {
 // A trusted click first, the same way a move is played. Then CHECK, because a click dispatched at
 // screen coordinates can be taken by whatever happens to be over that point -- our own panel, a
 // toast, a cookie bar -- and the outcome is a click that goes nowhere quietly. If the game is still
-// sitting there a moment later, click the element itself: this is a lichess button with an ordinary
+// sitting there a moment later, click the element itself: this is a Lichess or Chess.com button with an ordinary
 // listener, not a move on the board, so nothing here depends on the click being trusted.
 const GRIND_VERIFY_MS = 800;
 // Would a click at (x, y) land on `el`? A CDP click is hit-tested, and our own panel (pointer-events
@@ -5145,8 +5146,7 @@ function grindClick(el) {
 // ---- RESIGNING AND OFFERING A DRAW -------------------------------------------------------------
 // The panel decides (it is the half with the score); this half presses the button. Both sites put a
 // CONFIRM step behind the first click, so this is a click, a look, and a second click -- and it
-// reuses grindClick, which sends a trusted click and falls back to the element's own if that lands
-// nowhere.
+// uses pressControl (below), not grindClick, so the same trusted-then-element logic does not apply.
 //
 // EVERY FAILURE IS SILENT, exactly like Grind Mode: this is a convenience on somebody else's markup,
 // and when the button is not where it was the right outcome is that nothing happens and you resign
@@ -5928,8 +5928,8 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
     const orientation = getOrientation();
 
     // MEASURE LATE, NOT EARLY. The geometry above is read the moment the move is requested, but the
-    // first click does not happen until the THINK delay has elapsed -- 400ms by default and several
-    // seconds under Humanize or Clock Mode. Anything that reflows the page in that window (a board
+    // first click does not happen until the THINK delay has elapsed -- 0 by default, seconds under
+    // Humanize or Clock Mode. Anything that reflows the page in that window (a board
     // resize, the left nav expanding, a late-loading panel beside the board, a window resize) leaves
     // every coordinate here pointing at where the board USED to be, and the clicks land off-square.
     // A horizontal shift is worst on the a-file: one square of drift there falls off the board
@@ -5986,7 +5986,7 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         }
         refreshBoardGeometry();
         // AND THE POSITION IS CHECKED AGAIN, HERE, for the same reason the rectangle is measured
-        // here. The check on arrival happens BEFORE the think delay -- 400ms by default, seconds
+        // here. The check on arrival happens BEFORE the think delay -- 0 by default, seconds
         // under Humanize or Clock Mode -- and on a page that advances itself (Auto-Next on rated
         // puzzles fires constantly) the board can move on inside that window. The move then lands in
         // a position it was never computed for, which is a correct answer to a board nobody is
@@ -6221,7 +6221,8 @@ async function simulateMoveVerified(move, deselect, verify, think = null, retrie
     // won't appear in the move list until the opponent moves. Verifying/retrying it would re-click
     // and clobber the queued premove -- so only verify real moves played on our own turn. The popup
     // decides this from the position's side-to-move and passes it in (see request_automove). It is a
-    // single attempt, so it never gets the deselect lead either.
+    // single attempt; its lead click, like the first attempt of a real move, is decided at click time
+    // (see performSimulatedMoveClicks).
     if (!verify) return simulateMove(move, ds, think, sessionGen);
     // Capture the move count ONCE, before the FIRST attempt. Re-reading it on each retry breaks the
     // check: chess.com's move list can update later than a fixed wait (board animation), so a move
@@ -6398,7 +6399,8 @@ async function simulatePromotionClicks(promotion, travelMs = 250) {
     if (promotionChoice) {
         // The picker click never snaps: it gets a real cursor path over at least PROMO_MIN_MS,
         // whatever Move Time says -- a promotion is allowed to run over the budget (user call
-        // 2026-08-09). At the default slice (25% of a 1000ms move) nothing changes.
+        // 2026-08-09). At the default Move Time the picker slice is below this floor, so it always
+        // gets PROMO_MIN_MS.
         const promoMs = Math.max(travelMs, PROMO_MIN_MS);
         const started = Date.now();
         await simulateClickSquare(promotionChoice.getBoundingClientRect(), 0.8, promoMs);
