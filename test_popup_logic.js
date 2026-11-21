@@ -18182,6 +18182,11 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('ANALYSIS-1 (3.1.333): a Lines/Threads/Memory change drops the Second engine as well as the first',
        /\['an_lines_input', 'an_threads_input', 'an_hash_input'\]\)\s*\$\(id\)\?\.addEventListener\('change', \(\) => \{ reloadEngine2\(false\); reloadEngine\(\); \}\)/.test(asrc));
     ok('ANALYSIS-1 (3.1.333): reloadEngine2(false) drops the engine without a second analyse', /function reloadEngine2\(rerun = true\)[\s\S]*?if \(rerun\) go\(cursor\);\n\}/.test(asrc)); }
+// ---- audit 3.1.333 LOCALEWEST-1: German 'mated in' no longer reads as 'mate in' ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const de = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/de.json', 'utf8'));
+    ok('LOCALEWEST-1 (3.1.333): de panel.tb.mated differs from panel.tb.mate beyond letter case',
+       de['panel.tb.mated'].toLowerCase() !== de['panel.tb.mate'].toLowerCase(), [de['panel.tb.mate'], de['panel.tb.mated']]); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

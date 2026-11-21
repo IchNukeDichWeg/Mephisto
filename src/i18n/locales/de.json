@@ -148,7 +148,7 @@
   "panel.conf.several_equal": "Mehrere gleichwertig",
   "panel.conf.over_second": "+{gap} vor #2",
   "panel.tb.mate": "Endspieldatenbank: Matt in {m}",
-  "panel.tb.mated": "Endspieldatenbank: matt in {m}",
+  "panel.tb.mated": "Endspieldatenbank: wird matt in {m}",
   "panel.tb.win_dtz": "Endspieldatenbank: gewinnt, DTZ {n}",
   "panel.tb.loss_dtz": "Endspieldatenbank: verliert, DTZ {n}",
   "panel.tb.draw": "Tablebase: Remis",
