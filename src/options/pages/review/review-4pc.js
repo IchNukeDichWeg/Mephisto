@@ -174,14 +174,16 @@ async function runReview(pgn4Text, {movetime = 1000, onProgress, isCancelled} = 
     const {frames, terminations, tags, variant, mode, setup} = await replay(pgn4Text);
     if (frames.length < 2) throw new Error('that PGN4 has no moves to review');
     const isFfa = /ffa/i.test(String(variant)) || String(mode) === '0';
-    // Mode selects the net (the engine's bundle ships one per mode since v8); MultiPV gives the
-    // FFA grader the lines it compares within. Sent once, before the first search.
+    // Mode selects the net (the engine's bundle ships one per mode since v8). MultiPV 1: the FFA
+    // search prices one line whatever it is asked, and in Teams a MultiPV above 1 switches the engine
+    // to a full-window search of every root move (about 3 plies less in the same time) for lines no
+    // grader here reads (audit 3.1.333 REVIEW4PC-2). Sent once, before the first search.
     // Setup too, because the bundle picks the net by (mode, setup) and `position fen4` never changes
     // the engine's setup: without it every game ran on the classic net, so a modern-setup game
     // (chess.com's default) was searched by a net the bundle measures ~22 Elo worse there (audit
     // 3.1.331 REVIEW4PC-3). Setup resets the engine's board, which is harmless: every search below
     // sends the whole position. An old host that names no setup leaves the engine's own.
-    const options = {Mode: isFfa ? 'ffa' : 'teams', MultiPV: 5};
+    const options = {Mode: isFfa ? 'ffa' : 'teams', MultiPV: 1};
     if (typeof setup === 'string' && setup) options.Setup = setup;
     await send('configure', {options}).catch(() => {});
 

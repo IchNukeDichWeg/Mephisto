@@ -13698,7 +13698,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     try {
         const m = await configured('modern');
         ok('REVIEW4PC-3: a modern-setup game configures Setup modern, with Mode, before the first search',
-           m.n === 1 && m.opts.Setup === 'modern' && m.opts.Mode === 'teams' && m.opts.MultiPV === 5 && m.at < m.firstAnalyse, m);
+           m.n === 1 && m.opts.Setup === 'modern' && m.opts.Mode === 'teams' && m.opts.MultiPV === 1 && m.at < m.firstAnalyse, m);
         const cl = await configured('classic');
         ok('REVIEW4PC-3: ...a classic one configures Setup classic', cl.opts.Setup === 'classic', cl);
         const none = await configured(undefined);
