@@ -2299,11 +2299,12 @@ function engine_out_of_sync(best) {
 // rule below is that variant's own published win condition, read off the board:
 //   atomic       a king that has been blown up is simply absent
 //   antichess    losing everything, or having nothing to move, WINS
-//   racingkings  a king that reached the eighth rank
+//   racingkings  a king that reached the eighth rank (both there, or Black following in, is a draw)
 //   kingofthehill a king that reached one of the four centre squares
-//   horde        the horde loses when its last pawn goes
+//   horde        the horde loses when its last piece goes (its pawns promote)
 //   3check       three checks given, counted over startFen + moves (or a FEN's own "+N+N" field)
-// Returns {winner: 'w'|'b'|null, reason} or null when the game is not over by a variant rule.
+// Returns {winner: 'w'|'b'|null, reason} (winner null = drawn) or null when the game is not over by a
+// variant rule.
 function variant_result(fen, variant, startFen = null, moves = '') {
     try {
         if (!fen || !variant || variant === 'chess' || variant === 'fischerandom') return null;
@@ -2326,10 +2327,17 @@ function variant_result(fen, variant, startFen = null, moves = '') {
             if (!wk) return {winner: 'b', reason: 'white king destroyed'};
         }
         if (variant === 'racingkings') {
-            // both kings reaching the last rank is a draw, and chess.js already forbids a move that
-            // lets black follow white in -- so a single king on rank 8 is the whole condition
-            if (wk && wk.rank === 7) return {winner: 'w', reason: 'king reached the eighth rank'};
-            if (bk && bk.rank === 7) return {winner: 'b', reason: 'king reached the eighth rank'};
+            // Both kings on the last rank is a draw, and White there first with Black to move is not
+            // decided yet: Black may still follow in for the draw. chess.js offers that move, so a
+            // white king on rank 8 alone was announced as a win too early (audit 3.1.333 POPUP1-3).
+            const w8 = wk && wk.rank === 7, b8 = bk && bk.rank === 7;
+            if (w8 && b8) return {winner: null, reason: 'both kings reached the eighth rank'};
+            if (w8) {
+                const follow = board.turn() === 'b'
+                    && board.moves({verbose: true}).some(m => m.piece === 'k' && m.to[1] === '8');
+                return follow ? null : {winner: 'w', reason: 'king reached the eighth rank'};
+            }
+            if (b8) return {winner: 'b', reason: 'king reached the eighth rank'};
         }
         if (variant === 'kingofthehill') {
             const hill = (k) => k && k.rank >= 3 && k.rank <= 4 && k.file >= 3 && k.file <= 4;
@@ -2337,8 +2345,10 @@ function variant_result(fen, variant, startFen = null, moves = '') {
             if (hill(bk)) return {winner: 'b', reason: 'king reached the centre'};
         }
         if (variant === 'horde') {
-            const hordePawns = rows.flat().some(p => p && p.color === 'w' && p.type === 'p');
-            if (!hordePawns) return {winner: 'b', reason: 'the horde is gone'};
+            // ANY white piece: horde pawns promote, and a horde down to a queen is still alive
+            // (audit 3.1.333 POPUP1-2)
+            const hordeLeft = rows.flat().some(p => p && p.color === 'w');
+            if (!hordeLeft) return {winner: 'b', reason: 'the horde is gone'};
         }
         if (variant === 'antichess') {
             // giving everything away is the win condition, and so is having no move at all
@@ -2407,7 +2417,8 @@ function on_engine_best_move(best, threat, isTerminal=false) {
     if (vres) {
         const side = vres.winner === 'w' ? white : black;
         update_evaluation(i18n('panel.msg.variant_over', 'Game over'));
-        update_best_move(i18n('panel.msg.wins', '{side} Wins', {side}) + ` - ${vres.reason}`);
+        update_best_move((vres.winner ? i18n('panel.msg.wins', '{side} Wins', {side}) : i18n('panel.msg.draw', 'Draw'))
+            + ` - ${vres.reason}`);
         clear_next_move_eta();
         toggle_calculating(false);
         return;

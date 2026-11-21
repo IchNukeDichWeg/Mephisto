@@ -18361,6 +18361,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext(fn('variantLabel'), c);
     ok('REVIEW-16 (3.1.333): a chess.js id prints as its dropdown label', c.variantLabel('kingofthehill') === 'King of the Hill' && c.variantLabel('fischerandom') === 'Chess960' && c.variantLabel('xyz') === 'xyz', [c.variantLabel('kingofthehill'), c.variantLabel('fischerandom')]);
     ok('REVIEW-16 (3.1.333): no "switched to 4-player" note when it already was', /if \(current === '4pc'\) return '';\s*setCfg\('rv_variant', '4pc'\)/.test(rsrc)); }
+// ---- audit 3.1.333 POPUP1-2/POPUP1-3: horde and racing kings game-over rules ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.indexOf('function ' + name + '('); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const c = vm.createContext({console: {log() {}, warn() {}}, JSON}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fn('variant_result'), c);
+    const vr = (fen, v) => vm.runInContext(`variant_result(${JSON.stringify(fen)}, ${JSON.stringify(v)})`, c);
+    ok('POPUP1-2 (3.1.333): a horde down to a promoted queen is still alive', vr('4k3/8/8/8/8/8/8/Q7 b - - 0 40', 'horde') === null, vr('4k3/8/8/8/8/8/8/Q7 b - - 0 40', 'horde'));
+    const gone = vr('4k3/8/8/8/8/8/8/8 w - - 0 40', 'horde');
+    ok('POPUP1-2 (3.1.333): ...and a horde with nothing left has lost', !!gone && gone.winner === 'b', gone);
+    const both = vr('K6k/8/8/8/8/8/8/8 w - - 0 30', 'racingkings');
+    ok('POPUP1-3 (3.1.333): both kings on the eighth rank is a draw', !!both && both.winner === null, both);
+    ok('POPUP1-3 (3.1.333): White on the eighth with Black able to follow in is not decided yet', vr('K7/7k/8/8/8/8/8/8 b - - 0 30', 'racingkings') === null, vr('K7/7k/8/8/8/8/8/8 b - - 0 30', 'racingkings'));
+    const wwin = vr('K7/8/8/8/8/8/8/7k b - - 0 30', 'racingkings');
+    ok('POPUP1-3 (3.1.333): ...and when Black cannot follow, White has won', !!wwin && wwin.winner === 'w', wwin);
+    const bwin = vr('7k/8/8/8/8/8/8/K7 w - - 0 30', 'racingkings');
+    ok('POPUP1-3 (3.1.333): Black on the eighth rank (White not there) is a Black win', !!bwin && bwin.winner === 'b', bwin); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
