@@ -171,7 +171,7 @@ async function eeVersion() {
     return eeVer;
 }
 
-// Is `b` newer than `a`? Field by field -- '1.125.0' string-compares BELOW '1.124.57'.
+// Is `b` newer than `a`? Field by field -- '1.124.100' string-compares BELOW '1.124.57'.
 function eeNewer(a, b) {
     const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
     for (let i = 0; i < 3; i++) { if ((pb[i] || 0) !== (pa[i] || 0)) return (pb[i] || 0) > (pa[i] || 0); }
@@ -194,8 +194,8 @@ async function eeExists(v) {
 // 404 -- so the only way to learn about one is to ask for it by name. MEASURED 2026-08-24 against
 // the live CDN: 1.124.57 is up, 1.124.58 and 1.124.60 are 404, and 1.125.0 IS up. So they roll the
 // MINOR and walk the patch inside it, which is exactly what this probes: a few more patches of the
-// installed minor, then newer minors and the patch run inside the newest live one. Ten HEAD
-// requests at most, and only when the user presses the button.
+// installed minor, then newer minors and the patch run inside each live newer minor. Ten HEAD
+// requests on the CDN as measured, EE_PROBE_MAX at worst, and only when the user presses the button.
 const EE_PROBE_MISSES = 3;
 // Only a 404 ends a walk, so a middlebox that answers 200 to every HEAD (a TLS-inspecting proxy's
 // block page, a soft-404 CDN) kept the loop probing forever with the button disabled (audit 3.1.332
@@ -332,7 +332,7 @@ function eeRun(assets, commands, {timeoutMs = 180000} = {}) {
 }
 
 // Search every position with chess.com's own Stockfish, in the sandbox, at their budget. One
-// sandbox for the whole game: Stockfish is stateless between `position` commands, unlike the
+// sandbox per worker for the whole run: Stockfish is stateless between `position` commands, unlike the
 // classifier, which accumulates the game and has no reset.
 //
 // `positions` is filled IN PLACE with {lines, depth} in the same shape our own engine transport
@@ -458,7 +458,7 @@ function sfSearchOne(assets, positions, take, done, {depth = 10, movetime = 0, m
 // time" to about 1/N of it. Their protocol is per-engine, so nothing about the verdicts changes:
 // each engine sets their options, searches the positions it draws, and writes into the same array.
 //
-// uciMoves (their "position ... moves" form, used by the deepest tier so repetition is visible)
+// uciMoves (their "position ... moves" form, used by every tier so repetition is visible)
 // makes a position depend on the game so far, not on the engine that searched it -- so it is safe
 // to split, but each engine must be handed the WHOLE move list, which it already is.
 function sfSearch(assets, positions, opts = {}) {
