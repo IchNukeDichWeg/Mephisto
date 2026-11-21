@@ -567,7 +567,7 @@
   "panel.tip.multi_lines": "Hoeveel kandidaatlijnen de engine rapporteert. Meer lijnen betekent dat elke lijn minder diep wordt doorgerekend.",
   "panel.tip.memory": "De hashtabel van de engine. Groter helpt lange zoektochten; groter dan de machine kan missen schaadt alles. De WASM-engines gebruiken hoogstens 512 MB, wat de schuif ook toont; native engines nemen de volle waarde.",
   "panel.tip.turn_switch": "Wie aan zet is - tik om te wisselen als het fout staat (puzzels / eigen stellingen).",
-  "panel.tip.maia2_elos": "Maia-2 speelt een KOPPELING, geen niveau: een model dat jouw rating en die van je tegenstander neemt, dus dezelfde stelling wordt anders beantwoord door een 1200 tegen 2000 dan door een 2000 tegen 1200. Stappen van 50, en beide werken meteen (niet herladen).",
+  "panel.tip.maia2_elos": "Maia-2 speelt een KOPPELING, geen niveau: een model dat jouw rating en die van je tegenstander neemt, dus dezelfde stelling wordt anders beantwoord door een 1200 tegen 2000 dan door een 2000 tegen 1200. Stappen van 50, en beide werken meteen (niet herladen). Vanaf halve zet 10 leest Maia-2 ratings in banden van 100: alles onder 1100 is één band en alles vanaf 2000 een andere; de fijnere stappen tellen in de opening, die Maia-3 speelt.",
   "panel.maia2_self": "Maia-2 jouw Elo",
   "panel.maia2_oppo": "Maia-2 Elo tegenstander",
   "set.style_greedy": "Gulzig",

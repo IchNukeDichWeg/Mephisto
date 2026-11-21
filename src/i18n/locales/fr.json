@@ -567,7 +567,7 @@
   "panel.tip.multi_lines": "Combien de lignes candidates le moteur rapporte. Plus de lignes, moins de profondeur pour chacune.",
   "panel.tip.memory": "La table de hachage du moteur. Plus grande aide les longues recherches ; plus grande que ce que la machine peut céder nuit à tout. Les moteurs WASM utilisent au plus 512 Mo, quoi qu'affiche le curseur ; les moteurs natifs prennent la valeur entière.",
   "panel.tip.turn_switch": "À qui de jouer - touchez pour inverser si c'est faux (problèmes / positions personnalisées).",
-  "panel.tip.maia2_elos": "Maia-2 joue un APPARIEMENT, pas un niveau : un modèle qui prend votre Elo et celui de l'adversaire, donc la même position reçoit une autre réponse d'un 1200 face à 2000 que d'un 2000 face à 1200. Pas de 50, et les deux s'appliquent aussitôt (sans rechargement).",
+  "panel.tip.maia2_elos": "Maia-2 joue un APPARIEMENT, pas un niveau : un modèle qui prend votre Elo et celui de l'adversaire, donc la même position reçoit une autre réponse d'un 1200 face à 2000 que d'un 2000 face à 1200. Pas de 50, et les deux s'appliquent aussitôt (sans rechargement). À partir du 10e demi-coup, Maia-2 lit les classements par tranches de 100 : tout ce qui est sous 1100 forme une tranche et tout ce qui atteint 2000 une autre ; les pas plus fins comptent dans l'ouverture, que joue Maia-3.",
   "panel.maia2_self": "Maia-2 votre Elo",
   "panel.maia2_oppo": "Maia-2 Elo adverse",
   "set.style_greedy": "Gourmand",

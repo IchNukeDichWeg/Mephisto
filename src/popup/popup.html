@@ -237,7 +237,12 @@
     </div>
 <div class="qs-row qs-nums" id="qs_maia2_oppo_row">
         <span data-i18n="panel.maia2_oppo" data-i18n-tip="panel.tip.maia2_elos" class="qs-label tooltipped" data-position="left"
-              data-tooltip="Maia-2 plays a MATCHUP, not a level: one model that takes your rating and your opponent's, so the same position is answered differently by a 1200 facing a 2000 than by a 2000 facing a 1200. Steps of 50, and both apply instantly (no reload).">Maia-2 opponent Elo</span>
+              data-tooltip="Maia-2 plays a MATCHUP, not a level: one model that takes your rating and your
+                            opponent's, so the same position is answered differently by a 1200 facing a 2000
+                            than by a 2000 facing a 1200. Steps of 50, and both apply instantly (no reload).
+                            Past ply 10 Maia-2 reads ratings in bands of 100, with everything under 1100 one
+                            band and everything from 2000 up another; the finer steps count in the opening,
+                            which Maia-3 plays.">Maia-2 opponent Elo</span>
         <div class="qs-stepper">
             <button class="qs-step" type="button" tabindex="-1" data-for="qs_maia2_oppo" data-d="-1" aria-label="less">&minus;</button>
             <input id="qs_maia2_oppo" class="browser-default" type="number" min="600" max="2800" step="50">

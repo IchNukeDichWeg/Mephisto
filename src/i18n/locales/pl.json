@@ -567,7 +567,7 @@
   "panel.tip.multi_lines": "Ile linii kandydujących raportuje silnik. Więcej linii oznacza, ze każda jest liczona płycej.",
   "panel.tip.memory": "Tablica hash silnika. Większa pomaga długim obliczeniom; większa niż maszyna może oddać szkodzi wszystkiemu. Silniki WASM używają najwyżej 512 MB, cokolwiek pokazuje suwak; silniki natywne biorą pełną wartość.",
   "panel.tip.turn_switch": "Kto jest na posunięciu - dotknij, by zmienić, jeśli jest źle (zadania / własne pozycję).",
-  "panel.tip.maia2_elos": "Maia-2 gra POJEDYNEK, nie poziom: jeden model bierze twój ranking i ranking przeciwnika, więc ta sama pozycja jest rozegrana inaczej przez 1200 przeciw 2000 niż przez 2000 przeciw 1200. Kroki co 50, oba działają natychmiast (bez przeładowania).",
+  "panel.tip.maia2_elos": "Maia-2 gra POJEDYNEK, nie poziom: jeden model bierze twój ranking i ranking przeciwnika, więc ta sama pozycja jest rozegrana inaczej przez 1200 przeciw 2000 niż przez 2000 przeciw 1200. Kroki co 50, oba działają natychmiast (bez przeładowania). Od 10. półruchu Maia-2 czyta rankingi w przedziałach co 100: wszystko poniżej 1100 to jeden przedział, a wszystko od 2000 drugi; drobniejsze kroki liczą się w debiucie, który gra Maia-3.",
   "panel.maia2_self": "Maia-2 twój ranking",
   "panel.maia2_oppo": "Maia-2 ranking przeciwnika",
   "set.style_greedy": "Zachłanny",
