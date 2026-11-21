@@ -18428,6 +18428,13 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const got = V.map(([f]) => c.MephistoPolyglot.polyglotKey(f).toString(16));
     ok('OPTIONSPAGES-10 (3.1.333): polyglotKey matches the format\'s published keys (start, e4, e4 d5, ...e5 f5, ...Ke2 Kf7)',
        V.every(([, k], i) => c.MephistoPolyglot.polyglotKey(V[i][0]) === k), got); }
+// ---- audit 3.1.333 POPUP3-4: Err Like Your Rating bars mistake-class drops while winning, as the mix does ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = pj.indexOf('const cap = humanize_thresholds().blunder;');
+    const seg = pj.slice(i, i + 800);
+    ok('POPUP3-4 (3.1.333): tooBig bars drop class >= 3 while winning', /const tooBig = \(l\) => winning && hz_drop_class\(Math\.max\(0, wpBest - win_percent\(line_cp_ours\(l\)\)\)\) >= 3;/.test(seg));
+    ok('POPUP3-4 (3.1.333): the match pool filters on tooBig', /alts\.filter\(l => loss\(l\) <= cap && safe\(l\) && !tooBig\(l\)/.test(seg)); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

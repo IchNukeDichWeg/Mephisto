@@ -9030,7 +9030,10 @@ function humanize_pick(best, overridden = false) {
             const takes = (l) => { const t = hz_exposure(Chess, config.variant, fen, l.move); return !!t && t.gain > t.risk; };
             const wpBest = win_percent(bestCp);
             const cap = humanize_thresholds().blunder;
-            const allowed = alts.filter(l => loss(l) <= cap && safe(l) && (keep === 1 || takes(l)));
+            // While winning no mistake or blunder, as the mix bars them: the 60% floor in safe() alone
+            // still let a drop of about 11% win through, a Game Review mistake (audit 3.1.333 POPUP3-4).
+            const tooBig = (l) => winning && hz_drop_class(Math.max(0, wpBest - win_percent(line_cp_ours(l)))) >= 3;
+            const allowed = alts.filter(l => loss(l) <= cap && safe(l) && !tooBig(l) && (keep === 1 || takes(l)));
             const cands = [bestLine, ...allowed].map(l => ({move: l.move, drop: Math.max(0, wpBest - win_percent(line_cp_ours(l))), line: l}));
             const typeOf = hz_type_classifier(Chess, config.variant, fen);
             const shallow = last_eval.shallow;
