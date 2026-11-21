@@ -63,9 +63,9 @@
             lsRemove(key);
         },
         // Default thread count, shared by the panel and the options page (both load this file) so the
-        // two can't drift apart. cores-1 leaves one for the browser/OS -- handing the engine EVERY
-        // core makes the page it's scraping stutter. Clamped to the sliders' 1..24; hardwareConcurrency
-        // is undefined in some contexts, so fall back to the old fixed default.
+        // two can't drift apart. Half the cores leaves room for the browser/OS and the page being
+        // scraped. Clamped to the sliders' 1..24; hardwareConcurrency is undefined in some contexts,
+        // so fall back to the old fixed default of 4.
         defaultThreads() {
             const cores = navigator.hardwareConcurrency;
             // HALF the cores, not all-but-one (user call 2026-08-09). All-but-one leaves nothing for
@@ -144,7 +144,7 @@
             return k.replace(/Shift\+((?:Meta\+)?)(.)$/,
                 (m, meta, c) => (c !== ' ' && c.toLowerCase() === c.toUpperCase()) ? meta + c : m);
         },
-        // canonical combo string for a keydown: "Alt+a", "Shift+Ctrl+k", " " (space), "ArrowUp", "?".
+        // canonical combo string for a keydown: "Alt+a", "Ctrl+Shift+k", " " (space), "ArrowUp", "?".
         // ONE normalization for the listener (content script) and the rebind UI (options page), so
         // what gets stored is exactly what gets compared.
         hotkeyString(e) {
@@ -240,7 +240,7 @@
             if (depthOnly) {
                 // never overwrite the memo with 'depth', so switching between two depth-only engines
                 // cannot lose what the user actually had. Any other budget is the user's latest
-                // choice, so it replaces an older memo (one a Settings Reset left behind).
+                // choice, so it replaces an older memo.
                 if (current !== 'depth') {
                     this.set(this.BUDGET_MEMO_KEY, JSON.stringify(current));
                 }
@@ -250,9 +250,8 @@
             const memo = this.get(this.BUDGET_MEMO_KEY);
             if (!memo) return current;               // we never changed it; leave the user's choice alone
             // The memo only stands for the Depth WE set. A budget that is no longer Depth was chosen
-            // after that (or reset by Settings Reset, which does not know the memo), so it stays and
-            // the memo goes: restoring it brought back an old Nodes budget out of nowhere on the next
-            // engine switch (audit 3.1.331 CONFIGSTORE-2).
+            // after that, so it stays and the memo goes: restoring the memo would bring back an old
+            // Time budget out of nowhere on the next engine switch (audit 3.1.331 CONFIGSTORE-2).
             if (current !== 'depth') { this.remove(this.BUDGET_MEMO_KEY); return current; }
             let restored = 'time';
             try { restored = JSON.parse(memo) || 'time'; } catch (e) { /* corrupt memo -> time */ }
