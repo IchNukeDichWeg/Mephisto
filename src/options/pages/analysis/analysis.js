@@ -227,8 +227,10 @@ class AnalysisPage extends SettingsPage {
             reloadEngine2();
             if (refused) status(refused);
         });
+        // Both engines are built from the same engineOpts(), so both rebuild: the Second engine kept
+        // its old MultiPV, threads and hash for the rest of the visit (audit 3.1.333 ANALYSIS-1).
         for (const id of ['an_lines_input', 'an_threads_input', 'an_hash_input'])
-            $(id)?.addEventListener('change', () => reloadEngine());
+            $(id)?.addEventListener('change', () => { reloadEngine2(false); reloadEngine(); });
         // The -/+ boxes beside those three. SettingsPage.initSteppers does this for the settings
         // pages, but this page is not one of them -- same behaviour, wired here.
         for (const btn of document.querySelectorAll('.an-grid .set-step-btn')) {
@@ -1005,7 +1007,7 @@ async function buildEngine2() {
     engine2 = e;
     return engine2;
 }
-function reloadEngine2() {
+function reloadEngine2(rerun = true) {
     evalCache2.clear();
     analyseChain = analyseChain.then(async () => {
         await stopSearch();
@@ -1013,7 +1015,7 @@ function reloadEngine2() {
     }, () => {});
     const col = $('an_engine2_col');
     if (col) col.classList.toggle('hidden', !cfg('an_engine2'));
-    go(cursor);
+    if (rerun) go(cursor);
 }
 
 // Same shape, same reason: humanFor() is called without being awaited, so two of them overlap freely.

@@ -18176,6 +18176,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     const live = psrc.slice(psrc.indexOf('const LIVE_CONFIG_KEYS = ['), psrc.indexOf('\n];\n', psrc.indexOf('const LIVE_CONFIG_KEYS = [')));
     ok('POPUP4-1 (3.1.333): python_autoplay_backend is a live config key, so a Settings change is pushed to the content script', live.includes("'python_autoplay_backend'")); }
+// ---- audit 3.1.333 ANALYSIS-1: Lines/Threads/Memory rebuild the Second engine too ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const asrc = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    ok('ANALYSIS-1 (3.1.333): a Lines/Threads/Memory change drops the Second engine as well as the first',
+       /\['an_lines_input', 'an_threads_input', 'an_hash_input'\]\)\s*\$\(id\)\?\.addEventListener\('change', \(\) => \{ reloadEngine2\(false\); reloadEngine\(\); \}\)/.test(asrc));
+    ok('ANALYSIS-1 (3.1.333): reloadEngine2(false) drops the engine without a second analyse', /function reloadEngine2\(rerun = true\)[\s\S]*?if \(rerun\) go\(cursor\);\n\}/.test(asrc)); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
