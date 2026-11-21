@@ -7486,8 +7486,10 @@ const HUMANIZE_TARGET_FLOOR_CP = -250;   // never choose a move that leaves us w
 const HUMANIZE_TARGET_MIN_MOVES = 4;
 
 function humanize_target() {
+    // 0 is Off; any other value the input takes is clamped into range, as every other number is.
+    // 1-49 silently meant Off (audit 3.1.333 POPUP3-6).
     const t = humanize_get('humanize_target_acc', 0);
-    return (t >= HUMANIZE_TARGET_MIN && t <= HUMANIZE_TARGET_MAX) ? t : 0;
+    return (Number.isFinite(t) && t > 0) ? Math.max(HUMANIZE_TARGET_MIN, Math.min(HUMANIZE_TARGET_MAX, t)) : 0;
 }
 
 // The accuracy THIS move should score so the running mean reaches the target over HORIZON moves:

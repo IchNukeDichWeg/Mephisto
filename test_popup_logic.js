@@ -1554,8 +1554,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         const H = (code) => vm.runInContext(code, hctx);
         const set = (k, v) => H(`store[${JSON.stringify(k)}] = ${JSON.stringify(JSON.stringify(v))}`);
         const target = (v) => { set('humanize_target_acc', v); return H('humanize_target()'); };
-        ok('target: 0 / 49 / 100 / junk are off, 50 and 99 are kept',
-           target(0) === 0 && target(49) === 0 && target(100) === 0 && target('x') === 0
+        ok('target: 0 and junk are off, 50 and 99 are kept, 49 and 100 clamp into range (POPUP3-6)',
+           target(0) === 0 && target('x') === 0 && target(49) === 50 && target(100) === 99
            && target(50) === 50 && target(99) === 99);
         const need = (acc, n, t) => H(`humanize_target_need({acc: ${acc}, n: ${n}}, ${t})`);
         ok('need: on target asks for the target; above it asks for less, more so the longer the game',
