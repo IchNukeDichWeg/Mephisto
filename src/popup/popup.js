@@ -2831,10 +2831,12 @@ function on_engine_evaluation(info) {
         // real but unrepresentative, and the point is to measure this machine at speed.
         if (Number.isFinite(l0.depth) && l0.depth >= 12) { record_nps_sample(l0.nps); record_advice_nps(l0.nps); }
     }
+    // the same keys the 4-player lane uses, so the most-read line is translated (audit 3.1.333 POPUP1-4)
     if ('mate' in info.lines[0]) {
-        update_evaluation(`Checkmate in ${info.lines[0].mate}`);
+        update_evaluation(i18n('panel.msg.mate_in', 'Checkmate in {n}', {n: info.lines[0].mate}));
     } else {
-        update_evaluation(`Score: ${info.lines[0].score / 100.0} at depth ${info.lines[0].depth}`)
+        update_evaluation(i18n('panel.msg.score_at_depth', 'Score: {score} at depth {depth}',
+            {score: info.lines[0].score / 100.0, depth: info.lines[0].depth}));
     }
     render_wdl(info.lines[0]);
     render_alt_lines();
@@ -2861,7 +2863,8 @@ function render_wdl(line) {
     const whitePct = (wdl[0] / 10).toFixed(1);
     const drawPct = (wdl[1] / 10).toFixed(1);
     const blackPct = (100 - wdl[0] / 10 - wdl[1] / 10).toFixed(1); // derive third -> always sums to 100
-    const w = `White ${whitePct}%`, d = `Draw ${drawPct}%`, b = `Black ${blackPct}%`;
+    const w = `${i18n('color.white', 'White')} ${whitePct}%`, d = `${i18n('panel.msg.draw', 'Draw')} ${drawPct}%`,
+        b = `${i18n('color.black', 'Black')} ${blackPct}%`;
     el.textContent = (board.orientation() === 'black') ? `${b} | ${d} | ${w}` : `${w} | ${d} | ${b}`;
 }
 
