@@ -13,8 +13,9 @@
     <link rel="stylesheet" href="options.css"/>
     <script src="/lib/materialize/materialize.min.js"></script>
     <script src="/src/scripts/config-store.js"></script>
-    <!-- chess.js is here only so the puzzle importer can turn the daily rows' SAN into UCI;
-         puzzle-db.js itself keeps no rules engine, because it also runs in the worker. -->
+    <!-- chess.js serves the pages that build positions: Analysis, Game Review, General and the
+         puzzle importer's SAN-to-UCI step. puzzle-db.js itself keeps no rules engine, because it
+         also runs in the worker. -->
     <script src="/lib/chess.js"></script>
     <script src="/src/scripts/puzzle-db.js"></script>
     <!-- Self-update. Here rather than in the worker: only a page can run showDirectoryPicker(), and
