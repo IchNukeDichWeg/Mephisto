@@ -590,7 +590,10 @@ class GeneralSettings extends SettingsPage {
             $('tb_forget')?.classList.toggle('hidden', perm === 'missing');
             $('tb_allow')?.classList.toggle('hidden', perm !== 'prompt');
             if (perm === 'missing') {
-                say('No folder chosen - Tablebase uses the online lookup.');
+                // the worker tries the Host Path through the native host before going online (audit 3.1.333 GENERALJS-5)
+                let hostPath = ''; try { hostPath = String(JSON.parse(MephistoConfig.get('tb_path')) || '').trim(); } catch (e) { /* unset */ }
+                say(hostPath ? 'No folder chosen - Tablebase reads the Host Path through the native host, then the online lookup. Press Check to test it.'
+                             : 'No folder chosen - Tablebase uses the online lookup.');
             } else if (perm === 'prompt') {
                 say(MephistoI18n.errText('MPH-T02'), true);
             } else {
