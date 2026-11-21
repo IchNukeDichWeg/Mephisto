@@ -330,7 +330,10 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
                     say({kind: 'line', line: `info string mephisto-unsupported-variant ${variant}`});
                 }
                 engine.uci(`setoption name UCI_Variant value ${variant}`);
-                const net = variantNnueMap[variant] || variantNnueMap['chess'];
+                // A variant the build refused stays on standard chess, so it gets the chess net: Duck's
+                // own net was loaded into an engine playing chess (audit 3.1.333 OFFSCREEN-1).
+                const supported = !declared.length || declared.includes(variant);
+                const net = (supported && variantNnueMap[variant]) || variantNnueMap['chess'];
                 const note = (m) => say({kind: 'line', line: `info string ${m}`});
                 // Fairy's nets live one level down in nnue/, unlike mainline SF's, which sit beside the
                 // .js. Fetching them from `base` missed every one of them: the .partN probe missed too,
