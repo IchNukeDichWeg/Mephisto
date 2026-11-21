@@ -691,7 +691,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('...and with no tablebase answer, nothing is judged by one',
         held(null, 'loss') === false && held('win', undefined) === false);
     ok('the override only ever removes a bad grade',
-        /const TB_OVERRIDABLE = new Set\(\['inaccuracy', 'mistake', 'blunder'\]\)/.test(pj));
+        /const TB_OVERRIDABLE = new Set\(\['inaccuracy', 'mistake', 'miss', 'blunder'\]\)/.test(pj));
     ok('...and the ply carries the verdict its position had', /ref, tb\};/.test(pj));
 }
 

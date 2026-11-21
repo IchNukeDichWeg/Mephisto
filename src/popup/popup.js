@@ -10767,8 +10767,10 @@ function ensure_classifier() {
 // mover's side, exactly as the tablebase's own move ordering does.
 const TB_RESULT_VALUE = {win: 2, 'cursed-win': 1, draw: 0, 'blessed-loss': -1, loss: -2};
 // The verdicts a proved result is allowed to overrule. `book` and `forced` are facts of their own,
-// and the good grades need no help.
-const TB_OVERRIDABLE = new Set(['inaccuracy', 'mistake', 'blunder']);
+// and the good grades need no help. `miss` too: classify() returns it before mistake/blunder when
+// the position was winning, which a tablebase win nearly always reads as, so the override never
+// reached the case it was written for (audit 3.1.333 POPUP4-2).
+const TB_OVERRIDABLE = new Set(['inaccuracy', 'mistake', 'miss', 'blunder']);
 
 function tb_held_the_result(before, after) {
     if (!(before in TB_RESULT_VALUE) || !(after in TB_RESULT_VALUE)) return false;
