@@ -18255,6 +18255,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /lila ceils the cp at \+-1000/.test(cc) && cc.includes('clamp(cp, -2000, 2000)'));
     ok('REVIEWCORE-3 (3.1.333): the README says the ceiling is wider than Lichess\'s',
        fs.readFileSync(ROOT + '/README.md', 'utf8').includes("Lichess's formulas (with a wider ceiling")); }
+// ---- audit 3.1.333 REVIEWCORE-5: top1, uniform and time need the same sample as the estimate ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const K = c.MephistoReviewCore;
+    const ind = (moves) => ({moves, top1: 1, top3: 1, accStdev: 0, accMean: 99, secCv: 0.01, secMedian: 1, secMean: 1});
+    const keys = (n) => K.evidence(ind(n), {}).map(e => e.key);
+    ok('REVIEWCORE-5 (3.1.333): an 8-move side gets no top1, uniform or time line', !keys(8).some(k => ['top1', 'uniform', 'time'].includes(k)), keys(8));
+    ok('REVIEWCORE-5 (3.1.333): ...a 12-move side gets all three', ['top1', 'uniform', 'time'].every(k => keys(12).includes(k)), keys(12)); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

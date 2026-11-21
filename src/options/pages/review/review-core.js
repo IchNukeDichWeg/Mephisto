@@ -513,6 +513,8 @@ function band(value, strong, high, notable) {
 // Turn the indicators into short evidence lines. Deliberately NOT a score: a number between 0 and
 // 100 reads as a probability and this cannot produce one. Each line says what was measured and what
 // it is worth, and the caller shows them under a heading that says so too.
+// Below this many of a side's moves no evidence line is worth a band, and estimate() says so.
+const MIN_MOVES = 12;
 function evidence(ind, opts) {
     const out = [];
     const pct = (x) => (x * 100).toFixed(0) + '%';
@@ -524,7 +526,10 @@ function evidence(ind, opts) {
             'Book moves, forced moves and recaptures are excluded, which is what makes this different '
             + 'from the raw match rate. Strong club players land around 45-60% here; grandmasters 60-70%.');
     }
-    if (ind.top1 != null) {
+    // top1, uniform and time had no sample floor, so an 8-move game printed "Strong" lines under an
+    // estimate that said 8 moves mean nothing (audit 3.1.333 REVIEWCORE-5). The same floor as estimate().
+    const enough = ind.moves >= MIN_MOVES;
+    if (ind.top1 != null && enough) {
         add('top1', band(ind.top1, 0.92, 0.85, 0.75),
             `Raw match rate ${pct(ind.top1)} over all ${ind.moves} moves`
             + (ind.top3 != null ? `, and ${pct(ind.top3)} in the engine's top three.` : '.'),
@@ -552,14 +557,14 @@ function evidence(ind, opts) {
                 ? 'The middlegame is where this question lives: the opening is memory and the endgame is technique.'
                 : 'Endgames are technique and tablebase-like knowledge, so a high rate here is much weaker evidence.');
     }
-    if (ind.accStdev != null) {
+    if (ind.accStdev != null && enough) {
         // INVERTED: uniformity is the odd thing here, so the band is built from its complement.
         add('uniform', band(1 - Math.min(1, ind.accStdev / 30), 0.9, 0.82, 0.72),
             `Per-move accuracy varies by ±${ind.accStdev.toFixed(1)} points around ${ind.accMean.toFixed(0)}%.`,
             'Humans are streaky: brilliant, then ordinary, then careless. A very even game is what a '
             + 'machine looks like, and also what a short, quiet game looks like.');
     }
-    if (ind.secCv != null) {
+    if (ind.secCv != null && enough) {
         add('time', band(1 - Math.min(1, ind.secCv / 1.2), 0.75, 0.62, 0.5),
             `Think time varied by ${(ind.secCv * 100).toFixed(0)}% of its own average (median ${ind.secMedian.toFixed(1)}s per move).`,
             'Humans spend very different amounts of time on easy and hard moves. A flat profile is '
@@ -614,7 +619,7 @@ const LEVEL_SCORE = {normal: 0, notable: 1, high: 2, strong: 3};
 
 function estimate(evidenceLines, ind) {
     // Too little to say anything at all. A ten-move game has no opinion worth having.
-    if (!ind || ind.moves < 12) {
+    if (!ind || ind.moves < MIN_MOVES) {
         return {level: 'normal', confidence: 'none', score: 0,
                 text: `Only ${ind ? ind.moves : 0} moves. That is too few for any of this to mean anything.`};
     }
