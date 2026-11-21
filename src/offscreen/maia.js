@@ -42,6 +42,7 @@ function parseFen(fen) {
     };
 }
 
+function fillHist(out, at) { for (let i = 0; i < PLANE; i++) out[at + i] = 1.0; }
 function fillPlane(out, n, v) { const b = (AUX + n) * PLANE; for (let i = 0; i < PLANE; i++) out[b + i] = v; }
 
 // positions: parsed FENs, MOST RECENT FIRST. Up to 8 used; older zero-filled. Rank-flip for black.
@@ -58,6 +59,9 @@ function encode(positions) {
             const planeNo = (pc.color === cur.stm ? 0 : 6) + PIECE_IDX[pc.type];
             out[base + planeNo * PLANE + persp(sqi)] = 1.0;
         }
+        // plane +12: this position occurred before, as lc0's encoder fills it. Left 0, the nets
+        // played a different move than lc0 near a repetition (audit 3.1.333 MAIA-1).
+        if (pos.rep) fillHist(out, base + 12 * PLANE);
     }
     const usK = cur.stm === 'w' ? cur.castle.K : cur.castle.k;
     const usQ = cur.stm === 'w' ? cur.castle.Q : cur.castle.q;
@@ -143,9 +147,17 @@ export async function createMaiaEngine(level, listen, net = null) {
         // moves gave Bf4 at +0.03. lc0's own answer is to fill the missing past with the oldest
         // position it has, so do that -- but only for a game that did not begin at the start array,
         // because real games DO begin with an empty past and the nets were trained on that.
+        // Repetitions over the whole game, compared as lc0 does: placement, side to move, castling
+        // and en passant. The copies padded in below are not repetitions.
+        const seen = new Map();
+        const reps = fens.map((f) => {
+            const k = f.split(' ').slice(0, 4).join(' '), n = seen.get(k) || 0;
+            seen.set(k, n + 1);
+            return n >= 1;
+        });
         const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
-        if (fens[0].split(' ')[0] !== START) while (fens.length < 8) fens.unshift(fens[0]);
-        history = fens.reverse().map(parseFen);
+        if (fens[0].split(' ')[0] !== START) while (fens.length < 8) { fens.unshift(fens[0]); reps.unshift(false); }
+        history = fens.map((f, i) => ({...parseFen(f), rep: reps[i]})).reverse();
         black = history[0].stm === 'b';
         const legal = chess.moves({ verbose: true });
         legalUcis = legal.map(m => m.from + m.to + (m.promotion || ''));

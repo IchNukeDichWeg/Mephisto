@@ -3349,7 +3349,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const msrc = fs.readFileSync(ROOT + '/src/offscreen/maia.js', 'utf8');
     ok('Maia / Leela: a game that starts from a position gets its history filled with that position (lc0 fen fill), a normal game does not',
-       /if \(fens\[0\]\.split\(' '\)\[0\] !== START\) while \(fens\.length < 8\) fens\.unshift\(fens\[0\]\);\s*history = fens\.reverse\(\)\.map\(parseFen\);/.test(msrc)); }
+       /if \(fens\[0\]\.split\(' '\)\[0\] !== START\) while \(fens\.length < 8\) \{ fens\.unshift\(fens\[0\]\); reps\.unshift\(false\); \}\s*history = fens\.map\(\(f, i\) => \(\{\.\.\.parseFen\(f\), rep: reps\[i\]\}\)\)\.reverse\(\);/.test(msrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const i = psrc.indexOf('if (response.clocks) last_clocks = {...response.clocks, at: Date.now()};');
     const two = psrc.slice(i, psrc.indexOf('last_clocks = null;', i) + 19);
@@ -18385,6 +18385,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('POPUP1-3 (3.1.333): ...and when Black cannot follow, White has won', !!wwin && wwin.winner === 'w', wwin);
     const bwin = vr('7k/8/8/8/8/8/8/K7 w - - 0 30', 'racingkings');
     ok('POPUP1-3 (3.1.333): Black on the eighth rank (White not there) is a Black win', !!bwin && bwin.winner === 'b', bwin); }
+// ---- audit 3.1.333 MAIA-1: the lc0 repetition plane is set for a position seen before ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const table = JSON.parse(fs.readFileSync(ROOT + '/lib/engine/maia/lc0_policy_index.json', 'utf8'));
+    const src = fs.readFileSync(ROOT + '/src/offscreen/maia.js', 'utf8').replace(/^import [^\n]*\n/gm, '').replace(/^export /gm, '');
+    const c = vm.createContext({console: {log() {}}, performance: {now: () => 0}, TextDecoder, Float32Array, Promise, Math, JSON, Map,
+        fetchModel: async (dir, file) => file.endsWith('.json') ? new TextEncoder().encode(JSON.stringify(table)) : new ArrayBuffer(4),
+        readyEnv: async () => {}, planes: null,
+        ort: {Tensor: function (t, data) { c.planes = data; }, InferenceSession: {create: async () => ({run: async () => {
+            const p = new Float32Array(1858).fill(-10); p[0] = 10; return {'/output/policy': {data: p}, '/output/wdl': {data: [0.3, 0.4, 0.3]}}; }})}}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(src, c);
+    try {
+        const eng = await vm.runInContext('createMaiaEngine', c)(1500, () => {});
+        const rep = async (moves) => {
+            eng.uci('position startpos' + (moves ? ' moves ' + moves : '')); eng.uci('go');
+            for (let k = 0; k < 5; k++) await new Promise(r => setTimeout(r, 0));
+            return [0, 1, 4].map(h => c.planes[(h * 13 + 12) * 64]);   // history slots 0, 1, 4
+        };
+        const fresh = await rep('');
+        const back = await rep('g1f3 g8f6 f3g1 f6g8');
+        ok('MAIA-1 (3.1.333): a fresh start sets no repetition plane', fresh.every(v => v === 0), fresh);
+        ok('MAIA-1 (3.1.333): the start reached again by Nf3 Nf6 Ng1 Ng8 marks the current position (slot 0) only',
+           back[0] === 1 && back[1] === 0 && back[2] === 0, back);
+    } catch (e) { fails++; console.log('FAIL MAIA-1 (3.1.333): threw ' + e.message); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
