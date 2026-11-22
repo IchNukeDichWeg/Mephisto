@@ -558,8 +558,9 @@ installs numpy into MSYS2's Python, not that one.
 Português, Italiano, Nederlands, Polski, Türkçe, Русский, 中文, हिन्दी, 日本語, 한국어, each listed in its own language.
 
 This is deliberately **not** Chrome's `chrome.i18n`, which follows the browser's UI locale with no way to override it.
-There is one flat JSON per language under `src/i18n/locales/`, with English underneath as the fallback. Every string is
-translated, long settings tooltips included. Engine names, themes and chess notation are left alone on purpose.
+There is one flat JSON per language under `src/i18n/locales/`, with English underneath as the fallback. Every string on
+the panel and settings pages is translated, long tooltips included; a few status lines on the Game Review page are still
+English. Engine names, themes and chess notation are left alone on purpose.
 
 ---
 
