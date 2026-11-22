@@ -262,7 +262,8 @@ export class SettingsPage {
         // rather than waiting on the async onChanged that pullConfigValues would otherwise race.
         for (const [k, v] of Object.entries(obj)) MephistoConfig.set(k, v);
         this.pullConfigValues();
-        alert(`Imported ${Object.keys(obj).length} settings. Open panels pick them up on their next move; reload the game tab to apply an engine change now.`);
+        alert(MephistoI18n.t('set.imported_n', 'Imported {n} settings. Open panels pick them up on their next move; reload the game tab to apply an engine change now.',
+            {n: Object.keys(obj).length}));   // audit 3.1.333 OPTIONSPAGES-7
         // the parts of this page drawn by hand (Humanize mix, thresholds, hotkeys) only read storage
         // when the page is built, and showed their old values until a manual reload
         if (typeof location !== 'undefined') location.reload();
