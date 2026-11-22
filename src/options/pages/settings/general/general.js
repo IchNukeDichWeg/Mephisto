@@ -491,7 +491,7 @@ class GeneralSettings extends SettingsPage {
             try { info = await self.MephistoBooks.info(); } catch (e) { /* no store yet */ }
             $('own_book_remove')?.classList.toggle('hidden', !info);
             say(info
-                ? `${info.name} - ${info.entries.toLocaleString()} positions (${(info.bytes / 1048576).toFixed(1)} MB). Book Moves uses this book.`
+                ? `${info.name} - ${info.entries.toLocaleString()} book moves (${(info.bytes / 1048576).toFixed(1)} MB). Book Moves uses this book.`
                 : 'No book loaded - Book Moves uses the online database.');
         };
         $('own_book_load')?.addEventListener('click', () => $('own_book_file')?.click());
