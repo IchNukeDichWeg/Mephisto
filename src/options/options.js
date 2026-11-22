@@ -31,6 +31,9 @@ window.mephistoApplyLanguage = applyLanguage;
 
 document.addEventListener('DOMContentLoaded', function () {
     applyTheme();
+    // the shell loads the language itself: About, Getting Started and Disclaimers have no
+    // SettingsPage.onInit to do it, so a tab opened straight onto one stayed English (audit 3.1.333 OPTIONSPAGES-4)
+    MephistoConfig.ready.then(() => applyLanguage()).catch(() => { /* English stays */ });
     let activeScrollspies;
 
     // init materialize. The menu is a FLAT list since 3.1.253 -- no accordion to initialise, and
