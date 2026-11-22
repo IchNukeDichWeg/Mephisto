@@ -1926,9 +1926,12 @@
                                                     up to its value, Third from there up to its value, and so
                                                     on. The Accuracy column is what a move that bad scores on
                                                     Lichess's own move-accuracy formula (from an equal
-                                                    position); the win-drop % is Lichess's move-quality
-                                                    measure -- ~10% = Inaccuracy, ~20% = Mistake, ~30% =
-                                                    Blunder. The defaults sit exactly on those boundaries.">
+                                                    position), and the drop % is the win% it gives away. Game
+                                                    Review grades a drop from 5% an Inaccuracy, from 10% a
+                                                    Mistake and from 20% a Blunder (lichess cuts at 5/10/15),
+                                                    and the defaults put the top of the Inaccuracy band at a
+                                                    20% drop and of the Mistake band at 30%: a move from these
+                                                    bands reads one step harsher in review.">
                                     Threshold cp <i class="material-icons info-tooltip">info</i>
                                 </span>
                             </th>
