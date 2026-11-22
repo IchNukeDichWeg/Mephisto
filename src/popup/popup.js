@@ -10881,7 +10881,8 @@ function classify_history() {
             // the rest of this function spends, and it is not what went wrong.
             if (move_classes[i] && tb_held_the_result(ply_facts[i]?.tb, ply_facts[i + 1]?.tb)
                 && TB_OVERRIDABLE.has(move_classes[i])) {
-                console.log(`Classify: ${Math.floor(i / 2) + 1}${white ? '.' : '...'} ${uci} was `
+                // the FEN's own move number: list parity is wrong for a game that starts with Black or mid-game (audit 3.1.333 POPUP4-9)
+                console.log(`Classify: ${fen.split(' ')[5]}${white ? '.' : '...'} ${uci} was `
                     + `${move_classes[i]} by the engine's number, but the tablebase says the result `
                     + `held (${ply_facts[i].tb} -> ${ply_facts[i + 1].tb}) -- grading it best`);
                 move_classes[i] = 'best';
@@ -10890,7 +10891,7 @@ function classify_history() {
             // the book get. A verdict nobody can check is a verdict nobody can report a fault in.
             if (move_classes[i] && move_classes[i] !== last_logged_class[i]) {
                 last_logged_class[i] = move_classes[i];
-                console.log(`Classify: ${Math.floor(i / 2) + 1}${white ? '.' : '...'} ${uci} = `
+                console.log(`Classify: ${fen.split(' ')[5]}${white ? '.' : '...'} ${uci} = `
                     + `${move_classes[i]} (win% ${winBefore.toFixed(1)} -> ${winAfter.toFixed(1)}`
                     + `${rank ? `, rank ${rank}` : ''}${onlyMove ? ', forced' : ''}${sacrifice ? ', sacrifice' : ''})`);
             }
