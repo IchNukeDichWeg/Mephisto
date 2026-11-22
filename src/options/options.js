@@ -140,8 +140,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!isCurrent()) return;
         pageModule.page?.onInit(isCurrent);
 
-        // inject page title
-        titleElem.innerText = pageModule.title;
+        // inject page title: the nav entry's own label, translated and re-applied with it on a live
+        // language change (data-i18n), so the heading matches the sidebar (audit 3.1.333 OPTIONSPAGES-3)
+        const titleKey = navEntry.dataset?.i18n;
+        titleElem.innerText = titleKey ? MephistoI18n.t(titleKey, pageModule.title) : pageModule.title;
+        if (titleKey) titleElem.dataset.i18n = titleKey; else if (titleElem.dataset) delete titleElem.dataset.i18n;
 
         paintRanges();            // teal-fill the slider tracks up to the thumb (dark CSS reads var(--fill))
         setTimeout(paintRanges, 150); // fallback: some range values are set just after onInit
