@@ -218,13 +218,18 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('vision_threads', 'Screen Reader Cores:', 'input', 2);
         const threat_human = this.registerFormElement('threat_human', 'Human Reply (Maia):', 'checkbox', false);
         const threat_human_elo = this.registerFormElement('threat_human_elo', 'Human Reply Rating:', 'input', 1500);
-        // the rating only means anything while the reply is on -- same treatment the search-budget
-        // rows get above, so a control that does nothing is not sitting there inviting a change
+        // the rating only means anything while something predicts at it -- same treatment the
+        // search-budget rows get above, so a control that does nothing is not sitting there inviting
+        // a change. Human Reply, Second Opinion and Playing with a Net all ask Maia at this rating
+        // (audit 3.1.333 GENERALHTML-8); Second Opinion registers further down and hooks in there.
+        let second_opinion = null;
         const sync_human_reply_row = () => {
             const row = document.getElementById('threat_human_elo_row');
-            if (row) row.style.display = threat_human.getValue() ? '' : 'none';
+            const on = threat_human.getValue() || safety_net.getValue() || second_opinion?.getValue();
+            if (row) row.style.display = on ? '' : 'none';
         };
         threat_human.registerChangeListener(sync_human_reply_row);
+        safety_net.registerChangeListener(sync_human_reply_row);
         sync_human_reply_row();
         this.registerFormElement('simon_says_mode', '"Hand and Brain" Mode:', 'checkbox', false);
         this.registerFormElement('autoplay', 'Autoplay:', 'checkbox', false);
@@ -241,7 +246,9 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('mirror_ratio', 'Mirror Ratio (%):', 'input', 90);
         const refute = this.registerFormElement('refute', 'Refute My Mistakes:', 'checkbox', false);
         this.registerFormElement('refute_plies', 'Refutation Length:', 'input', 4);
-        this.registerFormElement('second_opinion', 'Second Opinion:', 'checkbox', false);
+        second_opinion = this.registerFormElement('second_opinion', 'Second Opinion:', 'checkbox', false);
+        second_opinion.registerChangeListener(sync_human_reply_row);
+        sync_human_reply_row();
         this.registerFormElement('human_error', 'Suggest a Human Error:', 'checkbox', false);
         this.registerFormElement('opp_prep', 'Opponent Prep:', 'checkbox', false);
         // The player book: a username and a filter, both meaningless while the book is off, so both
