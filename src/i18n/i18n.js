@@ -217,8 +217,8 @@ const ERRORS = Object.freeze(Object.fromEntries([
 
     ['MPH-N01', 'err.N01', 'Could not download a model file this build does not include. Check your internet connection and try again.'],
     ['MPH-N02', 'err.N02', 'The model download was cut short or came out the wrong size. Try again.'],
-    ['MPH-N03', 'err.N03', 'The downloaded model failed its integrity check and was discarded. Try again; if it keeps failing, install the full zip.'],
-    ['MPH-N04', 'err.N04', 'This build does not include that model and cannot fetch it. Update Mephisto or install the full zip.'],
+    ['MPH-N03', 'err.N03', 'The downloaded model failed its integrity check and was discarded. Try again; if it keeps failing, report the code (a git checkout carries every model and needs no download).'],
+    ['MPH-N04', 'err.N04', 'This build does not include that model and cannot fetch it. Update Mephisto, or use a git checkout, which carries every model.'],
 
     ['MPH-R01', 'err.R01', 'The chess.com review needs a chess.com tab. Open chess.com in this browser and log in, then try again.'],
     ['MPH-R02', 'err.R02', 'chess.com rejected the request (1008). Sign in to chess.com in this browser, then try again.'],
