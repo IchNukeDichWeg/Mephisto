@@ -41,8 +41,7 @@ const CFG = {
                           // kinds never reinterprets one unit as the other (the rv_limit lesson)
 };
 
-// The search-time slider: 1..60 seconds, and one notch past 60 that means `go infinite` -- the same
-// shape as Game Review's budget, because it is the same question.
+// The search-time slider: 1..60 seconds, and one notch past 60 that means `go infinite`.
 const AN_INFINITE = 61;
 // The depth slider's ceiling. 40 plies is already a very long sit on the WASM builds; past it the
 // honest control is the Time slider's no-limit notch.

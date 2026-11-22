@@ -8,7 +8,7 @@
 // the second init silently disposes the first) was learned once and must not be re-learned.
 const Core = self.MephistoReviewCore;
 
-// The budget slider's last notch: the sentinel that means `go infinite`. Nothing in this file ever
+// The sentinel limit that means `go infinite`. Nothing in this file ever
 // decides such a search has run long enough -- no settle rule, no ceiling, no backstop timeout.
 // It runs until stopSearch() is called, which is what the Stop button does.
 const LIMIT_INFINITE = 1e9;

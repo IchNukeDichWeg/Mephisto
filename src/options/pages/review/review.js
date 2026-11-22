@@ -388,8 +388,8 @@ async function runReview(game, rig, onProgress) {
                 if (i >= positions.length) return;
                 if (cancel) throw new Error('stopped');
                 const p = positions[i];
-                // Say something BEFORE the first search returns: with the unbounded notch the run
-                // would otherwise sit on "starting the engine" for the whole of it.
+                // Say something BEFORE the first search returns: a long budget would otherwise leave the
+                // run on "starting the engine" for the whole first position.
                 onProgress(done / total, `position ${searched + 1} of ${positions.length}`);
                 // efen: the engine's dialect of the position (crazyhouse pockets, 3check counts)
                 let r;
