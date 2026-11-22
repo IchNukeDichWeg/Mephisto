@@ -519,7 +519,7 @@
   "an.copy_fen": "Kopiuj FEN",
   "an.copy_pgn": "Kopiuj PGN",
   "an.export": "Eksportuj…",
-  "an.tip.time": "Jak mocno silnik pracuje nad każda pozycja. Czas: mysli tyle sekund, a ostatni stopien to brak limitu -- mysli dalej, az przejdziesz dalej. Glebokosc: szuka dokladnie na tyle posuniec w glab i się zatrzymuje, ta sama odpowiedz na kazdej maszynie.",
+  "an.tip.time": "Jak mocno silnik pracuje nad każdą pozycją. Czas: myśli tyle sekund, a ostatni stopień to brak limitu -- myśli dalej, aż przejdziesz dalej. Głębokość: szuka dokładnie na tyle posunięć w głąb i się zatrzymuje, ta sama odpowiedź na każdej maszynie.",
   "set.tip.grind_mode": "Lichess i Chess.com, i tylko gdy Autoplay jest włączony. Gdy partia się kończy, Mephisto klika przycisk rozpoczynający następną - „Nowy przeciwnik” na Lichess, „Nowa 1 min” (twoje tempo) na Chess.com - więc sesja trwa bez ciebie. Opóźnienie poniżej to twoje okno na przerwanie: zamknij kartę, przejdź gdzie indziej albo wyłącz to w tym czasie, a nowa partia nie będzie szukana. Jeśli przycisku nie ma tam, gdzie był oczekiwany, nic się nie dzieje i partia po prostu pozostaje zakończona.",
   "set.tip.grind_delay": "Ile czekać po zakończeniu partii przed rozpoczęciem następnej. To twoje okno na przerwanie - 0 startuje od razu, maksimum to 600 sekund.",
   "set.accept_rematch": "Akceptuj rewanż",
