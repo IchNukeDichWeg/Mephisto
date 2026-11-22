@@ -597,11 +597,13 @@ class GeneralSettings extends SettingsPage {
             } else if (perm === 'prompt') {
                 say(MephistoI18n.errText('MPH-T02'), true);
             } else {
+                // a download still running from before a re-init owns the line: its progress, not a
+                // count that includes its half-done set (audit 3.1.332 GENERAL-1). Ahead of the
+                // inventory: files land as .part, so a fresh folder counts 0 tables and read as MPH-T01
+                // until the first one finished (audit 3.1.333 GENERALJS-7).
+                if (tbDownload.run?.report) { tbDownload.run.report(); return; }
                 const inv = await self.MephistoTbStore.inventory().catch(() => null);
                 if (!inv || !inv.tables) { say(MephistoI18n.errText('MPH-T01'), true); return; }
-                // a download still running from before a re-init owns the line: its progress, not a
-                // count that includes its half-done set (audit 3.1.332 GENERAL-1)
-                if (tbDownload.run?.report) { tbDownload.run.report(); return; }
                 const men = Object.keys(inv.men).sort().map(n => `${n}-man: ${inv.men[n]}`).join(', ');
                 say(`${inv.tables} tables (${men}). Tablebase answers from this folder first, in-browser.` + bigNote(inv.men));
             }
