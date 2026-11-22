@@ -757,9 +757,11 @@ class GeneralSettings extends SettingsPage {
                 // than a constant in this file that can go stale when the server's tables change.
                 const wantGb = wanted.reduce((a, f) => a + f.size, 0) / 1073741824;
                 // (not asked once Stop was pressed while the list loaded: that run ends as "Stopped.")
+                // the whole set's size: files already complete are skipped later, so this is an upper
+                // bound and is worded as one (audit 3.1.333 GENERALJS-6)
                 if (!run.stop && wantGb > 10 && !confirm(`${dirs.join(', ')}: ${wanted.length} files, about `
-                                                         + `${wantGb.toFixed(0)} GB. Continue?`)) {
-                    say(`Cancelled - that would have been ${wantGb.toFixed(0)} GB.`);
+                                                         + `${wantGb.toFixed(0)} GB in all (files already complete are skipped). Continue?`)) {
+                    say(`Cancelled - the set is about ${wantGb.toFixed(0)} GB in all.`);
                     return;
                 }
 
