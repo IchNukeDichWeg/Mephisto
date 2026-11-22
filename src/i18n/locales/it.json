@@ -754,7 +754,7 @@
   "an.cmp_run": "Avvia",
   "panel.msg.opp_prep": "{who} qui ha giocato {move} ({n}x)",
   "panel.msg.player_book": "Libro: {who} qui gioca {move} ({n}x)",
-  "panel.msg.session": "Sessione: {games} partite · {moves} mosse · {avg}s in media",
+  "panel.msg.session": "Sessione: partite {games} · mosse {moves} · {avg}s in media",
   "panel.msg.session_acc": " · {n}% di precisione",
   "panel.msg.second_opinion": "Un {elo} gioca {move} ({pct}%)",
   "panel.msg.second_opinion_off": "Un {elo} gioca {move} ({pct}%) - e quasi mai quella del motore",

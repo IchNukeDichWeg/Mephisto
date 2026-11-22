@@ -12599,7 +12599,7 @@ function session_stats_label() {
     const acc = all.length ? Math.round(all.reduce((a, b) => a + b, 0) / all.length) : null;
     // Two strings rather than five: a label built by joining four translated fragments is four
     // chances for a language to want a different order.
-    return i18n('panel.msg.session', 'Session: {games} games · {moves} moves · {avg}s avg',
+    return i18n('panel.msg.session', 'Session: games {games} · moves {moves} · {avg}s avg',
                 {games, moves: session.moves, avg})
         + (acc != null ? i18n('panel.msg.session_acc', ' · {n}% accuracy', {n: acc}) : '');
 }

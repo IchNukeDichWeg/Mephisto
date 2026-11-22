@@ -754,7 +754,7 @@
   "an.cmp_run": "Запустить",
   "panel.msg.opp_prep": "{who} играл здесь {move} ({n}x)",
   "panel.msg.player_book": "Книга: {who} играет здесь {move} ({n}x)",
-  "panel.msg.session": "Сессия: {games} партий · {moves} ходов · в среднем {avg}с",
+  "panel.msg.session": "Сессия: партии {games} · ходы {moves} · в среднем {avg}с",
   "panel.msg.session_acc": " · точность {n}%",
   "panel.msg.second_opinion": "{elo} играет {move} ({pct}%)",
   "panel.msg.second_opinion_off": "{elo} играет {move} ({pct}%) - и почти никогда ход движка",

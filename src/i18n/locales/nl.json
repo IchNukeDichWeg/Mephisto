@@ -754,7 +754,7 @@
   "an.cmp_run": "Uitvoeren",
   "panel.msg.opp_prep": "{who} speelde hier {move} ({n}x)",
   "panel.msg.player_book": "Boek: {who} speelt hier {move} ({n}x)",
-  "panel.msg.session": "Sessie: {games} partijen · {moves} zetten · {avg}s gem.",
+  "panel.msg.session": "Sessie: partijen {games} · zetten {moves} · {avg}s gem.",
   "panel.msg.session_acc": " · {n}% nauwkeurigheid",
   "panel.msg.second_opinion": "Een {elo} speelt {move} ({pct}%)",
   "panel.msg.second_opinion_off": "Een {elo} speelt {move} ({pct}%) - en bijna nooit die van de engine",

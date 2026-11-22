@@ -1026,13 +1026,13 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     eq('nothing has happened, so nothing is said', s2.session_stats_label(), '');
     s2.session_note_move(1000); s2.session_note_move(3000);
     // the game being played counts as a game (it used to read "0 games" until the panel saw the next one start)
-    ok('the average is over the MOVES, and the game in progress is counted', /1 games · 2 moves · 2\.0s avg/.test(s2.session_stats_label()));
+    ok('the average is over the MOVES, and the game in progress is counted', /games 1 · moves 2 · 2\.0s avg/.test(s2.session_stats_label()));
     // THE GAME IN FRONT OF YOU. Accuracy used to need a FINISHED game, so a session spent on one long
     // game showed moves and seconds and no accuracy at all.
     ok('...and the unfinished game already carries its accuracy',
-       /1 games · 2 moves · 2\.0s avg · 90% accuracy/.test(s2.session_stats_label()));
+       /games 1 · moves 2 · 2\.0s avg · 90% accuracy/.test(s2.session_stats_label()));
     s2.session_note_game([0.5, 0.5], 'game-1');
-    ok('a finished game brings its accuracy', /1 games · 2 moves · 2\.0s avg · 90% accuracy/.test(s2.session_stats_label()));
+    ok('a finished game brings its accuracy', /games 1 · moves 2 · 2\.0s avg · 90% accuracy/.test(s2.session_stats_label()));
     // on_new_pos clears the history right after the fold (a new game from the SAME start FEN is
     // the normal case), so the finished game is counted once and the live reading starts empty
     vm.runInContext('eval_history = [];', s2);
@@ -1040,7 +1040,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        vm.runInContext('session.acc.length', s2) === 1 && s2.session_live_accuracy() === null);
     vm.runInContext('eval_history = [0.5, 0.5]; STATS.white.accuracy = 50;', s2);   // same start FEN, "game-1"
     ok('...and the next game from the same start averages in alongside it',
-       /1 games · 2 moves · 2\.0s avg · 70% accuracy/.test(s2.session_stats_label()));
+       /games 1 · moves 2 · 2\.0s avg · 70% accuracy/.test(s2.session_stats_label()));
     s2.session_note_move(undefined);
     ok('...and a delay nobody measured is not counted as zero', /3 moves/.test(s2.session_stats_label()) === false);
     // A RELOAD USED TO ZERO IT. It is written under today's date and read back on the next load.
@@ -1050,7 +1050,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     vm.runInContext('session = session_fresh();', s2);
     eq('...so a fresh panel starts empty until it reads them', s2.session_stats_label(), '');
     vm.runInContext('session_restore();', s2);
-    ok('...and reading them back restores the count', /1 games · 2 moves · 2\.0s avg/.test(s2.session_stats_label()));
+    ok('...and reading them back restores the count', /games 1 · moves 2 · 2\.0s avg/.test(s2.session_stats_label()));
     vm.runInContext('STORE.session_totals = JSON.stringify({day: "1999-1-1", games: 9, moves: 9, think_ms: 9, acc: [9]}); session = session_fresh(); session_restore();', s2);
     eq('...but yesterday\'s totals are not today\'s', s2.session_stats_label(), '');
     // LICHESS: every game is its own page and its own panel, so no ply-count drop is ever seen. The game is
@@ -1059,14 +1059,14 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     s2.session_note_move(1000); s2.session_note_move(1000);
     vm.runInContext('location = {host: "lichess.org", pathname: "/AbCd1234"};', s2);
     s2.session_note_move(1000);
-    ok('a lichess game is one game across its /white and /black addresses', /1 games · 3 moves/.test(s2.session_stats_label()), s2.session_stats_label());
+    ok('a lichess game is one game across its /white and /black addresses', /games 1 · moves 3/.test(s2.session_stats_label()), s2.session_stats_label());
     vm.runInContext('location = {host: "lichess.org", pathname: "/ZzYy9876"}; eval_history = [0.5, 0.5]; STATS.white.accuracy = 60;', s2);
     s2.session_note_move(1000);
     ok('...a move in the next game\'s page folds the last one with its accuracy, and both are counted',
-       vm.runInContext('session.games', s2) === 1 && /2 games · 4 moves · 1\.0s avg · 70% accuracy/.test(s2.session_stats_label()), s2.session_stats_label());
+       vm.runInContext('session.games', s2) === 1 && /games 2 · moves 4 · 1\.0s avg · 70% accuracy/.test(s2.session_stats_label()), s2.session_stats_label());
     vm.runInContext('session_restore(); location = {host: "lichess.org", pathname: "/analysis"}; eval_history = [];', s2);
     ok('...and the game in progress survives a reload and is read back from the store on another page',
-       /2 games · 4 moves · 1\.0s avg · 70% accuracy/.test(s2.session_stats_label()), s2.session_stats_label());
+       /games 2 · moves 4 · 1\.0s avg · 70% accuracy/.test(s2.session_stats_label()), s2.session_stats_label());
     ok('only on-turn moves are counted, so a blind premove cannot drag the average',
         /if \(verify && session_counted_fen !== last_eval\.fen\) \{\s*session_counted_fen = last_eval\.fen;\s*session_note_move\(/.test(pj));
     ok('...and switching Session Stats on records the history its accuracy needs',

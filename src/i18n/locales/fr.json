@@ -754,7 +754,7 @@
   "an.cmp_run": "Lancer",
   "panel.msg.opp_prep": "{who} a joué {move} ici ({n}x)",
   "panel.msg.player_book": "Livre : {who} joue {move} ici ({n}x)",
-  "panel.msg.session": "Session : {games} parties · {moves} coups · {avg}s en moyenne",
+  "panel.msg.session": "Session : parties {games} · coups {moves} · {avg}s en moyenne",
   "panel.msg.session_acc": " · {n}% de précision",
   "panel.msg.second_opinion": "Un {elo} joue {move} ({pct}%)",
   "panel.msg.second_opinion_off": "Un {elo} joue {move} ({pct}%) - et presque jamais celui du moteur",

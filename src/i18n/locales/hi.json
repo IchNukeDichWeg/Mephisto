@@ -754,7 +754,7 @@
   "an.cmp_run": "चलाएँ",
   "panel.msg.opp_prep": "{who} ने यहाँ {move} खेला है ({n}x)",
   "panel.msg.player_book": "बुक: {who} यहाँ {move} खेलते हैं ({n}x)",
-  "panel.msg.session": "सत्र: {games} बाज़ियाँ · {moves} चालें · औसत {avg}s",
+  "panel.msg.session": "सत्र: बाज़ियाँ {games} · चालें {moves} · औसत {avg}s",
   "panel.msg.session_acc": " · {n}% सटीकता",
   "panel.msg.second_opinion": "{elo} {move} खेलता है ({pct}%)",
   "panel.msg.second_opinion_off": "{elo} {move} खेलता है ({pct}%) - और इंजन की चाल लगभग कभी नहीं",

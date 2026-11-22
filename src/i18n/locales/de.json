@@ -754,7 +754,7 @@
   "an.cmp_run": "Start",
   "panel.msg.opp_prep": "{who} hat hier {move} gespielt ({n}x)",
   "panel.msg.player_book": "Buch: {who} spielt hier {move} ({n}x)",
-  "panel.msg.session": "Sitzung: {games} Partien · {moves} Züge · {avg}s Ø",
+  "panel.msg.session": "Sitzung: Partien {games} · Züge {moves} · {avg}s Ø",
   "panel.msg.session_acc": " · {n}% Genauigkeit",
   "panel.msg.second_opinion": "Ein {elo} spielt {move} ({pct}%)",
   "panel.msg.second_opinion_off": "Ein {elo} spielt {move} ({pct}%) - und fast nie den Zug der Engine",
