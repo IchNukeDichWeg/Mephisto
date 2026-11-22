@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Czas ruchu ± wahanie (ms)",
   "panel.flip_board": "Obróć szachownicę",
   "panel.follow_screen": "Śledź ekran",
+  "panel.stop_following": "Przestań śledzić",
   "panel.copy": "Kopiuj",
   "panel.run": "Uruchom",
   "panel.bot_play": "Graj",

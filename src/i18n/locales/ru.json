@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Время хода ± разброс (мс)",
   "panel.flip_board": "Развернуть доску",
   "panel.follow_screen": "Следить за экраном",
+  "panel.stop_following": "Перестать следить",
   "panel.copy": "Копировать",
   "panel.run": "Запустить",
   "panel.bot_play": "Играть",

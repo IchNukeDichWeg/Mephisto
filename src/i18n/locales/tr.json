@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Hamle süresi ± sapma (ms)",
   "panel.flip_board": "Tahtayı çevir",
   "panel.follow_screen": "Ekranı izle",
+  "panel.stop_following": "İzlemeyi bırak",
   "panel.copy": "Kopyala",
   "panel.run": "Çalıştır",
   "panel.bot_play": "Oyna",

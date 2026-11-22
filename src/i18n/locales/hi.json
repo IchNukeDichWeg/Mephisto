@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "चाल का समय ± बदलाव (मि.से.)",
   "panel.flip_board": "बोर्ड पलटें",
   "panel.follow_screen": "स्क्रीन देखें",
+  "panel.stop_following": "देखना बंद करें",
   "panel.copy": "कॉपी करें",
   "panel.run": "चलाएँ",
   "panel.bot_play": "खेलें",

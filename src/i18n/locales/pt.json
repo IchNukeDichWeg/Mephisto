@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Tempo de lance ± var. (ms)",
   "panel.flip_board": "Virar o tabuleiro",
   "panel.follow_screen": "Seguir o ecrã",
+  "panel.stop_following": "Deixar de seguir",
   "panel.copy": "Copiar",
   "panel.run": "Executar",
   "panel.bot_play": "Jogar",

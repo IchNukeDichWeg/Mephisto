@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Temps de coup ± var. (ms)",
   "panel.flip_board": "Retourner l'échiquier",
   "panel.follow_screen": "Suivre l'écran",
+  "panel.stop_following": "Arrêter de suivre",
   "panel.copy": "Copier",
   "panel.run": "Lancer",
   "panel.bot_play": "Jouer",

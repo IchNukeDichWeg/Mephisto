@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Tiempo de jugada ± var. (ms)",
   "panel.flip_board": "Girar el tablero",
   "panel.follow_screen": "Seguir la pantalla",
+  "panel.stop_following": "Dejar de seguir",
   "panel.copy": "Copiar",
   "panel.run": "Ejecutar",
   "panel.bot_play": "Jugar",

@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Zettijd ± spreiding (ms)",
   "panel.flip_board": "Bord omdraaien",
   "panel.follow_screen": "Scherm volgen",
+  "panel.stop_following": "Stop met volgen",
   "panel.copy": "Kopiëren",
   "panel.run": "Uitvoeren",
   "panel.bot_play": "Spelen",

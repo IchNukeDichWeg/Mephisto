@@ -5473,7 +5473,7 @@ function update_snap_follow_button() {
     const btn = PANEL_ROOT.getElementById('snap_follow');
     if (!btn) return;
     btn.hidden = !snap_crop;
-    btn.textContent = snap_following() ? 'Stop following' : 'Follow screen';
+    btn.textContent = snap_following() ? i18n('panel.stop_following', 'Stop following') : i18n('panel.follow_screen', 'Follow screen');
     btn.classList.toggle('following', snap_following());
 }
 

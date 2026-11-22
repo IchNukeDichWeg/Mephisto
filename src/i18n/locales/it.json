@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Tempo mossa ± var. (ms)",
   "panel.flip_board": "Gira la scacchiera",
   "panel.follow_screen": "Segui lo schermo",
+  "panel.stop_following": "Smetti di seguire",
   "panel.copy": "Copia",
   "panel.run": "Avvia",
   "panel.bot_play": "Gioca",
