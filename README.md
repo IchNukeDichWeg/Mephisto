@@ -156,7 +156,8 @@ build has no Duck at all (see the [roadmap](#roadmap)).
   move is one a player of that rating almost never finds.
 - **Suggest a Human Error** (off by default) - one move a player of your Play-like rating could realistically play that
   gives something away, drawn as a brown arrow and labelled ("Human error: Nxe5?! -1.4 (inaccuracy)"). A training aid,
-  display only: Autoplay, Premove and Humanize never read it. It widens the search to 20 lines, so it costs depth.
+  display only: Autoplay, Premove and Humanize never read it. It widens the search to 20 lines, so it costs depth, except
+  while Autoplay plays (Help Mode and Manual Mode excepted), when the search stays as it was.
 - **Evals on Your Arrows** (off by default) - right-drag an arrow on the Lichess or Chess.com board and the engine
   writes the evaluation after that move at its head (+0.35, #3). It rates your move and never shows its own.
   **Replies on Your Arrows** (0 to 5) also draws the opponent's best answers. It uses its own one-thread Stockfish, so
