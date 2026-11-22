@@ -339,87 +339,6 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       .catch(e => sendResponse({ok: false, error: String(e)}));
     return true; // async sendResponse
   }
-  // Is this a COMPLETE install? The update-only archive deliberately omits lib/engine and lib/ort,
-  // so extracting it into a folder that never held a full install leaves an extension with no
-  // engines -- and every failure after that is a confusing symptom (an engine that never loads, a
-  // panel that analyses nothing) rather than a cause. Probe two small files inside the omitted
-  // directories and let the panel say so plainly. Cached: the answer cannot change while we run.
-  if (msg.assetsCheck) {
-    checkBundledAssets().then(sendResponse);
-    return true; // async sendResponse
-  }
-  // Can the panel offer a one-click update? Only when all three hold: the user switched it on, the
-  // download permission is still granted, and a folder has been chosen. Anything less and the notice
-  // stays a link to the release page, because there is nothing to click that would work.
-  if (msg.updateReady) {
-    // TWO facts, not one. `ok` is "can install right now"; `enabled` is "you asked for automatic
-    // updates at all". The panel needs both to decide where its notice should send you -- a switch
-    // that is ON but half set up wants the Updates section, not the release page.
-    Promise.all([
-      MephistoUpdater.isReady().catch(() => false),
-      MephistoUpdater.enabled().catch(() => false),
-    ]).then(([ok, enabled]) => sendResponse({ok, enabled}))
-      .catch(() => sendResponse({ok: false, enabled: false}));
-    return true; // async sendResponse
-  }
-  // Open the settings page AT the Updates section, without arming an install the way startUpdate
-  // does -- this is "come and finish setting this up", not "run it now".
-  if (msg.openUpdates) {
-    chrome.storage.local.set({mephisto_focus_updates: true}, () => {
-      chrome.runtime.openOptionsPage();
-      sendResponse({ok: true});
-    });
-    return true; // async sendResponse
-  }
-  // The panel asking us to run it. The install lives on the settings page (only a page can hold the
-  // directory handle's permission and show progress), so flag it and open that page -- it starts by
-  // itself from there.
-  if (msg.startUpdate) {
-    chrome.storage.local.set({mephisto_autostart_update: true}, () => {
-      chrome.runtime.openOptionsPage();
-      sendResponse({ok: true});
-    });
-    return true; // async sendResponse
-  }
-  if (msg.updateCheck) {
-    // `true` from the panel, `{force}` from the Updates settings page -- both truthy, and
-    // `true?.force` is undefined, so the panel keeps the cached path it always had.
-    updateCheck(msg.updateCheck?.force).then(sendResponse).catch(e => sendResponse({error: String(e)}));
-    return true; // async sendResponse
-  }
-  if (msg.chesscomAnalyze) {
-    chesscomAnalyze(msg.chesscomAnalyze).then(sendResponse).catch(e => sendResponse({error: String(e)}));
-    return true; // async sendResponse
-  }
-  // Bot-game tricks. Runs on the sender's own tab, and only on Play Computer -- see botExploit.
-  if (msg.botExploit) {
-    botExploit(sender.tab, msg.botExploit).then(sendResponse)
-      .catch(e => sendResponse({ok: false, why: String(e)}));
-    return true; // async sendResponse
-  }
-  if (msg.tablebaseLookup) {
-    tablebaseLookup(msg.tablebaseLookup).then(sendResponse).catch(e => sendResponse({error: String(e)}));
-    return true; // async sendResponse
-  }
-  // Settings' "Check" on the local tablebase folder: inventory or a fixable error, never a probe.
-  if (msg.tbInfo) {
-    tbInfoForSettings().then(sendResponse).catch(e => sendResponse({error: String(e)}));
-    return true; // async sendResponse
-  }
-  // THE CLASSIFIER, ON DEMAND. It is 7.6KB that only three opt-in features need (Live Stats, Move
-  // Classification, the opponent alert), so it is not in the per-page bundle -- the panel asks for
-  // it the moment one of them is on, and it lands in the SAME isolated world the content scripts
-  // share. Injecting twice is harmless (the file re-assigns its one global).
-  if (msg.needClassifier) {
-    // NOT named `tabId`: that identifier belongs to the cdpClick sender-trust expression, which the
-    // ladder extracts by name -- a second one here silently shadowed it in the test.
-    const injectTab = sender.tab?.id;
-    if (!injectTab) { sendResponse({ok: false}); return false; }
-    chrome.scripting.executeScript({target: {tabId: injectTab}, files: ['src/scripts/classify-core.js']})
-      .then(() => sendResponse({ok: true}))
-      .catch(e => sendResponse({ok: false, error: String(e)}));
-    return true; // async sendResponse
-  }
   // The options page changed the tablebase folder (chose/re-allowed/forgot): drop the caches.
   if (msg.tbChanged) {
     tbBrowserReset();
@@ -1300,7 +1219,7 @@ async function tbInfoForSettings() {
 // again. THE GAME LEAVES THIS MACHINE (that is the point): the PGN goes to chess.com, as on their
 // own analysis page.
 //
-// THE STRENGTH TIER IS , an ordinal 1-4, MEASURED by capturing chess.com's own outgoing
+// THE STRENGTH TIER IS `.2.3.1`, an ordinal 1-4, MEASURED by capturing chess.com's own outgoing
 // request at each setting of their own Strength select and diffing the four frames -- it was the
 // only field that moved:
 //     Fast (~1 sec, 3270)      select 18 -> 1
@@ -2818,7 +2737,6 @@ function ensureNative(name) {
     // whose pending request happened to have that number took another tab's info and bestmove as
     // its own (audit 3.1.331 BACKGROUND-2). Nobody can claim it correctly, so it goes nowhere.
     if (frame && frame.id != null) { nativeTrace('<- dropped (no owner)', name, frame); return; }
-    nativeTrace('<- host', name, frame);
     for (const p of peers()) { try { p.postMessage(frame); } catch (e) { /* port gone */ } }
   });
   np.onDisconnect.addListener(() => {
