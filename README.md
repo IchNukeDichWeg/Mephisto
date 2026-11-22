@@ -670,8 +670,8 @@ open ticket** prepares. A code is never reused: a retired one stays retired.
 |---|---|---|
 | `MPH-N01` | A net or model file this build does not bundle could not be downloaded (offline, blocked, or an HTTP error; the file name is in the console). | Check your connection and try again. |
 | `MPH-N02` | The download stopped early or ran past the size the manifest lists. | Try again. |
-| `MPH-N03` | The file arrived but failed its SHA-256 check, so it was discarded and not cached. | Try again; if it repeats, install the full zip. |
-| `MPH-N04` | The file is neither bundled nor named in `engine-assets.json`. | Update Mephisto or install the full zip. |
+| `MPH-N03` | The file arrived but failed its SHA-256 check, so it was discarded and not cached. | Try again; if it repeats, report the code (no zip carries the nets). |
+| `MPH-N04` | The file is neither bundled nor named in `engine-assets.json`. | Update Mephisto, or use a git checkout, which carries every model. |
 
 ### Game Review (chess.com, lichess)
 
