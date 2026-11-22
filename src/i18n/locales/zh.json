@@ -72,7 +72,7 @@
   "ui.on": "开",
   "set.tip.mephisto_communicates_with_a_chess": "由哪个引擎评估局面。WASM 引擎在本浏览器内运行;本地引擎需要安装其原生宿主;Remote Engine 需要运行 remote-engine.py(在 \"src/scripts\" 中)。两个 Cloud 条目是别人服务器上的真 Stockfish:无需安装,这正是跑不动强引擎的机器的意义所在,但每一步局面都会离开你的机器。本地引擎更快也更私密,所以云是备用而非升级。云按深度搜索(默认 12,chess-api.com 上限 18,stockfish.online 上限 15),返回一条变着。",
   "set.tip.cap_the_engine_s_playing": "把引擎的棋力限制到目标 Elo（以 UCI_LimitStrength + UCI_Elo 发送）。有效范围随引擎而定（SF 19/18：1320-3190，SF 11：1350-2850，Fairy：500-2850，Rodent：800-2800），低于引擎下限的值会被提高到下限，高于上限的值表示全力。0 = 全力（不限制）。",
-  "set.tip.position_changes_are_detected_inst": "局面变化是即时检测的（事件驱动）。这只是一个缓慢的安全轮询，用于补上被遗漏的更新；1000 毫秒完全够用。",
+  "set.tip.position_changes_are_detected_inst": "局面变化是即时检测的（事件驱动）。这只是一个缓慢的安全轮询，用于补上被遗漏的更新；1000 毫秒完全够用，同时它也是下限：设得更小也仍然每 1000 毫秒轮询一次。",
   "set.tip.how_the_mephisto_panel_is": "Mephisto 面板的显示方式。浮动 = 棋盘上方可拖动的窗口；它存在于页面之中，因此棋类网站更容易检测到。工具栏弹窗 = 浏览器工具栏上的经典气泡；它不在页面中放置面板——打开期间，页面上只会绘制你开启的棋盘叠加层（评估条、帮助模式等）（更安全的选择）。",
   "set.tip.mephisto_plays_as_the_brain": "Mephisto 扮演“大脑”，选择要走哪一类棋子；你扮演“手”，为该棋子选择具体的合法着法。",
   "set.tip.while_the_opponent_thinks_certify": "对手思考时，为其预测着法准备一个经过验证的应手。如果他正好走这一着，应手立即送出；其他情况则照常搜索。绝不会在错误局面下触发。在 chess.com 上，当变化被强制两步深时——他的着法是其唯一合法着，而在你应手之后他再次被迫——你的两步应手会一次性排入队列（双预走）。需要开启自动走子。",

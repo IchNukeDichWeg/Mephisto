@@ -877,15 +877,17 @@
                 <div class="set-row">
                     <div class="set-lbl">
                         <span data-i18n="set.fallback_poll_ms" data-i18n-tip="set.tip.position_changes_are_detected_inst" class="tooltipped" data-position="right"
-                              data-tooltip="Position changes are detected instantly (event-driven). This is only
-                                            a slow safety-net poll that heals a missed update; 1000ms is fine.">
+                              data-tooltip="Position changes are detected instantly (event-driven). This is
+                                            only a slow safety-net poll that heals a missed update; 1000ms is
+                                            fine, and it is also the floor: a smaller value polls every
+                                            1000ms.">
                             Fallback Poll Interval (ms) <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
                     <div class="set-ctl">
                         <span class="set-step">
                             <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="fen_refresh_input" type="number" min="0" step="50">
+                            <input id="fen_refresh_input" type="number" min="1000" step="50">
                             <button type="button" class="set-step-btn" data-step="1">+</button>
                         </span>
                     </div>
