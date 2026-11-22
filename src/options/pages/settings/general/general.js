@@ -894,7 +894,9 @@ class GeneralSettings extends SettingsPage {
         if (!container || !resetBtn) return; // stale cached page html
         // shared with the panel's cheat sheet (config-store.js), so the two can never name an action
         // differently
-        const LABELS = MephistoConfig.HOTKEY_LABELS;
+        // translated per action (hk.<action>), the English list as the fallback (audit 3.1.333 CONFIGSTORE-1)
+        const LABELS = Object.fromEntries(Object.entries(MephistoConfig.HOTKEY_LABELS)
+            .map(([a, l]) => [a, MephistoI18n.t('hk.' + a, l)]));
         const ORDER = ['manual_play', 'manual_mode', 'autoplay', 'premove', 'explorer', 'book_play',
             // Only actions the panel can actually perform: an action listed here with no entry in
             // LABELS and no quick-settings checkbox behind it rendered a row labelled "undefined"

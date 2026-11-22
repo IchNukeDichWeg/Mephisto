@@ -18462,6 +18462,20 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('POPUP2-6 (3.1.333): en.json says what move_reason says', Object.entries(enOf).every(([p, v]) => p === v), enOf);
     ok('POPUP2-6 (3.1.333): no English left in the read-position chips',
        !/lead \|\| 'Read from screen|` · could not fix: \$\{|createTextNode\(' · least sure: '\)|\+= ' \(rule fix\)'|`Making \$\{square\}|`\$\{square\} is \$\{piece|`Why: \$\{text\}`/.test(pj)); }
+// ---- audit 3.1.333 CONFIGSTORE-1: every hotkey label has a hk.<action> key, and the readers use it ----
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8');
+    const blk = cs.slice(cs.indexOf('HOTKEY_LABELS: {'), cs.indexOf('},', cs.indexOf('HOTKEY_LABELS: {')));
+    const pairs = [...blk.matchAll(/(\w+): '([^']*)'/g)].map(m => [m[1], m[2]]);
+    const langs = fs.readdirSync(ROOT + '/src/i18n/locales').filter(f => f.endsWith('.json'));
+    const missing = [];
+    for (const f of langs) { const d = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')); for (const [a] of pairs) if (!d['hk.' + a]) missing.push(f + ':' + a); }
+    ok('CONFIGSTORE-1 (3.1.333): every hotkey action has hk.<action> in every locale', pairs.length > 20 && missing.length === 0, missing.slice(0, 5));
+    const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+    ok('CONFIGSTORE-1 (3.1.333): en.json says what HOTKEY_LABELS says', pairs.every(([a, l]) => en['hk.' + a] === l));
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('CONFIGSTORE-1 (3.1.333): the settings page and the cheat sheet look labels up', /MephistoI18n\.t\('hk\.' \+ a, l\)/.test(gj) && /i18n\('hk\.' \+ a, l\)/.test(pj)); }
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

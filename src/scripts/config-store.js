@@ -119,7 +119,8 @@
         },
         // What each action is called, wherever a person reads the list: the Hotkeys settings rows,
         // the macro step pickers and the panel's cheat sheet. Here, beside the defaults, because
-        // three places reading one list cannot disagree about what "u" does.
+        // three places reading one list cannot disagree about what "u" does. This is the English;
+        // each reader translates it through hk.<action> in the locale files.
         HOTKEY_LABELS: {
             manual_play: 'Play move (Manual Mode)', manual_mode: 'Toggle Manual Mode', autoplay: 'Toggle Autoplay',
             premove: 'Toggle Premove', explorer: 'Toggle Explorer', book_play: 'Toggle Book Moves',

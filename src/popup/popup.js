@@ -9886,7 +9886,8 @@ function toggle_shortcut_sheet() {
     const grid = document.createElement('div');
     grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:0 18px';
     // a custom toggle is listed under the setting it flips, not as "Custom 1"
-    const labels = {...MephistoConfig.HOTKEY_LABELS};
+    // translated per action, as the Hotkeys settings page does (audit 3.1.333 CONFIGSTORE-1)
+    const labels = Object.fromEntries(Object.entries(MephistoConfig.HOTKEY_LABELS).map(([a, l]) => [a, i18n('hk.' + a, l)]));
     MephistoConfig.hotkeyCustom().forEach((c, i) => {
         if (c.setting) labels[MephistoConfig.HOTKEY_CUSTOM[i]] = i18n('panel.shortcuts_custom', 'Toggle {name}', {name: c.label});
     });
