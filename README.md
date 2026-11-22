@@ -81,9 +81,8 @@ Every [release](https://github.com/IchNukeDichWeg/Mephisto/releases) carries two
 The engine nets and models (about 1 GB) are in neither archive. They live on two fixed releases,
 [`engines-v1`](https://github.com/IchNukeDichWeg/Mephisto/releases/tag/engines-v1) and
 [`models-v1`](https://github.com/IchNukeDichWeg/Mephisto/releases/tag/models-v1). On a fresh install each engine
-downloads its net the first time it runs (Stockfish 19: 98.5 MB), checks it against a SHA-256 and caches it. This needs
-the download permission Chrome asks for when you switch on **Automatic Updates** (Settings → Updates). An install from
-an older full zip, or a git checkout, already has the nets.
+downloads its net the first time it runs (Stockfish 19: 98.5 MB), checks it against a SHA-256 and caches it. No setting
+gates this download. An install from an older full zip, or a git checkout, already has the nets.
 
 > ⚠️ **Extract the update over your existing install, never into an empty folder.** Both archives unpack into a
 > `Mephisto-<version>/` folder; copy that folder's *contents* over the folder Chrome already loaded. Extracting in
@@ -95,12 +94,11 @@ most every 12 hours, from the service worker, so the chess page never makes the 
 ### Automatic updates (opt-in)
 
 Chrome never updates an extension you loaded yourself, so Mephisto can: **Settings → Updates**, **off by default**.
-Switch it on (Chrome asks for permission to download from this repository's releases), choose your extension folder
+Switch it on, choose your extension folder
 once, and updating is one button that fetches the ~7 MB archive, writes it over that folder and reloads the extension.
 
 It never installs by itself, never touches the bundled engines, refuses any folder that isn't this extension, and
-checks the whole archive in memory before writing anything. Switching the feature off hands the permission back.
-Updating by hand still works as before.
+checks the whole archive in memory before writing anything. Updating by hand still works as before.
 
 ---
 
@@ -598,7 +596,7 @@ open ticket** prepares. A code is never reused: a retired one stays retired.
 | `MPH-U01` | The folder you picked has no `manifest.json`, so it is not an unpacked extension. | Pick the folder you loaded in `chrome://extensions` with **Load unpacked**. |
 | `MPH-U02` | The folder holds a different extension, not Mephisto. | Pick the folder you loaded in `chrome://extensions` with **Load unpacked**. Nothing is written to a folder that fails this check. |
 | `MPH-U03` | Install was pressed while Automatic Updates is switched off. | Switch it on under Settings → Updates. |
-| `MPH-U04` | Chrome no longer holds the download permission the feature asked for. | Switch Automatic Updates off and on again; Chrome asks again. |
+| `MPH-U04` | Chrome withholds the extension's access to the release hosts (its site access is restricted in `chrome://extensions`). | Set Mephisto's site access back to *On all sites* in `chrome://extensions`. |
 | `MPH-U05` | No extension folder is saved, or Chrome stopped allowing writes to it (it can lapse across restarts). | Press **Choose Extension Folder** and allow access. |
 | `MPH-U06` | GitHub, or the extension's own release lookup, did not answer. | Check your connection and try again. Updating by hand still works. |
 | `MPH-U07` | The newest release has no update archive attached. | Download the full zip from the Releases page. |
