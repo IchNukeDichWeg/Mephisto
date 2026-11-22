@@ -236,5 +236,5 @@ xattr -cr "$RUNTIME_DIR" 2>/dev/null || true  # strip web-download quarantine (m
 
 [ "$installed" -gt 0 ] || { echo "!! nothing enabled -- install stockfish/fairy-stockfish, or pass --stockfish/--fairy/--tetrarch"; exit 1; }
 echo
-echo "Done. Reload the extension + the page, then pick a '(native)' engine. Chrome launches it -- no server."
-echo "If native engines stop working after reloading the unpacked extension, re-run this with the new --ext-id."
+echo "Done. Reload the extension + the page, then pick a '(local)' engine. Chrome launches it -- no server."
+echo "If native engines stop working after moving the unpacked extension to another folder, re-run this with the new --ext-id."
