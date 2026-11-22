@@ -2099,7 +2099,7 @@ function paint_elo_slider() {
     // writes, so a non-English panel with a cap of 1500 said "Off / Full Strength" (audit 3.1.328
     // OPT-6). apply_language repaints it.
     eloLabel.textContent = v === 0 ? i18n('panel.off_full_strength', 'Off / Full Strength')
-        : v >= FULL_STRENGTH_ELO ? `${stops[stops.length - 2]}+ / ${i18n('panel.full_strength', 'Full Strength')}` : v;
+        : v >= FULL_STRENGTH_ELO ? `${stops[stops.length - 2]}+ / ${i18n('panel.full_strength', 'Full strength')}` : v;
 }
 
 function abandon_search() {
