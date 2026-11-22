@@ -714,7 +714,7 @@
   "set.tb_allow": "重新允许",
   "set.tb_forget": "忘记",
   "set.tb_check": "检查",
-  "set.tip.arrow_colorblind": "把上面所有箭头颜色换成 Okabe-Ito 配色：八种色相，经过挑选以在常见色盲形式下仍可区分。出厂颜色用红对绿来区分线路，而那正是会混同的一对。本页的「恢复默认」会把原来的颜色换回来。",
+  "set.tip.arrow_colorblind": "把上面所有箭头颜色换成 Okabe-Ito 配色：八种色相，经过挑选以在常见色盲形式下仍可区分。出厂颜色用红对绿来区分线路，而那正是会混同的一对。本页的「恢复默认设置」会把原来的颜色换回来。",
   "set.arrow_colorblind": "色盲友好配色",
   "set.apply": "应用",
   "rv.fit_humanize": "按棋手拟合 Humanize",

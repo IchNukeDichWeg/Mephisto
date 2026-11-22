@@ -714,7 +714,7 @@
   "set.tb_allow": "Zezwól ponownie",
   "set.tb_forget": "Zapomnij",
   "set.tb_check": "Sprawdź",
-  "set.tip.arrow_colorblind": "Zastępuje wszystkie kolory strzałek powyżej paletą Okabe-Ito, ośmioma odcieniami dobranymi tak, by pozostawały rozróżnialne przy typowych postaciach daltonizmu. Domyślne kolory rozdzielają linie czerwienią i zielenią - dokładnie tą parą, która się zlewa. Przywrócenie domyślnych na tej stronie wraca do pierwotnych kolorów.",
+  "set.tip.arrow_colorblind": "Zastępuje wszystkie kolory strzałek powyżej paletą Okabe-Ito, ośmioma odcieniami dobranymi tak, by pozostawały rozróżnialne przy typowych postaciach daltonizmu. Domyślne kolory rozdzielają linie czerwienią i zielenią - dokładnie tą parą, która się zlewa. \"Przywróć domyślne\" na tej stronie przywraca pierwotne kolory.",
   "set.arrow_colorblind": "Paleta dla daltonistów",
   "set.apply": "Zastosuj",
   "rv.fit_humanize": "Dopasuj Humanize do gracza",

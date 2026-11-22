@@ -714,7 +714,7 @@
   "set.tb_allow": "Consenti di nuovo",
   "set.tb_forget": "Dimentica",
   "set.tb_check": "Verifica",
-  "set.tip.arrow_colorblind": "Sostituisce tutti i colori delle frecce qui sopra con la palette Okabe-Ito, otto tinte scelte per restare distinguibili sotto le forme comuni di daltonismo. I colori di fabbrica separano le linee con rosso contro verde, proprio la coppia che collassa. Ripristina predefiniti su questa pagina rimette i colori originali.",
+  "set.tip.arrow_colorblind": "Sostituisce tutti i colori delle frecce qui sopra con la palette Okabe-Ito, otto tinte scelte per restare distinguibili sotto le forme comuni di daltonismo. I colori di fabbrica separano le linee con rosso contro verde, proprio la coppia che collassa. \"Ripristina i valori predefiniti\" su questa pagina rimette i colori originali.",
   "set.arrow_colorblind": "Palette per daltonici",
   "set.apply": "Applica",
   "rv.fit_humanize": "Adatta Humanize a un giocatore",

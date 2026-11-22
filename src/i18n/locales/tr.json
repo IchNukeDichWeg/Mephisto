@@ -714,7 +714,7 @@
   "set.tb_allow": "Yeniden izin ver",
   "set.tb_forget": "Unut",
   "set.tb_check": "Denetle",
-  "set.tip.arrow_colorblind": "Yukarıdaki tüm ok renklerini Okabe-Ito paletiyle değiştirir; yaygın renk körlüğü biçimlerinde ayırt edilebilir kalacak şekilde seçilmiş sekiz ton. Varsayılan renkler varyantları kırmızıya karşı yeşille ayırır - tam da birbirine karışan çift. Bu sayfadaki Varsayılanları geri yükle özgün renkleri geri getirir.",
+  "set.tip.arrow_colorblind": "Yukarıdaki tüm ok renklerini Okabe-Ito paletiyle değiştirir; yaygın renk körlüğü biçimlerinde ayırt edilebilir kalacak şekilde seçilmiş sekiz ton. Varsayılan renkler varyantları kırmızıya karşı yeşille ayırır - tam da birbirine karışan çift. Bu sayfadaki \"Varsayılanlara dön\" özgün renkleri geri getirir.",
   "set.arrow_colorblind": "Renk körlüğü paleti",
   "set.apply": "Uygula",
   "rv.fit_humanize": "Humanize'ı bir oyuncuya uyarla",

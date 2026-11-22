@@ -714,7 +714,7 @@
   "set.tb_allow": "Autoriser à nouveau",
   "set.tb_forget": "Oublier",
   "set.tb_check": "Vérifier",
-  "set.tip.arrow_colorblind": "Remplace toutes les couleurs de flèches ci-dessus par la palette Okabe-Ito, huit teintes choisies pour rester distinctes sous les formes courantes de daltonisme. Les couleurs livrées séparent les lignes par rouge contre vert, exactement la paire qui se confond. Restaurer les valeurs par défaut sur cette page remet les couleurs d'origine.",
+  "set.tip.arrow_colorblind": "Remplace toutes les couleurs de flèches ci-dessus par la palette Okabe-Ito, huit teintes choisies pour rester distinctes sous les formes courantes de daltonisme. Les couleurs livrées séparent les lignes par rouge contre vert, exactement la paire qui se confond. « Rétablir les valeurs par défaut » sur cette page remet les couleurs d'origine.",
   "set.arrow_colorblind": "Palette daltonisme",
   "set.apply": "Appliquer",
   "rv.fit_humanize": "Ajuster Humanize à un joueur",
