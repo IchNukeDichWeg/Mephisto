@@ -1251,7 +1251,9 @@ class GeneralSettings extends SettingsPage {
             catch (e) { return dflt; }
         };
         const set = (row, val, persist = true) => {
-            val = Math.min(800, Math.max(0, Math.round(+val / 5) * 5 || 0)); // snap to the 5cp step
+            // whole centipawns: a 5cp snap showed the 377 default as 375, a boundary the panel does not
+            // use and no one could type (audit 3.1.333 GENERALJS-9); the slider still moves in 5s
+            val = Math.min(800, Math.max(0, Math.round(+val) || 0));
             if (row.range) row.range.value = val;
             row.num.value = val;
             row.readout.textContent = readoutText(val);
