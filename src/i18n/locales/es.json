@@ -934,6 +934,7 @@
   "err.R10": "No se pudo conectar con lichess. Comprueba tu conexión a internet e inténtalo de nuevo.",
   "err.R11": "Pega primero la URL de uno de tus estudios de lichess (lichess.org/study/...).",
   "err.R12": "Añadir a un estudio necesita un token de API de Lichess con el permiso study:write. Crea uno en lichess.org/account/oauth/token/create y pégalo en Ajustes > Más allá del motor > Token de API de Lichess.",
+  "err.R13": "No se pudo comprobar en chess.com la actualización del motor ({detail}). Inténtalo más tarde.",
   "err.V01": "No se encontró ningún tablero en la pantalla. Dibuja un recuadro alrededor del tablero.",
   "err.V04": "Falló la lectura del tablero ({detail}). Dibuja un recuadro alrededor del tablero.",
   "err.nothing_changed": "No se cambió nada.",

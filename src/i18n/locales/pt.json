@@ -934,6 +934,7 @@
   "err.R10": "Não foi possível contactar o lichess. Verifica a tua ligação à internet e tenta novamente.",
   "err.R11": "Cola primeiro o URL de um dos teus estudos do lichess (lichess.org/study/...).",
   "err.R12": "Adicionar a um estudo precisa de um token da API do Lichess com o âmbito study:write. Cria um em lichess.org/account/oauth/token/create e cola-o em Definições > Além do motor > Token da API do Lichess.",
+  "err.R13": "Não foi possível verificar a atualização do motor no chess.com ({detail}). Tenta mais tarde.",
   "err.V01": "Não foi encontrado nenhum tabuleiro no ecrã. Desenha uma caixa à volta do tabuleiro.",
   "err.V04": "A leitura do tabuleiro falhou ({detail}). Desenha uma caixa à volta do tabuleiro.",
   "err.nothing_changed": "Nada foi alterado.",

@@ -13838,9 +13838,9 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     };
     const r03 = 'MPH-R03: ' + en['err.R03'];
     const off = await check(async () => { throw new TypeError('Failed to fetch'); });
-    ok('EEHOST-2: offline, the check fails with "could not get an answer from chess.com", not a newest-build claim', off.err === r03, off);
+    ok('EEHOST-2: offline, the check fails with its own code and the reason, not a newest-build claim (3.1.333 EEHOST-1)', /^MPH-R13: Could not check chess\.com for the engine update \(HEAD [^)]*Failed to fetch\)/.test(off.err || ''), off);
     const wall = await check(async () => ({ok: false, status: 403}));
-    ok('EEHOST-2: a 403 on the probes is the same error (no HTTP detail in the user line)', wall.err === r03 && wall.calls === 1, wall);
+    ok('EEHOST-2: a 403 on the probes is the same code and names the status (3.1.333 EEHOST-1)', /^MPH-R13: .*\(HTTP 403\)/.test(wall.err || '') && wall.calls === 1, wall);
     const none = await check(async () => ({ok: false, status: 404}));
     ok('EEHOST-2: 404 on every probe still means "nothing newer" (the installed version comes back)', none.v === '1.124.57' && none.calls === 6, none);
     const newer = await check(async (v) => ({ok: v === '1.125.0', status: v === '1.125.0' ? 200 : 404}));
@@ -17376,10 +17376,10 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     };
     const r03 = 'MPH-R03: ' + en['err.R03'];
     const all = await check(async () => ({ok: true, status: 200}));
-    ok('EEHOST-1: a 200 on every probe ends with "could not get an answer from chess.com"', all.err === r03, all);
+    ok('EEHOST-1: a 200 on every probe ends in MPH-R13 naming the proxy suspicion', /^MPH-R13: .*probes answered; a proxy may be in the way/.test(all.err || ''), all);
     ok('EEHOST-1: ...after a bounded number of HEADs, not the harness guard', all.calls <= 200 && !/harness/.test(all.raw || ''), all);
     const redir = await check(async () => ({ok: true, status: 200, redirected: true}));
-    ok('EEHOST-1: a followed redirect to a 200 page is the same error', redir.err === r03 && redir.calls <= 200, redir);
+    ok('EEHOST-1: a followed redirect to a 200 page is the same error', /^MPH-R13: .*probes answered/.test(redir.err || '') && redir.calls <= 200, redir);
     // a real long patch run inside a new minor is still found under the cap
     const long = await check(async (v) => {
         const [, m, p] = v.split('.').map(Number);

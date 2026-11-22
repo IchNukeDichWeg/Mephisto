@@ -934,6 +934,7 @@
   "err.R10": "Nie można połączyć się z lichess. Sprawdź połączenie z internetem i spróbuj ponownie.",
   "err.R11": "Najpierw wklej adres URL jednego ze swoich badań lichess (lichess.org/study/...).",
   "err.R12": "Dodanie do badania wymaga tokenu API Lichess z zakresem study:write. Utwórz go na lichess.org/account/oauth/token/create i wklej w Ustawienia > Poza silnikiem > Token API Lichess.",
+  "err.R13": "Nie udało się sprawdzić aktualizacji silnika na chess.com ({detail}). Spróbuj ponownie później.",
   "err.V01": "Na ekranie nie znaleziono szachownicy. Zaznacz ramką szachownicę.",
   "err.V04": "Odczyt szachownicy nie powiódł się ({detail}). Zaznacz ramką szachownicę.",
   "err.nothing_changed": "Nic nie zostało zmienione.",

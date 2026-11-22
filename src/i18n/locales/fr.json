@@ -934,6 +934,7 @@
   "err.R10": "Impossible de joindre lichess. Vérifiez votre connexion internet et réessayez.",
   "err.R11": "Collez d'abord l'URL d'une de vos études lichess (lichess.org/study/...).",
   "err.R12": "Ajouter à une étude nécessite un jeton API Lichess avec la portée study:write. Créez-en un sur lichess.org/account/oauth/token/create et collez-le dans Paramètres > Au-delà du moteur > Jeton API Lichess.",
+  "err.R13": "Impossible de vérifier la mise à jour du moteur sur chess.com ({detail}). Réessayez plus tard.",
   "err.V01": "Aucun échiquier trouvé à l'écran. Tracez un cadre autour de l'échiquier.",
   "err.V04": "La lecture de l'échiquier a échoué ({detail}). Tracez un cadre autour de l'échiquier.",
   "err.nothing_changed": "Rien n'a été modifié.",

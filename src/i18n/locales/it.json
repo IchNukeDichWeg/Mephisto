@@ -934,6 +934,7 @@
   "err.R10": "Impossibile raggiungere lichess. Controlla la connessione a internet e riprova.",
   "err.R11": "Incolla prima l'URL di uno dei tuoi studi di lichess (lichess.org/study/...).",
   "err.R12": "Aggiungere a uno studio richiede un token API Lichess con l'ambito study:write. Creane uno su lichess.org/account/oauth/token/create e incollalo in Impostazioni > Oltre il motore > Token API Lichess.",
+  "err.R13": "Impossibile controllare su chess.com l'aggiornamento del motore ({detail}). Riprova più tardi.",
   "err.V01": "Nessuna scacchiera trovata sullo schermo. Trascina un riquadro intorno alla scacchiera.",
   "err.V04": "Lettura della scacchiera non riuscita ({detail}). Trascina un riquadro intorno alla scacchiera.",
   "err.nothing_changed": "Non è stato modificato nulla.",

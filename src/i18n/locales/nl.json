@@ -934,6 +934,7 @@
   "err.R10": "lichess is niet bereikbaar. Controleer je internetverbinding en probeer het opnieuw.",
   "err.R11": "Plak eerst de URL van een van je lichess-studies (lichess.org/study/...).",
   "err.R12": "Toevoegen aan een studie vereist een Lichess-API-token met de scope study:write. Maak er een op lichess.org/account/oauth/token/create en plak het in Instellingen > Voorbij de engine > Lichess-API-token.",
+  "err.R13": "Kon bij chess.com niet op de engine-update controleren ({detail}). Probeer het later opnieuw.",
   "err.V01": "Geen bord gevonden op het scherm. Sleep een kader om het bord.",
   "err.V04": "Het bord lezen is mislukt ({detail}). Sleep een kader om het bord.",
   "err.nothing_changed": "Er is niets gewijzigd.",

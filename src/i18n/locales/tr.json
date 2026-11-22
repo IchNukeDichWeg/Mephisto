@@ -934,6 +934,7 @@
   "err.R10": "lichess'e ulaşılamadı. İnternet bağlantını kontrol edip tekrar dene.",
   "err.R11": "Önce lichess çalışmalarından birinin URL'sini yapıştır (lichess.org/study/...).",
   "err.R12": "Bir çalışmaya eklemek için study:write kapsamlı bir Lichess API belirteci gerekir. lichess.org/account/oauth/token/create adresinde bir tane oluşturup Ayarlar > Motorun ötesinde > Lichess API belirteci alanına yapıştır.",
+  "err.R13": "chess.com'da motor güncellemesi denetlenemedi ({detail}). Daha sonra yeniden dene.",
   "err.V01": "Ekranda tahta bulunamadı. Tahtanın etrafına bir kutu çiz.",
   "err.V04": "Tahta okunamadı ({detail}). Tahtanın etrafına bir kutu çiz.",
   "err.nothing_changed": "Hiçbir şey değiştirilmedi.",

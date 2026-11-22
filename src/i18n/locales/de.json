@@ -934,6 +934,7 @@
   "err.R10": "lichess ist nicht erreichbar. Prüfe deine Internetverbindung und versuche es erneut.",
   "err.R11": "Füge zuerst die URL einer deiner lichess-Studien ein (lichess.org/study/...).",
   "err.R12": "Zum Hinzufügen zu einer Studie ist ein Lichess-API-Token mit dem Scope study:write nötig. Erstelle eines unter lichess.org/account/oauth/token/create und füge es unter Einstellungen > Jenseits der Engine > Lichess-API-Token ein.",
+  "err.R13": "Konnte bei chess.com nicht nach dem Engine-Update sehen ({detail}). Versuch es später erneut.",
   "err.V01": "Auf dem Bildschirm wurde kein Brett gefunden. Ziehe einen Rahmen um das Brett.",
   "err.V04": "Das Lesen des Bretts ist fehlgeschlagen ({detail}). Ziehe einen Rahmen um das Brett.",
   "err.nothing_changed": "Nichts wurde verändert.",

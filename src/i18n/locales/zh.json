@@ -934,6 +934,7 @@
   "err.R10": "无法连接 lichess。请检查网络连接后重试。",
   "err.R11": "请先粘贴你的某个 lichess 研究的 URL（lichess.org/study/...）。",
   "err.R12": "添加到研究需要带有 study:write 权限范围的 Lichess API 令牌。请在 lichess.org/account/oauth/token/create 创建一个，并粘贴到 设置 > 引擎之外 > Lichess API 令牌。",
+  "err.R13": "无法在 chess.com 检查引擎更新（{detail}）。请稍后再试。",
   "err.V01": "屏幕上未找到棋盘。请在棋盘周围框选一个区域。",
   "err.V04": "读取棋盘失败（{detail}）。请在棋盘周围框选一个区域。",
   "err.nothing_changed": "没有做任何更改。",

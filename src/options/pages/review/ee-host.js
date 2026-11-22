@@ -188,10 +188,10 @@ function eeNewer(a, b) {
 async function eeExists(v) {
     let res;
     try { res = await fetch(eeBase(v) + 'explanation-engine.js', {method: 'HEAD'}); }
-    catch (e) { throw self.MephistoI18n.fail('MPH-R03', null, `HEAD ${v}: ${e.message || e}`); }
+    catch (e) { throw self.MephistoI18n.fail('MPH-R13', {detail: `HEAD ${v}: ${e.message || e}`}); }
     if (res.ok) return true;
     if (res.status === 404) return false;
-    throw self.MephistoI18n.fail('MPH-R03', null, `HEAD ${v}: HTTP ${res.status}`);
+    throw self.MephistoI18n.fail('MPH-R13', {detail: `HTTP ${res.status}`});
 }
 
 // Look for a newer build. chess.com publishes no directory listing and no `latest` alias -- both
@@ -213,7 +213,7 @@ async function eeCheckUpdate(from) {
     if (![maj, min, pat].every(Number.isFinite)) return cur;
     let best = cur, probes = 0;
     const exists = (v) => {
-        if (++probes > EE_PROBE_MAX) throw self.MephistoI18n.fail('MPH-R03', null, `HEAD ${v}: ${EE_PROBE_MAX} probes all answered, no 404 to end the walk`);
+        if (++probes > EE_PROBE_MAX) throw self.MephistoI18n.fail('MPH-R13', {detail: `all ${EE_PROBE_MAX} probes answered; a proxy may be in the way`});
         return eeExists(v);
     };
     for (let p = pat + 1, miss = 0; miss < EE_PROBE_MISSES; p++) {

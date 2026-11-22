@@ -934,6 +934,7 @@
   "err.R10": "Could not reach lichess. Check your internet connection and try again.",
   "err.R11": "Paste the URL of one of your lichess studies first (lichess.org/study/...).",
   "err.R12": "Adding to a study needs a Lichess API token with the study:write scope. Make one at lichess.org/account/oauth/token/create and paste it in Settings > Beyond the engine > Lichess API token.",
+  "err.R13": "Could not check chess.com for the engine update ({detail}). Try again later.",
   "err.V01": "No board found on the screen. Drag a box around the board.",
   "err.V04": "Reading the board failed ({detail}). Drag a box around the board.",
   "err.nothing_changed": "Nothing was changed.",

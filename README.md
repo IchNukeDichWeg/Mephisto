@@ -690,6 +690,7 @@ open ticket** prepares. A code is never reused: a retired one stays retired.
 | `MPH-R10` | lichess could not be reached. | Check your connection and try again. |
 | `MPH-R11` | **Add to my study** was pressed with no study URL. | Paste the URL of one of your studies. |
 | `MPH-R12` | **Add to my study** was pressed with no token saved. | Make a token at `lichess.org/account/oauth/token/create` and paste it in Settings → Beyond the engine → Lichess API token. |
+| `MPH-R13` | **Check for update** on the Game Review engine could not reach chess.com, got a status other than 200/404, or every probe answered (a proxy in the way). The status is in the brackets. | Try again later. |
 
 ### Screen reading (panel)
 

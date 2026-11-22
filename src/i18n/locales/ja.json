@@ -934,6 +934,7 @@
   "err.R10": "lichess に接続できませんでした。インターネット接続を確認して、もう一度お試しください。",
   "err.R11": "先に自分の lichess スタディの URL を貼り付けてください（lichess.org/study/...）。",
   "err.R12": "スタディへの追加には study:write スコープ付きの Lichess API トークンが必要です。lichess.org/account/oauth/token/create で作成し、設定 > エンジン以外 > Lichess APIトークン に貼り付けてください。",
+  "err.R13": "chess.com でエンジンの更新を確認できませんでした ({detail})。後でもう一度お試しください。",
   "err.V01": "画面上に盤が見つかりませんでした。盤の周りをドラッグして囲んでください。",
   "err.V04": "盤の読み取りに失敗しました（{detail}）。盤の周りをドラッグして囲んでください。",
   "err.nothing_changed": "何も変更されていません。",

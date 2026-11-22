@@ -232,6 +232,7 @@ const ERRORS = Object.freeze(Object.fromEntries([
     ['MPH-R10', 'err.R10', 'Could not reach lichess. Check your internet connection and try again.'],
     ['MPH-R11', 'err.R11', 'Paste the URL of one of your lichess studies first (lichess.org/study/...).'],
     ['MPH-R12', 'err.R12', 'Adding to a study needs a Lichess API token with the study:write scope. Make one at lichess.org/account/oauth/token/create and paste it in Settings > Beyond the engine > Lichess API token.'],
+    ['MPH-R13', 'err.R13', 'Could not check chess.com for the engine update ({detail}). Try again later.'],
 
     ['MPH-V01', 'err.V01', 'No board found on the screen. Drag a box around the board.'],
     ['MPH-V02', 'panel.fen.capture_failed', 'Capture failed ({detail})'],

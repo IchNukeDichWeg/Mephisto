@@ -934,6 +934,7 @@
   "err.R10": "lichess에 연결할 수 없습니다. 인터넷 연결을 확인하고 다시 시도하세요.",
   "err.R11": "먼저 내 lichess 스터디 중 하나의 URL을 붙여 넣으세요(lichess.org/study/...).",
   "err.R12": "스터디에 추가하려면 study:write 범위가 있는 Lichess API 토큰이 필요합니다. lichess.org/account/oauth/token/create에서 만들어 설정 > 엔진 외 > Lichess API 토큰에 붙여 넣으세요.",
+  "err.R13": "chess.com에서 엔진 업데이트를 확인하지 못했습니다 ({detail}). 나중에 다시 시도하세요.",
   "err.V01": "화면에서 체스판을 찾지 못했습니다. 체스판 주위를 드래그해 상자로 둘러싸세요.",
   "err.V04": "체스판 읽기에 실패했습니다({detail}). 체스판 주위를 드래그해 상자로 둘러싸세요.",
   "err.nothing_changed": "아무것도 변경되지 않았습니다.",
