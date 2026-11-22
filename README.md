@@ -109,7 +109,7 @@ the one exception, and it is opt-in.
 
 | Engine | Notes |
 | --- | --- |
-| **Stockfish 19 NNUE** | The default. The full dual-net build; the large net ships split and is stitched at load. |
+| **Stockfish 19 NNUE** | The default. Stockfish 19 on its single large net (98.5 MB), fetched whole. |
 | **Stockfish 19 Small NNUE** | The same engine on the small net (about 1 MB against 99), for a machine or connection that cannot take the full one. |
 | **Stockfish 18 NNUE** | The previous mainline, kept so a review can be repeated against the engine that produced it. |
 | **Stockfish 11 HCE** | Classical eval, no NNUE. Light and fast. |
