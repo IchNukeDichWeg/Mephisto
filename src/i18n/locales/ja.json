@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "着手時間 ± ばらつき（ミリ秒）",
   "panel.flip_board": "盤を反転",
   "panel.follow_screen": "画面を追う",
+  "panel.autoplay_overridden": "自動着手はオンですが {mode} もオンなので、手は自分で指します - 自動で指すには {mode} をオフにしてください",
   "panel.stop_following": "追うのをやめる",
   "panel.copy": "コピー",
   "panel.run": "実行",

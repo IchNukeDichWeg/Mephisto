@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Move Time ± Var (ms)",
   "panel.flip_board": "Flip board",
   "panel.follow_screen": "Follow screen",
+  "panel.autoplay_overridden": "Autoplay is on, but {mode} is on too, so you make the move yourself - turn {mode} off to autoplay",
   "panel.stop_following": "Stop following",
   "panel.copy": "Copy",
   "panel.run": "Run",

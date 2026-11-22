@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "착수 시간 ± 편차(ms)",
   "panel.flip_board": "보드 뒤집기",
   "panel.follow_screen": "화면 따라가기",
+  "panel.autoplay_overridden": "자동 두기가 켜져 있지만 {mode}도 켜져 있어 수는 직접 둡니다 - 자동으로 두려면 {mode}를 끄세요",
   "panel.stop_following": "따라가기 중지",
   "panel.copy": "복사",
   "panel.run": "실행",

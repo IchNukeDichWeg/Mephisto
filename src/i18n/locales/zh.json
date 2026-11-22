@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "走子时间 ± 浮动（毫秒）",
   "panel.flip_board": "翻转棋盘",
   "panel.follow_screen": "跟随屏幕",
+  "panel.autoplay_overridden": "自动走子已开启，但 {mode} 也开着，所以由你自己走棋 - 关闭 {mode} 即可自动走子",
   "panel.stop_following": "停止跟随",
   "panel.copy": "复制",
   "panel.run": "运行",

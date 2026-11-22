@@ -11477,10 +11477,11 @@ function sync_quick_settings() {
 function mark_autoplay_overridden() {
     const row = PANEL_ROOT.getElementById('qs_autoplay')?.closest('.qs-toggle');
     if (!row) return;
-    const by = config.help_mode ? 'Help Mode' : config.manual_mode ? 'Manual Mode' : null;
+    const by = config.help_mode ? i18n('panel.help_mode', 'Help Mode') : config.manual_mode ? i18n('panel.manual_mode', 'Manual Mode') : null;
     row.classList.toggle('qs-overridden', !!(config.autoplay && by));
+    // the mode does not play: it leaves the move to you (audit 3.1.333 POPUP4-5)
     row.title = by && config.autoplay
-        ? `Autoplay is on but ${by} is playing the move instead - turn ${by} off to autoplay`
+        ? i18n('panel.autoplay_overridden', 'Autoplay is on, but {mode} is on too, so you make the move yourself - turn {mode} off to autoplay', {mode: by})
         : '';
 }
 

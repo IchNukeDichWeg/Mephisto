@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Czas ruchu ± wahanie (ms)",
   "panel.flip_board": "Obróć szachownicę",
   "panel.follow_screen": "Śledź ekran",
+  "panel.autoplay_overridden": "Autogranie jest włączone, ale {mode} też, więc ruch wykonujesz sam - wyłącz {mode}, aby grać automatycznie",
   "panel.stop_following": "Przestań śledzić",
   "panel.copy": "Kopiuj",
   "panel.run": "Uruchom",

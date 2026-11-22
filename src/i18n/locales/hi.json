@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "चाल का समय ± बदलाव (मि.से.)",
   "panel.flip_board": "बोर्ड पलटें",
   "panel.follow_screen": "स्क्रीन देखें",
+  "panel.autoplay_overridden": "स्वतः चाल चालू है, पर {mode} भी चालू है, इसलिए चाल आप खुद चलते हैं - स्वतः चाल के लिए {mode} बंद करें",
   "panel.stop_following": "देखना बंद करें",
   "panel.copy": "कॉपी करें",
   "panel.run": "चलाएँ",

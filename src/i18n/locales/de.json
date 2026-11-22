@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Zugzeit ± Streuung (ms)",
   "panel.flip_board": "Brett drehen",
   "panel.follow_screen": "Bildschirm verfolgen",
+  "panel.autoplay_overridden": "Autoplay ist an, aber {mode} auch, also machst du den Zug selbst - schalte {mode} aus, damit Autoplay spielt",
   "panel.stop_following": "Nicht mehr verfolgen",
   "panel.copy": "Kopieren",
   "panel.run": "Starten",

@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Tempo mossa ± var. (ms)",
   "panel.flip_board": "Gira la scacchiera",
   "panel.follow_screen": "Segui lo schermo",
+  "panel.autoplay_overridden": "Il gioco automatico è attivo, ma lo è anche {mode}, quindi la mossa la fai tu - disattiva {mode} per giocare in automatico",
   "panel.stop_following": "Smetti di seguire",
   "panel.copy": "Copia",
   "panel.run": "Avvia",

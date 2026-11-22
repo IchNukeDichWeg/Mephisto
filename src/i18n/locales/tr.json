@@ -36,6 +36,7 @@
   "panel.move_time_var_ms": "Hamle süresi ± sapma (ms)",
   "panel.flip_board": "Tahtayı çevir",
   "panel.follow_screen": "Ekranı izle",
+  "panel.autoplay_overridden": "Otomatik oynat açık, ama {mode} de açık, bu yüzden hamleyi sen yaparsın - otomatik oynatmak için {mode} ayarını kapat",
   "panel.stop_following": "İzlemeyi bırak",
   "panel.copy": "Kopyala",
   "panel.run": "Çalıştır",
