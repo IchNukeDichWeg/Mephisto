@@ -613,7 +613,7 @@
   "set.bot_trick_delay": "Intervalo entre lances do bot (ms)",
   "set.tip.bot_trick_delay": "Aproximadamente quanto tempo passa entre os lances entregues, em milissegundos. Variado de propósito em cerca de um terço para ambos os lados: o chess.com guarda a hora de cada lance no arquivo da partida, e oitenta lances exatamente no mesmo intervalo são um padrão que nenhum humano produz. 0 joga a partida inteira de uma vez.",
   "set.bot_trick_pgn": "A sua própria partida (PGN)",
-  "set.tip.bot_trick_pgn": "Cole um PGN para juntar a sua própria partida à lista – uma sua do chess.com, ou qualquer outra. Tem de terminar em xeque-mate ou empate: uma partida terminada por desistência para com o bot ainda a jogar, e ele responderá a sério. O painel diz isso em vez de a jogar pela metade.",
+  "set.tip.bot_trick_pgn": "Cola um PGN para juntar a tua própria partida à lista - uma tua do chess.com, ou qualquer outra. Uma partida que termina em xeque-mate ou empate é jogada até ao fim; uma que parou antes (uma desistência, por exemplo) é jogada até ao último lance e depois terminada como empate por acordo, de modo que o bot nunca fica com a vez.",
   "panel.bot.auto": "Automático (de acordo com a sua cor)",
   "panel.bot.opt": "{name} – {n} ({res})",
   "panel.bot.pgn_empty": "Cole primeiro uma partida nas definições.",

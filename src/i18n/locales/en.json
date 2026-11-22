@@ -612,7 +612,7 @@
   "set.bot_trick_delay": "Bot Move Delay (ms)",
   "set.tip.bot_trick_delay": "Roughly how long between the handed-over moves, in milliseconds. Jittered by about a third either way on purpose: chess.com keeps a per-move clock time in the game archive, and eighty moves at exactly the same interval is a pattern no human produces. 0 plays the whole game at once.",
   "set.bot_trick_pgn": "Your Own Game (PGN)",
-  "set.tip.bot_trick_pgn": "Paste a PGN to add your own game to the dropdown - one of your own from chess.com, or any game you like. It has to end in checkmate or a draw: a game that finished by resignation stops with the bot still to move, and it will then answer for real. The panel says so rather than half-playing it.",
+  "set.tip.bot_trick_pgn": "Paste a PGN to add your own game to the dropdown - one of your own from chess.com, or any game you like. A game that ends in checkmate or a draw is played to its end; one that stopped short (a resignation, say) is played through its last move and then ended as an agreed draw, so the bot is never left to move.",
   "panel.bot.auto": "Auto (fits your colour)",
   "panel.bot.opt": "{name} - {n} ({res})",
   "panel.bot.pgn_empty": "Paste a game into Settings first.",

@@ -613,7 +613,7 @@
   "set.bot_trick_delay": "Délai entre les coups du bot (ms)",
   "set.tip.bot_trick_delay": "Durée approximative entre les coups transmis, en millisecondes. Volontairement variée d'environ un tiers dans les deux sens : chess.com conserve l'heure de chaque coup dans l'archive de la partie, et quatre-vingts coups exactement au même intervalle forment un motif qu'aucun humain ne produit. 0 joue toute la partie d'un coup.",
   "set.bot_trick_pgn": "Votre propre partie (PGN)",
-  "set.tip.bot_trick_pgn": "Collez un PGN pour ajouter votre propre partie à la liste – une des vôtres sur chess.com, ou n'importe quelle autre. Elle doit se terminer par un mat ou une nulle : une partie terminée par abandon s'arrête alors que le bot a encore le trait, et il répondra pour de vrai. Le panneau le dit plutôt que de la jouer à moitié.",
+  "set.tip.bot_trick_pgn": "Collez un PGN pour ajouter votre propre partie à la liste - une des vôtres sur chess.com, ou n'importe quelle autre. Une partie qui se termine par un mat ou une nulle est jouée jusqu'au bout ; une partie interrompue plus tôt (un abandon, par exemple) est jouée jusqu'à son dernier coup puis terminée en nulle par accord, de sorte que le bot n'a jamais le trait.",
   "panel.bot.auto": "Auto (selon votre couleur)",
   "panel.bot.opt": "{name} – {n} ({res})",
   "panel.bot.pgn_empty": "Collez d'abord une partie dans les réglages.",

@@ -613,7 +613,7 @@
   "set.bot_trick_delay": "Ritardo tra le mosse del bot (ms)",
   "set.tip.bot_trick_delay": "Quanto tempo passa all'incirca tra le mosse consegnate, in millisecondi. Variato di proposito di circa un terzo in entrambe le direzioni: chess.com conserva l'orario di ogni mossa nell'archivio della partita, e ottanta mosse esattamente allo stesso intervallo sono uno schema che nessun umano produce. 0 gioca tutta la partita in una volta.",
   "set.bot_trick_pgn": "La tua partita (PGN)",
-  "set.tip.bot_trick_pgn": "Incolla un PGN per aggiungere la tua partita all'elenco: una tua da chess.com o qualunque altra. Deve finire con matto o patta: una partita finita per abbandono si ferma col bot ancora al tratto, e lui risponderà davvero. Il pannello lo dice invece di giocarla a metà.",
+  "set.tip.bot_trick_pgn": "Incolla un PGN per aggiungere la tua partita all'elenco: una tua da chess.com o qualunque altra. Una partita che finisce con matto o patta viene giocata fino in fondo; una interrotta prima (un abbandono, per esempio) viene giocata fino all'ultima mossa e poi chiusa come patta concordata, così il bot non resta mai al tratto.",
   "panel.bot.auto": "Automatico (adatto al tuo colore)",
   "panel.bot.opt": "{name} – {n} ({res})",
   "panel.bot.pgn_empty": "Incolla prima una partita nelle impostazioni.",

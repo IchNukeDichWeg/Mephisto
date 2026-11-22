@@ -613,7 +613,7 @@
   "set.bot_trick_delay": "Retardo entre jugadas del bot (ms)",
   "set.tip.bot_trick_delay": "Tiempo aproximado entre las jugadas entregadas, en milisegundos. Variado a propósito en torno a un tercio hacia ambos lados: chess.com guarda la hora de cada jugada en el archivo de la partida, y ochenta jugadas exactamente al mismo intervalo son un patrón que ningún humano produce. 0 juega la partida entera de golpe.",
   "set.bot_trick_pgn": "Tu propia partida (PGN)",
-  "set.tip.bot_trick_pgn": "Pega un PGN para añadir tu propia partida a la lista: una tuya de chess.com o cualquier otra. Tiene que terminar en jaque mate o en tablas: una partida acabada por abandono se detiene con el bot aún en juego, y entonces responderá de verdad. El panel lo dice en lugar de jugarla a medias.",
+  "set.tip.bot_trick_pgn": "Pega un PGN para añadir tu propia partida a la lista: una tuya de chess.com o cualquier otra. Una partida que termina en jaque mate o en tablas se juega hasta el final; una que se detuvo antes (por ejemplo, por abandono) se juega hasta su última jugada y luego se termina como tablas acordadas, de modo que el bot nunca se queda con la jugada.",
   "panel.bot.auto": "Automático (según tu color)",
   "panel.bot.opt": "{name} – {n} ({res})",
   "panel.bot.pgn_empty": "Pega primero una partida en los ajustes.",

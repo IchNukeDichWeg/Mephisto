@@ -613,7 +613,7 @@
   "set.bot_trick_delay": "Vertraging tussen botzetten (ms)",
   "set.tip.bot_trick_delay": "Ongeveer hoe lang er tussen de aangereikte zetten zit, in milliseconden. Met opzet met ongeveer een derde naar beide kanten gevarieerd: chess.com bewaart per zet een kloktijd in het partij-archief, en tachtig zetten met precies hetzelfde interval is een patroon dat geen mens maakt. 0 speelt de hele partij in één keer.",
   "set.bot_trick_pgn": "Je eigen partij (PGN)",
-  "set.tip.bot_trick_pgn": "Plak een PGN om je eigen partij aan de lijst toe te voegen – een eigen partij van chess.com, of welke dan ook. Hij moet eindigen in mat of remise: een partij die met opgave eindigde stopt terwijl de bot nog aan zet is, en die antwoordt dan echt. Het paneel zegt dat, in plaats van hem half te spelen.",
+  "set.tip.bot_trick_pgn": "Plak een PGN om je eigen partij aan de lijst toe te voegen - een eigen partij van chess.com, of welke dan ook. Een partij die in mat of remise eindigt wordt tot het einde gespeeld; een partij die eerder stopte (bijvoorbeeld door opgave) wordt tot haar laatste zet gespeeld en dan beëindigd als remise bij overeenkomst, zodat de bot nooit aan zet blijft.",
   "panel.bot.auto": "Automatisch (past bij je kleur)",
   "panel.bot.opt": "{name} – {n} ({res})",
   "panel.bot.pgn_empty": "Plak eerst een partij in de instellingen.",

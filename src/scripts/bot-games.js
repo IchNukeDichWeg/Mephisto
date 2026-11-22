@@ -10,7 +10,8 @@
 // EVERY LINE MUST END THE GAME. A resignation stops with the bot still to move, and the bot then
 // answers for real -- there is no way to make it resign. Every entry ends the game: mate, or a draw
 // the client claims itself at the end (stalemate, threefold, fifty-move, dead position, agreed draw). That single rule is what decides which famous games can be here at all, and it
-// is pinned in the suite by replaying each line through chess.js.
+// is pinned in the suite by replaying each line through chess.js. A PASTED PGN is not held to it:
+// popup.js bot_pgn_line plays one that stops short through its last move and then agrees a draw.
 //
 // The winner is recorded rather than derived so the page can refuse a line meant for the other
 // colour before it plays a single move -- the wrong line delivers the mate to the BOT.

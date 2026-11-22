@@ -613,7 +613,7 @@
   "set.bot_trick_delay": "Bot-Zugverzögerung (ms)",
   "set.tip.bot_trick_delay": "Ungefährer Abstand zwischen den übergebenen Zügen, in Millisekunden. Absichtlich um etwa ein Drittel nach beiden Seiten gestreut: chess.com speichert zu jedem Zug eine Uhrzeit im Partiearchiv, und achtzig Züge in exakt gleichem Abstand sind ein Muster, das kein Mensch erzeugt. 0 spielt die ganze Partie auf einmal.",
   "set.bot_trick_pgn": "Eigene Partie (PGN)",
-  "set.tip.bot_trick_pgn": "Füge ein PGN ein, um deine eigene Partie in die Auswahlliste zu bekommen – eine eigene von chess.com oder eine beliebige andere. Sie muss mit Matt oder Remis enden: Eine durch Aufgabe beendete Partie hört auf, während der Bot noch am Zug ist, und er antwortet dann wirklich. Das Panel sagt das, statt sie halb zu spielen.",
+  "set.tip.bot_trick_pgn": "Füge ein PGN ein, um deine eigene Partie in die Auswahlliste zu bekommen - eine eigene von chess.com oder eine beliebige andere. Eine Partie, die mit Matt oder Remis endet, wird bis zum Ende gespielt; eine, die vorher abbrach (etwa durch Aufgabe), wird bis zu ihrem letzten Zug gespielt und dann als vereinbartes Remis beendet, sodass der Bot nie am Zug bleibt.",
   "panel.bot.auto": "Automatisch (passend zu deiner Farbe)",
   "panel.bot.opt": "{name} – {n} ({res})",
   "panel.bot.pgn_empty": "Füge zuerst eine Partie in den Einstellungen ein.",

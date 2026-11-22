@@ -613,7 +613,7 @@
   "set.bot_trick_delay": "Odstęp między ruchami bota (ms)",
   "set.tip.bot_trick_delay": "Mniej więcej ile czasu mija między podawanymi ruchami, w milisekundach. Celowo rozrzucone o około jedną trzecią w obie strony: chess.com zapisuje czas każdego ruchu w archiwum partii, a osiemdziesiąt ruchów w dokładnie równych odstępach to wzór, którego nie tworzy żaden człowiek. 0 gra całą partię naraz.",
   "set.bot_trick_pgn": "Twoja własna partia (PGN)",
-  "set.tip.bot_trick_pgn": "Wklej PGN, aby dodać własną partię do listy – swoją z chess.com albo dowolną inną. Musi kończyć się matem lub remisem: partia zakończona poddaniem urywa się, gdy bot wciąż jest na posunięciu, a wtedy odpowie naprawdę. Panel to powie, zamiast rozegrać ją do połowy.",
+  "set.tip.bot_trick_pgn": "Wklej PGN, aby dodać własną partię do listy - swoją z chess.com albo dowolną inną. Partia kończąca się matem lub remisem jest rozgrywana do końca; ta, która urwała się wcześniej (na przykład poddaniem), jest rozgrywana do ostatniego ruchu, a potem kończona jako remis za porozumieniem, więc bot nigdy nie zostaje na posunięciu.",
   "panel.bot.auto": "Automatycznie (pasuje do twojego koloru)",
   "panel.bot.opt": "{name} – {n} ({res})",
   "panel.bot.pgn_empty": "Najpierw wklej partię w ustawieniach.",

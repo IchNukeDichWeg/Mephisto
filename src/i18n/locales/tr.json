@@ -613,7 +613,7 @@
   "set.bot_trick_delay": "Bot hamle gecikmesi (ms)",
   "set.tip.bot_trick_delay": "Verilen hamleler arasında yaklaşık ne kadar süre geçtiği, milisaniye olarak. Kasıtlı olarak iki yöne de yaklaşık üçte bir oranında dağıtılır: chess.com oyun arşivinde her hamlenin saatini tutar ve tam olarak aynı aralıklı seksen hamle hiçbir insanın üretmediği bir örüntüdür. 0, bütün oyunu tek seferde oynar.",
   "set.bot_trick_pgn": "Kendi oyununuz (PGN)",
-  "set.tip.bot_trick_pgn": "Kendi oyununuzu listeye eklemek için bir PGN yapıştırın – chess.com'daki kendi oyunlarınızdan biri ya da istediğiniz başka biri. Mat ya da beraberlikle bitmelidir: terkle biten bir oyun, bot hâlâ hamle sırasındayken durur ve bot o zaman gerçekten karşılık verir. Panel bunu yarım oynamak yerine söyler.",
+  "set.tip.bot_trick_pgn": "Kendi oyununuzu listeye eklemek için bir PGN yapıştırın - chess.com'daki kendi oyunlarınızdan biri ya da istediğiniz başka biri. Mat ya da beraberlikle biten bir oyun sonuna kadar oynanır; daha önce duran bir oyun (örneğin terk) son hamlesine kadar oynanır, sonra anlaşmalı beraberlik olarak bitirilir, böylece hamle sırası asla botta kalmaz.",
   "panel.bot.auto": "Otomatik (renginize uyan)",
   "panel.bot.opt": "{name} – {n} ({res})",
   "panel.bot.pgn_empty": "Önce ayarlara bir oyun yapıştırın.",
