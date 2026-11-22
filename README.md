@@ -436,8 +436,8 @@ cores or much RAM, so it runs **5-70× slower** than a native binary. Point Meph
 You need a native **Stockfish** (optionally **Fairy-Stockfish** for variants), **Python 3** with `python-chess`, and
 your **extension ID** from `chrome://extensions` with Developer mode on.
 
-> ⚠️ An unpacked extension's id **changes when you reload it**. If native engines stop working after a reload, re-run
-> the install command with the new id.
+> ⚠️ An unpacked extension's id comes from its **folder path**: a reload keeps it, but loading the extension from another
+> folder gives it a new one. If native engines stop working after a move, re-run the install command with the new id.
 
 > After **updating** Mephisto, re-run the install command as well (on Windows, redo its Windows steps): the hosts
 > are copies, and an update does not touch them. The panel's engine dot turns amber while a host is out of date.

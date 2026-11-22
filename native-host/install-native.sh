@@ -7,8 +7,9 @@
 #
 #   ./install-native.sh --ext-id <EXTENSION_ID> [--stockfish /path] [--fairy /path] [--tetrarch /path] [--no-fairy-nets]
 #
-# --ext-id : your Mephisto extension ID from chrome://extensions (Developer mode on). It changes
-#            when an unpacked extension is reloaded -- re-run this script if native engines stop working.
+# --ext-id : your Mephisto extension ID from chrome://extensions (Developer mode on). An unpacked
+#            extension's id comes from its folder path: a reload keeps it, loading it from another
+#            folder changes it -- re-run this script after a move if native engines stop working.
 # --stockfish / --fairy : engine binaries. Auto-detected from PATH if omitted. Install one via:
 #            macOS: brew install stockfish fairy-stockfish   |   Linux: apt/pacman, or download from
 #            stockfishchess.org and fairy-stockfish releases. Pick the build matching your CPU.
