@@ -131,7 +131,7 @@ def _start_engine():
         return _proc
     uci = os.path.join(_repo, 'uci.py')
     if not os.path.isfile(uci):
-        raise RuntimeError(f"Tetrarch not found at {_repo} -- set TETRARCH_DIR or native-host/tetrarch-path")
+        raise RuntimeError(f"Tetrarch not found at {_repo} -- re-run the installer with --tetrarch (-Tetrarch on Windows), or fix {os.path.join(_DIR, 'tetrarch-path')}")
     # CREATE_NO_WINDOW: without it Windows pops a console for the engine on every
     # launch, in front of the game. Undefined on other platforms, hence the getattr.
     flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) if sys.platform == 'win32' else 0
