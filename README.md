@@ -382,8 +382,9 @@ An interrupted import loses nothing - run it again and it fills in the rest.
 
 **The header row is required and must begin with `fen3`** - that is the only thing distinguishing a Chess.com file
 from a Lichess one. Columns, in this order: `fen3,id,rating,initialFen,tcnMoveList,colorOfUser,pgn,passRate,averageSeconds,gameLiveId,gameId`.
-Only `fen3` (board + side + castling, the first two fields are the key), `id`, `tcnMoveList` and - for rated tactics -
-`colorOfUser` are read; `daily-N` rows carry SAN in the move column and need `initialFen`.
+Only `fen3` (board + side + castling, the first two fields are the key), `id`, `rating` (optional, shown in the panel),
+`tcnMoveList` and - for rated tactics - `colorOfUser` are read; `daily-N` rows carry SAN in the move column and need
+`initialFen`.
 
 **Whose move comes first differs by row type**, and getting it wrong shifts every solution by a ply: a rated tactic's
 `fen3` is the *opponent* to move, so the importer applies that setup move and keys on the position after it, while a
@@ -393,7 +394,7 @@ Only `fen3` (board + side + castling, the first two fields are the key), `id`, `
 `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!?{~}(^)[_]@#$,./&-*++=`. A promotion pushes the
 destination past 63: the piece is `"qnrbkp"[(to - 64) / 3]` and the destination `from ± 8 + ((to - 64) % 3) - 1`.
 
-Write real CSV (the `pgn` column holds literal newlines and doubled quotes), key on the first three FEN fields only,
+Write real CSV (the `pgn` column holds literal newlines and doubled quotes), key on board + side to move only,
 and branch on `id` before choosing an encoding. Unreadable rows are skipped, not fatal.
 </details>
 
