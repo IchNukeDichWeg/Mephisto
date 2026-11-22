@@ -12,11 +12,12 @@
 # models. SimpleEngine would reject Tetrarch's output before we ever saw it. So
 # this host speaks the line protocol directly over a pipe -- which is also less
 # machinery than the two-player hosts need, because Tetrarch is single-threaded:
-# `go` runs to completion and `stop` is accepted-and-ignored (PROTOCOL.md §5), so
-# there is no cancellation to model and no post-bestmove chain to harvest.
+# `go` runs to completion and this host never sends `stop` (the engine honours it at the
+# next completed depth), so there is no cancellation to model and no post-bestmove chain to harvest.
 #
 # Engine path resolution order:
-#   1. $TETRARCH_DIR   2. a sibling file `tetrarch-path`   3. ../../../Tetrarch
+#   1. $TETRARCH_DIR   2. a sibling file `tetrarch-path`
+#   3. ../../Tetrarch, relative to this folder (only when the host runs in place and no tetrarch-path exists)
 import sys, os, struct, json, queue, threading, subprocess, traceback, datetime, collections
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
@@ -122,9 +123,9 @@ def _stderr_why():
     return ' | '.join(l.strip() for l in list(_stderr_tail) if l.strip())[-600:]
 
 def _start_engine():
-    """Launch `python3 uci.py` with cwd = the repo root. The cwd matters: the Net
-    option defaults to the RELATIVE path `nets/net-v4.nnue`, so starting anywhere
-    else gives an engine that boots and then cannot load its evaluation."""
+    """Launch `python3 uci.py` with cwd = the repo root. The engine resolves its Net
+    option from its own folder (nets/bundle.txt), so the cwd no longer decides which
+    net loads."""
     global _proc, _stderr_tail, _stderr_drain
     if _proc and _proc.poll() is None:
         return _proc
@@ -337,8 +338,8 @@ def do_analyse(data, mid):
 
         ms = int(data.get('time') or 1000)
         _send(f"go movetime {ms}")
-        # `stop` is accepted-and-ignored and the engine is single-threaded, so the
-        # ONLY way a search ends is its own bestmove. Give it the move budget plus a
+        # This host never sends `stop`, so a search ends with its own bestmove. Give
+        # it the move budget plus a
         # generous margin rather than a fixed timeout: a slow machine must not have
         # its answer declared missing while the engine is still working on it.
         bm = _read_until(lambda l: l.startswith('bestmove') or engine_error,
