@@ -898,9 +898,22 @@ function maybeCheckStreamer() {
 let hideOppMatched = null;   // last match count, for the diagnostics; null = never applied
 
 let hideOppStyle = null;      // by reference: an id on a node in the page is a name the page can look up
+// The opponent's box, whichever way the board faces, plus lichess's meta panel by colour: a
+// finished or reloaded lichess game has no .ruser-top row, only the panel that lists both players
+// by colour, so the opponent's colour row is added there (the panel was left out in CONTENT1-2 and
+// the release harness then matched nothing on the lichess fixture).
+function hideOppSelector() {
+    let sel = oppBox(HIDE_OPP_SELECTORS);
+    if (site === 'lichess') {
+        const me = playerColor() || getOrientation();   // no clocks on a finished game: the board's own side
+        if (me === 'white' || me === 'black')
+            sel += `, .game__meta__players .player.${me === 'white' ? 'black' : 'white'} .user-link`;
+    }
+    return sel;
+}
 function applyHideOpponent(on) {
     if (!on) { hideOppStyle?.remove(); hideOppStyle = null; hideOppMatched = null; return; }
-    const sel = oppBox(HIDE_OPP_SELECTORS);   // the opponent's box, whichever way the board faces
+    const sel = hideOppSelector();
     if (!hideOppStyle?.isConnected) {
         const st = document.createElement('style');
         hideOppStyle = st;

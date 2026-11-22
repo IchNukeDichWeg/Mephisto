@@ -154,8 +154,8 @@ async function runFixture(fixtureUrl, siteName, asserts) {
             check('lichess game: the move list is scraped', n >= 4, n);
             const pos = scrapePosition();
             check('lichess game: the scrape carries a li prefix', /^\*\*\*li/.test(pos || ''), pos);
-            // the REAL selector constant, counted exactly like applyHideOpponent does
-            const hid = document.querySelectorAll(HIDE_OPP_SELECTORS).length;
+            // the REAL selector, counted exactly like applyHideOpponent does
+            const hid = document.querySelectorAll(hideOppSelector()).length;
             check('lichess game: Hide Opponent Name has anchors to blur', hid > 0, hid);
         }});
         // chess.com bot game mid-play: wc-chess-board, the move list, and the player boxes
@@ -167,7 +167,7 @@ async function runFixture(fixtureUrl, siteName, asserts) {
             check('chesscom: the move list is scraped', n >= 2, n);
             const pos = scrapePosition();
             check('chesscom: the scrape carries a cc prefix', /^\*\*\*cc/.test(pos || ''), pos);
-            const hid = document.querySelectorAll(HIDE_OPP_SELECTORS).length;
+            const hid = document.querySelectorAll(hideOppSelector()).length;
             check('chesscom: Hide Opponent Name has anchors to blur', hid > 0, hid);
         }});
     } catch (e) {
