@@ -383,25 +383,6 @@
                             </div>
                         </div>
 
-                        <div class="set-row set-toggle" data-for="own">
-                            <div class="set-lbl">
-                                <span data-i18n="rv.batch" data-i18n-tip="rv.tip.batch" class="tooltipped" data-position="right"
-                                      data-tooltip="Analyse EVERY game in the box rather than the one picked above, and add a
-                                                    summary that pools each player's numbers across all of them. One game
-                                                    cannot answer a fair-play question; a season of them starts to. The engine
-                                                    is loaded once for the whole batch, so it is much cheaper than running
-                                                    them one at a time.">
-                                    Review every game <i class="material-icons info-tooltip">info</i>
-                                </span>
-                            </div>
-                            <div class="set-ctl">
-                                <input id="rv_batch" type="checkbox" class="set-cb">
-                                <label for="rv_batch" class="set-tgl">
-                                    <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                                </label>
-                            </div>
-                        </div>
-
                         <div class="set-row set-toggle" data-for="own local" data-chess-only>
                             <div class="set-lbl">
                                 <span data-i18n="rv.opening_book" data-i18n-tip="rv.tip.opening_book" class="tooltipped" data-position="right"
@@ -430,6 +411,10 @@
                     <div class="set-lbl"><span data-i18n="rv.run">Run</span></div>
                     <div class="set-ctl rv-btns">
                         <button id="rv_run" class="set-btn set-btn-go" type="button" data-i18n="rv.analyse">Analyse game</button>
+                        <!-- shown when the box holds more than one game: reviews each and pools every
+                             player's numbers across them (renderBatch) -->
+                        <button id="rv_run_all" class="set-btn hidden" type="button" data-i18n="rv.analyse_all" data-i18n-title="rv.tip.batch"
+                                title="Analyse EVERY game in the box rather than the one picked above, and add a summary that pools each player's numbers across all of them. One game cannot answer a fair-play question; a season of them starts to. The engine is loaded once for the whole batch, so it is much cheaper than running them one at a time.">Analyse all games</button>
                         <button id="rv_stop" class="set-btn" type="button" disabled data-i18n="rv.stop">Stop</button>
                         <button id="rv_export" class="set-btn" type="button" disabled data-i18n="rv.export">Export report</button>
                         <button id="rv_fit" class="set-btn" type="button" disabled data-i18n="rv.fit_humanize">Fit Humanize to a player</button>

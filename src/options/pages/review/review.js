@@ -2730,6 +2730,15 @@ function parsePgnBox() {
     else note(`${games.length} game${games.length > 1 ? 's' : ''} read`
         + (games.length === 1 ? ` - ${Math.ceil(games[0].moves.length / 2)} moves` : '') + '.'
         + detectVariantFrom(selectedGame()));
+    syncRunAll();
+}
+
+// ANALYSE ALL GAMES shows beside Analyse game when the box holds more than one game, and only where
+// Analyse game itself shows (the own-engine review), so it is read off that button after every sync.
+function syncRunAll() {
+    const all = $('rv_run_all');
+    if (!all) return;
+    all.classList.toggle('hidden', games.length < 2 || !!$('rv_run')?.classList.contains('hidden'));
 }
 
 function selectedGame() {
@@ -2743,7 +2752,9 @@ function selectedGame() {
 // 3.1.328 REVIEW-15). Kept beside batchReports and restored with it.
 let batchInputText = '';
 
-async function onRun() {
+// `all`: the Analyse all games button. A per-click choice, not a stored toggle: the old Review every
+// game switch, left on, silently turned every later multi-game paste into N full analyses (P5).
+async function onRun(all = false) {
     if (running) return;
     if (!games.length) return note('Paste a PGN first.', true);
     // FOUR-PLAYER TAKES ITS OWN LANE. Not a widening of this function: the two-player path builds
@@ -2768,12 +2779,13 @@ async function onRun() {
     if ($('rv_export')) $('rv_export').disabled = true;
     if ($('rv_fit')) $('rv_fit').disabled = true;
     if (is4pcGame || String(cfg('rv_variant')) === '4pc') return run4pcReview();
-    const batch = cfg('rv_batch') && games.length > 1;
+    const batch = all === true && games.length > 1;
     const list = batch ? games : [selectedGame()];
     if (batch) batchInputText = $('rv_pgn')?.value || '';
     running = true;
     cancel = false;
     $('rv_run').disabled = true;
+    if ($('rv_run_all')) $('rv_run_all').disabled = true;
     $('rv_stop').disabled = false;
     note('');
     let rig = null;
@@ -2869,6 +2881,7 @@ async function onRun() {
         // The page is re-injected on every route change, so these can be gone by the time a long
         // run ends -- the run itself is module state and outlives the DOM it started from.
         if ($('rv_run')) $('rv_run').disabled = false;
+        if ($('rv_run_all')) $('rv_run_all').disabled = false;
         if ($('rv_stop')) $('rv_stop').disabled = true;
     }
 }
@@ -3807,6 +3820,7 @@ class ReviewPage {
             document.querySelectorAll('.rv-mode').forEach(el =>
                 el.classList.toggle('hidden', !el.dataset.mode.split(' ').includes(m)));
             $('rv_run')?.classList.toggle('hidden', m !== 'own');
+            if (typeof syncRunAll === 'function') syncRunAll();
             // ...and the settings themselves: a control that cannot affect the selected review is
             // worse than absent, because changing it looks like it did something. Rows marked
             // data-chess-only (the Maia passes) stand down for every other game type; in 4pc, which
@@ -3845,7 +3859,7 @@ class ReviewPage {
             tierSel.addEventListener('change', () => { setCfg('rv_ee_tier', tierSel.value); eeSync(); sfSync(); });
         }
 
-        for (const key of ['rv_book', 'rv_human_report', 'rv_strength', 'rv_explain', 'rv_batch']) {
+        for (const key of ['rv_book', 'rv_human_report', 'rv_strength', 'rv_explain']) {
             const el = $(key);
             if (!el) continue;
             el.checked = !!cfg(key);
@@ -3877,7 +3891,8 @@ class ReviewPage {
             updateEngineOptions();
         }
 
-        $('rv_run').addEventListener('click', onRun);
+        $('rv_run').addEventListener('click', () => onRun());
+        $('rv_run_all')?.addEventListener('click', () => onRun(true));
         $('rv_stop').addEventListener('click', () => {
             cancel = true;
             // An unbounded search never returns on its own, so asking the loop to stop "after this
@@ -3960,6 +3975,7 @@ class ReviewPage {
         // revisited mid-run showed an enabled Analyse and a dead Stop with the engines still going.
         if (running) {
             $('rv_run').disabled = true;
+            if ($('rv_run_all')) $('rv_run_all').disabled = true;
             $('rv_stop').disabled = false;
         }
         // ...and the classifier's and chess.com's lines (audit 3.1.330 follow-up L45). The classifier's

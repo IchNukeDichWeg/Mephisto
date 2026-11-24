@@ -103,7 +103,6 @@ const CFG_DEFAULTS = {
     rv_strength: false,      // the maximum-likelihood rating estimate; a pass per rating band
     rv_explain: false,       // chess.com's coach prose over OUR review -- their words, our numbers
 
-    rv_batch: false,
     rv_mode: 'own',          // which of the three reviews the page shows: own | local | online
     rv_ee_tier: 'card',      // chess.com classifier search budget: card | fast | standard | deep | max
     rv_variant: 'chess',     // the game type: chess | chess960 | variant | 4pc

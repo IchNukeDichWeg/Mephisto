@@ -212,7 +212,7 @@ Copy FEN/PGN, the engine's lines next to what a human of a chosen rating would p
   their grade of a move differs from ours, the report keeps both.
 - **Fair-play indicators** - engine-match rate over real choices, sharp positions, longest streak, accuracy uniformity,
   whether long thinks went to hard positions. **Measurements, never a verdict.**
-- **Review every game** in a file in one pass, **export** the report as one file, or **share** it as an annotated PGN,
+- **Analyse all games** in a file in one pass, **export** the report as one file, or **share** it as an annotated PGN,
   a 1200x630 share card, or an import to lichess (which publishes the game and asks first). An anonymous lichess import
   drops every glyph, eval and comment (measured), so use **Add to my study** (a token with the `study:write` scope) to
   keep them.
