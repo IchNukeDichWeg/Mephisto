@@ -204,21 +204,20 @@ class GeneralSettings extends SettingsPage {
         }
         const computer_evaluation = this.registerFormElement('computer_evaluation', 'Show Computer Evaluation:', 'checkbox', true);
         const threat_analysis = this.registerFormElement('threat_analysis', 'Show Threat Analysis', 'checkbox', false);
-        // Playing with a net: the three knobs only mean anything while it is on, so they follow it
-        // (same treatment the search-budget rows and the human-reply rating already get).
+        // PLAYING WITH A NET: one select (Off / Quiet / Live) over the switch and its mode. The mode
+        // keeps its value while the net is off, so switching back on picks it again; the tolerance
+        // (under Advanced) only means anything while the net is on, so it follows it. The quiet
+        // mode's set-size fallback is fixed at 3 (SAFETY_NET_MAX in popup.js).
         const safety_net = this.registerFormElement('safety_net', 'Playing with a Net:', 'checkbox', false);
-        this.registerFormElement('safety_net_mode', 'Net Mode:', 'select', 'quiet');
+        const safety_net_mode = this.registerFormElement('safety_net_mode', 'Net Mode:', 'select', 'quiet');
         this.registerFormElement('safety_net_drop', 'Net Tolerance (win% drop):', 'input', 10);
-        this.registerFormElement('safety_net_max', 'Warn When At Most:', 'input', 3);
-        const sync_safety_net_rows = () => {
-            const on = safety_net.getValue();
-            for (const id of ['safety_net_mode_row', 'safety_net_drop_row', 'safety_net_max_row']) {
-                const row = document.getElementById(id);
-                if (row) row.style.display = on ? '' : 'none';
-            }
-        };
-        safety_net.registerChangeListener(sync_safety_net_rows);
-        sync_safety_net_rows();
+        this.bindViewSelect('safety_net_view', [safety_net, safety_net_mode],
+            () => (!safety_net.getValue() ? 'off' : safety_net_mode.getValue() === 'live' ? 'live' : 'quiet'),
+            (v) => {
+                if (v !== 'off' && safety_net_mode.getValue() !== v) safety_net_mode.setValue(v);
+                if (safety_net.getValue() !== (v !== 'off')) safety_net.setValue(v !== 'off');
+            },
+            (v) => document.getElementById('safety_net_drop_row')?.classList.toggle('hidden', v === 'off'));
 
         // Bot tricks. The delay and the PGN box mean nothing while the feature is off, so they
         // follow it -- same treatment as the net's knobs above. `bot_trick_pgn` is registered as an

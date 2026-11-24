@@ -584,7 +584,6 @@ async function initPanel(root, tabId) {
         safety_net: JSON.parse(MephistoConfig.get('safety_net')) || false,
         safety_net_mode: JSON.parse(MephistoConfig.get('safety_net_mode')) || 'quiet',
         safety_net_drop: JSON.parse(MephistoConfig.get('safety_net_drop')) || 10,
-        safety_net_max: JSON.parse(MephistoConfig.get('safety_net_max')) || 3,
         // Bot tricks: off until asked for, and the panel row does not exist while it is off.
         bot_tricks: JSON.parse(MephistoConfig.get('bot_tricks')) || false,
         bot_trick_game: JSON.parse(MephistoConfig.get('bot_trick_game')) || 'auto',
@@ -9607,6 +9606,9 @@ const SAFETY_NET_FLOOR_WP = 20;
 // position -- and when it says you are about to step off, the set is the warning. Maia's answer
 // arrives a beat after the engine's (one forward pass, cached per position); until it lands, the
 // set-size rule stands in, so the net never goes silent for want of a second engine.
+// Quiet mode's fallback while Maia has not answered: speak once this few moves still hold. It was a
+// setting (1-5), but it only covers the moment before Maia's read lands, so it is fixed at its default.
+const SAFETY_NET_MAX = 3;
 function safety_net_showing() {
     const set = safety_net_set();
     if (!set || set.needMoreLines) return set;
@@ -9628,7 +9630,7 @@ function safety_net_showing() {
         // list never reached is unknown, not condemned, and falls through to the size rule
         if (set.all.includes(set.likely)) { set.likelyThrows = true; return set; }
     }
-    const critical = Math.max(1, Math.min(5, Number(config.safety_net_max) || 3));
+    const critical = SAFETY_NET_MAX;
     // a set that is everything we looked at is not a warning: the engine simply saw no danger
     return (set.moves.length <= critical && set.moves.length < set.total) ? set : null;
 }
@@ -11107,7 +11109,7 @@ const LIVE_CONFIG_KEYS = [
     'explorer', 'book_play', 'explorer_db', 'help_mode', 'humanize', 'clock_mode', 'mirror_mode',
     'manual_mode', 'eval_bar', 'eval_history', 'live_stats', 'puzzle_mode', 'simon_says_mode', 'threat_analysis',
     'threat_human', 'threat_human_elo',
-    'safety_net', 'safety_net_mode', 'safety_net_drop', 'safety_net_max',
+    'safety_net', 'safety_net_mode', 'safety_net_drop',
     'bot_tricks', 'bot_trick_game', 'bot_trick_delay', 'bot_trick_pgn',
     'computer_evaluation', 'multiple_lines', 'compute_time', 'compute_depth', 'search_mode',
     'live_classify', 'class_on_board', 'live_classify_which', 'playstyle', 'tablebase_show',

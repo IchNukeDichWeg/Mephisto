@@ -19518,3 +19518,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        locs.length === 14 && locs.every(l => ['set.threat_view', 'set.tip.threat_view', 'set.threat_view.arrow', 'set.threat_view.human'].every(k => l[k])
            && !('set.tip.threat_analysis' in l) && !('set.tip.threat_human' in l)));
 }
+// ---- SIMP-NET: Playing with a Net is one Off / Quiet / Live select; the fallback count is fixed at 3 ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = gj.indexOf('    bindViewSelect(viewId, elems, read, write, onShow) {'), body = i < 0 ? '' : gj.slice(i, gj.indexOf('\n    }\n', i) + 7);
+    const a = gj.indexOf("        this.bindViewSelect('safety_net_view',"), wiring = a < 0 ? '' : gj.slice(a, gj.indexOf("v === 'off'));\n", a) + 15);
+    const fe = (v) => { const ls = []; const o = {missing: false, v, getValue: () => o.v, setValue: (x) => { o.v = x; ls.forEach(f => f()); }, registerChangeListener: (f) => ls.push(f)}; return o; };
+    const run = (st, picks = []) => {
+        const safety_net = fe(st[0]), safety_net_mode = fe(st[1]);
+        let dropHidden = null;
+        const sel = {value: '', ev: {}, parentElement: null, selectedOptions: [], addEventListener(t, f) { this.ev[t] = f; }};
+        const c = vm.createContext({document: {getElementById: (id) => id === 'safety_net_view' ? sel : {classList: {toggle: (cl, on) => { dropHidden = on; }}}}, safety_net, safety_net_mode});
+        vm.runInContext(`const page = {${body}}; (function () { ${wiring} }).call(page);`, c);
+        const snap = () => [sel.value, safety_net.v, safety_net_mode.v, dropHidden];
+        const out = [snap()];
+        for (const p of picks) { sel.value = p; sel.ev.change(); out.push(snap()); }
+        return out;
+    };
+    const T = true, F = false;
+    const shown = [[F, 'quiet'], [F, 'live'], [T, 'quiet'], [T, 'live'], [T, 'junk']].map(s => run(s)[0][0]);
+    ok('SIMP-NET: the select shows Off while the net is off (whatever the mode), else the mode', shown.join() === 'off,off,quiet,live,quiet', shown);
+    const st = run([F, 'live'], ['quiet', 'live', 'off', 'live']);
+    ok('SIMP-NET: picking writes the switch and the mode; Off keeps the mode; the tolerance row shows only while it is on',
+       JSON.stringify(st) === JSON.stringify([['off', F, 'live', T], ['quiet', T, 'quiet', F], ['live', T, 'live', F], ['off', F, 'live', T], ['live', T, 'live', F]]), st);
+    ok('SIMP-NET: one row holds the hidden switch, a hidden browser-default mode select and the view; the tolerance row sits under Panel Advanced',
+       /<div class="set-row" id="safety_net_row">[\s\S]*?<input id="safety_net_checkbox" type="checkbox" hidden title="Playing with a Net" data-i18n-title="set\.safety_net">\s*<select name="safety_net_mode" id="safety_net_mode_select" class="browser-default hidden" hidden>[\s\S]*?<select id="safety_net_view">/.test(gh)
+       && /<div class="set-adv-body" id="panel_adv" hidden>[\s\S]*<div class="set-row" id="safety_net_drop_row">[\s\S]*<\/section>\s*<!-- =+ AUTOMATED PLAY/.test(gh) && !/safety_net_mode_row/.test(gh + gj));
+    const all = gj + gh + psrc + fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8');
+    ok('SIMP-NET: Warn When At Most is no setting any more; quiet mode falls back on SAFETY_NET_MAX = 3',
+       !/safety_net_max/.test(all) && /const SAFETY_NET_MAX = 3;/.test(psrc) && /const critical = SAFETY_NET_MAX;/.test(psrc));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-NET: one tip in all 14 locales; the mode and fallback rows\' strings are gone',
+       locs.length === 14 && locs.every(l => l['set.tip.safety_net_view'] && l['set.net_quiet'] && l['set.net_live']
+           && ['set.tip.safety_net', 'set.tip.safety_net_mode', 'set.safety_net_mode', 'set.safety_net_max', 'set.tip.safety_net_max'].every(k => !(k in l))));
+}

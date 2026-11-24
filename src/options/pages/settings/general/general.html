@@ -348,37 +348,21 @@
                     </div>
                 </div>
 
-                <div class="set-row set-toggle">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.safety_net" class="tooltipped" data-position="right" data-tooltip="For when the moves are yours. Instead of telling you the best move, it reports the SET of moves that keep the result -- and in its quiet mode it says nothing at all until that set gets small enough to be a warning. Needs Multi Lines above 1, since the set is drawn from the lines the engine was asked for."><span data-i18n="set.safety_net">Playing with a Net</span></span></div>
+                <!-- ONE SELECT over Playing with a Net and its mode (general.js bindViewSelect). Both keys stay
+                     here as hidden controls, so the panel and custom hotkeys see no change. -->
+                <div class="set-row" id="safety_net_row">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.safety_net_view" class="tooltipped" data-position="right" data-tooltip="For when the moves are yours. Instead of telling you the best move, it reports the SET of moves that keep the result -- and in its quiet mode it says nothing at all until that set gets small enough to be a warning. Needs Multi Lines above 1, since the set is drawn from the lines the engine was asked for. Quiet: silent while the move a HUMAN of the Human Reply Rating would likely play here still holds -- it speaks only when your likely move drops the game (and, until Maia has answered, when only a few moves are left). It never nags about a position that is already lost, and a forced move is no warning. Live: always shows the moves that keep the result while it is your turn. The set is ordered by how likely a human is to play each move. How much a move may cost and still count as holding is under Advanced."><span data-i18n="set.safety_net">Playing with a Net</span></span></div>
                     <div class="set-ctl">
-                        <input id="safety_net_checkbox" type="checkbox" class="set-cb">
-                        <label for="safety_net_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row" id="safety_net_mode_row">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.safety_net_mode" class="tooltipped" data-position="right" data-tooltip="Quiet: silent while the move a HUMAN of the Human Reply Rating would likely play here still holds -- it speaks only when your likely move drops the game (and, until Maia has answered, when only a few moves are left). It never nags about a position that is already lost, and a forced move is no warning. Live: always shows the moves that keep the result while it is your turn. The set is ordered by how likely a human is to play each move."><span data-i18n="set.safety_net_mode">Net Mode</span></span></div>
-                    <div class="set-ctl">
-                        <select name="safety_net_mode" id="safety_net_mode_select">
+                        <input id="safety_net_checkbox" type="checkbox" hidden title="Playing with a Net" data-i18n-title="set.safety_net">
+                        <select name="safety_net_mode" id="safety_net_mode_select" class="browser-default hidden" hidden>
+                            <option value="quiet">quiet</option>
+                            <option value="live">live</option>
+                        </select>
+                        <select id="safety_net_view">
+                            <option value="off" data-i18n="ui.off">Off</option>
                             <option value="quiet" data-i18n="set.net_quiet">Quiet - only when it matters</option>
                             <option value="live" data-i18n="set.net_live">Live - always show what holds</option>
                         </select>
-                    </div>
-                </div>
-
-                <div class="set-row" id="safety_net_drop_row">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.safety_net_drop" class="tooltipped" data-position="right" data-tooltip="How much of your winning chances a move may cost and still count as holding, in win% -- the same ruler the Game Review judges by, where 5 is an inaccuracy, 10 a mistake and 20 a blunder."><span data-i18n="set.safety_net_drop">Net Tolerance (win% drop)</span></span></div>
-                    <div class="set-ctl">
-                        <input id="safety_net_drop_input" type="number" min="1" max="50" step="1" class="set-num">
-                    </div>
-                </div>
-
-                <div class="set-row" id="safety_net_max_row">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.safety_net_max" class="tooltipped" data-position="right" data-tooltip="Quiet mode's fallback while Maia has not answered yet: how few moves must be left before it speaks. Three means: say nothing unless three or fewer moves still hold. Once Maia's read of the position is in, the trigger is your likely move leaving the set, not this count."><span data-i18n="set.safety_net_max">Warn When At Most</span></span></div>
-                    <div class="set-ctl">
-                        <input id="safety_net_max_input" type="number" min="1" max="5" step="1" class="set-num">
                     </div>
                 </div>
 
@@ -587,6 +571,13 @@
                 <div class="set-adv" data-adv="panel">
                     <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="panel_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
                     <div class="set-adv-body" id="panel_adv" hidden>
+
+                <div class="set-row" id="safety_net_drop_row">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.safety_net_drop" class="tooltipped" data-position="right" data-tooltip="How much of your winning chances a move may cost and still count as holding, in win% -- the same ruler the Game Review judges by, where 5 is an inaccuracy, 10 a mistake and 20 a blunder."><span data-i18n="set.safety_net_drop">Net Tolerance (win% drop)</span></span></div>
+                    <div class="set-ctl">
+                        <input id="safety_net_drop_input" type="number" min="1" max="50" step="1" class="set-num">
+                    </div>
+                </div>
 
                 <div class="set-row set-toggle">
                     <div class="set-lbl"><span data-i18n-tip="set.tip.computer_evaluation" class="tooltipped" data-position="right" data-tooltip="Show the evaluation score, win percentages and depth in the panel."><span data-i18n="set.show_computer_evaluation">Show Computer Evaluation</span></span></div>
