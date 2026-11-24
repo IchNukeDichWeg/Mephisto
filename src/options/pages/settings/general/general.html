@@ -172,98 +172,6 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.move_notation" class="tooltipped" data-position="right"
-                              data-tooltip="How moves are written wherever the extension shows one: the readout, the alternative lines, the arrows' labels. SAN is Nf3, UCI is g1f3 -- the same move either way."><span data-i18n="set.move_notation">Move Notation</span></span>
-                    </div>
-                    <div class="set-ctl">
-                        <select name="move_notation" id="move_notation_select">
-                            <option value="san" data-i18n="set.notation_san">SAN (Nf3)</option>
-                            <option value="uci" data-i18n="set.notation_uci">UCI (g1f3)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.live_stats" class="tooltipped" data-position="right"
-                              data-tooltip="Accuracy as it happens, on a strip under the eval history: a running accuracy for both sides and the tally of best moves, inaccuracies, mistakes and blunders. Judged by the same win% bands Game Review uses."><span data-i18n="set.live_stats">Live Stats</span></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="live_stats_checkbox" type="checkbox" class="set-cb">
-                        <label for="live_stats_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row set-toggle">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.live_classify" class="tooltipped" data-position="right"
-                              data-tooltip="Grade the move just played and mark it on the panel board, the way a Game
-                                            Review does -- Brilliant, Great, Best, Inaccuracy, Mistake, Blunder -- but
-                                            live, while the game is still going. Uses the same classifier the review
-                                            uses, so a verdict here is the verdict you get afterwards. Off by default:
-                                            it is an opinion drawn on the board every move."><span data-i18n="set.live_classify">Move Classification</span></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="live_classify_checkbox" type="checkbox" class="set-cb">
-                        <label for="live_classify_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.class_on_board" class="tooltipped" data-position="right"
-                              data-tooltip="The same verdict, drawn on the SITE's board instead of the panel's -- a badge on the square the move landed on, sized to that board. Its own switch, and independent of the one above: the badge appears on the real board whether or not the panel's little board is also carrying one. The 'Show which' filter applies to both."><span data-i18n="set.class_on_board">Classification On The Board</span></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="class_on_board_checkbox" type="checkbox" class="set-cb">
-                        <label for="class_on_board_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row set-toggle">
-                    <div class="set-lbl">
-                        <span data-i18n="set.streamer_alert">Opponent Streaming Notice</span>
-                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.streamer_alert"
-                              data-tooltip="Say so in the panel when the opponent is live-streaming the game right
-                                            now. Both sites publish this themselves -- lichess says whether a player
-                                            is streaming, chess.com publishes who is live -- so nothing here watches
-                                            a stream. It is a NOTICE and nothing else: it changes no setting and
-                                            plays no differently. Off by default because it asks the site about your
-                                            opponent by name, once per game, from the extension rather than from the
-                                            game tab."><i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="streamer_alert_checkbox" type="checkbox" class="set-cb">
-                        <label for="streamer_alert_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- WHICH verdicts get drawn. Shown only while Move Classification or Classification On
-                     The Board is on (it filters both), because a row of eleven switches for something
-                     switched off is noise. -->
-                <div class="set-row" id="live_classify_which_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.live_classify_which" class="tooltipped" data-position="right"
-                              data-tooltip="Which verdicts get a badge on the board. Turn everything off except
-                                            Brilliant and Blunder to see only the moves worth a second look. This
-                                            changes what is DRAWN, nothing else: the strip still counts every class,
-                                            and the opponent alert has its own switch.">
-                            <span data-i18n="set.live_classify_which">Show which</span> <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl set-chips" id="live_classify_which"></div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.arrow_opacity" class="tooltipped" data-position="right"
                               data-tooltip="How strongly the arrows are drawn, on the panel board and the page board alike. Full strength over a real board is sometimes exactly what you do not want on screen."><span data-i18n="set.arrow_opacity">Arrow Opacity</span></span>
                     </div>
@@ -363,19 +271,6 @@
                     <div class="set-ctl">
                         <input id="opp_prep_checkbox" type="checkbox" class="set-cb">
                         <label for="opp_prep_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.game_log" class="tooltipped" data-position="right"
-                              data-tooltip="Write the panel&#39;s own evaluation of every ply into Copy PGN, in the comment format both sites already read: {[%eval 0.31] [%depth 22]}. It is what the panel measured DURING the game at whatever depth it reached, not a re-analysis - Game Review is for that. Only plies that were really evaluated get a comment."><span data-i18n="set.game_log">Evals In Copied PGN</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="game_log_checkbox" type="checkbox" class="set-cb">
-                        <label for="game_log_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
                     </div>
@@ -487,25 +382,6 @@
                     <div class="set-ctl">
                         <input id="human_times_checkbox" type="checkbox" class="set-cb">
                         <label for="human_times_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.session_stats" class="tooltipped" data-position="right"
-                              data-tooltip="What this browser session has actually done: games finished, moves
-                                            played, the average time each one really waited, and your accuracy
-                                            across the finished games. It is the number the settings cannot
-                                            answer themselves - a 2.4s average against a 3-second think time
-                                            tells you what the pacing modes are really doing. It counts the
-                                            game in progress as well as the finished ones, survives a reload,
-                                            and starts fresh each day."><span data-i18n="set.session_stats">Session Stats</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="session_stats_checkbox" type="checkbox" class="set-cb">
-                        <label for="session_stats_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
                     </div>
@@ -1029,6 +905,136 @@
                         <label for="opp_alert_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
+                    </div>
+                </div>
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.move_notation" class="tooltipped" data-position="right"
+                              data-tooltip="How moves are written wherever the extension shows one: the readout, the alternative lines, the arrows' labels. SAN is Nf3, UCI is g1f3 -- the same move either way."><span data-i18n="set.move_notation">Move Notation</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <select name="move_notation" id="move_notation_select">
+                            <option value="san" data-i18n="set.notation_san">SAN (Nf3)</option>
+                            <option value="uci" data-i18n="set.notation_uci">UCI (g1f3)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.live_stats" class="tooltipped" data-position="right"
+                              data-tooltip="Accuracy as it happens, on a strip under the eval history: a running accuracy for both sides and the tally of best moves, inaccuracies, mistakes and blunders. Judged by the same win% bands Game Review uses."><span data-i18n="set.live_stats">Live Stats</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="live_stats_checkbox" type="checkbox" class="set-cb">
+                        <label for="live_stats_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row set-toggle">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.live_classify" class="tooltipped" data-position="right"
+                              data-tooltip="Grade the move just played and mark it on the panel board, the way a Game
+                                            Review does -- Brilliant, Great, Best, Inaccuracy, Mistake, Blunder -- but
+                                            live, while the game is still going. Uses the same classifier the review
+                                            uses, so a verdict here is the verdict you get afterwards. Off by default:
+                                            it is an opinion drawn on the board every move."><span data-i18n="set.live_classify">Move Classification</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="live_classify_checkbox" type="checkbox" class="set-cb">
+                        <label for="live_classify_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.class_on_board" class="tooltipped" data-position="right"
+                              data-tooltip="The same verdict, drawn on the SITE's board instead of the panel's -- a badge on the square the move landed on, sized to that board. Its own switch, and independent of the one above: the badge appears on the real board whether or not the panel's little board is also carrying one. The 'Show which' filter applies to both."><span data-i18n="set.class_on_board">Classification On The Board</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="class_on_board_checkbox" type="checkbox" class="set-cb">
+                        <label for="class_on_board_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.session_stats" class="tooltipped" data-position="right"
+                              data-tooltip="What this browser session has actually done: games finished, moves
+                                            played, the average time each one really waited, and your accuracy
+                                            across the finished games. It is the number the settings cannot
+                                            answer themselves - a 2.4s average against a 3-second think time
+                                            tells you what the pacing modes are really doing. It counts the
+                                            game in progress as well as the finished ones, survives a reload,
+                                            and starts fresh each day."><span data-i18n="set.session_stats">Session Stats</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="session_stats_checkbox" type="checkbox" class="set-cb">
+                        <label for="session_stats_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row set-toggle">
+                    <div class="set-lbl">
+                        <span data-i18n="set.streamer_alert">Opponent Streaming Notice</span>
+                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.streamer_alert"
+                              data-tooltip="Say so in the panel when the opponent is live-streaming the game right
+                                            now. Both sites publish this themselves -- lichess says whether a player
+                                            is streaming, chess.com publishes who is live -- so nothing here watches
+                                            a stream. It is a NOTICE and nothing else: it changes no setting and
+                                            plays no differently. Off by default because it asks the site about your
+                                            opponent by name, once per game, from the extension rather than from the
+                                            game tab."><i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="streamer_alert_checkbox" type="checkbox" class="set-cb">
+                        <label for="streamer_alert_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- ADVANCED: rows set once or never, behind one closed disclosure (SettingsPage.wireAdvanced).
+                     The rows inside are ordinary rows; ids and bindings are unchanged. -->
+                <div class="set-adv" data-adv="panel">
+                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="panel_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
+                    <div class="set-adv-body" id="panel_adv" hidden>
+
+                <!-- WHICH verdicts get drawn. Shown only while Move Classification or Classification On
+                     The Board is on (it filters both), because a row of eleven switches for something
+                     switched off is noise. -->
+                <div class="set-row" id="live_classify_which_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.live_classify_which" class="tooltipped" data-position="right"
+                              data-tooltip="Which verdicts get a badge on the board. Turn everything off except
+                                            Brilliant and Blunder to see only the moves worth a second look. This
+                                            changes what is DRAWN, nothing else: the strip still counts every class,
+                                            and the opponent alert has its own switch.">
+                            <span data-i18n="set.live_classify_which">Show which</span> <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl set-chips" id="live_classify_which"></div>
+                </div>
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.game_log" class="tooltipped" data-position="right"
+                              data-tooltip="Write the panel&#39;s own evaluation of every ply into Copy PGN, in the comment format both sites already read: {[%eval 0.31] [%depth 22]}. It is what the panel measured DURING the game at whatever depth it reached, not a re-analysis - Game Review is for that. Only plies that were really evaluated get a comment."><span data-i18n="set.game_log">Evals In Copied PGN</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="game_log_checkbox" type="checkbox" class="set-cb">
+                        <label for="game_log_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
                     </div>
                 </div>
             </section>
