@@ -172,112 +172,6 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.second_opinion" class="tooltipped" data-position="right"
-                              data-tooltip="Ask a human-trained net what a player of the Human Reply Rating would play HERE, beside the engine&#39;s own answer, and say so when the two come apart - when the engine&#39;s move is one this rating almost never finds. Two questions, not one: what is best, and what a person actually plays. Costs one forward pass on a net the threat reply already loads, so with Human Reply on it is free. Standard chess only."><span data-i18n="set.second_opinion">Second Opinion</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="second_opinion_checkbox" type="checkbox" class="set-cb">
-                        <label for="second_opinion_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.human_error" class="tooltipped" data-position="right"
-                              data-tooltip="Off by default. Shows ONE move a player of your Play Like Rating
-                                            could realistically play here that gives something away, labelled
-                                            as an error (for example &quot;Human error: Nxe5?! -1.4
-                                            (inaccuracy)&quot;, the number being the pawns it costs) and drawn
-                                            in its own colour, beside the engine's recommendations. A guide
-                                            only: Autoplay never plays it, Premove never uses it and it never
-                                            changes what Humanize plays. Picked once per position from the
-                                            engine's other lines, among those that give away at least 5% win
-                                            without losing to a mate; shown only when such a move exists. With
-                                            Human-Like Mistakes or Mistakes Where People Make Them on, it is
-                                            drawn by Maia-3's probabilities (the net is only fetched if one of
-                                            those is already on); otherwise the least obvious one, a quiet
-                                            slip before a hung pawn. Costs depth: the engine searches a
-                                            20-line list, as Humanize does, except while Autoplay plays (with
-                                            or without Humanize), which keeps its own search and so may have
-                                            no lines to choose from. Standard chess is best."><span data-i18n="set.human_error">Suggest a Human Error</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="human_error_checkbox" type="checkbox" class="set-cb">
-                        <label for="human_error_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.opp_prep" class="tooltipped" data-position="right"
-                              data-tooltip="What THIS opponent has played in the position in front of you, from their own recent public games on the site you are on. People repeat their repertoire, and a line they have played eleven times is one they will play again. LONGER GAMES ONLY - it needs a clock reading of five minutes or more, because it costs a fetch and is only worth having while you still have time to use it. The request is made by the extension&#39;s worker, so your game tab never carries a lookup about the person you are playing."><span data-i18n="set.opp_prep">Opponent Prep</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="opp_prep_checkbox" type="checkbox" class="set-cb">
-                        <label for="opp_prep_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.player_book" class="tooltipped" data-position="right"
-                              data-tooltip="Build an opening book from a real person's public games and PLAY
-                                            it, weighted by how often they played each move. Put your own
-                                            username in the box for your own repertoire, or anyone else's - a
-                                            titled player, a streamer - to borrow theirs. Works on lichess and
-                                            chess.com; a bare name means the site you are on, and you can
-                                            spell it out as lichess:name or chesscom:name. It is prep, not
-                                            statistics: no engine veto, and it simply runs out past the
-                                            opening, where the engine's move stands again. The lookup is made
-                                            by the extension's worker, once per player and filter, and the
-                                            built book is kept for a week (change the player or the filter to
-                                            rebuild it)."><span data-i18n="set.player_book">Player Book</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="player_book_checkbox" type="checkbox" class="set-cb">
-                        <label for="player_book_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row" id="player_book_user_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.player_book_user" class="tooltipped" data-position="right"
-                              data-tooltip="Whose games to build the book from. A bare username means the site you
-                                            are playing on; write lichess:name or chesscom:name to say which
-                                            archive to ask."><span data-i18n="set.player_book_user">Player Book Account</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="player_book_user_input" type="text" placeholder="lichess:username">
-                    </div>
-                </div>
-
-                <div class="set-row" id="player_book_wins_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.player_book_wins" class="tooltipped" data-position="right"
-                              data-tooltip="Build the book only from the games that player WON. On by default, and
-                                            it is what makes your own games usable: a book from every game you ever
-                                            played contains every opening you lost with. Turn it off to take the
-                                            whole repertoire, wins and losses alike - worth it for a strong player
-                                            whose games are all worth having."><span data-i18n="set.player_book_wins">Winning Games Only</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="player_book_wins_checkbox" type="checkbox" class="set-cb">
-                        <label for="player_book_wins_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.pv_keys" class="tooltipped" data-position="right"
                               data-tooltip="Walk the engine's line with the LEFT and RIGHT arrow keys on the panel's
                                             own board. Right plays the engine's best move for the position you are
@@ -1460,6 +1354,119 @@
                     <div class="set-ctl">
                         <input id="tb_path_input" type="text" autocomplete="off" spellcheck="false"
                                placeholder="/path/to/syzygy" class="set-path">
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.second_opinion" class="tooltipped" data-position="right"
+                              data-tooltip="Ask a human-trained net what a player of the Human Reply Rating would play HERE, beside the engine&#39;s own answer, and say so when the two come apart - when the engine&#39;s move is one this rating almost never finds. Two questions, not one: what is best, and what a person actually plays. Costs one forward pass on a net the threat reply already loads, so with Human Reply on it is free. Standard chess only."><span data-i18n="set.second_opinion">Second Opinion</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="second_opinion_checkbox" type="checkbox" class="set-cb">
+                        <label for="second_opinion_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.opp_prep" class="tooltipped" data-position="right"
+                              data-tooltip="What THIS opponent has played in the position in front of you, from their own recent public games on the site you are on. People repeat their repertoire, and a line they have played eleven times is one they will play again. LONGER GAMES ONLY - it needs a clock reading of five minutes or more, because it costs a fetch and is only worth having while you still have time to use it. The request is made by the extension&#39;s worker, so your game tab never carries a lookup about the person you are playing."><span data-i18n="set.opp_prep">Opponent Prep</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="opp_prep_checkbox" type="checkbox" class="set-cb">
+                        <label for="opp_prep_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.player_book" class="tooltipped" data-position="right"
+                              data-tooltip="Build an opening book from a real person's public games and PLAY
+                                            it, weighted by how often they played each move. Put your own
+                                            username in the box for your own repertoire, or anyone else's - a
+                                            titled player, a streamer - to borrow theirs. Works on lichess and
+                                            chess.com; a bare name means the site you are on, and you can
+                                            spell it out as lichess:name or chesscom:name. It is prep, not
+                                            statistics: no engine veto, and it simply runs out past the
+                                            opening, where the engine's move stands again. The lookup is made
+                                            by the extension's worker, once per player and filter, and the
+                                            built book is kept for a week (change the player or the filter to
+                                            rebuild it)."><span data-i18n="set.player_book">Player Book</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="player_book_checkbox" type="checkbox" class="set-cb">
+                        <label for="player_book_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row" id="player_book_user_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.player_book_user" class="tooltipped" data-position="right"
+                              data-tooltip="Whose games to build the book from. A bare username means the site you
+                                            are playing on; write lichess:name or chesscom:name to say which
+                                            archive to ask."><span data-i18n="set.player_book_user">Player Book Account</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="player_book_user_input" type="text" placeholder="lichess:username">
+                    </div>
+                </div>
+
+                <!-- ADVANCED: rows set once or never, behind one closed disclosure (SettingsPage.wireAdvanced).
+                     The rows inside are ordinary rows; ids and bindings are unchanged. -->
+                <div class="set-adv" data-adv="beyond">
+                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="beyond_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
+                    <div class="set-adv-body" id="beyond_adv" hidden>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.human_error" class="tooltipped" data-position="right"
+                              data-tooltip="Off by default. Shows ONE move a player of your Play Like Rating
+                                            could realistically play here that gives something away, labelled
+                                            as an error (for example &quot;Human error: Nxe5?! -1.4
+                                            (inaccuracy)&quot;, the number being the pawns it costs) and drawn
+                                            in its own colour, beside the engine's recommendations. A guide
+                                            only: Autoplay never plays it, Premove never uses it and it never
+                                            changes what Humanize plays. Picked once per position from the
+                                            engine's other lines, among those that give away at least 5% win
+                                            without losing to a mate; shown only when such a move exists. With
+                                            Human-Like Mistakes or Mistakes Where People Make Them on, it is
+                                            drawn by Maia-3's probabilities (the net is only fetched if one of
+                                            those is already on); otherwise the least obvious one, a quiet
+                                            slip before a hung pawn. Costs depth: the engine searches a
+                                            20-line list, as Humanize does, except while Autoplay plays (with
+                                            or without Humanize), which keeps its own search and so may have
+                                            no lines to choose from. Standard chess is best."><span data-i18n="set.human_error">Suggest a Human Error</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="human_error_checkbox" type="checkbox" class="set-cb">
+                        <label for="human_error_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                <div class="set-row" id="player_book_wins_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.player_book_wins" class="tooltipped" data-position="right"
+                              data-tooltip="Build the book only from the games that player WON. On by default, and
+                                            it is what makes your own games usable: a book from every game you ever
+                                            played contains every opening you lost with. Turn it off to take the
+                                            whole repertoire, wins and losses alike - worth it for a strong player
+                                            whose games are all worth having."><span data-i18n="set.player_book_wins">Winning Games Only</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="player_book_wins_checkbox" type="checkbox" class="set-cb">
+                        <label for="player_book_wins_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+                    </div>
+                </div>
                     </div>
                 </div>
             </section>

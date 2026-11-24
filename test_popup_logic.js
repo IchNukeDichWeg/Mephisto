@@ -16830,6 +16830,8 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
         'autoplay adv': ['premove_plies_input'],
         timing: ['time_trouble_checkbox', 'time_trouble_at_input', 'human_times_checkbox', 'complexity_clock_checkbox'],
         'timing adv': ['mirror_ratio_input'],
+        beyond: ['second_opinion_checkbox', 'opp_prep_checkbox', 'player_book_checkbox', 'player_book_user_input'],
+        'beyond adv': ['human_error_checkbox', 'player_book_wins_checkbox'],
     };
     const bad = [];
     for (const [k, ids] of Object.entries(where)) {
