@@ -2884,7 +2884,11 @@ async function onRun() {
 // capture (futzmutz111 vs dgango66): all 76 moves + the site's per-side counts + ten named moves
 // (Qf2=brilliant .. Qb7=blunder) agree. 11=forced is the only-legal-move tier the collapsed panel folds away.
 // chess.com's own Strength select -> the ordinal their request carries. Measured, not guessed.
+// Every request asks for Standard: their server returned a byte-identical review for all four tiers
+// (Diamond account, cache defeated), so the page's tier select was a choice that did nothing and is
+// gone (P5 settings review). The map stays as the record of the wire values.
 const CCR_TIER = {Fast: 1, Standard: 2, Deep: 3, Maximum: 4};
+const CCR_TIER_SENT = 'Standard';
 
 const CCR_CLASS = {
     1: 'book', 2: 'brilliant', 3: 'great', 4: 'best', 5: 'excellent', 6: 'good',
@@ -3146,7 +3150,7 @@ function buildCcrGame(pgnText) {
         // f3 in the wire format; a constant in every capture of theirs, tier or not.
         strength: 10,
         // The real strength tier, an ordinal 1-4 -- see ccrEncodeGameReview for how it was mapped.
-        tier: CCR_TIER[document.getElementById('rv_ccr_strength')?.value] || 2,
+        tier: CCR_TIER[CCR_TIER_SENT],
         coach: 'Botez_coach',
         locale: 'en-US',
     };
@@ -3601,9 +3605,9 @@ class ReviewPage {
             btn.disabled = true;
             const was = btn.textContent;
             btn.textContent = 'Asking…';
-            // Read before the round trip: the answer can land while another options page is open, where
-            // this select is gone and reading it threw, so the report lost its tier (follow-up L24).
-            const tier = $('rv_ccr_strength').value;
+            // the tier the request carries, named in the report header (it used to be read off a select
+            // before the round trip, follow-up L24; the select is gone, the constant cannot vanish)
+            const tier = CCR_TIER_SENT;
             say(`Sent to chess.com (${tier}). The game leaves this machine now; waiting on their answer…`);
             ccrPane(null, false, false);
             const game = buildCcrGame(pgn);
@@ -3651,8 +3655,7 @@ class ReviewPage {
                 }
                 const rt = review.ratings && review.ratings.white != null
                     ? `, ~${review.ratings.white}/${review.ratings.black} rating` : '';
-                say(`Reviewed by chess.com via your logged-in tab${rt}. The board below is playable; Save for the raw protobuf.`
-                + ' Their server returns the same review for all four strength tiers.');
+                say(`Reviewed by chess.com via your logged-in tab${rt}. The board below is playable; Save for the raw protobuf.`);
                 return;
             }
             if (!n) {

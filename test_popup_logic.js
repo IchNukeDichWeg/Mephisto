@@ -11878,7 +11878,7 @@ print(json.dumps(out))`;
             games: [{}], gameText: () => '1. e4 e5 *', ccrConsent: async () => true, buildCcrGame: () => ({}),
             chrome: {runtime: {sendMessage: async () => { away(); return {decoded: {review: {moves: [{}]}}}; }}},
             buildCcrReport: () => ({ccr: true, ccrStrength: null, moves: []}), renderCcrReview: () => '',
-            ccrJson: '', ccrLastError: '', ccrLastDetail: '', MephistoI18n: {errText: (k) => k},
+            ccrJson: '', ccrLastError: '', ccrLastDetail: '', MephistoI18n: {errText: (k) => k}, CCR_TIER_SENT: 'Standard',
             renderHeader() {}, renderCards() {}, renderGraph() {}, renderMoves() {}, ensureBoard() {}, showPly() {}}));
     ok('L24: a chess.com review answered on another options page does not throw', !ccr.thrown, ccr.thrown);
     const tier = vm.runInContext('report && report.ccrStrength', ccr.c);
@@ -12489,7 +12489,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         buildPositions: () => ({positions: [], moves: []}), sfSearch: async () => { dom = null; }, EE_MULTIPV: 2, EE_DEPTH: 10,
         cfg: () => false, lookupOpening: async () => ({}), assemble: () => ({}), sfNiceName: () => 'SF', SF16_BUILD: 'y',
         eeRun: async () => ({}), eeCommands: () => [], eeElo: () => null, applyEeVerdict() {}, eeEngineLabel: () => '', eeInstalled: 1, disposeRig() {}, settleStopNote() {},
-        ccrConsent: async () => true, buildCcrGame: () => ({}), MephistoI18n: {errText: (k) => k},
+        ccrConsent: async () => true, buildCcrGame: () => ({}), MephistoI18n: {errText: (k) => k}, CCR_TIER_SENT: 'Standard',
         chrome: {runtime: {sendMessage: async () => { dom = null; return {frames: ['AAA', 'BBB'], closeCode: 1000}; }}}});
     vm.runInContext('var running = false, cancel = false, report = null, batchReports = null, ccrJson = "", ccrLastError = "", ccrLastDetail = "";\n'
         + rj.slice(rj.indexOf('const awayStatus = {};'), rj.indexOf('\n}\n', rj.indexOf('function ccrPane(')) + 3) + '\n'
@@ -12696,7 +12696,7 @@ print(json.dumps(out))`;
     let dom = fresh(), answer;
     const c = vm.createContext({console: {warn() {}}, JSON, Math, String, Promise, $: (id) => dom[id],
         games: [{}], gameText: () => '1. e4 *', ccrConsent: async () => true, buildCcrGame: () => ({}), renderBatch() {},
-        MephistoI18n: {errText: (k) => k}, eeReady: Promise.resolve(),
+        MephistoI18n: {errText: (k) => k}, eeReady: Promise.resolve(), CCR_TIER_SENT: 'Standard',
         chrome: {runtime: {sendMessage: () => new Promise(r => { answer = r; })}}});
     vm.runInContext('var running = false, report = null, batchReports = null, ccrJson = "", ccrLastError = "", ccrLastDetail = "";\n'
         + (rj.includes('let ccrInFlight') ? 'let ccrInFlight = false;\n' : '')
@@ -20192,6 +20192,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     store.rv_variant = 'chess'; vm.runInContext('rvModeSync()', c);
     ok('REVIEW-ADV: Chess960 puts the Game type row on the page, back on Chess it returns to Advanced',
        on960 === 'slot' && els.rv_variant_row.parentElement.id === 'adv', [on960, els.rv_variant_row.parentElement.id]);
+}
+// ---- REVIEW-CCRTIER: the online review always asks for Standard; the tier select that did nothing is gone ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    const t = rj.indexOf('const CCR_TIER = '), te = rj.indexOf('\n', rj.indexOf('const CCR_TIER_SENT', t));
+    const sent = vm.runInContext(rj.slice(t, te) + '\nCCR_TIER[CCR_TIER_SENT]', vm.createContext({}));
+    ok('REVIEW-CCRTIER: the request carries Standard, ordinal 2', sent === 2 && /tier: CCR_TIER\[CCR_TIER_SENT\],/.test(rj), sent);
+    ok('REVIEW-CCRTIER: no tier select on the page and none read', !/rv_ccr_strength/.test(html) && !/rv_ccr_strength/.test(rj));
 }
 // ---- REVIEW-CPU: one CPU use control writes engines, threads and memory together ----
 {

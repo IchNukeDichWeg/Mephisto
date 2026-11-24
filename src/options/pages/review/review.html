@@ -453,26 +453,18 @@
                     <div class="set-lbl">
                         <span class="tooltipped" data-position="right"
                               data-tooltip="chess.com's OWN Game Review -- the real one from their site, not a
-                                            Mephisto imitation. Fast/Standard/Deep/Maximum are chess.com's own strength
-                                            tiers. It uses YOUR chess.com session: if a chess.com tab is open it runs
-                                            there, otherwise it opens one in the background and closes it again -- you
-                                            just need to be signed in to chess.com in this browser. This is the one part
-                                            of Game Review that leaves your machine: the PGN goes to chess.com.
-                                            The strength tier is the field their own client sends (measured by diffing
-                                            their requests across all four settings), but chess.com's server currently
-                                            returns the same review whichever you pick -- verified on a Diamond account
-                                            with their cache defeated. For tiers that really change the search, use the
-                                            offline classifier below.">
+                                            Mephisto imitation. It uses YOUR chess.com session: if a chess.com tab is open
+                                            it runs there, otherwise it opens one in the background and closes it again --
+                                            you just need to be signed in to chess.com in this browser. This is the one
+                                            part of Game Review that leaves your machine: the PGN goes to chess.com.
+                                            It asks at their Standard strength: their server returned the same review for
+                                            all four strength tiers, verified on a Diamond account with their cache
+                                            defeated, so there is no choice to make here. For tiers that really change the
+                                            search, use the offline classifier.">
                             Chess.com Game review <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
                     <div class="set-ctl rv-oneline">
-                        <select id="rv_ccr_strength" class="rv-select browser-default">
-                            <option value="Fast">Fast (~1 sec, 3270 Rating)</option>
-                            <option value="Standard" selected>Standard (~5 sec, 3430 Rating)</option>
-                            <option value="Deep">Deep (~20 sec, 3500 Rating)</option>
-                            <option value="Maximum">Maximum (~1 min 30 sec, 3560 Rating)</option>
-                        </select>
                         <button id="rv_ccr_run" class="set-btn set-btn-go" type="button">Ask Chess.com</button>
                         <button id="rv_ccr_copy" class="set-btn hidden" type="button">Copy JSON</button>
                         <button id="rv_ccr_save" class="set-btn hidden" type="button">Save .json</button>

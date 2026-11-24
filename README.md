@@ -231,9 +231,8 @@ It runs on **your own chess.com account**, as their site does (Diamond reviews w
 free-tier allowance). Being signed in to chess.com in the browser is the whole requirement, with no token or password.
 The PGN goes to chess.com; the [offline review](#game-review-offline) uploads nothing.
 
-The strength tier is sent as chess.com's own ordinal 1-4. **Measured caveat:** on a Diamond account with the cache
-defeated, their endpoint returns a byte-identical review for all four tiers, so the field is correct but their server
-does not currently act on it.
+Every review asks for chess.com's Standard strength. On a Diamond account with the cache defeated, their endpoint
+returned a byte-identical review for all four strength tiers, so there is no tier to pick.
 
 ### chess.com's classifier, offline
 
