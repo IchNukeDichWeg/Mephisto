@@ -350,7 +350,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
         this.registerFormElement('clock_pace', 'Pace to Clock:', 'checkbox', false);
         const mirror_mode = this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);
-        // Mirror Ratio is only read while Mirror Time is on (its row sits far above, in the Engine section)
+        // Mirror Ratio is only read while Mirror Time is on (its row is in Timing's Advanced block)
         const sync_mirror_row = () => {
             document.getElementById('mirror_ratio_row')?.classList.toggle('hidden', !mirror_mode.getValue());
         };

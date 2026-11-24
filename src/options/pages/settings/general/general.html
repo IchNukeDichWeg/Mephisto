@@ -276,102 +276,6 @@
                     </div>
                 </div>
 
-                <div class="set-row" id="mirror_ratio_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.mirror_ratio" class="tooltipped" data-position="right"
-                              data-tooltip="What share of the opponent's own think Mirror Time spends, 50-150%. It
-                                            was fixed at 90, which pulls a little ahead on the clock every move but
-                                            still lets a slow opponent set your pace. Above 100 deliberately spends
-                                            MORE than they do, which is worth it in a long game where the extra
-                                            think buys more than the seconds cost. Whatever you set, being BEHIND on
-                                            the clock still cuts the target by 30%, so a high ratio cannot dig the
-                                            hole deeper. Only used while Mirror Time is on."><span data-i18n="set.mirror_ratio">Mirror Ratio (%)</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-5">&minus;</button>
-                            <input id="mirror_ratio_input" type="number" min="50" max="150" step="5">
-                            <button type="button" class="set-step-btn" data-step="5">+</button>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.time_trouble" class="tooltipped" data-position="right"
-                              data-tooltip="One switch for a scramble: below the threshold the search is capped at a
-                                            quarter of a second and the simulated human delay collapses to the floor
-                                            a click still needs. What loses games at ten seconds is the cursor
-                                            travel and the think pause, not the depth. Works whether or not Clock
-                                            Mode or Mirror Time is on, and it overrides both - they are budgeting a
-                                            clock this says is nearly gone."><span data-i18n="set.time_trouble">Time Trouble Mode</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="time_trouble_checkbox" type="checkbox" class="set-cb">
-                        <label for="time_trouble_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.human_times" class="tooltipped" data-position="right"
-                              data-tooltip="Draw the think delay from the shape real move times have instead
-                                            of from a flat band. The Think Time and Variance values draw
-                                            evenly between two edges and stop dead at both; a person's move
-                                            times pile up just under a short typical value and trail away to
-                                            the right, with a few moves taking several times the median. This
-                                            keeps the AVERAGE your values describe and changes only the shape,
-                                            so a histogram of your move times looks like a person's. Works
-                                            with Humanize on (it reshapes its think) and off. The cursor
-                                            travel is left alone - a hand does not move that way."><span data-i18n="set.human_times">Human Move Times</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="human_times_checkbox" type="checkbox" class="set-cb">
-                        <label for="human_times_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.complexity_clock" class="tooltipped" data-position="right"
-                              data-tooltip="Think by how hard the position is. A fixed think time spends the
-                                            same seconds on a position with one move as on one with five; a
-                                            person bangs out the obvious move and sits on the hard one. This
-                                            reads how far apart the engine's own top two lines are - free,
-                                            because the search already produced it - and stretches the think
-                                            up to 1.6x when they are within 15cp of each other, or cuts it to
-                                            0.6x when one move is ahead by more than 250cp. It scales whatever
-                                            else is deciding the think, Humanize included, and the clock caps
-                                            still sit above it. It raises Multi Lines to 2 by itself, and it
-                                            never stretches a reflex."><span data-i18n="set.complexity_clock">Complexity Clock</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="complexity_clock_checkbox" type="checkbox" class="set-cb">
-                        <label for="complexity_clock_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row" id="time_trouble_at_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.time_trouble_at" class="tooltipped" data-position="right"
-                              data-tooltip="The clock reading, in seconds, below which Time Trouble Mode takes
-                                            over. 5 to 120."><span data-i18n="set.time_trouble_at">Time Trouble Below (s)</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-5">&minus;</button>
-                            <input id="time_trouble_at_input" type="number" min="5" max="120" step="5">
-                            <button type="button" class="set-step-btn" data-step="5">+</button>
-                        </span>
-                    </div>
-                </div>
-
                 <div class="set-row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.pv_keys" class="tooltipped" data-position="right"
@@ -1886,9 +1790,113 @@
                     </div>
                 </div>
 
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.time_trouble" class="tooltipped" data-position="right"
+                              data-tooltip="One switch for a scramble: below the threshold the search is capped at a
+                                            quarter of a second and the simulated human delay collapses to the floor
+                                            a click still needs. What loses games at ten seconds is the cursor
+                                            travel and the think pause, not the depth. Works whether or not Clock
+                                            Mode or Mirror Time is on, and it overrides both - they are budgeting a
+                                            clock this says is nearly gone."><span data-i18n="set.time_trouble">Time Trouble Mode</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="time_trouble_checkbox" type="checkbox" class="set-cb">
+                        <label for="time_trouble_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row" id="time_trouble_at_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.time_trouble_at" class="tooltipped" data-position="right"
+                              data-tooltip="The clock reading, in seconds, below which Time Trouble Mode takes
+                                            over. 5 to 120."><span data-i18n="set.time_trouble_at">Time Trouble Below (s)</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-5">&minus;</button>
+                            <input id="time_trouble_at_input" type="number" min="5" max="120" step="5">
+                            <button type="button" class="set-step-btn" data-step="5">+</button>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.human_times" class="tooltipped" data-position="right"
+                              data-tooltip="Draw the think delay from the shape real move times have instead
+                                            of from a flat band. The Think Time and Variance values draw
+                                            evenly between two edges and stop dead at both; a person's move
+                                            times pile up just under a short typical value and trail away to
+                                            the right, with a few moves taking several times the median. This
+                                            keeps the AVERAGE your values describe and changes only the shape,
+                                            so a histogram of your move times looks like a person's. Works
+                                            with Humanize on (it reshapes its think) and off. The cursor
+                                            travel is left alone - a hand does not move that way."><span data-i18n="set.human_times">Human Move Times</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="human_times_checkbox" type="checkbox" class="set-cb">
+                        <label for="human_times_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.complexity_clock" class="tooltipped" data-position="right"
+                              data-tooltip="Think by how hard the position is. A fixed think time spends the
+                                            same seconds on a position with one move as on one with five; a
+                                            person bangs out the obvious move and sits on the hard one. This
+                                            reads how far apart the engine's own top two lines are - free,
+                                            because the search already produced it - and stretches the think
+                                            up to 1.6x when they are within 15cp of each other, or cuts it to
+                                            0.6x when one move is ahead by more than 250cp. It scales whatever
+                                            else is deciding the think, Humanize included, and the clock caps
+                                            still sit above it. It raises Multi Lines to 2 by itself, and it
+                                            never stretches a reflex."><span data-i18n="set.complexity_clock">Complexity Clock</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="complexity_clock_checkbox" type="checkbox" class="set-cb">
+                        <label for="complexity_clock_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
                 <p data-i18n="set.note.priority_time_mirror_clock" class="set-note">
                     Priority - Time: Mirror ▸ Clock ▸ Humanize ▸ Search Time. Move: Book ▸ Humanize ▸ engine best.
                 </p>
+
+                <!-- ADVANCED: rows set once or never, behind one closed disclosure (SettingsPage.wireAdvanced).
+                     The rows inside are ordinary rows; ids and bindings are unchanged. -->
+                <div class="set-adv" data-adv="timing">
+                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="timing_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
+                    <div class="set-adv-body" id="timing_adv" hidden>
+
+                <div class="set-row" id="mirror_ratio_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.mirror_ratio" class="tooltipped" data-position="right"
+                              data-tooltip="What share of the opponent's own think Mirror Time spends, 50-150%. It
+                                            was fixed at 90, which pulls a little ahead on the clock every move but
+                                            still lets a slow opponent set your pace. Above 100 deliberately spends
+                                            MORE than they do, which is worth it in a long game where the extra
+                                            think buys more than the seconds cost. Whatever you set, being BEHIND on
+                                            the clock still cuts the target by 30%, so a high ratio cannot dig the
+                                            hole deeper. Only used while Mirror Time is on."><span data-i18n="set.mirror_ratio">Mirror Ratio (%)</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-5">&minus;</button>
+                            <input id="mirror_ratio_input" type="number" min="50" max="150" step="5">
+                            <button type="button" class="set-step-btn" data-step="5">+</button>
+                        </span>
+                    </div>
+                </div>
+                    </div>
+                </div>
             </section>
 
             <!-- ====================== HUMANIZE MOVE MIX ====================== -->
