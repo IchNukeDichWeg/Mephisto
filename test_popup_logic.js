@@ -16773,6 +16773,17 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
         console.log('ok   HANDBRAIN-1: the bestmove autoplay gate refuses while Hand & Brain is on');
     else { fails++; console.log('FAIL HANDBRAIN-1: the bestmove autoplay gate does not list simon_says_mode', gate && gate[1]); }
 }
+// ---- dependent settings rows hide with their parent ----
+{
+    const gjs = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const ghtml = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    for (const id of ['grind_delay_row', 'pv_walk_limit_row', 'user_arrow_replies_row', 'mirror_ratio_row', 'arrow_eval_side_row']) {
+        const row = new RegExp(`<div class="set-row" id="${id}">`).test(ghtml);
+        const synced = new RegExp(`getElementById\\('${id}'\\)\\?\\.classList\\.toggle\\('hidden'`).test(gjs);
+        if (row && synced) console.log('ok   ROWS-1: ' + id + ' has an id and is hidden with its parent');
+        else { fails++; console.log(`FAIL ROWS-1: ${id} (row id ${row}, sync ${synced})`); }
+    }
+}
 // ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

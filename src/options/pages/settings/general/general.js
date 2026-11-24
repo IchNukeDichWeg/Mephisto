@@ -74,15 +74,28 @@ class GeneralSettings extends SettingsPage {
         const elo_input = this.registerFormElement('elo', 'Elo:', 'input', 0);
         this.registerFormElement('rodent_personality', 'Rodent Personality:', 'select', '---');
         this.registerFormElement('move_notation', 'Move Notation:', 'select', 'san');
-        this.registerFormElement('arrow_labels', 'Evals on Arrows:', 'checkbox', false);
+        const arrow_labels = this.registerFormElement('arrow_labels', 'Evals on Arrows:', 'checkbox', false);
         this.registerFormElement('arrow_eval_side', 'Arrow Evals From:', 'select', 'white');
-        this.registerFormElement('user_arrow_evals', 'Evals on Your Arrows:', 'checkbox', false);
+        const user_arrow_evals = this.registerFormElement('user_arrow_evals', 'Evals on Your Arrows:', 'checkbox', false);
         this.registerFormElement('user_arrow_replies', 'Replies on Your Arrows:', 'input', 0);
+        // the side only matters while some arrow shows an eval, the replies only with your-arrow evals
+        const sync_arrow_eval_rows = () => {
+            document.getElementById('arrow_eval_side_row')?.classList.toggle('hidden', !arrow_labels.getValue() && !user_arrow_evals.getValue());
+            document.getElementById('user_arrow_replies_row')?.classList.toggle('hidden', !user_arrow_evals.getValue());
+        };
+        arrow_labels.registerChangeListener(sync_arrow_eval_rows);
+        user_arrow_evals.registerChangeListener(sync_arrow_eval_rows);
+        sync_arrow_eval_rows();
         const arrow_opacity_range = this.registerFormElement('arrow_opacity', 'Arrow Opacity:', 'range', 75);
         this.registerFormElement('arrow_rank', 'Number Arrows:', 'checkbox', true);
         this.registerFormElement('forced_lines', 'Forced Lines Ahead:', 'input', 0);
-        this.registerFormElement('pv_walk', 'PV Arrows:', 'checkbox', false);
+        const pv_walk = this.registerFormElement('pv_walk', 'PV Arrows:', 'checkbox', false);
         this.registerFormElement('pv_walk_limit', 'PV Arrows Length:', 'input', 5);
+        const sync_pv_walk_row = () => {
+            document.getElementById('pv_walk_limit_row')?.classList.toggle('hidden', !pv_walk.getValue());
+        };
+        pv_walk.registerChangeListener(sync_pv_walk_row);
+        sync_pv_walk_row();
         this.registerFormElement('premove_confidence', 'Premove Confidence:', 'input', 14);
         this.registerFormElement('premove_plies', 'Premove Plies:', 'input', 2);
         this.registerFormElement('board_animation', 'Board Animation:', 'checkbox', true);
@@ -235,8 +248,14 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('autoplay', 'Autoplay:', 'checkbox', false);
         // Grind Mode rides on Autoplay -- it only ever acts while Autoplay is on -- and its delay is
         // the window in which the next game can still be called off.
-        this.registerFormElement('grind_mode', 'Grind Mode:', 'checkbox', false);
+        const grind_mode = this.registerFormElement('grind_mode', 'Grind Mode:', 'checkbox', false);
         this.registerFormElement('grind_delay', 'Grind Delay (s):', 'input', 5);
+        // dependent rows hide with their parent, like every other row below
+        const sync_grind_row = () => {
+            document.getElementById('grind_delay_row')?.classList.toggle('hidden', !grind_mode.getValue());
+        };
+        grind_mode.registerChangeListener(sync_grind_row);
+        sync_grind_row();
         this.registerFormElement('accept_rematch', 'Accept Rematch:', 'checkbox', false);
         this.registerFormElement('premove', 'Premove:', 'checkbox', false);
         this.registerFormElement('ponder', 'Pondering:', 'checkbox', false);
@@ -342,7 +361,13 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('humanize_think_tc', 'Think Like Your Time Control:', 'checkbox', false);
         this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
         this.registerFormElement('clock_pace', 'Pace to Clock:', 'checkbox', false);
-        this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);
+        const mirror_mode = this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);
+        // Mirror Ratio is only read while Mirror Time is on (its row sits far above, in the Engine section)
+        const sync_mirror_row = () => {
+            document.getElementById('mirror_ratio_row')?.classList.toggle('hidden', !mirror_mode.getValue());
+        };
+        mirror_mode.registerChangeListener(sync_mirror_row);
+        sync_mirror_row();
         this.registerFormElement('manual_mode', 'Manual Mode:', 'checkbox', false);
         this.registerFormElement('opp_alert', 'Opponent Mistake Alert:', 'checkbox', false);
         this.registerFormElement('verbose_log', 'Verbose Logging:', 'checkbox', false);
