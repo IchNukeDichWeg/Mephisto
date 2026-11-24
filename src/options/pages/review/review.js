@@ -1368,10 +1368,18 @@ function renderCards() {
             .filter(k => counts[k])
             .map(k => `<div class="rv-kv rv-c-${k}"><span>${classIcon(k)}<b>${CLASS_LABEL[k]}</b></span><span>${counts[k]}</span></div>`)
             .join('');
+        // the same accuracy per phase of the game (Core.phaseAccuracy: the graph's own dividers)
+        const ph = Core.phaseAccuracy(report.moves, color, report.phases);
+        const phases = Object.values(ph).some(x => x.acc != null)
+            ? `<div class="rv-phases">${[['opening', 'Opening'], ['middlegame', 'Middlegame'], ['endgame', 'Endgame']].map(([k, lab]) =>
+                `<span title="${esc(`${lab}: ${ph[k].n} move${ph[k].n === 1 ? '' : 's'}`)}"><i>${lab}</i>`
+                + `<b>${ph[k].acc == null ? '-' : ph[k].acc.toFixed(0) + '%'}</b></span>`).join('')}</div>`
+            : '';
         return `<div class="rv-card">
             <h4>${esc(name)}</h4>
             <div class="rv-big">${acc == null ? ' - ' : acc.toFixed(1) + '%'}</div>
             <div class="rv-sub">accuracy over ${ind.moves} moves</div>
+            ${phases}
             <div style="margin-top:10px">${rows}</div>
             <div class="rv-kv" style="margin-top:8px"><span>Avg. centipawn loss</span><span>${ind.acpl ?? ' - '}</span></div>
             ${ind.top1 == null ? '' : `<div class="rv-kv"><span>Engine's first choice</span><span>${(ind.top1 * 100).toFixed(0)}%</span></div>`}

@@ -356,7 +356,9 @@ function popStdev(xs) {
     const m = mean(xs);
     return Math.sqrt(xs.reduce((a, x) => a + (x - m) * (x - m), 0) / xs.length);
 }
-function accuracyFor(moves, color) {
+// Each of `color`'s scored moves as {m, acc, weight}: the move accuracy and its volatility weight,
+// which game accuracy and the per-phase numbers both average.
+function accuracyParts(moves, color) {
     const n = moves.length;
     const has = (m) => Number.isFinite(m.evalBefore) && Number.isFinite(m.evalAfter);
     // white's win% of every position, 0..n: before each move, and after the last one
@@ -367,7 +369,7 @@ function accuracyFor(moves, color) {
     wins.push(!last ? NaN : Number.isFinite(last.evalAfter) ? whiteOf(last, lilaWin(last.evalAfter))
         : last.winAfter == null ? NaN : whiteOf(last, last.winAfter));
     const ws = clamp(Math.floor(n / 10), 2, 8);
-    const mine = [], weights = [];
+    const parts = [];
     moves.forEach((m, i) => {
         if (m.color !== color) return;
         const acc = has(m) ? moveAccuracy(lilaWin(m.evalBefore), lilaWin(m.evalAfter)) : m.acc;
@@ -376,15 +378,37 @@ function accuracyFor(moves, color) {
         // spread through the weighted sum and rendered the whole game's accuracy as "NaN%".
         const start = i < ws - 2 ? 0 : i - ws + 2;
         const win = wins.slice(start, start + ws).filter(Number.isFinite);
-        mine.push(acc);
-        weights.push(clamp(popStdev(win), 0.5, 12));
+        parts.push({m, acc, weight: clamp(popStdev(win), 0.5, 12)});
     });
-    if (!mine.length) return null;
-    const total = weights.reduce((a, b) => a + b, 0);
-    const weighted = mine.reduce((a, acc, i) => a + acc * weights[i], 0) / (total || 1);
-    const harmonic = mine.length / mine.reduce((a, acc) => a + 1 / Math.max(acc, 1), 0);
+    return parts;
+}
+
+// lila's two halves: the volatility-weighted mean and the harmonic mean, averaged.
+function accuracyOf(parts) {
+    if (!parts.length) return null;
+    const total = parts.reduce((a, p) => a + p.weight, 0);
+    const weighted = parts.reduce((a, p) => a + p.acc * p.weight, 0) / (total || 1);
+    const harmonic = parts.length / parts.reduce((a, p) => a + 1 / Math.max(p.acc, 1), 0);
     const out = (weighted + harmonic) / 2;
     return Number.isFinite(out) ? clamp(out, 0, 100) : null;
+}
+
+function accuracyFor(moves, color) { return accuracyOf(accuracyParts(moves, color)); }
+
+// ACCURACY PER PHASE: the same formula over the moves played IN that phase, each keeping the weight
+// its window had in the whole game (a phase's own window would start every phase as calm). The split
+// is the one the eval graph draws (gamePhases, lichess's Divider): middlegame from the first position
+// with at most 10 majors and minors, a back rank down to three pieces, or mixed pieces; endgame from
+// at most 6. A move belongs to the phase of the position it was played from. A phase this player made
+// no scored move in is null; a short phase is still shown, with its move count beside it.
+function phaseAccuracy(moves, color, phases) {
+    const parts = accuracyParts(moves, color);
+    const out = {};
+    for (const ph of ['opening', 'middlegame', 'endgame']) {
+        const mine = parts.filter(p => phaseOf(p.m.ply, phases || {}) === ph);
+        out[ph] = {acc: accuracyOf(mine), n: mine.length};
+    }
+    return out;
 }
 
 // The measurements the "is this engine-assisted?" question actually rests on. Every field is a
@@ -958,7 +982,7 @@ function reviewSide(tags, user) {
 root.MephistoReviewCore = {
     parsePgn, clockToSeconds, formatDate, gamePhases, phaseOf, LEVELS,
     toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
-    accuracyFor, indicators, evidence, estimate, parseInfo, clamp,
+    accuracyFor, phaseAccuracy, indicators, evidence, estimate, parseInfo, clamp,
     whiteSwings, turningPoint, keyMoments, mistakeStops, stepToStop, reviewSide,
     NAG_FOR_CLASS, annotatedPgn, plyMove, lichessStudyId, lichessRequest, lichessResultUrl, lichessFailure,
     liftPromoted, markPromoted,

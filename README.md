@@ -203,7 +203,8 @@ Copy FEN/PGN, the engine's lines next to what a human of a chosen rating would p
   Deep 18 (a 44-move game took about 5s, 30s and 70s with two engines). chess.com's Game Review searches at depth 22; set that as a
   custom budget when you want the two accuracy numbers to come from the same search, and expect a much longer wait.
 - **Accuracy** on Lichess's formula: the same evals give Lichess's number, within its rounding. **Move quality** uses Lichess's win% curve with a wider ceiling (past +10 or with a mate on the board) and the same bands the panel judges live moves by, so a review
-  agrees with what the panel said at the time.
+  agrees with what the panel said at the time. Each player card also splits accuracy into opening, middlegame and
+  endgame, at the phase lines the eval graph draws.
 - **Key moments** under the eval graph: the five biggest swings of the game, click one to jump there. **‹ Mistake**
   and **Mistake ›** under the board (or Shift+arrows) step through the inaccuracies and worse; when you fetched the
   game by your username, only through your own moves.

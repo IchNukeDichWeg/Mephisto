@@ -20322,3 +20322,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /class="rv-nav">[\s\S]*id="rv_prev_mistake"[\s\S]*id="rv_next_mistake"[\s\S]*id="rv_flip"/.test(html)
        && /e\.key === 'ArrowLeft' && e\.shiftKey\) \{ stepMistake\(-1\)/.test(rj) && /syncMistakeNav\(\);/.test(rj));
 }
+// ---- REVIEW-PHASEACC: accuracy per phase on the report cards ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const C = c.MephistoReviewCore;
+    // 30 plies: white perfect in the opening (plies 0-9), loses 60cp a move in the middlegame (10-19),
+    // perfect again in the endgame; black perfect throughout
+    const moves = [];
+    let ev = 0;
+    for (let i = 0; i < 30; i++) {
+        const color = i % 2 ? 'b' : 'w';
+        const loss = color === 'w' && i >= 10 && i < 20 ? 60 : 0;
+        const before = ev, after = ev - (color === 'w' ? loss : 0);
+        moves.push({ply: i, color, evalBefore: color === 'w' ? before : -before, evalAfter: color === 'w' ? after : -after});
+        ev = after;
+    }
+    const phases = {mid: 10, end: 20};
+    const w = C.phaseAccuracy(moves, 'w', phases), b = C.phaseAccuracy(moves, 'b', phases);
+    ok('REVIEW-PHASEACC: a perfect phase reads 100, the phase with the losses reads lower, five moves each',
+       w.opening.acc === 100 && w.endgame.acc === 100 && w.middlegame.acc < 90 && w.middlegame.acc > 40
+       && w.opening.n === 5 && w.middlegame.n === 5 && w.endgame.n === 5, w);
+    ok('REVIEW-PHASEACC: the other player is unaffected', b.opening.acc === 100 && b.middlegame.acc === 100 && b.endgame.acc === 100, b);
+    const noEnd = C.phaseAccuracy(moves, 'w', {mid: 10, end: null});
+    ok('REVIEW-PHASEACC: no endgame divider means no endgame moves (null, not 0)', noEnd.endgame.acc === null && noEnd.endgame.n === 0 && noEnd.middlegame.n === 10, noEnd);
+    // the split is the move's FROM position: ply 10, played from the first middlegame position, is middlegame
+    ok('REVIEW-PHASEACC: a move belongs to the phase of the position it was played from', C.phaseOf(9, phases) === 'opening' && C.phaseOf(10, phases) === 'middlegame');
+    // game accuracy is unchanged by the refactor: the parts of all three phases make up the game
+    const whole = C.accuracyFor(moves, 'w');
+    ok('REVIEW-PHASEACC: game accuracy is the same formula over all the parts', Number.isFinite(whole) && whole < 100 && whole > w.middlegame.acc, [whole, w.middlegame.acc]);
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    ok('REVIEW-PHASEACC: the cards draw it from the report\'s own phases', /Core\.phaseAccuracy\(report\.moves, color, report\.phases\)/.test(rj));
+}
