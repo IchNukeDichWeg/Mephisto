@@ -1820,120 +1820,44 @@
             <section id="humanize" class="set-sec scrollspy">
                 <h3 data-i18n="set.sec.humanize_move_mix" class="set-h">Humanize - move mix</h3>
 
-                <p data-i18n="set.note.how_often_each_quality_of" class="set-note">
-                    How often each quality of move is played. The seven shares must total 100. Each threshold is how
-                    much worse than best that band may be, in centipawns.
-                </p>
-                <p data-i18n="set.note.humanize_match_mix" id="humanize_match_mix_note" class="set-note" hidden>
-                    Err Like Your Rating is on, so these shares are not played: each move's quality comes from what
-                    players of your Play Like Rating do. The blunder threshold still caps the largest error.
-                </p>
-
-                <table class="set-mix" id="humanize-mix">
-                    <thead>
-                        <tr>
-                            <th data-i18n="set.category">Category</th>
-                            <th>
-                                <span data-i18n="set.humanize_move_mix" data-i18n-tip="set.tip.humanize_move_mix_how_often" class="tooltipped" data-position="left"
-                                      data-tooltip="Humanize move mix: how often each quality of move is
-                                                    played. Make the seven values add up to 100 -- the Total
-                                                    row shows what to add or remove. Each category is a band
-                                                    of how-much-worse-than-best, set in centipawns in the
-                                                    Threshold cp column; a rolled category plays a random move
-                                                    inside its band, or the best move if nothing that bad
-                                                    exists. Nothing past the Blunder threshold is ever played,
-                                                    and blunders never fire in an already-decided game. Giving
-                                                    a share to any category worse than the near-best (Third
-                                                    line and below) makes the engine search a wider list so it
-                                                    has a move that bad to choose from -- otherwise that roll
-                                                    just replays the top move. That costs search depth, so a
-                                                    pure Top + Second mix keeps the cheaper search. Changes
-                                                    apply to the very next move, no reload needed.">
-                                    Share % <i class="material-icons info-tooltip">info</i>
-                                </span>
-                            </th>
-                            <th>
-                                <span data-i18n="set.threshold_cp" data-i18n-tip="set.tip.how_much_worse_than_the" class="tooltipped" data-position="left"
-                                      data-tooltip="How much worse than the best move each category may be, in
-                                                    centipawns (100cp = 1 pawn). Each is the top of its band;
-                                                    the bottom is the category above it, so Second line is 0
-                                                    up to its value, Third from there up to its value, and so
-                                                    on. The Accuracy column is what a move that bad scores on
-                                                    Lichess's own move-accuracy formula (from an equal
-                                                    position), and the drop % is the win% it gives away. Game
-                                                    Review grades a drop from 5% an Inaccuracy, from 10% a
-                                                    Mistake and from 20% a Blunder (lichess cuts at 5/10/15),
-                                                    and the defaults put the top of the Inaccuracy band at a
-                                                    20% drop and of the Mistake band at 30%: a move from these
-                                                    bands reads one step harsher in review.">
-                                    Threshold cp <i class="material-icons info-tooltip">info</i>
-                                </span>
-                            </th>
-                            <th data-i18n="set.accuracy">Accuracy</th>
-                        </tr>
-                    </thead>
-                    <tbody id="humanize-thresholds">
-                        <tr>
-                            <td data-i18n="set.top_move">Top move</td>
-                            <td><input id="humanize_top_mixnum" type="number" min="0" max="100" step="1"></td>
-                            <td class="set-dash"> - </td>
-                            <td class="set-readout">100%</td>
-                        </tr>
-                        <tr>
-                            <td data-i18n="set.second_line">Second line</td>
-                            <td><input id="humanize_second_mixnum" type="number" min="0" max="100" step="1"></td>
-                            <td><input id="humanize_cp_second_num" type="number" min="0" max="800" step="1"></td>
-                            <td class="set-readout" id="humanize_cp_second_readout"></td>
-                        </tr>
-                        <tr>
-                            <td data-i18n="set.third_line">Third line</td>
-                            <td><input id="humanize_third_mixnum" type="number" min="0" max="100" step="1"></td>
-                            <td><input id="humanize_cp_third_num" type="number" min="0" max="800" step="1"></td>
-                            <td class="set-readout" id="humanize_cp_third_readout"></td>
-                        </tr>
-                        <tr>
-                            <td data-i18n="set.fourth_line">Fourth line</td>
-                            <td><input id="humanize_fourth_mixnum" type="number" min="0" max="100" step="1"></td>
-                            <td><input id="humanize_cp_fourth_num" type="number" min="0" max="800" step="1"></td>
-                            <td class="set-readout" id="humanize_cp_fourth_readout"></td>
-                        </tr>
-                        <tr>
-                            <td data-i18n="set.inaccuracies">Inaccuracies</td>
-                            <td><input id="humanize_inaccuracy_mixnum" type="number" min="0" max="100" step="1"></td>
-                            <td><input id="humanize_cp_inaccuracy_num" type="number" min="0" max="800" step="1"></td>
-                            <td class="set-readout" id="humanize_cp_inaccuracy_readout"></td>
-                        </tr>
-                        <tr>
-                            <td data-i18n="set.mistakes">Mistakes</td>
-                            <td><input id="humanize_mistake_mixnum" type="number" min="0" max="100" step="1"></td>
-                            <td><input id="humanize_cp_mistake_num" type="number" min="0" max="800" step="1"></td>
-                            <td class="set-readout" id="humanize_cp_mistake_readout"></td>
-                        </tr>
-                        <tr>
-                            <td data-i18n="set.blunders">Blunders</td>
-                            <td><input id="humanize_blunder_mixnum" type="number" min="0" max="100" step="1"></td>
-                            <td><input id="humanize_cp_blunder_num" type="number" min="0" max="800" step="1"></td>
-                            <td class="set-readout" id="humanize_cp_blunder_readout"></td>
-                        </tr>
-                        <!-- The Accuracy cell of this row is the whole mix in one number: every
-                             category's accuracy weighted by the share it is actually played. -->
-                        <tr class="set-mix-total">
-                            <td data-i18n="set.total">Total</td>
-                            <td id="humanize_mix_total"></td>
-                            <td></td>
-                            <td class="set-readout" id="humanize_mix_summary"></td>
-                        </tr>
-                    </tbody>
-                </table>
-
                 <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.play_like_rating" class="tooltipped" data-position="right"
+                              data-tooltip="The rating Humanize and Maia aim at, 600 to 2600. With Maia as the engine it is the strength it plays; with Human-Like Mistakes it decides which mistakes look natural; with Scale Errors to the Clock it picks the row of the error tables. The same setting as Play like in the panel."><span data-i18n="set.play_like_rating">Play Like Rating</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="maia3_elo_input" type="number" min="600" max="2600" step="50" class="set-num">
+                    </div>
+                </div>
+
+                <!-- ERROR MODEL: one select over Err Like Your Rating and Target Accuracy (general.js
+                     bindViewSelect), in humanize_pick's order: a target over 0 first, then the rating, else
+                     the custom mix. View only: the stored switch stays here as a hidden input with its key,
+                     the target keeps its own row (shown under Target accuracy) and the mix table with
+                     Scale Errors to the Clock shows under Custom mix. -->
+                <div class="set-row" id="humanize_model_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.humanize_model" class="tooltipped" data-position="right"
+                              data-tooltip="How Humanize picks a move that is not the engine's best. Like your rating (the default): each move's quality is drawn from what players of your Play Like Rating actually do, measured over 2.1 million lichess moves, and with a readable clock it follows the time control, the clock left and the phase; the engine searches a 20-line list for it, which costs depth. Target accuracy: each move is picked so the game's accuracy lands on the number you set below. Custom mix: you set how often each quality of move is played, in the table below."><span data-i18n="set.humanize_model">Error Model</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="humanize_match_checkbox" type="checkbox" hidden title="Err Like Your Rating" data-i18n-title="set.humanize_match">
+                        <select id="humanize_model_view">
+                            <option value="rating" data-i18n="set.humanize_model.rating">Like your rating</option>
+                            <option value="target" data-i18n="set.humanize_model.target">Target accuracy</option>
+                            <option value="custom" data-i18n="set.humanize_model.custom">Custom mix</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="set-row" id="humanize_target_row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.humanize_target_acc" class="tooltipped" data-position="right"
                               data-tooltip="Aim the game's accuracy at this number, 50 to 99 (0 = off). Each
                                             move is picked by the accuracy it will itself score (the win
                                             chance it gives away, the Lichess formula Live Stats and the Game
-                                            Review use), so the game closes on the target. The values above
-                                            still set the limits: no move past the worst band you gave a
+                                            Review use), so the game closes on the target. The custom mix's
+                                            values still set the limits: no move past the worst band you gave a
                                             share, no blunders in a decided game, and never a move that leaves
                                             you worse than -2.5 while the game is still alive. The Humanize
                                             Guards win over the target, so a won game can finish above it.
@@ -1946,14 +1870,140 @@
                     </div>
                 </div>
 
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.play_like_rating" class="tooltipped" data-position="right"
-                              data-tooltip="The rating Humanize and Maia aim at, 600 to 2600. With Maia as the engine it is the strength it plays; with Human-Like Mistakes it decides which mistakes look natural; with Scale Errors to the Clock it picks the row of the error tables. The same setting as Play like in the panel."><span data-i18n="set.play_like_rating">Play Like Rating</span> <i class="material-icons info-tooltip">info</i></span>
+                <!-- CUSTOM MIX: shown only while the Error Model is Custom mix (the only model that plays
+                     these shares; Scale Errors to the Clock scales them and nothing else) -->
+                <div id="humanize_custom_block">
+                    <p data-i18n="set.note.how_often_each_quality_of" class="set-note">
+                        How often each quality of move is played. The seven shares must total 100. Each threshold is how
+                        much worse than best that band may be, in centipawns.
+                    </p>
+
+                    <table class="set-mix" id="humanize-mix">
+                        <thead>
+                            <tr>
+                                <th data-i18n="set.category">Category</th>
+                                <th>
+                                    <span data-i18n="set.humanize_move_mix" data-i18n-tip="set.tip.humanize_move_mix_how_often" class="tooltipped" data-position="left"
+                                          data-tooltip="Humanize move mix: how often each quality of move is
+                                                        played. Make the seven values add up to 100 -- the Total
+                                                        row shows what to add or remove. Each category is a band
+                                                        of how-much-worse-than-best, set in centipawns in the
+                                                        Threshold cp column; a rolled category plays a random move
+                                                        inside its band, or the best move if nothing that bad
+                                                        exists. Nothing past the Blunder threshold is ever played,
+                                                        and blunders never fire in an already-decided game. Giving
+                                                        a share to any category worse than the near-best (Third
+                                                        line and below) makes the engine search a wider list so it
+                                                        has a move that bad to choose from -- otherwise that roll
+                                                        just replays the top move. That costs search depth, so a
+                                                        pure Top + Second mix keeps the cheaper search. Changes
+                                                        apply to the very next move, no reload needed.">
+                                        Share % <i class="material-icons info-tooltip">info</i>
+                                    </span>
+                                </th>
+                                <th>
+                                    <span data-i18n="set.threshold_cp" data-i18n-tip="set.tip.how_much_worse_than_the" class="tooltipped" data-position="left"
+                                          data-tooltip="How much worse than the best move each category may be, in
+                                                        centipawns (100cp = 1 pawn). Each is the top of its band;
+                                                        the bottom is the category above it, so Second line is 0
+                                                        up to its value, Third from there up to its value, and so
+                                                        on. The Accuracy column is what a move that bad scores on
+                                                        Lichess's own move-accuracy formula (from an equal
+                                                        position), and the drop % is the win% it gives away. Game
+                                                        Review grades a drop from 5% an Inaccuracy, from 10% a
+                                                        Mistake and from 20% a Blunder (lichess cuts at 5/10/15),
+                                                        and the defaults put the top of the Inaccuracy band at a
+                                                        20% drop and of the Mistake band at 30%: a move from these
+                                                        bands reads one step harsher in review.">
+                                        Threshold cp <i class="material-icons info-tooltip">info</i>
+                                    </span>
+                                </th>
+                                <th data-i18n="set.accuracy">Accuracy</th>
+                            </tr>
+                        </thead>
+                        <tbody id="humanize-thresholds">
+                            <tr>
+                                <td data-i18n="set.top_move">Top move</td>
+                                <td><input id="humanize_top_mixnum" type="number" min="0" max="100" step="1"></td>
+                                <td class="set-dash"> - </td>
+                                <td class="set-readout">100%</td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="set.second_line">Second line</td>
+                                <td><input id="humanize_second_mixnum" type="number" min="0" max="100" step="1"></td>
+                                <td><input id="humanize_cp_second_num" type="number" min="0" max="800" step="1"></td>
+                                <td class="set-readout" id="humanize_cp_second_readout"></td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="set.third_line">Third line</td>
+                                <td><input id="humanize_third_mixnum" type="number" min="0" max="100" step="1"></td>
+                                <td><input id="humanize_cp_third_num" type="number" min="0" max="800" step="1"></td>
+                                <td class="set-readout" id="humanize_cp_third_readout"></td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="set.fourth_line">Fourth line</td>
+                                <td><input id="humanize_fourth_mixnum" type="number" min="0" max="100" step="1"></td>
+                                <td><input id="humanize_cp_fourth_num" type="number" min="0" max="800" step="1"></td>
+                                <td class="set-readout" id="humanize_cp_fourth_readout"></td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="set.inaccuracies">Inaccuracies</td>
+                                <td><input id="humanize_inaccuracy_mixnum" type="number" min="0" max="100" step="1"></td>
+                                <td><input id="humanize_cp_inaccuracy_num" type="number" min="0" max="800" step="1"></td>
+                                <td class="set-readout" id="humanize_cp_inaccuracy_readout"></td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="set.mistakes">Mistakes</td>
+                                <td><input id="humanize_mistake_mixnum" type="number" min="0" max="100" step="1"></td>
+                                <td><input id="humanize_cp_mistake_num" type="number" min="0" max="800" step="1"></td>
+                                <td class="set-readout" id="humanize_cp_mistake_readout"></td>
+                            </tr>
+                            <tr>
+                                <td data-i18n="set.blunders">Blunders</td>
+                                <td><input id="humanize_blunder_mixnum" type="number" min="0" max="100" step="1"></td>
+                                <td><input id="humanize_cp_blunder_num" type="number" min="0" max="800" step="1"></td>
+                                <td class="set-readout" id="humanize_cp_blunder_readout"></td>
+                            </tr>
+                            <!-- The Accuracy cell of this row is the whole mix in one number: every
+                                 category's accuracy weighted by the share it is actually played. -->
+                            <tr class="set-mix-total">
+                                <td data-i18n="set.total">Total</td>
+                                <td id="humanize_mix_total"></td>
+                                <td></td>
+                                <td class="set-readout" id="humanize_mix_summary"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="set-row">
+                        <div class="set-lbl">
+                            <span data-i18n-tip="set.tip.humanize_tc_scale" class="tooltipped" data-position="right"
+                                  data-tooltip="Off by default. Scales the Inaccuracy, Mistake and Blunder shares
+                                                move by move with the time control, the clock you have left and
+                                                the game phase, from error rates measured over 2.1 million moves
+                                                of lichess games (closed and banned accounts removed). Your shares
+                                                stay the rate of an average blitz game at your Play-like rating.
+                                                At the same rating, rapid and classical err about as often per
+                                                move as blitz, bullet up to about 2.4x and ultrabullet up to 3x
+                                                (the cap), most of all in strong players' blunders. The clock is
+                                                the big one: under 5% of your time about 1.4x the inaccuracies and
+                                                2x the blunders, and far fewer on the first moves at a full clock.
+                                                The middlegame gets a little more, the opening a little less.
+                                                Needs a readable clock."><span data-i18n="set.humanize_tc_scale">Scale Errors to the Clock</span> <i class="material-icons info-tooltip">info</i></span>
+                        </div>
+                        <div class="set-ctl">
+                            <input id="humanize_tc_scale_checkbox" type="checkbox" class="set-cb">
+                            <label for="humanize_tc_scale_checkbox" class="set-tgl">
+                                <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                            </label>
+                        </div>
                     </div>
-                    <div class="set-ctl">
-                        <input id="maia3_elo_input" type="number" min="600" max="2600" step="50" class="set-num">
-                    </div>
+
+                    <p data-i18n="set.note.giving_a_share_to_anything" class="set-note">
+                        Giving a share to anything below the near-best bands makes the engine search a wider list so a move
+                        that bad exists to choose from - that costs search depth. A pure Top + Second mix keeps the cheaper
+                        search.
+                    </p>
                 </div>
 
                 <div class="set-row">
@@ -1964,30 +2014,6 @@
                     <div class="set-ctl">
                         <input id="humanize_guards_checkbox" type="checkbox" class="set-cb">
                         <label for="humanize_guards_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.humanize_tc_scale" class="tooltipped" data-position="right"
-                              data-tooltip="Off by default. Scales the Inaccuracy, Mistake and Blunder shares
-                                            move by move with the time control, the clock you have left and
-                                            the game phase, from error rates measured over 2.1 million moves
-                                            of lichess games (closed and banned accounts removed). Your shares
-                                            stay the rate of an average blitz game at your Play-like rating.
-                                            At the same rating, rapid and classical err about as often per
-                                            move as blitz, bullet up to about 2.4x and ultrabullet up to 3x
-                                            (the cap), most of all in strong players' blunders. The clock is
-                                            the big one: under 5% of your time about 1.4x the inaccuracies and
-                                            2x the blunders, and far fewer on the first moves at a full clock.
-                                            The middlegame gets a little more, the opening a little less.
-                                            Needs a readable clock."><span data-i18n="set.humanize_tc_scale">Scale Errors to the Clock</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="humanize_tc_scale_checkbox" type="checkbox" class="set-cb">
-                        <label for="humanize_tc_scale_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
                     </div>
@@ -2008,32 +2034,6 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.humanize_match" class="tooltipped" data-position="right"
-                              data-tooltip="On by default (off if you had tuned the move mix). Replaces the
-                                            move-mix values with what players of your Play Like Rating
-                                            actually do: each move's quality is drawn from 2.1 million moves
-                                            of lichess blitz (October 2025), graded the way the Game Review
-                                            grades (win% given away: inaccuracy 5, mistake 10, blunder 20).
-                                            With a readable clock it also follows the time control, the clock
-                                            left and the phase. A mistake the position cannot offer is owed
-                                            and played later where one exists. Simulated at 1500: 10.0%
-                                            inaccuracies, 5.4% mistakes, 1.9% blunders against the players'
-                                            10.0 / 6.4 / 4.6. The blunder gap is the guards: about half of the
-                                            players' blunders fall where a guard forbids one (into mate, past
-                                            the blunder threshold, from +3 up), and inside those bounds they
-                                            blunder on 2.6% of moves. The engine searches a 20-line list,
-                                            which costs depth."><span data-i18n="set.humanize_match">Err Like Your Rating</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="humanize_match_checkbox" type="checkbox" class="set-cb">
-                        <label for="humanize_match_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.humanize_think_tc" class="tooltipped" data-position="right"
                               data-tooltip="Off by default. With Humanize or Clock Mode on and a readable clock, each think is drawn from how long lichess players spent per move at this time control, game phase and clock left (October 2025): about 2% of the game per blitz move, nearly twice as long in the middlegame as in the endgame, and a quarter of that with under 5% of the clock left. Obvious moves go quicker and tense ones slower, and the spread is a person's: the slow tenth of moves takes over twice the average. The cursor travel is taken off. Without a clock, Humanize's usual times stand. A move it is about to get wrong takes longer, as people's do: in blitz a blunder about 1.4x an average move, a good move 0.9x. And the thinks run in streaks, a fast stretch then a slow one, as a person's do."><span data-i18n="set.humanize_think_tc">Think Like Your Time Control</span> <i class="material-icons info-tooltip">info</i></span>
                     </div>
@@ -2044,12 +2044,6 @@
                         </label>
                     </div>
                 </div>
-
-                <p data-i18n="set.note.giving_a_share_to_anything" class="set-note">
-                    Giving a share to anything below the near-best bands makes the engine search a wider list so a move
-                    that bad exists to choose from - that costs search depth. A pure Top + Second mix keeps the cheaper
-                    search.
-                </p>
             </section>
 
             <!-- ============================ HOTKEYS ============================ -->

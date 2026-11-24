@@ -4239,15 +4239,15 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
     const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
-    ok('Err Like Your Rating ON by default (page and panel agree), Think Like Your Time Control OFF: settings rows, label and tip in all 14 locales',
+    // Err Like Your Rating is the Error Model select's "Like your rating" now (SIMP-MODEL): its switch
+    // stays registered under its key as the hidden input, named for the custom-hotkey picker
+    ok('Err Like Your Rating ON by default (page and panel agree), Think Like Your Time Control OFF: settings controls, labels and tips in all 14 locales',
        [['humanize_match', true], ['humanize_think_tc', false]].every(([k, d]) => new RegExp(`id="${k}_checkbox"`).test(gh)
            && new RegExp(`registerFormElement\\('${k}', '[^']+:', 'checkbox', ${d}\\)`).test(gj)
-           && locs.every(l => l['set.' + k] && l['set.tip.' + k]))
+           && locs.every(l => l['set.' + k] && (k === 'humanize_match' ? l['set.tip.humanize_model'] : l['set.tip.' + k])))
        && /const HZ_MATCH_DEFAULT = true;/.test(psrc) && (psrc.match(/humanize_flag\('humanize_match', /g) || []).length === (psrc.match(/humanize_flag\('humanize_match', HZ_MATCH_DEFAULT\)/g) || []).length);
-    ok('...the move-mix table says its shares are not played while it is on, in all 14 locales',
-       /<p data-i18n="set\.note\.humanize_match_mix" id="humanize_match_mix_note" class="set-note" hidden>/.test(gh)
-       && /const show = \(\) => \{ note\.hidden = !cb\.checked; \};\s*cb\.addEventListener\('change', show\);/.test(gj)
-       && /this\.initMatchNote\(\);/.test(gj) && locs.every(l => l['set.note.humanize_match_mix'])); }
+    ok('...the mix table only shows under Custom mix, so its "not played while matching" note and that switch\'s own tip are gone',
+       !/humanize_match_mix_note|initMatchNote/.test(gh + gj) && locs.every(l => !('set.note.humanize_match_mix' in l) && !('set.tip.humanize_match' in l))); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     // ---- ERROR CODES: the registry in i18n.js, its 14 locales, the README, and where each code is wired ----
     const i18nSrc = fs.readFileSync(ROOT + '/src/i18n/i18n.js', 'utf8');
@@ -4780,6 +4780,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const src = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
     ok('the fit switches Play-like matching off, and says so',
        /setCfg\('humanize_match', false\);\s*btn\.textContent = `Fitted from \$\{fit\.n\} moves - Play-like matching off`/.test(src));
+    ok('SIMP-MODEL: ...and clears a target accuracy, so the settings page\'s Error Model reads Custom mix',
+       /setCfg\('humanize_target_acc', 0\);\s*setCfg\('humanize_match', false\);/.test(src));
 }
 // ---- OPT-5: analyses queued on a left page do not run ----
 {
@@ -16899,6 +16901,48 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
            && new RegExp(`<input id="${view}" type="number" min="0"`).test(row) && !gh.includes(`id="${num}_row"`)
            && new RegExp(`registerFormElement\\('${tog}', [^\\n]*\\n\\s*this\\.registerFormElement\\('${num}', [^\\n]*'${view}'\\);`).test(gj));
     }
+}
+// ---- SIMP-MODEL: the Error Model select is a view over humanize_match and humanize_target_acc ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const i = gj.indexOf('    bindViewSelect(viewId, elems, read, write, onShow) {'), body = i < 0 ? '' : gj.slice(i, gj.indexOf('\n    }\n', i) + 7);
+    const a = gj.indexOf('        let last_target = 90;'), b = gj.indexOf('\n            });\n', a) + 16;
+    const wiring = a < 0 ? '' : gj.slice(a, b);
+    const fe = (v) => { const ls = []; const o = {missing: false, v, getValue: () => o.v, setValue: (x) => { o.v = x; ls.forEach(f => f()); }, registerChangeListener: (f) => ls.push(f)}; return o; };
+    // match, target as stored (target a string, as a number input's FormElement returns it)
+    const run = (m0, t0, picks = []) => {
+        const humanize_match = fe(m0), humanize_target = fe(String(t0)), hidden = {};
+        const sel = {value: '', ev: {}, parentElement: null, selectedOptions: [], addEventListener(t, f) { this.ev[t] = f; }};
+        const document = {getElementById: (id) => id === 'humanize_model_view' ? sel
+            : {classList: {toggle: (c, on) => { hidden[id] = on; }}}};
+        const c = vm.createContext({document, humanize_match, humanize_target, Number, String});
+        vm.runInContext(`const page = {${body}}; (function () { ${wiring} }).call(page);`, c);
+        const out = [{sel: sel.value, m: humanize_match.v, t: humanize_target.v, hid: {...hidden}}];
+        for (const p of picks) { sel.value = p; sel.ev.change(); out.push({sel: sel.value, m: humanize_match.v, t: humanize_target.v, hid: {...hidden}}); }
+        return out;
+    };
+    const shown = [run(true, 0), run(false, 0), run(true, 85), run(false, 85)].map(r => r[0].sel);
+    ok('SIMP-MODEL: the select shows what humanize_pick plays: a target over 0 first, then the rating, else the custom mix',
+       shown.join() === 'rating,custom,target,target', shown);
+    const r = run(true, 0, ['target', 'custom', 'target', 'rating', 'target']);
+    const st = r.map(x => [x.sel, x.m, x.t]);
+    ok('SIMP-MODEL: picking writes the pair (rating: on/0, target: on/N, custom: off/0) and a re-picked target comes back at the last one',
+       JSON.stringify(st) === JSON.stringify([['rating', true, '0'], ['target', true, '90'], ['custom', false, '0'], ['target', true, '90'], ['rating', true, '0'], ['target', true, '90']]), st);
+    const typed = run(true, 77, ['custom', 'target']).map(x => x.t);
+    ok('SIMP-MODEL: a typed target is the one Target accuracy returns to', typed.join() === '77,0,77', typed);
+    ok('SIMP-MODEL: the target row shows only under Target accuracy, the mix table and Scale Errors to the Clock only under Custom mix',
+       r[1].hid.humanize_target_row === false && r[1].hid.humanize_custom_block === true
+       && r[2].hid.humanize_target_row === true && r[2].hid.humanize_custom_block === false
+       && r[4].hid.humanize_target_row === true && r[4].hid.humanize_custom_block === true, r.map(x => x.hid));
+    ok('SIMP-MODEL: one row holds the hidden switch and the select; the target row and the custom block (table + Scale Errors to the Clock) carry their ids',
+       /<div class="set-row" id="humanize_model_row">[\s\S]*?<input id="humanize_match_checkbox" type="checkbox" hidden title="Err Like Your Rating" data-i18n-title="set\.humanize_match">\s*<select id="humanize_model_view">/.test(gh)
+       && /<div class="set-row" id="humanize_target_row">[\s\S]*?id="humanize_target_acc_input"/.test(gh)
+       && /<div id="humanize_custom_block">[\s\S]*?<table class="set-mix" id="humanize-mix">[\s\S]*?id="humanize_tc_scale_checkbox"[\s\S]*?set\.note\.giving_a_share_to_anything/.test(gh));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-MODEL: the label, tip and three options are translated in all 14 locales',
+       locs.length === 14 && locs.every(l => ['set.humanize_model', 'set.tip.humanize_model', 'set.humanize_model.rating', 'set.humanize_model.target', 'set.humanize_model.custom'].every(k => l[k])));
 }
 // ---- SIMP-SEL: one select over two switches writes the two existing keys (view only) ----
 {

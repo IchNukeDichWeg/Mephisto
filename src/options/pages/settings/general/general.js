@@ -325,7 +325,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('help_mode', 'Help Mode:', 'checkbox', false);
         this.registerFormElement('humanize', 'Humanize:', 'checkbox', false);
         // 0 = off; the panel reads it fresh per move (humanize_target), like the rest of the mix
-        this.registerFormElement('humanize_target_acc', 'Target Accuracy:', 'input', 0);
+        const humanize_target = this.registerFormElement('humanize_target_acc', 'Target Accuracy:', 'input', 0);
         // THE one rating: Maia's strength, Humanize's Maia features, the row of the clock tables. The
         // panel's "Play like" slider is the same key.
         this.registerFormElement('maia3_elo', 'Play Like Rating:', 'input', 1500);
@@ -337,7 +337,26 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('humanize_maia', 'Human-Like Mistakes:', 'checkbox', true);
         // ON by default since 3.1.323 (HZ_MATCH_DEFAULT): each move's quality from the Play-like
         // rating's measured spread (HUMANIZE MATCH); a tuned move mix kept it off (config-store.js)
-        this.registerFormElement('humanize_match', 'Err Like Your Rating:', 'checkbox', true);
+        const humanize_match = this.registerFormElement('humanize_match', 'Err Like Your Rating:', 'checkbox', true);
+        // ERROR MODEL. Err Like Your Rating and Target Accuracy answer one question, how a move that is
+        // not the engine's best is chosen, so they show as one select in humanize_pick's order: a target
+        // over 0 first, then the rating, else the custom mix. Target accuracy shows its number row and
+        // starts at the last target this page saw (90 at first: targets of 85 to 95 landed within about
+        // a point in the simulation); the mix table and Scale Errors to the Clock only act on the custom
+        // mix, so they show under it. Review's Fit Humanize writes the Custom mix pair.
+        let last_target = 90;
+        this.bindViewSelect('humanize_model_view', [humanize_match, humanize_target],
+            () => (Number(humanize_target.getValue()) > 0 ? 'target' : humanize_match.getValue() ? 'rating' : 'custom'),
+            (v) => {
+                const t = Number(humanize_target.getValue());
+                if (t > 0) last_target = t;
+                humanize_target.setValue(String(v === 'target' ? last_target : 0));
+                humanize_match.setValue(v !== 'custom');
+            },
+            (v) => {
+                document.getElementById('humanize_target_row')?.classList.toggle('hidden', v !== 'target');
+                document.getElementById('humanize_custom_block')?.classList.toggle('hidden', v !== 'custom');
+            });
         // opt-in: think times from the measured spend per time control, phase and clock (HUMANIZE THINK)
         this.registerFormElement('humanize_think_tc', 'Think Like Your Time Control:', 'checkbox', false);
         this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
@@ -357,7 +376,6 @@ class GeneralSettings extends SettingsPage {
         this.initTablebaseFolder();
         this.initSteppers();
         this.initHumanizeMix();
-        this.initMatchNote();
         this.initHumanizeThresholds();
         this.initUiMode();
         this.initHotkeys();
@@ -896,6 +914,31 @@ class GeneralSettings extends SettingsPage {
         show();
     }
 
+    // ONE SELECT OVER STORED KEYS THAT ARE NOT A TABLE OF PAIRS (bindPairSelect covers those): the
+    // Error Model reads a number and a switch, Clock pacing two switches where one wins. `read()` names
+    // the option the stored keys stand for, `write(v)` stores option v through the keys' own
+    // FormElements, and `onShow(v)` shows the rows that belong to it. View only, like bindPairSelect:
+    // the keys keep their storage and their hidden inputs, so the panel, hotkeys and saved configs
+    // need no migration.
+    bindViewSelect(viewId, elems, read, write, onShow) {
+        const sel = document.getElementById(viewId);
+        if (!sel || elems.some(e => !e || e.missing)) return;
+        const show = () => {
+            const want = read();
+            if (sel.value !== want) {
+                sel.value = want;
+                // Materialize shows its own input over the select (FormElement.setValue does the same)
+                const wrap = sel.parentElement;
+                const shown = wrap?.classList.contains('select-wrapper') ? wrap.querySelector('input.select-dropdown') : null;
+                if (shown) shown.value = sel.selectedOptions[0]?.innerText || '';
+            }
+            onShow?.(want);
+        };
+        sel.addEventListener('change', () => { write(sel.value); show(); });
+        for (const e of elems) e.registerChangeListener(show);
+        show();
+    }
+
     // "0 = OFF" STEPPERS. A switch whose only setting is a number (Time Trouble Mode and its threshold,
     // Auto Resign and its centipawns, PV Arrows and its length) shows as ONE stepper where 0 is off.
     // Storage is unchanged, so nothing needs migrating: the switch stays the source of truth (the
@@ -1207,15 +1250,6 @@ class GeneralSettings extends SettingsPage {
     }
 
     // With Err Like Your Rating on, the shares in the move-mix table are not played: say so above it.
-    initMatchNote() {
-        const note = document.getElementById('humanize_match_mix_note');
-        const cb = document.getElementById('humanize_match_checkbox');
-        if (!note || !cb) return; // stale cached page html
-        const show = () => { note.hidden = !cb.checked; };
-        cb.addEventListener('change', show);   // pullConfigValues fires it too when it fills the page
-        show();
-    }
-
     // Humanize move mix: seven number fields, stored via MephistoConfig. No auto-rescaling -- the user
     // balances them by hand, and the Total row shows the sum plus what's off: "90 (-10)" means
     // add 10 somewhere, "110 (+10)" means remove 10. (The popup normalizes by the sum when

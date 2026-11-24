@@ -3796,8 +3796,10 @@ class ReviewPage {
             const btn = $('rv_fit');
             if (!fit) { btn.textContent = 'No gradeable moves'; setTimeout(() => btn.textContent = 'Fit Humanize to a player', 2500); return; }
             for (const [k, v] of Object.entries(fit.pct)) MephistoConfig.set(`humanize_${k}`, String(v));
-            // Play-like matching (on by default) draws at pick time and never reads these shares,
-            // so without this the button reported a fit that changed nothing.
+            // Play-like matching (on by default) draws at pick time and never reads these shares, and
+            // a target accuracy comes before both, so without this the button reported a fit that
+            // changed nothing. The pair is the settings page's Error Model "Custom mix".
+            setCfg('humanize_target_acc', 0);
             setCfg('humanize_match', false);
             btn.textContent = `Fitted from ${fit.n} moves - Play-like matching off`;
             setTimeout(() => btn.textContent = 'Fit Humanize to a player', 4000);

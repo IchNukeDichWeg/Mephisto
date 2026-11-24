@@ -321,19 +321,21 @@ software did not change, the measurement did.
 
 Humanize makes the engine play like a person at a chosen rating instead of always playing its top move.
 
-- **Move mix** - seven shares set how often it plays the top move, a 2nd/3rd/4th line, an inaccuracy, a mistake or a
+- **Error model** - how a move that is not the engine's best gets picked: **Like your rating** (the default),
+  **Target accuracy** or a **Custom mix**.
+- **Custom mix** - seven shares set how often it plays the top move, a 2nd/3rd/4th line, an inaccuracy, a mistake or a
   blunder, with per-category centipawn thresholds (defaults on Lichess's own 110 / 230 / 377cp boundaries) and a live
   [Lichess accuracy](https://lichess.org/page/accuracy) estimate. Nothing past the blunder threshold is played, and
   blunders never fire in a decided game.
 - **Play like rating** - the one rating used by Maia and by the options below.
-- **Err Like Your Rating** (on by default) - replaces the move mix with what players of that rating actually do, drawn
-  from their measured spread.
+- **Like your rating** - replaces the move mix with what players of that rating actually do, drawn from their measured
+  spread.
 - **Guards** (on by default) - stop a planned error from doing what nobody plays on purpose: hanging a minor piece or
   more, giving back a winning position, or skipping the punishment of a blunder. The panel says "guard held" when one
   kept the engine's move.
 - **Human-Like Mistakes** (on by default) - picks the error by how likely Maia-3 thinks a player of that rating is to
   play it. Needs the 88 MB Maia-3 net (downloaded the first time), standard chess only.
-- **Target accuracy** (optional) - aims the game's accuracy at a number you set. Over 144 simulated games against
+- **Target accuracy** - aims the game's accuracy at a number you set. Over 144 simulated games against
   Stockfish at 1500 and 2200, targets of 85 to 95 landed within about a point.
 - **Scale Errors to the Clock** and **Think Like Your Time Control** (optional) - tie error rates and think times to the
   clock.
