@@ -16816,6 +16816,31 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
         ok(`SIMP-RM: ${k} is no setting any more, its reader uses ${c}`, left.length === 0 && all.includes('const ' + c), left);
     }
 }
+// ---- SIMP-MOVE: rows that left the Engine section sit in their own section (and Advanced where marked) ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const sec = (id) => { const i = gh.indexOf(`<section id="${id}"`); return i < 0 ? '' : gh.slice(i, gh.indexOf('</section>', i)); };
+    const adv = (id) => { const s = sec(id), i = s.indexOf('<div class="set-adv"'); return i < 0 ? '' : s.slice(i); };
+    const where = {
+        panel: ['move_notation_select', 'live_stats_checkbox', 'session_stats_checkbox', 'streamer_alert_checkbox',
+                'pv_walk_checkbox', 'forced_lines_input', 'refute_checkbox', 'user_arrow_evals_checkbox'],
+        'panel adv': ['live_classify_which', 'game_log_checkbox', 'arrow_eval_side_select', 'user_arrow_replies_input'],
+    };
+    const bad = [];
+    for (const [k, ids] of Object.entries(where)) {
+        const [s, a] = k.split(' '), body = a ? adv(s) : sec(s);
+        for (const id of ids) if (!body.includes(`id="${id}"`) || sec('engine').includes(`id="${id}"`)) bad.push(k + ':' + id);
+    }
+    ok('SIMP-MOVE: every moved row is in its new section and no longer in Engine', bad.length === 0, bad);
+    const ah = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.html', 'utf8');
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.js', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    ok('SIMP-MOVE: Arrow Opacity lives with the arrow colours on Appearance, bound there and not on General',
+       /<section id="arrow_colours"[\s\S]*id="arrow_opacity_range"[\s\S]*<\/section>\s*<section id="language"/.test(ah)
+       && /registerFormElement\('arrow_opacity', 'Arrow Opacity:', 'range', 75\)/.test(aj) && /M\.Range\.init/.test(aj)
+       && !/arrow_opacity/.test(gh + gj));
+}
 // ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

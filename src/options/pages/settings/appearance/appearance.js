@@ -14,6 +14,7 @@ class AppearanceSettings extends SettingsPage {
             }
         }
         M.FormSelect.init(document.querySelectorAll('select'), {});
+        M.Range.init(document.querySelectorAll('input[type=range]'), {});
         this.registerFormElement('pieces', 'Pieces:', 'select', 'wikipedia.svg');
         this.registerFormElement('board', 'Board:', 'select', 'brown');
         this.registerFormElement('coordinates', 'Coordinates:', 'checkbox', false);
@@ -67,6 +68,13 @@ class AppearanceSettings extends SettingsPage {
             // Written straight to storage, so the fields on screen have to be told; Restore Defaults
             // is the way back, exactly as it is for a hand-edited colour.
             location.reload();
+        });
+        // How strongly every arrow is drawn, a percentage (the panel's read_arrow_opacity). It sits with
+        // the arrow colours; the readout is the `.set-val` in its own row, as on General.
+        const opacity = this.registerFormElement('arrow_opacity', 'Arrow Opacity:', 'range', 75);
+        opacity.registerChangeListener(() => {
+            const out = opacity.elem?.closest?.('.set-row')?.querySelector('.set-val');
+            if (out) out.innerText = opacity.getValue();
         });
         for (const [key, dflt] of ARROW_COLORS) {
             const el = this.registerFormElement(key, key + ':', 'input', '');

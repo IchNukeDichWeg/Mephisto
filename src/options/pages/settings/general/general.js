@@ -86,7 +86,6 @@ class GeneralSettings extends SettingsPage {
         arrow_labels.registerChangeListener(sync_arrow_eval_rows);
         user_arrow_evals.registerChangeListener(sync_arrow_eval_rows);
         sync_arrow_eval_rows();
-        const arrow_opacity_range = this.registerFormElement('arrow_opacity', 'Arrow Opacity:', 'range', 75);
         this.registerFormElement('arrow_rank', 'Number Arrows:', 'checkbox', true);
         this.registerFormElement('forced_lines', 'Forced Lines Ahead:', 'input', 0);
         const pv_walk = this.registerFormElement('pv_walk', 'PV Arrows:', 'checkbox', false);
@@ -386,7 +385,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('drag_moves', 'Drag Pieces:', 'checkbox', false);
         const engineLabelTooltiped = document.querySelector('#engine-label-tooltiped');
         const engineLabelUntooltiped = document.querySelector('#engine-label-untooltiped');
-        for (const range of [multipv_range, threads_range, memory_range, arrow_opacity_range]) {
+        for (const range of [multipv_range, threads_range, memory_range]) {
             range.registerChangeListener(() => {
                 // SCOPED TO THE ROW, not to the enclosing section. This used to walk up to `.section`
                 // and take the FIRST `.set-val` inside it -- which is the right span only while a
