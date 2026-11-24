@@ -146,7 +146,10 @@ function classify({winBefore, winAfter, rank, onlyMove, isBook, secondWin, sacri
 
     // MISS: a winning position let go. Chess.com shows this instead of Mistake/Blunder when the
     // loss is specifically the win being dropped, which reads very differently from a slip.
-    if (winBefore >= 75 && winAfter < 55 && lost >= INACCURACY) return 'miss';
+    // Only while the position is still holdable (40%+): a move from +5 to -6 threw the game and is
+    // a Blunder. Of our Misses that ended under 20%, chess.com's own classifier called 0 of 5 a
+    // Miss and 4 a Blunder (42 games, same depth-10 evals, 24.11.2026).
+    if (winBefore >= 75 && winAfter < 55 && winAfter >= 40 && lost >= INACCURACY) return 'miss';
 
     if (lost >= BLUNDER) return 'blunder';
     if (lost >= MISTAKE) return 'mistake';

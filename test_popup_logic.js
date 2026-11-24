@@ -389,6 +389,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
             {winBefore: 85, winAfter: 50, rank: 7}, 'miss'],
         ['...and a small slip in a winning position is still an Inaccuracy',
             {winBefore: 85, winAfter: 78, rank: 4}, 'inaccuracy'],
+        ['...and throwing a won game into a lost one is a Blunder, not a Miss',
+            {winBefore: 95, winAfter: 5, rank: 7}, 'blunder'],
     ];
     for (const [name, input, want] of cases) {
         const got = K(input);
