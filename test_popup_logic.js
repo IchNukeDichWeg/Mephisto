@@ -4132,7 +4132,13 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const srcAll = ['src/popup/popup.js', 'src/scripts/config-store.js', 'src/scripts/content-script.js', 'src/options/pages/review/review.js'].map(f => fs.readFileSync(ROOT + '/' + f, 'utf8')).join('\n') + gh + gj;
     ok('SIMP-WHERE: Mistakes Where People Make Them is gone: no row, no setting, no hazard code, no strings',
        !/humanize_maia_where|hz_where_|hz_p_err|HZ_WHERE_|whereK/.test(srcAll) && locs.every(l => !('set.humanize_maia_where' in l) && !('set.tip.humanize_maia_where' in l))
-       && /const m = \(cls\) => \(x \? hz_tc_mult\(cls, x\.tc, x\.frac, x\.phase, elo\) : 1\);/.test(psrc)); }
+       && /const m = \(cls\) => \(x \? hz_tc_mult\(cls, x\.tc, x\.frac, x\.phase, elo\) : 1\);/.test(psrc));
+    // the Human Error tip named the removed setting too: in the settings markup and in every locale
+    const gone = {en: 'Where People Make Them', de: 'Fehler, wo Menschen', es: 'donde la gente', fr: 'là où on', hi: 'जहाँ लोग करते', it: 'dove la gente', ja: '人がミスする場面', ko: '사람이 실수하는 곳',
+                  nl: 'waar mensen ze maken', pl: 'tam, gdzie ludzie', pt: 'onde as pessoas', ru: 'там, где их делают', tr: 'hata yaptığı yerde', zh: '在人会失误的地方'};
+    const names = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => f.slice(0, -5));
+    ok('SIMP-WHERE: the Suggest a Human Error tip no longer names Mistakes Where People Make Them, in the markup or in any of the 14 locales',
+       !/Where People Make Them/.test(gh) && names.length === 14 && names.every(n => gone[n] && !JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + n + '.json', 'utf8'))['set.tip.human_error'].includes(gone[n])), names); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     // Err Like Your Rating: the real HUMANIZE MATCH block (it calls hz_maia_weighted from the guards block)
     const sl = (a, b) => psrc.slice(psrc.indexOf(a), psrc.indexOf(b));
