@@ -392,8 +392,6 @@
   "set.arrow_color_threat": "Seta de ameaça",
   "set.arrow_color_book": "Setas de livro",
   "set.tip.variant": "Qual variante de xadrez o motor joga. Autodetectada na maioria dos sites; ajusta à mão quando uma página não disser.",
-  "set.tip.compute_time": "Quanto o motor pensa por lance, em milissegundos. Mais tempo significa jogo mais forte.",
-  "set.tip.compute_depth": "Quantos meios-lances de profundidade o motor busca quando o orçamento é Profundidade em vez de tempo.",
   "set.tip.multiple_lines": "Quantas linhas candidatas calcular e desenhar. Cada linha extra custa tempo de busca.",
   "set.tip.computer_evaluation": "Mostrar a avaliação, as porcentagens de vitória e a profundidade no painel.",
   "set.tip.threat_analysis": "Calcular também o que o adversário ameaça, e desenhar como seta vermelha.",

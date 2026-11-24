@@ -275,6 +275,8 @@ h3.set-h {
 .set-sec .set-ctl:not(.rv-oneline):not(:has(> .set-btn)) > .set-step,
 .set-sec .set-ctl:not(.rv-oneline):not(:has(> .set-btn)) > label.set-tgl { flex: 1 1 auto; min-width: 0; }
 .set-row.set-wide, .set-row.set-mix { max-width: none; }
+/* the Search Budget row holds the unit select AND its stepper, so its control block is wider */
+.set-sec .set-ctl.set-budget:not(.rv-oneline):not(:has(> .set-btn)):not(:has(> .set-ta)) { flex-basis: 330px; }
 .set-row:last-of-type { border-bottom: 0; }
 
 .set-lbl {

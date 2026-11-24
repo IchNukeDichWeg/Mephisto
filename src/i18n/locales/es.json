@@ -392,8 +392,6 @@
   "set.arrow_color_threat": "Flecha de amenaza",
   "set.arrow_color_book": "Flechas de libro",
   "set.tip.variant": "Qué variante de ajedrez juega el motor. Autodetectada en la mayoría de sitios; ajústala a mano cuando una página no lo diga.",
-  "set.tip.compute_time": "Cuánto piensa el motor por jugada, en milisegundos. Más tiempo significa juego más fuerte.",
-  "set.tip.compute_depth": "Cuántas semijugadas de profundidad busca el motor cuando el presupuesto es Profundidad en vez de tiempo.",
   "set.tip.multiple_lines": "Cuántas líneas candidatas calcular y dibujar. Cada línea extra cuesta tiempo de búsqueda.",
   "set.tip.computer_evaluation": "Mostrar la puntuación de evaluación, los porcentajes de victoria y la profundidad en el panel.",
   "set.tip.threat_analysis": "Calcular también lo que amenaza el rival, y dibujarlo como flecha roja.",

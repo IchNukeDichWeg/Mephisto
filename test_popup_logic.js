@@ -16847,6 +16847,18 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
        && /registerFormElement\('arrow_opacity', 'Arrow Opacity:', 'range', 75\)/.test(aj) && /M\.Range\.init/.test(aj)
        && !/arrow_opacity/.test(gh + gj));
 }
+// ---- SIMP-BUDGET: the settings page's Search Budget is one row, like the panel's ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const i = gh.indexOf('<div class="set-row" id="search_budget_row">'), row = i < 0 ? '' : gh.slice(i, gh.indexOf('\n                </div>\n', i));
+    ok('SIMP-BUDGET: the unit select and both steppers share one row; the old per-unit rows are gone',
+       /id="search_mode_select"/.test(row) && /id="compute_time_step"[\s\S]*id="compute_time_input"/.test(row)
+       && /id="compute_depth_step"[\s\S]*id="compute_depth_input"/.test(row) && !/compute_(time|depth)_row/.test(gh + gj));
+    ok('SIMP-BUDGET: the select shows the stepper for its unit and hides the other',
+       /row\('compute_time_step'\)\.style\.display = depth \? 'none' : ''/.test(gj) && /row\('compute_depth_step'\)\.style\.display = depth \? '' : 'none'/.test(gj));
+}
 // ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

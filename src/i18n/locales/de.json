@@ -392,8 +392,6 @@
   "set.arrow_color_threat": "Drohungspfeil",
   "set.arrow_color_book": "Buchpfeile",
   "set.tip.variant": "Welche Schachvariante die Engine spielt. Auf den meisten Seiten automatisch erkannt; stelle es von Hand ein, wenn eine Seite nichts sagt.",
-  "set.tip.compute_time": "Wie lange die Engine pro Zug denkt, in Millisekunden. Mehr Zeit heißt stärkeres Spiel.",
-  "set.tip.compute_depth": "Wie viele Halbzüge tief die Engine sucht, wenn das Budget Tiefe statt Zeit ist.",
   "set.tip.multiple_lines": "Wie viele Kandidatenvarianten berechnet und gezeichnet werden. Jede weitere Variante kostet Suchzeit.",
   "set.tip.computer_evaluation": "Bewertung, Gewinnprozente und Tiefe im Panel anzeigen.",
   "set.tip.threat_analysis": "Berechne auch, was der Gegner droht, und zeichne es als roten Pfeil.",

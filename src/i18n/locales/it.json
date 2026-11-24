@@ -392,8 +392,6 @@
   "set.arrow_color_threat": "Freccia di minaccia",
   "set.arrow_color_book": "Frecce di libro",
   "set.tip.variant": "Quale variante di scacchi gioca il motore. Rilevata automaticamente sulla maggior parte dei siti; impostala a mano quando una pagina non lo dice.",
-  "set.tip.compute_time": "Quanto pensa il motore per mossa, in millisecondi. Più tempo significa gioco più forte.",
-  "set.tip.compute_depth": "Quante semimosse in profondità cerca il motore quando il budget è Profondità invece che tempo.",
   "set.tip.multiple_lines": "Quante linee candidate calcolare e disegnare. Ogni linea extra costa tempo di ricerca.",
   "set.tip.computer_evaluation": "Mostra la valutazione, le percentuali di vittoria e la profondità nel pannello.",
   "set.tip.threat_analysis": "Calcola anche cosa minaccia l'avversario, e disegnalo come freccia rossa.",

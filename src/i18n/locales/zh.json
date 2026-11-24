@@ -392,8 +392,6 @@
   "set.arrow_color_threat": "威胁箭头",
   "set.arrow_color_book": "开局库箭头",
   "set.tip.variant": "引擎下哪种国际象棋变体。大多数网站自动检测;页面没有说明时手动设置。",
-  "set.tip.compute_time": "引擎每步思考多久,毫秒。时间越多棋力越强。",
-  "set.tip.compute_depth": "预算为深度而非时间时,引擎搜索多少步(ply)深。",
   "set.tip.multiple_lines": "计算并绘制多少条候选变着。每多一条都消耗搜索时间。",
   "set.tip.computer_evaluation": "在面板中显示评估分数、胜率和深度。",
   "set.tip.threat_analysis": "同时计算对方在威胁什么,并画成红色箭头。",

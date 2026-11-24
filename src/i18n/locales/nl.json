@@ -392,8 +392,6 @@
   "set.arrow_color_threat": "Dreigingspijl",
   "set.arrow_color_book": "Boekpijlen",
   "set.tip.variant": "Welke schaakvariant de engine speelt. Op de meeste sites automatisch gedetecteerd; stel het met de hand in wanneer een pagina niets zegt.",
-  "set.tip.compute_time": "Hoe lang de engine per zet denkt, in milliseconden. Meer tijd betekent sterker spel.",
-  "set.tip.compute_depth": "Hoeveel halfzetten diep de engine zoekt wanneer het budget Diepte is in plaats van tijd.",
   "set.tip.multiple_lines": "Hoeveel kandidaatvarianten er worden berekend en getekend. Elke extra variant kost zoektijd.",
   "set.tip.computer_evaluation": "Toon de evaluatiescore, winstpercentages en diepte in het paneel.",
   "set.tip.threat_analysis": "Bereken ook wat de tegenstander dreigt, en teken het als rode pijl.",

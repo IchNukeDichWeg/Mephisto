@@ -459,8 +459,6 @@
   "set.arrow_color_threat": "Threat Arrow",
   "set.arrow_color_book": "Book Arrows",
   "set.tip.variant": "Which chess variant the engine plays. Auto-detected on most sites; set it by hand when a page does not say.",
-  "set.tip.compute_time": "How long the engine thinks per move, in milliseconds. More time means stronger play.",
-  "set.tip.compute_depth": "How many plies deep the engine searches when the budget is Depth instead of time.",
   "set.tip.multiple_lines": "How many candidate lines to calculate and draw. Each extra line costs search time.",
   "set.tip.computer_evaluation": "Show the evaluation score, win percentages and depth in the panel.",
   "set.tip.threat_analysis": "Also calculate what the opponent is threatening, and draw it as a red arrow.",

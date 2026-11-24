@@ -157,16 +157,29 @@
                     </div>
                 </div>
 
-                <div class="set-row">
+                <!-- ONE ROW for the budget, like the panel's: the unit, then the number for that unit. Both
+                     steppers stay in the markup with their own ids and keys; general.js shows the one the
+                     select names (sync_budget_rows). -->
+                <div class="set-row" id="search_budget_row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.search_budget" class="tooltipped" data-position="right"
                               data-tooltip="How the search is budgeted. Time is what the clock allows. A Depth is reproducible -- the same depth is the same answer on any machine, where a millisecond budget is a different search on every one. Each keeps its own number, so switching back does not lose it."><span data-i18n="set.search_budget">Search Budget</span></span>
                     </div>
-                    <div class="set-ctl">
+                    <div class="set-ctl set-budget">
                         <select name="search_mode" id="search_mode_select">
                             <option value="time" data-i18n="set.search_time_ms">Search Time (ms)</option>
                             <option value="depth" data-i18n="set.search_depth">Search Depth</option>
                         </select>
+                        <span class="set-step" id="compute_time_step">
+                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                            <input id="compute_time_input" type="number" min="50" step="25" title="Search Time (ms)" data-i18n-title="set.search_time_ms">
+                            <button type="button" class="set-step-btn" data-step="1">+</button>
+                        </span>
+                        <span class="set-step" id="compute_depth_step">
+                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                            <input id="compute_depth_input" type="number" min="1" max="60" step="1" title="Search Depth" data-i18n-title="set.search_depth">
+                            <button type="button" class="set-step-btn" data-step="1">+</button>
+                        </span>
                     </div>
                 </div>
 
@@ -186,28 +199,6 @@
                         <label for="pv_keys_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
-                    </div>
-                </div>
-
-                <div class="set-row" id="compute_time_row">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.compute_time" class="tooltipped" data-position="right" data-tooltip="How long the engine thinks per move, in milliseconds. More time means stronger play."><span data-i18n="set.search_time_ms">Search Time (ms)</span></span></div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="compute_time_input" type="number" min="50" step="25">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="set-row" id="compute_depth_row">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.compute_depth" class="tooltipped" data-position="right" data-tooltip="How many plies deep the engine searches when the budget is Depth instead of time."><span data-i18n="set.search_depth">Search Depth</span></span></div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="compute_depth_input" type="number" min="1" max="60" step="1">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
                     </div>
                 </div>
 

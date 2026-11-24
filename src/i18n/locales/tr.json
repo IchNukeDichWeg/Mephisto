@@ -392,8 +392,6 @@
   "set.arrow_color_threat": "Tehdit oku",
   "set.arrow_color_book": "Kitap okları",
   "set.tip.variant": "Motorun hangi satranç varyantını oynadığı. Çoğu sitede kendiliğinden algılanır; sayfa söylemiyorsa elle ayarlayın.",
-  "set.tip.compute_time": "Motorun hamle başına milisaniye cinsinden ne kadar düşündüğü. Daha çok zaman daha güçlü oyun demek.",
-  "set.tip.compute_depth": "Bütçe zaman yerine Derinlik olduğunda motorun kaç yarı hamle derin aradığı.",
   "set.tip.multiple_lines": "Kaç aday varyantın hesaplanıp çizileceği. Her ek varyant arama süresine mal olur.",
   "set.tip.computer_evaluation": "Panelde değerlendirmeyi, kazanma yüzdelerini ve derinliği göster.",
   "set.tip.threat_analysis": "Rakibin neyi tehdit ettiğini de hesapla ve kırmızı okla çiz.",

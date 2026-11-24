@@ -144,8 +144,9 @@ class GeneralSettings extends SettingsPage {
         sync_analysis_limit();
         this.registerFormElement('compute_time', 'Search Time (ms):', 'input', 300);
         this.registerFormElement('compute_depth', 'Search Depth:', 'input', 16);
-        // Only the row the budget names is shown; the other keeps its value, it is just not in the
-        // way. Both are ordinary settings, so each is still saved on its own key.
+        // One row, like the panel's: only the stepper the budget names is shown; the other keeps its
+        // value, it is just not in the way. Both are ordinary settings, so each is still saved on its
+        // own key.
         //
         // registerChangeListener, NOT addEventListener: registerFormElement hands back a FormElement
         // wrapper, not the DOM node -- and its select branch fires `change` on the real element, so
@@ -153,8 +154,8 @@ class GeneralSettings extends SettingsPage {
         const sync_budget_rows = () => {
             const depth = search_mode_select.getValue() === 'depth';
             const row = (id) => document.getElementById(id);
-            if (row('compute_time_row')) row('compute_time_row').style.display = depth ? 'none' : '';
-            if (row('compute_depth_row')) row('compute_depth_row').style.display = depth ? '' : 'none';
+            if (row('compute_time_step')) row('compute_time_step').style.display = depth ? 'none' : '';
+            if (row('compute_depth_step')) row('compute_depth_step').style.display = depth ? '' : 'none';
         };
         search_mode_select.registerChangeListener(sync_budget_rows);
         sync_budget_rows();

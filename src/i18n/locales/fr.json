@@ -392,8 +392,6 @@
   "set.arrow_color_threat": "Flèche de menace",
   "set.arrow_color_book": "Flèches du livre",
   "set.tip.variant": "Quelle variante d'échecs le moteur joue. Auto-détectée sur la plupart des sites ; réglez-la à la main quand une page ne dit rien.",
-  "set.tip.compute_time": "Combien de temps le moteur réfléchit par coup, en millisecondes. Plus de temps signifie un jeu plus fort.",
-  "set.tip.compute_depth": "De combien de demi-coups le moteur cherche quand le budget est Profondeur plutôt que temps.",
   "set.tip.multiple_lines": "Combien de lignes candidates calculer et dessiner. Chaque ligne en plus coûte du temps de recherche.",
   "set.tip.computer_evaluation": "Afficher l'évaluation, les pourcentages de gain et la profondeur dans le panneau.",
   "set.tip.threat_analysis": "Calculer aussi ce que menace l'adversaire, et le dessiner en flèche rouge.",

@@ -392,8 +392,6 @@
   "set.arrow_color_threat": "Strzałka zagrożenia",
   "set.arrow_color_book": "Strzałki z księgi",
   "set.tip.variant": "Jaki wariant szachów gra silnik. Na większości stron wykrywany automatycznie; ustaw ręcznie, gdy strona nie mówi.",
-  "set.tip.compute_time": "Jak długo silnik myśli na ruch, w milisekundach. Więcej czasu to silniejsza gra.",
-  "set.tip.compute_depth": "Ile półruchów w głąb silnik szuka, gdy budżetem jest Głębokość zamiast czasu.",
   "set.tip.multiple_lines": "Ile wariantów kandydujących liczyć i rysować. Każdy dodatkowy wariant kosztuje czas szukania.",
   "set.tip.computer_evaluation": "Pokaż ocenę, procenty wygranej i głębokość w panelu.",
   "set.tip.threat_analysis": "Licz też, czym grozi przeciwnik, i rysuj to czerwoną strzałką.",
