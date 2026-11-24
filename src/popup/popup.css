@@ -743,8 +743,6 @@ html, body {
     font-size: 12px;
     color: var(--mp-mute);
 }
-/* Copy Diagnostics closes the panel, so it keeps the gap that separates it from the rows above. */
-#quick-settings .qs-row.qs-oneline:has(#qs_copydiag) { margin-top: 10px; }
 /* Bot game. The row stacks: label, dropdown, then the two actions side by side -- the dropdown is
    a full-width .browser-default like every other select here, so the buttons cannot share its line.
    They wear the same pill as Copy Diagnostics rather than a new shape of their own.

@@ -285,7 +285,6 @@
   "panel.fourpc_mode_teams": "Equipos",
   "panel.fourpc_mode_ffa": "Todos contra todos",
   "set.tip.four_player_mode": "Con qué reglas se juega el tablero de cuatro jugadores. La detección automática lee la etiqueta de modo de chess.com, que es una suposición sobre el marcado ajeno - ponlo tú si esa suposición falla. Cambia las reglas de la búsqueda: la promoción es la 8.ª fila en todos contra todos y la 11.ª en equipos. Tetrarch busca en ambos modos.",
-  "panel.tip.copy_diagnostics": "Copiar diagnóstico: versión, motor, qué se detectó, por qué se jugó o no la última jugada, y el registro reciente. Pégalo en un informe de error - no contiene direcciones ni nada que te identifique.",
   "set.sec.diagnostics": "Diagnóstico",
   "set.verbose_logging": "Registro detallado",
   "set.tip.the_trace_is_normally_quiet": "La traza normalmente calla mientras la pestaña de la partida tiene el foco, para que el juego ordinario no llene la consola. Es el valor por defecto correcto y lo incorrecto de tener que adivinar: activa esto para ver cada decisión según ocurre, en la consola del service worker. No cuesta nada salvo ruido.",

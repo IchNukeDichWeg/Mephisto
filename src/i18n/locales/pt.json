@@ -285,7 +285,6 @@
   "panel.fourpc_mode_teams": "Equipas",
   "panel.fourpc_mode_ffa": "Todos contra todos",
   "set.tip.four_player_mode": "Com que regras se joga o tabuleiro de quatro jogadores. A deteção automática lê a etiqueta de modo do chess.com, o que é um palpite sobre marcação alheia - define tu quando esse palpite falha. Muda as regras da procura: a promoção é na 8.ª fila em todos contra todos e na 11.ª em equipas. O Tetrarch procura nos dois modos.",
-  "panel.tip.copy_diagnostics": "Copiar diagnóstico: versão, motor, o que foi detetado, porque a última jogada foi ou não jogada, e o registo recente. Cola num relatório de erro - não contém endereços nem nada que te identifique.",
   "set.sec.diagnostics": "Diagnóstico",
   "set.verbose_logging": "Registo detalhado",
   "set.tip.the_trace_is_normally_quiet": "O rastreio normalmente cala enquanto a separador da partida tem foco, para o jogo comum não encher o console. É o padrão certo e a coisa errada de ter que adivinhar: liga isto para ver cada decisão acontecendo, no console do service worker. Não custa nada além de ruído.",

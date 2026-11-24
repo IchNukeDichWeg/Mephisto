@@ -285,7 +285,6 @@
   "panel.fourpc_mode_teams": "Drużyny",
   "panel.fourpc_mode_ffa": "Każdy na każdego",
   "set.tip.four_player_mode": "Według jakich zasad toczy się partia na planszy czteroosobowej. Wykrywanie automatyczne czyta etykietę trybu chess.com, co jest domysłem na temat cudzego kodu - ustaw ręcznie, gdy ten domysł jest błędny. Zmienia to zasady przeszukiwania: promocja następuje na 8. linii w każdy na każdego i na 11. w drużynach. Tetrarch przeszukuje oba tryby.",
-  "panel.tip.copy_diagnostics": "Kopiuj diagnostykę: wersja, silnik, co wykryto, dlaczego ostatni ruch został lub nie został zagrany, oraz ostatnie wpisy śledzenia. Wklej to do zgłoszenia błędu - nie zawiera adresów ani niczego, co Cię identyfikuje.",
   "set.sec.diagnostics": "Diagnostyka",
   "set.verbose_logging": "Szczegółowe logowanie",
   "set.tip.the_trace_is_normally_quiet": "Ślad zwykle milczy, gdy karta partii ma fokus, by zwykła gra nie zapełniała konsoli. To właściwy domyślny stan i coś, czego nie powinno się zgadywać: włącz to, by widzieć każdą decyzję na bieżąco, w konsoli service workera. Nie kosztuje nic prócz szumu.",

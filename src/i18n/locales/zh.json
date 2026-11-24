@@ -285,7 +285,6 @@
   "panel.fourpc_mode_teams": "组队",
   "panel.fourpc_mode_ffa": "混战",
   "set.tip.four_player_mode": "四人棋盘按哪套规则进行。自动检测读取 chess.com 自己的模式标签，而那只是对他人页面结构的猜测——猜错时请自行设定。它会改变搜索所依据的规则：混战的升变在第 8 横线，组队在第 11 横线。Tetrarch 两种模式都会搜索。",
-  "panel.tip.copy_diagnostics": "复制诊断信息：版本、引擎、检测到的内容、上一步为何走或没走，以及最近的追踪记录。可直接贴进问题报告——其中不含任何网址，也没有任何能识别你的信息。",
   "set.sec.diagnostics": "诊断",
   "set.verbose_logging": "详细日志",
   "set.tip.the_trace_is_normally_quiet": "对局标签页获得焦点时跟踪通常保持安静,普通对弈不会填满控制台。这是正确的默认,也是不该靠猜的事:开启它就能在 service worker 的控制台里看到每个决定的实时发生。除了噪音没有代价。",

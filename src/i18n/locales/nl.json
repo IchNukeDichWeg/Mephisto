@@ -285,7 +285,6 @@
   "panel.fourpc_mode_teams": "Teams",
   "panel.fourpc_mode_ffa": "Ieder voor zich",
   "set.tip.four_player_mode": "Volgens welke regels het vierspelersbord wordt gespeeld. Automatisch leest chess.coms eigen modusaanduiding, en dat is een gok over andermans markup - stel het zelf in als die gok fout is. Het verandert de regels van de zoektocht: promotie is de 8e rij bij ieder voor zich en de 11e bij teams. Tetrarch zoekt in beide modi.",
-  "panel.tip.copy_diagnostics": "Diagnose kopiëren: versie, engine, wat er gedetecteerd is, waarom de laatste zet wel of niet gespeeld is, en de recente trace. Plak het in een bugrapport - het bevat geen adressen en niets dat jou identificeert.",
   "set.sec.diagnostics": "Diagnose",
   "set.verbose_logging": "Uitgebreid loggen",
   "set.tip.the_trace_is_normally_quiet": "De trace zwijgt normaal zolang het partijtabblad focus heeft, zodat gewoon spel de console niet vult. Dat is de juiste standaard en het verkeerde om te moeten raden: zet dit aan om elke beslissing live te zien, in de console van de service worker. Kost niets behalve ruis.",

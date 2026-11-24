@@ -1635,28 +1635,6 @@ function init_quick_settings() {
             push_config();
         });
     }
-    // Diagnostics, as a button people will actually find. The hotkey stays wired too -- it is one
-    // line and costs nothing -- but the button is the way in.
-    const diagBtn = PANEL_ROOT.getElementById('qs_copydiag');
-    if (diagBtn) {
-        diagBtn.addEventListener('click', () => {
-            const was = diagBtn.textContent;
-            diagBtn.disabled = true;
-            // The report is for somebody else; THIS is for you. The same facts, named in the panel
-            // the moment you press it, so the commonest report -- "it did nothing" -- often does not
-            // need to be filed at all. Not tied to a first run: something that breaks on day two
-            // hundred deserves the same answer as something that never started.
-            const bad = health_rows(health_state()).filter(r => r.ok === false);
-            set_idle_reason(bad.length
-                ? `${bad[0].label}: ${bad[0].detail || 'not working'}`
-                : 'All checks passed - board, settings and engine are all live.');
-            copy_diagnostics((err) => {
-                diagBtn.textContent = err ? '✕' : '✓';
-                if (err) set_idle_reason(err);
-                setTimeout(() => { diagBtn.textContent = was; diagBtn.disabled = false; }, 1100);
-            });
-        });
-    }
     // Bot game. The row lives in the Play tab but only exists on chess.com's Play Computer page,
     // so it is populated and shown by sync_bot_row() off the same slow poll that heals a missed
     // position push -- chess.com is a single-page app and never reloads this script on a

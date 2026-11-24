@@ -664,7 +664,6 @@
   "panel.tip.threads": "How many CPU threads the engine may use. More is stronger up to the cores you actually have; past that it is slower, not faster.",
   "panel.tip.multi_lines": "How many candidate lines the engine reports. More lines means each one is searched less deeply.",
   "panel.tip.memory": "The engine's hash table. Bigger helps long searches; bigger than the machine can spare hurts everything. The WASM engines use at most 512 MB whatever the slider shows; native engines take the full value.",
-  "panel.tip.copy_diagnostics": "Copy diagnostics: version, engine, what was detected, why the last move was or was not played, and the recent trace. Paste it into a bug report - it contains no addresses and nothing that identifies you.",
   "panel.tip.turn_switch": "Whose turn to move - tap to flip if it's wrong (puzzles / custom positions).",
   "panel.tip.maia2_elos": "Maia-2 plays a MATCHUP, not a level: one model that takes your rating and your opponent's, so the same position is answered differently by a 1200 facing a 2000 than by a 2000 facing a 1200. Steps of 50, and both apply instantly (no reload). Past ply 10 Maia-2 reads ratings in bands of 100, with everything under 1100 one band and everything from 2000 up another; the finer steps count in the opening, which Maia-3 plays.",
   "panel.maia2_self": "Maia-2 your Elo",

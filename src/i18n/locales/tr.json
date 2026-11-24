@@ -285,7 +285,6 @@
   "panel.fourpc_mode_teams": "Takımlar",
   "panel.fourpc_mode_ffa": "Herkes kendine",
   "set.tip.four_player_mode": "Dört kişilik tahtanın hangi kurallarla oynandığı. Otomatik algılama chess.com'un kendi mod etiketini okur; bu, başkasının işaretlemesi hakkında bir tahmindir - tahmin yanlışsa kendin ayarla. Aramanın kurallarını değiştirir: terfi herkes kendine modunda 8., takımlarda 11. sıradadır. Tetrarch iki modda da arar.",
-  "panel.tip.copy_diagnostics": "Tanılamayı kopyala: sürüm, motor, ne algılandığı, son hamlenin neden oynandığı ya da oynanmadığı ve son izleme satırları. Hata bildirimine yapıştır - adres ya da seni tanımlayan hiçbir şey içermez.",
   "set.sec.diagnostics": "Tanılama",
   "set.verbose_logging": "Ayrıntılı günlük",
   "set.tip.the_trace_is_normally_quiet": "Oyun sekmesi odaktayken iz olağan biçimde susar, sıradan oyun konsolu doldurmaz. Doğru varsayılan budur ve tahmin edilmesi gereken yanlış şeydir: her kararı olurken görmek için bunu açın, service worker konsolunda. Gürültüden başka bedeli yok.",

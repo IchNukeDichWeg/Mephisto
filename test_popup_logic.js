@@ -1379,7 +1379,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         .filter(r => !/<select|<input/.test(r))              // a select row lays itself out
         .filter(r => !/qs-bot-actions/.test(r));             // the bot row stacks on purpose
     ok(`every bare-button / bare-value row is marked (${wrappers.length} of them)`,
-       wrappers.length >= 4 && wrappers.every(r => r.includes('qs-oneline')),
+       wrappers.length >= 3 && wrappers.every(r => r.includes('qs-oneline')),
        wrappers.filter(r => !r.includes('qs-oneline')).map(r => r.slice(0, 80)));
 }
 
@@ -5040,6 +5040,18 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         + csrc.slice(csrc.indexOf('const PUZZLE_NEXT_DELAY_MS'), csrc.indexOf('\n', csrc.indexOf('function puzzleNextDelayMs()'))), c);
     ok('SIMP-PUZZLEDELAY: both delays read 300 whatever an old saved value says', vm.runInContext('[puzzle_move_delay_ms(), puzzleNextDelayMs()].join()', c) === '300,300');
     ok('SIMP-PUZZLEDELAY: no row, binding or live key is left for either', !/puzzle_delay|puzzle_next_delay/.test(gh + gj + psrc + csrc));
+}
+// ---- SIMP-DIAG: the panel has no Copy Diagnostics row; the hotkey and the settings button still copy the report ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const ph = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8'), pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'), pc = fs.readFileSync(ROOT + '/src/popup/popup.css', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8'), gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    ok('SIMP-DIAG: no qs_copydiag row, wiring, rule or tip is left in the panel', !/qs_copydiag|panel\.tip\.copy_diagnostics/.test(ph + pj + pc)
+       && fs.readdirSync(ROOT + '/src/i18n/locales').every(f => !('panel.tip.copy_diagnostics' in JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')))));
+    ok('SIMP-DIAG: the hotkey still copies the report from the panel (copy_diagnostics) and its row stays rebindable',
+       /if \(action === 'copy_diagnostics'\) \{[\s\S]*?copy_diagnostics\(/.test(pj) && /copy_diagnostics: 'd'/.test(fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8')));
+    ok('SIMP-DIAG: the settings page keeps its Copy Diagnostics button, bound, outside the Advanced block', /id="copy_diag_btn"/.test(gh) && /getElementById\('copy_diag_btn'\)/.test(gj)
+       && gh.indexOf('id="copy_diag_btn"') < gh.indexOf('<div class="set-adv-body" id="diagnostics_adv"'));
 }
 // ---- SIMP-MORE: the panel's set-once rows fold behind a More button; the fold persists and the hotkeys still reach the rows ----
 {

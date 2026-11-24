@@ -800,7 +800,7 @@ middlegames, the inverse of where extra depth would change a move. *Training mor
 stopped being scraped, an engine that misbehaves, a feature you want, an idea. You don't need a diagnosis; "it stopped
 playing moves on lichess this morning" is a perfectly good issue. PRs are welcome too.
 
-**Paste a diagnostics report into the issue.** Press **D** on the page, or use the panel's **Engine** tab → **Copy
+**Paste a diagnostics report into the issue.** Press **D** on the page, or use **Settings → Diagnostics → Copy
 Diagnostics**. It carries the build, the engine, what was detected, whether the last move played (and why not, if it
 didn't), and the recent trace, with **no addresses, no account, no token and nothing identifying**. Turn on **Verbose
 Logging** (Settings → Diagnostics → Advanced) first and reproduce the problem, and **copy while it is broken**, because reloading to get a clean report

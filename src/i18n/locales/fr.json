@@ -285,7 +285,6 @@
   "panel.fourpc_mode_teams": "Équipes",
   "panel.fourpc_mode_ffa": "Chacun pour soi",
   "set.tip.four_player_mode": "Selon quelles règles se joue l'échiquier à quatre. La détection automatique lit l'étiquette de mode de chess.com, ce qui reste une supposition sur le balisage d'autrui - réglez-le vous-même si elle se trompe. Cela change les règles de la recherche : la promotion est à la 8e rangée en chacun pour soi et à la 11e en équipes. Tetrarch cherche dans les deux modes.",
-  "panel.tip.copy_diagnostics": "Copier le diagnostic : version, moteur, ce qui a été détecté, pourquoi le dernier coup a été joué ou non, et la trace récente. Collez-le dans un rapport de bogue - il ne contient aucune adresse ni rien qui vous identifie.",
   "set.sec.diagnostics": "Diagnostic",
   "set.verbose_logging": "Journal détaillé",
   "set.tip.the_trace_is_normally_quiet": "La trace se tait normalement tant que l'onglet de la partie a le focus, pour que le jeu ordinaire ne remplisse pas la console. C'est le bon défaut et la mauvaise chose à deviner : activez ceci pour voir chaque décision en direct, dans la console du service worker. Ne coûte rien que du bruit.",
