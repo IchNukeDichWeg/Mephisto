@@ -335,9 +335,20 @@ class GeneralSettings extends SettingsPage {
             () => panel_detail_of(detail.map(e => e.getValue())),
             (v) => { if (PANEL_DETAIL[v]) detail.forEach((e, i) => { if (e.getValue() !== PANEL_DETAIL[v][i]) e.setValue(PANEL_DETAIL[v][i]); }); });
         this.registerFormElement('hide_opponent', 'Hide Opponent Name:', 'checkbox', false);
-        this.registerFormElement('explorer', 'Opening Explorer:', 'checkbox', false);
-        this.registerFormElement('book_play', 'Play Book Moves:', 'checkbox', false);
+        // OPENING BOOK: Explorer (show the block) and Book Moves (play from it) as one select. The panel's
+        // quick toggles and hotkeys keep writing the two switches; every pair has an option, so
+        // nothing can be stored that this does not show. The database only matters while one is on.
+        const explorer = this.registerFormElement('explorer', 'Opening Explorer:', 'checkbox', false);
+        const book_play = this.registerFormElement('book_play', 'Play Book Moves:', 'checkbox', false);
         this.registerFormElement('explorer_db', 'Opening Database:', 'select', 'masters');
+        this.bindPairSelect('opening_book_view', explorer, book_play,
+            {off: [false, false], show: [true, false], both: [true, true], play: [false, true]});
+        const sync_explorer_db_row = () => {
+            document.getElementById('explorer_db_row')?.classList.toggle('hidden', !explorer.getValue() && !book_play.getValue());
+        };
+        explorer.registerChangeListener(sync_explorer_db_row);
+        book_play.registerChangeListener(sync_explorer_db_row);
+        sync_explorer_db_row();
         this.registerFormElement('playstyle', 'Playstyle:', 'select', 'balanced');
         // Contempt: a decision about the RESULT, so it sits beside the playstyle rather than with the
         // pacing rows. The cp row follows the toggle, like every other dependent control here.

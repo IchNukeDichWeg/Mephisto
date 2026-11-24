@@ -19555,3 +19555,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        locs.length === 14 && locs.every(l => l['set.tip.safety_net_view'] && l['set.net_quiet'] && l['set.net_live']
            && ['set.tip.safety_net', 'set.tip.safety_net_mode', 'set.safety_net_mode', 'set.safety_net_max', 'set.tip.safety_net_max'].every(k => !(k in l))));
 }
+// ---- SIMP-BOOK: one Opening Book select over explorer + book_play; the database row only while one is on ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const ph = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
+    const i = gj.indexOf('    bindPairSelect(viewId, a, b, values) {'), body = i < 0 ? '' : gj.slice(i, gj.indexOf('\n    }\n', i) + 7);
+    const a = gj.indexOf("        this.bindPairSelect('opening_book_view',"), wiring = a < 0 ? '' : gj.slice(a, gj.indexOf('        sync_explorer_db_row();\n', a) + 32);
+    const fe = (v) => { const ls = []; const o = {missing: false, v, getValue: () => o.v, setValue: (x) => { o.v = x; ls.forEach(f => f()); }, registerChangeListener: (f) => ls.push(f)}; return o; };
+    const run = (st, steps = []) => {
+        const explorer = fe(st[0]), book_play = fe(st[1]);
+        let dbHidden = null;
+        const sel = {value: '', ev: {}, parentElement: null, selectedOptions: [], addEventListener(t, f) { this.ev[t] = f; }};
+        const c = vm.createContext({document: {getElementById: (id) => id === 'opening_book_view' ? sel : {classList: {toggle: (cl, on) => { dbHidden = on; }}}}, explorer, book_play});
+        vm.runInContext(`const page = {${body}}; (function () { ${wiring} }).call(page);`, c);
+        const snap = () => [sel.value, explorer.v, book_play.v, dbHidden];
+        const out = [snap()];
+        for (const p of steps) {
+            if (p.startsWith('panel:')) { const [k, v] = p.slice(6).split('='); (k === 'explorer' ? explorer : book_play).setValue(v === 'true'); }
+            else { sel.value = p; sel.ev.change(); }
+            out.push(snap());
+        }
+        return out;
+    };
+    const T = true, F = false;
+    const shown = [[F, F], [T, F], [T, T], [F, T]].map(s => run(s)[0][0]);
+    ok('SIMP-BOOK: every stored pair has its option: Off, Show, Show + play, Play silently', shown.join() === 'off,show,both,play', shown);
+    const st = run([F, F], ['both', 'play', 'panel:explorer=true', 'panel:book_play=false', 'off']);
+    ok('SIMP-BOOK: picking writes both switches; a boolean written beside it (the panel\'s quick toggles) moves the select; the database row shows only while one is on',
+       JSON.stringify(st) === JSON.stringify([['off', F, F, T], ['both', T, T, F], ['play', F, T, F], ['both', T, T, F], ['show', T, F, F], ['off', F, F, T]]), st);
+    ok('SIMP-BOOK: one row holds both hidden switches (named for the custom-hotkey picker) and the select; the database row has its id; the panel keeps its two quick toggles',
+       /<div class="set-row" id="opening_book_row">[\s\S]*?<input id="explorer_checkbox" type="checkbox" hidden title="Explorer" data-i18n-title="set\.opening_explorer">\s*<input id="book_play_checkbox" type="checkbox" hidden title="Book Moves" data-i18n-title="set\.play_book_moves">\s*<select id="opening_book_view">/.test(gh)
+       && ['explorer', 'book_play'].every(k => (gh.match(new RegExp(`id="${k}_checkbox"`, 'g')) || []).length === 1)
+       && /<div class="set-row" id="explorer_db_row">/.test(gh) && /id="qs_explorer"/.test(ph) && /id="qs_book"/.test(ph));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-BOOK: label, tip and three options in all 14 locales; the two per-row tips are gone (the panel keeps its own)',
+       locs.length === 14 && locs.every(l => ['set.opening_book', 'set.tip.opening_book', 'set.opening_book.show', 'set.opening_book.both', 'set.opening_book.play', 'panel.tip.show_how_humans_actually_played', 'panel.tip.play_the_opening_from_the'].every(k => l[k])
+           && !('set.tip.show_how_humans_actually_played' in l) && !('set.tip.play_the_opening_from_the' in l)));
+}

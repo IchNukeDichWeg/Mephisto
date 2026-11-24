@@ -968,24 +968,23 @@
             <section id="beyond" class="set-sec scrollspy">
                 <h3 data-i18n="set.sec.beyond_the_engine" class="set-h">Beyond the engine</h3>
 
-                <div class="set-row set-toggle">
-                    <div class="set-lbl">
-                        <span data-i18n="set.opening_explorer">Explorer</span>
-                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.show_how_humans_actually_played"
-                              data-tooltip="Show how humans actually played this opening (lichess database): the opening
-                                            name plus the most-played replies and their win/draw/loss split, in a block
-                                            under the analysis lines. Read-out only -- it never changes which move you
-                                            play. Standard chess only, and it stops once the game leaves book."><i class="material-icons info-tooltip">info</i></span>
-                    </div>
+                <!-- ONE SELECT over Explorer (show) and Book Moves (play), general.js bindPairSelect. Both keys stay
+                     here as hidden inputs, so the panel's two quick toggles and their hotkeys see no change. -->
+                <div class="set-row" id="opening_book_row">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.opening_book" class="tooltipped" data-position="right" data-tooltip="Show puts the opening explorer under the analysis lines; Show + play also plays the opening from it; Play silently plays from it without showing it. Show how humans actually played this opening (lichess database): the opening name plus the most-played replies and their win/draw/loss split, in a block under the analysis lines. Read-out only -- it never changes which move you play. Standard chess only, and it stops once the game leaves book. Play the opening from the database instead of the engine&#39;s pick: a WEIGHTED-RANDOM choice among the popular replies, so you don&#39;t repeat the same line every game -- an engine that always plays the same first move is itself a tell. A candidate must appear in at least 20 games AND rate within 40cp of the engine&#39;s own best, so the variety never costs you a worse move. If the lookup hasn&#39;t arrived by the time the move is due, the engine move is played instead -- it never delays a move. Priority -- Move: Book &gt; Humanize &gt; engine best. Needs Autoplay."><span data-i18n="set.opening_book">Opening Book</span></span></div>
                     <div class="set-ctl">
-                        <input id="explorer_checkbox" type="checkbox" class="set-cb">
-                        <label for="explorer_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
+                        <input id="explorer_checkbox" type="checkbox" hidden title="Explorer" data-i18n-title="set.opening_explorer">
+                        <input id="book_play_checkbox" type="checkbox" hidden title="Book Moves" data-i18n-title="set.play_book_moves">
+                        <select id="opening_book_view">
+                            <option value="off" data-i18n="ui.off">Off</option>
+                            <option value="show" data-i18n="set.opening_book.show">Show</option>
+                            <option value="both" data-i18n="set.opening_book.both">Show + play</option>
+                            <option value="play" data-i18n="set.opening_book.play">Play silently</option>
+                        </select>
                     </div>
                 </div>
 
-                <div class="set-row">
+                <div class="set-row" id="explorer_db_row">
                     <div class="set-lbl">
                         <span data-i18n="set.opening_database" data-i18n-tip="set.tip.which_games_the_opening_data" class="tooltipped" data-position="right"
                               data-tooltip="Which games the opening data comes from. Masters is the cleanest opening
@@ -1082,27 +1081,6 @@
                     <div class="set-ctl">
                         <input id="lichess_token_input" type="password" autocomplete="off" spellcheck="false"
                                placeholder="lip_..." class="set-secret">
-                    </div>
-                </div>
-
-                <div class="set-row set-toggle">
-                    <div class="set-lbl">
-                        <span data-i18n="set.play_book_moves">Book Moves</span>
-                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.play_the_opening_from_the"
-                              data-tooltip="Play the opening from the database instead of the engine's pick: a
-                                            WEIGHTED-RANDOM choice among the popular replies, so you don't repeat the
-                                            same line every game -- an engine that always plays the same first move is
-                                            itself a tell. A candidate must appear in at least 20 games AND rate within
-                                            40cp of the engine's own best, so the variety never costs you a worse move.
-                                            If the lookup hasn't arrived by the time the move is due, the engine move is
-                                            played instead -- it never delays a move. Priority -- Move: Book > Humanize
-                                            > engine best. Needs Autoplay."><i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="book_play_checkbox" type="checkbox" class="set-cb">
-                        <label for="book_play_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
                     </div>
                 </div>
 
