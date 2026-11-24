@@ -3272,6 +3272,47 @@ function bindNumber(id, key) {
     });
 }
 
+// CPU USE (P5 settings review): engines x threads x memory was three boxes for one decision. Each level
+// runs N engines of ONE thread each: the positions of a game are independent, so N engines finish
+// about N times faster, and a one-thread depth search gives the same answer every time (the Budget
+// tooltip's measurement). The level itself is not stored; it is read back from rv_workers, rv_threads
+// and rv_hash, which the run already uses, so values set by hand in an older version show as Custom
+// and stay in use until a level is picked. High leaves a core free, and stops at the pool's cap of 4.
+function cpuLevels(cores = navigator.hardwareConcurrency || 4) {
+    const high = Math.max(2, Math.min(4, cores - 1));
+    return {
+        low:    {rv_workers: 1, rv_threads: 1, rv_hash: 64},
+        normal: {rv_workers: 2, rv_threads: 2, rv_hash: 256},
+        high:   {rv_workers: high, rv_threads: high, rv_hash: 256},
+    };
+}
+
+function cpuLevelOf(get, levels) {
+    return Object.keys(levels).find(k => Object.entries(levels[k]).every(([key, v]) => +get(key) === v)) || '';
+}
+
+function wireCpuUse() {
+    const sel = $('rv_cpu');
+    if (!sel) return;
+    const levels = cpuLevels();
+    // on a machine where High would start the same two engines as Normal, there is no third level
+    const high = [...sel.options].find(o => o.value === 'high');
+    if (high) high.hidden = levels.high.rv_workers === levels.normal.rv_workers;
+    const sync = () => {
+        sel.value = cpuLevelOf(cfg, levels);
+        for (const o of sel.options) if (o.value === '') o.hidden = sel.value !== '';
+        // a hand-set Custom can still ask for more threads or memory than the machine has
+        refreshLimitWarnings($('rv_limits_warn'), cfg('rv_threads'), cfg('rv_hash'));
+    };
+    sel.addEventListener('change', () => {
+        const lv = levels[sel.value];
+        if (!lv) return;
+        for (const [k, v] of Object.entries(lv)) setCfg(k, v);
+        sync();
+    });
+    sync();
+}
+
 function bindSteppers() {
     document.querySelectorAll('.set-step-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -3698,13 +3739,7 @@ class ReviewPage {
         // the run would not use
         if (+cfg('rv_multipv') < 2) setCfg('rv_multipv', 2);
         bindNumber('rv_multipv', 'rv_multipv');
-        bindNumber('rv_workers', 'rv_workers');
-        bindNumber('rv_threads', 'rv_threads');
-        bindNumber('rv_hash', 'rv_hash');
-        const rvWarn = () => refreshLimitWarnings($('rv_limits_warn'), $('rv_threads')?.value, $('rv_hash')?.value);
-        // 'change' too: the -/+ steppers (bindSteppers) fire only that (audit 3.1.333 REVIEW-9)
-        for (const id of ['rv_threads', 'rv_hash']) for (const ev of ['input', 'change']) $(id)?.addEventListener(ev, rvWarn);
-        setTimeout(rvWarn, 300);
+        wireCpuUse();
         bindNumber('rv_maia3_elo', 'rv_maia3_elo');
         bindSteppers();
         bindHumanUi();

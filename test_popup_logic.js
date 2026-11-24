@@ -3648,7 +3648,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         'set.opening_explorer': 'panel.explorer', 'set.play_book_moves': 'panel.book_moves', 'set.endgame_tablebase': 'panel.tablebase'};
     for (const f of fs.readdirSync(dir)) { const j = JSON.parse(fs.readFileSync(dir + f, 'utf8'));
         for (const k in same) if (j[k] !== j[same[k]]) bad.push(f + ' ' + k);
-        for (const k of ['an.hash', 'rv.hash']) if (j[k] !== j['panel.memory'] + ' (MB)') bad.push(f + ' ' + k); }
+        for (const k of ['an.hash']) if (j[k] !== j['panel.memory'] + ' (MB)') bad.push(f + ' ' + k); }
     ok('the same setting has the same name in the panel, on Settings, on Analysis and in Game Review, in every language', bad.length === 0, bad.slice(0, 6)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     // the two cached helpers, executed against the real chess.js: same answers as uncached, and computed once
@@ -10368,11 +10368,11 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext(rj.slice(ms, me) + '\n        rvModeSync();\n', c);
     ok('REVIEWA-1: 4-player shows the Analyse and Stop buttons', shown('rv_run') && shown('rv_stop'), [shown('rv_run'), shown('rv_stop')]);
     ok('REVIEWA-1: ...and the Budget row run4pcReview reads its movetime from', shown('rv_limit_kind') && shown('rv_limit_num'));
-    ok('REVIEWA-1: ...but not the two-player settings (engine, threads, human model)',
-       !shown('rv_engine') && !shown('rv_threads') && !shown('rv_human') && !shown('rv_multipv'));
+    ok('REVIEWA-1: ...but not the two-player settings (engine, CPU use, human model)',
+       !shown('rv_engine') && !shown('rv_cpu') && !shown('rv_human') && !shown('rv_multipv'));
     ok('REVIEWA-1: the note names the button that is there', /press\s+Analyse game\./.test(html) && !/and press\s+Review\./.test(html));
     store.rv_variant = 'chess'; vm.runInContext('rvModeSync()', c);
-    ok('REVIEWA-1: back on Chess the two-player rows are back', shown('rv_run') && shown('rv_engine') && shown('rv_threads') && shown('rv_limit_kind'));
+    ok('REVIEWA-1: back on Chess the two-player rows are back', shown('rv_run') && shown('rv_engine') && shown('rv_cpu') && shown('rv_limit_kind'));
 }
 // ---- audit 3.1.330 REVIEWA-2: the chess.com classifier run has a Stop button on screen ----
 {
@@ -19062,10 +19062,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-8 (3.1.333): ...which turns the pending note into "Stopped."', el.textContent === 'Stopped.', el.textContent);
     el.textContent = 'Classified'; c.settleStopNote();
     ok('REVIEW-8 (3.1.333): ...and leaves any other line alone', el.textContent === 'Classified', el.textContent); }
-// ---- audit 3.1.333 REVIEW-9: the threads/hash warning follows the -/+ steppers ----
+// ---- audit 3.1.333 REVIEW-9: the threads/hash warning follows every change of them ----
+// The -/+ steppers are gone (P5: one CPU use select writes threads and memory), so the warning is
+// refreshed by the select's own sync, on page open and on every level picked.
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
-    ok('REVIEW-9 (3.1.333): rvWarn listens to change as well as input', /for \(const ev of \['input', 'change'\]\) \$\(id\)\?\.addEventListener\(ev, rvWarn\)/.test(rsrc)); }
+    const w = rsrc.slice(rsrc.indexOf('function wireCpuUse() {'), rsrc.indexOf('\n}\n', rsrc.indexOf('function wireCpuUse() {')));
+    ok('REVIEW-9 (3.1.333): the warning is refreshed from the stored threads and memory on open and on every change',
+       /refreshLimitWarnings\(\$\('rv_limits_warn'\), cfg\('rv_threads'\), cfg\('rv_hash'\)\)/.test(w)
+       && /setCfg\(k, v\);\n\s*sync\(\);/.test(w) && /\n    sync\(\);$/.test(w)); }
 // ---- audit 3.1.333 REVIEW-10: every verdict review.css colours has an arrow and export colour ----
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const rsrc = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
@@ -20159,3 +20164,37 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /id="rv_multipv" type="number" min="2" max="10"/.test(html)
        && /if \(\+cfg\('rv_multipv'\) < 2\) setCfg\('rv_multipv', 2\);\n\s*bindNumber\('rv_multipv', 'rv_multipv'\);/.test(rj));
 })().catch(e => { fails++; console.log('FAIL REVIEW-LINES threw: ' + (e && e.stack || e)); });
+// ---- REVIEW-CPU: one CPU use control writes engines, threads and memory together ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    const ej = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    const store = {}, handlers = [];
+    const opts = ['low', 'normal', 'high', ''].map(value => ({value, hidden: value === ''}));
+    const sel = {value: '', options: opts, addEventListener: (ev, f) => handlers.push(f)};
+    let warned = null;
+    const c = vm.createContext({Object, navigator: {hardwareConcurrency: 10}, $: (id) => id === 'rv_cpu' ? sel : {},
+        cfg: (k) => k in store ? store[k] : {rv_workers: 2, rv_threads: 2, rv_hash: 256}[k], setCfg: (k, v) => { store[k] = v; },
+        refreshLimitWarnings: (el, t, h) => { warned = [t, h]; }});
+    vm.runInContext(fn('function cpuLevels(') + fn('function cpuLevelOf(') + fn('function wireCpuUse() {'), c);
+    vm.runInContext('wireCpuUse()', c);
+    const fresh = [sel.value, opts[3].hidden];
+    sel.value = 'high'; handlers[0]();
+    const high = [store.rv_workers, store.rv_threads, store.rv_hash, sel.value];
+    sel.value = 'low'; handlers[0]();
+    const low = [store.rv_workers, store.rv_threads, store.rv_hash, sel.value];
+    ok('REVIEW-CPU: the fresh defaults read Normal with Custom unlisted', JSON.stringify(fresh) === '["normal",true]', fresh);
+    ok('REVIEW-CPU: High on 10 cores writes 4 engines of one thread each, Low writes 1 engine and 64 MB',
+       JSON.stringify([high, low]) === JSON.stringify([[4, 4, 256, 'high'], [1, 1, 64, 'low']]), [high, low]);
+    store.rv_threads = 8; vm.runInContext('wireCpuUse()', c);
+    ok('REVIEW-CPU: a hand-set value from an older version reads Custom, listed, and is checked against the machine',
+       sel.value === '' && opts[3].hidden === false && warned[0] === 8, [sel.value, opts[3].hidden, warned]);
+    const two = vm.runInContext('cpuLevels(2)', c), four = vm.runInContext('cpuLevels(4)', c);
+    ok('REVIEW-CPU: High leaves a core free and never goes under Normal (2 cores: 2, 4 cores: 3)',
+       two.high.rv_workers === 2 && four.high.rv_workers === 3, [two.high, four.high]);
+    ok('REVIEW-CPU: the stored defaults are the Normal level',
+       /rv_threads: 2,\n\s*rv_workers: 2,\n\s*rv_hash: 256,/.test(ej) && /normal: \{rv_workers: 2, rv_threads: 2, rv_hash: 256\}/.test(rj));
+    ok('REVIEW-CPU: the three boxes are gone from the page', !/id="rv_(workers|threads|hash)"/.test(html) && /id="rv_cpu"/.test(html));
+}
