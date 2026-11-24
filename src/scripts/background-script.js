@@ -2755,7 +2755,7 @@ chrome.runtime.onConnect.addListener(port => {
   // review's own configure reset the live game's Threads, Hash, MultiPV and variant (audit 3.1.328
   // OPT-2). Separate keys, separate processes; the panel and the toolbar popup still share one.
   // ONE PROCESS PER OPTIONS-PAGE PORT, not per page. Each NativeEngine there is its own port, and a
-  // page runs two of one engine at once: the review pool (Engines at once, default 2) and Analysis
+  // page runs two of one engine at once: the review pool (CPU use, 2 engines at Normal) and Analysis
   // with the same native engine as Engine and Second engine. On one shared `#options` process the
   // host lets each newer analyse stop the running one, so the review's two workers cancelled each
   // other until "Another tab or page is using this native engine" and Analysis's first column stopped at
