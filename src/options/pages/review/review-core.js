@@ -311,7 +311,8 @@ function moveAccuracy(before, after) {
 
 
 // The bands, in win% LOST, matching the published chess.com scheme (user call 2026-08-15):
-// Best 0, Excellent <2, Good <5, Inaccuracy <10, Mistake <20, Blunder 20+. They are deliberately
+// Best <0.1 (or the engine's own move), Excellent <2, Good <5, Inaccuracy <10, Mistake <20, Blunder 20+
+// (classify-core.js holds them and the calibration behind Best). They are deliberately
 // tighter than the old 10/20/30 house bands -- an "inaccuracy" that costs a tenth of the game is
 // not an inaccuracy -- and the review's own tests were rewritten in the same commit.
 // ---- per-game statistics ----------------------------------------------------------------------

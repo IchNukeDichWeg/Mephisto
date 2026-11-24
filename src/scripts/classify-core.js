@@ -23,6 +23,14 @@ function winPercent(cp) {
 // Lichess's per-move accuracy (lila, AccuracyPercent.scala), from the win% the move gave away.
 
 const BLUNDER = 20, MISTAKE = 10, INACCURACY = 5, GOOD = 2;
+// A move that gives up under 0.1 win% is as good as the engine's own and is Best even when it is not
+// the engine's first line (a transposition, an equal alternative, or the next search liking it more).
+// Calibrated against chess.com's own classifier fed the same depth-10 evals, 42 games / 3,298 plies,
+// fitted on half the games and scored on the other half (24.11.2026): overall agreement 61.3% ->
+// 64.6% held out (61.1% -> 63.7% with the halves swapped); Best recall 76.0% -> 89.3%, Excellent
+// precision 47.7% -> 61.7%. Refitting the other bands too did not hold up out of sample (61.3% ->
+// 61.2%, and different values on each half), so they stay as published.
+const BEST = 0.1;
 
 // Piece values for the sacrifice test. Only relative size matters here.
 
@@ -154,7 +162,7 @@ function classify({winBefore, winAfter, rank, onlyMove, isBook, secondWin, sacri
     if (lost >= BLUNDER) return 'blunder';
     if (lost >= MISTAKE) return 'mistake';
     if (lost >= INACCURACY) return 'inaccuracy';
-    if (rank === 1) return 'best';
+    if (rank === 1 || lost < BEST) return 'best';
     if (lost < GOOD) return 'excellent';
     return 'good';
 }
@@ -189,6 +197,6 @@ const CLASS_NOTABLE = ['blunder', 'miss', 'mistake', 'inaccuracy', 'brilliant', 
 
 root.MephistoClassify = {CLASS_LABEL, CLASS_GLYPH, CLASS_COLOR, CLASS_NOTABLE,
                          winPercent, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, isMateScore, MATE_CP, clamp,
-                         BLUNDER, MISTAKE, INACCURACY, GOOD, PIECE_VAL};
+                         BLUNDER, MISTAKE, INACCURACY, GOOD, BEST, PIECE_VAL};
 
 })(typeof self !== 'undefined' ? self : globalThis);
