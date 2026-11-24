@@ -203,7 +203,7 @@ class GeneralSettings extends SettingsPage {
             }).catch(() => { /* the readout is an extra; a refusal costs nothing */ });
         }
         const computer_evaluation = this.registerFormElement('computer_evaluation', 'Show Computer Evaluation:', 'checkbox', true);
-        this.registerFormElement('threat_analysis', 'Show Threat Analysis', 'checkbox', false);
+        const threat_analysis = this.registerFormElement('threat_analysis', 'Show Threat Analysis', 'checkbox', false);
         // Playing with a net: the three knobs only mean anything while it is on, so they follow it
         // (same treatment the search-budget rows and the human-reply rating already get).
         const safety_net = this.registerFormElement('safety_net', 'Playing with a Net:', 'checkbox', false);
@@ -255,6 +255,15 @@ class GeneralSettings extends SettingsPage {
         threat_human.registerChangeListener(sync_human_reply_row);
         safety_net.registerChangeListener(sync_human_reply_row);
         sync_human_reply_row();
+        // THREAT: one select over the two switches. The human reply is only asked for while the threat
+        // search runs (popup.js reads it behind threat_analysis), so a stored reply without the threat
+        // reads Off, and Off clears both.
+        this.bindViewSelect('threat_view', [threat_analysis, threat_human],
+            () => (!threat_analysis.getValue() ? 'off' : threat_human.getValue() ? 'human' : 'arrow'),
+            (v) => {
+                if (threat_analysis.getValue() !== (v !== 'off')) threat_analysis.setValue(v !== 'off');
+                if (threat_human.getValue() !== (v === 'human')) threat_human.setValue(v === 'human');
+            });
         const simon_says_mode = this.registerFormElement('simon_says_mode', '"Hand and Brain" Mode:', 'checkbox', false);
         const autoplay = this.registerFormElement('autoplay', 'Autoplay:', 'checkbox', false);
         // AFTER THE GAME: Grind Mode and Accept Rematch as one select. Both only act while Autoplay is

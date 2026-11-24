@@ -19485,3 +19485,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SIMP-DETAIL: label, tip and four options in all 14 locales',
        locs.length === 14 && locs.every(l => ['set.panel_detail', 'set.tip.panel_detail', 'set.panel_detail.minimal', 'set.panel_detail.standard', 'set.panel_detail.full', 'set.panel_detail.custom'].every(k => l[k])));
 }
+// ---- SIMP-THREAT: one Threat select over threat_analysis + threat_human ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const i = gj.indexOf('    bindViewSelect(viewId, elems, read, write, onShow) {'), body = i < 0 ? '' : gj.slice(i, gj.indexOf('\n    }\n', i) + 7);
+    const a = gj.indexOf("        this.bindViewSelect('threat_view',"), wiring = a < 0 ? '' : gj.slice(a, gj.indexOf('\n            });\n', a) + 16);
+    const fe = (v) => { const ls = []; const o = {missing: false, v, getValue: () => o.v, setValue: (x) => { o.v = x; ls.forEach(f => f()); }, registerChangeListener: (f) => ls.push(f)}; return o; };
+    const run = (st, picks = []) => {
+        const threat_analysis = fe(st[0]), threat_human = fe(st[1]);
+        const sel = {value: '', ev: {}, parentElement: null, selectedOptions: [], addEventListener(t, f) { this.ev[t] = f; }};
+        const c = vm.createContext({document: {getElementById: () => sel}, threat_analysis, threat_human});
+        vm.runInContext(`const page = {${body}}; (function () { ${wiring} }).call(page);`, c);
+        const snap = () => [sel.value, threat_analysis.v, threat_human.v];
+        const out = [snap()];
+        for (const p of picks) { sel.value = p; sel.ev.change(); out.push(snap()); }
+        return out;
+    };
+    const T = true, F = false;
+    const shown = [[F, F], [T, F], [T, T], [F, T]].map(s => run(s)[0][0]);
+    ok('SIMP-THREAT: the select shows Off / Threat arrow / Arrow + human reply; a stored reply without the threat (inert in the panel) reads Off',
+       shown.join() === 'off,arrow,human,off', shown);
+    const st = run([F, T], ['human', 'arrow', 'off']);
+    ok('SIMP-THREAT: picking writes both switches; Off clears both',
+       JSON.stringify(st) === JSON.stringify([['off', F, T], ['human', T, T], ['arrow', T, F], ['off', F, F]]), st);
+    ok('SIMP-THREAT: one row holds both hidden switches (named for the custom-hotkey picker) and the select; the old rows are gone',
+       /<div class="set-row" id="threat_row">[\s\S]*?<input id="threat_analysis_checkbox" type="checkbox" hidden title="Show Threat Analysis" data-i18n-title="set\.show_threat_analysis">\s*<input id="threat_human_checkbox" type="checkbox" hidden title="Human Reply \(Maia\)" data-i18n-title="set\.threat_human">\s*<select id="threat_view">/.test(gh)
+       && ['threat_analysis', 'threat_human'].every(k => (gh.match(new RegExp(`id="${k}_checkbox"`, 'g')) || []).length === 1));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-THREAT: label, tip and two options in all 14 locales; the two per-row tips are gone',
+       locs.length === 14 && locs.every(l => ['set.threat_view', 'set.tip.threat_view', 'set.threat_view.arrow', 'set.threat_view.human'].every(k => l[k])
+           && !('set.tip.threat_analysis' in l) && !('set.tip.threat_human' in l)));
+}
