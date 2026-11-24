@@ -77,6 +77,23 @@ function ratingFor(kind, value) {
 const HUMAN_LABELS = {maia: 'Maia 1', maia2: 'Maia 2', maia3: 'Maia 3', 'elite-leela': 'Elite Leela'};
 const humanLabel = (kind) => HUMAN_LABELS[kind] || kind || '';
 
+// CPU USE, as a count of one-thread engines (review.js cpuLevels; the stored defaults below are its
+// Normal). Timed on one 44-move game with Stockfish 18 WASM on an Apple M5 Pro (18 cores), pool
+// started at once, 25.11.2026:
+//     depth 16:  2 engines 35-41 s   4 engines 21-22 s   6 engines 19 s   8 engines 16 s
+//     depth 18:  2 engines 70 s      4 engines 64-65 s                    8 engines 40-47 s
+// and the browser held about 0.7 GB more per engine (256 MB hash each): 3.0 GB at 2, 4.4 at 4, 6.9 at 8.
+// Normal is a quarter of the cores, 2 to 4: on this machine 4 nearly halves a Standard review, and a
+// 4- or 8-core machine keeps the 2 it had. High is half the cores (3 where there are 4 or more), at
+// most 8: past 6, depth 16 gained little and depth 18 still did. More than 8 was not measured.
+function reviewEngines(cores) {
+    const c = Math.max(1, Math.floor(+cores) || 4);
+    const normal = Math.max(2, Math.min(4, Math.floor(c / 4)));
+    const high = Math.max(normal, Math.min(8, Math.max(Math.floor(c / 2), Math.min(c - 1, 3))));
+    return {normal, high};
+}
+const REVIEW_NORMAL = reviewEngines(typeof navigator !== 'undefined' && navigator.hardwareConcurrency).normal;
+
 const CFG_DEFAULTS = {
     rv_engine: 'stockfish-18-nnue',
     rv_limit_kind: 'depth',
@@ -90,10 +107,10 @@ const CFG_DEFAULTS = {
     // (cpuLevels in review.js), and these three defaults ARE its Normal level, so a fresh page names
     // a level instead of reading Custom. HOW MANY ENGINES SEARCH AT ONCE: the positions of a game
     // are independent, so N engines cut the pass to about 1/N of the wall clock -- what chess.com's
-    // review does. The threads are SPLIT between them, and one each is what makes a depth search
-    // give the same answer every time; it used to default to half the cores, two per engine here.
-    rv_threads: 2,
-    rv_workers: 2,
+    // review does. The threads are SPLIT between them, one each; it used to default to half the
+    // cores, two per engine here.
+    rv_threads: REVIEW_NORMAL,
+    rv_workers: REVIEW_NORMAL,
     rv_hash: 256,
     rv_human: '',
     rv_maia_band: '1500',
@@ -724,6 +741,6 @@ function nativeHostAvailable(portName) {
 
 self.MephistoEngines = {
     ENGINES, MAIA_BANDS, WasmEngine, NativeEngine, makeEngine, nativeHostAvailable,
-    MAIA_RATING_KINDS, takesRating, ratingSteps, ratingFor, humanLabel,
+    MAIA_RATING_KINDS, takesRating, ratingSteps, ratingFor, humanLabel, reviewEngines,
     NATIVE_DEPTH_CAP_MS, LIMIT_INFINITE,
 };

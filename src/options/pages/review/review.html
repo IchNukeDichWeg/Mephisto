@@ -238,10 +238,12 @@
                             <div class="set-lbl">
                                 <span data-i18n="rv.budget" data-i18n-tip="rv.tip.budget" class="tooltipped" data-position="right"
                                       data-tooltip="How hard the engine works on EACH position. Depth is the better choice
-                                                    when you want to compare two reviews, and it is reproducible because every
-                                                    CPU use level gives each engine one thread: measured on this build, three depth-14 searches of the same
-                                                    position agreed exactly on one thread and disagreed (27/25/24cp) on four,
-                                                    because a multi-threaded search explores in a different order every time.
+                                                    when you want to compare two reviews, and with CPU use on Low it is
+                                                    reproducible. Each engine searches on one thread (measured on this build,
+                                                    three depth-14 searches of the same position agreed exactly on one thread
+                                                    and disagreed (27/25/24cp) on four, because a multi-threaded search explores
+                                                    in a different order every time), and only a single engine sees the
+                                                    positions in the same order on every run.
                                                     Time is seconds per position (default 0.5s); the -/+ buttons step by 0.5s
                                                     and you can type any value. A game is roughly 2 positions per move, so a
                                                     40-move game at 0.5s is about a minute.">
@@ -291,19 +293,24 @@
                             <div class="set-lbl">
                                 <span data-i18n="rv.cpu" data-i18n-tip="rv.tip.cpu" class="tooltipped" data-position="right"
                                       data-tooltip="How much of this machine the review takes. Each engine searches one position
-                                                    on one thread, so positions run side by side and a depth search gives the
-                                                    same answer every time. Low is one engine and 64 MB, for reviewing while you
-                                                    do something else; Normal is two engines, the default; High is up to four,
-                                                    one fewer than your cores. Custom shows when engines, threads or memory were
-                                                    set by hand in an older version; those values stay in use until you pick a level.">
+                                                    at a time on one thread, so positions run side by side. Low is one engine and
+                                                    64 MB, for reviewing while you do something else, and the one level where a
+                                                    depth review gives the same grades on every run: with several engines, which
+                                                    positions share an engine's memory depends on timing, so a grade or an accuracy
+                                                    point can move between runs. Normal is a quarter of your cores (2 to 4 engines)
+                                                    and the default; High is half of them, up to 8. Each engine holds about 0.7 GB.
+                                                    Custom shows when engines, threads or memory were set by hand in an older
+                                                    version; those values stay in use until you pick a level.">
                                     CPU use <i class="material-icons info-tooltip">info</i>
                                 </span>
                             </div>
                             <div class="set-ctl">
                                 <select id="rv_cpu" class="rv-select browser-default">
                                     <option value="low" data-i18n="rv.cpu_low">Low - 1 engine</option>
-                                    <option value="normal" data-i18n="rv.cpu_normal">Normal - 2 engines</option>
-                                    <option value="high" data-i18n="rv.cpu_high">High - up to 4 engines</option>
+                                    <!-- Normal and High name their engine count, which depends on the cores:
+                                         wireCpuUse writes these two labels -->
+                                    <option value="normal">Normal</option>
+                                    <option value="high">High</option>
                                     <option value="" data-i18n="rv.custom" hidden>Custom</option>
                                 </select>
                             </div>

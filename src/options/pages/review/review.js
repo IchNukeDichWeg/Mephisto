@@ -24,8 +24,12 @@ const Core = self.MephistoReviewCore;
 // because the Analysis page needs the same ones. Pulled onto locals here so the rest of this file
 // reads exactly as it did.
 const {ENGINES, MAIA_BANDS, WasmEngine, NativeEngine, makeEngine, nativeHostAvailable,
-       takesRating, ratingSteps, ratingFor, humanLabel,
+       takesRating, ratingSteps, ratingFor, humanLabel, reviewEngines,
        LIMIT_INFINITE} = self.MephistoEngines;
+
+// New UI text goes through the locale files; the English is the fallback when no table is loaded.
+const tr = (key, dflt, vars) => (typeof MephistoI18n !== 'undefined' ? MephistoI18n.t(key, dflt, vars)
+    : String(dflt).replace(/\{(\w+)\}/g, (m, k) => (vars && k in vars ? String(vars[k]) : m)));
 
 // ---- config -----------------------------------------------------------------------------------
 // Its own keys rather than the panel's: a review runs at a depth and a thread count that would be
@@ -759,7 +763,8 @@ async function startRig(override, rules) {
     // NEVER MORE ENGINES THAN THREADS: each engine needs at least one, so 4 workers on 2 threads ran
     // 4 threads, twice what the Threads setting allows. The classifier lane's override sets one
     // thread PER engine, so the cap reads the setting, which is the total either way.
-    const wantWorkers = Math.max(1, Math.min(4, override?.workers || +cfg('rv_workers') || 1,
+    // At most 8: High's ceiling (reviewEngines in engines.js), the most that was measured.
+    const wantWorkers = Math.max(1, Math.min(8, override?.workers || +cfg('rv_workers') || 1,
                                              Math.max(1, +cfg('rv_threads') || 1)));
     const per = Math.max(1, Math.floor(opts.threads / wantWorkers));
     // ALL AT ONCE. Started one after another, each engine's net load (~0.9 s for Stockfish 18 here)
@@ -3297,16 +3302,19 @@ function bindNumber(id, key) {
 }
 
 // CPU USE (P5 settings review): engines x threads x memory was three boxes for one decision. Each level
-// runs N engines of ONE thread each: the positions of a game are independent, so N engines finish
-// about N times faster, and a one-thread depth search gives the same answer every time (the Budget
-// tooltip's measurement). The level itself is not stored; it is read back from rv_workers, rv_threads
-// and rv_hash, which the run already uses, so values set by hand in an older version show as Custom
-// and stay in use until a level is picked. High leaves a core free, and stops at the pool's cap of 4.
+// runs N engines of ONE thread each: the positions of a game are independent, so more engines finish
+// sooner, though a game's hardest position caps it (timings in engines.js, reviewEngines). The level
+// itself is not stored; it is read back from rv_workers, rv_threads and rv_hash, which the run already
+// uses, so values set by hand in an older version show as Custom and stay in use until a level is
+// picked. Normal and High scale with the cores (reviewEngines); Low stays one engine.
+// ONLY LOW IS REPRODUCIBLE. With several engines, which positions share an engine's hash depends on
+// timing: depth 12 on one 44-move game read 52.7% twice on one engine with identical grades, and
+// 54.6 / 56.6 / 54.6% on four engines with different grades (25.11.2026).
 function cpuLevels(cores = navigator.hardwareConcurrency || 4) {
-    const high = Math.max(2, Math.min(4, cores - 1));
+    const {normal, high} = reviewEngines(cores);
     return {
         low:    {rv_workers: 1, rv_threads: 1, rv_hash: 64},
-        normal: {rv_workers: 2, rv_threads: 2, rv_hash: 256},
+        normal: {rv_workers: normal, rv_threads: normal, rv_hash: 256},
         high:   {rv_workers: high, rv_threads: high, rv_hash: 256},
     };
 }
@@ -3319,7 +3327,12 @@ function wireCpuUse() {
     const sel = $('rv_cpu');
     if (!sel) return;
     const levels = cpuLevels();
-    // on a machine where High would start the same two engines as Normal, there is no third level
+    // the counts depend on this machine, so the labels are written here rather than in the markup
+    for (const o of sel.options) {
+        if (o.value === 'normal') o.textContent = tr('rv.cpu_normal', 'Normal - {n} engines', {n: levels.normal.rv_workers});
+        if (o.value === 'high') o.textContent = tr('rv.cpu_high', 'High - {n} engines', {n: levels.high.rv_workers});
+    }
+    // on a machine where High would start the same engines as Normal, there is no third level
     const high = [...sel.options].find(o => o.value === 'high');
     if (high) high.hidden = levels.high.rv_workers === levels.normal.rv_workers;
     const sync = () => {

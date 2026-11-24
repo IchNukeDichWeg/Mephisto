@@ -20245,10 +20245,11 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const opts = ['low', 'normal', 'high', ''].map(value => ({value, hidden: value === ''}));
     const sel = {value: '', options: opts, addEventListener: (ev, f) => handlers.push(f)};
     let warned = null;
-    const c = vm.createContext({Object, navigator: {hardwareConcurrency: 10}, $: (id) => id === 'rv_cpu' ? sel : {},
+    const ea = ej.indexOf('function reviewEngines('), reviewEnginesSrc = ej.slice(ea, ej.indexOf('\n}\n', ea) + 3);
+    const c = vm.createContext({Object, Math, navigator: {hardwareConcurrency: 10}, $: (id) => id === 'rv_cpu' ? sel : {},
         cfg: (k) => k in store ? store[k] : {rv_workers: 2, rv_threads: 2, rv_hash: 256}[k], setCfg: (k, v) => { store[k] = v; },
-        refreshLimitWarnings: (el, t, h) => { warned = [t, h]; }});
-    vm.runInContext(fn('function cpuLevels(') + fn('function cpuLevelOf(') + fn('function wireCpuUse() {'), c);
+        tr: (k, d, v) => d.replace('{n}', v.n), refreshLimitWarnings: (el, t, h) => { warned = [t, h]; }});
+    vm.runInContext(reviewEnginesSrc + fn('function cpuLevels(') + fn('function cpuLevelOf(') + fn('function wireCpuUse() {'), c);
     vm.runInContext('wireCpuUse()', c);
     const fresh = [sel.value, opts[3].hidden];
     sel.value = 'high'; handlers[0]();
@@ -20256,15 +20257,23 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     sel.value = 'low'; handlers[0]();
     const low = [store.rv_workers, store.rv_threads, store.rv_hash, sel.value];
     ok('REVIEW-CPU: the fresh defaults read Normal with Custom unlisted', JSON.stringify(fresh) === '["normal",true]', fresh);
-    ok('REVIEW-CPU: High on 10 cores writes 4 engines of one thread each, Low writes 1 engine and 64 MB',
-       JSON.stringify([high, low]) === JSON.stringify([[4, 4, 256, 'high'], [1, 1, 64, 'low']]), [high, low]);
+    ok('REVIEW-CPU: High on 10 cores writes 5 engines of one thread each, Low writes 1 engine and 64 MB',
+       JSON.stringify([high, low]) === JSON.stringify([[5, 5, 256, 'high'], [1, 1, 64, 'low']]), [high, low]);
+    ok('REVIEW-CPU: the Normal and High labels name this machine\'s engine counts',
+       opts[1].textContent === 'Normal - 2 engines' && opts[2].textContent === 'High - 5 engines', [opts[1].textContent, opts[2].textContent]);
     store.rv_threads = 8; vm.runInContext('wireCpuUse()', c);
     ok('REVIEW-CPU: a hand-set value from an older version reads Custom, listed, and is checked against the machine',
        sel.value === '' && opts[3].hidden === false && warned[0] === 8, [sel.value, opts[3].hidden, warned]);
     const two = vm.runInContext('cpuLevels(2)', c), four = vm.runInContext('cpuLevels(4)', c);
     ok('REVIEW-CPU: High leaves a core free and never goes under Normal (2 cores: 2, 4 cores: 3)',
        two.high.rv_workers === 2 && four.high.rv_workers === 3, [two.high, four.high]);
+    // Normal = a quarter of the cores (2..4), High = half (3 from 4 cores, at most 8): measured on 18 cores
+    const counts = [2, 4, 8, 12, 16, 18, 64].map(n => { const r = vm.runInContext(`reviewEngines(${n})`, c); return [n, r.normal, r.high]; });
+    ok('REVIEW-CPU: Normal and High scale with the cores (2..4 and up to 8)',
+       JSON.stringify(counts) === JSON.stringify([[2, 2, 2], [4, 2, 3], [8, 2, 4], [12, 3, 6], [16, 4, 8], [18, 4, 8], [64, 4, 8]]), counts);
     ok('REVIEW-CPU: the stored defaults are the Normal level',
-       /rv_threads: 2,\n\s*rv_workers: 2,\n\s*rv_hash: 256,/.test(ej) && /normal: \{rv_workers: 2, rv_threads: 2, rv_hash: 256\}/.test(rj));
+       /rv_threads: REVIEW_NORMAL,\n\s*rv_workers: REVIEW_NORMAL,\n\s*rv_hash: 256,/.test(ej) && /const REVIEW_NORMAL = reviewEngines\(/.test(ej)
+       && /normal: \{rv_workers: normal, rv_threads: normal, rv_hash: 256\}/.test(rj));
+    ok('REVIEW-CPU: the pool cap is High\'s ceiling of 8', /const wantWorkers = Math\.max\(1, Math\.min\(8, override/.test(rj));
     ok('REVIEW-CPU: the three boxes are gone from the page', !/id="rv_(workers|threads|hash)"/.test(html) && /id="rv_cpu"/.test(html));
 }
