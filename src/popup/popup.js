@@ -548,8 +548,6 @@ async function initPanel(root, tabId) {
         clock_mode: JSON.parse(MephistoConfig.get('clock_mode')) || false,
         puzzle_auto_next: JSON.parse(MephistoConfig.get('puzzle_auto_next')) || false,
         drag_moves: JSON.parse(MephistoConfig.get('drag_moves')) || false,
-        // the content script reads this off the pushed config, so it has to travel with it
-        puzzle_next_delay: JSON.parse(MephistoConfig.get('puzzle_next_delay') ?? 'null') ?? 300,
         // Diagnostics, not play: forces the worker trace on even while the tab is focused. The
         // gate that suppresses it by default is the right default and the wrong thing to have to
         // guess at, so it gets a switch.
@@ -4489,19 +4487,11 @@ function puzzle_move_ready(fen) {
 // opponent's reply is still moving across the board. That is what made the mismatch guard fire on
 // essentially every puzzle move. Delaying the SEND (rather than sleeping inside the click sequence)
 // also means the content-script's guard judges a board that has settled.
-// The DEFAULT, not the value: it is a setting now (Settings -> General -> Puzzle Move Delay).
-// Kept as a constant because it is also the fallback whenever the setting is unset or unreadable,
-// and because the reasoning above is about this number.
+// FIXED, not a setting: this was a Puzzle Move Delay row until the settings simplification, and 300 was
+// its default and the only value anyone was shipped. A page too slow for it needs the board waited for,
+// not a number to guess; a value saved by the old row is ignored.
 const PUZZLE_MOVE_DELAY_MS = 300;
-
-// Read fresh per move rather than off the config snapshot: the point of a knob like this is that
-// you drag it while watching puzzles being solved, and a value that only takes effect on the next
-// panel rebuild would be useless for that.
-function puzzle_move_delay_ms() {
-    let v = null;
-    try { v = JSON.parse(MephistoConfig.get('puzzle_delay') ?? 'null'); } catch (e) { v = null; }
-    return (typeof v === 'number' && v >= 0 && v <= 3000) ? v : PUZZLE_MOVE_DELAY_MS;
-}
+function puzzle_move_delay_ms() { return PUZZLE_MOVE_DELAY_MS; }
 // The pending pre-move pause. Superseded rather than stacked: on_new_pos can legitimately run twice
 // for the SAME board -- a re-push flagged as a resume does exactly that -- and two live timers would
 // send the move twice, which the content-script then has to drop on its `moving` guard.
@@ -11140,7 +11130,7 @@ const LIVE_CONFIG_KEYS = [
     ...ARROW_COLOR_KEYS, 'arrow_palette', // repaint on the next frame, no reload
     'think_time', 'elo', 'opp_alert', 'theme',
     // toggling the trace has to take effect on the session you are already debugging
-    'verbose_log', 'fourpc_mode', 'puzzle_delay', 'puzzle_auto_next', 'puzzle_next_delay',
+    'verbose_log', 'fourpc_mode', 'puzzle_auto_next',
     'drag_moves',
     // not a behaviour key: the listener reads the bindings fresh on every keypress, so the KEY works
     // the moment it is saved. This is so the hints beside the toggles and on the title bar stop

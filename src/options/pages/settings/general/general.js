@@ -423,7 +423,6 @@ class GeneralSettings extends SettingsPage {
         this.initUpdater();
         this.initCopyDiagnostics();
         this.registerFormElement('puzzle_mode', 'Puzzle Mode:', 'checkbox', false);
-        this.registerFormElement('puzzle_delay', 'Puzzle Move Delay (ms):', 'input', 300);
         // SOLUTION SOURCE: Read Solutions From The Page and Use The Debugger as one select (bindViewSelect).
         // The service worker and the content script read both keys raw from storage, so both stay. The
         // debugger is inert without the page read (background-script.js puzzleNetWanted wants all three
@@ -440,7 +439,6 @@ class GeneralSettings extends SettingsPage {
                 if (puzzle_capture_cdp.getValue() !== want[1]) puzzle_capture_cdp.setValue(want[1]);
             });
         this.registerFormElement('puzzle_auto_next', 'Auto-Next Puzzle:', 'checkbox', false);
-        this.registerFormElement('puzzle_next_delay', 'Auto-Next Delay (ms):', 'input', 300);
         this.registerFormElement('python_autoplay_backend', 'Python Autoplay Backend:', 'checkbox', false);
         this.registerFormElement('think_time', 'Simulated Think Time (ms):', 'input', 0);
         this.registerFormElement('move_time', 'Simulated Move Time (ms):', 'input', 400);

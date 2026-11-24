@@ -5030,6 +5030,17 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         return !d['set.tip.puzzle_solution_source'] || ('set.tip.puzzle_capture' in d) || ('set.tip.puzzle_capture_cdp' in d); });
     ok('the Solution source tip is present in all 14 locales; the two per-switch tips are gone', fails14.length === 0, fails14);
 }
+// ---- SIMP-PUZZLEDELAY: the two puzzle delays are fixed at 300 ms and no longer settings ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'), csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8'), gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const c = vm.createContext({MephistoConfig: {get: () => '1500'}, config: {puzzle_delay: 1500, puzzle_next_delay: 1500}});
+    vm.runInContext(psrc.slice(psrc.indexOf('const PUZZLE_MOVE_DELAY_MS'), psrc.indexOf('\n', psrc.indexOf('function puzzle_move_delay_ms()'))) + '\n'
+        + csrc.slice(csrc.indexOf('const PUZZLE_NEXT_DELAY_MS'), csrc.indexOf('\n', csrc.indexOf('function puzzleNextDelayMs()'))), c);
+    ok('SIMP-PUZZLEDELAY: both delays read 300 whatever an old saved value says', vm.runInContext('[puzzle_move_delay_ms(), puzzleNextDelayMs()].join()', c) === '300,300');
+    ok('SIMP-PUZZLEDELAY: no row, binding or live key is left for either', !/puzzle_delay|puzzle_next_delay/.test(gh + gj + psrc + csrc));
+}
 // ---- SIMP-PUZZLESRC: Read Solutions From The Page + Use The Debugger are one Solution source select ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
@@ -14245,7 +14256,7 @@ globalThis.largeBoardTable = () => {
             }
         }
     } catch (e) { bad = ['threw ' + e.message]; }
-    ok('GENERAL-1: every -/+ button on the settings page moves its field by one input step (not step*step)', rows.length >= 14 && bad.length === 0, bad.length ? bad : rows.length);
+    ok('GENERAL-1: every -/+ button on the settings page moves its field by one input step (not step*step)', rows.length >= 12 && bad.length === 0, bad.length ? bad : rows.length);
     // Auto Resign's stepper is the "0 = off" view over auto_resign_cp now (SIMP-OFF), same step
     const resign = rows.find(r => r.input.id === 'auto_resign_view');
     if (resign) { resign.input.value = '900'; resign.btns[0].click(); }

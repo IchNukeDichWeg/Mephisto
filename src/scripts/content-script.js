@@ -4127,14 +4127,11 @@ function pushWhenSettled(tries = 12) {
 const PUZZLE_NEXT_PATHS = ['/puzzles/rated', '/puzzles/learning'];
 const PUZZLE_NEXT_SEL = '.primary-control-buttons-component';
 // How long to wait before pressing it, so you still see whether you got the puzzle right before the
-// board changes. The DEFAULT, not the value -- it is a setting (Auto-Next Delay), and this is what
-// an unset or out-of-range one falls back to.
+// board changes. FIXED, not a setting: this was an Auto-Next Delay row until the settings
+// simplification, and 300 was its default; a value saved by the old row is ignored.
 const PUZZLE_NEXT_DELAY_MS = 300;
 
-function puzzleNextDelayMs() {
-    const v = config && config.puzzle_next_delay;
-    return (typeof v === 'number' && v >= 0 && v <= 5000) ? v : PUZZLE_NEXT_DELAY_MS;
-}
+function puzzleNextDelayMs() { return PUZZLE_NEXT_DELAY_MS; }
 // The button is re-created per puzzle, so remembering the ELEMENT is what stops a double click --
 // a boolean would have to guess when to reset, and clicking twice skips a puzzle unsolved.
 let puzzleNextClicked = null;
