@@ -18957,8 +18957,9 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const cc = fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8');
     ok('REVIEWCORE-3 (3.1.333): classify-core says its +-2000 window and mate=100 differ from lila\'s +-1000',
        /lila ceils the cp at \+-1000/.test(cc) && cc.includes('clamp(cp, -2000, 2000)'));
-    ok('REVIEWCORE-3 (3.1.333): the README says the ceiling is wider than Lichess\'s',
-       fs.readFileSync(ROOT + '/README.md', 'utf8').includes("Lichess's formulas (with a wider ceiling")); }
+    // since P5 game accuracy IS lila's number (REVIEW-ACC); only the move grades keep the wider ceiling
+    ok('REVIEWCORE-3 (3.1.333): the README says accuracy is Lichess\'s and only move quality has the wider ceiling',
+       fs.readFileSync(ROOT + '/README.md', 'utf8').includes("**Accuracy** on Lichess's formula: the same evals give Lichess's number, within its rounding. **Move quality** uses Lichess's win% curve with a wider ceiling")); }
 // ---- audit 3.1.333 REVIEWCORE-5: top1, uniform and time need the same sample as the estimate ----
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const c = vm.createContext({console}); c.self = c;
@@ -19961,4 +19962,32 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const quiet = run('e2e4 d7d5 b1c3 g8f6', 'g8f6');
     ok('REVIEW-GREAT: the panel grades Qxd5 (taking the pawn back) Best, while the same numbers on a quiet only-move read Great',
        recap[3] === 'best' && quiet[3] === 'great', [recap[3], quiet[3]]);
+}
+// ---- REVIEW-ACC: game accuracy matches lichess on lichess's own evals (lila's window, ceiling, stdev) ----
+// Three analysed lichess games, evals as lichess served them (one per position after each move, a mate as #n),
+// with lichess's own accuracy. The old centred window read 8.4 points high on xBWsawNP; lila's reads within 0.5.
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console}; c.self = c; vm.createContext(c);
+    for (const f of ['/lib/chess.js', '/src/scripts/classify-core.js', '/src/options/pages/review/review-core.js']) vm.runInContext(fs.readFileSync(ROOT + f, 'utf8'), c);
+    const C = c.MephistoReviewCore, MATE = 100000;
+    const GAMES = [
+        {id: "ZlkPN7gH", li: [71, 90], ev: "18 32 20 30 27 27 21 38 21 29 13 47 8 50 53 56 43 63 20 24 23 25 0 1 0 0 0 0 0 0 -4 0 0 142 47 244 171 167 172 159 156 139 -14 -1 0 1 0 11 -1 0 0 -1 -4 22 #-1 #0"},
+        {id: "AfOSXTLe", li: [87, 81], ev: "18 31 24 24 33 32 32 40 -13 -6 -50 -31 -72 -37 -118 -85 -116 -34 -88 -9 -31 0 0 -8 -132 -115 -142 17 15 15 15 27 10 14 4 8 6 39 -652 -661 -685 -630 -629 -634 -637 -637 -638 -648 -639 -641 -681 -696 -881 -819 -814 -801 -792 -747 -720 -700 -679 -685 -694 -679 -732 -697 -728 -720 -791 -781 -888 -871 -853 -611 -745 -708 -768 -736 -716 -549 -540 -533 -520 -506 -586 -569 -576 -553 -563 -533 -553 -479 -451 -535 -531 -496 -503 -491 -501 -470 -497 -491 -453 0 0 736 695 969"},
+        {id: "xBWsawNP", li: [39, 74], ev: "15 27 0 0 -2 9 -1 21 -23 17 0 -14 -3 -2 -5 429 399 580 570 548 541 614 607 583 607 587 568 568 -856 -845"},
+    ];
+    const got = [];
+    for (const g of GAMES) {
+        const cp = g.ev.split(' ').map(x => x[0] === '#' ? (+x.slice(1) > 0 ? MATE - Math.abs(+x.slice(1)) : -(MATE - Math.abs(+x.slice(1)))) : +x);
+        const all = [15, ...cp], moves = [];   // lila starts every game from Cp.initial = 15
+        for (let i = 0; i < cp.length; i++) {
+            const color = i % 2 ? 'b' : 'w', s = color === 'w' ? 1 : -1;
+            const m = {ply: i, color, evalBefore: all[i] * s, evalAfter: all[i + 1] * s};
+            m.winBefore = C.winPercent(m.evalBefore); m.winAfter = C.winPercent(m.evalAfter); m.acc = C.moveAccuracy(m.winBefore, m.winAfter);
+            moves.push(m);
+        }
+        for (const [k, col] of [[0, 'w'], [1, 'b']]) got.push([g.id, col, +C.accuracyFor(moves, col).toFixed(2), g.li[k]]);
+    }
+    ok('REVIEW-ACC: all six player accuracies land within 0.6 of lichess (lichess rounds to a whole number)',
+       got.every(([, , ours, li]) => Math.abs(ours - li) <= 0.6), got);
 }

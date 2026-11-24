@@ -330,43 +330,58 @@ function stdev(xs) {
     return Math.sqrt(xs.reduce((a, x) => a + (x - m) * (x - m), 0) / (xs.length - 1));
 }
 
-// Lichess weights each move's accuracy by how much was at stake around it (a volatility window), so
-// a dead-drawn shuffle cannot inflate the number. Same idea here: the weight is the standard
-// deviation of the win% over a window centred on the move, floored so every move still counts.
+// GAME ACCURACY IS LICHESS'S, number for number (lila AccuracyPercent.gameAccuracy). Each move's
+// accuracy is weighted by how much was at stake around it (a volatility window), so a dead-drawn
+// shuffle cannot inflate the number, then averaged with the harmonic mean, which stops one 100% streak
+// from hiding a blunder. Three details are lila's and all three matter:
+//   - win% from the cp CEILED at +-1000 (a mate counts as the ceiling). The grades and the graph keep
+//     the wider +-2000 window (classify-core winPercent); only this number uses lila's;
+//   - a TRAILING window of ws = clamp(floor(moves / 10), 2, 8) positions over WHITE's win%, the first
+//     ws - 2 moves reusing the first window, and move i taking window i;
+//   - the POPULATION standard deviation, clamped to 0.5..12.
+// The old centred, uncapped, sample-stdev window read 2.54 points above lichess on lichess's own evals
+// (32 analysed games, 64 player scores: mean |gap| 2.65, max 8.4); this one reads mean |gap| 0.25,
+// max 0.5 on the same games (24.11.2026). The remaining gap is lila's eval rounding.
+// A move without evals (a hand-built or partial table) falls back to its winBefore / acc.
 //
-// THIS NUMBER IS NOT CHESS.COM'S, AND IT IS NOT SUPPOSED TO BE. Measured 2026-09-12 against the real
-// Game Review service: 8 games from a public archive, both colours, 16 paired points, their Stockfish
-// 16 / Strength 22 vs ours at depth 22. Mean signed gap (theirs - ours) -1.64, mean |gap| 3.24, and
-// individual games ran from -7.7 to +6.3 in BOTH directions. The least-squares line came out
-// theirs = 0.9993*ours - 1.584: slope 1.0 to four decimals, i.e. no scaling error at all, and applying
-// the constant shift moved mean |gap| only 3.24 -> 2.88 with a worst residual of 7.94. So the gap is
-// per-position disagreement between two different engines, not a bias in this formula, and no
-// correction term can remove it. Do not re-run that calibration; a fitted "chess.com mode" here would
-// be false precision. Anyone who wants their number can have the exact one -- the local chess.com
-// classifier (rv_ee_run) returns their own CAPS and overwrites report.accuracy with it.
-// That calibration predates the white-view volatility window below (it was measured with the old
-// mover-relative window), so the numbers above are for the old weighting.
+// THIS IS NOT CHESS.COM'S NUMBER, AND IT IS NOT SUPPOSED TO BE. Measured 2026-09-12 against the real
+// Game Review service, the gap was per-position disagreement between two engines (slope 1.0, a shift
+// of -1.6 that left mean |gap| at 2.9), so no correction term fits it. Anyone who wants their number
+// can have the exact one: the local chess.com classifier (rv_ee_run) overwrites report.accuracy.
+const LILA_CP_CEILING = 1000;
+function lilaWin(cp) { return winPercent(clamp(cp, -LILA_CP_CEILING, LILA_CP_CEILING)); }
+function popStdev(xs) {
+    if (xs.length < 2) return 0;
+    const m = mean(xs);
+    return Math.sqrt(xs.reduce((a, x) => a + (x - m) * (x - m), 0) / xs.length);
+}
 function accuracyFor(moves, color) {
-    const mine = moves.filter(m => m.color === color && m.acc != null);
-    if (!mine.length) return null;
-    // The window is over WHITE's win%, as lichess does it. winBefore is mover-relative, so reading it
-    // raw flipped perspective every ply: a steady +3 game alternated 78/22 and every move got the
-    // maximum weight, while a real swing that stayed good for each mover in turn got the minimum.
-    const wins = moves.map(m => m.winBefore == null ? NaN : m.color === 'w' ? m.winBefore : 100 - m.winBefore);
-    const weights = mine.map(m => {
-        const i = m.ply;
-        const w = Math.max(2, Math.round(moves.length / 10));
-        // Only the moves that were actually analysed. A position the engine returned nothing for
-        // leaves winBefore undefined, and one of those in the window made stdev NaN, which then
+    const n = moves.length;
+    const has = (m) => Number.isFinite(m.evalBefore) && Number.isFinite(m.evalAfter);
+    // white's win% of every position, 0..n: before each move, and after the last one
+    const whiteOf = (m, mover) => m.color === 'w' ? mover : 100 - mover;
+    const wins = moves.map(m => Number.isFinite(m.evalBefore) ? whiteOf(m, lilaWin(m.evalBefore))
+        : m.winBefore == null ? NaN : whiteOf(m, m.winBefore));
+    const last = moves[n - 1];
+    wins.push(!last ? NaN : Number.isFinite(last.evalAfter) ? whiteOf(last, lilaWin(last.evalAfter))
+        : last.winAfter == null ? NaN : whiteOf(last, last.winAfter));
+    const ws = clamp(Math.floor(n / 10), 2, 8);
+    const mine = [], weights = [];
+    moves.forEach((m, i) => {
+        if (m.color !== color) return;
+        const acc = has(m) ? moveAccuracy(lilaWin(m.evalBefore), lilaWin(m.evalAfter)) : m.acc;
+        if (acc == null) return;
+        // Only analysed positions in the window: one with no score made stdev NaN, which then
         // spread through the weighted sum and rendered the whole game's accuracy as "NaN%".
-        const win = wins.slice(Math.max(0, i - w), i + w + 1).filter(Number.isFinite);
-        return clamp(stdev(win), 0.5, 12);
+        const start = i < ws - 2 ? 0 : i - ws + 2;
+        const win = wins.slice(start, start + ws).filter(Number.isFinite);
+        mine.push(acc);
+        weights.push(clamp(popStdev(win), 0.5, 12));
     });
+    if (!mine.length) return null;
     const total = weights.reduce((a, b) => a + b, 0);
-    const weighted = mine.reduce((a, m, i) => a + m.acc * weights[i], 0) / (total || 1);
-    // Lichess reports the mean of the weighted mean and the harmonic mean -- the harmonic one is
-    // what stops a single 100% streak from hiding a blunder.
-    const harmonic = mine.length / mine.reduce((a, m) => a + 1 / Math.max(m.acc, 1), 0);
+    const weighted = mine.reduce((a, acc, i) => a + acc * weights[i], 0) / (total || 1);
+    const harmonic = mine.length / mine.reduce((a, acc) => a + 1 / Math.max(acc, 1), 0);
     const out = (weighted + harmonic) / 2;
     return Number.isFinite(out) ? clamp(out, 0, 100) : null;
 }
