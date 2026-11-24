@@ -753,7 +753,11 @@ async function startRig(override, rules) {
     // A POOL, not one engine: the positions of a game are independent, so the pass runs them N at
     // a time (chess.com's review does the same). The configured threads are SPLIT across the pool
     // -- two engines on all cores each would just fight over them and search shallower for it.
-    const wantWorkers = Math.max(1, Math.min(4, override?.workers || +cfg('rv_workers') || 1));
+    // NEVER MORE ENGINES THAN THREADS: each engine needs at least one, so 4 workers on 2 threads ran
+    // 4 threads, twice what the Threads setting allows. The classifier lane's override sets one
+    // thread PER engine, so the cap reads the setting, which is the total either way.
+    const wantWorkers = Math.max(1, Math.min(4, override?.workers || +cfg('rv_workers') || 1,
+                                             Math.max(1, +cfg('rv_threads') || 1)));
     const per = Math.max(1, Math.floor(opts.threads / wantWorkers));
     const engines = [];
     for (let w = 0; w < wantWorkers; w++) {
@@ -3462,7 +3466,7 @@ class ReviewPage {
                     // and inert on this path -- at the max tier that is `go depth 26` on every
                     // position of the game, across up to four sandboxed engines.
                     await sfSearch(sf, positions, {isCancelled: () => cancel,
-                                                   workers: Math.max(1, Math.min(4, +cfg('rv_workers') || 1)),
+                                                   workers: Math.max(1, Math.min(4, +cfg('rv_workers') || 1, +cfg('rv_threads') || 1)),
                                                    depth: tier.depth || EE_DEPTH, movetime: tier.movetime,
                         multipv: EE_MULTIPV,
                         uciMoves: moves.map(m => m.uci),

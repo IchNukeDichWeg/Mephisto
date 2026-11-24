@@ -20088,3 +20088,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-PROGRESS: engine, human model and sweep climb to 100% without a step back', back < 0 && Math.abs(fracs[fracs.length - 1] - 1) < 1e-9,
        fracs.map(f => +f.toFixed(3)));
 })().catch(e => { fails++; console.log('FAIL REVIEW-PROGRESS threw: ' + (e && e.stack || e)); });
+// ---- REVIEW-WORKERS: the review never starts more engines than the Threads setting ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const a = rj.indexOf('async function startRig(override, rules) {'), b = rj.indexOf('\n}\n', a) + 3;
+    const rig = async (store, override) => {
+        const made = [];
+        const c = vm.createContext({Math, String, cfg: (k) => store[k], note() {}, ENGINES: [], RV_FAIRY_ONLY: [], RV_FAIRY_ENGINE: 'f',
+            rvChessVariant: () => 'chess', variantLabel: String, takesRating: () => false, ratingFor: String,
+            makeEngine: (id, o) => { made.push(o.threads); return {start: async () => {}, dispose() {}}; }});
+        vm.runInContext('var activeEngine = null, activeEngines = [];' + rj.slice(a, b), c);
+        await c.startRig(override);
+        return made;
+    };
+    const base = {rv_limit_kind: 'depth', rv_limit_value: 10, rv_multipv: 3, rv_hash: 64, rv_human: ''};
+    const two = await rig({...base, rv_workers: 4, rv_threads: 2});
+    const eight = await rig({...base, rv_workers: 4, rv_threads: 8});
+    const ee = await rig({...base, rv_workers: 4, rv_threads: 2}, {depth: 10, multipv: 2, threads: 1, engineId: 'x'});
+    ok('REVIEW-WORKERS: 4 workers on 2 threads start 2 engines of 1 thread; on 8 threads 4 of 2; the classifier lane is capped the same',
+       JSON.stringify([two, eight, ee]) === JSON.stringify([[1, 1], [2, 2, 2, 2], [1, 1]]), [two, eight, ee]);
+})().catch(e => { fails++; console.log('FAIL REVIEW-WORKERS threw: ' + (e && e.stack || e)); });
