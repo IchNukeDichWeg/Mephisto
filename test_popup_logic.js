@@ -1136,18 +1136,30 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const rh = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
     const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
-    // Chess.com's Game Review "Strength" is a DEPTH ladder: its own option values are 18/22/24/26 and
-    // the seconds printed beside them are an estimate of the cost, not the budget (read out of its
-    // settings dialog 2026-09-12). Matching the rungs is what makes two accuracy numbers comparable.
+    // THE PRESET (P5 settings review): Quick / Standard / Deep as the main budget control. It used to be
+    // chess.com's ladder 18/22/24/26, which the default depth 16 matched none of, so every fresh page
+    // read Custom. Deep keeps 22, the depth chess.com's Game Review runs on its Standard setting.
     const opts = [...rh.slice(rh.indexOf('id="rv_depth_preset"'), rh.indexOf('</select>', rh.indexOf('id="rv_depth_preset"')))
                     .matchAll(/<option value="(\d*)"/g)].map(m => m[1]);
-    eq('the rungs are the ones that review uses', opts, ['', '18', '22', '24', '26']);
-    ok('picking a rung switches the budget to depth', /\$\('rv_limit_kind'\)\.value = 'depth';/.test(rj));
+    eq('the presets are Quick 12, Standard 16, Deep 22, then Custom', opts, ['12', '16', '22', '']);
+    const ej0 = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const dd = /const DEPTH_DEFAULT = (\d+);/.exec(ej0)?.[1];
+    ok('the default depth is a preset, so a fresh page names it instead of reading Custom', opts.includes(dd) && dd !== '', dd);
+    ok('picking a preset switches the budget to depth', /\$\('rv_limit_kind'\)\.value = 'depth';/.test(rj));
     ok('...and fills the box, which stays the source of truth', /\$\('rv_limit_num'\)\.value = v;/.test(rj));
-    ok('a typed depth reads back as its rung, anything else as Custom',
-       /sel\.value = \[\.\.\.sel\.options\]\.some\(o => o\.value === now\) \? now : '';/.test(rj));
-    ok('the ladder hides in Time mode, where a depth means nothing',
-       /sel\.style\.display = depthMode \? '' : 'none';/.test(rj));
+    // the real syncDepthPreset over a fake select: a preset depth, another depth, a time
+    const fnp = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    const sel = {value: '', options: opts.map(value => ({value, hidden: value === ''}))};
+    const els = {rv_depth_preset: sel, rv_limit_kind: {value: 'depth'}, rv_limit_num: {value: '16'}};
+    const pc = vm.createContext({String, parseInt, document: {getElementById: (id) => els[id]}});
+    vm.runInContext(fnp('function syncDepthPreset() {'), pc);
+    const look = () => { vm.runInContext('syncDepthPreset()', pc); return [sel.value, sel.options[3].hidden]; };
+    const fresh = look();
+    els.rv_limit_num.value = '24'; const typed = look();
+    els.rv_limit_kind.value = 'time'; els.rv_limit_num.value = '16'; const time = look();
+    ok('a fresh depth 16 reads Standard with Custom unlisted; depth 24 and any time read Custom, listed',
+       JSON.stringify([fresh, typed, time]) === JSON.stringify([['16', true], ['', false], ['', false]]), [fresh, typed, time]);
+    ok('the preset stays on screen in Time mode, where it reads Custom', !/sel\.style\.display/.test(fnp('function syncDepthPreset() {')));
     // and the budget must still reach the engine as a real depth limit
     const ej = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
     ok('a depth budget is sent as `go depth N`', /if \(limitKind === 'depth'\) return `go depth \$\{limitValue\}`;/.test(ej));

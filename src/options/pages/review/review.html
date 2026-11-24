@@ -153,6 +153,31 @@
                     </div>
                 </div>
 
+                <!-- THE BUDGET MOST PEOPLE NEED, as three depths. Standard is the default depth 16, so a
+                     fresh page names its preset rather than reading Custom; Deep is 22, the depth
+                     chess.com's Game Review runs on its Standard setting. Picking one switches the
+                     Budget to Depth and fills its box, which stays the single source of truth; Custom is
+                     listed only while the box holds a time or another depth. -->
+                <div class="set-row" data-for="own">
+                    <div class="set-lbl">
+                        <span data-i18n="rv.preset" data-i18n-tip="rv.tip.depth_preset" class="tooltipped" data-position="right"
+                              data-tooltip="How deep the engine searches each position. Quick (depth 12) is a fast first look,
+                                            Standard (depth 16) is the default, and Deep (depth 22) is the depth chess.com's
+                                            Game Review uses on its Standard setting, so the two accuracy numbers describe the
+                                            same search. Custom appears when the Budget under Advanced is set by hand.">
+                            Preset <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <select id="rv_depth_preset" class="rv-select browser-default">
+                            <option value="12" data-i18n="rv.preset_quick">Quick - depth 12</option>
+                            <option value="16" data-i18n="rv.preset_standard">Standard - depth 16</option>
+                            <option value="22" data-i18n="rv.preset_deep">Deep - depth 22</option>
+                            <option value="" data-i18n="rv.custom" hidden>Custom</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="set-row" data-for="own">
                     <div class="set-lbl">
                         <span data-i18n="panel.engine" data-i18n-tip="rv.tip.engine" class="tooltipped" data-position="right"
@@ -233,21 +258,6 @@
                             <input id="rv_limit_num" type="number" min="0.1" step="0.5">
                             <button type="button" class="set-step-btn" data-step="1">+</button>
                         </span>
-                        <!-- THE SAME RUNGS CHESS.COM REVIEWS AT. Its Game Review "Strength" control is a
-                             DEPTH ladder -- the option values are literally 18/22/24/26, and the seconds
-                             beside them are an estimate of what that depth costs, not the budget itself
-                             (read out of its own settings dialog, 2026-09-12). Matching the rungs is what
-                             makes an accuracy number here comparable to one there; picking a rung just
-                             fills the box beside it, which stays free-form. -->
-                        <select id="rv_depth_preset" class="rv-select browser-default tooltipped"
-                                data-i18n-tip="rv.tip.depth_preset" data-position="right"
-                                data-tooltip="Review depths that match the ones Chess.com's own Game Review offers, so the two accuracy numbers describe the same search. Custom leaves whatever you typed.">
-                            <option value="" data-i18n="rv.custom">Custom</option>
-                            <option value="18" data-i18n="rv.preset_fast">Fast - depth 18</option>
-                            <option value="22" data-i18n="rv.preset_standard">Standard - depth 22</option>
-                            <option value="24" data-i18n="rv.preset_deep">Deep - depth 24</option>
-                            <option value="26" data-i18n="rv.preset_max">Maximum - depth 26</option>
-                        </select>
                         <!-- the active budget the run reads: plies in Depth, ms in Time -->
                         <input id="rv_limit_value" type="hidden">
                     </div>

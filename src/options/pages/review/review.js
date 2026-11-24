@@ -3180,16 +3180,17 @@ function storedFor(kind) {
 // so the box is loaded with the number this mode was last left on rather than reinterpreting the other
 // mode's number in these units. Internal value is plies (Depth) or ms (Time).
 // The preset select follows the box rather than driving it: a depth someone typed that happens to be
-// a rung shows as that rung, anything else shows Custom, and in Time mode the control is hidden
-// because a depth ladder means nothing there.
+// a preset shows as that preset, anything else (a time, or another depth) shows Custom. It is the
+// page's main budget control, so it stays on screen in Time mode too, reading Custom. Custom is
+// listed only while it is the truth: a fresh page reads Standard, and the list never offers a choice
+// that does nothing.
 function syncDepthPreset() {
     const sel = document.getElementById('rv_depth_preset');
     if (!sel) return;
     const depthMode = (document.getElementById('rv_limit_kind')?.value === 'depth');
-    sel.style.display = depthMode ? '' : 'none';
-    if (!depthMode) return;
-    const now = String(parseInt(document.getElementById('rv_limit_num')?.value) || '');
-    sel.value = [...sel.options].some(o => o.value === now) ? now : '';
+    const now = depthMode ? String(parseInt(document.getElementById('rv_limit_num')?.value) || '') : '';
+    sel.value = now && [...sel.options].some(o => o.value === now) ? now : '';
+    for (const o of sel.options) if (o.value === '') o.hidden = sel.value !== '';
 }
 
 // TETRARCH SEARCHES BY TIME. run4pcReview sends a movetime: a depth means something else in a
@@ -3678,9 +3679,8 @@ class ReviewPage {
             syncLimitUi();
             syncDepthPreset();
         });
-        // THE LADDER CHESS.COM REVIEWS AT. Picking a rung switches the budget to Depth and fills the
-        // box; it stores nothing of its own, so the box stays the single source of truth and a typed
-        // value simply reads back as Custom. Only meaningful in Depth mode, so it hides in Time mode.
+        // THE PRESET. Picking one switches the budget to Depth and fills the box; it stores nothing of
+        // its own, so the box stays the single source of truth and a typed value reads back as Custom.
         $('rv_depth_preset')?.addEventListener('change', () => {
             const v = $('rv_depth_preset').value;
             if (!v) return;                                   // Custom: leave whatever is there

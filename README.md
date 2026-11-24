@@ -196,9 +196,9 @@ Copy FEN/PGN, the engine's lines next to what a human of a chosen rating would p
 
 - **Any game type** - chess, Chess960, the Fairy variants, and **4-player** PGN4 through Tetrarch.
 - **Any engine at your budget** - bundled WASM or a native host, a fixed depth (default 16) or a time per move, 2-10
-  lines. **Engines at once** (default 2) runs a worker pool; measured 64.7s down to 25.7s on the same game. The depth
-  box also offers chess.com's own Game Review depths (18, 22, 24, 26), because two accuracy numbers only describe the
-  same thing if they came from the same search.
+  lines. **Engines at once** (default 2) runs a worker pool; measured 64.7s down to 25.7s on the same game. A **Preset**
+  picks the depth: Quick 12, Standard 16 or Deep 22, the depth chess.com's Game Review uses on its Standard setting,
+  because two accuracy numbers only describe the same thing if they came from the same search.
 - **Accuracy** on Lichess's formula: the same evals give Lichess's number, within its rounding. **Move quality** uses Lichess's win% curve with a wider ceiling (past +10 or with a mate on the board) and the same bands the panel judges live moves by, so a review
   agrees with what the panel said at the time.
 - **Eval graph**, **openings named offline** (from a bundled copy of

@@ -527,7 +527,6 @@ html.dark .rv-ev-strong  { color: #d15050; }
 .rv-budget { flex-wrap: nowrap; }
 #rv-analysis .set-ctl.rv-budget { flex: 0 0 auto; gap: 6px; }
 #rv-analysis .set-ctl.rv-budget > #rv_limit_kind { flex: 0 0 auto; width: 110px; max-width: 110px; }
-#rv-analysis .set-ctl.rv-budget > #rv_depth_preset { flex: 0 0 auto; width: 152px; max-width: 152px; }
 #rv-analysis .set-ctl.rv-budget > .set-step { flex: 0 0 auto; }
 #rv-analysis .set-ctl.rv-budget .set-step input[type=number] { width: 58px; }
 .rv-unit { font-size: 12px; color: var(--mp-dim); white-space: nowrap; }
