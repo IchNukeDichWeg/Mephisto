@@ -153,6 +153,12 @@ function detectVariantFrom(game) {
     else if (mapped) { want = 'variant'; which = mapped; }
     else if (!rawTag && game.startFen && looks960(game.startFen)) want = 'chess960';
     else if (!rawTag && game.rules === 'chess') want = 'chess';   // untagged among tagged (markGameRules)
+    // An untagged game from the standard start is not a Chess960 game: a 960 game always carries
+    // its own start, and chess.com writes no Variant tag for standard games. After one 960 paste
+    // every later chess.com game ran under 960 rules (no book, no human model, no strength). The
+    // Fairy variants keep the reminder below: a hand-typed tagless crazyhouse game is a real case.
+    else if (!rawTag && current === 'chess960'
+             && (!game.startFen || game.startFen.split(/\s+/)[0] === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR')) want = 'chess';
     if (!want) {
         // nothing decisive in the PGN: remind when a non-chess type is in force, so a run under
         // unusual rules is never a surprise

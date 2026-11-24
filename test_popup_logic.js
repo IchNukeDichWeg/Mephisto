@@ -13569,6 +13569,11 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-1: single mode, game 1 (crazyhouse) picked: reviewed as crazyhouse', r.seen.join() === 'crazyhouse', r.seen);
     vm.runInContext('detectVariantFrom(games[1])', r.c);
     ok('REVIEW-1: picking the untagged game 2 sets the Game type back to Chess', r.store.rv_variant === 'chess', r.store);
+    // REVIEW-GAMETYPE: after a Chess960 game, an untagged game from the standard start (every chess.com standard game) is Chess again
+    r = await run([''], false, 'chess960');
+    ok('REVIEW-GAMETYPE: an untagged standard game under a Chess960 Game type switches back to Chess', r.seen.join() === 'chess' && r.store.rv_variant === 'chess', [r.seen, r.store.rv_variant]);
+    r = await run([''], false, 'variant');
+    ok('REVIEW-GAMETYPE: ...while an untagged game under a Fairy variant keeps that variant', r.seen.join() === 'crazyhouse', r.seen);
     ok('REVIEW-1: ...and the list wires that pick to the detection', /const said = detectVariantFrom\(selectedGame\(\)\);[\s\S]{0,200}\$\('rv_game_select'\)\?\.addEventListener\('change', \(\) => \{ clearTimeout\(pickTimer\); syncPick\(false\); \}\);/.test(rj));
     ok('REVIEW-1: the real startRig takes a game\'s own rules ahead of the dropdown', /const variant = override \? 'chess' : \(rules \|\| rvChessVariant\(\)\);/.test(rj));
     ok('REVIEW-1: parsePgnBox marks every game\'s rules', /games = text\.trim\(\) \? Core\.parsePgn\(text\) : \[\];\s*markGameRules\(games\);/.test(rj));
