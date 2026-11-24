@@ -727,9 +727,9 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         c.pgn_provenance_tags().every(t => /^\[(Annotator|Mephisto\w+) "/.test(t)));
 }
 
-// ---- contempt: refusing a draw, and only when there IS one ---------------------------------------
+// ---- Fighter's contempt: refusing a draw, and only when there IS one -------------------------------
 {
-    console.log('\ncontempt:');
+    console.log('\ncontempt (the Fighter playstyle):');
     const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
     const c = {console};
@@ -738,7 +738,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
     vm.runInContext('var config = {variant: "chess"}; var last_eval = {}; var last_pos = {};\n'
         + 'function line_cp_ours(l) { return l.cp; }\n'
-        + pj.slice(pj.indexOf('// ---- CONTEMPT: the dial for a game you have to WIN'), pj.indexOf('function humanize_pick(best')), c);
+        + pj.slice(pj.indexOf('// ---- FIGHTER: contempt for a game you have to WIN'), pj.indexOf('function humanize_pick(best')), c);
     const setup = (cfg, fen, moves, lines, startFen) => {
         c.config = {variant: 'chess', ...cfg};
         c.last_eval = {fen, lines};
@@ -746,22 +746,27 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     };
     const stale = '7k/8/6K1/8/8/8/5Q2/8 w - - 0 1';          // Qf7 stalemates; Qb8 mates
     const lines = [{move: 'f2f7', cp: 0}, {move: 'f2b8', cp: -20}];
-    setup({contempt: false, contempt_cp: 30}, stale, '', lines, stale);
-    eq('off, the engine keeps its move', c.contempt_pick('f2f7'), 'f2f7');
-    setup({contempt: true, contempt_cp: 30}, stale, '', lines, stale);
-    eq('on, the stalemate is passed over', c.contempt_pick('f2f7'), 'f2b8');
-    setup({contempt: true, contempt_cp: 10}, stale, '', lines, stale);
-    eq('...but never past what the dial will pay', c.contempt_pick('f2f7'), 'f2f7');
+    setup({playstyle: 'balanced'}, stale, '', lines, stale);
+    eq('Balanced, the engine keeps its move', c.contempt_pick('f2f7'), 'f2f7');
+    setup({playstyle: 'attacking'}, stale, '', lines, stale);
+    eq('...and so does every other style but Fighter', c.contempt_pick('f2f7'), 'f2f7');
+    setup({playstyle: 'fighter'}, stale, '', lines, stale);
+    eq('Fighter, the stalemate is passed over', c.contempt_pick('f2f7'), 'f2b8');
+    setup({playstyle: 'fighter'}, stale, '', [{move: 'f2f7', cp: 0}, {move: 'f2b8', cp: -31}], stale);
+    eq('...but never past 30 centipawns', c.contempt_pick('f2f7'), 'f2f7');
+    setup({playstyle: 'fighter'}, stale, '', [{move: 'f2f7', cp: 0}, {move: 'f2b8', cp: -30}], stale);
+    eq('...and 30 itself is paid', c.contempt_pick('f2f7'), 'f2b8');
+    ok('the margin is a fixed 30, not a setting', c.CONTEMPT_CP === undefined ? /\nconst CONTEMPT_CP = 30;\n/.test(pj) : c.CONTEMPT_CP === 30);
     const shuffle = 'g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1';
     const rep = (() => { const b = new c.Chess('chess'); for (const u of shuffle.split(' ')) b.move({from: u.slice(0,2), to: u.slice(2,4)}); return b.fen(); })();
-    setup({contempt: true, contempt_cp: 40}, rep, shuffle, [{move: 'f6g8', cp: 0}, {move: 'b8c6', cp: -25}], new c.Chess('chess').fen());
+    setup({playstyle: 'fighter'}, rep, shuffle, [{move: 'f6g8', cp: 0}, {move: 'b8c6', cp: -25}], new c.Chess('chess').fen());
     eq('a threefold is a draw the score never showed', c.contempt_pick('f6g8'), 'b8c6');
-    setup({contempt: true, contempt_cp: 40}, rep, '', [{move: 'f6g8', cp: 0}, {move: 'b8c6', cp: -25}], rep);
+    setup({playstyle: 'fighter'}, rep, '', [{move: 'f6g8', cp: 0}, {move: 'b8c6', cp: -25}], rep);
     eq('...and without the history it is just a move', c.contempt_pick('f6g8'), 'f6g8');
     const open = (() => { const b = new c.Chess('chess'); b.move({from:'e2',to:'e4'}); b.move({from:'e7',to:'e5'}); return b.fen(); })();
-    setup({contempt: true, contempt_cp: 200}, open, 'e2e4 e7e5', [{move: 'g1f3', cp: 30}, {move: 'b1c3', cp: 20}]);
+    setup({playstyle: 'fighter'}, open, 'e2e4 e7e5', [{move: 'g1f3', cp: 30}, {move: 'b1c3', cp: 20}]);
     eq('an ordinary position is untouched', c.contempt_pick('g1f3'), 'g1f3');
-    setup({contempt: true, contempt_cp: 40}, stale, '', [{move: 'f2f7', cp: 0}, {move: 'f2b8', cp: -99999}], stale);
+    setup({playstyle: 'fighter'}, stale, '', [{move: 'f2f7', cp: 0}, {move: 'f2b8', cp: -99999}], stale);
     eq('and it never walks into a mate to dodge a draw', c.contempt_pick('f2f7'), 'f2f7');
     // A DRAW THREE PLIES OUT. The one-ply check saw stalemates and the third repetition and missed
     // the commonest one: a level line whose own PV walks back into the same position. Five plies of
@@ -769,13 +774,13 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const five = 'g1f3 g8f6 f3g1 f6g8 g1f3';
     const mid = (() => { const b = new c.Chess('chess'); for (const u of five.split(' ')) b.move({from: u.slice(0,2), to: u.slice(2,4)}); return b.fen(); })();
     const repPv = [{move: 'g8f6', cp: 0, pv: 'g8f6 f3g1 f6g8'}, {move: 'b8c6', cp: -25}];
-    setup({contempt: true, contempt_cp: 40}, mid, five, repPv, new c.Chess('chess').fen());
+    setup({playstyle: 'fighter'}, mid, five, repPv, new c.Chess('chess').fen());
     eq('a repetition down the line is a draw too', c.contempt_pick('g8f6'), 'b8c6');
     const wonPv = [{move: 'g8f6', cp: 200, pv: 'g8f6 f3g1 f6g8'}, {move: 'b8c6', cp: 190}];
-    setup({contempt: true, contempt_cp: 40}, mid, five, wonPv, new c.Chess('chess').fen());
+    setup({playstyle: 'fighter'}, mid, five, wonPv, new c.Chess('chess').fen());
     eq('...but only a line the engine itself calls level', c.contempt_pick('g8f6'), 'g8f6');
     const wrongPv = [{move: 'g8f6', cp: 0, pv: 'b8c6 f3g1 f6g8'}, {move: 'b8c6', cp: -25}];
-    setup({contempt: true, contempt_cp: 40}, mid, five, wrongPv, new c.Chess('chess').fen());
+    setup({playstyle: 'fighter'}, mid, five, wrongPv, new c.Chess('chess').fen());
     eq('...and a pv describing another move is not this move\'s draw', c.contempt_pick('g8f6'), 'g8f6');
     ok('the played move consults it above the playstyle',
         /const fought = config\.puzzle_mode \? best : contempt_pick\(best\);/.test(pj)
@@ -813,12 +818,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         + pj.slice(pj.indexOf('const HUMANIZE_DEEP_MULTIPV'), pj.indexOf('// Ordered worst-to')), m);
     const mpv = (cfg) => { m.config = cfg; return m.effective_multipv(); };
     eq('nothing switched on: the slider is the line count', mpv({multiple_lines: 1}), 1);
-    eq('contempt cannot choose without a second line', mpv({multiple_lines: 1, contempt: true}), 2);
+    eq('Fighter cannot choose without a second line', mpv({multiple_lines: 1, playstyle: 'fighter'}), 2);
     eq('nor can the complexity clock measure a gap', mpv({multiple_lines: 1, complexity_clock: true}), 2);
-    eq('...and a slider set higher still wins', mpv({multiple_lines: 5, contempt: true}), 5);
+    eq('...and a slider set higher still wins', mpv({multiple_lines: 5, playstyle: 'fighter'}), 5);
     eq('Err Like Your Rating draws mistakes on every move, so Humanize, where it is on by default, asks for the wide list', mpv({multiple_lines: 1, humanize: true}), 20);
     m.flags = {humanize_match: false};
-    eq('...and with it off, humanize keeps its own deeper list', mpv({multiple_lines: 1, humanize: true, contempt: true}), 6);
+    eq('...and with it off, humanize keeps its own deeper list', mpv({multiple_lines: 1, humanize: true, playstyle: 'fighter'}), 6);
     m.flags = {};
     eq('Suggest a Human Error asks for the wide list on its own, so an inaccuracy has a rank to sit at', mpv({multiple_lines: 1, human_error: true}), 20);
     m.flags = {humanize_match: false};
@@ -876,10 +881,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     vm.createContext(c);
     vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
     // game_fullmove now asks the replayed board, so the replay comes along -- it lives in the
-    // contempt block, which is where the board is built.
+    // Fighter's contempt block, which is where the board is built.
     vm.runInContext('var config = {variant: "chess"}; var last_eval = {}; var last_pos = {};\n'
         + 'function line_cp_ours(l) { return l.cp; }\nfunction send_to_active_tab() {}\n'
-        + pj.slice(pj.indexOf('// ---- CONTEMPT: the dial for a game you have to WIN'), pj.indexOf('function humanize_pick(best'))
+        + pj.slice(pj.indexOf('// ---- FIGHTER: contempt for a game you have to WIN'), pj.indexOf('function humanize_pick(best'))
         + pj.slice(pj.indexOf('// ---- ENDING A GAME THAT IS OVER'), pj.indexOf("// ---- THE PLAYER BOOK: somebody's openings")), c);
     const run = (cfg, scores, fullmove = 40, proved = null) => {
         c.config = cfg;
@@ -1088,9 +1093,9 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     eq('nothing switched on is nothing to report',
        of({lines: 1, needsLines: [], playerBook: null, tablebase: null}),
        {'Engine lines': null, 'Player book': null, 'Tablebase': null});
-    eq('contempt on one line is the failure it used to be silently',
-       of({lines: 1, needsLines: ['contempt'], playerBook: null, tablebase: null})['Engine lines'], false);
-    eq('...and two lines answers it', of({lines: 2, needsLines: ['contempt'], playerBook: null, tablebase: null})['Engine lines'], true);
+    eq('a style on one line is the failure it used to be silently',
+       of({lines: 1, needsLines: ['playstyle'], playerBook: null, tablebase: null})['Engine lines'], false);
+    eq('...and two lines answers it', of({lines: 2, needsLines: ['playstyle'], playerBook: null, tablebase: null})['Engine lines'], true);
     eq('a book that never loaded is a fault, not a silence',
        of({lines: 1, needsLines: [], playerBook: {who: {name: 'me'}, loaded: false, games: 0}, tablebase: null})['Player book'], false);
     eq('...and a loaded one passes',
@@ -1099,8 +1104,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        of({lines: 1, needsLines: [], playerBook: null, tablebase: {men: 20, inRange: false, answered: false}})['Tablebase'], null);
     eq('...but one in range that has not answered is',
        of({lines: 1, needsLines: [], playerBook: null, tablebase: {men: 5, inRange: true, answered: false}})['Tablebase'], false);
-    const detail = c.feature_rows({lines: 1, needsLines: ['contempt', 'complexity_clock'], playerBook: null, tablebase: null})[0].detail;
-    ok('the row says WHICH feature is waiting on a line it has not got', /contempt \+ complexity_clock/.test(detail), detail);
+    const detail = c.feature_rows({lines: 1, needsLines: ['complexity_clock', 'playstyle'], playerBook: null, tablebase: null})[0].detail;
+    ok('the row says WHICH feature is waiting on a line it has not got', /complexity_clock \+ playstyle/.test(detail), detail);
     ok('the diagnostics button reports them too', /return rows\.concat\(feature_rows\(st\)\);/.test(pj));
     ok('...and so does the one-tap self-test', /const feats = feature_rows\(health_state\(\)\)\.filter\(r => r\.ok !== null\);/.test(pj));
     // ...where it can still be read. The detection line is repainted on every engine frame, so the
@@ -3418,8 +3423,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const d = sans('[FEN "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"]\n\n1. ... e5 2. Nf3 1-0');
     ok('PGN reader: castling written with zeros and "1. ... e5" both load', z === 'e4 e5 Nf3 Nc6 Bc4 Bc5 O-O Nf6 d3 O-O-O' && d === 'e5 Nf3', {z, d}); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
-    ok('Bot Move Delay and Contempt keep a value of 0 instead of falling back to the default',
-       ['bot_trick_delay', 'contempt_cp'].every(k => new RegExp(k + ": JSON\\.parse\\(MephistoConfig\\.get\\('" + k + "'\\)\\) \\?\\? ").test(psrc))); }
+    ok('Bot Move Delay keeps a value of 0 instead of falling back to the default',
+       ['bot_trick_delay'].every(k => new RegExp(k + ": JSON\\.parse\\(MephistoConfig\\.get\\('" + k + "'\\)\\) \\?\\? ").test(psrc))); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const ah = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.html', 'utf8');
     const themes = eval(psrc.match(/const BOARD_THEMES = (\[[^\]]*\]);/)[1]);
@@ -12628,7 +12633,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
               tablebase_pick=()=>null, update_evaluation=()=>{}, update_best_move=(t)=>shown.push(t), notate=(f,m)=>m,
               our_side=()=>${JSON.stringify(side)}, request_threat_human=()=>{}, request_second_opinion=()=>{}, request_safety_net_human=()=>{},
               bgTrace=()=>{}, premove_reply_playable=()=>true, maybe_end_game=()=>null, book_pick=()=>null,
-              playstyle_pick=m=>m, contempt_pick=m=>m, contempt_cp=()=>0, clock_aware=()=>false,
+              playstyle_pick=m=>m, contempt_pick=m=>m, CONTEMPT_CP=30, clock_aware=()=>false,
               request_automove=(m)=>played.push(m), render_move_reason=()=>{}, draw_moves=()=>{}, draw_threat=()=>{},
               draw_human_reply=()=>{}, draw_safety_net=()=>{}, note_engine_healthy=()=>{}, toggle_calculating=()=>{},
               is_one_pass=()=>false, clear_next_move_eta=()=>{}, set_idle_reason=()=>{};` + psrc.slice(s, e), c);
@@ -14211,7 +14216,7 @@ globalThis.largeBoardTable = () => {
             }
         }
     } catch (e) { bad = ['threw ' + e.message]; }
-    ok('GENERAL-1: every -/+ button on the settings page moves its field by one input step (not step*step)', rows.length >= 15 && bad.length === 0, bad.length ? bad : rows.length);
+    ok('GENERAL-1: every -/+ button on the settings page moves its field by one input step (not step*step)', rows.length >= 14 && bad.length === 0, bad.length ? bad : rows.length);
     // Auto Resign's stepper is the "0 = off" view over auto_resign_cp now (SIMP-OFF), same step
     const resign = rows.find(r => r.input.id === 'auto_resign_view');
     if (resign) { resign.input.value = '900'; resign.btns[0].click(); }
@@ -19621,4 +19626,50 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SIMP-STYLE: the panel select re-searches when the style moves the width; the settings mirror no longer reads Multi Lines',
        /const width = effective_multipv\(\);[\s\S]*?if \(effective_multipv\(\) !== width\) search_again_at_new_width\(\);/.test(sh)
        && !/multipv_range\.registerChangeListener\(sync_playstyle_row\)/.test(gj) && !/multipv_range\.getValue\(\)\) \|\| 1\) >= 2/.test(gj));
+}
+// ---- SIMP-FIGHTER: Play For The Win is the Fighter playstyle, with a fixed 30cp ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8');
+    const boot = async (stored) => {
+        const removed = [];
+        const c = vm.createContext({console, location: {protocol: 'https:'}, chrome: {storage: {local: {get: async () => ({...stored}), set() {}, remove(k) { removed.push(k); }},
+                                                       onChanged: {addListener() {}}}}});
+        c.self = c; c.window = c;
+        vm.runInContext(cs, c);
+        await c.MephistoConfig.ready;
+        const g = (k) => c.MephistoConfig.get(k);
+        return {style: g('playstyle'), contempt: g('contempt'), cp: g('contempt_cp'), hk: g('hotkey_custom'), flag: g('__contempt_fighter'), removed: removed.sort().join()};
+    };
+    const hk = JSON.stringify([{setting: 'contempt', label: 'Play For The Win', def: false}, {setting: 'autoplay', label: 'Autoplay', def: false}]);
+    Promise.all([
+        boot({contempt: 'true', contempt_cp: '50'}), boot({contempt: 'true', playstyle: '"balanced"'}), boot({contempt: 'true', playstyle: '"attacking"'}),
+        boot({contempt: 'false', playstyle: '"quiet"', hotkey_custom: hk}), boot({}), boot({contempt: 'true', __contempt_fighter: '1'}),
+    ]).then(([on, onBal, onOther, off, fresh, done]) => {
+        ok('SIMP-FIGHTER: the switch on with Balanced or no style becomes Fighter; both old keys are dropped',
+           on.style === '"fighter"' && onBal.style === '"fighter"' && on.contempt === null && on.cp === null && on.removed === 'contempt,contempt_cp' && on.flag === '1',
+           {on, onBal});
+        ok('SIMP-FIGHTER: on beside another style, that style stays and contempt is dropped',
+           onOther.style === '"attacking"' && onOther.contempt === null, onOther);
+        ok('SIMP-FIGHTER: off leaves the style alone, and a custom hotkey on the switch is unassigned (the other slot kept)',
+           off.style === '"quiet"' && JSON.stringify(JSON.parse(off.hk)) === JSON.stringify([{setting: ''}, {setting: 'autoplay', label: 'Autoplay', def: false}]), off);
+        ok('SIMP-FIGHTER: a fresh install writes no style, and the migration runs once',
+           fresh.style === null && fresh.flag === '1' && done.style === null && done.contempt === 'true', {fresh, done});
+    }).catch(e => { fails++; console.log('FAIL SIMP-FIGHTER migration threw: ' + (e && e.stack || e)); });
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const ph = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
+    ok('SIMP-FIGHTER: the panel reads no contempt keys; contempt_pick runs on Fighter alone with a fixed 30; the other styles\' picker stands down for it',
+       !/config\.contempt|MephistoConfig\.get\('contempt|'contempt_cp'|'contempt',/.test(psrc)
+       && /function contempt_pick\(best\) \{\n    if \(config\.playstyle !== 'fighter' \|\| !best\) return best;\n    const margin = CONTEMPT_CP;/.test(psrc)
+       && /\nconst CONTEMPT_CP = 30;\n/.test(psrc) && /'ultra', 'fighter'\];/.test(psrc)
+       && /if \(!style \|\| style === 'balanced' \|\| style === 'fighter'\) return best;/.test(psrc));
+    ok('SIMP-FIGHTER: PGN modes and the diagnostics report still name it',
+       (psrc.match(/\.concat\(config\.playstyle === 'fighter' \? \['fighter'\] : \[\]\)/g) || []).length === 2);
+    ok('SIMP-FIGHTER: both style selects offer Fighter; the settings page has no contempt row or registration',
+       [gh, ph].every(h => /<option data-i18n="set\.style_fighter" value="fighter">Fighter<\/option>/.test(h)) && !/contempt/.test(gh + gj));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-FIGHTER: the style name in all 14 locales, the tooltip describes it, the four contempt strings are gone',
+       locs.length === 14 && locs.every(l => l['set.style_fighter'] && /30/.test(l['set.tip.playstyle']) && !Object.keys(l).some(k => /contempt/.test(k))));
 }

@@ -350,15 +350,6 @@ class GeneralSettings extends SettingsPage {
         book_play.registerChangeListener(sync_explorer_db_row);
         sync_explorer_db_row();
         this.registerFormElement('playstyle', 'Playstyle:', 'select', 'balanced');
-        // Contempt: a decision about the RESULT, so it sits beside the playstyle rather than with the
-        // pacing rows. The cp row follows the toggle, like every other dependent control here.
-        const contempt = this.registerFormElement('contempt', 'Play For The Win:', 'checkbox', false);
-        this.registerFormElement('contempt_cp', 'Contempt (cp):', 'input', 30);
-        const sync_contempt_row = () => {
-            document.getElementById('contempt_cp_row')?.classList.toggle('hidden', !contempt.getValue());
-        };
-        contempt.registerChangeListener(sync_contempt_row);
-        sync_contempt_row();
         // A credential, so it is a `password` field, it never reaches the diagnostics report, and
         // onExportConfigValues drops it -- a settings file is something people paste into issues.
         this.registerFormElement('lichess_token', 'Lichess API token:', 'input', '');

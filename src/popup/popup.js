@@ -620,9 +620,6 @@ async function initPanel(root, tabId) {
                 return PLAYSTYLE_STYLES.includes(v) ? v : 'balanced';
             } catch (e) { return 'balanced'; }
         })(),
-        // CONTEMPT: how many centipawns a game you have to WIN is worth. See contempt_pick.
-        contempt: JSON.parse(MephistoConfig.get('contempt')) || false,
-        contempt_cp: JSON.parse(MephistoConfig.get('contempt_cp')) ?? 30,
         puzzle_mode: JSON.parse(MephistoConfig.get('puzzle_mode')) || false,
         // The panel builds its OWN config from named keys, so a setting the content script has is
         // still undefined here unless it is listed. Missing these two meant try_puzzle_capture read
@@ -2590,8 +2587,8 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                 // replaces WHICH move is played; the timing below is untouched, so Clock/Mirror/
                 // Humanize still pace it exactly as they would have. Null whenever the lookup hasn't
                 // landed, we're out of book, or every candidate failed the games/engine filters.
-                // A puzzle has one right answer: book, contempt and playstyle all pick something else
-                // on purpose, and contempt fails exactly the save-the-draw puzzles (PLAY-4).
+                // A puzzle has one right answer: book and playstyle (Fighter's contempt included) all
+                // pick something else on purpose, and contempt fails exactly the save-the-draw puzzles (PLAY-4).
                 const book = config.puzzle_mode ? null : book_pick(last_eval.fen);
                 if (book && !premove_reply_playable(last_eval.fen, book)) {
                     console.warn('Mephisto: ignoring a book move that is not ours/legal here:', book);
@@ -2617,9 +2614,9 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                     console.warn('Mephisto: ignoring a playstyle move that is not ours/legal here:', styled);
                 }
                 const style_ok = styled !== best && premove_reply_playable(last_eval.fen, styled);
-                // CONTEMPT sits ABOVE the playstyle and below the two facts: a style is a preference
-                // between moves the engine already called equal, while contempt is a decision about
-                // how the GAME ends. Move only -- the timing below is untouched, like the rest.
+                // FIGHTER'S CONTEMPT sits ABOVE the other styles and below the two facts: a style is a
+                // preference between moves the engine already called equal, while contempt is a decision
+                // about how the GAME ends. Move only -- the timing below is untouched, like the rest.
                 const fought = config.puzzle_mode ? best : contempt_pick(best);
                 const fight_ok = fought !== best && premove_reply_playable(last_eval.fen, fought);
                 if (fought !== best && !fight_ok) {
@@ -2632,7 +2629,7 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                     : book_ok ? book
                     : fight_ok ? fought
                     : style_ok ? styled : best;
-                if (fight_ok && !tb_ok && !book_ok) console.log(`Contempt (${contempt_cp()}cp): playing ${fought} over ${best}, which draws on the spot`);
+                if (fight_ok && !tb_ok && !book_ok) console.log(`Fighter (${CONTEMPT_CP}cp): playing ${fought} over ${best}, which draws on the spot`);
                 if (style_ok && !fight_ok && !tb_ok && !book_ok) console.log(`Playstyle (${config.playstyle}): playing ${styled} over ${best}`);
                 if (tb_ok && tb !== best) console.log(`Tablebase: playing ${tb} over ${best} (solved position)`);
                 if (!tb_ok && book_ok && played !== best) console.log(`Book: playing ${played} over ${best} (weighted random)`);
@@ -7104,8 +7101,8 @@ function pgn_provenance_tags() {
     let version = '';
     try { version = chrome.runtime.getManifest().version; } catch (e) { /* no runtime here */ }
     const modes = ['autoplay', 'humanize', 'clock_mode', 'mirror_mode', 'premove', 'tablebase',
-                   'book_play', 'player_book', 'contempt', 'complexity_clock', 'human_times']
-        .filter(k => config[k]);
+                   'book_play', 'player_book', 'complexity_clock', 'human_times']
+        .filter(k => config[k]).concat(config.playstyle === 'fighter' ? ['fighter'] : []);
     const tags = [
         `[Annotator "Mephisto${version ? ' ' + version : ''}"]`,
         `[MephistoEngine "${engine}${net}"]`,
@@ -7344,12 +7341,12 @@ const HUMANIZE_DEEP_MULTIPV = 20;
 const HUMANIZE_SHALLOW_REACH_CP = 60;
 
 // TWO FEATURES READ THE ENGINE'S SECOND LINE, and at Multi Lines 1 -- the default -- there is no
-// second line, so both silently did nothing for anyone who had not also raised the slider. Contempt
-// needs an alternative to the move that draws; the Complexity Clock measures the gap between the top
-// two. Humanize already raises the search's line count for its own needs (below) and the DISPLAY
+// second line, so both silently did nothing for anyone who had not also raised the slider. A style
+// (Fighter's contempt among them) needs an alternative to the move it would replace; the Complexity
+// Clock measures the gap between the top two. Humanize already raises the search's line count for its own needs (below) and the DISPLAY
 // still honours config.multiple_lines, so this is the same trick in the same place: what the ENGINE
 // is asked for, not what the panel lists.
-const MULTIPV_FLOOR_MODES = ['contempt', 'complexity_clock'];
+const MULTIPV_FLOOR_MODES = ['complexity_clock'];
 // A PLAYSTYLE CHOOSES BETWEEN LINES too, so a style other than Balanced gets the same floor. The row
 // used to hide at Multi Lines 1, the default, which kept every style out of sight for most people.
 function style_needs_lines() {
@@ -7909,7 +7906,7 @@ const PLAYSTYLE_PROB_RATIO = 0.66;
 // and it costs nothing to say so, rather than leaving it as something the tolerance happens to imply.
 const PLAYSTYLE_WINNING_CP = 600, PLAYSTYLE_WINNING_AFTER_CP = 200;
 const PLAYSTYLE_STYLES = ['balanced', 'attacking', 'quiet', 'greedy', 'space',
-                          'sacrifice', 'safe', 'drawish', 'disrespect', 'ultra'];
+                          'sacrifice', 'safe', 'drawish', 'disrespect', 'ultra', 'fighter'];
 const PLAYSTYLE_PIECE_VAL = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
 
 // EVERY STYLE IS ONE NUMBER, read off the move and the position it lands in, and the picker simply
@@ -8048,7 +8045,8 @@ function update_playstyle_row() {
 // The style's pick among the search's own lines, or `best` when the style has nothing to say.
 function playstyle_pick(best) {
     const style = config.playstyle;
-    if (!style || style === 'balanced') return best;
+    // Fighter has no preference between equal moves: its whole effect is contempt_pick's
+    if (!style || style === 'balanced' || style === 'fighter') return best;
     if (!playstyle_applies()) return best;   // the row is hidden here too -- see playstyle_applies
     const fen = last_eval.fen;
     const lines = (last_eval.lines || []).filter(l => l && l.move);
@@ -8077,24 +8075,21 @@ function playstyle_pick(best) {
     return pick;
 }
 
-// ---- CONTEMPT: the dial for a game you have to WIN ---------------------------------------------
+// ---- FIGHTER: contempt for a game you have to WIN -----------------------------------------------
 // The engine is perfectly happy with a draw. When you are not -- the last round of a tournament, a
-// match you are behind in -- the repetition it offers at 0.00 is half a point gone, and no setting
-// could say so. This one can: it spends up to `contempt_cp` centipawns to avoid a move that ENDS
-// THE GAME as a draw, on the spot or down its own level line. When the top move is not one of those it returns
-// the engine's move untouched, so in an ordinary game the dial changes nothing at all.
+// match you are behind in -- the repetition it offers at 0.00 is half a point gone. The Fighter
+// playstyle spends up to CONTEMPT_CP centipawns to avoid a move that ENDS THE GAME as a draw, on the
+// spot or down its own level line. When the top move is not one of those it returns the engine's
+// move untouched, so in an ordinary game Fighter changes nothing at all.
 //
 // "Ends the game" is a fact here, not an estimate: the candidate is replayed on a board carrying the
 // game's own history, so a threefold, a fifty-move, a stalemate and insufficient material are all
 // chess.js's own verdict rather than a guess from the score. A repetition the engine merely SEES
 // further down is caught too, but only down a line it scores level and only CONTEMPT_PV_PLIES deep
 // (drawing_moves below): past that the PV is a prediction about the opponent.
-const CONTEMPT_MAX_CP = 200;   // more than two pawns is not contempt any more, it is a worse move
-
-function contempt_cp() {
-    const n = parseInt(config.contempt_cp);
-    return Number.isFinite(n) ? Math.max(0, Math.min(CONTEMPT_MAX_CP, n)) : 30;
-}
+// Fixed, not a setting (owner call): the old Play For The Win dial defaulted to 30, a third of a
+// pawn, enough to take a real game over a repetition and not enough to spoil the position for it.
+const CONTEMPT_CP = 30;
 
 // The game's own board, replayed from its start so chess.js has counted the repetitions -- which is
 // the only way a threefold is knowable at all. null when the replay cannot be trusted (no move list,
@@ -8157,13 +8152,12 @@ function drawing_moves(lines) {
 }
 
 // The move to play instead of `best` when `best` draws -- on the spot, or down its own level line --
-// and something inside the dial does not. `best` back unchanged whenever contempt is off, the top move is not a draw, or every
+// and something inside the margin does not. `best` back unchanged unless Fighter is the style, when the top move is not a draw, or when every
 // candidate within the tolerance draws as well -- in which case the draw is the position, not a
 // choice anyone is making.
 function contempt_pick(best) {
-    if (!config.contempt || !best) return best;
-    const margin = contempt_cp();
-    if (!margin) return best;
+    if (config.playstyle !== 'fighter' || !best) return best;
+    const margin = CONTEMPT_CP;
     const lines = (last_eval.lines || []).filter(l => l && l.move);
     const bestLine = lines.find(l => l.move === best);
     const bestCp = bestLine ? line_cp_ours(bestLine) : null;
@@ -8175,7 +8169,7 @@ function contempt_pick(best) {
         if (drawing.has(l.move)) continue;
         const cp = line_cp_ours(l);
         if (!Number.isFinite(cp) || cp <= -90000) continue; // never walk into a mate to dodge a draw
-        if (bestCp - cp > margin) continue;                 // outside what the dial is willing to pay
+        if (bestCp - cp > margin) continue;                 // outside what Fighter is willing to pay
         if (cp > pickCp) { pick = l.move; pickCp = cp; }
     }
     return pick;
@@ -11115,7 +11109,7 @@ const LIVE_CONFIG_KEYS = [
     'bot_tricks', 'bot_trick_game', 'bot_trick_delay', 'bot_trick_pgn',
     'computer_evaluation', 'multiple_lines', 'compute_time', 'compute_depth', 'search_mode',
     'live_classify', 'class_on_board', 'live_classify_which', 'playstyle', 'tablebase_show',
-    'contempt', 'contempt_cp', 'complexity_clock', 'human_times',
+    'complexity_clock', 'human_times',
     'player_book', 'player_book_user', 'player_book_wins',
     'auto_resign', 'auto_resign_cp', 'auto_draw', 'session_stats',
     // the new panel-side features: all display or pacing decisions the panel makes per move, so a
@@ -13766,9 +13760,9 @@ function copy_diagnostics(onDone = () => {}, page = null) {
                       'puzzle_capture', 'puzzle_capture_cdp', 'clock_mode', 'mirror_mode',
                       'background_play', 'verbose_log', 'tablebase', 'refute', 'second_opinion',
                       'human_error', 'opp_prep', 'game_log', 'time_trouble',
-                      'contempt', 'complexity_clock', 'human_times', 'player_book',
+                      'complexity_clock', 'human_times', 'player_book',
                       'auto_resign', 'auto_draw', 'session_stats']
-                .filter(k => config[k]).join(' ') || 'none on',
+                .filter(k => config[k]).concat(config.playstyle === 'fighter' ? ['fighter'] : []).join(' ') || 'none on',
             // The page-side script's own view. Without this a dead content script and a page with no
             // board produce byte-identical reports.
             content: page ? page.content : (() => { try { return self.MephistoContent?.status?.() || 'no page script'; }

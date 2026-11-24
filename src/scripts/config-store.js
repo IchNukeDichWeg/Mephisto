@@ -434,6 +434,29 @@
                     for (const [k, v] of Object.entries(write)) lsSet(k, v);
                 }
             } catch (e) { /* corrupt -> the default palette */ }
+            // PLAY FOR THE WIN IS THE FIGHTER PLAYSTYLE (owner call): its switch and its centipawn dial
+            // are gone, and Fighter applies a fixed 30cp. The switch on with Balanced (or no style stored)
+            // becomes Fighter. On beside another style, that style stays: one style at a time, and the one
+            // picked by name wins. Both keys are dropped, and a custom hotkey on the switch is unassigned,
+            // or it would flip a setting nothing reads.
+            try {
+                if (loaded && !CACHE.__contempt_fighter) {
+                    const write = {__contempt_fighter: '1'};
+                    let on = false, style = 'balanced';
+                    try { on = JSON.parse(CACHE['contempt'] ?? 'false') === true; } catch (e) { /* corrupt -> off */ }
+                    try { style = JSON.parse(CACHE['playstyle'] ?? '"balanced"'); } catch (e) { /* corrupt -> balanced */ }
+                    if (on && (!style || style === 'balanced')) write.playstyle = JSON.stringify('fighter');
+                    let custom = null;
+                    try { custom = JSON.parse(CACHE['hotkey_custom'] ?? 'null'); } catch (e) { /* corrupt */ }
+                    if (Array.isArray(custom) && custom.some(c => c && c.setting === 'contempt')) {
+                        write.hotkey_custom = JSON.stringify(custom.map(c => (c && c.setting === 'contempt') ? {setting: ''} : c));
+                    }
+                    Object.assign(CACHE, write);
+                    try { chrome.storage.local.set(write); } catch (e) { /* cache still set */ }
+                    for (const [k, v] of Object.entries(write)) lsSet(k, v);
+                    for (const k of ['contempt', 'contempt_cp']) if (k in CACHE) api.remove(k);
+                }
+            } catch (e) { /* corrupt -> the style stays as stored */ }
             ready = true;
         },
     };

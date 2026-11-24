@@ -347,7 +347,7 @@
     </div>
     <div class="qs-row" id="qs_playstyle_row">
         <span data-i18n="set.playstyle" data-i18n-tip="set.tip.playstyle" class="qs-label tooltipped" data-position="left"
-              data-tooltip="A character, not a strength - ten of them, chosen among the lines the engine already found. Attacking prefers the forcing move (check, capture, promotion), Ultra attacking goes further and throws pieces at the king, Quiet takes the calm move, Greedy the most material, Space the move that gains ground, Sacrifice the one that offers material the opponent may take, Safe the one that leaves nothing hanging, Drawish the line closest to equality, and Disrespect the rude one - a second queen, a sacrifice made while already winning, an opening on the rim, a king strolling toward theirs. Never at a cost: at most 35 centipawns, or on a human net two thirds of the top move's probability, so even Disrespect only plays moves the engine calls equal to the best. Any style but Balanced searches two lines even at Multi Lines 1. Balanced is the engine's own pick.">Playstyle</span>
+              data-tooltip="A character, not a strength - eleven of them, chosen among the lines the engine already found. Attacking prefers the forcing move (check, capture, promotion), Ultra attacking goes further and throws pieces at the king, Quiet takes the calm move, Greedy the most material, Space the move that gains ground, Sacrifice the one that offers material the opponent may take, Safe the one that leaves nothing hanging, Drawish the line closest to equality, and Disrespect the rude one - a second queen, a sacrifice made while already winning, an opening on the rim, a king strolling toward theirs. Never at a cost: at most 35 centipawns, or on a human net two thirds of the top move's probability, so even Disrespect only plays moves the engine calls equal to the best. Any style but Balanced searches two lines even at Multi Lines 1. Fighter plays for the win: a move that draws the game (repetition, fifty moves, stalemate, too little material), now or down a level line, gives way to the best move that does not, if that costs at most 30 centipawns. Balanced is the engine's own pick.">Playstyle</span>
         <select id="qs_playstyle" class="browser-default">
             <option data-i18n="set.style_balanced" value="balanced">Balanced</option>
             <option data-i18n="set.style_attacking" value="attacking">Attacking</option>
@@ -359,6 +359,7 @@
             <option data-i18n="set.style_drawish" value="drawish">Drawish</option>
             <option data-i18n="set.style_disrespect" value="disrespect">Disrespect</option>
             <option data-i18n="set.style_ultra" value="ultra">Ultra attacking</option>
+            <option data-i18n="set.style_fighter" value="fighter">Fighter</option>
         </select>
     </div>
     <div class="qs-row qs-oneline" id="qs_engine_id_row">

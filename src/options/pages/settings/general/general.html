@@ -1005,7 +1005,7 @@
                 <div class="set-row">
                     <div class="set-lbl">
                         <span data-i18n="set.playstyle" data-i18n-tip="set.tip.playstyle" class="tooltipped" data-position="right"
-                              data-tooltip="A character, not a strength - ten of them, chosen among the lines the engine already found. Attacking prefers the forcing move (check, capture, promotion), Ultra attacking goes further and throws pieces at the king, Quiet takes the calm move, Greedy the most material, Space the move that gains ground, Sacrifice the one that offers material the opponent may take, Safe the one that leaves nothing hanging, Drawish the line closest to equality, and Disrespect the rude one - a second queen, a sacrifice made while already winning, an opening on the rim, a king strolling toward theirs. Never at a cost: at most 35 centipawns, or on a human net two thirds of the top move's probability, so even Disrespect only plays moves the engine calls equal to the best. Any style but Balanced searches two lines even at Multi Lines 1. Balanced is the engine's own pick.">
+                              data-tooltip="A character, not a strength - eleven of them, chosen among the lines the engine already found. Attacking prefers the forcing move (check, capture, promotion), Ultra attacking goes further and throws pieces at the king, Quiet takes the calm move, Greedy the most material, Space the move that gains ground, Sacrifice the one that offers material the opponent may take, Safe the one that leaves nothing hanging, Drawish the line closest to equality, and Disrespect the rude one - a second queen, a sacrifice made while already winning, an opening on the rim, a king strolling toward theirs. Never at a cost: at most 35 centipawns, or on a human net two thirds of the top move's probability, so even Disrespect only plays moves the engine calls equal to the best. Any style but Balanced searches two lines even at Multi Lines 1. Fighter plays for the win: a move that draws the game (repetition, fifty moves, stalemate, too little material), now or down a level line, gives way to the best move that does not, if that costs at most 30 centipawns. Balanced is the engine's own pick.">
                             Playstyle <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
@@ -1021,45 +1021,8 @@
                             <option data-i18n="set.style_drawish" value="drawish">Drawish</option>
                             <option data-i18n="set.style_disrespect" value="disrespect">Disrespect</option>
                             <option data-i18n="set.style_ultra" value="ultra">Ultra attacking</option>
+                            <option data-i18n="set.style_fighter" value="fighter">Fighter</option>
                         </select>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.contempt" class="tooltipped" data-position="right"
-                              data-tooltip="For a game you have to WIN. The engine is perfectly happy with a
-                                            draw, and the repetition it offers at 0.00 is half a point gone.
-                                            With this on, a move that ENDS THE GAME as a draw on the spot - a
-                                            threefold, a fifty-move, a stalemate, insufficient material - is
-                                            passed over for the best move that does not, as long as that move
-                                            costs no more than the Contempt setting below. A move the engine
-                                            scores level (within 15cp) whose own line reaches such a draw
-                                            within 8 plies counts too. When the top move is not one of those,
-                                            nothing changes. It raises Multi Lines to 2 by itself, and it
-                                            never walks into a mate to dodge a draw."><span data-i18n="set.contempt">Play For The Win</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="contempt_checkbox" type="checkbox" class="set-cb">
-                        <label for="contempt_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row" id="contempt_cp_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.contempt_cp" class="tooltipped" data-position="right"
-                              data-tooltip="How many centipawns avoiding the draw is worth, 0 to 200. 30 is a
-                                            third of a pawn: enough to take a real game over a repetition, not
-                                            enough to spoil the position to do it."><span data-i18n="set.contempt_cp">Contempt (cp)</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-10">&minus;</button>
-                            <input id="contempt_cp_input" type="number" min="0" max="200" step="10">
-                            <button type="button" class="set-step-btn" data-step="10">+</button>
-                        </span>
                     </div>
                 </div>
 

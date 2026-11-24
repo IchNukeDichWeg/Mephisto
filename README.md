@@ -50,7 +50,7 @@ works. New here:
 - **Game Review** - an offline review (accuracy, move quality, eval graph, fair-play indicators) and **chess.com's own
   Game Review** on the same board, run from your own account.
 - **Engines** - Stockfish 19 and 18, **Maia** (one rating slider, 600-2600), **Elite Leela**, **Rodent IV**, an Elo cap
-  and ten **playstyles**.
+  and eleven **playstyles**.
 - **Playing like a person** - Humanize, Clock Mode, Mirror Time.
 - **Automation** - Premove, Pondering, Help Mode, Manual Mode, rebindable hotkeys and macros, and custom keys that
   toggle any on/off setting.
@@ -310,9 +310,9 @@ software did not change, the measurement did.
 - **Complexity Clock** - thinks longer when the top two lines are within 15cp (1.6x) and shorter when one move is 250cp
   clear (0.6x). **Human Move Times** draws the think from a log-normal shape instead of a flat band: most moves are
   quick, a few take several times the median, none takes zero.
-- **Play for the win** - for a game you cannot afford to draw. A move that draws on the spot (threefold, fifty-move,
-  stalemate, insufficient material) is passed over for the best move that does not, up to the centipawns you will
-  spend.
+- **Fighter playstyle** - for a game you cannot afford to draw. A move that draws on the spot (threefold, fifty-move,
+  stalemate, insufficient material) is passed over for the best move that does not, if it costs at most 30
+  centipawns.
 - **Session Stats** - games, moves, the average delay each move really waited, and your accuracy across the session.
 - **Manual Mode** thinks indefinitely and plays only on your key. **Background Play** (off) defers moves that come due
   while the tab is hidden.
@@ -586,7 +586,7 @@ Five are worth knowing before you go looking:
 | **Threads** / **Memory** | A fresh install takes half your cores. In-browser engines are clamped to 512 MB by the WebAssembly heap limit; native engines get the full value. |
 | **Panel Style** | **Floating panel** lives in the page and is required for Autoplay and Premove. **Toolbar popup** leaves zero page footprint unless an on-board drawing is on (see [Footprint](#page-footprint)) and closes when you click the board. |
 | **Arrow Palette** | Default, Colour-blind safe or Custom, on the Appearance page. Colour-blind safe is the Okabe-Ito set, which stays distinguishable under the common forms of colour blindness; the shipped colours separate lines by red against green, the one pair that collapses. Custom shows a colour picker per arrow family, and those colours are kept when you switch to another palette and back. |
-| **Playstyle** | Ten characters chosen among lines the engine already called equal: *Attacking*, *Quiet*, *Greedy*, *Space*, *Sacrifice*, *Safe*, *Drawish*, *Ultra attacking*, *Disrespect*, and *Balanced* (the engine's own pick). Never at a cost: **35cp**, or two thirds of the top move's probability on a human net. Any style but Balanced searches two lines even at **Multi Lines 1**; the row hides itself where it cannot apply. |
+| **Playstyle** | Eleven characters chosen among lines the engine already called equal: *Attacking*, *Quiet*, *Greedy*, *Space*, *Sacrifice*, *Safe*, *Drawish*, *Ultra attacking*, *Disrespect*, *Fighter* (turns down a draw for up to 30cp), and *Balanced* (the engine's own pick). Never at a cost: **35cp**, or two thirds of the top move's probability on a human net. Any style but Balanced searches two lines even at **Multi Lines 1**; the row hides itself where it cannot apply. |
 | **Lichess API token** | The Opening Explorer is behind OAuth now, so without a token it answers 401. Make a personal token with **no scopes** ticked. It is sent nowhere but lichess and is left out of diagnostics and exports. |
 
 ---
