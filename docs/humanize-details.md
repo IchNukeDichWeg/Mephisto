@@ -28,10 +28,8 @@ bullet up to 1.9x, ultrabullet up to 2.7x; under 5% of the clock about 1.4x the 
 fewer at a full clock. **Human-Like Mistakes (on by default)** draws the deviation by how likely Maia-3 thinks a player of
 that rating is to play it, and never a move it gives under 1% (without it, a quarter of the moves played were ones
 Maia gives under 1%, against 3% for players). Before move 8 a deviation needs Maia at 5% or more, so the opening
-stays a repertoire; without a Maia read the engine's move is played there. **Mistakes Where People Make Them (optional)** moves
-the error shares to the positions where Maia sees that rating going wrong, relative to its average this game - not yet
-calibrated against real error rates. Both Maia options use the 88 MB Maia-3 net (downloaded the first time) and
-standard chess only; until it has answered, the plain pick stands in.
+stays a repertoire; without a Maia read the engine's move is played there. It uses the 88 MB Maia-3 net (downloaded the
+first time) and standard chess only; until it has answered, the plain pick stands in.
 
 **Err Like Your Rating (on by default)** replaces the sliders with what players of the Play-like rating actually do: each
 move's quality is drawn from their measured spread, graded the way the Game Review grades (win% given away), and a

@@ -3946,7 +3946,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && v("hz_natural_hang(new Map([['d1a4', 0.9]]), 'd1d4')") === false && v("hz_natural_hang(null, 'd1d4')") === false);
     ok('...wired into the hang guard, with the Maia read the Maia options already ask for (no download of its own)',
        /const hangs = \(l\) => !hz_natural_hang\(probs, l\.move\) && hz_hangs\(/.test(psrc)
-       && /if \(!humanize_flag\('humanize_maia', HZ_MAIA_DEFAULT\) && !humanize_flag\('humanize_maia_where', false\)\) return;/.test(psrc));
+       && /if \(!humanize_flag\('humanize_maia', HZ_MAIA_DEFAULT\)\) return;/.test(psrc));
     ok('winning floor: none below +3.00, +3.00 at +3.00, 60% of a +15 eval',
        v('hz_win_floor(299)') === -Infinity && v('hz_win_floor(300)') === 300 && v('hz_win_floor(1500)') === 900);
     ok('punish: full rate normally, a fifth after a 2-pawn gift the engine takes, a twentieth after a blatant one',
@@ -4103,27 +4103,25 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        draws.c2c3 === 0 && Math.abs(draws.b2b3 / (draws.b2b3 + draws.d2d3) - 0.30 / 0.395) < 0.01, draws);
     ok('B1: no candidate at 1% or more -> no pick (the best move stays)',
        v("hz_maia_weighted([{move:'c2c3'},{move:'h2h3'}], P, () => 0.5)") === null);
-    ok('B2: P_err counts Maia mass only on engine lines losing more than tau',
-       Math.abs(v("hz_p_err([{move:'a2a3',l:0},{move:'b2b3',l:150},{move:'d2d3',l:400},{move:'h2h3',l:900}], P, (x) => x.l, 110)") - 0.395) < 1e-9);
-    const w = JSON.parse(v("JSON.stringify((() => { const s1 = hz_where_k(null, 0.44, 10); const s2 = hz_where_k(s1.state, 0.0, 11); const s3 = hz_where_k(s2.state, 0.9, 12); const r = hz_where_k(s3.state, 0.1, 1); const lo = (() => { let s = null; for (let i = 1; i < 200; i++) s = hz_where_k(s && s.state, 0, i); return s; })(); return {k1: s1.k, m1: s1.state.mean, k2: s2.k, k3: s3.k, kr: r.k, floor: lo.state.mean}; })())"));
-    ok('B2: twice the running mean doubles the error shares, a dead-easy move gets none, capped at 3x, a new game restarts from 0.22, the mean never under 0.02',
-       Math.abs(w.k1 - 2) < 1e-9 && Math.abs(w.m1 - (0.85 * 0.22 + 0.15 * 0.44)) < 1e-9 && w.k2 === 0 && w.k3 === 3
-       && Math.abs(w.kr - 0.1 / 0.22) < 1e-9 && w.floor === 0.02, w);
     ok('...wired: Maia asked at search start on our turn, its rating and list width set per ask and put back, the pick weighted only with the switch on',
        /if \(our_turn && \(config\.autoplay \|\| config\.human_error\)\) request_humanize_maia\(fen\);/.test(psrc)
        && /send\('setoption name MultiPV value 256'\);/.test(psrc) && /send\('setoption name MultiPV value 5'\);/.test(psrc)
        && /const maiaWhich = !!probs && humanize_flag\('humanize_maia', HZ_MAIA_DEFAULT\);/.test(psrc)
-       && /cand = maiaWhich \? hz_maia_weighted\(ok, probs\)/.test(psrc)
-       && /if \(probs && humanize_flag\('humanize_maia_where', false\)\) \{/.test(psrc)
-       && /rates = hz_scale_rates\(rates, \{inaccuracy: w\.k, mistake: w\.k, blunder: w\.k\}\);/.test(psrc));
+       && /cand = maiaWhich \? hz_maia_weighted\(ok, probs\)/.test(psrc));
     const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
     const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
-    ok('Human-Like Mistakes ON by default, Mistakes Where People Make Them OFF: settings rows, label and tip in all 14 locales',
-       ['humanize_maia', 'humanize_maia_where'].every(k => new RegExp(`id="${k}_checkbox"`).test(gh)
-           && new RegExp(`registerFormElement\\('${k}', '[^']+:', 'checkbox', ${k === 'humanize_maia'}\\)`).test(gj)
-           && locs.every(l => l['set.' + k] && l['set.tip.' + k]))
-       && /const HZ_MAIA_DEFAULT = true;/.test(psrc) && !/humanize_flag\('humanize_maia', false\)/.test(psrc)); }
+    ok('Human-Like Mistakes ON by default: settings row, label and tip in all 14 locales',
+       /id="humanize_maia_checkbox"/.test(gh) && /registerFormElement\('humanize_maia', '[^']+:', 'checkbox', true\)/.test(gj)
+           && locs.every(l => l['set.humanize_maia'] && l['set.tip.humanize_maia'])
+       && /const HZ_MAIA_DEFAULT = true;/.test(psrc) && !/humanize_flag\('humanize_maia', false\)/.test(psrc));
+    // SIMP-WHERE: Mistakes Where People Make Them (B2) was never calibrated against measured error
+    // rates; the owner removed it. No row, no registration, no reader, no locale strings, and the
+    // Err Like Your Rating shares are the clock multipliers alone.
+    const srcAll = ['src/popup/popup.js', 'src/scripts/config-store.js', 'src/scripts/content-script.js', 'src/options/pages/review/review.js'].map(f => fs.readFileSync(ROOT + '/' + f, 'utf8')).join('\n') + gh + gj;
+    ok('SIMP-WHERE: Mistakes Where People Make Them is gone: no row, no setting, no hazard code, no strings',
+       !/humanize_maia_where|hz_where_|hz_p_err|HZ_WHERE_|whereK/.test(srcAll) && locs.every(l => !('set.humanize_maia_where' in l) && !('set.tip.humanize_maia_where' in l))
+       && /const m = \(cls\) => \(x \? hz_tc_mult\(cls, x\.tc, x\.frac, x\.phase, elo\) : 1\);/.test(psrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     // Err Like Your Rating: the real HUMANIZE MATCH block (it calls hz_maia_weighted from the guards block)
     const sl = (a, b) => psrc.slice(psrc.indexOf(a), psrc.indexOf(b));
@@ -6412,7 +6410,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     // humanize_pick, real, with Err Like Your Rating's real debt arithmetic; the roll is stubbed to a
     // mistake (class 3) on the second line, which is what Humanize would have played
     vm.runInContext(`var config = {humanize: true, variant: 'chess', maia3_elo: 1500, engine: 'stockfish'};
-        var turn = 'w', last_our_eval = null, humanize_roll = {r: 50}, hz_where_state = null, hz_match_state = null, hz_think_rhythm = null;
+        var turn = 'w', last_our_eval = null, humanize_roll = {r: 50}, hz_match_state = null, hz_think_rhythm = null;
         var last_eval = {fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 12', lastMove: 'e7e6',
             lines: [{move: 'g1f3', pv: 'g1f3', score: 30}, {move: 'a2a3', pv: 'a2a3', score: -150}]};
         const HZ_WIN_CP = 300, HZ_PUNISH_CP = 200, HZ_MATCH_DEFAULT = true, ONE_PASS_ENGINES = [], HUMAN_TIME_MEAN = {};
@@ -9984,7 +9982,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const c = vm.createContext({console: {log() {}, warn() {}}, Math, Date, Map, String, parseInt, Number, Infinity});
     // the real humanize_pick with the real debt arithmetic, the roll stubbed to a mistake on the second line
     vm.runInContext(`var config = {humanize: true, variant: 'chess', maia3_elo: 1500, engine: 'stockfish'};
-        var turn = 'w', last_our_eval = null, humanize_roll = {r: 50}, hz_where_state = null, hz_match_state = null, hz_think_rhythm = null;
+        var turn = 'w', last_our_eval = null, humanize_roll = {r: 50}, hz_match_state = null, hz_think_rhythm = null;
         var last_pos = {moves: 'e2e4 e7e5 g1f3 b8c6 f1c4 d7d6 b1c3 c8g4 h2h3 g4h5 f3e5 h5d1'};
         var last_eval = {fen: 'r2qkbnr/ppp2ppp/2np4/4N3/2B1P3/2N4P/PPPP1PP1/R1BbK2R w KQkq - 0 7', lastMove: 'h5d1',
             lines: [{move: 'c4f7', pv: 'c4f7', score: 30}, {move: 'c3d1', pv: 'c3d1', score: -150}]};
@@ -10049,7 +10047,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const c = vm.createContext({console: {log() {}, warn() {}}, Math, Date, Map, String, parseInt, Number, Infinity});
     // the real humanize_pick with the real debt arithmetic, the roll stubbed to a mistake on the second line
     vm.runInContext(`var config = {humanize: true, variant: 'chess', maia3_elo: 1500, engine: 'stockfish'};
-        var turn = 'w', last_our_eval = null, humanize_roll = {r: 50}, hz_where_state = null, hz_match_state = null, hz_think_rhythm = null;
+        var turn = 'w', last_our_eval = null, humanize_roll = {r: 50}, hz_match_state = null, hz_think_rhythm = null;
         var last_pos = {moves: 'e2e4 e7e5 g1f3 b8c6 f1c4 d7d6 b1c3 c8g4 h2h3 g4h5 f3e5 h5d1'};
         var last_eval = {fen: 'r2qkbnr/ppp2ppp/2np4/4N3/2B1P3/2N4P/PPPP1PP1/R1BbK2R w KQkq - 0 7', lastMove: 'h5d1',
             lines: [{move: 'c4f7', pv: 'c4f7', score: 30}, {move: 'c3d1', pv: 'c3d1', score: -150}]};
@@ -18822,7 +18820,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && /on_engine_best_move\(best, threat, true\);\n\s*refresh_human_error\(true\);/.test(psrc));
     const rq = bodyOf('request_humanize_maia');
     ok('...and it never fetches the Maia net by itself: the request still needs a Maia option already on',
-       rq.indexOf("if (!humanize_flag('humanize_maia', HZ_MAIA_DEFAULT) && !humanize_flag('humanize_maia_where', false)) return;") > 0
+       rq.indexOf("if (!humanize_flag('humanize_maia', HZ_MAIA_DEFAULT)) return;") > 0
        && rq.indexOf("if (!humanize_flag('humanize_maia', HZ_MAIA_DEFAULT)") < rq.indexOf('human_once('));
 }
 // ==== END SUGGEST A HUMAN ERROR ====

@@ -8318,14 +8318,6 @@ function hz_opening_ok(opening, probs, uci) {
 // however well its cp fits -- the 300cp error becomes the attractive capture that loses to an
 // intermezzo, not a random rank-14 line.
 const HZ_MAIA_MIN = 0.01;
-// B2, Mistakes Where People Make Them: the error shares are scaled by this position's hazard,
-// P_err / its running mean, where P_err is Maia's mass on engine lines losing more than the
-// inaccuracy band's lower edge. The mean starts at the human inaccuracy-or-worse rate (0.22 per move,
-// Stage C 2025-10, every band) and follows the game with weight 0.15; the scale is capped at 3x
-// like the clock tables, and the mean never drops under 0.02 so one quiet stretch cannot make the
-// next sharp move a certain error.
-const HZ_WHERE_PRIOR = 0.22, HZ_WHERE_EMA = 0.15, HZ_WHERE_MAX = 3, HZ_WHERE_MEAN_MIN = 0.02;
-
 // Pure. Whether a hanging move is one players of the rating make here (see HZ_NATURAL_HANG).
 function hz_natural_hang(probs, move) {
     return !!probs && (probs.get(move) || 0) >= HZ_NATURAL_HANG;
@@ -8340,21 +8332,6 @@ function hz_maia_weighted(pool, probs, rnd = Math.random) {
     for (let i = 0; i < pool.length; i++) { if (w[i] > 0 && (x -= w[i]) < 0) return pool[i]; }
     for (let i = pool.length - 1; i >= 0; i--) if (w[i] > 0) return pool[i];   // rounding at the top end
     return null;
-}
-
-// Pure. Maia's probability mass on the engine lines that lose more than tau cp.
-function hz_p_err(lines, probs, lossOf, tau) {
-    let sum = 0;
-    for (const l of lines) if (lossOf(l) > tau) sum += probs.get(l.move) || 0;
-    return Math.min(1, sum);
-}
-
-// Pure. The hazard scale for this move and the running mean after it. state = {mean, fullmove} from
-// the last move or null; a move number that went DOWN is a new game, which starts from the prior.
-function hz_where_k(state, pErr, fullmove) {
-    const mean = (!state || !(fullmove >= state.fullmove)) ? HZ_WHERE_PRIOR : state.mean;
-    const k = Math.max(0, Math.min(HZ_WHERE_MAX, pErr / mean));
-    return {k, state: {mean: Math.max(HZ_WHERE_MEAN_MIN, (1 - HZ_WHERE_EMA) * mean + HZ_WHERE_EMA * pErr), fullmove}};
 }
 // ==== END HUMANIZE GUARDS ====
 
@@ -8888,7 +8865,7 @@ function humanize_rates_now(fen, log = false) {
 }
 
 // ONE TURN ADVANCES HUMANIZE ONCE. humanize_pick moves the punish guard's eval, Err Like Your Rating's
-// debt, B2's running mean and the think rhythm on as it picks, and one turn can be searched several
+// debt and the think rhythm on as it picks, and one turn can be searched several
 // times (a resume re-push after a hidden tab or a refused click, a setting that re-analyses, the
 // silent-engine revive). The second pass measured the punish swing against its own eval (about 0, so
 // a hung piece went unpunished) and settled the debt twice (audit 3.1.330 PLAYB-2). A pick of the
@@ -8897,8 +8874,8 @@ function humanize_rates_now(fen, log = false) {
 let hz_turn = null;   // {key, before}: the turn humanize_pick last ran for and the state it found
 function hz_turn_begin() {
     const key = `${last_eval.fen}|${String(last_pos.moves || '').trim().split(/\s+/).filter(Boolean).length}`;
-    if (hz_turn && hz_turn.key === key) ({last_our_eval, hz_match_state, hz_where_state, hz_think_rhythm} = hz_turn.before);
-    else hz_turn = {key, before: {last_our_eval, hz_match_state, hz_where_state, hz_think_rhythm}};
+    if (hz_turn && hz_turn.key === key) ({last_our_eval, hz_match_state, hz_think_rhythm} = hz_turn.before);
+    else hz_turn = {key, before: {last_our_eval, hz_match_state, hz_think_rhythm}};
 }
 
 // THE PUNISH SWING IS MEASURED FROM THE MOVE WE PLAYED. last_our_eval was the best line's eval even when
@@ -8955,17 +8932,6 @@ function humanize_pick(best, overridden = false) {
         const alts = lines.filter(l => l !== bestLine && line_cp_ours(l) > -90000   // never move INTO mate
                                        && hz_opening_ok(opening, probs, l.move));  // nor off the repertoire
         const maiaWhich = !!probs && humanize_flag('humanize_maia', HZ_MAIA_DEFAULT);
-        let whereK = 1;
-        if (probs && humanize_flag('humanize_maia_where', false)) {
-            const tau = humanize_thresholds().fourth;
-            const pErr = hz_p_err(lines, probs, loss, tau);
-            const fullmove = parseInt(String(fen).split(' ')[5]) || 0;
-            const w = hz_where_k(hz_where_state, pErr, fullmove);
-            hz_where_state = w.state;
-            whereK = w.k;
-            rates = hz_scale_rates(rates, {inaccuracy: w.k, mistake: w.k, blunder: w.k});
-            console.log(`Humanize where: P_err ${(pErr * 100).toFixed(1)}%, mean ${(w.state.mean * 100).toFixed(1)}%, errors x${w.k.toFixed(2)}`);
-        }
         const guards = humanize_flag('humanize_guards', true);
         // THE GUARDS (see HUMANIZE GUARDS above). Lazy: the exchange walk only runs for the moves a
         // roll actually wants to play.
@@ -9028,11 +8994,11 @@ function humanize_pick(best, overridden = false) {
         } else if (humanize_flag('humanize_match', HZ_MATCH_DEFAULT)) {
             // ERR LIKE YOUR RATING (HUMANIZE MATCH above): this move's quality is drawn from the
             // Play-like rating's own spread, scaled to the time control, clock and phase when a
-            // clock is read and by Maia's hazard when that is on. The guards still decide what is
+            // clock is read. The guards still decide what is
             // allowed, and nothing past the blunder threshold is played, as in the mix.
             const elo = config.maia3_elo;
             const x = humanize_tc_inputs(fen);
-            const m = (cls) => (x ? hz_tc_mult(cls, x.tc, x.frac, x.phase, elo) : 1) * whereK;
+            const m = (cls) => (x ? hz_tc_mult(cls, x.tc, x.frac, x.phase, elo) : 1);
             const base = hz_match_shares(elo, {inaccuracy: m('inaccuracy'), mistake: m('mistake'), blunder: m('blunder')});
             const fullmove = parseInt(String(fen).split(' ')[5]) || 0;
             if (!hz_match_state || !(fullmove >= hz_match_state.fullmove)) hz_match_state = {debt: null, fullmove};   // a new game
@@ -12245,14 +12211,13 @@ async function safety_human_ask(fen) {
 // own: set before the pass and put back after it, so the threat reply and the safety net keep
 // reading at theirs. Asked at search start on our turn; humanize_pick reads whatever has arrived.
 const hz_maia_cache = new Map();   // fen -> Map(uci -> p)
-let hz_where_state = null;          // B2's running mean, see hz_where_k
 let hz_think_rhythm = null;         // Think Like Your Time Control's last residual draw, see hz_think_z
 let hz_match_state = null;          // Err Like Your Rating's owed errors this game, see hz_match_settle
 function hz_maia_probs(fen) { return hz_maia_cache.get(fen) || null; }
 function request_humanize_maia(fen) {
     if (!config.humanize && !config.human_error) return;
     // the natural-hang rule reads it too, but never asks for the 88 MB download on its own
-    if (!humanize_flag('humanize_maia', HZ_MAIA_DEFAULT) && !humanize_flag('humanize_maia_where', false)) return;
+    if (!humanize_flag('humanize_maia', HZ_MAIA_DEFAULT)) return;
     if (config.variant && config.variant !== 'chess') return;    // the nets know one game
     if (hz_maia_cache.has(fen)) return;
     // Suggest a Human Error waits for this answer, so tell it the moment it lands
@@ -12924,7 +12889,7 @@ let human_error_state = {fen: '', pick: null, done: false, basis: ''};
 // engine's lines alone.
 function human_error_maia_expected() {
     return (!config.variant || config.variant === 'chess')
-        && (humanize_flag('humanize_maia', HZ_MAIA_DEFAULT) || humanize_flag('humanize_maia_where', false));
+        && humanize_flag('humanize_maia', HZ_MAIA_DEFAULT);
 }
 
 // The shallow read for the hidden-error preference (depth-2 scores, HIDDEN ERRORS); null without one.

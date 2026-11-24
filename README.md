@@ -335,8 +335,8 @@ Humanize makes the engine play like a person at a chosen rating instead of alway
   play it. Needs the 88 MB Maia-3 net (downloaded the first time), standard chess only.
 - **Target accuracy** (optional) - aims the game's accuracy at a number you set. Over 144 simulated games against
   Stockfish at 1500 and 2200, targets of 85 to 95 landed within about a point.
-- **Scale Errors to the Clock**, **Mistakes Where People Make Them** and **Think Like Your Time Control** (optional) -
-  tie error rates and think times to the clock and to the positions where players of that rating go wrong.
+- **Scale Errors to the Clock** and **Think Like Your Time Control** (optional) - tie error rates and think times to the
+  clock.
 
 How each option works and what it was measured against: [docs/humanize-details.md](docs/humanize-details.md).
 

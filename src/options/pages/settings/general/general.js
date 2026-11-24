@@ -335,7 +335,6 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('humanize_tc_scale', 'Scale Errors to the Clock:', 'checkbox', false);
         // ON by default since 3.1.325 (HZ_MAIA_DEFAULT), Stage B: Maia-3 at the Play-like rating picks the deviation (B1) and where (B2)
         this.registerFormElement('humanize_maia', 'Human-Like Mistakes:', 'checkbox', true);
-        this.registerFormElement('humanize_maia_where', 'Mistakes Where People Make Them:', 'checkbox', false);
         // ON by default since 3.1.323 (HZ_MATCH_DEFAULT): each move's quality from the Play-like
         // rating's measured spread (HUMANIZE MATCH); a tuned move mix kept it off (config-store.js)
         this.registerFormElement('humanize_match', 'Err Like Your Rating:', 'checkbox', true);
