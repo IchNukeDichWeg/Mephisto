@@ -916,6 +916,14 @@ function markPromoted(placement, squares) {
     }).join('/');
 }
 
+// THE MOVE THAT LEFT THEORY: the first move after the last position the opening table names
+// (lookupOpening's `plies`, a position index, so the move played from it is moves[plies]). null when
+// no position was named or the game ended in book.
+function bookExit(moves, book) {
+    if (!book || !book.name || !(book.plies > 0)) return null;
+    return moves.find(m => m.ply === book.plies) || null;
+}
+
 // ---- key moments and mistake stops -------------------------------------------------------------
 // Every graded move's swing in WHITE's win% (what the eval graph draws), so "crossed 50" means what
 // it says on the graph and a swing is the same size whichever side moved.
@@ -983,7 +991,7 @@ root.MephistoReviewCore = {
     parsePgn, clockToSeconds, formatDate, gamePhases, phaseOf, LEVELS,
     toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
     accuracyFor, phaseAccuracy, indicators, evidence, estimate, parseInfo, clamp,
-    whiteSwings, turningPoint, keyMoments, mistakeStops, stepToStop, reviewSide,
+    whiteSwings, turningPoint, keyMoments, mistakeStops, stepToStop, reviewSide, bookExit,
     NAG_FOR_CLASS, annotatedPgn, plyMove, lichessStudyId, lichessRequest, lichessResultUrl, lichessFailure,
     liftPromoted, markPromoted,
 };

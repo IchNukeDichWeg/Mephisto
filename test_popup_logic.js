@@ -20359,3 +20359,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
     ok('REVIEW-PHASEACC: the cards draw it from the report\'s own phases', /Core\.phaseAccuracy\(report\.moves, color, report\.phases\)/.test(rj));
 }
+// ---- REVIEW-BOOKEXIT: the header names the move that left theory ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const C = c.MephistoReviewCore;
+    const moves = ['e4', 'd5', 'exd5', 'Qxd5', 'Nf3'].map((san, ply) => ({ply, san}));
+    const got = [C.bookExit(moves, {name: 'B01 Scandinavian Defense', plies: 4})?.san, C.bookExit(moves, {name: null, plies: 0}),
+                 C.bookExit(moves, {name: 'B01 Scandinavian Defense', plies: 5}), C.bookExit(moves, null)];
+    ok('REVIEW-BOOKEXIT: the move played from the last named position; none without a name or when the game ended in book',
+       JSON.stringify(got) === JSON.stringify(['Nf3', null, null, null]), got);
+    // the ECO code the header shows is the first word of the bundled table's names (lichess-org/chess-openings)
+    const book = JSON.parse(fs.readFileSync(ROOT + '/src/options/pages/review/openings.json', 'utf8'));
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    ok('REVIEW-BOOKEXIT: the bundled table carries the ECO code in front of every name', Object.values(book).every(v => /^[A-E]\d\d /.test(v)));
+    ok('REVIEW-BOOKEXIT: the header and the move detail both name it',
+       /left theory with \$\{esc\(moveLabel\(exit\)\)\}/.test(rj) && /played === Core\.bookExit\(report\.moves, report\.book\)/.test(rj));
+}

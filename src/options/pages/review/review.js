@@ -1321,7 +1321,12 @@ function renderHeader() {
     if (t.Event) bits.push(esc(t.Event));
     if (t.Date) bits.push(esc(Core.formatDate(t.Date)));
     if (t.TimeControl) bits.push(esc(t.TimeControl));
-    if (report.book.name) bits.push(esc(report.book.name));
+    // the opening's ECO code and name, and the move that left theory: the game's first move past the
+    // last position the bundled table names
+    if (report.book.name) {
+        const exit = Core.bookExit(report.moves, report.book);
+        bits.push(esc(report.book.name) + (exit ? `, left theory with ${esc(moveLabel(exit))}` : ''));
+    }
     if (report.ccr) {
         bits.push(`chess.com Game Review${report.ccrStrength ? ` - ${esc(report.ccrStrength)}` : ''}`);
     } else {
@@ -2229,6 +2234,7 @@ function renderDetail(pos, played) {
         if (played.rank) bits.push(`engine's #${played.rank}`);
         else if (played.best) bits.push(`engine played ${esc(uciToSan(report.positions[played.ply].fen, played.best))}`);
         if (played.seconds != null) bits.push(`${played.seconds.toFixed(1)}s spent`);
+        if (played === Core.bookExit(report.moves, report.book)) bits.push('the first move out of the opening book');
         if (played.maiaMove) {
             bits.push(played.maiaMatch
                 ? 'the human model expected this'
