@@ -126,8 +126,8 @@ export async function createMaiaEngine(level, listen, net = null) {
     // ort-env.js:42 states the contract: EVERY session creator must await this first, because
     // onnxruntime fixes its thread count at the FIRST InferenceSession.create in the document. Without
     // it, a Maia engine opened before the first screen read pinned the recogniser at the default
-    // two threads for the life of the document and the user's vision_threads was discarded
-    // silently -- the exact failure ort-env.js was written to close (measured 1109ms -> 620ms).
+    // two threads for the life of the document, silently -- the exact failure ort-env.js was
+    // written to close (measured 1109ms -> 620ms).
     await readyEnv();
     const session = await ort.InferenceSession.create(bytes);
     console.log(`[lc0 net] ${file} loaded (${bytes.length} bytes), onnxruntime ready`);

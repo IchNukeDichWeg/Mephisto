@@ -593,8 +593,6 @@
   "panel.why.threatens_b": "ビショップを狙う",
   "panel.why.threatens_r": "ルークを狙う",
   "panel.why.threatens_q": "クイーンを狙う",
-  "set.vision_threads": "画面リーダーのコア数",
-  "set.tip.vision_threads": "画面リーダーが使えるCPUコア数。読み取りのたびに大きなモデルを実行し、盤を追跡中はそれを何度も繰り返します。つまりこれは予算であって速度ダイヤルではありません:2コアは盤を約0.75秒で、6コアは約0.6秒で読みます。エンジンホストの次回起動から有効です。",
   "panel.msg.net_needs_lines": "セーフティネットには複数の候補手が必要です",
   "panel.msg.net_only_one": "耐える手は 1 手のみ: {move}",
   "panel.msg.net_likely_throws": "指しそうな {move} は台無しにします - ",

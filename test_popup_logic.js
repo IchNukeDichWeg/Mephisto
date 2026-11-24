@@ -8858,36 +8858,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...and the offscreen host relays the recogniser\'s progress to the asking tab as kind vision',
        out.some(m => m.fromOffscreen && m.clientId === '7' && m.kind === 'vision' && m.line === 'info string mephisto-download bbox.onnx 5 10'), out);
 })().catch(e => { fails++; console.log('FAIL ENGINEB-3 checks threw: ' + (e && e.stack || e)); });
-// ---- audit 3.1.330 CONTEXT-1: Screen Reader Cores reaches onnxruntime in the offscreen document ----
+// ---- audit 3.1.330 CONTEXT-1, superseded by SIMP-VISION: the screen reader runs on a fixed two threads ----
+// Screen Reader Cores is gone, so the offscreen document no longer asks the worker for it.
 (async () => {
 const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     // ort-env.js in the offscreen document's real world: chrome has runtime and nothing else
-    // (measured on Chrome 152: Object.keys(chrome) is csi, loadTimes, runtime).
     const src = fs.readFileSync(ROOT + '/src/offscreen/ort-env.js', 'utf8').replace(/^import .*$/gm, '').replace(/^export .*$/gm, '');
-    const env = (answer) => {
+    const env = (isolated) => {
         const asked = [];
-        const c = vm.createContext({crossOriginIsolated: true, console, JSON, Number, Math, parseInt, Promise, setTimeout: (f) => setImmediate(f),
+        const c = vm.createContext({crossOriginIsolated: isolated, console, JSON, Number, Math, parseInt, Promise, setTimeout: (f) => setImmediate(f),
             ort: {env: {wasm: {}}},
-            chrome: {csi() {}, loadTimes() {}, runtime: {sendMessage: (m) => { asked.push(m); return answer(m); }}}});
+            chrome: {csi() {}, loadTimes() {}, runtime: {sendMessage: async (m) => { asked.push(m); return {raw: '5'}; }}}});
         vm.runInContext(src, c);
         return {c, asked};
     };
-    const a = env(async (m) => m.visionThreads ? {raw: '5'} : undefined);
+    const a = env(true), b = env(false);
     await vm.runInContext('readyEnv()', a.c);
-    ok('CONTEXT-1: the stored Screen Reader Cores (5) is the thread count, asked of the worker',
-       vm.runInContext('ort.env.wasm.numThreads', a.c) === 5 && a.asked.length === 1, [vm.runInContext('ort.env.wasm.numThreads', a.c), a.asked]);
-    await vm.runInContext('readyEnv()', a.c);
-    ok('...once per document', a.asked.length === 1, a.asked.length);
-    const b = env(async () => ({raw: null}));
     await vm.runInContext('readyEnv()', b.c);
-    ok('...nothing stored keeps the default of 2', vm.runInContext('ort.env.wasm.numThreads', b.c) === 2);
-    const d = env(() => new Promise(() => {}));   // a worker that never answers
-    await vm.runInContext('readyEnv()', d.c);
-    ok('...and a worker that never answers cannot hold the first session back', vm.runInContext('ort.env.wasm.numThreads', d.c) === 2);
+    ok('SIMP-VISION: two threads when the document is cross-origin isolated, one when not, and nothing is asked of the worker',
+       vm.runInContext('ort.env.wasm.numThreads', a.c) === 2 && vm.runInContext('ort.env.wasm.numThreads', b.c) === 1 && a.asked.length === 0,
+       [vm.runInContext('ort.env.wasm.numThreads', a.c), vm.runInContext('ort.env.wasm.numThreads', b.c), a.asked]);
     const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
-    ok('...the worker answers the ask from storage',
-       /if \(msg\.visionThreads\) \{\s*chrome\.storage\.local\.get\('vision_threads'\)[\s\S]{0,200}sendResponse\(\{raw: [\s\S]{0,200}return true;/.test(bg));
-})().catch(e => { fails++; console.log('FAIL CONTEXT-1 checks threw: ' + (e && e.stack || e)); });
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-VISION: the worker has no visionThreads handler; the settings row, its registration and both strings are gone',
+       !/visionThreads|vision_threads/.test(bg + gh + gj) && locs.length === 14 && locs.every(l => !('set.vision_threads' in l) && !('set.tip.vision_threads' in l)));
+})().catch(e => { fails++; console.log('FAIL SIMP-VISION checks threw: ' + (e && e.stack || e)); });
 // ---- audit 3.1.330 REVIEWB-1: Game Review's crazyhouse engine FEN marks promoted pieces (Q~), and a Q~ start FEN loads ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

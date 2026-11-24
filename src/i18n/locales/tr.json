@@ -593,8 +593,6 @@
   "panel.why.threatens_b": "fili tehdit eder",
   "panel.why.threatens_r": "kaleyi tehdit eder",
   "panel.why.threatens_q": "veziri tehdit eder",
-  "set.vision_threads": "Ekran okuyucu çekirdekleri",
-  "set.tip.vision_threads": "Ekran okuyucunun kaç CPU çekirdeği kullanabileceği. Her okumada büyük bir model koşturur ve bir tahtayı İZLERKEN bunu tekrar tekrar yapar -- yani bu bir bütçedir, hız kadranı değil: iki çekirdek tahtayı aşağı yukarı dörtte üç saniyede okur, altısı altı ondalıkta. Motor sunucusunun bir sonraki başlangıcında geçerli olur.",
   "panel.msg.net_needs_lines": "Güvenlik ağı birden fazla varyant gerektirir",
   "panel.msg.net_only_one": "Yalnızca bir hamle tutuyor: {move}",
   "panel.msg.net_likely_throws": "Muhtemel hamlen {move} bunu kaybettirir - ",

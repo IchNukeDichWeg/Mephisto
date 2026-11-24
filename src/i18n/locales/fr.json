@@ -593,8 +593,6 @@
   "panel.why.threatens_b": "menace le fou",
   "panel.why.threatens_r": "menace la tour",
   "panel.why.threatens_q": "menace la dame",
-  "set.vision_threads": "Cœurs du lecteur d'écran",
-  "set.tip.vision_threads": "Combien de cœurs CPU le lecteur d'écran peut utiliser. Il fait tourner un grand modèle à chaque lecture, et quand il SUIT un échiquier il le fait encore et encore -- c'est donc un budget, pas un cadran de vitesse : deux cœurs lisent un échiquier en trois quarts de seconde environ, six en six dixièmes environ. Prend effet au prochain démarrage de l'hôte du moteur.",
   "panel.msg.net_needs_lines": "Le filet de sécurité a besoin de plus d’une ligne",
   "panel.msg.net_only_one": "Un seul coup tient : {move}",
   "panel.msg.net_likely_throws": "Votre probable {move} le gache - ",

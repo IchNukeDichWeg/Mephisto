@@ -29,41 +29,19 @@ ort.env.wasm.wasmPaths = '/lib/ort/';
 // above are ONE read in isolation; following a board runs that read over and over, and six threads
 // held for as long as it follows is half a machine to watch something that changes every few
 // seconds. What matters is not how fast one read is but how much of the machine the feature may
-// take -- so the ceiling is a COUNT OF CORES, set by the user, and the speed is whatever that buys
-// (user: "i want it fast but not more than 2 cores default changable via the settings"). Two
-// threads read in ~754ms against ~589ms at six: barely slower per read, a third of the cores.
-const VISION_THREADS_DEFAULT = 2;
+// take -- so the ceiling is a COUNT OF CORES, and the speed is whatever that buys. Two threads read
+// in ~754ms against ~589ms at six: barely slower per read, a third of the cores. Fixed at two: the
+// Screen Reader Cores setting that could change it is gone.
+const VISION_THREADS = 2;
 const isolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated;
-// A sane value from the first instant: the stored one needs an await, and a session created before
-// that lands would silently keep whatever was set at the time.
-ort.env.wasm.numThreads = isolated ? VISION_THREADS_DEFAULT : 1;
+ort.env.wasm.numThreads = isolated ? VISION_THREADS : 1;
 ort.env.wasm.proxy = false;
 
-// THE THREAD COUNT IS READ ONCE PER DOCUMENT. onnxruntime's wasm backend initialises at the FIRST
-// InferenceSession.create with whatever the env said at that moment, so every session creator must
-// await this first -- and a changed setting only takes effect the next time this host starts.
-//
-// ASKED OF THE WORKER, because this file only ever runs in the offscreen document and an offscreen
-// document has chrome.runtime and no other extension API. Reading chrome.storage here threw a
-// TypeError that the catch took for "nothing stored", so Screen Reader Cores never reached
-// onnxruntime: every read ran on 2 threads whatever was set (audit 3.1.330 CONTEXT-1, measured on
-// Chrome 152: Object.keys(chrome) is csi, loadTimes, runtime). Bounded, so a worker that does not
-// answer costs a first read 3 s at most, never the session.
-const ENV_ASK_MS = 3000;
-let envReady = null;
+// THE THREAD COUNT IS READ ONCE PER DOCUMENT, at the FIRST InferenceSession.create. With the count
+// fixed above at import, nothing is left to wait for; every session creator still awaits this, so a
+// setting that needs an await could come back without touching them.
 function readyEnv() {
-    if (envReady) return envReady;
-    envReady = (async () => {
-        if (!isolated) return;
-        try {
-            const raw = await Promise.race([
-                chrome.runtime.sendMessage({visionThreads: true}).then(r => r?.raw),
-                new Promise(r => setTimeout(() => r(null), ENV_ASK_MS))]);
-            const n = parseInt(JSON.parse(raw ?? 'null'), 10);
-            if (Number.isFinite(n)) ort.env.wasm.numThreads = Math.max(1, Math.min(8, n));
-        } catch (e) { /* no worker answer, or nothing stored -- the default above stands */ }
-    })();
-    return envReady;
+    return Promise.resolve();
 }
 
-export { ort, readyEnv, VISION_THREADS_DEFAULT };
+export { ort, readyEnv, VISION_THREADS };

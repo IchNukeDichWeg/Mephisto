@@ -593,8 +593,6 @@
   "panel.why.threatens_b": "bedroht den Läufer",
   "panel.why.threatens_r": "bedroht den Turm",
   "panel.why.threatens_q": "bedroht die Dame",
-  "set.vision_threads": "Kerne für die Bildschirmerkennung",
-  "set.tip.vision_threads": "Wie viele CPU-Kerne der Bildschirmleser nutzen darf. Er lässt bei jedem Lesen ein großes Modell laufen, und wenn er einem Brett FOLGT, tut er das immer wieder -- das hier ist also ein Budget, kein Tempo-Regler: Zwei Kerne lesen ein Brett in etwa einer Dreiviertelsekunde, sechs in etwa sechs Zehnteln. Gilt ab dem nächsten Start des Engine-Hosts.",
   "panel.msg.net_needs_lines": "Das Sicherheitsnetz braucht mehr als eine Linie",
   "panel.msg.net_only_one": "Nur ein Zug hält: {move}",
   "panel.msg.net_likely_throws": "Dein wahrscheinlicher Zug {move} verspielt es - ",

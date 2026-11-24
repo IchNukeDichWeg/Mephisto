@@ -593,8 +593,6 @@
   "panel.why.threatens_b": "atakuje gońca",
   "panel.why.threatens_r": "atakuje wieżę",
   "panel.why.threatens_q": "atakuje hetmana",
-  "set.vision_threads": "Rdzenie czytnika ekranu",
-  "set.tip.vision_threads": "Ilu rdzeni CPU może używać czytnik ekranu. Przy każdym odczycie uruchamia duży model, a gdy ŚLEDZI szachownicę, robi to raz za razem -- więc to budżet, nie pokrętło prędkości: dwa rdzenie czytają szachownicę w około trzy czwarte sekundy, sześć w około sześć dziesiątych. Działa od następnego startu hosta silnika.",
   "panel.msg.net_needs_lines": "Siatka bezpieczeństwa potrzebuje więcej niż jednej linii",
   "panel.msg.net_only_one": "Tylko jeden ruch się broni: {move}",
   "panel.msg.net_likely_throws": "Twoj prawdopodobny {move} to psuje - ",

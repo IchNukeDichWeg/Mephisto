@@ -593,8 +593,6 @@
   "panel.why.threatens_b": "bedreigt de loper",
   "panel.why.threatens_r": "bedreigt de toren",
   "panel.why.threatens_q": "bedreigt de dame",
-  "set.vision_threads": "Cores voor schermlezer",
-  "set.tip.vision_threads": "Hoeveel CPU-kernen de schermlezer mag gebruiken. Hij draait bij elke lezing een groot model, en terwijl hij een bord VOLGT doet hij dat keer op keer -- dit is dus een budget, geen snelheidsknop: twee kernen lezen een bord in ongeveer driekwart seconde, zes in ongeveer zes tienden. Gaat in bij de volgende start van de engine-host.",
   "panel.msg.net_needs_lines": "Het vangnet heeft meer dan één lijn nodig",
   "panel.msg.net_only_one": "Slechts één zet houdt stand: {move}",
   "panel.msg.net_likely_throws": "Je waarschijnlijke {move} vergooit het - ",

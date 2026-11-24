@@ -593,8 +593,6 @@
   "panel.why.threatens_b": "비숍을 위협",
   "panel.why.threatens_r": "룩을 위협",
   "panel.why.threatens_q": "퀸을 위협",
-  "set.vision_threads": "화면 판독기 코어",
-  "set.tip.vision_threads": "화면 리더가 쓸 수 있는 CPU 코어 수. 읽을 때마다 큰 모델을 돌리고, 보드를 추적하는 동안엔 그걸 반복합니다 -- 그래서 이건 예산이지 속도 다이얼이 아닙니다: 코어 2개는 보드를 약 0.75초에, 6개는 약 0.6초에 읽습니다. 엔진 호스트 다음 시작부터 적용됩니다.",
   "panel.msg.net_needs_lines": "안전망에는 두 개 이상의 라인이 필요합니다",
   "panel.msg.net_only_one": "버티는 수는 하나뿐입니다: {move}",
   "panel.msg.net_likely_throws": "둘 법한 {move} 는 망칩니다 - ",

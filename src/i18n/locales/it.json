@@ -593,8 +593,6 @@
   "panel.why.threatens_b": "minaccia l'alfiere",
   "panel.why.threatens_r": "minaccia la torre",
   "panel.why.threatens_q": "minaccia la donna",
-  "set.vision_threads": "Core del lettore schermo",
-  "set.tip.vision_threads": "Quanti core CPU può usare il lettore dello schermo. Esegue un grande modello a ogni lettura, e mentre SEGUE una scacchiera lo fa in continuazione -- quindi questo è un budget, non una manopola di velocità: due core leggono una scacchiera in circa tre quarti di secondo, sei in circa sei decimi. Ha effetto al prossimo avvio dell'host del motore.",
   "panel.msg.net_needs_lines": "La rete di sicurezza richiede più di una linea",
   "panel.msg.net_only_one": "Solo una mossa tiene: {move}",
   "panel.msg.net_likely_throws": "Il tuo probabile {move} lo butta via - ",

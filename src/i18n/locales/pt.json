@@ -593,8 +593,6 @@
   "panel.why.threatens_b": "ameaça o bispo",
   "panel.why.threatens_r": "ameaça a torre",
   "panel.why.threatens_q": "ameaça a dama",
-  "set.vision_threads": "Núcleos do leitor de ecrã",
-  "set.tip.vision_threads": "Quantos núcleos de CPU o leitor de ecrã pode usar. Ele roda um modelo grande a cada leitura, e enquanto SEGUE um tabuleiro faz isso sem parar -- então isto é um orçamento, não um dial de velocidade: dois núcleos leem um tabuleiro em uns três quartos de segundo, seis em uns seis décimos. Vale a partir da próxima inicialização do host do motor.",
   "panel.msg.net_needs_lines": "A rede de segurança precisa de mais de uma linha",
   "panel.msg.net_only_one": "Apenas um lance se sustenta: {move}",
   "panel.msg.net_likely_throws": "O teu provável {move} joga fora - ",

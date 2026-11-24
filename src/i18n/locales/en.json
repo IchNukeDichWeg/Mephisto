@@ -592,8 +592,6 @@
   "panel.why.threatens_b": "threatens the bishop",
   "panel.why.threatens_r": "threatens the rook",
   "panel.why.threatens_q": "threatens the queen",
-  "set.vision_threads": "Screen Reader Cores",
-  "set.tip.vision_threads": "How many CPU cores the screen reader may use. It runs a large model on every read, and while it FOLLOWS a board it does that over and over -- so this is a budget, not a speed dial: two cores read a board in about three quarters of a second, six in about six tenths. Takes effect the next time the engine host starts.",
   "panel.msg.net_needs_lines": "Safety net needs more than one line",
   "panel.msg.net_only_one": "Only one move holds: {move}",
   "panel.msg.net_likely_throws": "Your likely {move} drops it - ",

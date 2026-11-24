@@ -237,8 +237,6 @@ class GeneralSettings extends SettingsPage {
         bot_tricks.registerChangeListener(sync_bot_trick_rows);
         sync_bot_trick_rows();
 
-        // a budget in cores, not a speed dial -- see the tooltip and ort-env.js
-        this.registerFormElement('vision_threads', 'Screen Reader Cores:', 'input', 2);
         const threat_human = this.registerFormElement('threat_human', 'Human Reply (Maia):', 'checkbox', false);
         const threat_human_elo = this.registerFormElement('threat_human_elo', 'Human Reply Rating:', 'input', 1500);
         // the rating only means anything while something predicts at it -- same treatment the
