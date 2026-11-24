@@ -360,7 +360,6 @@ class GeneralSettings extends SettingsPage {
         // opt-in: think times from the measured spend per time control, phase and clock (HUMANIZE THINK)
         this.registerFormElement('humanize_think_tc', 'Think Like Your Time Control:', 'checkbox', false);
         const clock_mode = this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
-        this.registerFormElement('clock_pace', 'Pace to Clock:', 'checkbox', false);
         const mirror_mode = this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);
         // Mirror Ratio is only read while Mirror Time is on (its row is in Timing's Advanced block)
         const sync_mirror_row = () => {
@@ -1020,7 +1019,7 @@ class GeneralSettings extends SettingsPage {
             // Only actions the panel can actually perform: an action listed here with no entry in
             // LABELS and no quick-settings checkbox behind it rendered a row labelled "undefined"
             // whose binding did nothing (live_classify and streamer_alert did exactly that).
-            'help_mode', 'humanize', 'clock_mode', 'clock_pace', 'mirror_mode', 'eval_bar', 'eval_history', 'live_stats', 'tablebase', 'puzzle_mode',
+            'help_mode', 'humanize', 'clock_mode', 'mirror_mode', 'eval_bar', 'eval_history', 'live_stats', 'tablebase', 'puzzle_mode',
             'copy_fen', 'copy_pgn', 'copy_diagnostics', 'redetect', 'compact', 'minimize', 'bot_trick', 'panic',
             'pv_back', 'pv_forward', 'shortcuts', ...MephistoConfig.HOTKEY_CUSTOM];
         // the content-script listener's own normalization (config-store.js), so what we store is

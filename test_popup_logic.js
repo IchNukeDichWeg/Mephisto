@@ -12877,7 +12877,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     const fn = (name) => { const i = psrc.search(new RegExp('^function ' + name + '\\(', 'm')); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
     const c = vm.createContext({Date, Number, Math});
-    vm.runInContext(`var config = {time_trouble: true, time_trouble_at: 30, clock_pace: false}, last_clocks = {mine: 12, at: Date.now()};
+    vm.runInContext(`var config = {time_trouble: true, time_trouble_at: 30}, last_clocks = {mine: 12, at: Date.now()};
         const TIME_TROUBLE_MOVE_MS = 200; function clock_move_budget_ms() { return null; }`
         + ['time_trouble_at', 'in_time_trouble', 'clock_pace_timing'].map(fn).join('\n'), c);
     const pace = (t) => vm.runInContext(`clock_pace_timing(${JSON.stringify(t)})`, c);
@@ -12898,7 +12898,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const consts = psrc.match(/^const CLOCK_PACE_SHARE = [^\n]*\n^const CLOCK_PACE_FLOOR_MS = [^\n]*$/m)?.[0] || '';
     const c = vm.createContext({Number, Math});
     // a 1000 ms budget: the human-looking part may spend 350 ms of it
-    vm.runInContext(`var config = {clock_pace: true}; function in_time_trouble() { return false; } function clock_move_budget_ms() { return 1000; }\n${consts}\n` + fn('clock_pace_timing'), c);
+    vm.runInContext(`var config = {}; function in_time_trouble() { return false; } function clock_move_budget_ms() { return 1000; }\n${consts}\n` + fn('clock_pace_timing'), c);
     const pace = (t) => vm.runInContext(`clock_pace_timing(${JSON.stringify(t)})`, c);
     const fast = pace({think_time: 2000, think_variance: 0, move_time: 100, move_variance: 0});
     ok('PACE-FLOOR: a long think is cut and a 100 ms Move Time stays 100 ms (not raised to the 150 ms floor)',
@@ -17003,6 +17003,47 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     ok('SIMP-PACE: the label, tip and three options are translated in all 14 locales; the panel keeps its own two tips',
        locs.length === 14 && locs.every(l => ['set.clock_pacing', 'set.tip.clock_pacing', 'set.clock_pacing.off', 'set.clock_pacing.budget', 'set.clock_pacing.mirror'].every(k => l[k])
            && l['panel.tip.read_the_game_clock_off'] && l['panel.tip.pace_to_the_opponent_instead'] && !('set.tip.read_the_game_clock_off' in l)));
+}
+// ---- SIMP-PACE2: Pace to Clock is always on; its switch, panel toggle, hotkey and strings are gone ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.search(new RegExp('^function ' + name + '\\(', 'm')); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const consts = psrc.match(/^const CLOCK_PACE_SHARE = [^\n]*\n^const CLOCK_PACE_FLOOR_MS = [^\n]*$/m)?.[0] || '';
+    const run = (budget) => {
+        const c = vm.createContext({Number, Math});
+        vm.runInContext(`var config = {}; function in_time_trouble() { return false; } function clock_move_budget_ms() { return ${budget}; }\n${consts}\n` + fn('clock_pace_timing'), c);
+        return vm.runInContext(`clock_pace_timing({think_time: 0, think_variance: 0, move_time: 400, move_variance: 400})`, c);
+    };
+    const short = run(1000), roomy = run(3000), none = run('null');
+    ok('SIMP-PACE2: with no switch set, the default 400 +400 ms travel is cut on a 1 s budget and left alone with clock to spare or no clock',
+       short.move_time < 400 && short.move_time >= 150 && JSON.stringify(roomy) === JSON.stringify(none)
+       && JSON.stringify(none) === '{"think_time":0,"think_variance":0,"move_time":400,"move_variance":400}', {short, roomy, none});
+    const cs = fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8');
+    const ph = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    const strip = (s) => s.replace(/clock_pace_timing|CLOCK_PACE_\w+|__clock_pace_retired/g, '');
+    const csLive = cs.slice(0, cs.indexOf('// PACE TO CLOCK IS ALWAYS ON'));
+    ok('SIMP-PACE2: no clock_pace switch is read, registered, toggled or bound anywhere; the panel row and the three strings are gone',
+       !/clock_pace|qs_clockpace|pace_to_clock/.test(strip(psrc).replace(/It was the Pace to Clock switch \(`clock_pace`, off by default\);/, '') + ph + gh + gj + csrc + strip(csLive))
+       && locs.every(l => !('panel.pace_to_clock' in l) && !('panel.tip.pace_to_clock' in l) && !('hk.clock_pace' in l)));
+    const boot = async (stored) => {
+        const c = vm.createContext({console, location: {protocol: 'https:'}, chrome: {storage: {local: {get: async () => ({...stored}), set() {}, remove() {}},
+                                                       onChanged: {addListener() {}}}}});
+        c.self = c; c.window = c;
+        vm.runInContext(cs, c);
+        await c.MephistoConfig.ready;
+        return {hk: c.MephistoConfig.get('hotkeys') ?? null, owner: c.MephistoConfig.hotkeyOwner('k'), custom: c.MephistoConfig.get('hotkey_custom') ?? null, marked: c.MephistoConfig.get('__clock_pace_retired')};
+    };
+    Promise.all([boot({}), boot({hotkeys: JSON.stringify({autoplay: 'a', clock_pace: 'k'}), hotkey_custom: JSON.stringify([{setting: 'clock_pace', label: 'Pace to Clock'}, {setting: 'refute', label: 'Refute'}])}),
+                 boot({hotkeys: JSON.stringify({clock_pace: 'k'}), __clock_pace_retired: '1'})]).then(([fresh, saved, done]) => {
+        ok('SIMP-PACE2: a saved Pace to Clock binding is dropped (k is free again), a custom toggle on it is unassigned, once',
+           fresh.marked === '1' && fresh.owner === null && JSON.parse(saved.hk).autoplay === 'a' && !('clock_pace' in JSON.parse(saved.hk)) && saved.owner === null
+           && JSON.parse(saved.custom).map(x => x.setting).join() === ',refute' && done.owner === 'clock_pace', {fresh, saved, done});
+    });
 }
 // ---- SIMP-SEL: one select over two switches writes the two existing keys (view only) ----
 {

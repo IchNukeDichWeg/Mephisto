@@ -1585,25 +1585,6 @@
                     </div>
                 </div>
 
-                <div class="set-row set-toggle">
-                    <div class="set-lbl">
-                        <span data-i18n="panel.pace_to_clock">Pace to Clock</span>
-                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="panel.tip.pace_to_clock"
-                              data-tooltip="Shrink the SIMULATED delay (the think pause and the cursor travel) when the
-                                            clock gets short. Clock Mode paces the engine's search; this paces the
-                                            human-looking part, which is what actually costs you time in a scramble.
-                                            With clock to spare your settings are used exactly as they are: it only ever
-                                            makes a move shorter, never slower, and never below the point where the click
-                                            stops looking like a hand moved it."><i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="clock_pace_checkbox" type="checkbox" class="set-cb">
-                        <label for="clock_pace_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
                 <div class="set-row">
                     <div class="set-lbl">
                         <span data-i18n="set.simulated_think_time_ms" data-i18n-tip="set.tip.mephisto_will_always_wait_at" class="tooltipped" data-position="right"
@@ -1646,8 +1627,9 @@
                         <span data-i18n="set.simulated_move_time_ms" data-i18n-tip="set.tip.mephisto_will_always_take_at" class="tooltipped" data-position="right"
                               data-tooltip="How long Mephisto takes for the mouse actions of a typical move.
                                             Short moves take as little as 60% of it and long ones up to 160%,
-                                            as a hand does. Human Move Times, Pace to Clock and Time Trouble
-                                            Mode replace it when they set the timing.">
+                                            as a hand does. Human Move Times and Time Trouble
+                                            Mode replace it when they set the timing, and a short
+                                            clock shortens it.">
                             Simulated Move Time (ms) <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>

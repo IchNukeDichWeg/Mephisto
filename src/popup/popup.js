@@ -543,7 +543,6 @@ async function initPanel(root, tabId) {
         move_variance: (moveVariance != null) ? moveVariance : 400,
         humanize: JSON.parse(MephistoConfig.get('humanize')) || false,
         clock_mode: JSON.parse(MephistoConfig.get('clock_mode')) || false,
-        clock_pace: JSON.parse(MephistoConfig.get('clock_pace')) || false,
         puzzle_auto_next: JSON.parse(MephistoConfig.get('puzzle_auto_next')) || false,
         drag_moves: JSON.parse(MephistoConfig.get('drag_moves')) || false,
         // the content script reads this off the pushed config, so it has to travel with it
@@ -1255,7 +1254,7 @@ function init_quick_settings() {
                              ['qs_livestats', 'live_stats'],
                              ['qs_tablebase', 'tablebase'],
                              ['qs_humanize', 'humanize'],
-                             ['qs_clock', 'clock_mode'], ['qs_clockpace', 'clock_pace'], ['qs_mirror', 'mirror_mode'],
+                             ['qs_clock', 'clock_mode'], ['qs_mirror', 'mirror_mode'],
                              ['qs_manual', 'manual_mode'],
                              ['qs_explorer', 'explorer'], ['qs_book', 'book_play']]) {
         const elem = PANEL_ROOT.getElementById(id);
@@ -7725,21 +7724,22 @@ function clock_move_budget_ms() {
     return Math.max(120, Math.min((T / 30 + 0.6 * I) * 1000, T * 1000 / 8));
 }
 
-// --- Clock-paced move timing (opt-in, `clock_pace`) ----------------------------------------------
+// --- Clock-paced move timing (always on since the settings simplification) ----------------------
 // Clock Mode paces the SEARCH. Nothing ever paced the SIMULATED HUMAN DELAY -- the think pause and
 // the cursor travel -- so in a 10-second scramble the extension still spent a fixed 400ms moving the
 // mouse, which is exactly when you cannot afford it.
 //
-// This scales those, and only those, and only when switched on. With clock to spare your settings
-// are used EXACTLY as configured: it never makes a move slower, only shorter, and never below a
-// floor where the click stops looking like a hand moved it.
+// This scales those, and only those. It was the Pace to Clock switch (`clock_pace`, off by default);
+// it is always on now, because it can only help: with clock to spare (or no readable clock) your
+// settings are used EXACTLY as configured, it never makes any part of a move slower, only shorter,
+// and never below a floor where the click stops looking like a hand moved it.
 const CLOCK_PACE_SHARE = 0.35;    // of the per-move budget, spent on looking human
 const CLOCK_PACE_FLOOR_MS = 150;  // a move still has to travel and land
 
 function clock_pace_timing(t) {
     // Time trouble collapses the human-looking part to its floor before anything else gets a say:
-    // the think pause and the cursor travel are what a scramble actually costs, and Pace to Clock
-    // (below) only helps if you switched it on and only in proportion.
+    // the think pause and the cursor travel are what a scramble actually costs, and the pacing below
+    // only helps in proportion.
     if (in_time_trouble()) {
         // A floor caps, it never raises: a Simulated Move Time already inside it (0-200 ms is allowed)
         // is kept as set, or the scramble made every move slower exactly when the clock was lowest
@@ -7749,8 +7749,6 @@ function clock_pace_timing(t) {
             ? {think_time: 0, think_variance: 0, move_time: mt, move_variance: mv}
             : {think_time: 0, think_variance: 0, move_time: TIME_TROUBLE_MOVE_MS, move_variance: 0};
     }
-    if (!config.clock_pace) return t;
-
     const budget = clock_move_budget_ms();
     if (budget == null) return t;                  // no readable clock -> your settings, untouched
     // Mean rather than max: variance is symmetric, so the average move costs half of it.
@@ -9715,7 +9713,7 @@ function manual_play() {
 // its change event, so they reuse ALL the existing wiring (config write, push, engine re-init).
 const HOTKEY_TOGGLES = { // action -> the quick-settings checkbox it flips
     autoplay: 'qs_autoplay', premove: 'qs_premove', help_mode: 'qs_help', humanize: 'qs_humanize',
-    clock_mode: 'qs_clock', clock_pace: 'qs_clockpace', mirror_mode: 'qs_mirror', manual_mode: 'qs_manual',
+    clock_mode: 'qs_clock', mirror_mode: 'qs_mirror', manual_mode: 'qs_manual',
     eval_bar: 'qs_evalbar', eval_history: 'qs_evalhist', live_stats: 'qs_livestats',
     tablebase: 'qs_tablebase', puzzle_mode: 'qs_puzzle',
     explorer: 'qs_explorer', book_play: 'qs_book',
@@ -11089,7 +11087,7 @@ const LIVE_CONFIG_KEYS = [
     ...ARROW_COLOR_KEYS, // repaint on the next frame, no reload
     'think_time', 'think_variance', 'elo', 'opp_alert', 'dark_mode',
     // toggling the trace has to take effect on the session you are already debugging
-    'verbose_log', 'fourpc_mode', 'clock_pace', 'puzzle_delay', 'puzzle_auto_next', 'puzzle_next_delay',
+    'verbose_log', 'fourpc_mode', 'puzzle_delay', 'puzzle_auto_next', 'puzzle_next_delay',
     'drag_moves',
     // not a behaviour key: the listener reads the bindings fresh on every keypress, so the KEY works
     // the moment it is saved. This is so the hints beside the toggles and on the title bar stop

@@ -90,7 +90,7 @@
         HOTKEY_DEFAULTS: {
             manual_play: ' ',
             manual_mode: 'n', autoplay: 'a', premove: 'p', help_mode: 'h', humanize: 'u',
-            clock_mode: 'c', clock_pace: 'k', mirror_mode: 'm', eval_bar: 'e', eval_history: 'y', live_stats: 'l', tablebase: 't', puzzle_mode: 'z',
+            clock_mode: 'c', mirror_mode: 'm', eval_bar: 'e', eval_history: 'y', live_stats: 'l', tablebase: 't', puzzle_mode: 'z',
             explorer: 'o', book_play: 'b',
             copy_fen: 'f', copy_pgn: 'g', copy_diagnostics: 'd', redetect: 'r',
             // The two title-bar buttons, which had no keys. 'm' and 'c' were long gone (Mirror Time,
@@ -125,7 +125,7 @@
             manual_play: 'Play move (Manual Mode)', manual_mode: 'Toggle Manual Mode', autoplay: 'Toggle Autoplay',
             premove: 'Toggle Premove', explorer: 'Toggle Explorer', book_play: 'Toggle Book Moves',
             help_mode: 'Toggle Help Mode', humanize: 'Toggle Humanize', clock_mode: 'Toggle Clock Mode',
-            clock_pace: 'Toggle Pace to Clock', mirror_mode: 'Toggle Mirror Time', eval_bar: 'Toggle Eval Bar',
+            mirror_mode: 'Toggle Mirror Time', eval_bar: 'Toggle Eval Bar',
             eval_history: 'Toggle Eval History', live_stats: 'Toggle Live Stats',
             tablebase: 'Toggle Tablebase', puzzle_mode: 'Toggle Puzzle Mode',
             copy_fen: 'Copy FEN', copy_pgn: 'Copy PGN', copy_diagnostics: 'Copy Diagnostics',
@@ -342,6 +342,26 @@
                     api.set('__pv_keys_hotkeys', '1');
                 }
             } catch (e) { /* corrupt -> the defaults decide: both unbound */ }
+            // PACE TO CLOCK IS ALWAYS ON (clock_pace_timing). Its switch and its hotkey are gone: the
+            // rebind UI saves every action, so a saved clock_pace binding would keep holding its key ('k'
+            // by default) for an action nothing performs, and a custom toggle on it would flip a setting
+            // nothing reads. Both are dropped, once, here.
+            try {
+                if (!CACHE.__clock_pace_retired) {
+                    let saved = null;
+                    try { saved = JSON.parse(CACHE['hotkeys'] ?? 'null'); } catch (e) { /* corrupt */ }
+                    if (saved && typeof saved === 'object' && !Array.isArray(saved) && Object.hasOwn(saved, 'clock_pace')) {
+                        delete saved.clock_pace;
+                        api.set('hotkeys', JSON.stringify(saved));
+                    }
+                    let custom = null;
+                    try { custom = JSON.parse(CACHE['hotkey_custom'] ?? 'null'); } catch (e) { /* corrupt */ }
+                    if (Array.isArray(custom) && custom.some(c => c && c.setting === 'clock_pace')) {
+                        api.set('hotkey_custom', JSON.stringify(custom.map(c => (c && c.setting === 'clock_pace') ? {setting: ''} : c)));
+                    }
+                    api.set('__clock_pace_retired', '1');
+                }
+            } catch (e) { /* corrupt -> nothing to drop */ }
             ready = true;
         },
     };
