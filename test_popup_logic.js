@@ -19686,3 +19686,17 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && /row\.style\.display = config\.tablebase \? '' : 'none';/.test(pj)
        && /\['qs_tb_show', tb_show\(\)\]/.test(pj) && /'playstyle', 'tablebase_show',/.test(pj));
 }
+// ---- SIMP-BEYOND-ADV: the token, own book, local tablebases and host path rows sit under Beyond's Advanced ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const sec = gh.slice(gh.indexOf('<section id="beyond"'), gh.indexOf('</section>', gh.indexOf('<section id="beyond"')));
+    const adv = sec.slice(sec.indexOf('<div class="set-adv-body" id="beyond_adv" hidden>'));
+    const ids = ['lichess_token_input', 'own_book_load', 'own_book_status', 'tb_choose', 'tb_path_status', 'tb_path_input'];
+    ok('SIMP-BEYOND-ADV: each of them is inside the Advanced body, once, and each status line follows its own row',
+       ids.every(id => adv.includes(`id="${id}"`) && (gh.match(new RegExp(`id="${id}"`, 'g')) || []).length === 1)
+       && adv.indexOf('id="own_book_load"') < adv.indexOf('id="own_book_status"') && adv.indexOf('id="own_book_status"') < adv.indexOf('id="tb_choose"')
+       && adv.indexOf('id="tb_choose"') < adv.indexOf('id="tb_path_status"') && adv.indexOf('id="tb_path_status"') < adv.indexOf('id="tb_path_input"'),
+       ids.filter(id => !adv.includes(`id="${id}"`)));
+    ok('SIMP-BEYOND-ADV: the Tablebase switch itself stays in view', sec.indexOf('id="tablebase_checkbox"') < sec.indexOf('id="beyond_adv"'));
+}

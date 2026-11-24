@@ -1019,47 +1019,6 @@
                     </div>
                 </div>
 
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n="set.lichess_token" data-i18n-tip="set.tip.lichess_token" class="tooltipped" data-position="right"
-                              data-tooltip="Lichess now requires a token on the opening explorer -- without one it
-                                            answers 401 and both Explorer and Book Moves stop working.
-                                            Make a personal token at lichess.org/account/oauth/token/create with NO
-                                            scopes ticked: the explorer only needs to know a request has an owner.
-                                            It is stored on this machine like every other setting, never sent
-                                            anywhere but lichess, and is left out of Copy Diagnostics and of an
-                                            exported settings file. One exception: Game Review's Add to my study
-                                            writes a chapter into your study, which needs the study:write scope,
-                                            so tick that one scope if you use it.">
-                            Lichess API token <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="lichess_token_input" type="password" autocomplete="off" spellcheck="false"
-                               placeholder="lip_..." class="set-secret">
-                    </div>
-                </div>
-
-                                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n="set.own_book" data-i18n-tip="set.tip.own_book" class="tooltipped" data-position="right"
-                              data-tooltip="Load your own Polyglot .bin and Book Moves plays from IT instead of
-                                            the online database: same weighted-random pick, same never-delays-a-move
-                                            rule, and the engine takes over at the first position the book does not
-                                            know. One book at a time -- loading another replaces it. Stored on this
-                                            machine only, works offline, and a file that is not a Polyglot book is
-                                            refused when you load it, not discovered mid-game.">
-                            Own Opening Book <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <button data-i18n="set.own_book_load" id="own_book_load" class="set-btn" type="button">Load .bin&hellip;</button>
-                        <button data-i18n="set.own_book_remove" id="own_book_remove" class="set-btn hidden" type="button">Remove</button>
-                        <input id="own_book_file" type="file" accept=".bin" hidden>
-                    </div>
-                </div>
-                <div id="own_book_status" class="set-status"></div>
-
                 <div class="set-row set-toggle">
                     <div class="set-lbl">
                         <span data-i18n="set.endgame_tablebase">Tablebase</span>
@@ -1082,63 +1041,6 @@
                         <label for="tablebase_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n="set.local_tablebases" data-i18n-tip="set.tip.tb_local" class="tooltipped" data-position="right"
-                              data-tooltip="Choose the folder holding your Syzygy files (.rtbw/.rtbz) and the Endgame
-                                            Tablebase answers from YOUR files instead of the network -- decoded right
-                                            in the browser, nothing installed, nothing copied, nothing about the
-                                            position leaves this computer, works offline. Only the folder's location
-                                            is remembered; the browser may ask once per session to re-allow reading
-                                            it. A position your set does not cover, or one with castling rights,
-                                            falls back to the online lookup automatically. Check lists what the
-                                            folder holds. Download tables fetches them straight into
-                                            that folder from lichess's own server: choose how many
-                                            men (3-4-5 is 0.9 GB, the six-man set is 149 GB) and
-                                            which tables -- WDL says whether a position is won, drawn
-                                            or lost; DTZ is what converts a win under the 50-move
-                                            rule and is most of the size. WDL alone works; DTZ
-                                            needs the WDL files beside it. A
-                                            file already there with the right size is skipped, so a
-                                            stopped download resumes.">
-                            Local Tablebases <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <button id="tb_choose" class="set-btn" type="button" data-i18n="set.tb_choose">Choose folder&hellip;</button>
-                        <button id="tb_allow" class="set-btn hidden" type="button" data-i18n="set.tb_allow">Re-allow</button>
-                        <button id="tb_forget" class="set-btn hidden" type="button" data-i18n="set.tb_forget">Forget</button>
-                        <button id="tb_check" class="set-btn" type="button" data-i18n="set.tb_check">Check</button>
-                        <select id="tb_download_men" class="set-mini-select browser-default" data-i18n-title="set.tb_men_title" title="How many pieces">
-                            <option data-i18n="set.tb_men_345" value="345">3-4-5 men</option>
-                            <option data-i18n="set.tb_men_6" value="6">6 men</option>
-                            <option data-i18n="set.tb_men_both" value="both">3-4-5 and 6</option>
-                        </select>
-                        <select id="tb_download_kind" class="set-mini-select browser-default" data-i18n-title="set.tb_kind_title" title="Which tables">
-                            <option data-i18n="set.tb_kind_both" value="both">WDL + DTZ</option>
-                            <option data-i18n="set.tb_kind_wdl" value="wdl">WDL only</option>
-                            <option data-i18n="set.tb_kind_dtz" value="dtz">DTZ only (needs WDL)</option>
-                        </select>
-                        <button id="tb_download" class="set-btn" type="button" data-i18n="set.tb_download">Download tables</button>
-                    </div>
-                </div>
-                <div id="tb_path_status" class="set-status"></div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n="set.tb_host_path" data-i18n-tip="set.tip.tb_path" class="tooltipped" data-position="right"
-                              data-tooltip="Alternative to the folder picker above: a filesystem path probed by the
-                                            native engine host (needs one installed, see the README). Only consulted when
-                                            no picked folder answers. Leave empty unless you use the native hosts.">
-                            &hellip;or a Host Path <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="tb_path_input" type="text" autocomplete="off" spellcheck="false"
-                               placeholder="/path/to/syzygy" class="set-path">
                     </div>
                 </div>
 
@@ -1208,6 +1110,106 @@
                 <div class="set-adv" data-adv="beyond">
                     <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="beyond_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
                     <div class="set-adv-body" id="beyond_adv" hidden>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n="set.lichess_token" data-i18n-tip="set.tip.lichess_token" class="tooltipped" data-position="right"
+                              data-tooltip="Lichess now requires a token on the opening explorer -- without one it
+                                            answers 401 and both Explorer and Book Moves stop working.
+                                            Make a personal token at lichess.org/account/oauth/token/create with NO
+                                            scopes ticked: the explorer only needs to know a request has an owner.
+                                            It is stored on this machine like every other setting, never sent
+                                            anywhere but lichess, and is left out of Copy Diagnostics and of an
+                                            exported settings file. One exception: Game Review's Add to my study
+                                            writes a chapter into your study, which needs the study:write scope,
+                                            so tick that one scope if you use it.">
+                            Lichess API token <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="lichess_token_input" type="password" autocomplete="off" spellcheck="false"
+                               placeholder="lip_..." class="set-secret">
+                    </div>
+                </div>
+
+                                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n="set.own_book" data-i18n-tip="set.tip.own_book" class="tooltipped" data-position="right"
+                              data-tooltip="Load your own Polyglot .bin and Book Moves plays from IT instead of
+                                            the online database: same weighted-random pick, same never-delays-a-move
+                                            rule, and the engine takes over at the first position the book does not
+                                            know. One book at a time -- loading another replaces it. Stored on this
+                                            machine only, works offline, and a file that is not a Polyglot book is
+                                            refused when you load it, not discovered mid-game.">
+                            Own Opening Book <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <button data-i18n="set.own_book_load" id="own_book_load" class="set-btn" type="button">Load .bin&hellip;</button>
+                        <button data-i18n="set.own_book_remove" id="own_book_remove" class="set-btn hidden" type="button">Remove</button>
+                        <input id="own_book_file" type="file" accept=".bin" hidden>
+                    </div>
+                </div>
+
+                <div id="own_book_status" class="set-status"></div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n="set.local_tablebases" data-i18n-tip="set.tip.tb_local" class="tooltipped" data-position="right"
+                              data-tooltip="Choose the folder holding your Syzygy files (.rtbw/.rtbz) and the Endgame
+                                            Tablebase answers from YOUR files instead of the network -- decoded right
+                                            in the browser, nothing installed, nothing copied, nothing about the
+                                            position leaves this computer, works offline. Only the folder's location
+                                            is remembered; the browser may ask once per session to re-allow reading
+                                            it. A position your set does not cover, or one with castling rights,
+                                            falls back to the online lookup automatically. Check lists what the
+                                            folder holds. Download tables fetches them straight into
+                                            that folder from lichess's own server: choose how many
+                                            men (3-4-5 is 0.9 GB, the six-man set is 149 GB) and
+                                            which tables -- WDL says whether a position is won, drawn
+                                            or lost; DTZ is what converts a win under the 50-move
+                                            rule and is most of the size. WDL alone works; DTZ
+                                            needs the WDL files beside it. A
+                                            file already there with the right size is skipped, so a
+                                            stopped download resumes.">
+                            Local Tablebases <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <button id="tb_choose" class="set-btn" type="button" data-i18n="set.tb_choose">Choose folder&hellip;</button>
+                        <button id="tb_allow" class="set-btn hidden" type="button" data-i18n="set.tb_allow">Re-allow</button>
+                        <button id="tb_forget" class="set-btn hidden" type="button" data-i18n="set.tb_forget">Forget</button>
+                        <button id="tb_check" class="set-btn" type="button" data-i18n="set.tb_check">Check</button>
+                        <select id="tb_download_men" class="set-mini-select browser-default" data-i18n-title="set.tb_men_title" title="How many pieces">
+                            <option data-i18n="set.tb_men_345" value="345">3-4-5 men</option>
+                            <option data-i18n="set.tb_men_6" value="6">6 men</option>
+                            <option data-i18n="set.tb_men_both" value="both">3-4-5 and 6</option>
+                        </select>
+                        <select id="tb_download_kind" class="set-mini-select browser-default" data-i18n-title="set.tb_kind_title" title="Which tables">
+                            <option data-i18n="set.tb_kind_both" value="both">WDL + DTZ</option>
+                            <option data-i18n="set.tb_kind_wdl" value="wdl">WDL only</option>
+                            <option data-i18n="set.tb_kind_dtz" value="dtz">DTZ only (needs WDL)</option>
+                        </select>
+                        <button id="tb_download" class="set-btn" type="button" data-i18n="set.tb_download">Download tables</button>
+                    </div>
+                </div>
+
+                <div id="tb_path_status" class="set-status"></div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n="set.tb_host_path" data-i18n-tip="set.tip.tb_path" class="tooltipped" data-position="right"
+                              data-tooltip="Alternative to the folder picker above: a filesystem path probed by the
+                                            native engine host (needs one installed, see the README). Only consulted when
+                                            no picked folder answers. Leave empty unless you use the native hosts.">
+                            &hellip;or a Host Path <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="tb_path_input" type="text" autocomplete="off" spellcheck="false"
+                               placeholder="/path/to/syzygy" class="set-path">
+                    </div>
+                </div>
 
                 <div class="set-row">
                     <div class="set-lbl">
