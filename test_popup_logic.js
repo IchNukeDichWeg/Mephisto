@@ -16960,6 +16960,20 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     ok('SIMP-PVKEYS: no pv_keys switch is left on the settings page or in the panel, and the walk actions are ungated',
        !/pv_keys/.test(gh + gj + pj) && /if \(action === 'pv_back' \|\| action === 'pv_forward'\) \{\n\s+return action === 'pv_back' \? pv_walk_back\(\) : pv_walk_forward\(\);/.test(pj));
 }
+// ---- SIMP-VARIANT: the variant is the panel's (auto-applied, its own select and Detect), not a settings row ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const ph = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('SIMP-VARIANT: the panel still auto-applies a stated variant and has its own Variant select and Detect button',
+       /id="qs_variant"/.test(ph) && /id="qs_variant_detect"/.test(ph) && /\n    maybe_autodetect_variant\(\);/.test(pj)
+       && /if \(key === 'variant'\) return apply_detected_variant\(parse\(elem\.value\)\);/.test(pj));
+    ok('SIMP-VARIANT: the settings page has no Variant row, reads the stored variant for Playstyle, and still resets a Fairy-only one on an engine change (never while populating)',
+       !/variant_select"/.test(gh) && !/variant_select/.test(gj) && /\['chess', 'fischerandom'\]\.includes\(stored_variant\(\)\)\n\s+&& \(parseInt/.test(gj)
+       && /if \(!this\.populating && !\['fairy-stockfish-14-nnue', 'fairy-native'\]\.includes\(engine_select\.getValue\(\)\)\n\s+&& !\['chess', 'fischerandom'\]\.includes\(stored_variant\(\)\)\) \{\n\s+MephistoConfig\.set\('variant', JSON\.stringify\('chess'\)\);/.test(gj));
+}
 // ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

@@ -69,7 +69,10 @@ class GeneralSettings extends SettingsPage {
         M.Range.init(document.querySelectorAll('input[type=range]'), {});
         // tooltips are initialised centrally in SettingsPage.decorateTooltips()
         const engine_select = this.registerFormElement('engine', 'Engine:', 'select', 'stockfish-19-nnue');
-        const variant_select = this.registerFormElement('variant', 'Variant:', 'select', 'chess');
+        // The variant has no row here: the panel applies it on every page that states it, and its own
+        // Variant select and Detect button also move to a Fairy engine when the variant needs one.
+        // This page only reads it, for the Playstyle row, and resets a Fairy-only one below.
+        const stored_variant = () => { try { return JSON.parse(MephistoConfig.get('variant')) || 'chess'; } catch (e) { return 'chess'; } };
         this.registerFormElement('fourpc_mode', 'Four-player Mode:', 'select', 'auto');
         const elo_input = this.registerFormElement('elo', 'Elo:', 'input', 0);
         this.registerFormElement('rodent_personality', 'Rodent Personality:', 'select', '---');
@@ -407,7 +410,7 @@ class GeneralSettings extends SettingsPage {
                           'remote', 'tetrarch-native'];
         const sync_playstyle_row = () => {
             const applies = !NO_STYLE.includes(engine_select.getValue())
-                && ['chess', 'fischerandom'].includes(variant_select.getValue())
+                && ['chess', 'fischerandom'].includes(stored_variant())
                 && (parseInt(multipv_range.getValue()) || 1) >= 2;
             // `hidden`, NOT `filter-hidden`: the latter belongs to the settings search box alone
             // (SettingsPage.wireFilter re-toggles it on EVERY .set-row per keystroke), so one
@@ -416,7 +419,8 @@ class GeneralSettings extends SettingsPage {
                 ?.classList.toggle('hidden', !applies);
         };
         multipv_range.registerChangeListener(sync_playstyle_row);
-        variant_select.registerChangeListener(sync_playstyle_row);
+        // a variant picked or detected in the panel while this page is open
+        try { chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.variant) sync_playstyle_row(); }); } catch (e) { /* no storage events here */ }
         sync_playstyle_row();
         engine_select.registerChangeListener(() => {
             // stockfish.online takes a depth and nothing else, so choosing it moves the budget to
@@ -427,11 +431,6 @@ class GeneralSettings extends SettingsPage {
                 search_mode_select.setValue(budget);
                 sync_budget_rows();
             }
-            // `closest`, not a hand-rolled parent walk: the old loop had no null guard, so a renamed
-            // or dropped #variant_select (FormElement tolerates exactly that -- see its `missing`
-            // flag) walked past <html> and threw on `null.classList`, killing every later line of
-            // this handler. Everything below is `?.`-guarded for the same reason.
-            const section = variant_select.elem?.closest?.('.section');
             const eloSection = document.getElementById('elo_section');
             // Engines with no UCI_Elo. The panel already hid the row for these (NO_ELO_ENGINES in
             // popup.js, which this must match); this page did not, so it kept offering a strength
@@ -452,15 +451,12 @@ class GeneralSettings extends SettingsPage {
             // (which RULES this board plays by) for the one engine it applies to.
             document.getElementById('fourpc_mode_section')
                 ?.classList.toggle('hidden', engine_select.getValue() !== 'tetrarch-native');
-            if (['fairy-stockfish-14-nnue', 'fairy-native'].includes(engine_select.getValue())) {
-                section?.classList.remove('hidden');
-            } else {
-                section?.classList.add('hidden');
-                // Chess960 survives an engine switch: every mainline Stockfish plays it via
-                // UCI_Chess960 (sent at engine init). Only fairy-only variants reset.
-                if (!['chess', 'fischerandom'].includes(variant_select.getValue())) {
-                    variant_select.setValue('chess');
-                }
+            // Chess960 survives an engine switch: every mainline Stockfish plays it via
+            // UCI_Chess960 (sent at engine init). Only fairy-only variants reset. Not while the form
+            // is being filled from storage: the row this replaced never wrote back then either.
+            if (!this.populating && !['fairy-stockfish-14-nnue', 'fairy-native'].includes(engine_select.getValue())
+                    && !['chess', 'fischerandom'].includes(stored_variant())) {
+                MephistoConfig.set('variant', JSON.stringify('chess'));
             }
             // The tooltip was a Remote Engine note once; it now describes every engine kind, the cloud
             // privacy warning included, so it is shown for all of them (audit 3.1.333 GENERALJS-3).
