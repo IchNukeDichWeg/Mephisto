@@ -5977,9 +5977,17 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         uciToSan: () => '', Core: {phaseOf: () => ''}, String,
         report: {phases: {}, positions: [{lines: [{cp: 200}]}, {lines: [{cp: 200}]}],
                  moves: [{ply: 0, san: 'e4', color: 'w', evalBefore: 200}, {ply: 1, san: 'e5', color: 'b', evalBefore: -200}]}});
-    vm.runInContext(rv.slice(a, b), c);
+    const u0 = rv.indexOf('const UNGRADED ='), u1 = rv.indexOf('\n', rv.indexOf('const shownLabel ='));
+    vm.runInContext(rv.slice(u0, u1) + '\n' + rv.slice(a, b), c);
     const html = String(vm.runInContext('exportMoveTable()', c));
     ok('White +2 reads +2.00 on both rows', (html.match(/\+2\.00/g) || []).length === 2 && !/-2\.00/.test(html), html.slice(0, 300));
+    // REVIEW-UNGRADED: a move with no grade reads "Not graded" in the neutral class, never Good
+    ok('REVIEW-UNGRADED: an ungraded move is exported as Not graded, not Good',
+       (html.match(/class="rv-c-ungraded"><b>Not graded<\/b>/g) || []).length === 2 && !/rv-c-good/.test(html), html.slice(0, 300));
+    ok('REVIEW-UNGRADED: the move list and the detail line use the same fallback, and the CSS has the class in both themes',
+       !/klass \|\| 'good'/.test(rv) && (rv.match(/shownClass\((m|played)\)/g) || []).length >= 3
+       && /\.rv-c-ungraded\s+\{ --rv-c:/.test(fs.readFileSync(ROOT + '/src/options/pages/review/review.css', 'utf8'))
+       && /html\.dark \.rv-c-ungraded/.test(fs.readFileSync(ROOT + '/src/options/pages/review/review.css', 'utf8')));
 }
 // ---- audit 3.1.328 REVIEW-12: Review's key and resize handlers stand down on other pages ----
 {
@@ -19043,7 +19051,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const kinds = [...css.matchAll(/^\.rv-c-(\w+)\s*\{ --rv-c: (#[0-9a-f]{6})/gm)].map(m => [m[1], m[2]]);
     const cc = rsrc.slice(rsrc.indexOf('const CLASS_COLOUR = {'), rsrc.indexOf('};', rsrc.indexOf('const CLASS_COLOUR = {')));
     const missing = kinds.filter(([k, c]) => !cc.includes(k + ": '" + c + "'")).map(([k]) => k);
-    ok('REVIEW-10 (3.1.333): CLASS_COLOUR has every review.css verdict colour', kinds.length === 11 && !missing.length, missing);
+    // eleven verdicts plus the neutral "Not graded" (REVIEW-UNGRADED)
+    ok('REVIEW-10 (3.1.333): CLASS_COLOUR has every review.css verdict colour', kinds.length === 12 && !missing.length, missing);
     const dark = rsrc.slice(rsrc.indexOf('const EXPORT_RESET'), rsrc.indexOf('`;', rsrc.indexOf('const EXPORT_RESET')));
     const darkMissing = kinds.map(([k]) => k).filter(k => !dark.includes('.rv-c-' + k + ' {'));
     ok('REVIEW-10 (3.1.333): ...and the exported dark block covers them all', !darkMissing.length, darkMissing); }

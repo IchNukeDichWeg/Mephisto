@@ -1182,7 +1182,7 @@ function scoreText(cp, mate) {
 // (audit 3.1.333 REVIEW-10).
 const CLASS_COLOUR = {
     brilliant: '#1aada6', great: '#5c8bb0', miss: '#d06c6c', best: '#2f7d41', excellent: '#4c9a5e', good: '#7d8a91', book: '#8a6d3b', forced: '#5b6b8a',
-    inaccuracy: '#b8860b', mistake: '#cc7722', blunder: '#b03030',
+    inaccuracy: '#b8860b', mistake: '#cc7722', blunder: '#b03030', ungraded: '#9aa0a6',
 };
 
 const CLASS_LABEL = {
@@ -1190,6 +1190,11 @@ const CLASS_LABEL = {
     book: 'Book', forced: 'Forced', inaccuracy: 'Inaccuracy', mistake: 'Mistake', miss: 'Miss',
     blunder: 'Blunder',
 };
+// A move with no grade (no eval on one side of it) says so in neutral grey with no badge. It wore
+// Good's label and colour, which reads as a verdict nobody made. Not a class: it is never counted.
+const UNGRADED = 'ungraded';
+const shownClass = (m) => m.klass || UNGRADED;
+const shownLabel = (k) => (k === UNGRADED ? 'Not graded' : CLASS_LABEL[k]);
 
 // ---- FIT HUMANIZE TO A REAL PLAYER --------------------------------------------------------------
 // The Humanize move mix is seven percentages, and until now they were guessed at: you moved sliders
@@ -1538,14 +1543,14 @@ function coachGrade(m) {
 
 function moveCell(m) {
     if (!m) return '<div class="rv-mcell"></div>';
-    const k = m.klass || 'good';
+    const k = shownClass(m);
     const alt = coachGrade(m);
     // White's perspective, like every other number on the page: cpLoss is stored as a magnitude for
     // whoever moved, so a black mistake is white GAINING and reads +N. It used to print -N for both
     // colours, which said "someone lost something" without saying who.
     const swing = (m.cpLoss == null || m.cpLoss < 1) ? null : Math.round(m.cpLoss) * (m.color === 'w' ? -1 : 1);
     const loss = swing == null ? '' : (swing > 0 ? `+${swing}` : `−${Math.abs(swing)}`);
-    const title = CLASS_LABEL[k] + (alt ? ` - chess.com's coach: ${CLASS_LABEL[alt]}` : '');
+    const title = shownLabel(k) + (alt ? ` - chess.com's coach: ${CLASS_LABEL[alt]}` : '');
     return `<div class="rv-mcell rv-c-${k}${alt ? ' rv-alt' : ''}" data-ply="${m.ply}" title="${esc(title)}">
         ${classIcon(k)}<span class="rv-san">${esc(m.san)}</span>
         <span class="rv-loss">${loss}</span></div>`;
@@ -2164,9 +2169,9 @@ function renderDetail(pos, played) {
     if (!played) {
         el.innerHTML = `<span class="rv-meta">Start position${report.book.name ? ` - ${esc(report.book.name)}` : ''}.</span>`;
     } else {
-        const k = played.klass || 'good';
+        const k = shownClass(played);
         const alt = coachGrade(played);
-        const bits = [`<span class="rv-c-${k}"><span class="rv-klass">${CLASS_LABEL[k]}</span></span>`
+        const bits = [`<span class="rv-c-${k}"><span class="rv-klass">${shownLabel(k)}</span></span>`
             + (alt ? ` <span class="rv-c-${alt} rv-alt-grade">- chess.com's coach: <span class="rv-klass">${CLASS_LABEL[alt]}</span></span>` : ''),
             `<b>${esc(moveLabel(played))}</b>`];
         if (played.cpLoss > 0) bits.push(`gave up ${Math.round(played.cpLoss)}cp`);
@@ -2272,7 +2277,7 @@ const EXPORT_RESET = `
     .rv-c-best { --rv-c: #4bb265; } .rv-c-excellent { --rv-c: #63b478; }
     .rv-c-good { --rv-c: #98a3aa; } .rv-c-book { --rv-c: #b08d55; }
     .rv-c-forced { --rv-c: #8095c0; } .rv-c-inaccuracy { --rv-c: #d8a628; }
-    .rv-c-mistake { --rv-c: #e08a3c; } .rv-c-blunder { --rv-c: #d15050; }
+    .rv-c-mistake { --rv-c: #e08a3c; } .rv-c-blunder { --rv-c: #d15050; } .rv-c-ungraded { --rv-c: #6f767c; }
     .rv-ev-notable { color: #d8a628; } .rv-ev-high { color: #e08a3c; }
     .rv-ev-strong { color: #d15050; }
   }
@@ -2309,7 +2314,7 @@ function exportMoveTable() {
     const whiteCp = (m) => report.positions[m.ply]?.lines?.[0]?.cp;
     const rows = report.moves.map(m => `<tr>
         <td>${esc(moveLabel(m))}</td>
-        <td class="rv-c-${m.klass || 'good'}"><b>${esc(CLASS_LABEL[m.klass] || '')}</b></td>
+        <td class="rv-c-${shownClass(m)}"><b>${esc(shownLabel(shownClass(m)))}</b></td>
         <td class="n">${whiteCp(m) == null ? '' : esc(scoreText(whiteCp(m), null))}</td>
         <td class="n">${m.cpLoss == null ? '' : Math.round(m.cpLoss)}</td>
         <td class="n">${m.rank ?? ''}</td>
