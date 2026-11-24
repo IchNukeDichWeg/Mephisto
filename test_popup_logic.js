@@ -20033,3 +20033,21 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        i > 0 && j > i && /await Promise\.all\(\[\.\.\.pool, rig\.human\]\.filter\(e => e && e\.newGame\)\.map\(e => e\.newGame\(\)\)\);/.test(rj.slice(i, j))
        && /class NativeEngine \{[\s\S]*async newGame\(\) \{\}/.test(ej));
 }
+// ---- REVIEW-HUMANNAME: the human card and the strength note name the model that actually ran ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const ej = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const c = vm.createContext({});
+    vm.runInContext(ej.slice(ej.indexOf('const MAIA_RATING_KINDS'), ej.indexOf('const takesRating')) + ej.slice(ej.indexOf('const takesRating'), ej.indexOf('\n', ej.indexOf('const takesRating')))
+        + '\n' + ej.slice(ej.indexOf('const HUMAN_LABELS'), ej.indexOf('const CFG_DEFAULTS'))
+        + rj.slice(rj.indexOf('function strengthModel(kind)'), rj.indexOf('function strengthBands(kind)')), c);
+    const say = (k, b) => vm.runInContext(`humanJudgedBy(${JSON.stringify(k)}, ${JSON.stringify(b)})`, c);
+    ok('REVIEW-HUMANNAME: Maia 3 and Maia 1 are named with their rating, Elite Leela without one',
+       say('maia3', '1700').startsWith('Judged against Maia 3 at 1700.') && say('maia', '1500').startsWith('Judged against Maia 1 at 1500.')
+       && say('elite-leela', '1500').startsWith('Judged against Elite Leela. ') && /human games it learned from\.$/.test(say('elite-leela', '1500')),
+       [say('maia3', '1700'), say('elite-leela', '1500')]);
+    ok('REVIEW-HUMANNAME: a strength sweep for a model without a dial is reported as Maia 1, the one that ran',
+       vm.runInContext(`[strengthModel('elite-leela'), strengthModel('maia'), strengthModel('maia3'), strengthModel('maia2')].join()`, c) === 'maia,maia,maia3,maia2'
+       && /return \{kind: strengthModel\(kind\), asked: kind,/.test(rj) && /has no rating dial, so this estimate uses/.test(rj));
+}

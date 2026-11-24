@@ -497,6 +497,19 @@ async function runReview(game, rig, onProgress) {
 
 const STRENGTH_MULTIPV = 64;   // every legal move, near enough; one forward pass either way
 
+// The model a strength sweep really runs: one with a rating dial sweeps itself, anything else
+// (Elite Leela has no rating at all) sweeps Maia 1's bands, and the report must say so rather than
+// name the model the human pass used.
+function strengthModel(kind) { return takesRating(kind) ? kind : 'maia'; }
+
+// The human card's sentence: the model that ran, with a rating only where the model has one.
+function humanJudgedBy(kind, band) {
+    const rated = kind === 'maia' || takesRating(kind);
+    return `Judged against ${humanLabel(kind) || 'the human model'}${rated ? ` at ${band}` : ''}. This says nothing`
+        + ` about whether a move was GOOD -- it is how expected the move was from `
+        + (rated ? 'a human at that rating.' : 'the human games it learned from.');
+}
+
 function strengthBands(kind) {
     // Maia 3 is one net on a dial, so it can be asked anywhere. Walked in 100s (user call
     // 2026-08-24, was 200s): 21 bands instead of 11 doubles this pass, but the estimate is the point
@@ -603,7 +616,7 @@ async function strengthPass(positions, moves, prog, rig) {
     if (!w && !b) return null;
     // `moves` (the per-move matrix) and `bands` ride along so the compare-two-ratings view can be
     // recomputed for any pair the reader picks without touching the engine again.
-    return {kind, bands: bands.map(Number), phases, moves: rec, w, b};
+    return {kind: strengthModel(kind), asked: kind, bands: bands.map(Number), phases, moves: rec, w, b};
 }
 
 // A maximum-likelihood rating over a SET of decisions: sum log P(played | band) for each band, and
@@ -1570,8 +1583,10 @@ function renderStrength() {
     if (!on) return;
 
     const model = humanLabel(st.kind);
-    $('rv_strength_note').innerHTML =
-        `Each rating the ${esc(model)} model has was asked what it would play in every position where there `
+    const swapped = st.asked && st.asked !== st.kind
+        ? `${esc(humanLabel(st.asked))} has no rating dial, so this estimate uses ${esc(model)}. ` : '';
+    $('rv_strength_note').innerHTML = swapped
+      + `Each rating the ${esc(model)} model has was asked what it would play in every position where there `
       + `was a real choice - book moves and forced moves are left out, because everyone plays those the same `
       + `way. The rating shown is the one that was least surprised by what actually happened. `
       + `<b>This is a strength estimate, not a fair-play measurement</b>: a player using an engine reads as `
@@ -1766,9 +1781,7 @@ function renderHumanReport() {
     };
     $('rv_human_cards').innerHTML = col('w') + col('b');
     renderHumanChart();
-    $('rv_human_note').textContent =
-        `Judged against Maia at ${band}. This says nothing about whether a move was GOOD -- it is`
-        + ` how expected the move was from a human at that rating.`;
+    $('rv_human_note').textContent = humanJudgedBy(report.humanKind, band);
     $('rv_human_cards').onclick = (e) => {
         const a = e.target.closest('a[data-ply]');
         if (!a) return;
