@@ -370,9 +370,10 @@ pieces alone: en passant from the last-move highlight, castling rights from the 
 panel look the position up and play the whole solution with **no search at all**. Chess.com puzzles import too, in their
 own format (detected from the file), and both can be loaded at once.
 
-**Read solutions from the page** (off by default) - the puzzle sites hand their own client the answer so they can score
-you locally, so Puzzle Mode can read it there: no search, no database. A solution is used only if it replays legally
-*and* belongs to the position on the board. Some chess.com modes fetch puzzles too early to watch; a second opt-in
+**Solution source** (Settings → Puzzles) - the puzzle sites hand their own client the answer so they can score you
+locally, so Puzzle Mode can read it there: no search, no database. Off by default; the select offers *Engine and
+database*, *Read from the page* and *Read from the page (debugger)*. A solution is used only if it replays legally
+*and* belongs to the position on the board. Some chess.com modes fetch puzzles too early to watch; the debugger option
 catches them through Chrome's debugger, at the cost of the yellow "being debugged" bar.
 
 <details>
@@ -714,7 +715,7 @@ open ticket** prepares. A code is never reused: a retired one stays retired.
 ## Page footprint
 
 **Toolbar popup** leaves **zero page footprint**: it renders in the browser's own chrome. There are two exceptions:
-**Read solutions from the page**, which adds a page-world script on puzzle pages that wraps `fetch`, XHR and
+**Solution source: Read from the page**, which adds a page-world script on puzzle pages that wraps `fetch`, XHR and
 `WebSocket` (whichever panel style you use), and drawing on the site's board (Help Mode, Eval Bar, Eval History, Live
 Stats, Move Classification or Evals on Your Arrows), which the open popup does under the same closed shadow root the
 floating panel uses. The popup closes when you click the board, so it is analysis only; Autoplay and Premove need the

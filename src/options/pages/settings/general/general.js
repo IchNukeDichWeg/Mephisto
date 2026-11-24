@@ -424,8 +424,21 @@ class GeneralSettings extends SettingsPage {
         this.initCopyDiagnostics();
         this.registerFormElement('puzzle_mode', 'Puzzle Mode:', 'checkbox', false);
         this.registerFormElement('puzzle_delay', 'Puzzle Move Delay (ms):', 'input', 300);
-        this.registerFormElement('puzzle_capture', 'Read Solutions From The Page:', 'checkbox', false);
-        this.registerFormElement('puzzle_capture_cdp', 'Use The Debugger To Catch Solutions:', 'checkbox', false);
+        // SOLUTION SOURCE: Read Solutions From The Page and Use The Debugger as one select (bindViewSelect).
+        // The service worker and the content script read both keys raw from storage, so both stay. The
+        // debugger is inert without the page read (background-script.js puzzleNetWanted wants all three
+        // of puzzle_mode, puzzle_capture and puzzle_capture_cdp), so a stored debugger-only pair reads as
+        // Engine and database: it already behaved that way. Picking Engine clears both.
+        const puzzle_capture = this.registerFormElement('puzzle_capture', 'Read Solutions From The Page:', 'checkbox', false);
+        const puzzle_capture_cdp = this.registerFormElement('puzzle_capture_cdp', 'Use The Debugger To Catch Solutions:', 'checkbox', false);
+        this.bindViewSelect('puzzle_source_view', [puzzle_capture, puzzle_capture_cdp],
+            () => !puzzle_capture.getValue() ? 'off' : puzzle_capture_cdp.getValue() ? 'cdp' : 'page',
+            (v) => {
+                const want = {off: [false, false], page: [true, false], cdp: [true, true]}[v];
+                if (!want) return;
+                if (puzzle_capture.getValue() !== want[0]) puzzle_capture.setValue(want[0]);
+                if (puzzle_capture_cdp.getValue() !== want[1]) puzzle_capture_cdp.setValue(want[1]);
+            });
         this.registerFormElement('puzzle_auto_next', 'Auto-Next Puzzle:', 'checkbox', false);
         this.registerFormElement('puzzle_next_delay', 'Auto-Next Delay (ms):', 'input', 300);
         this.registerFormElement('python_autoplay_backend', 'Python Autoplay Backend:', 'checkbox', false);

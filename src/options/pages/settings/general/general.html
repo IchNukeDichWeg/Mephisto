@@ -1333,43 +1333,24 @@
                     </div>
                 </div>
 
-                <div class="set-row">
+                <!-- ONE SELECT over Read Solutions From The Page and Use The Debugger (general.js bindViewSelect). Both keys stay
+                     here as hidden inputs: the service worker and the content script read them raw from storage. The
+                     debugger only ever worked on top of the page read, so there are three states, not four. -->
+                <div class="set-row" id="puzzle_source_row">
                     <div class="set-lbl">
-                        <span data-i18n="set.puzzle_capture" data-i18n-tip="set.tip.puzzle_capture" class="tooltipped" data-position="right"
-                              data-tooltip="Read the solution off the puzzle page itself. These sites hand their own
-                                            client the answer -- they check your moves locally -- so it is already in
-                                            the tab. Nothing is requested and nothing is sent; only what the page was
-                                            already given is read. A solution is used only if it replays legally AND
-                                            belongs to the position on the board, so a mismatch means the engine
-                                            plays as usual. Off by default.">
-                            Read solutions from the page <i class="material-icons info-tooltip">info</i>
+                        <span data-i18n="set.puzzle_solution_source" data-i18n-tip="set.tip.puzzle_solution_source" class="tooltipped" data-position="right"
+                              data-tooltip="Where Puzzle Mode looks for the solution first. Engine and database is the default: nothing is read off the page, and a loaded puzzle database, then the engine, answers. Read from the page takes the answer the puzzle site already handed its own client (they check your moves locally), before the database is asked. It is used only if it replays legally AND belongs to the position on the board, otherwise the engine plays as usual. Some puzzle modes load before the extension does, so this can miss; Read from the page (debugger) watches the page&#39;s network traffic through Chrome&#39;s debugger instead and is reliable, at the cost of Chrome&#39;s yellow &#39;being debugged&#39; bar while a puzzle page is open. Reload the page after changing this.">
+                            Solution source <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
                     <div class="set-ctl">
-                        <input id="puzzle_capture_checkbox" type="checkbox" class="set-cb">
-                        <label for="puzzle_capture_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n="set.puzzle_capture_cdp" data-i18n-tip="set.tip.puzzle_capture_cdp" class="tooltipped" data-position="right"
-                              data-tooltip="Read the solution reliably, by watching the page's own network traffic
-                                            through Chrome's debugger. Without this, reading solutions off the page
-                                            only works when the extension loads before the site does, which on some
-                                            puzzle modes it never does - so the answer is a coin toss. The cost is
-                                            that Chrome shows its yellow 'being debugged' bar while a puzzle page is
-                                            open. Needs Read solutions from the page. Off by default.">
-                            Use the debugger to catch solutions <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="puzzle_capture_cdp_checkbox" type="checkbox" class="set-cb">
-                        <label for="puzzle_capture_cdp_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
+                        <input id="puzzle_capture_checkbox" type="checkbox" hidden title="Read Solutions From The Page" data-i18n-title="set.puzzle_capture">
+                        <input id="puzzle_capture_cdp_checkbox" type="checkbox" hidden title="Use The Debugger To Catch Solutions" data-i18n-title="set.puzzle_capture_cdp">
+                        <select id="puzzle_source_view">
+                            <option value="off" data-i18n="set.puzzle_source.off">Engine and database</option>
+                            <option value="page" data-i18n="set.puzzle_source.page">Read from the page</option>
+                            <option value="cdp" data-i18n="set.puzzle_source.cdp">Read from the page (debugger)</option>
+                        </select>
                     </div>
                 </div>
 

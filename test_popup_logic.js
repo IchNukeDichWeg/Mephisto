@@ -5027,8 +5027,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && /changes\.puzzle_capture\) syncPuzProbe\(\)/.test(src));
     const fails14 = fs.readdirSync(ROOT + '/src/i18n/locales').filter(f => {
         const d = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8'));
-        return !d['set.tip.puzzle_capture'] || d['set.tip.puzzle_capture'] === d['set.tip.puzzle_capture_cdp']; });
-    ok('the tip is present in all 14 locales', fails14.length === 0, fails14);
+        return !d['set.tip.puzzle_solution_source'] || ('set.tip.puzzle_capture' in d) || ('set.tip.puzzle_capture_cdp' in d); });
+    ok('the Solution source tip is present in all 14 locales; the two per-switch tips are gone', fails14.length === 0, fails14);
+}
+// ---- SIMP-PUZZLESRC: Read Solutions From The Page + Use The Debugger are one Solution source select ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const i = gj.indexOf('    bindViewSelect(viewId, elems, read, write, onShow) {'), body = i < 0 ? '' : gj.slice(i, gj.indexOf('\n    }\n', i) + 7);
+    const a = gj.indexOf("        this.bindViewSelect('puzzle_source_view',"), wiring = a < 0 ? '' : gj.slice(a, gj.indexOf('            });\n', a) + 15);
+    const fe = (v) => { const ls = []; const o = {missing: false, v, getValue: () => o.v, setValue: (x) => { o.v = x; ls.forEach(f => f()); }, registerChangeListener: (f) => ls.push(f)}; return o; };
+    const run = (st, steps = []) => {
+        const puzzle_capture = fe(st[0]), puzzle_capture_cdp = fe(st[1]);
+        const sel = {value: '', ev: {}, parentElement: null, selectedOptions: [], addEventListener(t, f) { this.ev[t] = f; }};
+        const c = vm.createContext({document: {getElementById: () => sel}, puzzle_capture, puzzle_capture_cdp});
+        vm.runInContext(`const page = {${body}}; (function () { ${wiring} }).call(page);`, c);
+        const snap = () => [sel.value, puzzle_capture.v, puzzle_capture_cdp.v];
+        const out = [snap()];
+        for (const p of steps) { sel.value = p; sel.ev.change(); out.push(snap()); }
+        return out;
+    };
+    const T = true, F = false;
+    const shown = [[F, F], [T, F], [T, T], [F, T]].map(s => run(s)[0][0]);
+    ok('SIMP-PUZZLESRC: off, page, page + debugger; a stored debugger without the page read shows as off (it was inert already)', shown.join() === 'off,page,cdp,off', shown);
+    const st = run([F, T], ['page', 'cdp', 'off', 'cdp']);
+    ok('SIMP-PUZZLESRC: picking writes both legacy keys (page clears the debugger, off clears both)',
+       JSON.stringify(st) === JSON.stringify([['off', F, T], ['page', T, F], ['cdp', T, T], ['off', F, F], ['cdp', T, T]]), st);
+    ok('SIMP-PUZZLESRC: one row holds both hidden switches and the select; the worker keeps reading the two keys raw',
+       /<div class="set-row" id="puzzle_source_row">[\s\S]*?<input id="puzzle_capture_checkbox" type="checkbox" hidden[^>]*>\s*<input id="puzzle_capture_cdp_checkbox" type="checkbox" hidden[^>]*>\s*<select id="puzzle_source_view">/.test(gh)
+       && ['puzzle_capture', 'puzzle_capture_cdp'].every(k => (gh.match(new RegExp(`id="${k}_checkbox"`, 'g')) || []).length === 1)
+       && /on\('puzzle_mode'\) && on\('puzzle_capture'\) && on\('puzzle_capture_cdp'\)/.test(fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8')));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-PUZZLESRC: label and three options in all 14 locales',
+       locs.length === 14 && locs.every(l => ['set.puzzle_solution_source', 'set.puzzle_source.off', 'set.puzzle_source.page', 'set.puzzle_source.cdp'].every(k => l[k])));
 }
 // ---- PAGE-4/SYS-1: the probe rendezvous listens only where a probe can exist ----
 {
