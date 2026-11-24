@@ -312,13 +312,17 @@
                     to return to the live game. An invalid or illegal FEN is refused with a reason.
                 </p>
 
-                <div class="set-row set-toggle">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.computer_evaluation" class="tooltipped" data-position="right" data-tooltip="Show the evaluation score, win percentages and depth in the panel."><span data-i18n="set.show_computer_evaluation">Show Computer Evaluation</span></span></div>
+                <!-- ONE PRESET over the four display-only switches (general.js PANEL_DETAIL). It writes the
+                     existing keys, which keep their own rows under Advanced; any other mix reads Custom. -->
+                <div class="set-row" id="panel_detail_row">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.panel_detail" class="tooltipped" data-position="right" data-tooltip="How much the panel prints under the moves. Minimal: the evaluation line only. Standard: also the material balance. Full: also the square-control heatmap on the panel board and a line naming the tactic behind the engine's move. Display only, nothing is searched differently. The four switches are under Advanced; any other mix of them shows here as Custom."><span data-i18n="set.panel_detail">Panel Detail</span></span></div>
                     <div class="set-ctl">
-                        <input id="computer_evaluation_checkbox" type="checkbox" class="set-cb">
-                        <label for="computer_evaluation_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
+                        <select id="panel_detail_view">
+                            <option value="minimal" data-i18n="set.panel_detail.minimal">Minimal</option>
+                            <option value="standard" data-i18n="set.panel_detail.standard">Standard</option>
+                            <option value="full" data-i18n="set.panel_detail.full">Full</option>
+                            <option value="custom" data-i18n="set.panel_detail.custom" disabled>Custom</option>
+                        </select>
                     </div>
                 </div>
 
@@ -337,26 +341,6 @@
                     <div class="set-ctl">
                         <input id="threat_human_checkbox" type="checkbox" class="set-cb">
                         <label for="threat_human_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row set-toggle">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.material_balance" class="tooltipped" data-position="right" data-tooltip="One line under the score: the material count of the position on the panel board, White minus Black in pawns (Q 9, R 5, B 3, N 3, P 1), and which pieces differ - &quot;Material +2 (B+P vs N)&quot; means White has a bishop and a pawn where Black has a knight."><span data-i18n="set.material_balance">Material Balance</span></span></div>
-                    <div class="set-ctl">
-                        <input id="material_balance_checkbox" type="checkbox" class="set-cb">
-                        <label for="material_balance_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row set-toggle">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.square_heatmap" class="tooltipped" data-position="right" data-tooltip="Tint every square of the panel board by who controls it: blue where White has more pieces attacking it, red where Black does, darker the bigger the lead (up to three). Squares both sides hit equally stay untinted. Redrawn when the position changes, under the pieces and the arrows."><span data-i18n="set.square_heatmap">Square Control Heatmap</span></span></div>
-                    <div class="set-ctl">
-                        <input id="square_heatmap_checkbox" type="checkbox" class="set-cb">
-                        <label for="square_heatmap_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
                     </div>
@@ -407,24 +391,6 @@
                     <div class="set-lbl"><span data-i18n-tip="set.tip.threat_human_elo" class="tooltipped" data-position="right" data-tooltip="The rating the human reply is predicted at: 600-2600, any value - Maia-3 is one net with a live rating dial, so nothing is snapped."><span data-i18n="set.threat_human_elo">Human Reply Rating</span></span></div>
                     <div class="set-ctl">
                         <input id="threat_human_elo_input" type="number" min="600" max="2600" step="50" class="set-num">
-                    </div>
-                </div>
-
-                <div class="set-row set-toggle">
-                    <div class="set-lbl">
-                        <span data-i18n="set.explain_moves">Explain Moves</span>
-                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.name_the_tactic_behind_the"
-                              data-tooltip="Name the tactic behind the engine's move -- a fork, a promotion, a capture
-                                            that wins material, mate -- on its own line under the evaluation.
-                                            Deliberately conservative: pins, skewers and discovered attacks can't be
-                                            established reliably from the position alone, so it says nothing rather
-                                            than guessing. A confidently wrong explanation teaches the wrong thing."><i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="move_reason_checkbox" type="checkbox" class="set-cb">
-                        <label for="move_reason_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
                     </div>
                 </div>
 
@@ -626,6 +592,54 @@
                 <div class="set-adv" data-adv="panel">
                     <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="panel_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
                     <div class="set-adv-body" id="panel_adv" hidden>
+
+                <div class="set-row set-toggle">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.computer_evaluation" class="tooltipped" data-position="right" data-tooltip="Show the evaluation score, win percentages and depth in the panel."><span data-i18n="set.show_computer_evaluation">Show Computer Evaluation</span></span></div>
+                    <div class="set-ctl">
+                        <input id="computer_evaluation_checkbox" type="checkbox" class="set-cb">
+                        <label for="computer_evaluation_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row set-toggle">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.material_balance" class="tooltipped" data-position="right" data-tooltip="One line under the score: the material count of the position on the panel board, White minus Black in pawns (Q 9, R 5, B 3, N 3, P 1), and which pieces differ - &quot;Material +2 (B+P vs N)&quot; means White has a bishop and a pawn where Black has a knight."><span data-i18n="set.material_balance">Material Balance</span></span></div>
+                    <div class="set-ctl">
+                        <input id="material_balance_checkbox" type="checkbox" class="set-cb">
+                        <label for="material_balance_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row set-toggle">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.square_heatmap" class="tooltipped" data-position="right" data-tooltip="Tint every square of the panel board by who controls it: blue where White has more pieces attacking it, red where Black does, darker the bigger the lead (up to three). Squares both sides hit equally stay untinted. Redrawn when the position changes, under the pieces and the arrows."><span data-i18n="set.square_heatmap">Square Control Heatmap</span></span></div>
+                    <div class="set-ctl">
+                        <input id="square_heatmap_checkbox" type="checkbox" class="set-cb">
+                        <label for="square_heatmap_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row set-toggle">
+                    <div class="set-lbl">
+                        <span data-i18n="set.explain_moves">Explain Moves</span>
+                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.name_the_tactic_behind_the"
+                              data-tooltip="Name the tactic behind the engine's move -- a fork, a promotion, a capture
+                                            that wins material, mate -- on its own line under the evaluation.
+                                            Deliberately conservative: pins, skewers and discovered attacks can't be
+                                            established reliably from the position alone, so it says nothing rather
+                                            than guessing. A confidently wrong explanation teaches the wrong thing."><i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="move_reason_checkbox" type="checkbox" class="set-cb">
+                        <label for="move_reason_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
 
                 <!-- WHICH verdicts get drawn. Shown only while Move Classification or Classification On
                      The Board is on (it filters both), because a row of eleven switches for something

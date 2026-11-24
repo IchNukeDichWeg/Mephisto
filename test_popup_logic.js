@@ -19450,3 +19450,38 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        locs.length === 14 && locs.every(l => ['set.arrow_palette', 'set.tip.arrow_palette', 'set.arrow_palette.default', 'set.arrow_palette.colorblind', 'set.arrow_palette.custom'].every(k => l[k])
            && !('set.arrow_colorblind' in l) && !('set.tip.arrow_colorblind' in l) && !('set.apply' in l)));
 }
+// ---- SIMP-DETAIL: one Panel Detail preset over the four display-only switches; any other mix reads Custom ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const i = gj.indexOf('    bindViewSelect(viewId, elems, read, write, onShow) {'), body = i < 0 ? '' : gj.slice(i, gj.indexOf('\n    }\n', i) + 7);
+    const top = gj.slice(gj.indexOf('const PANEL_DETAIL = {'), gj.indexOf("|| 'custom';", gj.indexOf('const panel_detail_of')) + 12);
+    const a = gj.indexOf('        const detail = [computer_evaluation'), wiring = a < 0 ? '' : gj.slice(a, gj.indexOf('\n', gj.indexOf("PANEL_DETAIL[v][i]); }); });", a)) + 1);
+    const fe = (v) => { const ls = []; const o = {missing: false, v, getValue: () => o.v, setValue: (x) => { o.v = x; ls.forEach(f => f()); }, registerChangeListener: (f) => ls.push(f)}; return o; };
+    const run = (st, picks = []) => {
+        const [computer_evaluation, material_balance, square_heatmap, move_reason] = st.map(fe);
+        const sel = {value: '', ev: {}, parentElement: null, selectedOptions: [], addEventListener(t, f) { this.ev[t] = f; }};
+        const c = vm.createContext({document: {getElementById: () => sel}, computer_evaluation, material_balance, square_heatmap, move_reason});
+        vm.runInContext(`${top}\nconst page = {${body}}; (function () { ${wiring} }).call(page);`, c);
+        const snap = () => [sel.value, ...[computer_evaluation, material_balance, square_heatmap, move_reason].map(e => e.v)];
+        const out = [snap()];
+        for (const p of picks) { sel.value = p; sel.ev.change(); out.push(snap()); }
+        return out;
+    };
+    const T = true, F = false;
+    const shown = [[T, F, F, F], [T, T, F, F], [T, T, T, T], [F, F, F, F], [T, F, T, F]].map(s => run(s)[0][0]);
+    ok('SIMP-DETAIL: the select shows the preset the four stored switches make, Custom for any other mix (the defaults read Minimal)',
+       shown.join() === 'minimal,standard,full,custom,custom', shown);
+    const st = run([F, F, T, F], ['full', 'standard', 'minimal', 'custom']);
+    ok('SIMP-DETAIL: picking a preset writes the four switches; Custom writes nothing',
+       JSON.stringify(st) === JSON.stringify([['custom', F, F, T, F], ['full', T, T, T, T], ['standard', T, T, F, F], ['minimal', T, F, F, F], ['minimal', T, F, F, F]]), st);
+    const sec = (id) => { const k = gh.indexOf(`<section id="${id}"`); return k < 0 ? '' : gh.slice(k, gh.indexOf('</section>', k)); };
+    const panel = sec('panel'), adv = panel.slice(panel.indexOf('<div class="set-adv"'));
+    ok('SIMP-DETAIL: the select row sits in the Panel section with a disabled Custom option; the four switches sit under its Advanced block',
+       /<div class="set-row" id="panel_detail_row">[\s\S]*?<select id="panel_detail_view">[\s\S]*?<option value="custom" data-i18n="set\.panel_detail\.custom" disabled>/.test(panel)
+       && ['computer_evaluation', 'material_balance', 'square_heatmap', 'move_reason'].every(k => adv.includes(`id="${k}_checkbox"`) && (gh.match(new RegExp(`id="${k}_checkbox"`, 'g')) || []).length === 1));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-DETAIL: label, tip and four options in all 14 locales',
+       locs.length === 14 && locs.every(l => ['set.panel_detail', 'set.tip.panel_detail', 'set.panel_detail.minimal', 'set.panel_detail.standard', 'set.panel_detail.full', 'set.panel_detail.custom'].every(k => l[k])));
+}

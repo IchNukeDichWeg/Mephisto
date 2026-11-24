@@ -57,6 +57,16 @@ function fill_bot_games() {
 // import's buttons were enabled under a 30-minute import. This module is loaded once per options tab
 // (require.js caches it), so state kept here is the same object every re-init sees.
 const tbDownload = {run: null};
+
+// PANEL DETAIL: one preset over the four display-only switches, in the order computer_evaluation,
+// material_balance, square_heatmap, move_reason. A stored mix that is none of these reads Custom;
+// the switches keep their own rows under the Panel section's Advanced block.
+const PANEL_DETAIL = {
+    minimal: [true, false, false, false],
+    standard: [true, true, false, false],
+    full: [true, true, true, true],
+};
+const panel_detail_of = (vals) => Object.keys(PANEL_DETAIL).find(k => PANEL_DETAIL[k].every((v, i) => v === vals[i])) || 'custom';
 const puzzleImport = {running: false, line: ''};
 
 class GeneralSettings extends SettingsPage {
@@ -99,8 +109,8 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('premove_plies', 'Premove Plies:', 'input', 2);
         this.registerFormElement('live_stats', 'Live Stats:', 'checkbox', false);
         const live_classify = this.registerFormElement('live_classify', 'Move Classification:', 'checkbox', false);
-        this.registerFormElement('material_balance', 'Material Balance:', 'checkbox', false);
-        this.registerFormElement('square_heatmap', 'Square Control Heatmap:', 'checkbox', false);
+        const material_balance = this.registerFormElement('material_balance', 'Material Balance:', 'checkbox', false);
+        const square_heatmap = this.registerFormElement('square_heatmap', 'Square Control Heatmap:', 'checkbox', false);
         // where the badge goes: one select over the two switches (bindPairSelect)
         this.bindPairSelect('class_where_view', live_classify,
             this.registerFormElement('class_on_board', 'Classification On The Board:', 'checkbox', false),
@@ -192,7 +202,7 @@ class GeneralSettings extends SettingsPage {
                     });
             }).catch(() => { /* the readout is an extra; a refusal costs nothing */ });
         }
-        this.registerFormElement('computer_evaluation', 'Show Computer Evaluation:', 'checkbox', true);
+        const computer_evaluation = this.registerFormElement('computer_evaluation', 'Show Computer Evaluation:', 'checkbox', true);
         this.registerFormElement('threat_analysis', 'Show Threat Analysis', 'checkbox', false);
         // Playing with a net: the three knobs only mean anything while it is on, so they follow it
         // (same treatment the search-budget rows and the human-reply rating already get).
@@ -309,7 +319,13 @@ class GeneralSettings extends SettingsPage {
         sync_tb_show_row();
         // a folder path on THIS machine; the service worker probes it via the native host
         this.registerFormElement('tb_path', 'Local Tablebase Folder:', 'input', '');
-        this.registerFormElement('move_reason', 'Explain Moves:', 'checkbox', false);
+        const move_reason = this.registerFormElement('move_reason', 'Explain Moves:', 'checkbox', false);
+        // PANEL DETAIL (PANEL_DETAIL above): picking a preset writes the four switches; Custom is only
+        // ever shown, never written
+        const detail = [computer_evaluation, material_balance, square_heatmap, move_reason];
+        this.bindViewSelect('panel_detail_view', detail,
+            () => panel_detail_of(detail.map(e => e.getValue())),
+            (v) => { if (PANEL_DETAIL[v]) detail.forEach((e, i) => { if (e.getValue() !== PANEL_DETAIL[v][i]) e.setValue(PANEL_DETAIL[v][i]); }); });
         this.registerFormElement('hide_opponent', 'Hide Opponent Name:', 'checkbox', false);
         this.registerFormElement('explorer', 'Opening Explorer:', 'checkbox', false);
         this.registerFormElement('book_play', 'Play Book Moves:', 'checkbox', false);
