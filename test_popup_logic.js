@@ -5041,6 +5041,20 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SIMP-PUZZLEDELAY: both delays read 300 whatever an old saved value says', vm.runInContext('[puzzle_move_delay_ms(), puzzleNextDelayMs()].join()', c) === '300,300');
     ok('SIMP-PUZZLEDELAY: no row, binding or live key is left for either', !/puzzle_delay|puzzle_next_delay/.test(gh + gj + psrc + csrc));
 }
+// ---- SIMP-PUZZLENEXT: the Auto-Next row shows only while Puzzle Mode is on ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const a = gj.indexOf('        const sync_puzzle_auto_next_row'), wiring = a < 0 ? '' : gj.slice(a, gj.indexOf('        sync_puzzle_auto_next_row();\n', a) + 36);
+    const ls = []; const puzzle_mode = {v: false, getValue: () => puzzle_mode.v, registerChangeListener: (f) => ls.push(f)};
+    let hidden = null;
+    vm.runInContext(wiring, vm.createContext({document: {getElementById: (id) => id === 'puzzle_auto_next_row' ? {classList: {toggle: (cl, on) => { if (cl === 'hidden') hidden = on; }}} : null}, puzzle_mode}));
+    const seq = [hidden]; puzzle_mode.v = true; ls.forEach(f => f()); seq.push(hidden); puzzle_mode.v = false; ls.forEach(f => f()); seq.push(hidden);
+    ok('SIMP-PUZZLENEXT: hidden with Puzzle Mode off, shown with it on, hidden again when it goes off', seq.join() === 'true,false,true', seq);
+    ok('SIMP-PUZZLENEXT: the row carries the id the wiring toggles, and its switch is still bound', /<div class="set-row set-toggle" id="puzzle_auto_next_row">[\s\S]*?id="puzzle_auto_next_checkbox"/.test(gh)
+       && /registerFormElement\('puzzle_auto_next'/.test(gj));
+}
 // ---- SIMP-PUZZLESRC: Read Solutions From The Page + Use The Debugger are one Solution source select ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
