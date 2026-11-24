@@ -282,8 +282,7 @@ class GeneralSettings extends SettingsPage {
         sync_grind_row();
         this.registerFormElement('premove', 'Premove:', 'checkbox', false);
         this.registerFormElement('ponder', 'Pondering:', 'checkbox', false);
-        const tablebase_cb = this.registerFormElement('tablebase', 'Endgame Tablebase:', 'checkbox', false);
-        this.registerFormElement('tablebase_show', 'Tablebase Display:', 'select', 'both');
+        this.registerFormElement('tablebase', 'Endgame Tablebase:', 'checkbox', false);
         this.registerFormElement('mirror_ratio', 'Mirror Ratio (%):', 'input', 90);
         this.registerFormElement('refute', 'Refute My Mistakes:', 'checkbox', false);
         second_opinion = this.registerFormElement('second_opinion', 'Second Opinion:', 'checkbox', false);
@@ -315,14 +314,8 @@ class GeneralSettings extends SettingsPage {
         // Time Trouble Mode and its threshold: one "0 = off" stepper (bindOffStepper)
         this.bindOffStepper(this.registerFormElement('time_trouble', 'Time Trouble Mode:', 'checkbox', false),
                             this.registerFormElement('time_trouble_at', 'Time Trouble Below (s):', 'input', 30), 'time_trouble_view');
-        // The display choice only means anything while the tablebase is on -- same treatment the
-        // other dependent rows get, so a control that can do nothing is not sitting there inviting
-        // a change.
-        const sync_tb_show_row = () => {
-            document.getElementById('tb_show_section')?.classList.toggle('hidden', !tablebase_cb.getValue());
-        };
-        tablebase_cb.registerChangeListener(sync_tb_show_row);
-        sync_tb_show_row();
+        // Tablebase Display is the panel's quick select alone (qs_tb_show): it writes the same key,
+        // shows under the same condition and reads a change made anywhere.
         // a folder path on THIS machine; the service worker probes it via the native host
         this.registerFormElement('tb_path', 'Local Tablebase Folder:', 'input', '');
         const move_reason = this.registerFormElement('move_reason', 'Explain Moves:', 'checkbox', false);

@@ -19670,3 +19670,19 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SIMP-FIGHTER: the style name in all 14 locales, the tooltip describes it, the four contempt strings are gone',
        locs.length === 14 && locs.every(l => l['set.style_fighter'] && /30/.test(l['set.tip.playstyle']) && !Object.keys(l).some(k => /contempt/.test(k))));
 }
+// ---- SIMP-TBSHOW: Tablebase Display lives in the panel alone, which covers everything the settings row did ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const ph = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('SIMP-TBSHOW: the settings page has no Tablebase Display row or registration',
+       !/tb_show|tablebase_show/.test(gh) && !/registerFormElement\('tablebase_show'/.test(gj));
+    const opts = (h, id) => [...(h.slice(h.indexOf(`<select id="${id}"`), h.indexOf('</select>', h.indexOf(`<select id="${id}"`))).matchAll(/value="([a-z]+)"/g))].map(m => m[1]).join();
+    ok('SIMP-TBSHOW: the panel select offers the same three choices, writes tablebase_show, shows while the tablebase is on, and follows a change made elsewhere',
+       opts(ph, 'qs_tb_show') === 'both,tablebase,engine'
+       && /config\.tablebase_show = v;\n\s+save\('tablebase_show', v\);/.test(pj)
+       && /row\.style\.display = config\.tablebase \? '' : 'none';/.test(pj)
+       && /\['qs_tb_show', tb_show\(\)\]/.test(pj) && /'playstyle', 'tablebase_show',/.test(pj));
+}
