@@ -19380,3 +19380,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('...a one-pass engine (which can answer nothing) still clears the flag, as before', maia.live === false, maia);
 }
 // ==== END STALE BESTMOVE KEEPS THE NEW SEARCH LIVE ====
+// ---- SIMP-NEST: no settings row sits inside another row (a row left unclosed swallows the next) ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const nested = (file) => {
+        const html = fs.readFileSync(ROOT + file, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+        const stack = [], bad = [];
+        for (const m of html.matchAll(/<(\/?)div\b([^>]*)>/g)) {
+            if (m[1]) { stack.pop(); continue; }
+            const row = /class="[^"]*\bset-row\b/.test(m[2]);
+            if (row && stack.some(Boolean)) bad.push((m[2].match(/id="([^"]+)"/) || [])[1] || html.slice(m.index, m.index + 60));
+            stack.push(row);
+        }
+        return {bad, open: stack.length};
+    };
+    for (const f of ['/src/options/pages/settings/general/general.html', '/src/options/pages/settings/appearance/appearance.html']) {
+        const r = nested(f);
+        ok(`SIMP-NEST: ${f.split('/').pop()}: every row closes before the next opens, and every div closes`, r.bad.length === 0 && r.open === 0, r);
+    }
+}
