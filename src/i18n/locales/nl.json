@@ -362,8 +362,6 @@
   "set.tip.user_arrow_replies": "Met Evaluatie van je pijlen aan: tekent bij de laatst getekende pijl ook de beste antwoorden van de tegenstander, dun, gestippeld en genummerd (1 is de beste), zodat een slechte evaluatie laat zien waarom. 0 is uit, tot 5.",
   "set.arrow_opacity": "Pijldekking",
   "set.tip.arrow_opacity": "Hoe sterk de pijlen worden getekend, op het paneelbord en het paginabord gelijk. Volle sterkte over een echt bord is soms precies wat je niet op het scherm wilt.",
-  "set.board_animation": "Bordanimatie",
-  "set.tip.board_animation": "Het eigen bord van het paneel en zijn overlays animeren. Uit tekent elke verandering direct, wat rustiger leest bij een snelle partij en goedkoper is op een drukke machine.",
   "set.live_stats": "Live-statistieken",
   "set.live_classify": "Zetclassificatie",
   "set.tip.live_classify": "Beoordeel de zojuist gespeelde zet en markeer hem op het paneelbord, zoals een partijanalyse doet -- Briljant, Sterk, Beste, Onnauwkeurigheid, Fout, Blunder -- maar live, terwijl de partij loopt. Gebruikt dezelfde classificator als de analyse, dus een oordeel hier is het oordeel dat je daarna krijgt. Standaard uit: het is een mening die bij elke zet op het bord wordt getekend.",

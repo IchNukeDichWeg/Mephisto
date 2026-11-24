@@ -430,8 +430,6 @@
   "set.tip.user_arrow_replies": "With Evals on Your Arrows on: also draw the opponent's best replies to the arrow you drew last, thin, dashed and numbered 1 for the best, so a bad evaluation shows you why. 0 is off, up to 5.",
   "set.arrow_opacity": "Arrow Opacity",
   "set.tip.arrow_opacity": "How strongly the arrows are drawn, on the panel board and the page board alike. Full strength over a real board is sometimes exactly what you do not want on screen.",
-  "set.board_animation": "Board Animation",
-  "set.tip.board_animation": "Animate the panel's own board and its overlays. Off draws every change instantly, which is steadier to read on a fast game and cheaper on a busy machine.",
   "set.live_stats": "Live Stats",
   "set.live_classify": "Move Classification",
   "set.tip.live_classify": "Grade the move just played and mark it on the panel board, the way a Game Review does -- Brilliant, Great, Best, Inaccuracy, Mistake, Blunder -- but live, while the game is still going. Uses the same classifier the review uses, so a verdict here is the verdict you get afterwards. Off by default: it is an opinion drawn on the board every move.",

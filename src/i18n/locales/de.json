@@ -362,8 +362,6 @@
   "set.tip.user_arrow_replies": "Mit Bewertung deiner Pfeile: zeichnet zum zuletzt gezogenen Pfeil auch die besten Antworten des Gegners, dünn, gestrichelt und nummeriert (1 ist die beste), damit eine schlechte Bewertung zeigt, warum. 0 ist aus, bis 5.",
   "set.arrow_opacity": "Pfeil-Deckkraft",
   "set.tip.arrow_opacity": "Wie kräftig die Pfeile gezeichnet werden, auf dem Panel-Brett wie auf dem Seiten-Brett. Volle Stärke über einem echten Brett ist manchmal genau das, was man auf dem Bildschirm nicht will.",
-  "set.board_animation": "Brett-Animation",
-  "set.tip.board_animation": "Das eigene Brett des Panels und seine Overlays animieren. Aus zeichnet jede Änderung sofort, was bei einer schnellen Partie ruhiger zu lesen und auf einer ausgelasteten Maschine günstiger ist.",
   "set.live_stats": "Live-Statistik",
   "set.live_classify": "Zug-Klassifizierung",
   "set.tip.live_classify": "Bewerte den gerade gespielten Zug und markiere ihn auf dem Panel-Brett, wie es eine Partie-Analyse tut -- Brillant, Stark, Bester, Ungenauigkeit, Fehler, Blunder -- aber live, während die Partie läuft. Nutzt denselben Klassifizierer wie die Analyse, ein Urteil hier ist also das Urteil, das du danach bekommst. Standardmäßig aus: Es ist eine Meinung, die bei jedem Zug aufs Brett gezeichnet wird.",

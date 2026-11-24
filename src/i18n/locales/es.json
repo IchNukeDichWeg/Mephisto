@@ -362,8 +362,6 @@
   "set.tip.user_arrow_replies": "Con Evaluación de tus flechas activada: dibuja también las mejores respuestas del rival a la última flecha que trazaste, finas, discontinuas y numeradas (1 la mejor), para que una mala evaluación te muestre el porqué. 0 es desactivado, hasta 5.",
   "set.arrow_opacity": "Opacidad de flechas",
   "set.tip.arrow_opacity": "Con qué fuerza se dibujan las flechas, en el tablero del panel y en el de la página por igual. A plena fuerza sobre un tablero real es a veces justo lo que no quieres en pantalla.",
-  "set.board_animation": "Animación del tablero",
-  "set.tip.board_animation": "Animar el tablero propio del panel y sus capas. Desactivado dibuja cada cambio al instante, más estable de leer en una partida rápida y más barato en una máquina ocupada.",
   "set.live_stats": "Estadísticas en vivo",
   "set.live_classify": "Clasificación de jugadas",
   "set.tip.live_classify": "Califica la jugada recién hecha y márcala en el tablero del panel, como hace un análisis de partida -- Brillante, Genial, Mejor, Imprecisión, Error, Error grave -- pero en vivo, con la partida en curso. Usa el mismo clasificador que el análisis, así que un veredicto aquí es el veredicto que recibes después. Desactivado por defecto: es una opinión dibujada en el tablero a cada jugada.",

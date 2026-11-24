@@ -362,8 +362,6 @@
   "set.tip.user_arrow_replies": "Con Valutazione delle tue frecce attiva: disegna anche le migliori risposte dell'avversario all'ultima freccia che hai tracciato, sottili, tratteggiate e numerate (1 la migliore), così una valutazione negativa ti mostra il perché. 0 è disattivato, fino a 5.",
   "set.arrow_opacity": "Opacità delle frecce",
   "set.tip.arrow_opacity": "Con che forza si disegnano le frecce, sulla scacchiera del pannello come su quella della pagina. A piena forza su una scacchiera vera a volte è proprio ciò che non vuoi sullo schermo.",
-  "set.board_animation": "Animazione della scacchiera",
-  "set.tip.board_animation": "Anima la scacchiera del pannello e i suoi overlay. Disattivato disegna ogni cambiamento all'istante, più stabile da leggere in partita veloce e più leggero su una macchina occupata.",
   "set.live_stats": "Statistiche live",
   "set.live_classify": "Classificazione delle mosse",
   "set.tip.live_classify": "Valuta la mossa appena giocata e segnala sulla scacchiera del pannello, come fa un'analisi della partita -- Brillante, Ottima, Migliore, Imprecisione, Errore, Errore grave -- ma dal vivo, a partita in corso. Usa lo stesso classificatore dell'analisi, quindi un verdetto qui è il verdetto che ottieni dopo. Disattivato di default: è un'opinione disegnata sulla scacchiera a ogni mossa.",

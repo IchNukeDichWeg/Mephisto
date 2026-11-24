@@ -362,8 +362,6 @@
   "set.tip.user_arrow_replies": "Oklarının değerlendirmesi açıkken: en son çizdiğin oka rakibin en iyi cevaplarını da ince, kesikli ve numaralı (en iyisi 1) olarak çizer; böylece kötü bir değerlendirmenin nedeni görünür. 0 kapalı, en fazla 5.",
   "set.arrow_opacity": "Ok saydamlığı",
   "set.tip.arrow_opacity": "Okların ne kadar koyu çizildiği, panel tahtasında da sayfa tahtasında da. Gerçek tahtanın üstünde tam koyuluk bazen ekranda tam da istemediğiniz şeydir.",
-  "set.board_animation": "Tahta animasyonu",
-  "set.tip.board_animation": "Panelin kendi tahtasını ve katmanlarını canlandır. Kapalıyken her değişiklik anında çizilir; hızlı oyunda okuması daha sakin, yoğun makinede daha ucuzdur.",
   "set.live_stats": "Canlı istatistikler",
   "set.live_classify": "Hamle sınıflandırma",
   "set.tip.live_classify": "Az önce oynanan hamleyi notla ve bir Oyun incelemesinin yaptığı gibi panel tahtasında işaretle -- Parlak, Harika, En iyi, Yanlışlık, Hata, Ağır hata -- ama canlı, oyun sürerken. Analizle aynı sınıflandırıcıyı kullanır, yani buradaki hüküm sonradan alacağınız hükümdür. Varsayılan olarak kapalı: her hamlede tahtaya çizilen bir görüştür.",

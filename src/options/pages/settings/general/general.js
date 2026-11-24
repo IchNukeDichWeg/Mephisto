@@ -98,7 +98,6 @@ class GeneralSettings extends SettingsPage {
         sync_pv_walk_row();
         this.registerFormElement('premove_confidence', 'Premove Confidence:', 'input', 14);
         this.registerFormElement('premove_plies', 'Premove Plies:', 'input', 2);
-        this.registerFormElement('board_animation', 'Board Animation:', 'checkbox', true);
         this.registerFormElement('live_stats', 'Live Stats:', 'checkbox', false);
         this.registerFormElement('live_classify', 'Move Classification:', 'checkbox', false);
         this.registerFormElement('material_balance', 'Material Balance:', 'checkbox', false);

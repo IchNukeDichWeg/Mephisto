@@ -362,8 +362,6 @@
   "set.tip.user_arrow_replies": "Com Avaliação das tuas setas ligada: desenha também as melhores respostas do adversário à última seta que traçaste, finas, tracejadas e numeradas (1 a melhor), para que uma avaliação ruim mostre o porquê. 0 desliga, até 5.",
   "set.arrow_opacity": "Opacidade das setas",
   "set.tip.arrow_opacity": "Com que força as setas são desenhadas, no tabuleiro do painel e no da página igualmente. Força total sobre um tabuleiro real às vezes é justo o que não queres no ecrã.",
-  "set.board_animation": "Animação do tabuleiro",
-  "set.tip.board_animation": "Animar o tabuleiro próprio do painel e suas camadas. Desligado desenha cada mudança na hora, mais estável de ler numa partida rápida e mais barato numa máquina ocupada.",
   "set.live_stats": "Estatísticas ao vivo",
   "set.live_classify": "Classificação de lances",
   "set.tip.live_classify": "Avalie o lance recém-jogado e marca-o no tabuleiro do painel, como uma análise de partida faz -- Brilhante, Ótimo, Melhor, Imprecisão, Erro, Erro grave -- mas ao vivo, com a partida em andamento. Usa o mesmo classificador da análise, então um veredito aqui é o veredito que recebes depois. Desligado por padrão: é uma opinião desenhada no tabuleiro a cada lance.",

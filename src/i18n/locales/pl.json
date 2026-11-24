@@ -362,8 +362,6 @@
   "set.tip.user_arrow_replies": "Gdy Ocena twoich strzałek jest włączona: rysuje też najlepsze odpowiedzi przeciwnika na ostatnio narysowaną strzałkę, cienkie, przerywane i ponumerowane (1 to najlepsza), żeby zła ocena pokazała dlaczego. 0 wyłącza, do 5.",
   "set.arrow_opacity": "Krycie strzałek",
   "set.tip.arrow_opacity": "Jak mocno rysowane są strzałki, na szachownicy panelu i strony tak samo. Pełna moc nad prawdziwą szachownicą to czasem dokładnie to, czego nie chcesz na ekranie.",
-  "set.board_animation": "Animacja szachownicy",
-  "set.tip.board_animation": "Animuj własną szachownicę panelu i jej nakładki. Wyłączone rysuje każdą zmianę od razu, co czyta się stabilniej w szybkiej partii i taniej na zajętej maszynie.",
   "set.live_stats": "Statystyki na żywo",
   "set.live_classify": "Klasyfikacja ruchów",
   "set.tip.live_classify": "Oceń właśnie zagrany ruch i oznacz go na szachownicy panelu, jak robi to analiza partii -- Genialny, Świetny, Najlepszy, Niedokładność, Błąd, Gruby błąd -- ale na żywo, w trakcie partii. Używa tego samego klasyfikatora co analiza, więc werdykt tutaj to werdykt, który dostaniesz potem. Domyślnie wyłączone: to opinia rysowana na szachownicy co ruch.",

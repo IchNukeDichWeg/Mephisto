@@ -362,8 +362,6 @@
   "set.tip.user_arrow_replies": "Avec Évaluation de vos flèches activée : dessine aussi les meilleures réponses de l'adversaire à la dernière flèche tracée, fines, en pointillés et numérotées (1 pour la meilleure), pour qu'une mauvaise évaluation montre pourquoi. 0 désactive, jusqu'à 5.",
   "set.arrow_opacity": "Opacité des flèches",
   "set.tip.arrow_opacity": "Avec quelle force les flèches sont dessinées, sur l'échiquier du panneau comme sur celui de la page. Pleine force sur un vrai échiquier est parfois exactement ce qu'on ne veut pas à l'écran.",
-  "set.board_animation": "Animation de l'échiquier",
-  "set.tip.board_animation": "Animer l'échiquier du panneau et ses surcouches. Désactivé dessine chaque changement instantanément, plus stable à lire en partie rapide et moins cher sur une machine chargée.",
   "set.live_stats": "Stats en direct",
   "set.live_classify": "Classification des coups",
   "set.tip.live_classify": "Noter le coup qui vient d'être joué et le marquer sur l'échiquier du panneau, comme le fait une analyse de partie -- Brillant, Excellent, Meilleur, Imprécision, Erreur, Gaffe -- mais en direct, pendant que la partie continue. Utilise le même classificateur que l'analyse, donc un verdict ici est le verdict que vous aurez ensuite. Désactivé par défaut : c'est une opinion dessinée sur l'échiquier à chaque coup.",

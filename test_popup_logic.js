@@ -16803,6 +16803,13 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
     ok('SIMP-ADV: the label is translated', en['set.advanced'] === 'Advanced');
 }
+// ---- SIMP-RM: settings removed from the page; the dead ones are gone everywhere ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const all = ['/src/popup/popup.js', '/src/options/pages/settings/general/general.js', '/src/options/pages/settings/general/general.html',
+                 '/src/scripts/config-store.js', '/src/scripts/content-script.js'].map(f => fs.readFileSync(ROOT + f, 'utf8')).join('\n');
+    ok('SIMP-RM: Board Animation (read by nothing) has no row, no registration and no config entry', !/board_animation/.test(all));
+}
 // ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

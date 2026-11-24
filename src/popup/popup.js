@@ -517,8 +517,6 @@ async function initPanel(root, tabId) {
         // stays at maximum, where the other reading would turn its arrows invisible. 1% is reachable
         // again the moment the slider is touched.
         arrow_opacity: read_arrow_opacity(),
-        // Board animation, opt-out. Nothing about a move needs to slide to be understood.
-        board_animation: (JSON.parse(MephistoConfig.get('board_animation')) !== false),
         // Accuracy as it happens, on its own strip under the eval history.
         live_stats: JSON.parse(MephistoConfig.get('live_stats')) || false,
         live_classify: JSON.parse(MephistoConfig.get('live_classify')) || false,
@@ -11124,7 +11122,7 @@ const LIVE_CONFIG_KEYS = [
     'mirror_ratio', 'time_trouble', 'time_trouble_at',
     'maia2_self_elo', 'maia2_oppo_elo', 'maia3_elo', 'rodent_personality',
     'analysis_limit', 'analysis_limit_mode',
-    'arrow_opacity', 'arrow_rank', 'arrow_labels', 'arrow_eval_side', 'user_arrow_evals', 'user_arrow_replies', 'board_animation', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
+    'arrow_opacity', 'arrow_rank', 'arrow_labels', 'arrow_eval_side', 'user_arrow_evals', 'user_arrow_replies', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
     'premove_confidence', 'premove_plies', 'move_time', 'move_variance', 'move_reason',
     'material_balance', 'square_heatmap',
     ...ARROW_COLOR_KEYS, // repaint on the next frame, no reload
