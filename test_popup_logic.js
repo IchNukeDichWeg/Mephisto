@@ -20164,6 +20164,35 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /id="rv_multipv" type="number" min="2" max="10"/.test(html)
        && /if \(\+cfg\('rv_multipv'\) < 2\) setCfg\('rv_multipv', 2\);\n\s*bindNumber\('rv_multipv', 'rv_multipv'\);/.test(rj));
 })().catch(e => { fails++; console.log('FAIL REVIEW-LINES threw: ' + (e && e.stack || e)); });
+// ---- REVIEW-ADV: a fresh page shows mode, preset, coach and Run; the rest sits in Advanced ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    const a0 = html.indexOf('<div class="set-adv-body" id="review_adv" hidden>'), a1 = html.indexOf('<div class="rv-mode" data-mode="own local">');
+    const inAdv = (id) => { const i = html.indexOf(`id="${id}"`); return i > a0 && i < a1; };
+    const adv = ['rv_variant_row', 'rv_engine', 'rv_limit_kind', 'rv_multipv', 'rv_cpu', 'rv_human', 'rv_human_report', 'rv_strength', 'rv_book'];
+    const main = ['rv_mode', 'rv_depth_preset', 'rv_explain', 'rv_run'];
+    ok('REVIEW-ADV: engine, budget, lines, CPU use, human model, its report, strength, book and game type sit in Advanced',
+       a0 > 0 && adv.every(inAdv), adv.filter(id => !inAdv(id)));
+    ok('REVIEW-ADV: mode, preset, coach and Run stay on the page', main.every(id => html.includes(`id="${id}"`) && !inAdv(id)), main.filter(inAdv));
+    ok('REVIEW-ADV: the block is the Settings pages\' own, wired by their code', /<div class="set-adv" data-adv="review">/.test(html)
+       && /import \{SettingsPage\} from "\.\.\/\.\.\/util\/SettingsPage\.js";/.test(rj) && /SettingsPage\.prototype\.wireAdvanced\.call\(null\);/.test(rj));
+    // the real rvModeSync moves the Game type row: Advanced on Chess, on the page for any other type
+    const ms = rj.indexOf('        const rvModeSync = () => {'), me = rj.indexOf('\n        };\n', ms) + 11;
+    const mk = (id) => ({id, kids: [], parentElement: null, classList: {toggle() {}, add() {}}, firstChild: null,
+        insertBefore(el) { if (el.parentElement) el.parentElement.kids = el.parentElement.kids.filter(k => k !== el); this.kids.unshift(el); el.parentElement = this; }});
+    const els = {rv_variant_row: mk('row'), review_adv: mk('adv'), rv_variant_slot: mk('slot')};
+    els.review_adv.insertBefore(els.rv_variant_row);
+    const store = {rv_variant: 'chess960', rv_mode: 'own', rv_engine: 'x'};
+    const c = vm.createContext({String, cfg: (k) => store[k], setCfg() {}, $: (id) => els[id] || null, document: {querySelectorAll: () => []},
+        RV_FAIRY_ONLY: [], RV_FAIRY_ENGINE: 'f', rvChessVariant: () => 'chess', syncBudgetFor4pc() {}});
+    vm.runInContext(rj.slice(ms, me) + '\n        rvModeSync();\n', c);
+    const on960 = els.rv_variant_row.parentElement.id;
+    store.rv_variant = 'chess'; vm.runInContext('rvModeSync()', c);
+    ok('REVIEW-ADV: Chess960 puts the Game type row on the page, back on Chess it returns to Advanced',
+       on960 === 'slot' && els.rv_variant_row.parentElement.id === 'adv', [on960, els.rv_variant_row.parentElement.id]);
+}
 // ---- REVIEW-CPU: one CPU use control writes engines, threads and memory together ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

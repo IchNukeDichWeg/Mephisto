@@ -81,42 +81,10 @@
             <section id="rv-analysis" class="set-sec scrollspy">
                 <h3 data-i18n="rv.analysis" class="set-h">Analysis</h3>
 
-                <!-- THE GAME TYPE, above everything: it decides the rules every control below plays
-                     by. Chess is exactly the old behaviour; the others swap only what must change
-                     (engine, replay rules) and hide what cannot apply, so no control sits there
-                     doing nothing. Pasting a PGN with a [Variant] tag sets this for you. -->
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span class="tooltipped" data-position="right"
-                              data-tooltip="Which rules this game plays by. Set automatically from a pasted PGN's
-                                            Variant tag or a Chess960 start position. Chess is the full review;
-                                            Chess960 gets the full own-engine review (no opening names -- random
-                                            starts have none); the Fairy variants are reviewed by Fairy-Stockfish
-                                            with Mephisto's own win-percentage classification, because chess.com's
-                                            classifier speaks standard chess only. 4-player chess (Teams and
-                                            free-for-all) is replayed and searched by the Tetrarch engine over its
-                                            native host.">
-                            Game type <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl rv-btns">
-                        <select id="rv_variant" class="rv-select browser-default">
-                            <option value="chess">Chess</option>
-                            <option value="chess960">Chess960</option>
-                            <option value="variant">Chess variants</option>
-                            <option value="4pc">4-player chess</option>
-                        </select>
-                        <select id="rv_variant_which" class="rv-select browser-default hidden">
-                            <option value="crazyhouse">Crazyhouse</option>
-                            <option value="3check">Three-check</option>
-                            <option value="kingofthehill">King of the Hill</option>
-                            <option value="antichess">Antichess</option>
-                            <option value="atomic">Atomic</option>
-                            <option value="horde">Horde</option>
-                            <option value="racingkings">Racing Kings</option>
-                        </select>
-                    </div>
-                </div>
+                <!-- GAME TYPE: its row lives in Advanced while the game is Chess (a pasted PGN sets it), and
+                     rvModeSync moves it here for any other type, where it explains why the chess.com modes
+                     are greyed out. -->
+                <div id="rv_variant_slot"></div>
                 <!-- 4-player: paste a PGN4 and it is replayed by the ENGINE's own rules (the host asks
                      Tetrarch's package, which parses chess.com's PGN4), then every position is searched.
                      No human model and no strength estimate here: Maia knows one game and it is not this one. -->
@@ -178,175 +146,6 @@
                     </div>
                 </div>
 
-                <div class="set-row" data-for="own">
-                    <div class="set-lbl">
-                        <span data-i18n="panel.engine" data-i18n-tip="rv.tip.engine" class="tooltipped" data-position="right"
-                              data-tooltip="Which engine judges the game. The WASM builds run inside the
-                                            extension and need nothing installed. The native entries are the
-                                            full-power local engines and are much faster; they are listed but
-                                            greyed out until their host is installed. They take a depth or a
-                                            time budget alike -- an older host that does not understand depth
-                                            falls back to its time cap.">
-                            Engine <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <select id="rv_engine" class="rv-select browser-default"></select>
-                    </div>
-                </div>
-
-                <div class="set-row" data-for="own" data-chess-only>
-                    <div class="set-lbl">
-                        <span data-i18n="rv.human_model" data-i18n-tip="rv.tip.human_model" class="tooltipped" data-position="right"
-                              data-tooltip="An optional second pass with Maia, a network trained to predict what a
-                                            HUMAN of a given rating plays -- not what is best. It answers a different
-                                            question from the engine: how expected was this move for a player at this
-                                            level. It roughly doubles the run time.">
-                            Human model <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl rv-btns">
-                        <select id="rv_human" class="rv-select browser-default">
-                            <option value="" data-i18n="rv.off">Off</option>
-                            <option value="maia">Maia 1 (band)</option>
-                            <option value="maia2">Maia 2 (you vs opponent)</option>
-                            <option value="maia3">Maia 3 (rating)</option>
-                        </select>
-                        <select id="rv_maia_band" class="rv-select rv-narrow browser-default hidden">
-                            <option value="1100">1100</option>
-                            <option value="1200">1200</option>
-                            <option value="1300">1300</option>
-                            <option value="1400">1400</option>
-                            <option value="1500">1500</option>
-                            <option value="1600">1600</option>
-                            <option value="1700">1700</option>
-                            <option value="1800">1800</option>
-                            <option value="1900">1900</option>
-                            <option value="2200">2200</option>
-                        </select>
-                        <span id="rv_maia3_wrap" class="set-step hidden">
-                            <button type="button" class="set-step-btn" data-step="-100">&minus;</button>
-                            <input id="rv_maia3_elo" type="number" min="600" max="2600" step="100">
-                            <button type="button" class="set-step-btn" data-step="100">+</button>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="set-row" data-for="own" data-4pc>
-                    <div class="set-lbl">
-                        <span data-i18n="rv.budget" data-i18n-tip="rv.tip.budget" class="tooltipped" data-position="right"
-                              data-tooltip="How hard the engine works on EACH position. Depth is the better choice
-                                            when you want to compare two reviews, and it is reproducible because every
-                                            CPU use level gives each engine one thread: measured on this build, three depth-14 searches of the same
-                                            position agreed exactly on one thread and disagreed (27/25/24cp) on four,
-                                            because a multi-threaded search explores in a different order every time.
-                                            Time is seconds per position (default 0.5s); the -/+ buttons step by 0.5s
-                                            and you can type any value. A game is roughly 2 positions per move, so a
-                                            40-move game at 0.5s is about a minute.">
-                            Budget <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl rv-budget">
-                        <select id="rv_limit_kind" class="rv-select rv-narrow browser-default">
-                            <option value="depth" data-i18n="rv.depth">Depth</option>
-                            <option value="time" data-i18n="rv.time_per_move">Time per move</option>
-                        </select>
-                        <!-- a plain -/+ box (user call 2026-08-16): the buttons step by the input's
-                             own step -- 1 ply in Depth, 0.5s in Time -- and any value can be typed. -->
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="rv_limit_num" type="number" min="0.1" step="0.5">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
-                        <!-- the active budget the run reads: plies in Depth, ms in Time -->
-                        <input id="rv_limit_value" type="hidden">
-                    </div>
-                </div>
-
-                <div class="set-row" data-for="own">
-                    <div class="set-lbl">
-                        <span data-i18n="rv.lines" data-i18n-tip="rv.tip.lines" class="tooltipped" data-position="right"
-                              data-tooltip="How many alternatives the engine keeps per position, 2 to 10. More lines let
-                                            the review say where your move ranked rather than only whether it was the
-                                            best one, and they are what the board's coloured arrows show. Two is the
-                                            floor because a Great move is measured against the second line. More lines
-                                            cost search: 5 is noticeably slower than 2 at the same depth.">
-                            Lines <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="rv_multipv" type="number" min="2" max="10" step="1">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
-                    </div>
-                </div>
-
-                <!-- CPU USE: engines, threads and memory were three boxes for one decision. A level
-                     writes all three keys (cpuLevels in review.js); each engine gets one thread. -->
-                <div class="set-row" data-for="own">
-                    <div class="set-lbl">
-                        <span data-i18n="rv.cpu" data-i18n-tip="rv.tip.cpu" class="tooltipped" data-position="right"
-                              data-tooltip="How much of this machine the review takes. Each engine searches one position
-                                            on one thread, so positions run side by side and a depth search gives the
-                                            same answer every time. Low is one engine and 64 MB, for reviewing while you
-                                            do something else; Normal is two engines, the default; High is up to four,
-                                            one fewer than your cores. Custom shows when engines, threads or memory were
-                                            set by hand in an older version; those values stay in use until you pick a level.">
-                            CPU use <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <select id="rv_cpu" class="rv-select browser-default">
-                            <option value="low" data-i18n="rv.cpu_low">Low - 1 engine</option>
-                            <option value="normal" data-i18n="rv.cpu_normal">Normal - 2 engines</option>
-                            <option value="high" data-i18n="rv.cpu_high">High - up to 4 engines</option>
-                            <option value="" data-i18n="rv.custom" hidden>Custom</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div id="rv_limits_warn" class="limit-warn"></div>
-                <div class="set-row set-toggle" data-for="own" data-chess-only>
-                    <div class="set-lbl">
-                        <span data-i18n="rv.human_report" data-i18n-tip="rv.tip.human_report" class="tooltipped" data-position="right"
-                              data-tooltip="A second reading of the same game by the human model instead of
-                                            the engine: how EXPECTED each move was from a player of that
-                                            rating, rather than how good it was. Needs a human model selected
-                                            above. The human pass runs whenever one is selected; this only
-                                            shows or hides its section. Off by default.">
-                            Human-likeness report <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="rv_human_report" type="checkbox" class="set-cb">
-                        <label for="rv_human_report" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row" data-for="own" data-chess-only>
-                    <div class="set-lbl">
-                        <span data-i18n="rv.strength" data-i18n-tip="rv.tip.strength" class="tooltipped" data-position="right"
-                              data-tooltip="Which rating best explains the moves that were actually played. The human
-                                            model is asked at every rating it has, and the one whose predictions were
-                                            least surprised is the estimate. Needs a human model selected above, and
-                                            costs one pass per rating over the whole game. It is a STRENGTH estimate
-                                            and NOT a fair-play measurement: a player using an engine reads as
-                                            stronger, which is the opposite of an accusation.">
-                            Strength estimate <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="rv_strength" type="checkbox" class="set-cb">
-                        <label for="rv_strength" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
                 <!-- own-engine review only: the classifier and online modes always carry chess.com's commentary,
                      and only onRun reads rv_explain (audit 3.1.333 REVIEW-14). Chess only: the coach reads
                      standard chess (audit 3.1.330 REVIEWB-6) -->
@@ -371,41 +170,256 @@
                     </div>
                 </div>
 
-                <div class="set-row set-toggle" data-for="own">
-                    <div class="set-lbl">
-                        <span data-i18n="rv.batch" data-i18n-tip="rv.tip.batch" class="tooltipped" data-position="right"
-                              data-tooltip="Analyse EVERY game in the box rather than the one picked above, and add a
-                                            summary that pools each player's numbers across all of them. One game
-                                            cannot answer a fair-play question; a season of them starts to. The engine
-                                            is loaded once for the whole batch, so it is much cheaper than running
-                                            them one at a time.">
-                            Review every game <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="rv_batch" type="checkbox" class="set-cb">
-                        <label for="rv_batch" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
+                <!-- ADVANCED (P5 settings review): a fresh page shows the review mode, the preset, the coach
+                     and the Run button; everything set once or never sits here, closed by default and
+                     remembered per profile (SettingsPage.wireAdvanced, the Settings pages' pattern). -->
+                <div class="set-adv" data-adv="review">
+                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="review_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
+                    <div class="set-adv-body" id="review_adv" hidden>
+                        <!-- THE GAME TYPE, above everything: it decides the rules every control below plays
+                             by. Chess is exactly the old behaviour; the others swap only what must change
+                             (engine, replay rules) and hide what cannot apply, so no control sits there
+                             doing nothing. Pasting a PGN with a [Variant] tag sets this for you. -->
+                        <div id="rv_variant_row" class="set-row">
+                            <div class="set-lbl">
+                                <span class="tooltipped" data-position="right"
+                                      data-tooltip="Which rules this game plays by. Set automatically from a pasted PGN's
+                                                    Variant tag or a Chess960 start position. Chess is the full review;
+                                                    Chess960 gets the full own-engine review (no opening names -- random
+                                                    starts have none); the Fairy variants are reviewed by Fairy-Stockfish
+                                                    with Mephisto's own win-percentage classification, because chess.com's
+                                                    classifier speaks standard chess only. 4-player chess (Teams and
+                                                    free-for-all) is replayed and searched by the Tetrarch engine over its
+                                                    native host.">
+                                    Game type <i class="material-icons info-tooltip">info</i>
+                                </span>
+                            </div>
+                            <div class="set-ctl rv-btns">
+                                <select id="rv_variant" class="rv-select browser-default">
+                                    <option value="chess">Chess</option>
+                                    <option value="chess960">Chess960</option>
+                                    <option value="variant">Chess variants</option>
+                                    <option value="4pc">4-player chess</option>
+                                </select>
+                                <select id="rv_variant_which" class="rv-select browser-default hidden">
+                                    <option value="crazyhouse">Crazyhouse</option>
+                                    <option value="3check">Three-check</option>
+                                    <option value="kingofthehill">King of the Hill</option>
+                                    <option value="antichess">Antichess</option>
+                                    <option value="atomic">Atomic</option>
+                                    <option value="horde">Horde</option>
+                                    <option value="racingkings">Racing Kings</option>
+                                </select>
+                            </div>
+                        </div>
 
-                <div class="set-row set-toggle" data-for="own local" data-chess-only>
-                    <div class="set-lbl">
-                        <span data-i18n="rv.opening_book" data-i18n-tip="rv.tip.opening_book" class="tooltipped" data-position="right"
-                              data-tooltip="Name the opening from a table that ships with the extension
-                                            (lichess-org/chess-openings), so book moves are named rather than
-                                            scored. No network request: it walks the whole game and keeps the
-                                            last position the table names, so a transposition back into theory
-                                            still counts.">
-                            Name the opening <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="rv_book" type="checkbox" class="set-cb">
-                        <label for="rv_book" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
+                        <div class="set-row" data-for="own">
+                            <div class="set-lbl">
+                                <span data-i18n="panel.engine" data-i18n-tip="rv.tip.engine" class="tooltipped" data-position="right"
+                                      data-tooltip="Which engine judges the game. The WASM builds run inside the
+                                                    extension and need nothing installed. The native entries are the
+                                                    full-power local engines and are much faster; they are listed but
+                                                    greyed out until their host is installed. They take a depth or a
+                                                    time budget alike -- an older host that does not understand depth
+                                                    falls back to its time cap.">
+                                    Engine <i class="material-icons info-tooltip">info</i>
+                                </span>
+                            </div>
+                            <div class="set-ctl">
+                                <select id="rv_engine" class="rv-select browser-default"></select>
+                            </div>
+                        </div>
+
+                        <div class="set-row" data-for="own" data-4pc>
+                            <div class="set-lbl">
+                                <span data-i18n="rv.budget" data-i18n-tip="rv.tip.budget" class="tooltipped" data-position="right"
+                                      data-tooltip="How hard the engine works on EACH position. Depth is the better choice
+                                                    when you want to compare two reviews, and it is reproducible because every
+                                                    CPU use level gives each engine one thread: measured on this build, three depth-14 searches of the same
+                                                    position agreed exactly on one thread and disagreed (27/25/24cp) on four,
+                                                    because a multi-threaded search explores in a different order every time.
+                                                    Time is seconds per position (default 0.5s); the -/+ buttons step by 0.5s
+                                                    and you can type any value. A game is roughly 2 positions per move, so a
+                                                    40-move game at 0.5s is about a minute.">
+                                    Budget <i class="material-icons info-tooltip">info</i>
+                                </span>
+                            </div>
+                            <div class="set-ctl rv-budget">
+                                <select id="rv_limit_kind" class="rv-select rv-narrow browser-default">
+                                    <option value="depth" data-i18n="rv.depth">Depth</option>
+                                    <option value="time" data-i18n="rv.time_per_move">Time per move</option>
+                                </select>
+                                <!-- a plain -/+ box (user call 2026-08-16): the buttons step by the input's
+                                     own step -- 1 ply in Depth, 0.5s in Time -- and any value can be typed. -->
+                                <span class="set-step">
+                                    <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                                    <input id="rv_limit_num" type="number" min="0.1" step="0.5">
+                                    <button type="button" class="set-step-btn" data-step="1">+</button>
+                                </span>
+                                <!-- the active budget the run reads: plies in Depth, ms in Time -->
+                                <input id="rv_limit_value" type="hidden">
+                            </div>
+                        </div>
+
+                        <div class="set-row" data-for="own">
+                            <div class="set-lbl">
+                                <span data-i18n="rv.lines" data-i18n-tip="rv.tip.lines" class="tooltipped" data-position="right"
+                                      data-tooltip="How many alternatives the engine keeps per position, 2 to 10. More lines let
+                                                    the review say where your move ranked rather than only whether it was the
+                                                    best one, and they are what the board's coloured arrows show. Two is the
+                                                    floor because a Great move is measured against the second line. More lines
+                                                    cost search: 5 is noticeably slower than 2 at the same depth.">
+                                    Lines <i class="material-icons info-tooltip">info</i>
+                                </span>
+                            </div>
+                            <div class="set-ctl">
+                                <span class="set-step">
+                                    <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                                    <input id="rv_multipv" type="number" min="2" max="10" step="1">
+                                    <button type="button" class="set-step-btn" data-step="1">+</button>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- CPU USE: engines, threads and memory were three boxes for one decision. A level
+                             writes all three keys (cpuLevels in review.js); each engine gets one thread. -->
+                        <div class="set-row" data-for="own">
+                            <div class="set-lbl">
+                                <span data-i18n="rv.cpu" data-i18n-tip="rv.tip.cpu" class="tooltipped" data-position="right"
+                                      data-tooltip="How much of this machine the review takes. Each engine searches one position
+                                                    on one thread, so positions run side by side and a depth search gives the
+                                                    same answer every time. Low is one engine and 64 MB, for reviewing while you
+                                                    do something else; Normal is two engines, the default; High is up to four,
+                                                    one fewer than your cores. Custom shows when engines, threads or memory were
+                                                    set by hand in an older version; those values stay in use until you pick a level.">
+                                    CPU use <i class="material-icons info-tooltip">info</i>
+                                </span>
+                            </div>
+                            <div class="set-ctl">
+                                <select id="rv_cpu" class="rv-select browser-default">
+                                    <option value="low" data-i18n="rv.cpu_low">Low - 1 engine</option>
+                                    <option value="normal" data-i18n="rv.cpu_normal">Normal - 2 engines</option>
+                                    <option value="high" data-i18n="rv.cpu_high">High - up to 4 engines</option>
+                                    <option value="" data-i18n="rv.custom" hidden>Custom</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="rv_limits_warn" class="limit-warn"></div>
+
+                        <div class="set-row" data-for="own" data-chess-only>
+                            <div class="set-lbl">
+                                <span data-i18n="rv.human_model" data-i18n-tip="rv.tip.human_model" class="tooltipped" data-position="right"
+                                      data-tooltip="An optional second pass with Maia, a network trained to predict what a
+                                                    HUMAN of a given rating plays -- not what is best. It answers a different
+                                                    question from the engine: how expected was this move for a player at this
+                                                    level. It roughly doubles the run time.">
+                                    Human model <i class="material-icons info-tooltip">info</i>
+                                </span>
+                            </div>
+                            <div class="set-ctl rv-btns">
+                                <select id="rv_human" class="rv-select browser-default">
+                                    <option value="" data-i18n="rv.off">Off</option>
+                                    <option value="maia">Maia 1 (band)</option>
+                                    <option value="maia2">Maia 2 (you vs opponent)</option>
+                                    <option value="maia3">Maia 3 (rating)</option>
+                                </select>
+                                <select id="rv_maia_band" class="rv-select rv-narrow browser-default hidden">
+                                    <option value="1100">1100</option>
+                                    <option value="1200">1200</option>
+                                    <option value="1300">1300</option>
+                                    <option value="1400">1400</option>
+                                    <option value="1500">1500</option>
+                                    <option value="1600">1600</option>
+                                    <option value="1700">1700</option>
+                                    <option value="1800">1800</option>
+                                    <option value="1900">1900</option>
+                                    <option value="2200">2200</option>
+                                </select>
+                                <span id="rv_maia3_wrap" class="set-step hidden">
+                                    <button type="button" class="set-step-btn" data-step="-100">&minus;</button>
+                                    <input id="rv_maia3_elo" type="number" min="600" max="2600" step="100">
+                                    <button type="button" class="set-step-btn" data-step="100">+</button>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="set-row set-toggle" data-for="own" data-chess-only>
+                            <div class="set-lbl">
+                                <span data-i18n="rv.human_report" data-i18n-tip="rv.tip.human_report" class="tooltipped" data-position="right"
+                                      data-tooltip="A second reading of the same game by the human model instead of
+                                                    the engine: how EXPECTED each move was from a player of that
+                                                    rating, rather than how good it was. Needs a human model selected
+                                                    above. The human pass runs whenever one is selected; this only
+                                                    shows or hides its section. Off by default.">
+                                    Human-likeness report <i class="material-icons info-tooltip">info</i>
+                                </span>
+                            </div>
+                            <div class="set-ctl">
+                                <input id="rv_human_report" type="checkbox" class="set-cb">
+                                <label for="rv_human_report" class="set-tgl">
+                                    <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="set-row" data-for="own" data-chess-only>
+                            <div class="set-lbl">
+                                <span data-i18n="rv.strength" data-i18n-tip="rv.tip.strength" class="tooltipped" data-position="right"
+                                      data-tooltip="Which rating best explains the moves that were actually played. The human
+                                                    model is asked at every rating it has, and the one whose predictions were
+                                                    least surprised is the estimate. Needs a human model selected above, and
+                                                    costs one pass per rating over the whole game. It is a STRENGTH estimate
+                                                    and NOT a fair-play measurement: a player using an engine reads as
+                                                    stronger, which is the opposite of an accusation.">
+                                    Strength estimate <i class="material-icons info-tooltip">info</i>
+                                </span>
+                            </div>
+                            <div class="set-ctl">
+                                <input id="rv_strength" type="checkbox" class="set-cb">
+                                <label for="rv_strength" class="set-tgl">
+                                    <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="set-row set-toggle" data-for="own">
+                            <div class="set-lbl">
+                                <span data-i18n="rv.batch" data-i18n-tip="rv.tip.batch" class="tooltipped" data-position="right"
+                                      data-tooltip="Analyse EVERY game in the box rather than the one picked above, and add a
+                                                    summary that pools each player's numbers across all of them. One game
+                                                    cannot answer a fair-play question; a season of them starts to. The engine
+                                                    is loaded once for the whole batch, so it is much cheaper than running
+                                                    them one at a time.">
+                                    Review every game <i class="material-icons info-tooltip">info</i>
+                                </span>
+                            </div>
+                            <div class="set-ctl">
+                                <input id="rv_batch" type="checkbox" class="set-cb">
+                                <label for="rv_batch" class="set-tgl">
+                                    <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="set-row set-toggle" data-for="own local" data-chess-only>
+                            <div class="set-lbl">
+                                <span data-i18n="rv.opening_book" data-i18n-tip="rv.tip.opening_book" class="tooltipped" data-position="right"
+                                      data-tooltip="Name the opening from a table that ships with the extension
+                                                    (lichess-org/chess-openings), so book moves are named rather than
+                                                    scored. No network request: it walks the whole game and keeps the
+                                                    last position the table names, so a transposition back into theory
+                                                    still counts.">
+                                    Name the opening <i class="material-icons info-tooltip">info</i>
+                                </span>
+                            </div>
+                            <div class="set-ctl">
+                                <input id="rv_book" type="checkbox" class="set-cb">
+                                <label for="rv_book" class="set-tgl">
+                                    <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

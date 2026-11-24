@@ -1,5 +1,6 @@
 import {define} from "../../framework/require.js";
 import {wirePgnDrop} from "../../util/dragdrop.js";
+import {SettingsPage} from "../../util/SettingsPage.js";
 import {refreshLimitWarnings} from "../../util/limits.js";
 import {EE_VERSION, EE_CLASS, eeCached, eeDownload, eeForget, eeRun, eeCommands, eeVersion, eeNewer, eeCheckUpdate, eeUpdate, SF_BUILD, SF16_BUILD, EE_TIERS, eeTier, sfCached, sfDownload, sfForget, sfSearch} from "./ee-host.js";
 
@@ -3761,6 +3762,14 @@ class ReviewPage {
             }
             const vsel = $('rv_variant');
             if (vsel && vsel.value !== variant) vsel.value = variant;
+            // THE GAME TYPE ROW HAS TWO HOMES (P5 settings review). On Chess it sits in Advanced: a
+            // pasted PGN sets it, so it is rarely touched. Any other type puts it on the page above
+            // the mode select it constrains, so the greyed-out chess.com modes have their reason in
+            // plain sight, and so does the way back to Chess.
+            const vrow = $('rv_variant_row');
+            const home = variant === 'chess' ? $('review_adv') : $('rv_variant_slot');
+            if (vrow && home && typeof home.insertBefore === 'function' && vrow.parentElement !== home)
+                home.insertBefore(vrow, home.firstChild);
             const wsel = $('rv_variant_which');
             if (wsel) {
                 wsel.classList.toggle('hidden', variant !== 'variant');
@@ -3852,6 +3861,8 @@ class ReviewPage {
         // ...and the preset from what that just wrote: synced while the box was still empty, a stored
         // Deep (24) showed as Custom on every page open (audit 3.1.330 REVIEWA-7)
         syncDepthPreset();
+        // the Advanced block, by the Settings pages' own code: it reads no page state of its own
+        SettingsPage.prototype.wireAdvanced.call(null);
         if (!nativeAvailable) {
             const ids = ENGINES.filter(e => e.kind === 'native').map(e => e.id);
             Promise.all(ids.map(id => nativeHostAvailable(id))).then(oks => {
