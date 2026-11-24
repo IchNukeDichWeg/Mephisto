@@ -731,7 +731,9 @@ async function startRig(override, rules) {
         variant,
         limitKind: override?.depth ? 'depth' : cfg('rv_limit_kind'),
         limitValue: override?.depth || +cfg('rv_limit_value'),
-        multipv: override?.multipv || Math.max(1, +cfg('rv_multipv')),
+        // two at least: a Great move is measured against the second line, and one line left every
+        // move ungradable as Great without saying so (P5 settings review)
+        multipv: override?.multipv || Math.max(2, +cfg('rv_multipv') || 2),
         threads: override?.threads || Math.max(1, +cfg('rv_threads')),
         hash: Math.max(16, +cfg('rv_hash')),
     };
@@ -3692,6 +3694,9 @@ class ReviewPage {
         });
         $('rv_limit_num')?.addEventListener('change', syncDepthPreset);
         $('rv_limit_num')?.addEventListener('input', syncDepthPreset);
+        // a Lines of 1 stored before the floor of 2 is raised once, so the box never shows a value
+        // the run would not use
+        if (+cfg('rv_multipv') < 2) setCfg('rv_multipv', 2);
         bindNumber('rv_multipv', 'rv_multipv');
         bindNumber('rv_workers', 'rv_workers');
         bindNumber('rv_threads', 'rv_threads');

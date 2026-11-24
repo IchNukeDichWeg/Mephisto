@@ -256,17 +256,18 @@
                 <div class="set-row" data-for="own">
                     <div class="set-lbl">
                         <span data-i18n="rv.lines" data-i18n-tip="rv.tip.lines" class="tooltipped" data-position="right"
-                              data-tooltip="How many alternatives the engine keeps per position. More lines let the
-                                            review say where your move ranked rather than only whether it was the
-                                            best one, and they are what the board's coloured arrows show. They also
-                                            cost search: 5 lines is meaningfully slower than 1 at the same depth.">
+                              data-tooltip="How many alternatives the engine keeps per position, 2 to 10. More lines let
+                                            the review say where your move ranked rather than only whether it was the
+                                            best one, and they are what the board's coloured arrows show. Two is the
+                                            floor because a Great move is measured against the second line. More lines
+                                            cost search: 5 is noticeably slower than 2 at the same depth.">
                             Lines <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
                     <div class="set-ctl">
                         <span class="set-step">
                             <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="rv_multipv" type="number" min="1" max="10" step="1">
+                            <input id="rv_multipv" type="number" min="2" max="10" step="1">
                             <button type="button" class="set-step-btn" data-step="1">+</button>
                         </span>
                     </div>

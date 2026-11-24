@@ -195,7 +195,7 @@ Copy FEN/PGN, the engine's lines next to what a human of a chosen rating would p
 **Nothing leaves your machine**: the search runs in the extension's own engine.
 
 - **Any game type** - chess, Chess960, the Fairy variants, and **4-player** PGN4 through Tetrarch.
-- **Any engine at your budget** - bundled WASM or a native host, a fixed depth (default 16) or a time per move, 1-10
+- **Any engine at your budget** - bundled WASM or a native host, a fixed depth (default 16) or a time per move, 2-10
   lines. **Engines at once** (default 2) runs a worker pool; measured 64.7s down to 25.7s on the same game. The depth
   box also offers chess.com's own Game Review depths (18, 22, 24, 26), because two accuracy numbers only describe the
   same thing if they came from the same search.

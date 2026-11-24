@@ -20125,3 +20125,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     let msg = ''; try { await c.fetchChesscom('no_such_user_x'); } catch (e) { msg = e.message; }
     ok('REVIEW-COSMETIC: a chess.com 404 says there is no such player', msg === 'No chess.com player called "no_such_user_x".', msg);
 })().catch(e => { fails++; console.log('FAIL REVIEW-COSMETIC threw: ' + (e && e.stack || e)); });
+// ---- REVIEW-LINES: Lines has a floor of 2, because Great is measured against the second line ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    const a = rj.indexOf('async function startRig(override, rules) {'), b = rj.indexOf('\n}\n', a) + 3;
+    const pv = async (store, override) => {
+        let got = null;
+        const c = vm.createContext({Math, String, cfg: (k) => store[k], note() {}, ENGINES: [], RV_FAIRY_ONLY: [], RV_FAIRY_ENGINE: 'f',
+            rvChessVariant: () => 'chess', variantLabel: String, takesRating: () => false, ratingFor: String,
+            makeEngine: (id, o) => { got = o.multipv; return {start: async () => {}, dispose() {}}; }});
+        vm.runInContext('var activeEngine = null, activeEngines = [];' + rj.slice(a, b), c);
+        await c.startRig(override);
+        return got;
+    };
+    const base = {rv_limit_kind: 'depth', rv_limit_value: 10, rv_hash: 64, rv_human: '', rv_workers: 1, rv_threads: 1};
+    const got = [await pv({...base, rv_multipv: 1}), await pv({...base, rv_multipv: 5}), await pv({...base, rv_multipv: ''})];
+    ok('REVIEW-LINES: a stored Lines of 1 searches 2 lines, 5 stays 5, an empty value searches 2', JSON.stringify(got) === '[2,5,2]', got);
+    ok('REVIEW-LINES: the box cannot go under 2, and a stored 1 is raised before the box is filled',
+       /id="rv_multipv" type="number" min="2" max="10"/.test(html)
+       && /if \(\+cfg\('rv_multipv'\) < 2\) setCfg\('rv_multipv', 2\);\n\s*bindNumber\('rv_multipv', 'rv_multipv'\);/.test(rj));
+})().catch(e => { fails++; console.log('FAIL REVIEW-LINES threw: ' + (e && e.stack || e)); });
