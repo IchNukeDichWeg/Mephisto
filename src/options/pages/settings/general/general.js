@@ -88,13 +88,9 @@ class GeneralSettings extends SettingsPage {
         sync_arrow_eval_rows();
         this.registerFormElement('arrow_rank', 'Number Arrows:', 'checkbox', true);
         this.registerFormElement('forced_lines', 'Forced Lines Ahead:', 'input', 0);
-        const pv_walk = this.registerFormElement('pv_walk', 'PV Arrows:', 'checkbox', false);
-        this.registerFormElement('pv_walk_limit', 'PV Arrows Length:', 'input', 5);
-        const sync_pv_walk_row = () => {
-            document.getElementById('pv_walk_limit_row')?.classList.toggle('hidden', !pv_walk.getValue());
-        };
-        pv_walk.registerChangeListener(sync_pv_walk_row);
-        sync_pv_walk_row();
+        // PV Arrows and its length: one "0 = off" stepper (bindOffStepper)
+        this.bindOffStepper(this.registerFormElement('pv_walk', 'PV Arrows:', 'checkbox', false),
+                            this.registerFormElement('pv_walk_limit', 'PV Arrows Length:', 'input', 5), 'pv_walk_view');
         this.registerFormElement('premove_plies', 'Premove Plies:', 'input', 2);
         this.registerFormElement('live_stats', 'Live Stats:', 'checkbox', false);
         this.registerFormElement('live_classify', 'Move Classification:', 'checkbox', false);
@@ -280,26 +276,16 @@ class GeneralSettings extends SettingsPage {
         sync_player_book_rows();
         this.registerFormElement('game_log', 'Evals In Copied PGN:', 'checkbox', false);
         this.registerFormElement('session_stats', 'Session Stats:', 'checkbox', false);
-        // Ending the game. The resign threshold follows its toggle, like every other dependent row;
-        // the draw offer's is fixed (AUTO_DRAW_CP in popup.js).
-        const auto_resign = this.registerFormElement('auto_resign', 'Auto Resign:', 'checkbox', false);
-        this.registerFormElement('auto_resign_cp', 'Resign Below (cp):', 'input', 900);
+        // Ending the game. Auto Resign and its threshold are one "0 = off" stepper (bindOffStepper);
+        // the draw offer's margin is fixed (AUTO_DRAW_CP in popup.js).
+        this.bindOffStepper(this.registerFormElement('auto_resign', 'Auto Resign:', 'checkbox', false),
+                            this.registerFormElement('auto_resign_cp', 'Resign Below (cp):', 'input', 900), 'auto_resign_view');
         this.registerFormElement('auto_draw', 'Auto Draw Offer:', 'checkbox', false);
-        const sync_end_rows = () => {
-            document.getElementById('auto_resign_cp_row')?.classList.toggle('hidden', !auto_resign.getValue());
-        };
-        auto_resign.registerChangeListener(sync_end_rows);
-        sync_end_rows();
         this.registerFormElement('human_times', 'Human Move Times:', 'checkbox', false);
         this.registerFormElement('complexity_clock', 'Complexity Clock:', 'checkbox', false);
-        const time_trouble = this.registerFormElement('time_trouble', 'Time Trouble Mode:', 'checkbox', false);
-        this.registerFormElement('time_trouble_at', 'Time Trouble Below (s):', 'input', 30);
-        // the threshold only means anything while the mode is on
-        const sync_tt_row = () => {
-            document.getElementById('time_trouble_at_row')?.classList.toggle('hidden', !time_trouble.getValue());
-        };
-        time_trouble.registerChangeListener(sync_tt_row);
-        sync_tt_row();
+        // Time Trouble Mode and its threshold: one "0 = off" stepper (bindOffStepper)
+        this.bindOffStepper(this.registerFormElement('time_trouble', 'Time Trouble Mode:', 'checkbox', false),
+                            this.registerFormElement('time_trouble_at', 'Time Trouble Below (s):', 'input', 30), 'time_trouble_view');
         // The display choice only means anything while the tablebase is on -- same treatment the
         // other dependent rows get, so a control that can do nothing is not sitting there inviting
         // a change.
@@ -881,6 +867,49 @@ class GeneralSettings extends SettingsPage {
         if (tbDownload.run?.started) tbBtn(tbDownload.run.stop ? 'Download tables' : 'Stop', !!tbDownload.run.stop);
 
         sync();
+    }
+
+    // "0 = OFF" STEPPERS. A switch whose only setting is a number (Time Trouble Mode and its threshold,
+    // Auto Resign and its centipawns, PV Arrows and its length) shows as ONE stepper where 0 is off.
+    // Storage is unchanged, so nothing needs migrating: the switch stays the source of truth (the
+    // panel, a custom hotkey and a saved config flip it as before), and the number key keeps the last
+    // value that was on, so switching back on restores it. Both stored controls stay in the row as
+    // hidden inputs bound like any other; this keeps the visible stepper and the pair in step. A typed
+    // value is applied once it is in range and clamped when the field is left, so typing 15 does not
+    // snap to 5 on the first key. The unit beside it reads Off at 0, and "+" from Off comes back on
+    // at the remembered number rather than at the minimum.
+    bindOffStepper(toggle, number, viewId) {
+        const view = document.getElementById(viewId);
+        if (!view || toggle.missing || number.missing) return;
+        const unit = view.closest('.set-ctl')?.querySelector('.set-unit');
+        const lo = Number(number.elem.min) || 1;
+        const hi = number.elem.max !== '' ? Number(number.elem.max) : Infinity;
+        const show = () => {
+            const on = toggle.getValue();
+            if (document.activeElement !== view) view.value = on ? number.getValue() : 0;
+            if (unit) unit.textContent = on ? (unit.dataset.unit || '') : MephistoI18n.t('ui.off', 'Off');
+        };
+        const apply = (commit) => {
+            const raw = view.value, n = Math.round(Number(raw));
+            if (raw === '' || !Number.isFinite(n)) { if (commit) show(); return; }
+            if (n <= 0) {
+                if (toggle.getValue()) toggle.setValue(false);
+            } else if ((n >= lo && n <= hi) || commit) {
+                const v = String(Math.max(lo, Math.min(hi, n)));
+                if (v !== number.getValue()) number.setValue(v);
+                if (!toggle.getValue()) toggle.setValue(true);
+            }
+            if (commit) { view.value = toggle.getValue() ? number.getValue() : 0; show(); }
+        };
+        view.addEventListener('input', () => apply(false));
+        view.addEventListener('change', () => apply(true));
+        // registered before initSteppers' own click handler, which then adds one step to this
+        view.parentElement?.querySelector('.set-step-btn[data-step="1"]')?.addEventListener('click', () => {
+            if (!toggle.getValue()) view.value = Number(number.getValue()) - (Number(view.step) || 1);
+        });
+        toggle.registerChangeListener(show);
+        number.registerChangeListener(show);
+        show();
     }
 
     initSteppers() {

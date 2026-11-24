@@ -14177,9 +14177,10 @@ globalThis.largeBoardTable = () => {
         }
     } catch (e) { bad = ['threw ' + e.message]; }
     ok('GENERAL-1: every -/+ button on the settings page moves its field by one input step (not step*step)', rows.length >= 15 && bad.length === 0, bad.length ? bad : rows.length);
-    const resign = rows.find(r => r.input.id === 'auto_resign_cp_input');
+    // Auto Resign's stepper is the "0 = off" view over auto_resign_cp now (SIMP-OFF), same step
+    const resign = rows.find(r => r.input.id === 'auto_resign_view');
     if (resign) { resign.input.value = '900'; resign.btns[0].click(); }
-    ok('GENERAL-1: ...Resign Below 900 with "-" gives 800, not 100', resign && +resign.input.value === 800, resign && resign.input.value);
+    ok('GENERAL-1: ...Auto Resign 900 with "-" gives 800, not 100', resign && +resign.input.value === 800, resign && resign.input.value);
 }
 // ---- audit 3.1.331 GENERAL-2: one tablebase download at a time (Stop then Download, double-click) ----
 (async () => {
@@ -16777,7 +16778,8 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
 {
     const gjs = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const ghtml = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
-    for (const id of ['grind_delay_row', 'pv_walk_limit_row', 'user_arrow_replies_row', 'mirror_ratio_row', 'arrow_eval_side_row']) {
+    // pv_walk_limit_row left this list when PV Arrows and its length became one "0 = off" stepper (SIMP-OFF)
+    for (const id of ['grind_delay_row', 'user_arrow_replies_row', 'mirror_ratio_row', 'arrow_eval_side_row']) {
         const row = new RegExp(`<div class="set-row" id="${id}">`).test(ghtml);
         const synced = new RegExp(`getElementById\\('${id}'\\)\\?\\.classList\\.toggle\\('hidden'`).test(gjs);
         if (row && synced) console.log('ok   ROWS-1: ' + id + ' has an id and is hidden with its parent');
@@ -16858,6 +16860,47 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
        && /id="compute_depth_step"[\s\S]*id="compute_depth_input"/.test(row) && !/compute_(time|depth)_row/.test(gh + gj));
     ok('SIMP-BUDGET: the select shows the stepper for its unit and hides the other',
        /row\('compute_time_step'\)\.style\.display = depth \? 'none' : ''/.test(gj) && /row\('compute_depth_step'\)\.style\.display = depth \? '' : 'none'/.test(gj));
+}
+// ---- SIMP-OFF: toggle + number pairs are one "0 = off" stepper; the stored pair is unchanged ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const i = gj.indexOf('    bindOffStepper(toggle, number, viewId) {'), body = i < 0 ? '' : gj.slice(i, gj.indexOf('\n    }\n', i) + 7);
+    // a fake toggle/number pair with the FormElement surface the binder uses
+    const fe = (v, extra) => { const ls = []; const o = {missing: false, v, elem: extra || {}, getValue: () => o.v,
+        setValue: (x) => { o.v = typeof o.v === 'boolean' ? x : String(x); ls.forEach(f => f()); }, registerChangeListener: (f) => ls.push(f)}; return o; };
+    const run = (on, n, typed) => {
+        const tog = fe(on), num = fe(String(n), {min: '5', max: '120'});
+        const view = {value: '', ev: {}, addEventListener(t, f) { this.ev[t] = f; }, closest: () => ({querySelector: () => unit})};
+        const unit = {dataset: {unit: 's'}, textContent: ''};
+        const c = vm.createContext({document: {getElementById: () => view, activeElement: null}, MephistoI18n: {t: (k, d) => d}, tog, num});
+        vm.runInContext(`({${body}}).bindOffStepper(tog, num, 'x')`, c);
+        const shown = [view.value, unit.textContent];
+        for (const [t, v] of typed) { view.value = v; view.ev[t](); }
+        return {shown, on: tog.v, n: num.v, view: view.value, unit: unit.textContent};
+    };
+    const off = run(false, 30, []), on = run(true, 45, []);
+    ok('SIMP-OFF: off shows 0 and the unit reads Off; on shows the stored number with its unit',
+       off.shown.join() === '0,Off' && on.shown.join() === '45,s', {off, on});
+    const zero = run(true, 45, [['input', '0']]);
+    ok('SIMP-OFF: 0 switches the toggle off and keeps the stored number for next time', zero.on === false && zero.n === '45', zero);
+    const back = run(false, 45, [['input', '20']]);
+    ok('SIMP-OFF: a number in range switches it on and stores the number', back.on === true && back.n === '20', back);
+    const typing = run(false, 30, [['input', '1']]), left = run(false, 30, [['input', '1'], ['change', '1']]);
+    ok('SIMP-OFF: a first digit under the minimum waits; leaving the field clamps it to the minimum',
+       typing.on === false && typing.n === '30' && left.on === true && left.n === '5' && left.view === '5', {typing, left});
+    ok('SIMP-OFF: "+" from Off lands on the remembered number (set one step under it before the stepper adds one), and the binders run before initSteppers',
+       /if \(!toggle\.getValue\(\)\) view\.value = Number\(number\.getValue\(\)\) - \(Number\(view\.step\) \|\| 1\);/.test(body)
+       && gj.indexOf("'time_trouble_view');") < gj.indexOf('this.initSteppers();') && gj.indexOf("'auto_resign_view');") < gj.indexOf('this.initSteppers();')
+       && gj.indexOf("'pv_walk_view');") < gj.indexOf('this.initSteppers();'));
+    for (const [tog, num, view] of [['time_trouble', 'time_trouble_at', 'time_trouble_view'], ['auto_resign', 'auto_resign_cp', 'auto_resign_view'], ['pv_walk', 'pv_walk_limit', 'pv_walk_view']]) {
+        const r = gh.indexOf(`<div class="set-row" id="${tog}_row">`), row = r < 0 ? '' : gh.slice(r, gh.indexOf('\n                </div>\n', r));
+        ok(`SIMP-OFF: ${tog} is one row holding the hidden pair and a 0-min stepper, bound by bindOffStepper`,
+           new RegExp(`<input id="${tog}_checkbox" type="checkbox" hidden>`).test(row) && new RegExp(`<input id="${num}_input" [^>]*hidden>`).test(row)
+           && new RegExp(`<input id="${view}" type="number" min="0"`).test(row) && !gh.includes(`id="${num}_row"`)
+           && new RegExp(`registerFormElement\\('${tog}', [^\\n]*\\n\\s*this\\.registerFormElement\\('${num}', [^\\n]*'${view}'\\);`).test(gj));
+    }
 }
 // ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
 {

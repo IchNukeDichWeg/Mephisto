@@ -620,30 +620,22 @@
                     </div>
                 </div>
 
-                <div class="set-row">
+                <!-- "0 = off" stepper over the pv_walk switch and its pv_walk_limit (general.js bindOffStepper):
+                     both stored controls stay here, hidden, and keep their keys -->
+                <div class="set-row" id="pv_walk_row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.pv_walk" class="tooltipped" data-position="right"
-                              data-tooltip="Draw the engine's whole line ahead on the board: every ply as a thin grey numbered arrow, so you see where the line is going, not just its first move. Grey because it is the engine's current suggestion, not a certainty -- forced continuations keep their own colours on top."><span data-i18n="set.pv_walk">PV Arrows</span></span>
+                              data-tooltip="Draw the engine's whole line ahead on the board: every ply as a thin grey numbered arrow, so you see where the line is going, not just its first move. Grey because it is the engine's current suggestion, not a certainty -- forced continuations keep their own colours on top. The number is how many plies to draw (1 to 50, default 5); 0 is off."><span data-i18n="set.pv_walk">PV Arrows</span></span>
                     </div>
                     <div class="set-ctl">
-                        <input id="pv_walk_checkbox" type="checkbox" class="set-cb">
-                        <label for="pv_walk_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row" id="pv_walk_limit_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.pv_walk_limit" class="tooltipped" data-position="right"
-                              data-tooltip="How many plies of the line PV Arrows draws, 1-50 (default 5). Past a dozen the board gets crowded fast; the ceiling exists for the rare deep endgame line."><span data-i18n="set.pv_walk_limit">PV Arrows Length</span></span>
-                    </div>
-                    <div class="set-ctl">
+                        <input id="pv_walk_checkbox" type="checkbox" hidden>
+                        <input id="pv_walk_limit_input" type="number" min="1" max="50" step="1" hidden>
                         <span class="set-step">
                             <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="pv_walk_limit_input" type="number" min="1" max="50" step="1">
+                            <input id="pv_walk_view" type="number" min="0" max="50" step="1">
                             <button type="button" class="set-step-btn" data-step="1">+</button>
                         </span>
+                        <span class="set-unit" data-unit=""></span>
                     </div>
                 </div>
 
@@ -1008,7 +1000,9 @@
                     </div>
                 </div>
 
-                <div class="set-row">
+                <!-- "0 = off" stepper over the auto_resign switch and its auto_resign_cp (general.js bindOffStepper):
+                     both stored controls stay here, hidden, and keep their keys -->
+                <div class="set-row" id="auto_resign_row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.auto_resign" class="tooltipped" data-position="right"
                               data-tooltip="Resign when the game is gone. The score has to stay below the threshold
@@ -1016,28 +1010,17 @@
                                             end a game. Needs Autoplay, presses the site's own resign button and
                                             confirms it, and does it once - after that no move is played into a
                                             game you have resigned. Off unless you switch it on, for the obvious
-                                            reason."><span data-i18n="set.auto_resign">Auto Resign</span> <i class="material-icons info-tooltip">info</i></span>
+                                            reason. The number is how far behind counts as gone, in centipawns (100 to 3000, 900 is a queen); 0 is off."><span data-i18n="set.auto_resign">Auto Resign</span> <i class="material-icons info-tooltip">info</i></span>
                     </div>
                     <div class="set-ctl">
-                        <input id="auto_resign_checkbox" type="checkbox" class="set-cb">
-                        <label for="auto_resign_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row" id="auto_resign_cp_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.auto_resign_cp" class="tooltipped" data-position="right"
-                              data-tooltip="How far behind counts as gone, in centipawns, 100 to 3000. 900 is a
-                                            queen."><span data-i18n="set.auto_resign_cp">Resign Below (cp)</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
+                        <input id="auto_resign_checkbox" type="checkbox" hidden>
+                        <input id="auto_resign_cp_input" type="number" min="100" max="3000" step="100" hidden>
                         <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-100">&minus;</button>
-                            <input id="auto_resign_cp_input" type="number" min="100" max="3000" step="100">
-                            <button type="button" class="set-step-btn" data-step="100">+</button>
+                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                            <input id="auto_resign_view" type="number" min="0" max="3000" step="100">
+                            <button type="button" class="set-step-btn" data-step="1">+</button>
                         </span>
+                        <span class="set-unit" data-unit="cp">cp</span>
                     </div>
                 </div>
 
@@ -1788,7 +1771,9 @@
                     </div>
                 </div>
 
-                <div class="set-row">
+                <!-- "0 = off" stepper over the time_trouble switch and its time_trouble_at (general.js bindOffStepper):
+                     both stored controls stay here, hidden, and keep their keys -->
+                <div class="set-row" id="time_trouble_row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.time_trouble" class="tooltipped" data-position="right"
                               data-tooltip="One switch for a scramble: below the threshold the search is capped at a
@@ -1796,28 +1781,17 @@
                                             a click still needs. What loses games at ten seconds is the cursor
                                             travel and the think pause, not the depth. Works whether or not Clock
                                             Mode or Mirror Time is on, and it overrides both - they are budgeting a
-                                            clock this says is nearly gone."><span data-i18n="set.time_trouble">Time Trouble Mode</span> <i class="material-icons info-tooltip">info</i></span>
+                                            clock this says is nearly gone. The number is the clock reading, in seconds, below which it takes over (5 to 120); 0 is off."><span data-i18n="set.time_trouble">Time Trouble Mode</span> <i class="material-icons info-tooltip">info</i></span>
                     </div>
                     <div class="set-ctl">
-                        <input id="time_trouble_checkbox" type="checkbox" class="set-cb">
-                        <label for="time_trouble_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row" id="time_trouble_at_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.time_trouble_at" class="tooltipped" data-position="right"
-                              data-tooltip="The clock reading, in seconds, below which Time Trouble Mode takes
-                                            over. 5 to 120."><span data-i18n="set.time_trouble_at">Time Trouble Below (s)</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
+                        <input id="time_trouble_checkbox" type="checkbox" hidden>
+                        <input id="time_trouble_at_input" type="number" min="5" max="120" step="5" hidden>
                         <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-5">&minus;</button>
-                            <input id="time_trouble_at_input" type="number" min="5" max="120" step="5">
-                            <button type="button" class="set-step-btn" data-step="5">+</button>
+                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                            <input id="time_trouble_view" type="number" min="0" max="120" step="5">
+                            <button type="button" class="set-step-btn" data-step="1">+</button>
                         </span>
+                        <span class="set-unit" data-unit="s">s</span>
                     </div>
                 </div>
 
