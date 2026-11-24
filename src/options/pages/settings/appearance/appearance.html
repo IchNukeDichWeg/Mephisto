@@ -82,6 +82,20 @@
             <section id="arrow_colours" class="set-sec scrollspy">
                 <h3 data-i18n="set.arrow_colours" class="set-h">Arrow colours</h3>
 
+                <!-- ONE PALETTE SELECT (appearance.js). The fifteen per-family colours show only under Custom;
+                     they stay stored whichever palette is picked, so Custom brings them back. -->
+                <div class="set-row" id="arrow_palette_row">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.arrow_palette" class="tooltipped" data-position="right" data-tooltip="Which colours the arrows wear. Default is the shipped set. Colour-blind safe is the Okabe-Ito palette, chosen to stay distinguishable under the common forms of colour blindness; the shipped colours separate lines by red against green, the one pair that collapses. Custom lets you pick each arrow family's colour, and your picks are kept when you switch to another palette and back."><span data-i18n="set.arrow_palette">Arrow Palette</span></span></div>
+                    <div class="set-ctl">
+                        <select name="arrow_palette" id="arrow_palette_select">
+                            <option value="default" data-i18n="set.arrow_palette.default">Default</option>
+                            <option value="colorblind" data-i18n="set.arrow_palette.colorblind">Colour-blind safe</option>
+                            <option value="custom" data-i18n="set.arrow_palette.custom">Custom</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="arrow_custom_block">
                 <div class="set-row">
                     <div class="set-lbl"><span data-i18n-tip="set.tip.arrow_color_line1" class="tooltipped" data-position="right" data-tooltip="Colour of the arrow for the first line."><span data-i18n="set.arrow_color_line1">Line 1 Arrow</span></span></div>
                     <div class="set-ctl">
@@ -232,12 +246,12 @@
                     </div>
                 </div>
 
-                <div class="set-row">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.arrow_colorblind" class="tooltipped" data-position="right" data-tooltip="Replace every arrow colour above with the Okabe-Ito palette, an eight-hue set chosen to stay distinguishable under the common forms of colour blindness. The shipped defaults separate lines by red against green, which is the one pair that collapses. Restore Defaults on this page puts the original colours back."><span data-i18n="set.arrow_colorblind">Colour-blind palette</span></span></div>
-                    <div class="set-ctl">
-                        <button id="arrow_colorblind" class="set-btn" type="button" data-i18n="set.apply">Apply</button>
-                    </div>
                 </div>
+
+                <!-- ADVANCED: rows set once or never, behind one closed disclosure (SettingsPage.wireAdvanced). -->
+                <div class="set-adv" data-adv="arrow_colours">
+                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="arrow_colours_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
+                    <div class="set-adv-body" id="arrow_colours_adv" hidden>
 
                 <div class="set-row">
                     <div class="set-lbl">
@@ -247,6 +261,8 @@
                     <div class="set-ctl">
                         <input id="arrow_opacity_range" type="range" min="1" max="100" step="1">
                         <span class="value set-val"></span>
+                    </div>
+                </div>
                     </div>
                 </div>
 

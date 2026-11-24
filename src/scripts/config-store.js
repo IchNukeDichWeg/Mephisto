@@ -83,6 +83,34 @@
                           'stockfish-18-small-nnue': 'stockfish-19-small-nnue'},
         liveEngine(id) { return this.RETIRED_ENGINES[id] || id; },
 
+        // ARROW PALETTES. `arrow_palette` picks which colours the arrows wear: the shipped ones, this
+        // colour-blind set, or the per-family colours in the arrow_color_* keys. Those keys are kept
+        // whichever palette is picked, so leaving Custom and coming back restores them. The table is
+        // here because both the panel (which draws) and the Appearance page read it.
+        //
+        // ONE CLICK FOR A PALETTE THAT SURVIVES COLOUR BLINDNESS. The shipped defaults lean on
+        // red/green separation, which is exactly the pair deuteranopia and protanopia collapse --
+        // and the arrows are the whole interface here, so "which line is that" stops being
+        // answerable. These are Okabe-Ito, the standard eight-hue set chosen to stay distinct under
+        // every common form; the families past the eighth take neutrals, since there are more arrow
+        // families than there are hues that survive.
+        // fifteen families -- the eight Okabe-Ito colours (black is one), three greys and four dark
+        // or saturated extras. Every family gets its OWN colour: tablebase used to repeat line 3's
+        // orange and refutation the threat's vermillion, and each of those pairs is drawn together
+        // (audit 3.1.331 APPEARANCE-1). The new ones were picked by worst CIELAB distance under
+        // simulated deutan, protan and tritan vision (Machado 2009): violet tablebase >= 33 from
+        // every other family, dark-red refutation >= 31, and forced-theirs moved off human reply's
+        // grey (5 -> 23).
+        ARROW_PALETTES: ['default', 'colorblind', 'custom'],
+        ARROW_COLORBLIND: {
+            arrow_color_line1: '#0072b2', arrow_color_line2: '#009e73', arrow_color_line3: '#e69f00',
+            arrow_color_line4: '#56b4e9', arrow_color_line5: '#cc79a7',
+            arrow_color_forced_ours: '#f0e442', arrow_color_forced_theirs: '#bbbbbb',
+            arrow_color_pv_walk: '#5a5a5a', arrow_color_threat: '#d55e00',
+            arrow_color_book: '#000000', arrow_color_human_reply: '#7f7f7f',
+            arrow_color_safety_net: '#004c6d', arrow_color_tb: '#9900ff',
+            arrow_color_refute: '#772200', arrow_color_human_error: '#332288',
+        },
         // Default hotkeys (action -> key-combo), shared by the keydown listener (content script), the
         // rebind UI (options page), and the panel's "(A)" label hints -- ONE source so they can't drift.
         // Single letters: they fire only when you're not typing in a field, and our capture-phase
@@ -388,6 +416,24 @@
                     for (const k of ['think_variance', 'move_variance']) if (k in CACHE) api.remove(k);
                 }
             } catch (e) { /* corrupt -> the times stay as stored */ }
+            // ARROW PALETTE (arrow_palette). The colour-blind button used to write its colours into the
+            // fifteen arrow_color_* keys, so a stored set is read once, here: all fifteen equal to the
+            // colour-blind table is that palette, any other stored colour is Custom (every value kept),
+            // nothing stored is the default and needs no key.
+            try {
+                if (loaded && !CACHE.__arrow_palette) {
+                    const write = {__arrow_palette: '1'};
+                    if (!('arrow_palette' in CACHE)) {
+                        const keys = Object.keys(api.ARROW_COLORBLIND);
+                        const val = (k) => { try { return String(JSON.parse(CACHE[k] ?? '""') || '').toLowerCase(); } catch (e) { return ''; } };
+                        if (keys.every(k => val(k) === api.ARROW_COLORBLIND[k])) write.arrow_palette = JSON.stringify('colorblind');
+                        else if (keys.some(k => val(k))) write.arrow_palette = JSON.stringify('custom');
+                    }
+                    Object.assign(CACHE, write);
+                    try { chrome.storage.local.set(write); } catch (e) { /* cache still set */ }
+                    for (const [k, v] of Object.entries(write)) lsSet(k, v);
+                }
+            } catch (e) { /* corrupt -> the default palette */ }
             ready = true;
         },
     };

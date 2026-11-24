@@ -496,6 +496,13 @@ async function initPanel(root, tabId) {
         // three families (the human reply, the safety net, and now the tablebase and refutation
         // arrows), so their pickers wrote a value the panel never read and the colour silently
         // stayed the default. Caught in the browser, not by reading.
+        // which of those the arrows wear: see palette_color
+        arrow_palette: (() => {
+            try {
+                const v = JSON.parse(MephistoConfig.get('arrow_palette') || '"default"');
+                return (MephistoConfig.ARROW_PALETTES || []).includes(v) ? v : 'default';
+            } catch (e) { return 'default'; }
+        })(),
         ...Object.fromEntries(ARROW_COLOR_KEYS.map(k => {
             let v = ''; try { v = JSON.parse(MephistoConfig.get(k)) || ''; } catch (e) { /* junk -> default */ }
             return [k, v];
@@ -2988,15 +2995,23 @@ const ARROW_COLOR_KEYS = ['arrow_color_line1', 'arrow_color_line2', 'arrow_color
     'arrow_color_human_reply', 'arrow_color_safety_net', 'arrow_color_tb', 'arrow_color_refute',
     'arrow_color_human_error'];
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
-function user_color(key, dflt) { const v = config && config[key]; return HEX_COLOR_RE.test(v || '') ? v : dflt; }
+// THE PALETTE DECIDES WHICH COLOURS COUNT (arrow_palette, Appearance page): Default draws the shipped
+// colours, Colour-blind safe the table in config-store.js, Custom the stored per-family keys. The
+// stored keys are kept under every palette, so Custom gets them back; only here are they ignored.
+function palette_color(key) {
+    const p = config && config.arrow_palette;
+    if (p === 'colorblind') return MephistoConfig.ARROW_COLORBLIND?.[key] || '';
+    return p === 'custom' ? (config[key] || '') : '';
+}
+function user_color(key, dflt) { const v = palette_color(key); return HEX_COLOR_RE.test(v) ? v : dflt; }
 function shade_hex(hex, f) {
     const n = parseInt(hex.slice(1), 16);
     const d = (c) => Math.max(0, Math.round(c * (1 - f)));
     return '#' + [d((n >> 16) & 255), d((n >> 8) & 255), d(n & 255)].map(c => c.toString(16).padStart(2, '0')).join('');
 }
 function forced_ramp(ours) {
-    const base = config && config[ours ? 'arrow_color_forced_ours' : 'arrow_color_forced_theirs'];
-    if (!HEX_COLOR_RE.test(base || '')) return ours ? FORCED_COLORS_OURS : FORCED_COLORS_THEIRS;
+    const base = palette_color(ours ? 'arrow_color_forced_ours' : 'arrow_color_forced_theirs');
+    if (!HEX_COLOR_RE.test(base)) return ours ? FORCED_COLORS_OURS : FORCED_COLORS_THEIRS;
     return [base, shade_hex(base, 0.14), shade_hex(base, 0.28)];
 }
 
@@ -11108,7 +11123,7 @@ const LIVE_CONFIG_KEYS = [
     'arrow_opacity', 'arrow_rank', 'arrow_labels', 'arrow_eval_side', 'user_arrow_evals', 'user_arrow_replies', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
     'premove_plies', 'move_time', 'move_reason',
     'material_balance', 'square_heatmap',
-    ...ARROW_COLOR_KEYS, // repaint on the next frame, no reload
+    ...ARROW_COLOR_KEYS, 'arrow_palette', // repaint on the next frame, no reload
     'think_time', 'elo', 'opp_alert', 'dark_mode',
     // toggling the trace has to take effect on the session you are already debugging
     'verbose_log', 'fourpc_mode', 'puzzle_delay', 'puzzle_auto_next', 'puzzle_next_delay',

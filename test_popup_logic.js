@@ -14334,7 +14334,9 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const aj = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.js', 'utf8');
-    const CB = vm.runInNewContext('(' + /const COLORBLIND = (\{[\s\S]*?\});/.exec(aj)[1] + ')');
+    // the table moved to config-store.js when the button became the Arrow Palette select (SIMP-PAL)
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8');
+    const CB = vm.runInNewContext('(' + /ARROW_COLORBLIND: (\{[\s\S]*?\}),/.exec(csrc)[1] + ')');
     const fams = [...aj.matchAll(/\['(arrow_color_\w+)', '#[0-9a-f]{6}'\]/g)].map(m => m[1]);
     ok('APPEARANCE-1: the palette sets exactly the families the page has', fams.length === 15
        && Object.keys(CB).sort().join() === fams.sort().join(), Object.keys(CB));
@@ -19398,4 +19400,53 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const r = nested(f);
         ok(`SIMP-NEST: ${f.split('/').pop()}: every row closes before the next opens, and every div closes`, r.bad.length === 0 && r.open === 0, r);
     }
+}
+// ---- SIMP-PAL: one Arrow Palette select (Default / Colour-blind safe / Custom); custom colours survive ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8');
+    const boot = async (stored) => {
+        const c = vm.createContext({console, location: {protocol: 'https:'}, chrome: {storage: {local: {get: async () => ({...stored}), set() {}, remove() {}},
+                                                       onChanged: {addListener() {}}}}});
+        c.self = c; c.window = c;
+        vm.runInContext(cs, c);
+        await c.MephistoConfig.ready;
+        return {pal: c.MephistoConfig.get('arrow_palette'), flag: c.MephistoConfig.get('__arrow_palette'), line1: c.MephistoConfig.get('arrow_color_line1'), CB: c.MephistoConfig.ARROW_COLORBLIND};
+    };
+    const cbAll = (CB) => Object.fromEntries(Object.entries(CB).map(([k, v]) => [k, JSON.stringify(v.toUpperCase())]));
+    boot({}).then(async (fresh) => {
+        const cb = await boot(cbAll(fresh.CB)), custom = await boot({arrow_color_line1: '"#123456"'}),
+              chosen = await boot({arrow_color_line1: '"#123456"', arrow_palette: '"default"'}), blank = await boot({arrow_color_line1: '""'});
+        ok('SIMP-PAL: once on load, a stored colour-blind set becomes that palette, any other stored colour Custom (kept), nothing stored stays Default',
+           fresh.pal === null && fresh.flag === '1' && cb.pal === '"colorblind"' && custom.pal === '"custom"' && custom.line1 === '"#123456"'
+           && chosen.pal === '"default"' && blank.pal === null, {fresh: fresh.pal, cb: cb.pal, custom, chosen: chosen.pal, blank: blank.pal});
+    });
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = psrc.indexOf('function palette_color(key) {'), body = psrc.slice(i, psrc.indexOf('function shade_hex(', i));
+    const draw = (palette) => {
+        const c = vm.createContext({HEX_COLOR_RE: /^#[0-9a-fA-F]{6}$/, MephistoConfig: {ARROW_COLORBLIND: {arrow_color_line1: '#0072b2'}},
+            config: {arrow_palette: palette, arrow_color_line1: '#123456', arrow_color_threat: 'junk'}});
+        vm.runInContext(body, c);
+        return [vm.runInContext("user_color('arrow_color_line1', '#0a5bd3')", c), vm.runInContext("user_color('arrow_color_threat', '#bf0000')", c)];
+    };
+    const got = ['default', 'colorblind', 'custom', 'bogus'].map(draw);
+    ok('SIMP-PAL: the panel draws the shipped colour under Default, the table under Colour-blind safe, the stored one only under Custom (junk falls back)',
+       JSON.stringify(got) === JSON.stringify([['#0a5bd3', '#bf0000'], ['#0072b2', '#bf0000'], ['#123456', '#bf0000'], ['#0a5bd3', '#bf0000']]), got);
+    ok('SIMP-PAL: the forced ramps follow the palette too, and an open panel picks a new palette up live',
+       /const base = palette_color\(ours \? 'arrow_color_forced_ours' : 'arrow_color_forced_theirs'\);/.test(psrc)
+       && /\.\.\.ARROW_COLOR_KEYS, 'arrow_palette',/.test(psrc) && /arrow_palette: \(\(\) => \{/.test(psrc));
+    const ah = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.html', 'utf8');
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.js', 'utf8');
+    const blk = ah.slice(ah.indexOf('<div id="arrow_custom_block">'), ah.indexOf('<div class="set-adv" data-adv="arrow_colours">'));
+    ok('SIMP-PAL: one select row; the fifteen pickers sit in the Custom block; the Apply button is gone; Arrow Opacity is under Advanced',
+       /<select name="arrow_palette" id="arrow_palette_select">\s*<option value="default"[^>]*>[^<]*<\/option>\s*<option value="colorblind"[^>]*>[^<]*<\/option>\s*<option value="custom"/.test(ah)
+       && (blk.match(/type="color"/g) || []).length === 15 && !/arrow_colorblind|set\.apply/.test(ah + aj)
+       && /<div class="set-adv-body" id="arrow_colours_adv" hidden>[\s\S]*id="arrow_opacity_range"/.test(ah));
+    ok('SIMP-PAL: the page registers the palette and shows the block only under Custom',
+       /registerFormElement\('arrow_palette', 'Arrow Palette:', 'select', 'default'\)/.test(aj)
+       && /getElementById\('arrow_custom_block'\)\?\.classList\.toggle\('hidden', palette\.getValue\(\) !== 'custom'\)/.test(aj));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-PAL: label, tip and three options in all 14 locales; the button\'s strings are gone',
+       locs.length === 14 && locs.every(l => ['set.arrow_palette', 'set.tip.arrow_palette', 'set.arrow_palette.default', 'set.arrow_palette.colorblind', 'set.arrow_palette.custom'].every(k => l[k])
+           && !('set.arrow_colorblind' in l) && !('set.tip.arrow_colorblind' in l) && !('set.apply' in l)));
 }

@@ -38,37 +38,16 @@ class AppearanceSettings extends SettingsPage {
             ['arrow_color_tb', '#f59e0b'], ['arrow_color_refute', '#d1495b'],
             ['arrow_color_human_error', '#a0522d'],
         ];
-        // ONE CLICK FOR A PALETTE THAT SURVIVES COLOUR BLINDNESS. The shipped defaults lean on
-        // red/green separation, which is exactly the pair deuteranopia and protanopia collapse --
-        // and the arrows are the whole interface here, so "which line is that" stops being
-        // answerable. These are Okabe-Ito, the standard eight-hue set chosen to stay distinct under
-        // every common form; the families past the eighth take neutrals, since there are more arrow
-        // families than there are hues that survive.
-        // ponytail: fifteen families -- the eight Okabe-Ito colours (black is one), three greys and
-        // four dark or saturated extras. Every family gets its OWN colour: tablebase used to repeat
-        // line 3's orange and refutation the threat's vermillion, and each of those pairs is drawn
-        // together (audit 3.1.331 APPEARANCE-1). The new ones were picked by worst CIELAB distance
-        // under simulated deutan, protan and tritan vision (Machado 2009): violet tablebase >= 33
-        // from every other family, dark-red refutation >= 31, and forced-theirs moved off human
-        // reply's grey (5 -> 23).
-        const COLORBLIND = {
-            arrow_color_line1: '#0072b2', arrow_color_line2: '#009e73', arrow_color_line3: '#e69f00',
-            arrow_color_line4: '#56b4e9', arrow_color_line5: '#cc79a7',
-            arrow_color_forced_ours: '#f0e442', arrow_color_forced_theirs: '#bbbbbb',
-            arrow_color_pv_walk: '#5a5a5a', arrow_color_threat: '#d55e00',
-            arrow_color_book: '#000000', arrow_color_human_reply: '#7f7f7f',
-            arrow_color_safety_net: '#004c6d', arrow_color_tb: '#9900ff',
-            arrow_color_refute: '#772200', arrow_color_human_error: '#332288',
+        // ARROW PALETTE: Default, Colour-blind safe (MephistoConfig.ARROW_COLORBLIND) or Custom. The
+        // per-family pickers below set Custom's colours and show only under it; they stay stored
+        // whatever is picked, so switching away and back loses nothing. The panel reads the palette
+        // (palette_color in popup.js), so nothing here rewrites the colour keys.
+        const palette = this.registerFormElement('arrow_palette', 'Arrow Palette:', 'select', 'default');
+        const sync_palette = () => {
+            document.getElementById('arrow_custom_block')?.classList.toggle('hidden', palette.getValue() !== 'custom');
         };
-        document.getElementById('arrow_colorblind')?.addEventListener('click', () => {
-            // JSON.stringify, like every other setting: the panel reads these with JSON.parse, so a
-            // raw '#0072b2' threw there and fell back to the shipped colour -- the palette applied
-            // on this page and did nothing at all on the board. Found in the browser.
-            for (const [key, value] of Object.entries(COLORBLIND)) MephistoConfig.set(key, JSON.stringify(value));
-            // Written straight to storage, so the fields on screen have to be told; Restore Defaults
-            // is the way back, exactly as it is for a hand-edited colour.
-            location.reload();
-        });
+        palette.registerChangeListener(sync_palette);
+        sync_palette();
         // How strongly every arrow is drawn, a percentage (the panel's read_arrow_opacity). It sits with
         // the arrow colours; the readout is the `.set-val` in its own row, as on General.
         const opacity = this.registerFormElement('arrow_opacity', 'Arrow Opacity:', 'range', 75);
