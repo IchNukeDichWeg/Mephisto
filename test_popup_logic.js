@@ -6083,12 +6083,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('all six rows follow config, and the skill label with them',
        got.join() === 'aggressive,engine,ffa,4,12,1800' && els.qs_skill_val.textContent === 'Skill 12', [got, els.qs_skill_val.textContent]);
 }
-// ---- audit 3.1.328 OPT-4: the panel's Multi Lines stepper shows or hides the Playstyle row ----
+// ---- audit 3.1.328 OPT-4, superseded: the Playstyle row no longer follows Multi Lines ----
+// A chosen style raises the search to two lines itself (style_needs_lines), so the row shows at the
+// default of one line and the Lines stepper has nothing to show or hide.
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const src = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
-    const a = src.indexOf("['qs_lines', 'multiple_lines', v => parseInt(v) || 1],"), b = src.indexOf('if (is_remote()) {', a);
-    ok('the qs_lines change handler calls update_playstyle_row', /if \(key === 'multiple_lines'\) \{[\s\S]{0,300}?update_playstyle_row\(\);/.test(src.slice(a, b + 20)));
+    const a = src.indexOf("['qs_lines', 'multiple_lines', v => parseInt(v) || 1],"), b = src.indexOf('if (is_remote() && (', a);
+    ok('the qs_lines change handler re-searches at the new width and leaves the Playstyle row alone',
+       /if \(key === 'multiple_lines'\) search_again_at_new_width\(\);/.test(src.slice(a, b)) && !/update_playstyle_row/.test(src.slice(a, b)));
 }
 // ---- audit 3.1.328 OPT-5: the Tablebase Display row follows the Tablebase toggle ----
 {
@@ -9540,10 +9543,10 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('...a WASM engine queues MultiPV and searches again, as the stepper always did', l === 'abandon,queue MultiPV 5,search', l);
         // the wiring: the panel stepper (any engine) and the Settings-page listener (multiple_lines and humanize)
         const st = psrc.slice(psrc.indexOf("['qs_lines', 'multiple_lines'"), psrc.indexOf('// engine settings that genuinely need a full re-init'));
-        ok('...the panel Lines stepper calls it on every engine', /if \(key === 'multiple_lines'\) \{[^}]*search_again_at_new_width\(\);/.test(st), null);
+        ok('...the panel Lines stepper calls it on every engine', /if \(key === 'multiple_lines'\) search_again_at_new_width\(\);/.test(st), null);
         const ls = psrc.slice(psrc.indexOf('function watch_config_changes('), psrc.indexOf('function update_tb_show_row('));
-        ok('OPT-2: a Settings-page Multi Lines or Humanize change calls it in the open panel',
-           /if \(key === 'multiple_lines' \|\| key === 'humanize'\) search_again_at_new_width\(\);/.test(ls), null);
+        ok('OPT-2: a Settings-page Multi Lines, Humanize or Playstyle change calls it in the open panel',
+           /if \(key === 'multiple_lines' \|\| key === 'humanize' \|\| key === 'playstyle'\) search_again_at_new_width\(\);/.test(ls), null);
     })().catch(e => { fails++; console.log('FAIL ENGINEA-3 checks threw: ' + (e && e.stack || e)); });
 }
 // ---- audit 3.1.330 ENGINEA-5: a stop charged during Maia-2's lazy opening-net load is still paid ----
@@ -17292,7 +17295,7 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
        /id="qs_variant"/.test(ph) && /id="qs_variant_detect"/.test(ph) && /\n    maybe_autodetect_variant\(\);/.test(pj)
        && /if \(key === 'variant'\) return apply_detected_variant\(parse\(elem\.value\)\);/.test(pj));
     ok('SIMP-VARIANT: the settings page has no Variant row, reads the stored variant for Playstyle, and still resets a Fairy-only one on an engine change (never while populating)',
-       !/variant_select"/.test(gh) && !/variant_select/.test(gj) && /\['chess', 'fischerandom'\]\.includes\(stored_variant\(\)\)\n\s+&& \(parseInt/.test(gj)
+       !/variant_select"/.test(gh) && !/variant_select/.test(gj) && /\['chess', 'fischerandom'\]\.includes\(stored_variant\(\)\);/.test(gj)
        && /if \(!this\.populating && !\['fairy-stockfish-14-nnue', 'fairy-native'\]\.includes\(engine_select\.getValue\(\)\)\n\s+&& !\['chess', 'fischerandom'\]\.includes\(stored_variant\(\)\)\) \{\n\s+MephistoConfig\.set\('variant', JSON\.stringify\('chess'\)\);/.test(gj));
 }
 // ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
@@ -19593,4 +19596,29 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SIMP-BOOK: label, tip and three options in all 14 locales; the two per-row tips are gone (the panel keeps its own)',
        locs.length === 14 && locs.every(l => ['set.opening_book', 'set.tip.opening_book', 'set.opening_book.show', 'set.opening_book.both', 'set.opening_book.play', 'panel.tip.show_how_humans_actually_played', 'panel.tip.play_the_opening_from_the'].every(k => l[k])
            && !('set.tip.show_how_humans_actually_played' in l) && !('set.tip.play_the_opening_from_the' in l)));
+}
+// ---- SIMP-STYLE: a chosen Playstyle raises the search to two lines, so its row shows at Multi Lines 1 ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const fn = (name) => { const i = psrc.indexOf('\nfunction ' + name + '(') + 1; return psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const i = psrc.indexOf('const MULTIPV_FLOOR_MODES'), j = psrc.indexOf('\n}\n', psrc.indexOf('function multipv_floor()')) + 3;
+    const c = vm.createContext({});
+    vm.runInContext(`var config = {}, explorer_out_of_book = false, explorer_error = null, document = {hidden: false};
+        var CLOUD_ENGINES = ['cloud-chessapi'], FOURPC_ENGINES = ['tetrarch-native'];
+        function explorer_enabled() { return false; }` + psrc.slice(i, j) + fn('playstyle_applies'), c);
+    const f = (cfg, expr) => vm.runInContext(`config = ${JSON.stringify(cfg)}; ${expr}`, c);
+    const floors = ['balanced', undefined, 'attacking', 'drawish'].map(p => f({playstyle: p}, 'multipv_floor()'));
+    ok('SIMP-STYLE: Balanced (or nothing stored) keeps one line; any other style asks the engine for two', floors.join() === '1,1,2,2', floors);
+    const ap = [f({engine: 'sf18', variant: 'chess', multiple_lines: 1}, 'playstyle_applies()'), f({engine: 'sf18', variant: 'fischerandom', multiple_lines: 1}, 'playstyle_applies()'),
+                f({engine: 'cloud-chessapi', variant: 'chess'}, 'playstyle_applies()'), f({engine: 'remote', variant: 'chess'}, 'playstyle_applies()'),
+                f({engine: 'tetrarch-native', variant: 'chess'}, 'playstyle_applies()'), f({engine: 'sf18', variant: 'atomic'}, 'playstyle_applies()')];
+    ok('SIMP-STYLE: the row applies at Multi Lines 1; a cloud, remote or four-player engine and a Fairy variant still hide it', ap.join() === 'true,true,false,false,false,false', ap);
+    ok('SIMP-STYLE: the health check names the style when it is what needs the second line',
+       /needsLines: \[\.\.\.MULTIPV_FLOOR_MODES\.filter\(k => config\?\.\[k\]\), \.\.\.\(config && style_needs_lines\(\) \? \['playstyle'\] : \[\]\)\],/.test(psrc));
+    const sh = psrc.slice(psrc.indexOf("const styleSel = PANEL_ROOT.getElementById('qs_playstyle');"), psrc.indexOf('\n    }\n', psrc.indexOf("const styleSel = PANEL_ROOT.getElementById('qs_playstyle');")));
+    ok('SIMP-STYLE: the panel select re-searches when the style moves the width; the settings mirror no longer reads Multi Lines',
+       /const width = effective_multipv\(\);[\s\S]*?if \(effective_multipv\(\) !== width\) search_again_at_new_width\(\);/.test(sh)
+       && !/multipv_range\.registerChangeListener\(sync_playstyle_row\)/.test(gj) && !/multipv_range\.getValue\(\)\) \|\| 1\) >= 2/.test(gj));
 }

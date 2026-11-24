@@ -474,24 +474,21 @@ class GeneralSettings extends SettingsPage {
             });
         }
         // Playstyle needs more than one scored line from an engine whose moves chess.js can replay:
-        // a cloud/remote engine answers with one, four-player chess has its own path, a Fairy variant
-        // cannot be replayed, and one line is not a choice. FULL mirror of playstyle_applies() in
-        // popup.js -- this used to read the engine only, so Multiple Lines = 1 or a Fairy variant left
-        // a Playstyle control on screen that the picker ignores. All three inputs are on this page,
-        // so all three drive the row.
+        // a cloud/remote engine answers with one, four-player chess has its own path, and a Fairy
+        // variant cannot be replayed. FULL mirror of playstyle_applies() in popup.js -- this used to
+        // read the engine only, so a Fairy variant left a Playstyle control on screen that the picker
+        // ignores. Multi Lines is no condition: a chosen style raises the search to two lines itself.
         const NO_STYLE = ['cloud-chessapi', 'cloud-stockfish-online', 'cloud-chesscom',
                           'remote', 'tetrarch-native'];
         const sync_playstyle_row = () => {
             const applies = !NO_STYLE.includes(engine_select.getValue())
-                && ['chess', 'fischerandom'].includes(stored_variant())
-                && (parseInt(multipv_range.getValue()) || 1) >= 2;
+                && ['chess', 'fischerandom'].includes(stored_variant());
             // `hidden`, NOT `filter-hidden`: the latter belongs to the settings search box alone
             // (SettingsPage.wireFilter re-toggles it on EVERY .set-row per keystroke), so one
             // character typed in the filter used to un-hide the row again.
             document.getElementById('playstyle_select')?.closest('.set-row')
                 ?.classList.toggle('hidden', !applies);
         };
-        multipv_range.registerChangeListener(sync_playstyle_row);
         // a variant picked or detected in the panel while this page is open
         try { chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.variant) sync_playstyle_row(); }); } catch (e) { /* no storage events here */ }
         sync_playstyle_row();

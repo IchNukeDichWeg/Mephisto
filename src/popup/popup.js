@@ -1414,12 +1414,7 @@ function init_quick_settings() {
             save(key, value);
             if (key === 'threads') queue_engine_option('Threads', value);
             if (key === 'memory') queue_engine_option('Hash', value); // flush_engine_options clamps for WASM
-            if (key === 'multiple_lines') {
-                // the Playstyle row follows Multi Lines; the storage listener cannot do it for this
-                // change, because config already holds the value it would compare (audit 3.1.328 OPT-4)
-                update_playstyle_row();
-                search_again_at_new_width();
-            }
+            if (key === 'multiple_lines') search_again_at_new_width();
             if (is_remote() && (key === 'threads' || key === 'memory')) {
                 // A native host stops the running search to apply them and reports it superseded, so
                 // on_remote_result searches again (ENG-4).
@@ -1583,9 +1578,12 @@ function init_quick_settings() {
         update_playstyle_row();
         styleSel.addEventListener('change', () => {
             const v = PLAYSTYLE_STYLES.includes(styleSel.value) ? styleSel.value : 'balanced';
+            const width = effective_multipv();
             config.playstyle = v;
             save('playstyle', v);
             push_config();
+            // Balanced to a style (or back) moves the search between one line and two
+            if (effective_multipv() !== width) search_again_at_new_width();
         });
     }
     const eloRow = PANEL_ROOT.getElementById('qs_elo_row');
@@ -7352,6 +7350,11 @@ const HUMANIZE_SHALLOW_REACH_CP = 60;
 // still honours config.multiple_lines, so this is the same trick in the same place: what the ENGINE
 // is asked for, not what the panel lists.
 const MULTIPV_FLOOR_MODES = ['contempt', 'complexity_clock'];
+// A PLAYSTYLE CHOOSES BETWEEN LINES too, so a style other than Balanced gets the same floor. The row
+// used to hide at Multi Lines 1, the default, which kept every style out of sight for most people.
+function style_needs_lines() {
+    return !!config.playstyle && config.playstyle !== 'balanced';
+}
 
 // Play Book Moves scores explorer moves from the engine's own lines and skips any it did not list, so
 // at the default of one line the pool held the engine's move and openings never varied (PLAY-5). Four
@@ -7365,7 +7368,7 @@ const BOOK_MULTIPV = 4;
 function multipv_floor() {
     if (config.book_play && config.autoplay && !explorer_out_of_book && explorer_enabled() && !explorer_error
         && !(document.hidden && !config.background_play)) return BOOK_MULTIPV;
-    return MULTIPV_FLOOR_MODES.some(k => config[k]) ? 2 : 1;
+    return (MULTIPV_FLOOR_MODES.some(k => config[k]) || style_needs_lines()) ? 2 : 1;
 }
 
 // SUGGEST A HUMAN ERROR needs the same wide list Humanize's error bands do: an inaccuracy (5% win,
@@ -8028,16 +8031,15 @@ function style_score(fen, uci, style, cp, bestCp) {
 // chess.js can replay. A cloud or remote engine answers with a single line; four-player chess runs
 // its own path entirely; a Fairy variant is a position the scorer will not replay, so it would have
 // no opinion. In all three the row is hidden and the picker stands down, so the control and the
-// behaviour cannot disagree.
+// behaviour cannot disagree. Multi Lines is no condition: a chosen style raises the search to two
+// lines itself (style_needs_lines).
 function playstyle_applies() {
     if (CLOUD_ENGINES.includes(config.engine) || config.engine === 'remote') return false;
     if (FOURPC_ENGINES.includes(config.engine)) return false;
-    if (config.variant !== 'chess' && config.variant !== 'fischerandom') return false;
-    return (parseInt(config.multiple_lines) || 1) >= 2;
+    return config.variant === 'chess' || config.variant === 'fischerandom';
 }
 
-// The row follows the same answer, live: Multi Lines is right there in the panel and changes without
-// a reload, so the control appears and disappears with the thing that makes it possible.
+// The row follows the same answer, live: the variant can change without a reload.
 function update_playstyle_row() {
     const row = PANEL_ROOT.getElementById('qs_playstyle_row');
     if (row) row.style.display = playstyle_applies() ? '' : 'none';
@@ -9446,7 +9448,7 @@ function health_state() {
         nativeUp: native_alive,
         // ...and the three features that can be switched on, working, and producing nothing:
         lines: effective_multipv(),
-        needsLines: MULTIPV_FLOOR_MODES.filter(k => config?.[k]),
+        needsLines: [...MULTIPV_FLOOR_MODES.filter(k => config?.[k]), ...(config && style_needs_lines() ? ['playstyle'] : [])],
         playerBook: config?.player_book
             ? {who: parse_player_book_user(), loaded: !!player_book, games: player_book_games,
                raw: String(config.player_book_user || '').trim(),
@@ -11297,10 +11299,10 @@ function watch_config_changes() {
                 // one overlay message carries the bar, the graph and the stats strip: clear all
                 // three and let the next evaluation redraw whichever are still switched on
                 if (key === 'eval_bar' || key === 'eval_history' || key === 'live_stats') request_clear_eval_bar();
-                if (key === 'multiple_lines' || key === 'variant') update_playstyle_row();
+                if (key === 'variant') update_playstyle_row();
                 // the width the engine is asked for, as the panel's own Lines stepper and Humanize
                 // switch do: only stored, it reached the engine at the next position (audit 3.1.330 OPT-2)
-                if (key === 'multiple_lines' || key === 'humanize') search_again_at_new_width();
+                if (key === 'multiple_lines' || key === 'humanize' || key === 'playstyle') search_again_at_new_width();
                 if (key === 'live_stats' || key === 'live_classify' || key === 'class_on_board'
                     || key === 'opp_alert') ensure_classifier();
                 if (key === 'tablebase') { tablebase_data = null; update_tb_show_row(); }   // a stale answer must not survive
