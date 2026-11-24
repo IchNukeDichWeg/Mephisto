@@ -16765,6 +16765,14 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     ok('POPUP1-2: ...and not sent once Puzzle Mode is switched off, Simon Says on, or Autoplay off during the pause',
        r.puzzle_off && [r.puzzle_off, r.simon, r.autoplay_off].every(x => x.armed === true && x.sent.length === 0), r);
 }
+// ---- Hand & Brain never autoplays: the bestmove autoplay gate lists simon_says_mode ----
+{
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const gate = psrc.match(/\} else if \(([^\n]*config\.autoplay && isTerminal)\) \{/);
+    if (gate && /!config\.simon_says_mode/.test(gate[1]) && /!config\.help_mode/.test(gate[1]) && /!config\.manual_mode/.test(gate[1]))
+        console.log('ok   HANDBRAIN-1: the bestmove autoplay gate refuses while Hand & Brain is on');
+    else { fails++; console.log('FAIL HANDBRAIN-1: the bestmove autoplay gate does not list simon_says_mode', gate && gate[1]); }
+}
 // ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

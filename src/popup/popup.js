@@ -2539,12 +2539,12 @@ function on_engine_best_move(best, threat, isTerminal=false) {
         // a bestmove, the way every other move-path guard already lists the mode.
         if (isTerminal) {
             bgTrace('bestmove', {best, autoplay: config.autoplay, help: config.help_mode,
-                manual: config.manual_mode});
+                manual: config.manual_mode, hand_brain: config.simon_says_mode});
         }
         // Every reason autoplay can decline, said out loud in the PAGE console. This is the last
         // silent branch in the move path: a terminal bestmove arrives, the gate refuses, and nothing
         // is printed anywhere -- which is indistinguishable from the engine never answering.
-        if (isTerminal && config.autoplay && !config.help_mode && !config.manual_mode
+        if (isTerminal && config.autoplay && !config.help_mode && !config.manual_mode && !config.simon_says_mode
                 && !premove_reply_playable(last_eval.fen, best)) {
             const f = String(last_eval.fen || '');
             // A DROP (Q@b5) is a move the page side cannot make: it clicks from a square to a square.
@@ -2558,13 +2558,16 @@ function on_engine_best_move(best, threat, isTerminal=false) {
                  pieceOnFrom: (() => { try { return new Chess(config.variant, f).get(best.slice(0, 2)); }
                                        catch (e) { return 'unreadable'; } })()});
         }
-        if (isTerminal && config.autoplay && (config.help_mode || config.manual_mode)) {
+        if (isTerminal && config.autoplay && (config.help_mode || config.manual_mode || config.simon_says_mode)) {
             console.warn('Mephisto: NOT autoplaying', best,
-                config.help_mode ? '-- Help Mode is on' : '-- Manual Mode is on');
+                config.help_mode ? '-- Help Mode is on' : config.manual_mode ? '-- Manual Mode is on'
+                : '-- Hand & Brain is on');
         }
         if (isTerminal && config.autoplay && instant_reply_fen && instant_reply_fen === last_eval.fen) {
             console.log('Mephisto: this position was answered by the instant premove reply -- not playing', best);
-        } else if (!config.help_mode && !config.manual_mode && config.autoplay && isTerminal) {
+        } else if (!config.help_mode && !config.manual_mode && !config.simon_says_mode && config.autoplay && isTerminal) {
+            // Hand & Brain (simon_says_mode) shows only the piece type and the USER plays the move, so
+            // it never autoplays: the arrows are hidden but the full move used to be played anyway.
             // SAFETY: only autoplay a move that actually moves OUR piece and is legal right now.
             // If the turn was mis-scraped we'd otherwise play the opponent's best move as ours.
             // AUTO RESIGN / AUTO DRAW go in FRONT of the move: a game we are ending is not one we
