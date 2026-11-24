@@ -1138,10 +1138,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     // THE PRESET (P5 settings review): Quick / Standard / Deep as the main budget control. It used to be
     // chess.com's ladder 18/22/24/26, which the default depth 16 matched none of, so every fresh page
-    // read Custom. Deep keeps 22, the depth chess.com's Game Review runs on its Standard setting.
+    // read Custom. Deep was 22 (chess.com's Standard depth) and is 18: 22 did not finish a 44-move game
+    // in 400 s on WASM with two engines, 18 took 70 s (25.11.2026).
     const opts = [...rh.slice(rh.indexOf('id="rv_depth_preset"'), rh.indexOf('</select>', rh.indexOf('id="rv_depth_preset"')))
                     .matchAll(/<option value="(\d*)"/g)].map(m => m[1]);
-    eq('the presets are Quick 12, Standard 16, Deep 22, then Custom', opts, ['12', '16', '22', '']);
+    eq('the presets are Quick 12, Standard 16, Deep 18, then Custom', opts, ['12', '16', '18', '']);
     const ej0 = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
     const dd = /const DEPTH_DEFAULT = (\d+);/.exec(ej0)?.[1];
     ok('the default depth is a preset, so a fresh page names it instead of reading Custom', opts.includes(dd) && dd !== '', dd);

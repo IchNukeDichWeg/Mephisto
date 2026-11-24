@@ -122,17 +122,21 @@
                 </div>
 
                 <!-- THE BUDGET MOST PEOPLE NEED, as three depths. Standard is the default depth 16, so a
-                     fresh page names its preset rather than reading Custom; Deep is 22, the depth
-                     chess.com's Game Review runs on its Standard setting. Picking one switches the
+                     fresh page names its preset rather than reading Custom. Deep is 18, the deepest that
+                     finishes a 44-move game in about two minutes on WASM Stockfish 18 with two engines
+                     (M5 Pro, 25.11.2026: depth 12 4.6 s, 16 28-41 s, 18 70 s, 20 199 s, 22 over 400 s).
+                     chess.com's depth 22 stays reachable as a Budget under Advanced. Picking one switches the
                      Budget to Depth and fills its box, which stays the single source of truth; Custom is
                      listed only while the box holds a time or another depth. -->
                 <div class="set-row" data-for="own">
                     <div class="set-lbl">
                         <span data-i18n="rv.preset" data-i18n-tip="rv.tip.depth_preset" class="tooltipped" data-position="right"
                               data-tooltip="How deep the engine searches each position. Quick (depth 12) is a fast first look,
-                                            Standard (depth 16) is the default, and Deep (depth 22) is the depth chess.com's
-                                            Game Review uses on its Standard setting, so the two accuracy numbers describe the
-                                            same search. Custom appears when the Budget under Advanced is set by hand.">
+                                            Standard (depth 16) is the default, and Deep (depth 18) looks further for a slower
+                                            run. chess.com's Game Review searches at depth 22 on its Standard setting; set that
+                                            as the Budget under Advanced when you want the two accuracy numbers to describe the
+                                            same search, and expect it to take several times longer. Custom appears when the
+                                            Budget under Advanced is set by hand.">
                             Preset <i class="material-icons info-tooltip">info</i>
                         </span>
                     </div>
@@ -140,7 +144,7 @@
                         <select id="rv_depth_preset" class="rv-select browser-default">
                             <option value="12" data-i18n="rv.preset_quick">Quick - depth 12</option>
                             <option value="16" data-i18n="rv.preset_standard">Standard - depth 16</option>
-                            <option value="22" data-i18n="rv.preset_deep">Deep - depth 22</option>
+                            <option value="18" data-i18n="rv.preset_deep">Deep - depth 18</option>
                             <option value="" data-i18n="rv.custom" hidden>Custom</option>
                         </select>
                     </div>

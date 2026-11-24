@@ -197,9 +197,9 @@ Copy FEN/PGN, the engine's lines next to what a human of a chosen rating would p
 - **Any game type** - chess, Chess960, the Fairy variants, and **4-player** PGN4 through Tetrarch.
 - **Any engine at your budget** - bundled WASM or a native host, a fixed depth (default 16) or a time per move, 2-10
   lines. **CPU use** (Low, Normal or High: 1, 2 or up to 4 engines of one thread each) runs a worker pool; measured
-  64.7s down to 25.7s on the same game. A **Preset** picks the depth: Quick 12, Standard 16 or Deep 22, the depth
-  chess.com's Game Review uses on its Standard setting, because two accuracy numbers only describe the same thing if
-  they came from the same search.
+  64.7s down to 25.7s on the same game. A **Preset** picks the depth: Quick 12, Standard 16 or Deep 18 (a 44-move
+  game took about 5s, 30s and 70s with two engines). chess.com's Game Review searches at depth 22; set that as a
+  custom budget when you want the two accuracy numbers to come from the same search, and expect a much longer wait.
 - **Accuracy** on Lichess's formula: the same evals give Lichess's number, within its rounding. **Move quality** uses Lichess's win% curve with a wider ceiling (past +10 or with a mate on the board) and the same bands the panel judges live moves by, so a review
   agrees with what the panel said at the time.
 - **Eval graph**, **openings named offline** (from a bundled copy of
