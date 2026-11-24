@@ -86,17 +86,22 @@ class GeneralSettings extends SettingsPage {
         arrow_labels.registerChangeListener(sync_arrow_eval_rows);
         user_arrow_evals.registerChangeListener(sync_arrow_eval_rows);
         sync_arrow_eval_rows();
-        this.registerFormElement('arrow_rank', 'Number Arrows:', 'checkbox', true);
+        // what an arrow carries: one select over rank numbers and evals (bindPairSelect)
+        this.bindPairSelect('arrow_label_view', this.registerFormElement('arrow_rank', 'Number Arrows:', 'checkbox', true), arrow_labels,
+            {none: [false, false], rank: [true, false], eval: [false, true], both: [true, true]});
         this.registerFormElement('forced_lines', 'Forced Lines Ahead:', 'input', 0);
         // PV Arrows and its length: one "0 = off" stepper (bindOffStepper)
         this.bindOffStepper(this.registerFormElement('pv_walk', 'PV Arrows:', 'checkbox', false),
                             this.registerFormElement('pv_walk_limit', 'PV Arrows Length:', 'input', 5), 'pv_walk_view');
         this.registerFormElement('premove_plies', 'Premove Plies:', 'input', 2);
         this.registerFormElement('live_stats', 'Live Stats:', 'checkbox', false);
-        this.registerFormElement('live_classify', 'Move Classification:', 'checkbox', false);
+        const live_classify = this.registerFormElement('live_classify', 'Move Classification:', 'checkbox', false);
         this.registerFormElement('material_balance', 'Material Balance:', 'checkbox', false);
         this.registerFormElement('square_heatmap', 'Square Control Heatmap:', 'checkbox', false);
-        this.registerFormElement('class_on_board', 'Classification On The Board:', 'checkbox', false);
+        // where the badge goes: one select over the two switches (bindPairSelect)
+        this.bindPairSelect('class_where_view', live_classify,
+            this.registerFormElement('class_on_board', 'Classification On The Board:', 'checkbox', false),
+            {off: [false, false], panel: [true, false], board: [false, true], both: [true, true]});
         this.registerFormElement('streamer_alert', 'Opponent Streaming Notice:', 'checkbox', false);
         const search_mode_select = this.registerFormElement('search_mode', 'Search Budget:', 'select', 'time');
         // THE OPEN-ENDED SEARCH'S BUDGET. One slider, three units: the position is read as plies,
@@ -869,6 +874,34 @@ class GeneralSettings extends SettingsPage {
         sync();
     }
 
+    // ONE SELECT OVER TWO SWITCHES. Two on/off settings that answer one question (where a badge is
+    // drawn, what an arrow carries) show as one select whose options are the four combinations.
+    // View only: it writes the two existing keys, which stay in the row as hidden inputs bound like
+    // any other, so the panel, custom hotkeys and saved configs keep working with no migration.
+    // `values` maps each option to the [a, b] pair it stands for.
+    bindPairSelect(viewId, a, b, values) {
+        const sel = document.getElementById(viewId);
+        if (!sel || a.missing || b.missing) return;
+        const show = () => {
+            const want = Object.keys(values).find(k => values[k][0] === a.getValue() && values[k][1] === b.getValue());
+            if (!want || sel.value === want) return;
+            sel.value = want;
+            // Materialize shows its own input over the select (FormElement.setValue does the same)
+            const wrap = sel.parentElement;
+            const shown = wrap?.classList.contains('select-wrapper') ? wrap.querySelector('input.select-dropdown') : null;
+            if (shown) shown.value = sel.selectedOptions[0]?.innerText || '';
+        };
+        sel.addEventListener('change', () => {
+            const pair = values[sel.value];
+            if (!pair) return;
+            if (a.getValue() !== pair[0]) a.setValue(pair[0]);
+            if (b.getValue() !== pair[1]) b.setValue(pair[1]);
+        });
+        a.registerChangeListener(show);
+        b.registerChangeListener(show);
+        show();
+    }
+
     // "0 = OFF" STEPPERS. A switch whose only setting is a number (Time Trouble Mode and its threshold,
     // Auto Resign and its centipawns, PV Arrows and its length) shows as ONE stepper where 0 is off.
     // Storage is unchanged, so nothing needs migrating: the switch stays the source of truth (the
@@ -1030,6 +1063,8 @@ class GeneralSettings extends SettingsPage {
         let customs = MephistoConfig.hotkeyCustom();
         const saveCustoms = () => MephistoConfig.set('hotkey_custom', JSON.stringify(customs));
         const rowName = (fe) => {
+            // a switch held under a combined control (bindPairSelect) names itself by its hidden input
+            if (fe.elem?.hidden && fe.elem.title) return fe.elem.title;
             const lbl = fe.elem?.closest?.('.set-row')?.querySelector('.set-lbl');
             if (lbl) {
                 const c = lbl.cloneNode(true);

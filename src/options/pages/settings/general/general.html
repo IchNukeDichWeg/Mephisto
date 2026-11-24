@@ -525,33 +525,22 @@
                     </div>
                 </div>
 
-                <div class="set-row set-toggle">
+                <!-- ONE SELECT over the two badge switches (general.js bindPairSelect). It writes live_classify
+                     and class_on_board, which stay here as hidden inputs, so the panel and hotkeys see no change. -->
+                <div class="set-row" id="live_classify_row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.live_classify" class="tooltipped" data-position="right"
-                              data-tooltip="Grade the move just played and mark it on the panel board, the way a Game
-                                            Review does -- Brilliant, Great, Best, Inaccuracy, Mistake, Blunder -- but
-                                            live, while the game is still going. Uses the same classifier the review
-                                            uses, so a verdict here is the verdict you get afterwards. Off by default:
-                                            it is an opinion drawn on the board every move."><span data-i18n="set.live_classify">Move Classification</span></span>
+                              data-tooltip="Grade each move as it is played, the way a Game Review does -- Brilliant, Great, Best, Inaccuracy, Mistake, Blunder -- and put the verdict as a badge on the panel&#39;s board, on the site&#39;s board, or on both. It uses the same classifier the review uses, so a verdict here is the verdict you get afterwards. Off by default: it is an opinion drawn on the board every move. Under Advanced you can pick which verdicts get a badge."><span data-i18n="set.live_classify">Move Classification</span></span>
                     </div>
                     <div class="set-ctl">
-                        <input id="live_classify_checkbox" type="checkbox" class="set-cb">
-                        <label for="live_classify_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.class_on_board" class="tooltipped" data-position="right"
-                              data-tooltip="The same verdict, drawn on the SITE's board instead of the panel's -- a badge on the square the move landed on, sized to that board. Its own switch, and independent of the one above: the badge appears on the real board whether or not the panel's little board is also carrying one. The 'Show which' filter applies to both."><span data-i18n="set.class_on_board">Classification On The Board</span></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="class_on_board_checkbox" type="checkbox" class="set-cb">
-                        <label for="class_on_board_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
+                        <input id="live_classify_checkbox" type="checkbox" hidden title="Move Classification" data-i18n-title="set.live_classify">
+                        <input id="class_on_board_checkbox" type="checkbox" hidden title="Classification On The Board" data-i18n-title="set.class_on_board">
+                        <select id="class_where_view">
+                            <option value="off" data-i18n="ui.off">Off</option>
+                            <option value="panel" data-i18n="set.class_where.panel">Panel board</option>
+                            <option value="board" data-i18n="set.class_where.board">Site board</option>
+                            <option value="both" data-i18n="set.class_where.both">Both boards</option>
+                        </select>
                     </div>
                 </div>
 
@@ -594,29 +583,22 @@
                     </div>
                 </div>
 
-                <div class="set-row">
+                <!-- ONE SELECT over the two label switches (general.js bindPairSelect). It writes arrow_rank and
+                     arrow_labels, which stay here as hidden inputs, so the panel sees no change. -->
+                <div class="set-row" id="arrow_label_row">
                     <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.arrow_rank" class="tooltipped" data-position="right"
-                              data-tooltip="Number each arrow with where its line ranks: 1 for the engine's best, 2 upwards for the rest. On by default -- with more than a couple of lines the colours alone stop being enough to tell them apart."><span data-i18n="set.arrow_rank">Number Arrows</span></span>
+                        <span data-i18n-tip="set.tip.arrow_label_mode" class="tooltipped" data-position="right"
+                              data-tooltip="What is written on each engine arrow. Rank number marks where its line ranks, 1 for the engine&#39;s best, which tells the lines apart once the colours stop being enough. Evaluation writes its score: +0.35, or #3 for a mate, from White&#39;s side or the side set in Arrow Evals From; with Maia it shows how likely the move is instead. Rank number is the default."><span data-i18n="set.arrow_label_mode">Arrow Labels</span></span>
                     </div>
                     <div class="set-ctl">
-                        <input id="arrow_rank_checkbox" type="checkbox" class="set-cb">
-                        <label for="arrow_rank_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.arrow_labels" class="tooltipped" data-position="right"
-                              data-tooltip="Write each arrow's own evaluation on it: +0.35, or #3 for a mate, from White's side like every other score in the panel, or the side set in Arrow Evals From. With Maia it shows how likely the move is instead. The rank number (1 for the best line) is Number Arrows. Off by default -- useful, and also more ink on the board."><span data-i18n="set.arrow_labels">Evals on Arrows</span></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="arrow_labels_checkbox" type="checkbox" class="set-cb">
-                        <label for="arrow_labels_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
+                        <input id="arrow_rank_checkbox" type="checkbox" hidden title="Number Arrows" data-i18n-title="set.arrow_rank">
+                        <input id="arrow_labels_checkbox" type="checkbox" hidden title="Evals on Arrows" data-i18n-title="set.arrow_labels">
+                        <select id="arrow_label_view">
+                            <option value="none" data-i18n="set.arrow_label_mode.none">None</option>
+                            <option value="rank" data-i18n="set.arrow_label_mode.rank">Rank number</option>
+                            <option value="eval" data-i18n="set.arrow_label_mode.eval">Evaluation</option>
+                            <option value="both" data-i18n="set.arrow_label_mode.both">Rank and evaluation</option>
+                        </select>
                     </div>
                 </div>
 

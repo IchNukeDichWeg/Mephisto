@@ -16902,6 +16902,33 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
            && new RegExp(`registerFormElement\\('${tog}', [^\\n]*\\n\\s*this\\.registerFormElement\\('${num}', [^\\n]*'${view}'\\);`).test(gj));
     }
 }
+// ---- SIMP-SEL: one select over two switches writes the two existing keys (view only) ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const i = gj.indexOf('    bindPairSelect(viewId, a, b, values) {'), body = i < 0 ? '' : gj.slice(i, gj.indexOf('\n    }\n', i) + 7);
+    const fe = (v) => { const ls = []; const o = {missing: false, v, getValue: () => o.v, setValue: (x) => { o.v = x; ls.forEach(f => f()); }, registerChangeListener: (f) => ls.push(f)}; return o; };
+    const VALUES = {off: [false, false], panel: [true, false], board: [false, true], both: [true, true]};
+    const run = (a0, b0, pick) => {
+        const a = fe(a0), b = fe(b0), sel = {value: '', ev: {}, parentElement: null, selectedOptions: [], addEventListener(t, f) { this.ev[t] = f; }};
+        const c = vm.createContext({document: {getElementById: () => sel}, a, b, VALUES});
+        vm.runInContext(`({${body}}).bindPairSelect('x', a, b, VALUES)`, c);
+        const shown = sel.value;
+        if (pick) { sel.value = pick; sel.ev.change(); }
+        return {shown, a: a.v, b: b.v, after: sel.value};
+    };
+    const shows = [run(false, false), run(true, false), run(false, true), run(true, true)].map(r => r.shown);
+    ok('SIMP-SEL: the select shows the combination the two stored switches hold', shows.join() === 'off,panel,board,both', shows);
+    const picks = ['off', 'panel', 'board', 'both'].map(p => { const r = run(true, true, p); return [r.a, r.b, r.after]; });
+    ok('SIMP-SEL: picking an option writes both switches, and the select stays on it',
+       JSON.stringify(picks) === JSON.stringify([[false, false, 'off'], [true, false, 'panel'], [false, true, 'board'], [true, true, 'both']]), picks);
+    ok('SIMP-SEL: classification badges and arrow labels each sit in one row over their hidden pair, bound by bindPairSelect',
+       /<div class="set-row" id="live_classify_row">[\s\S]*?<input id="live_classify_checkbox" type="checkbox" hidden[\s\S]*?<input id="class_on_board_checkbox" type="checkbox" hidden[\s\S]*?<select id="class_where_view">/.test(gh)
+       && /<div class="set-row" id="arrow_label_row">[\s\S]*?<input id="arrow_rank_checkbox" type="checkbox" hidden[\s\S]*?<input id="arrow_labels_checkbox" type="checkbox" hidden[\s\S]*?<select id="arrow_label_view">/.test(gh)
+       && /this\.bindPairSelect\('class_where_view', live_classify,/.test(gj) && /this\.bindPairSelect\('arrow_label_view', this\.registerFormElement\('arrow_rank'/.test(gj));
+    ok('SIMP-SEL: the custom-hotkey picker still names each switch (its hidden input\'s title)', /if \(fe\.elem\?\.hidden && fe\.elem\.title\) return fe\.elem\.title;/.test(gj));
+}
 // ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
