@@ -12890,6 +12890,32 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const edge = pace({think_time: 0, think_variance: 0, move_time: 150, move_variance: 100});
     ok('POPUP2-5: ...as does one whose variance can carry it past the floor', edge.move_time === 200 && edge.move_variance === 0, edge);
 }
+// ---- PACE-FLOOR: Pace to Clock only ever shortens; its 150 ms travel floor never raises a faster Move Time ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.search(new RegExp('^function ' + name + '\\(', 'm')); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const consts = psrc.match(/^const CLOCK_PACE_SHARE = [^\n]*\n^const CLOCK_PACE_FLOOR_MS = [^\n]*$/m)?.[0] || '';
+    const c = vm.createContext({Number, Math});
+    // a 1000 ms budget: the human-looking part may spend 350 ms of it
+    vm.runInContext(`var config = {clock_pace: true}; function in_time_trouble() { return false; } function clock_move_budget_ms() { return 1000; }\n${consts}\n` + fn('clock_pace_timing'), c);
+    const pace = (t) => vm.runInContext(`clock_pace_timing(${JSON.stringify(t)})`, c);
+    const fast = pace({think_time: 2000, think_variance: 0, move_time: 100, move_variance: 0});
+    ok('PACE-FLOOR: a long think is cut and a 100 ms Move Time stays 100 ms (not raised to the 150 ms floor)',
+       fast.think_time < 2000 && fast.move_time === 100, fast);
+    const slow = pace({think_time: 2000, think_variance: 0, move_time: 400, move_variance: 400});
+    ok('PACE-FLOOR: ...a slower Move Time is still scaled down, never under the floor',
+       slow.move_time >= 150 && slow.move_time < 400 && slow.move_variance < 400, slow);
+    const roomy = pace({think_time: 100, think_variance: 0, move_time: 100, move_variance: 50});
+    ok('PACE-FLOOR: ...and with enough clock nothing changes', JSON.stringify(roomy) === '{"think_time":100,"think_variance":0,"move_time":100,"move_variance":50}', roomy);
+    const rnd = [];
+    for (let i = 0; i < 300; i++) {
+        const t = {think_time: (i * 37) % 3000, think_variance: (i * 53) % 2000, move_time: (i * 29) % 900, move_variance: (i * 71) % 900};
+        const o = pace(t);
+        if (!(o.think_time <= t.think_time && o.think_variance <= t.think_variance && o.move_time <= t.move_time && o.move_variance <= t.move_variance)) rnd.push([t, o]);
+    }
+    ok('PACE-FLOOR: over 300 settings no part of the delay ever grows', rnd.length === 0, rnd.slice(0, 2));
+}
 // ---- audit 3.1.331 POPUP2-6: walking the panel line stashes the walked-to position, so a panel rebuild restores it ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

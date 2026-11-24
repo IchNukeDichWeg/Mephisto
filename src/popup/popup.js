@@ -7761,8 +7761,10 @@ function clock_pace_timing(t) {
     return {
         think_time: Math.round(t.think_time * k),
         think_variance: Math.round(t.think_variance * k),
-        // the move itself keeps the floor; the pause before it is what gives way first
-        move_time: Math.max(CLOCK_PACE_FLOOR_MS, Math.round(t.move_time * k)),
+        // the move itself keeps the floor; the pause before it is what gives way first. The floor
+        // caps, it never raises: a Move Time already under it stays as set, or a long think made a
+        // 100 ms cursor travel slower exactly when the clock was short (as in time trouble above).
+        move_time: Math.min(t.move_time, Math.max(CLOCK_PACE_FLOOR_MS, Math.round(t.move_time * k))),
         move_variance: Math.round(t.move_variance * k),
     };
 }
