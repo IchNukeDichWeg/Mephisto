@@ -1263,6 +1263,15 @@ function init_quick_settings() {
         elem.addEventListener('change', () => {
             config[key] = elem.checked;
             save(key, elem.checked);
+            // ONE MOVE OWNER (move_owners_off): switching one on switches the others off here, before
+            // the keep-alive and the re-search below read them
+            for (const o of move_owners_off(key, elem.checked, config)) {
+                config[o] = false;
+                save(o, false);
+                const box = PANEL_ROOT.getElementById(HOTKEY_TOGGLES[o] || '');
+                if (box) box.checked = false;
+                if (o === 'help_mode') request_clear_hint();
+            }
             keep_alive(keep_alive_wanted(), true); // this change is a user gesture -> can (re)start the tone now
             if (key === 'help_mode' && !elem.checked) request_clear_hint();
             if (key === 'help_mode' || key === 'manual_mode' || key === 'autoplay') mark_autoplay_overridden();
@@ -9708,6 +9717,17 @@ function manual_play() {
     return true; // Manual Mode is on: swallow the key even if there was nothing to play this instant
 }
 
+// ONE MOVE OWNER. Autoplay, Help Mode, Manual Mode and Hand & Brain each decide who makes the move,
+// and the settings page shows them as one "Moves" select. Switching one ON from the panel -- its
+// toggle, its hotkey (which flips the toggle) or a custom toggle -- switches the others off, so the
+// panel never builds a combination the select cannot show (Help with Manual was the one real one;
+// the owner let it go). Switching one off leaves the rest alone. Pure: the keys to turn off when
+// `key` goes to `on`, given the current config.
+function move_owners_off(key, on, cfg) {
+    const OWNERS = ['autoplay', 'help_mode', 'manual_mode', 'simon_says_mode'];
+    return (on && OWNERS.includes(key)) ? OWNERS.filter(o => o !== key && cfg[o]) : [];
+}
+
 // ---- Hotkeys. The content script owns the keydown listener (keys land on the game page) and calls
 // this with an action name; here we perform it. Toggles flip the quick-settings checkbox and fire
 // its change event, so they reuse ALL the existing wiring (config write, push, engine re-init).
@@ -9954,6 +9974,13 @@ function custom_hotkey(i) {
         try { const v = JSON.parse(MephistoConfig.get(c.setting)); if (typeof v === 'boolean') cur = v; } catch (e) { /* unset */ }
         on = !cur;
         MephistoConfig.set(c.setting, JSON.stringify(on));
+        // Hand & Brain has no panel toggle, so it lands here: the other move owners go off through
+        // their own toggles, as a press of their keys would (move_owners_off)
+        for (const o of move_owners_off(c.setting, on, config)) {
+            const ob = PANEL_ROOT.getElementById(HOTKEY_TOGGLES[o] || '');
+            if (ob) { ob.checked = false; ob.dispatchEvent(new Event('change')); }
+            else MephistoConfig.set(o, JSON.stringify(false));
+        }
     }
     const state = on ? i18n('ui.on', 'On') : i18n('ui.off', 'Off');
     if (box || custom_hotkey_live(c.setting)) {

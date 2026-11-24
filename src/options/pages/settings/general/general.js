@@ -245,8 +245,8 @@ class GeneralSettings extends SettingsPage {
         threat_human.registerChangeListener(sync_human_reply_row);
         safety_net.registerChangeListener(sync_human_reply_row);
         sync_human_reply_row();
-        this.registerFormElement('simon_says_mode', '"Hand and Brain" Mode:', 'checkbox', false);
-        this.registerFormElement('autoplay', 'Autoplay:', 'checkbox', false);
+        const simon_says_mode = this.registerFormElement('simon_says_mode', '"Hand and Brain" Mode:', 'checkbox', false);
+        const autoplay = this.registerFormElement('autoplay', 'Autoplay:', 'checkbox', false);
         // Grind Mode rides on Autoplay -- it only ever acts while Autoplay is on -- and its delay is
         // the window in which the next game can still be called off.
         const grind_mode = this.registerFormElement('grind_mode', 'Grind Mode:', 'checkbox', false);
@@ -322,7 +322,7 @@ class GeneralSettings extends SettingsPage {
         // onExportConfigValues drops it -- a settings file is something people paste into issues.
         this.registerFormElement('lichess_token', 'Lichess API token:', 'input', '');
         this.registerFormElement('background_play', 'Background Play:', 'checkbox', false);
-        this.registerFormElement('help_mode', 'Help Mode:', 'checkbox', false);
+        const help_mode = this.registerFormElement('help_mode', 'Help Mode:', 'checkbox', false);
         this.registerFormElement('humanize', 'Humanize:', 'checkbox', false);
         // 0 = off; the panel reads it fresh per move (humanize_target), like the rest of the mix
         const humanize_target = this.registerFormElement('humanize_target_acc', 'Target Accuracy:', 'input', 0);
@@ -373,7 +373,19 @@ class GeneralSettings extends SettingsPage {
         this.bindViewSelect('clock_pacing_view', [clock_mode, mirror_mode],
             () => (mirror_mode.getValue() ? 'mirror' : clock_mode.getValue() ? 'budget' : 'off'),
             (v) => { clock_mode.setValue(v === 'budget'); mirror_mode.setValue(v === 'mirror'); });
-        this.registerFormElement('manual_mode', 'Manual Mode:', 'checkbox', false);
+        const manual_mode = this.registerFormElement('manual_mode', 'Manual Mode:', 'checkbox', false);
+        // MOVES: the four switches that decide who makes the move as one select. Picking writes exactly
+        // one of them on. A saved combination from before (Autoplay with Help Mode, say) shows as the
+        // one that wins in the panel: Hand & Brain, then Help, then Manual, each of which keeps
+        // Autoplay from playing. Premove only acts while Autoplay plays, so its row shows with it.
+        this.bindViewSelect('moves_view', [autoplay, help_mode, manual_mode, simon_says_mode],
+            () => (simon_says_mode.getValue() ? 'hand_brain' : help_mode.getValue() ? 'help'
+                : manual_mode.getValue() ? 'manual' : autoplay.getValue() ? 'autoplay' : 'off'),
+            (v) => {
+                autoplay.setValue(v === 'autoplay'); help_mode.setValue(v === 'help');
+                manual_mode.setValue(v === 'manual'); simon_says_mode.setValue(v === 'hand_brain');
+            },
+            (v) => document.getElementById('premove_row')?.classList.toggle('hidden', v !== 'autoplay'));
         this.registerFormElement('opp_alert', 'Opponent Mistake Alert:', 'checkbox', false);
         this.registerFormElement('verbose_log', 'Verbose Logging:', 'checkbox', false);
         this.initClassifyChips();

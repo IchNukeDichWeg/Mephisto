@@ -688,13 +688,27 @@
             <section id="autoplay" class="set-sec scrollspy">
                 <h3 data-i18n="set.sec.automated_play" class="set-h">Automated play</h3>
 
-                <div class="set-row set-toggle">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.autoplay" class="tooltipped" data-position="right" data-tooltip="Play the engine's move for you automatically. Everything else automated depends on this."><span data-i18n="panel.autoplay">Autoplay</span></span></div>
+                <!-- MOVES: one select over Autoplay, Help Mode, Manual Mode and Hand & Brain, the four switches
+                     that each decide who makes the move (general.js bindViewSelect). It writes exactly one of
+                     them on; the panel's toggles and hotkeys turn the others off the same way (popup.js
+                     move_owners_off). The four keys stay here as hidden inputs, named for the custom-hotkey picker. -->
+                <div class="set-row" id="moves_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.moves" class="tooltipped" data-position="right"
+                              data-tooltip="Who makes the move. Off: analysis only, you play. Autoplay: Mephisto plays the engine's move for you; Premove and what happens after the game need it. Help Mode: the engine's arrows are drawn on the site's board while it keeps thinking, and you play the move. Manual Mode: the engine keeps thinking until you press the play-move hotkey (Space by default), then plays its best move. &quot;Hand &amp; Brain&quot; Mode: Mephisto names the piece type to move and you pick the move. The panel's switches and hotkeys choose the same thing: turning one on turns the others off."><span data-i18n="set.moves">Moves</span></span>
+                    </div>
                     <div class="set-ctl">
-                        <input id="autoplay_checkbox" type="checkbox" class="set-cb">
-                        <label for="autoplay_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
+                        <input id="autoplay_checkbox" type="checkbox" hidden title="Autoplay" data-i18n-title="panel.autoplay">
+                        <input id="help_mode_checkbox" type="checkbox" hidden title="Help Mode" data-i18n-title="panel.help_mode">
+                        <input id="manual_mode_checkbox" type="checkbox" hidden title="Manual Mode" data-i18n-title="panel.manual_mode">
+                        <input id="simon_says_mode_checkbox" type="checkbox" hidden title="&quot;Hand &amp; Brain&quot; Mode" data-i18n-title="set.hand_brain_mode">
+                        <select id="moves_view">
+                            <option value="off" data-i18n="ui.off">Off</option>
+                            <option value="autoplay" data-i18n="panel.autoplay">Autoplay</option>
+                            <option value="help" data-i18n="panel.help_mode">Help Mode</option>
+                            <option value="manual" data-i18n="panel.manual_mode">Manual Mode</option>
+                            <option value="hand_brain" data-i18n="set.hand_brain_mode">"Hand &amp; Brain" Mode</option>
+                        </select>
                     </div>
                 </div>
 
@@ -738,7 +752,7 @@
                     </div>
                 </div>
 
-                <div class="set-row set-toggle">
+                <div class="set-row set-toggle" id="premove_row">
                     <div class="set-lbl">
                         <span data-i18n="panel.premove">Premove</span>
                         <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.while_the_opponent_thinks_certify"
@@ -752,55 +766,6 @@
                     <div class="set-ctl">
                         <input id="premove_checkbox" type="checkbox" class="set-cb">
                         <label for="premove_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row set-toggle">
-                    <div class="set-lbl">
-                        <span data-i18n="panel.help_mode">Help Mode</span>
-                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.instead_of_autoplaying_all_analysi"
-                              data-tooltip="Instead of autoplaying, all analysis arrows are drawn directly on the
-                                            site's board while the engine keeps evaluating -- play the move yourself
-                                            when ready. Overrides Autoplay while on."><i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="help_mode_checkbox" type="checkbox" class="set-cb">
-                        <label for="help_mode_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row set-toggle">
-                    <div class="set-lbl">
-                        <span data-i18n="panel.manual_mode">Manual Mode</span>
-                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.the_engine_keeps_thinking_until"
-                              data-tooltip="The engine keeps thinking until YOU press the play-move hotkey (Spacebar
-                                            by default -- rebind it under Hotkeys below), then it plays the best move it
-                                            has found. Your own timing: overrides the Clock/Mirror/Humanize timing and
-                                            never fires on its own."><i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="manual_mode_checkbox" type="checkbox" class="set-cb">
-                        <label for="manual_mode_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row set-toggle">
-                    <div class="set-lbl">
-                        <span data-i18n="set.hand_brain_mode">"Hand &amp; Brain" Mode</span>
-                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.mephisto_plays_as_the_brain"
-                              data-tooltip="Mephisto plays as the &quot;Brain&quot;, choosing which piece type to
-                                            move, and you play as the &quot;Hand&quot;, selecting the specific legal
-                                            move for that piece."><i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="simon_says_mode_checkbox" type="checkbox" class="set-cb">
-                        <label for="simon_says_mode_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
                     </div>

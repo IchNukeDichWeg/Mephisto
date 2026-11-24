@@ -1699,8 +1699,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
             PANEL_ROOT: {getElementById: (id) => id === 'qs_autoplay' ? box : null},
             i18n: (k, d, v) => v ? d.replace('{name}', v.name).replace('{state}', v.state) : d,
             set_idle_reason: (t) => said.push(t), panel_reload: () => reloads.push(1), setTimeout: (f) => f(),
-            PANEL_BOOTED: true});   // the delayed reopen only rebuilds a panel still open (POPUP3-3)
-        vm.runInContext(fnSrc('custom_hotkey_live') + fnSrc('custom_hotkey'), pc);
+            PANEL_BOOTED: true, config: {}});   // the delayed reopen only rebuilds a panel still open (POPUP3-3)
+        vm.runInContext(fnSrc('custom_hotkey_live') + fnSrc('custom_hotkey') + fnSrc('move_owners_off'), pc);
         const run = (slots, i) => { pc.slots = slots; return vm.runInContext(`custom_hotkey(${i})`, pc); };
         ok('custom hotkey: an unassigned slot does nothing and leaves the key to the site', run([{setting: ''}], 0) === false);
         ok('...a setting with a quick-settings checkbox flips that checkbox through its change event',
@@ -1717,6 +1717,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         ok('...a setting the panel only reads at open is written AND the panel reopens to apply it',
            run([{setting: 'coordinates', label: 'Coordinates', def: false}], 0) === true && st.coordinates === 'true'
            && reloads.length === 1 && /reopening/.test(said.at(-1)));
+        // SIMP-MOVES: Hand & Brain has no quick toggle; on through a custom key it turns Autoplay off
+        // through Autoplay's own checkbox, and Help Mode (no checkbox in this stub) in storage
+        pc.config = {autoplay: true, help_mode: true}; box.checked = true; const fired0 = box.fired;
+        ok('SIMP-MOVES: ...Hand & Brain on through a custom key turns the other move owners off (Autoplay through its checkbox)',
+           run([{setting: 'simon_says_mode', label: 'Hand & Brain', def: false}], 0) === true && st.simon_says_mode === 'true'
+           && box.checked === false && box.fired === fired0 + 1 && st.help_mode === 'false', {st, box: box.checked});
         ok('...wired: do_hotkey routes Custom 1/2 here, and the cheat sheet names the setting',
            /if \(MephistoConfig\.HOTKEY_CUSTOM\.includes\(action\)\) return custom_hotkey\(MephistoConfig\.HOTKEY_CUSTOM\.indexOf\(action\)\);/.test(psrc)
            && /labels\[MephistoConfig\.HOTKEY_CUSTOM\[i\]\] = i18n\('panel\.shortcuts_custom'/.test(psrc));
@@ -13052,8 +13058,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const pc = vm.createContext({console: {log() {}}, st, MephistoConfig: {get: (k) => st[k] ?? null, set: (k, v) => { st[k] = v; },
             hotkeyCustom: () => [{setting: 'coordinates', label: 'Coordinates', def: false}]}, HOTKEY_TOGGLES: {}, LIVE_CONFIG_KEYS: [],
             PANEL_ROOT: {getElementById: () => null}, i18n: (k, d) => d, set_idle_reason() {}, panel_reload: () => reloads.push(1),
-            setTimeout: (f) => timers.push(f), PANEL_BOOTED: true});
-        vm.runInContext(fnSrc('custom_hotkey_live') + fnSrc('custom_hotkey'), pc);
+            setTimeout: (f) => timers.push(f), PANEL_BOOTED: true, config: {}});
+        vm.runInContext(fnSrc('custom_hotkey_live') + fnSrc('custom_hotkey') + fnSrc('move_owners_off'), pc);
         vm.runInContext('custom_hotkey(0)', pc); timers.shift()();
         ok('POPUP3-3: control: a reload-only custom hotkey reopens an open panel', reloads.length === 1 && st.coordinates === 'true');
         vm.runInContext('custom_hotkey(0)', pc); pc.PANEL_BOOTED = false; timers.shift()();
@@ -16727,7 +16733,9 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
             get: (t, k) => { if (k in t) return t[k]; if (k === Symbol.unscopables) return undefined;
                 return (...a) => { calls.push(k); if (k === 'our_side') return 'white'; if (k === 'is_remote') return false; }; },
             set: (t, k, v) => { t[k] = v; return true; }});
-        try { new Function('S', `with (S) { ${psrc.slice(s, e)}; init_quick_settings(); }`)(S); } catch (err) { return {err: err.message}; }
+        // the toggles call move_owners_off (SIMP-MOVES), a top-level function outside the slice: the real one
+        const mo = psrc.slice(psrc.indexOf('function move_owners_off('), psrc.indexOf('\n}\n', psrc.indexOf('function move_owners_off(')) + 3);
+        try { new Function('S', `with (S) { ${mo}\n${psrc.slice(s, e)}; init_quick_settings(); }`)(S); } catch (err) { return {err: err.message}; }
         calls.length = 0; act(el);
         return {calls, fen: st.last_eval.fen};
     };
@@ -17044,6 +17052,57 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
            fresh.marked === '1' && fresh.owner === null && JSON.parse(saved.hk).autoplay === 'a' && !('clock_pace' in JSON.parse(saved.hk)) && saved.owner === null
            && JSON.parse(saved.custom).map(x => x.setting).join() === ',refute' && done.owner === 'clock_pace', {fresh, saved, done});
     });
+}
+// ---- SIMP-MOVES: one Moves select over the four move owners; the panel keeps them exclusive ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = gj.indexOf('    bindViewSelect(viewId, elems, read, write, onShow) {'), body = i < 0 ? '' : gj.slice(i, gj.indexOf('\n    }\n', i) + 7);
+    const a = gj.indexOf("        this.bindViewSelect('moves_view',"), b = gj.indexOf("classList.toggle('hidden', v !== 'autoplay'));\n", a) + 47;
+    const wiring = a < 0 ? '' : gj.slice(a, b);
+    const fe = (v) => { const ls = []; const o = {missing: false, v, getValue: () => o.v, setValue: (x) => { o.v = x; ls.forEach(f => f()); }, registerChangeListener: (f) => ls.push(f)}; return o; };
+    const run = (st, picks = []) => {
+        const autoplay = fe(st[0]), help_mode = fe(st[1]), manual_mode = fe(st[2]), simon_says_mode = fe(st[3]);
+        let premoveHidden = null;
+        const sel = {value: '', ev: {}, parentElement: null, selectedOptions: [], addEventListener(t, f) { this.ev[t] = f; }};
+        const document = {getElementById: (id) => id === 'moves_view' ? sel : {classList: {toggle: (c, on) => { premoveHidden = on; }}}};
+        const c = vm.createContext({document, autoplay, help_mode, manual_mode, simon_says_mode});
+        vm.runInContext(`const page = {${body}}; (function () { ${wiring} }).call(page);`, c);
+        const snap = () => [sel.value, autoplay.v, help_mode.v, manual_mode.v, simon_says_mode.v, premoveHidden];
+        const out = [snap()];
+        for (const p of picks) { sel.value = p; sel.ev.change(); out.push(snap()); }
+        return out;
+    };
+    const F = false, T = true;
+    const shown = [[F, F, F, F], [T, F, F, F], [F, T, F, F], [F, F, T, F], [F, F, F, T], [T, T, F, F], [T, F, T, F], [F, T, T, F], [T, T, T, T]].map(s => run(s)[0][0]);
+    ok('SIMP-MOVES: the select shows the owner the panel obeys: Hand & Brain, then Help, then Manual, then Autoplay',
+       shown.join() === 'off,autoplay,help,manual,hand_brain,help,manual,help,hand_brain', shown);
+    const st = run([T, T, F, F], ['manual', 'autoplay', 'hand_brain', 'off', 'help']);
+    ok('SIMP-MOVES: picking writes exactly one owner on (none for Off), and Premove shows only under Autoplay',
+       JSON.stringify(st) === JSON.stringify([['help', T, T, F, F, T], ['manual', F, F, T, F, T], ['autoplay', T, F, F, F, F],
+           ['hand_brain', F, F, F, T, T], ['off', F, F, F, F, T], ['help', F, T, F, F, T]]), st);
+    ok('SIMP-MOVES: one row holds the four hidden switches (named for the custom-hotkey picker) and the select; the old rows are gone; Premove has its id',
+       /<div class="set-row" id="moves_row">[\s\S]*?<input id="autoplay_checkbox" type="checkbox" hidden title="Autoplay" data-i18n-title="panel\.autoplay">\s*<input id="help_mode_checkbox" type="checkbox" hidden[^>]*>\s*<input id="manual_mode_checkbox" type="checkbox" hidden[^>]*>\s*<input id="simon_says_mode_checkbox" type="checkbox" hidden[^>]*>\s*<select id="moves_view">/.test(gh)
+       && ['autoplay', 'help_mode', 'manual_mode', 'simon_says_mode'].every(k => (gh.match(new RegExp(`id="${k}_checkbox"`, 'g')) || []).length === 1)
+       && /<div class="set-row set-toggle" id="premove_row">/.test(gh));
+    // the panel: pure rule, and both write paths use it
+    const f = psrc.slice(psrc.indexOf('function move_owners_off('), psrc.indexOf('\n}\n', psrc.indexOf('function move_owners_off(')) + 3);
+    const c = vm.createContext({}); vm.runInContext(f, c);
+    const off = (k, on, cfg) => vm.runInContext(`move_owners_off(${JSON.stringify(k)}, ${on}, ${JSON.stringify(cfg)})`, c);
+    const all = {autoplay: true, help_mode: true, manual_mode: true, simon_says_mode: true, premove: true};
+    ok('SIMP-MOVES: panel rule: one owner switched on takes the others that are on off; switching off, or any other toggle, touches nothing',
+       off('autoplay', true, all).join() === 'help_mode,manual_mode,simon_says_mode' && off('help_mode', true, {autoplay: true}).join() === 'autoplay'
+       && off('simon_says_mode', true, {manual_mode: true, autoplay: false}).join() === 'manual_mode'
+       && off('autoplay', false, all).length === 0 && off('premove', true, all).length === 0, [off('autoplay', true, all), off('help_mode', true, {autoplay: true})]);
+    ok('SIMP-MOVES: the quick toggles (and so their hotkeys) and the custom toggles both apply it, before the keep-alive reads the owners',
+       /save\(key, elem\.checked\);\n\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*for \(const o of move_owners_off\(key, elem\.checked, config\)\) \{\n\s*config\[o\] = false;\n\s*save\(o, false\);[\s\S]{0,260}\n\s*\}\n\s*keep_alive\(keep_alive_wanted\(\), true\);/.test(psrc)
+       && /for \(const o of move_owners_off\(c\.setting, on, config\)\) \{\n\s*const ob = PANEL_ROOT\.getElementById\(HOTKEY_TOGGLES\[o\] \|\| ''\);\n\s*if \(ob\) \{ ob\.checked = false; ob\.dispatchEvent\(new Event\('change'\)\); \}/.test(psrc));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-MOVES: label and tip in all 14 locales; the options reuse the panel names; the four per-row settings tips are gone',
+       locs.length === 14 && locs.every(l => l['set.moves'] && l['set.tip.moves'] && l['panel.autoplay'] && l['panel.help_mode'] && l['panel.manual_mode'] && l['set.hand_brain_mode']
+           && !('set.tip.instead_of_autoplaying_all_analysi' in l) && !('set.tip.mephisto_plays_as_the_brain' in l)));
 }
 // ---- SIMP-SEL: one select over two switches writes the two existing keys (view only) ----
 {

@@ -275,7 +275,9 @@ software did not change, the measurement did.
 
 ### Automated play
 
-- **Autoplay** plays the engine's move. **Help Mode** draws the arrows instead and overrides it.
+- **Moves** - who makes the move, one at a time: **Autoplay** plays the engine's move, **Help Mode** draws the arrows on
+  the site's board instead, **Manual Mode** plays on your key, and **Hand & Brain** names the piece and leaves the move
+  to you. The panel keeps its own toggles and hotkeys for these; switching one on switches the others off.
 - **Premove** (safe) - certifies a reply to the opponent's *predicted* move by finding the same move at depth 13, depth
   14 and the latest depth. A match fires instantly and anything else searches normally, so a wrong guess costs nothing.
   Forced moves and true recaptures queue as a real site premove.
