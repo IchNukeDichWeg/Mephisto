@@ -172,20 +172,6 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.premove_plies" class="tooltipped" data-position="right"
-                              data-tooltip="How many premoves a forced sequence may queue in one click session, 1-5 (default 2). Chess.com queues them all; lichess REPLACES a queued premove rather than queueing another, so anything past the first is chess.com-only. Every queued move follows the same certainty rule as the forced-lines arrows: the opponent's replies must be their only legal move and agree with the engine's line."><span data-i18n="set.premove_plies">Premove Plies</span></span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="premove_plies_input" type="number" min="1" max="5" step="1">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.second_opinion" class="tooltipped" data-position="right"
                               data-tooltip="Ask a human-trained net what a player of the Human Reply Rating would play HERE, beside the engine&#39;s own answer, and say so when the two come apart - when the engine&#39;s move is one this rating almost never finds. Two questions, not one: what is best, and what a person actually plays. Costs one forward pass on a net the threat reply already loads, so with Human Reply on it is free. Standard chess only."><span data-i18n="set.second_opinion">Second Opinion</span> <i class="material-icons info-tooltip">info</i></span>
                     </div>
@@ -344,57 +330,6 @@
                     <div class="set-ctl">
                         <input id="human_times_checkbox" type="checkbox" class="set-cb">
                         <label for="human_times_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.auto_resign" class="tooltipped" data-position="right"
-                              data-tooltip="Resign when the game is gone. The score has to stay below the threshold
-                                            for three of YOUR turns running, so one deep line at one depth cannot
-                                            end a game. Needs Autoplay, presses the site's own resign button and
-                                            confirms it, and does it once - after that no move is played into a
-                                            game you have resigned. Off unless you switch it on, for the obvious
-                                            reason."><span data-i18n="set.auto_resign">Auto Resign</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="auto_resign_checkbox" type="checkbox" class="set-cb">
-                        <label for="auto_resign_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row" id="auto_resign_cp_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.auto_resign_cp" class="tooltipped" data-position="right"
-                              data-tooltip="How far behind counts as gone, in centipawns, 100 to 3000. 900 is a
-                                            queen."><span data-i18n="set.auto_resign_cp">Resign Below (cp)</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-100">&minus;</button>
-                            <input id="auto_resign_cp_input" type="number" min="100" max="3000" step="100">
-                            <button type="button" class="set-step-btn" data-step="100">+</button>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.auto_draw" class="tooltipped" data-position="right"
-                              data-tooltip="Offer a draw in a position neither side can change: the score within a
-                                            fifth of a pawn either way, for three of YOUR turns running, and past move 20 -
-                                            nobody offers a draw on move six. Needs Autoplay, and it offers ONCE per
-                                            game, because a declined offer repeated every move is what gets people
-                                            muted. The move is still played: offering a draw is something you do
-                                            alongside a move, not instead of one."><span data-i18n="set.auto_draw">Auto Draw Offer</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="auto_draw_checkbox" type="checkbox" class="set-cb">
-                        <label for="auto_draw_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
                     </div>
@@ -1281,6 +1216,79 @@
                     <div class="set-ctl">
                         <textarea id="bot_trick_pgn_input" rows="4" class="set-ta" spellcheck="false"
                                   placeholder="1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7#"></textarea>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.auto_resign" class="tooltipped" data-position="right"
+                              data-tooltip="Resign when the game is gone. The score has to stay below the threshold
+                                            for three of YOUR turns running, so one deep line at one depth cannot
+                                            end a game. Needs Autoplay, presses the site's own resign button and
+                                            confirms it, and does it once - after that no move is played into a
+                                            game you have resigned. Off unless you switch it on, for the obvious
+                                            reason."><span data-i18n="set.auto_resign">Auto Resign</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="auto_resign_checkbox" type="checkbox" class="set-cb">
+                        <label for="auto_resign_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row" id="auto_resign_cp_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.auto_resign_cp" class="tooltipped" data-position="right"
+                              data-tooltip="How far behind counts as gone, in centipawns, 100 to 3000. 900 is a
+                                            queen."><span data-i18n="set.auto_resign_cp">Resign Below (cp)</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-100">&minus;</button>
+                            <input id="auto_resign_cp_input" type="number" min="100" max="3000" step="100">
+                            <button type="button" class="set-step-btn" data-step="100">+</button>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.auto_draw" class="tooltipped" data-position="right"
+                              data-tooltip="Offer a draw in a position neither side can change: the score within a
+                                            fifth of a pawn either way, for three of YOUR turns running, and past move 20 -
+                                            nobody offers a draw on move six. Needs Autoplay, and it offers ONCE per
+                                            game, because a declined offer repeated every move is what gets people
+                                            muted. The move is still played: offering a draw is something you do
+                                            alongside a move, not instead of one."><span data-i18n="set.auto_draw">Auto Draw Offer</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="auto_draw_checkbox" type="checkbox" class="set-cb">
+                        <label for="auto_draw_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- ADVANCED: rows set once or never, behind one closed disclosure (SettingsPage.wireAdvanced).
+                     The rows inside are ordinary rows; ids and bindings are unchanged. -->
+                <div class="set-adv" data-adv="autoplay">
+                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="autoplay_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
+                    <div class="set-adv-body" id="autoplay_adv" hidden>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.premove_plies" class="tooltipped" data-position="right"
+                              data-tooltip="How many premoves a forced sequence may queue in one click session, 1-5 (default 2). Chess.com queues them all; lichess REPLACES a queued premove rather than queueing another, so anything past the first is chess.com-only. Every queued move follows the same certainty rule as the forced-lines arrows: the opponent's replies must be their only legal move and agree with the engine's line."><span data-i18n="set.premove_plies">Premove Plies</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                            <input id="premove_plies_input" type="number" min="1" max="5" step="1">
+                            <button type="button" class="set-step-btn" data-step="1">+</button>
+                        </span>
+                    </div>
+                </div>
                     </div>
                 </div>
             </section>
