@@ -243,6 +243,7 @@
   "set.simulated_move_time_ms": "Symulowany czas ruchu (ms)",
   "panel.tab_play": "Gra",
   "panel.tab_engine": "Silnik",
+  "panel.more": "Więcej",
   "set.sec.panel": "Panel",
   "set.sec.automated_play": "Gra automatyczna",
   "set.moves": "Ruchy",

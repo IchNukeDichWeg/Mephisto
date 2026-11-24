@@ -243,6 +243,7 @@
   "set.simulated_move_time_ms": "Benzetilmiş hamle süresi (ms)",
   "panel.tab_play": "Oyna",
   "panel.tab_engine": "Motor",
+  "panel.more": "Daha fazla",
   "set.sec.panel": "Panel",
   "set.sec.automated_play": "Otomatik oyun",
   "set.moves": "Hamleler",

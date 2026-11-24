@@ -130,38 +130,9 @@
     <div class="qs-panels">
       <div class="qs-panel qs-on" id="qsp_play" role="tabpanel">
     <div class="qs-row qs-toggle">
-        <input id="qs_premove" type="checkbox" class="qs-cb">
-        <label for="qs_premove" data-i18n="panel.premove" data-i18n-tip="panel.tip.while_the_opponent_thinks_certify" class="qs-label tooltipped" data-position="left"
-              data-tooltip="While the opponent thinks, certify a reply to their predicted move -- the same at depth 13, depth 14 and the latest depth, or, on a Maia engine, produced by a second inference of the same net on the predicted position. If they play exactly that move, answer instantly; anything else searches normally. If the reply could never be legal after any other opponent move (forced moves, recaptures), it's queued as a real premove immediately -- an illegal premove gets auto-cancelled. Never fires in a wrong position. Needs Autoplay.">Premove</label>
-    </div>
-    <div class="qs-row qs-toggle">
-        <input id="qs_manual" type="checkbox" class="qs-cb">
-        <label for="qs_manual" data-i18n="panel.manual_mode" data-i18n-tip="panel.tip.the_engine_keeps_thinking_until" class="qs-label tooltipped" data-position="left"
-              data-tooltip="The engine keeps thinking until YOU press the play-move hotkey (Spacebar by default), then it plays the best move it has found. Your own timing - overrides Clock/Mirror/Humanize timing and never fires on its own. Rebind the key in Settings → Hotkeys.">Manual Mode</label>
-    </div>
-    <div class="qs-row qs-toggle">
         <input id="qs_humanize" type="checkbox" class="qs-cb">
         <label for="qs_humanize" data-i18n="panel.humanize" data-i18n-tip="panel.tip.play_like_a_human_instant" class="qs-label tooltipped" data-position="left"
               data-tooltip="Play like a human: instant recaptures and forced moves, quick obvious moves, long thinks in critical positions -- and occasionally a second-best move, a mistake, or (rarely) a blunder. Priority - Time: Mirror > Clock > Humanize > Search Time (first one enabled sets the duration; recaptures & forced moves always instant). Move: Humanize > engine best.">Humanize</label>
-    </div>
-    <div class="qs-row qs-toggle">
-        <input id="qs_clock" type="checkbox" class="qs-cb">
-        <label for="qs_clock" data-i18n="panel.clock_mode" data-i18n-tip="panel.tip.read_the_game_clock_off" class="qs-label tooltipped" data-position="left"
-              data-tooltip="Read the game clock off the page and budget every move to it: roughly time/30 plus 60% of the increment, shrinking the engine search too, near-instant when short on time. Priority - Time: Mirror > Clock > Humanize > Search Time (first one enabled sets the duration; recaptures & forced moves always instant). Move: Humanize > engine best.">Clock Mode</label>
-    </div>
-    <div class="qs-row qs-toggle">
-        <input id="qs_mirror" type="checkbox" class="qs-cb">
-        <label for="qs_mirror" data-i18n="panel.mirror_time" data-i18n-tip="panel.tip.pace_to_the_opponent_instead" class="qs-label tooltipped" data-position="left"
-              data-tooltip="Pace to the opponent instead: spend what they spent on their last move, times your Mirror Ratio (default 90%), staying just ahead on the clock (30% extra haste when behind). Uses the Clock Mode budget for the first move / when their spend is unknown. Recaptures and forced moves stay instant. Priority - Time: Mirror > Clock > Humanize > Search Time (first one enabled sets the duration; recaptures & forced moves always instant). Move: Humanize > engine best.">Mirror Time</label>
-    </div>
-    <div class="qs-row qs-nums">
-        <span data-i18n="panel.move_time_ms" data-i18n-tip="panel.tip.move_time" class="qs-label tooltipped" data-position="left"
-              data-tooltip="How long the mouse takes to play the move once it is chosen (longer for long moves), plus a random extra of up to the same amount. The pause before it is Simulated Think Time.">Move Time (ms)</span>
-        <div class="qs-stepper">
-            <button class="qs-step" type="button" tabindex="-1" data-for="qs_move" data-d="-1" aria-label="less">&minus;</button>
-            <input id="qs_move" class="browser-default" type="number" min="0" step="25">
-            <button class="qs-step" type="button" tabindex="-1" data-for="qs_move" data-d="1" aria-label="more">+</button>
-        </div>
     </div>
     <div class="qs-row qs-toggle">
         <input id="qs_help" type="checkbox" class="qs-cb">
@@ -172,16 +143,6 @@
         <input id="qs_evalbar" type="checkbox" class="qs-cb">
         <label for="qs_evalbar" data-i18n="panel.eval_bar" data-i18n-tip="panel.tip.show_a_vertical_evaluation_bar" class="qs-label tooltipped" data-position="left"
               data-tooltip="Show a vertical evaluation bar to the left of the game board, with the score shown inside it (chess.com-style).">Eval Bar</label>
-    </div>
-    <div class="qs-row qs-toggle">
-        <input id="qs_evalhist" type="checkbox" class="qs-cb">
-        <label for="qs_evalhist" data-i18n="panel.eval_history" data-i18n-tip="panel.tip.a_graph_under_the_board" class="qs-label tooltipped" data-position="left"
-              data-tooltip="A graph under the board showing the whole game so far: white's advantage above the midline, black's below, with the opening/middlegame/endgame boundaries marked.">Eval History</label>
-    </div>
-    <div class="qs-row qs-toggle">
-        <input id="qs_livestats" type="checkbox" class="qs-cb">
-        <label for="qs_livestats" data-i18n="panel.live_stats" data-i18n-tip="panel.tip.live_stats" class="qs-label tooltipped" data-position="left"
-              data-tooltip="Live game grades on a strip under the eval history: a running accuracy for both sides, and each notable move named with the classifier's own verdict -- Brilliant, Miss, Blunder and the rest, worst first, in the verdict's colour. The same classifier Game Review uses, so the strip and the review afterwards agree.">Live Stats</label>
     </div>
     <div class="qs-row qs-toggle">
         <input id="qs_puzzle" type="checkbox" class="qs-cb">
@@ -203,7 +164,52 @@
                 class="tooltipped" data-position="left" data-i18n-tip="panel.tip.bot_draw" data-tooltip="Accept a draw the bot never offered. Ends the game immediately, from any position.">Draw</button>
         </div>
     </div>
-      </div>
+      <!-- MORE: the rows you set once and leave. Folded by default; every control keeps its id, its binding and its
+     hotkey, so a folded row still works from the keyboard and from the settings page. One state for both
+     tabs (config key panel_more, init_quick_settings). -->
+<button id="qs_more_play" class="qs-more-btn" type="button" aria-expanded="false" aria-controls="qs_more_play_body"><span class="qs-more-chev" aria-hidden="true">&#9656;</span><span data-i18n="panel.more">More</span></button>
+<div class="qs-more" id="qs_more_play_body" hidden>
+    <div class="qs-row qs-toggle">
+        <input id="qs_premove" type="checkbox" class="qs-cb">
+        <label for="qs_premove" data-i18n="panel.premove" data-i18n-tip="panel.tip.while_the_opponent_thinks_certify" class="qs-label tooltipped" data-position="left"
+              data-tooltip="While the opponent thinks, certify a reply to their predicted move -- the same at depth 13, depth 14 and the latest depth, or, on a Maia engine, produced by a second inference of the same net on the predicted position. If they play exactly that move, answer instantly; anything else searches normally. If the reply could never be legal after any other opponent move (forced moves, recaptures), it's queued as a real premove immediately -- an illegal premove gets auto-cancelled. Never fires in a wrong position. Needs Autoplay.">Premove</label>
+    </div>
+    <div class="qs-row qs-toggle">
+        <input id="qs_manual" type="checkbox" class="qs-cb">
+        <label for="qs_manual" data-i18n="panel.manual_mode" data-i18n-tip="panel.tip.the_engine_keeps_thinking_until" class="qs-label tooltipped" data-position="left"
+              data-tooltip="The engine keeps thinking until YOU press the play-move hotkey (Spacebar by default), then it plays the best move it has found. Your own timing - overrides Clock/Mirror/Humanize timing and never fires on its own. Rebind the key in Settings → Hotkeys.">Manual Mode</label>
+    </div>
+    <div class="qs-row qs-toggle">
+        <input id="qs_clock" type="checkbox" class="qs-cb">
+        <label for="qs_clock" data-i18n="panel.clock_mode" data-i18n-tip="panel.tip.read_the_game_clock_off" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Read the game clock off the page and budget every move to it: roughly time/30 plus 60% of the increment, shrinking the engine search too, near-instant when short on time. Priority - Time: Mirror > Clock > Humanize > Search Time (first one enabled sets the duration; recaptures & forced moves always instant). Move: Humanize > engine best.">Clock Mode</label>
+    </div>
+    <div class="qs-row qs-toggle">
+        <input id="qs_mirror" type="checkbox" class="qs-cb">
+        <label for="qs_mirror" data-i18n="panel.mirror_time" data-i18n-tip="panel.tip.pace_to_the_opponent_instead" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Pace to the opponent instead: spend what they spent on their last move, times your Mirror Ratio (default 90%), staying just ahead on the clock (30% extra haste when behind). Uses the Clock Mode budget for the first move / when their spend is unknown. Recaptures and forced moves stay instant. Priority - Time: Mirror > Clock > Humanize > Search Time (first one enabled sets the duration; recaptures & forced moves always instant). Move: Humanize > engine best.">Mirror Time</label>
+    </div>
+    <div class="qs-row qs-nums">
+        <span data-i18n="panel.move_time_ms" data-i18n-tip="panel.tip.move_time" class="qs-label tooltipped" data-position="left"
+              data-tooltip="How long the mouse takes to play the move once it is chosen (longer for long moves), plus a random extra of up to the same amount. The pause before it is Simulated Think Time.">Move Time (ms)</span>
+        <div class="qs-stepper">
+            <button class="qs-step" type="button" tabindex="-1" data-for="qs_move" data-d="-1" aria-label="less">&minus;</button>
+            <input id="qs_move" class="browser-default" type="number" min="0" step="25">
+            <button class="qs-step" type="button" tabindex="-1" data-for="qs_move" data-d="1" aria-label="more">+</button>
+        </div>
+    </div>
+    <div class="qs-row qs-toggle">
+        <input id="qs_evalhist" type="checkbox" class="qs-cb">
+        <label for="qs_evalhist" data-i18n="panel.eval_history" data-i18n-tip="panel.tip.a_graph_under_the_board" class="qs-label tooltipped" data-position="left"
+              data-tooltip="A graph under the board showing the whole game so far: white's advantage above the midline, black's below, with the opening/middlegame/endgame boundaries marked.">Eval History</label>
+    </div>
+    <div class="qs-row qs-toggle">
+        <input id="qs_livestats" type="checkbox" class="qs-cb">
+        <label for="qs_livestats" data-i18n="panel.live_stats" data-i18n-tip="panel.tip.live_stats" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Live game grades on a strip under the eval history: a running accuracy for both sides, and each notable move named with the classifier's own verdict -- Brilliant, Miss, Blunder and the rest, worst first, in the verdict's colour. The same classifier Game Review uses, so the strip and the review afterwards agree.">Live Stats</label>
+    </div>
+</div>
+</div>
 
       <div class="qs-panel" id="qsp_engine" role="tabpanel">
 <div class="qs-row" id="qs_elo_row">
@@ -277,6 +283,26 @@
             </select>
         </div>
     </div>
+    <div class="qs-row qs-oneline" id="qs_engine_id_row">
+        <span data-i18n="panel.engine_id" data-i18n-tip="panel.tip.engine_id" class="qs-label tooltipped" data-position="left"
+              data-tooltip="What is actually loaded right now: the engine build the panel asked for, and the neural net it reported loading. A build and a net are two different things - a dev Stockfish with an old net is not the engine you think you are running, and nothing else on this panel would tell you.">Loaded</span>
+        <span id="qs_engine_id" class="qs-value">-</span>
+    </div>
+    <div class="qs-row qs-oneline">
+        <span data-i18n="panel.copy_analysis" data-i18n-tip="panel.tip.copy_analysis" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Copy the position and what the engine says about it as plain text: the FEN, the score and depth, and every candidate line with its own score. For a note, a message or an issue - it is the panel's answer in a form you can paste.">Copy Analysis</span>
+        <button id="qs_copyanalysis" type="button" data-i18n="panel.copy">Copy</button>
+    </div>
+    <div class="qs-row qs-oneline">
+        <span data-i18n="panel.reanalyse" data-i18n-tip="panel.tip.reanalyse" class="qs-label tooltipped" data-position="left"
+              data-tooltip="Throw away the current answer and search this same position again from scratch. For when a setting changed under a search, or the readout looks stale and you would rather not move a piece to find out. The board is not touched.">Re-analyse</span>
+        <button id="qs_reanalyse" type="button" data-i18n="panel.run">Run</button>
+    </div>
+<!-- MORE: the rows you set once and leave. Folded by default; every control keeps its id, its binding and its
+     hotkey, so a folded row still works from the keyboard and from the settings page. One state for both
+     tabs (config key panel_more, init_quick_settings). -->
+<button id="qs_more_engine" class="qs-more-btn" type="button" aria-expanded="false" aria-controls="qs_more_engine_body"><span class="qs-more-chev" aria-hidden="true">&#9656;</span><span data-i18n="panel.more">More</span></button>
+<div class="qs-more" id="qs_more_engine_body" hidden>
     <!-- Threads, then lines, then hash: threads is what changes where the search can go, hash is
          what you set once. Threads and lines STEP by one rather than slide -- both are small
          integer counts where every value matters, and a 24-stop slider cannot hit them reliably.
@@ -362,21 +388,6 @@
             <option data-i18n="set.style_fighter" value="fighter">Fighter</option>
         </select>
     </div>
-    <div class="qs-row qs-oneline" id="qs_engine_id_row">
-        <span data-i18n="panel.engine_id" data-i18n-tip="panel.tip.engine_id" class="qs-label tooltipped" data-position="left"
-              data-tooltip="What is actually loaded right now: the engine build the panel asked for, and the neural net it reported loading. A build and a net are two different things - a dev Stockfish with an old net is not the engine you think you are running, and nothing else on this panel would tell you.">Loaded</span>
-        <span id="qs_engine_id" class="qs-value">-</span>
-    </div>
-    <div class="qs-row qs-oneline">
-        <span data-i18n="panel.copy_analysis" data-i18n-tip="panel.tip.copy_analysis" class="qs-label tooltipped" data-position="left"
-              data-tooltip="Copy the position and what the engine says about it as plain text: the FEN, the score and depth, and every candidate line with its own score. For a note, a message or an issue - it is the panel's answer in a form you can paste.">Copy Analysis</span>
-        <button id="qs_copyanalysis" type="button" data-i18n="panel.copy">Copy</button>
-    </div>
-    <div class="qs-row qs-oneline">
-        <span data-i18n="panel.reanalyse" data-i18n-tip="panel.tip.reanalyse" class="qs-label tooltipped" data-position="left"
-              data-tooltip="Throw away the current answer and search this same position again from scratch. For when a setting changed under a search, or the readout looks stale and you would rather not move a piece to find out. The board is not touched.">Re-analyse</span>
-        <button id="qs_reanalyse" type="button" data-i18n="panel.run">Run</button>
-    </div>
     <div class="qs-row" id="qs_opacity_row">
         <span data-i18n="panel.opacity" data-i18n-tip="panel.tip.opacity" class="qs-label tooltipped" data-position="left"
               data-tooltip="How solid the panel itself is drawn, 40-100%. Below 100 the board underneath shows through, which is the point: the panel can sit over the game instead of beside it. Remembered per site, along with where you dragged it.">Panel Opacity</span>
@@ -391,6 +402,7 @@
             <option data-i18n="panel.dock_right" value="right">Right edge</option>
         </select>
     </div>
+</div>
       <!-- Copy Diagnostics. HERE and not in the button row: that row is absolutely positioned by id on
      a 45px pitch and its own comment shows five is exactly what fits -- a sixth fell out of the
      layout and landed on the board. A labelled row is also more discoverable than a sixth

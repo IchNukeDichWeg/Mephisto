@@ -243,6 +243,7 @@
   "set.simulated_move_time_ms": "模擬着手時間 (ミリ秒)",
   "panel.tab_play": "対局",
   "panel.tab_engine": "エンジン",
+  "panel.more": "その他",
   "set.sec.panel": "パネル",
   "set.sec.automated_play": "自動プレイ",
   "set.moves": "着手",

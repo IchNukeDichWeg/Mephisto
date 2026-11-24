@@ -243,6 +243,7 @@
   "set.simulated_move_time_ms": "模拟走子时间 (毫秒)",
   "panel.tab_play": "对弈",
   "panel.tab_engine": "引擎",
+  "panel.more": "更多",
   "set.sec.panel": "面板",
   "set.sec.automated_play": "自动走子",
   "set.moves": "走子",

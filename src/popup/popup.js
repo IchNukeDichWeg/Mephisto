@@ -1230,6 +1230,27 @@ function init_quick_settings() {
             }
         });
     }
+    // MORE: the set-once rows of both tabs fold behind one button each. ONE state for both, kept in the
+    // config key panel_more (not localStorage: in the floating panel that is the SITE's storage). Folded
+    // rows keep their ids, bindings and hotkeys, so nothing here has to know which rows they are.
+    const more_btns = [...PANEL_ROOT.querySelectorAll('.qs-more-btn')];
+    const show_more = (open) => {
+        for (const b of more_btns) {
+            b.setAttribute('aria-expanded', String(open));
+            const body = PANEL_ROOT.getElementById(b.getAttribute('aria-controls'));
+            if (body) body.hidden = !open;
+        }
+    };
+    let more_open = false;
+    try { more_open = JSON.parse(MephistoConfig.get('panel_more') ?? 'false') === true; } catch (e) { /* closed is the default */ }
+    show_more(more_open);
+    for (const b of more_btns) {
+        b.addEventListener('click', () => {
+            more_open = b.getAttribute('aria-expanded') !== 'true';
+            show_more(more_open);
+            save('panel_more', more_open);
+        });
+    }
     // Threads is a count of real cores, so the stepper must not be able to reach a number this
     // machine cannot use. The markup's max=24 is the engine-side cap; the machine's own core count
     // is usually lower and wins. Same ceiling MephistoConfig.defaultThreads() picks from, so the

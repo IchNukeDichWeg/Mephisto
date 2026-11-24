@@ -243,6 +243,7 @@
   "set.simulated_move_time_ms": "अनुकरणित चाल समय (मि.से.)",
   "panel.tab_play": "खेल",
   "panel.tab_engine": "इंजन",
+  "panel.more": "और",
   "set.sec.panel": "पैनल",
   "set.sec.automated_play": "स्वचालित खेल",
   "set.moves": "चालें",

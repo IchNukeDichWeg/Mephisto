@@ -5041,6 +5041,44 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SIMP-PUZZLEDELAY: both delays read 300 whatever an old saved value says', vm.runInContext('[puzzle_move_delay_ms(), puzzleNextDelayMs()].join()', c) === '300,300');
     ok('SIMP-PUZZLEDELAY: no row, binding or live key is left for either', !/puzzle_delay|puzzle_next_delay/.test(gh + gj + psrc + csrc));
 }
+// ---- SIMP-MORE: the panel's set-once rows fold behind a More button; the fold persists and the hotkeys still reach the rows ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const ph = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8'), pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'), pc = fs.readFileSync(ROOT + '/src/popup/popup.css', 'utf8');
+    const body = (id) => { const a = ph.indexOf(`<div class="qs-more" id="${id}" hidden>`); return a < 0 ? '' : ph.slice(a, ph.indexOf('\n</div>\n', a)); };
+    const ids = (s) => [...s.matchAll(/<(?:input|select|span|button)[^>]*\bid="(qs_[a-z0-9_]+)"/g)].map(m => m[1]);
+    const play = body('qs_more_play_body'), eng = body('qs_more_engine_body');
+    const folded = {play: ['qs_premove', 'qs_manual', 'qs_clock', 'qs_mirror', 'qs_move', 'qs_evalhist', 'qs_livestats'],
+        eng: ['qs_threads', 'qs_lines', 'qs_memory', 'qs_search_mode', 'qs_search', 'qs_explorer', 'qs_book', 'qs_tablebase', 'qs_tb_show', 'qs_playstyle', 'qs_opacity', 'qs_dock']};
+    ok('SIMP-MORE: the Play tab folds Premove, Manual, Clock, Mirror, Move Time, Eval History and Live Stats', folded.play.every(i => ids(play).includes(i)) && play.includes('id="qs_move"'), ids(play));
+    ok('SIMP-MORE: the Engine tab folds Threads, Lines, Memory, Search, Explorer, Book, Tablebase (+ display), Playstyle, Opacity and Dock', folded.eng.every(i => ids(eng).includes(i)), ids(eng));
+    const stay = ['qs_autoplay', 'qs_engine', 'qs_humanize', 'qs_help', 'qs_evalbar', 'qs_puzzle', 'qs_elo', 'qs_variant', 'qs_copyanalysis', 'qs_reanalyse'];
+    ok('SIMP-MORE: Autoplay, Engine, Humanize, Help, Eval Bar, Puzzle, the strength and variant rows and Copy/Run stay out of the fold, and every control id is still present once',
+       stay.every(i => !ids(play + eng).includes(i) && (ph.match(new RegExp(`id="${i}"`, 'g')) || []).length === 1)
+       && [...folded.play, ...folded.eng].every(i => (ph.match(new RegExp(`id="${i}"`, 'g')) || []).length === 1));
+    ok('SIMP-MORE: two buttons, closed in the markup, each naming its body; the fold is a hidden div with no display of its own',
+       /<button id="qs_more_play" class="qs-more-btn" type="button" aria-expanded="false" aria-controls="qs_more_play_body">/.test(ph)
+       && /<button id="qs_more_engine" class="qs-more-btn" type="button" aria-expanded="false" aria-controls="qs_more_engine_body">/.test(ph) && !/\.qs-more\s*\{/.test(pc));
+    // the wiring, run: one state for both buttons, read from and written to panel_more
+    const a = pj.indexOf('    const more_btns = ['), wiring = a < 0 ? '' : pj.slice(a, pj.indexOf('    // Threads is a count of real cores', a));
+    const mk = (id, ctl) => ({id, ctl, attrs: {'aria-expanded': 'false', 'aria-controls': ctl}, ev: {}, setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k]; }, addEventListener(t, f) { this.ev[t] = f; }});
+    const run = (stored) => {
+        const b1 = mk('qs_more_play', 'qs_more_play_body'), b2 = mk('qs_more_engine', 'qs_more_engine_body');
+        const bodies = {qs_more_play_body: {hidden: true}, qs_more_engine_body: {hidden: true}}, saved = [];
+        const c = vm.createContext({PANEL_ROOT: {querySelectorAll: () => [b1, b2], getElementById: (i) => bodies[i]}, MephistoConfig: {get: () => stored}, save: (k, v) => saved.push([k, v])});
+        vm.runInContext('(function () {' + wiring + '})()', c);
+        const snap = () => [b1.attrs['aria-expanded'], b2.attrs['aria-expanded'], bodies.qs_more_play_body.hidden, bodies.qs_more_engine_body.hidden].join();
+        const out = [snap()]; b1.ev.click(); out.push(snap()); b2.ev.click(); out.push(snap());
+        return {out, saved: JSON.stringify(saved)};
+    };
+    const r0 = run(undefined), r1 = run('true'), r2 = run('garbage{');
+    ok('SIMP-MORE: closed by default; a click on either button opens both and saves panel_more; the next click closes both',
+       JSON.stringify(r0) === JSON.stringify({out: ['false,false,true,true', 'true,true,false,false', 'false,false,true,true'], saved: '[["panel_more",true],["panel_more",false]]'}), r0);
+    ok('SIMP-MORE: a saved open fold comes back open; an unreadable value reads as closed', r1.out[0] === 'true,true,false,false' && r2.out[0] === 'false,false,true,true', [r1.out[0], r2.out[0]]);
+    const hk = pj.slice(pj.indexOf('function do_hotkey('), pj.indexOf('\n}\n', pj.indexOf('function do_hotkey(')));
+    ok('SIMP-MORE: a hotkey reaches a folded row through its checkbox by id, with no visibility test', /box\.checked = !box\.checked;\s*box\.dispatchEvent\(new Event\('change'\)\);/.test(hk) && !/offsetParent|getClientRects|\.hidden/.test(hk));
+    ok('SIMP-MORE: the label is in all 14 locales', fs.readdirSync(ROOT + '/src/i18n/locales').every(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8'))['panel.more']));
+}
 // ---- SIMP-UPDBTN: each updater button shows only in the state that needs it; the three notes are one ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

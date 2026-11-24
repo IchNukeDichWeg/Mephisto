@@ -243,6 +243,7 @@
   "set.simulated_move_time_ms": "Tempo de lance simulado (ms)",
   "panel.tab_play": "Jogar",
   "panel.tab_engine": "Motor",
+  "panel.more": "Mais",
   "set.sec.panel": "Painel",
   "set.sec.automated_play": "Jogo automático",
   "set.moves": "Lances",

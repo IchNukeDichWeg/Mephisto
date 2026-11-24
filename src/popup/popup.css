@@ -569,6 +569,29 @@ html, body {
 
 #quick-settings .qs-row { margin-bottom: 6px; }
 
+/* MORE: the set-once rows fold behind one quiet line at the foot of each tab. A plain button in the
+   mute colour with a chevron that turns when open, like the settings page's Advanced; the fold is a
+   <div hidden>, so it carries no display of its own to beat the [hidden] rule. */
+#quick-settings .qs-more-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    min-height: 26px;
+    margin: 2px 0 6px;
+    padding: 2px 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    font: 12.5px 'Roboto', sans-serif;
+    color: var(--mp-mute);
+    text-align: left;
+}
+#quick-settings .qs-more-btn:hover { color: var(--mp-text); }
+#quick-settings .qs-more-btn:focus-visible { outline: 1px solid var(--mp-on); outline-offset: 2px; }
+#quick-settings .qs-more-chev { display: inline-block; width: 12px; transition: transform .15s; }
+#quick-settings .qs-more-btn[aria-expanded="true"] .qs-more-chev { transform: rotate(90deg); }
+
 /* EVERY toggle is the same button: a quiet outline when off, filled green when on. The row itself
    is the indicator, so there is no separate switch to read. The checkbox is still a real checkbox
    -- the label, the hotkeys and the config binding all keep working -- it is just restyled INTO

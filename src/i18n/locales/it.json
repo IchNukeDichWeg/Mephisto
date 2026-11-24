@@ -243,6 +243,7 @@
   "set.simulated_move_time_ms": "Tempo di mossa simulato (ms)",
   "panel.tab_play": "Gioca",
   "panel.tab_engine": "Motore",
+  "panel.more": "Altro",
   "set.sec.panel": "Pannello",
   "set.sec.automated_play": "Gioco automatico",
   "set.moves": "Mosse",

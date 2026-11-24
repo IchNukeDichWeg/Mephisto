@@ -296,6 +296,7 @@
   "set.simulated_move_time_ms": "Simulated Move Time (ms)",
   "panel.tab_play": "Play",
   "panel.tab_engine": "Engine",
+  "panel.more": "More",
   "set.sec.panel": "Panel",
   "set.sec.automated_play": "Automated play",
   "set.moves": "Moves",

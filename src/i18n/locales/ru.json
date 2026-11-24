@@ -243,6 +243,7 @@
   "set.simulated_move_time_ms": "Имитируемое время хода (мс)",
   "panel.tab_play": "Игра",
   "panel.tab_engine": "Движок",
+  "panel.more": "Ещё",
   "set.sec.panel": "Панель",
   "set.sec.automated_play": "Автоматическая игра",
   "set.moves": "Ходы",

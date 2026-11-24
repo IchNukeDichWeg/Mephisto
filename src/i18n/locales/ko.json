@@ -243,6 +243,7 @@
   "set.simulated_move_time_ms": "모의 착수 시간 (ms)",
   "panel.tab_play": "대국",
   "panel.tab_engine": "엔진",
+  "panel.more": "더 보기",
   "set.sec.panel": "패널",
   "set.sec.automated_play": "자동 플레이",
   "set.moves": "수 두기",

@@ -243,6 +243,7 @@
   "set.simulated_move_time_ms": "Temps de coup simulé (ms)",
   "panel.tab_play": "Jouer",
   "panel.tab_engine": "Moteur",
+  "panel.more": "Plus",
   "set.sec.panel": "Panneau",
   "set.sec.automated_play": "Jeu automatique",
   "set.moves": "Coups",
