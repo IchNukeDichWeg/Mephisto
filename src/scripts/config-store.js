@@ -103,11 +103,11 @@
             // the wrong trade, so w (for win). j, q and s were the other letters still free.
             bot_trick: 'w',
             panic: 'x',   // everything away, NOW: hide the panel, clear the arrows, stop the search
-            // WALKING THE ENGINE'S LINE. The arrow keys, because that is what every board on the
-            // web uses them for -- but the handlers return false while Walk With Arrow Keys is off,
-            // and a key the panel did not act on is never swallowed, so the site keeps its own
-            // arrow-key navigation until you switch this on.
-            pv_back: 'ArrowLeft', pv_forward: 'ArrowRight',
+            // WALKING THE ENGINE'S LINE. Unbound by default: the arrow keys suit it, but both chess
+            // sites use them for their own move navigation, so they stay the site's until you bind
+            // them. An unbound key is the off state; this replaced the Walk With Arrow Keys switch
+            // (see __pv_keys_hotkeys in loadOnce).
+            pv_back: '', pv_forward: '',
             // The cheat sheet. '?' is where every web app with shortcuts (GitHub, Gmail, lichess
             // itself) puts its list, so it is the first key anyone tries. It is typed with Shift on
             // every layout, which is why hotkeyString drops Shift for symbols (see canonHotkey).
@@ -317,6 +317,31 @@
                     api.set('__match_default', '1');
                 }
             } catch (e) { /* corrupt -> the default decides */ }
+            // WALK WITH ARROW KEYS BECAME TWO ORDINARY HOTKEYS. The switch gated two keys that were
+            // always bound; now an unbound key is off. Whoever had it on keeps the arrow keys (or their
+            // own rebinding of them); whoever had it off gets both cleared, because the rebind UI saves
+            // every action and their saved ArrowLeft/ArrowRight would otherwise start firing. A custom
+            // toggle that flipped the retired switch is unassigned. Once, here.
+            try {
+                if (!CACHE.__pv_keys_hotkeys) {
+                    const on = JSON.parse(CACHE['pv_keys'] ?? 'false') === true;
+                    let saved = {};
+                    try { saved = JSON.parse(CACHE['hotkeys'] ?? '{}'); } catch (e) { /* corrupt */ }
+                    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) saved = {};
+                    const before = JSON.stringify(saved);
+                    for (const [a, k] of [['pv_back', 'ArrowLeft'], ['pv_forward', 'ArrowRight']]) {
+                        if (on && !Object.hasOwn(saved, a)) saved[a] = k;
+                        else if (!on && Object.hasOwn(saved, a)) saved[a] = '';
+                    }
+                    if (JSON.stringify(saved) !== before) api.set('hotkeys', JSON.stringify(saved));
+                    let custom = null;
+                    try { custom = JSON.parse(CACHE['hotkey_custom'] ?? 'null'); } catch (e) { /* corrupt */ }
+                    if (Array.isArray(custom) && custom.some(c => c && c.setting === 'pv_keys')) {
+                        api.set('hotkey_custom', JSON.stringify(custom.map(c => (c && c.setting === 'pv_keys') ? {setting: ''} : c)));
+                    }
+                    api.set('__pv_keys_hotkeys', '1');
+                }
+            } catch (e) { /* corrupt -> the defaults decide: both unbound */ }
             ready = true;
         },
     };

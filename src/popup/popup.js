@@ -438,7 +438,6 @@ async function initPanel(root, tabId) {
         fourpc_mode: JSON.parse(MephistoConfig.get('fourpc_mode')) || 'auto',
         elo: JSON.parse(MephistoConfig.get('elo')) || 0, // strength cap; 0 = full strength (no UCI_LimitStrength)
         tablebase_show: JSON.parse(MephistoConfig.get('tablebase_show')) || 'both', // both | tablebase | engine (display only)
-        pv_keys: JSON.parse(MephistoConfig.get('pv_keys')) || false, // arrow keys walk the engine's line
         refute: JSON.parse(MephistoConfig.get('refute')) || false,   // draw the punishing line after a bad move
         game_log: JSON.parse(MephistoConfig.get('game_log')) || false, // write evals into the copied PGN
         second_opinion: JSON.parse(MephistoConfig.get('second_opinion')) || false, // a human net beside the engine
@@ -9934,11 +9933,10 @@ function do_hotkey(action) {
         return true;
     }
     if (action === 'redetect') { PANEL_ROOT.getElementById('recheck')?.click(); return true; }
-    // WALK THE ENGINE'S LINE with the arrow keys. Returns FALSE while the toggle is off -- the
-    // dispatcher only swallows a key the panel acted on, so the site keeps its own arrow-key move
-    // navigation (lichess and chess.com both use them) until this is switched on deliberately.
+    // WALK THE ENGINE'S LINE. Both keys are unbound by default (config-store.js HOTKEY_DEFAULTS), so
+    // the site keeps its own arrow-key move navigation (lichess and chess.com both use them) until
+    // you bind them; no switch gates them any more.
     if (action === 'pv_back' || action === 'pv_forward') {
-        if (!config.pv_keys) return false;
         return action === 'pv_back' ? pv_walk_back() : pv_walk_forward();
     }
     // Bot Tricks. Returns FALSE anywhere the row is not showing, so the key stays the site's own on
@@ -11113,7 +11111,7 @@ const LIVE_CONFIG_KEYS = [
     'auto_resign', 'auto_resign_cp', 'auto_draw', 'session_stats',
     // the new panel-side features: all display or pacing decisions the panel makes per move, so a
     // change on the settings page has to reach an open panel rather than waiting for a reopen
-    'pv_keys', 'refute', 'second_opinion', 'human_error', 'opp_prep', 'game_log',
+    'refute', 'second_opinion', 'human_error', 'opp_prep', 'game_log',
     'mirror_ratio', 'time_trouble', 'time_trouble_at',
     'maia2_self_elo', 'maia2_oppo_elo', 'maia3_elo', 'rodent_personality',
     'analysis_limit', 'analysis_limit_mode',
@@ -13759,7 +13757,7 @@ function copy_diagnostics(onDone = () => {}, page = null) {
             toggles: ['autoplay', 'premove', 'help_mode', 'manual_mode', 'humanize', 'puzzle_mode',
                       'puzzle_capture', 'puzzle_capture_cdp', 'clock_mode', 'mirror_mode',
                       'background_play', 'verbose_log', 'tablebase', 'refute', 'second_opinion',
-                      'human_error', 'opp_prep', 'game_log', 'pv_keys', 'time_trouble',
+                      'human_error', 'opp_prep', 'game_log', 'time_trouble',
                       'contempt', 'complexity_clock', 'human_times', 'player_book',
                       'auto_resign', 'auto_draw', 'session_stats']
                 .filter(k => config[k]).join(' ') || 'none on',

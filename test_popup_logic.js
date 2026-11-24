@@ -16929,6 +16929,37 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
        && /this\.bindPairSelect\('class_where_view', live_classify,/.test(gj) && /this\.bindPairSelect\('arrow_label_view', this\.registerFormElement\('arrow_rank'/.test(gj));
     ok('SIMP-SEL: the custom-hotkey picker still names each switch (its hidden input\'s title)', /if \(fe\.elem\?\.hidden && fe\.elem\.title\) return fe\.elem\.title;/.test(gj));
 }
+// ---- SIMP-PVKEYS: Walk With Arrow Keys became two ordinary hotkeys, unbound by default ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8');
+    const boot = async (stored) => {
+        const c = vm.createContext({console, location: {protocol: 'https:'}, chrome: {storage: {local: {get: async () => ({...stored}), set() {}, remove() {}},
+                                                       onChanged: {addListener() {}}}}});
+        c.self = c; c.window = c;
+        vm.runInContext(cs, c);
+        await c.MephistoConfig.ready;
+        const h = c.MephistoConfig.hotkeys();
+        return {keys: [h.pv_back, h.pv_forward], custom: c.MephistoConfig.get('hotkey_custom') ?? null, marked: c.MephistoConfig.get('__pv_keys_hotkeys')};
+    };
+    const UI_SAVE = JSON.stringify({autoplay: 'a', pv_back: 'ArrowLeft', pv_forward: 'ArrowRight'});
+    Promise.all([boot({}), boot({pv_keys: 'true'}), boot({pv_keys: 'false', hotkeys: UI_SAVE}), boot({hotkeys: UI_SAVE}),
+                 boot({pv_keys: 'true', hotkeys: JSON.stringify({pv_back: 'Alt+j'})}),
+                 boot({pv_keys: 'true', hotkey_custom: JSON.stringify([{setting: 'pv_keys', label: 'Walk With Arrow Keys'}, {setting: 'refute', label: 'Refute'}])}),
+                 boot({hotkeys: UI_SAVE, __pv_keys_hotkeys: '1'})]).then(([fresh, on, off, offDefault, rebound, custom, done]) => {
+        ok('SIMP-PVKEYS: a fresh install has both walk keys unbound; the switch on keeps the arrow keys; off (saved by the rebind UI or never set) clears them',
+           fresh.keys.join() === ',' && fresh.marked === '1' && on.keys.join() === 'ArrowLeft,ArrowRight'
+           && off.keys.join() === ',' && offDefault.keys.join() === ',', {fresh, on, off, offDefault});
+        ok('SIMP-PVKEYS: an own rebinding survives, a custom toggle on the retired switch is unassigned, and it runs once',
+           rebound.keys.join() === 'Alt+j,ArrowRight' && JSON.parse(custom.custom).map(x => x.setting).join() === ',refute'
+           && done.keys.join() === 'ArrowLeft,ArrowRight', {rebound, custom, done});
+    });
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    ok('SIMP-PVKEYS: no pv_keys switch is left on the settings page or in the panel, and the walk actions are ungated',
+       !/pv_keys/.test(gh + gj + pj) && /if \(action === 'pv_back' \|\| action === 'pv_forward'\) \{\n\s+return action === 'pv_back' \? pv_walk_back\(\) : pv_walk_forward\(\);/.test(pj));
+}
 // ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

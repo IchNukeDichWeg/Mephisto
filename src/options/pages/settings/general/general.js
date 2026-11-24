@@ -259,7 +259,6 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('ponder', 'Pondering:', 'checkbox', false);
         const tablebase_cb = this.registerFormElement('tablebase', 'Endgame Tablebase:', 'checkbox', false);
         this.registerFormElement('tablebase_show', 'Tablebase Display:', 'select', 'both');
-        this.registerFormElement('pv_keys', 'Walk With Arrow Keys:', 'checkbox', false);
         this.registerFormElement('mirror_ratio', 'Mirror Ratio (%):', 'input', 90);
         this.registerFormElement('refute', 'Refute My Mistakes:', 'checkbox', false);
         second_opinion = this.registerFormElement('second_opinion', 'Second Opinion:', 'checkbox', false);
