@@ -366,7 +366,13 @@ async function runReview(game, rig, onProgress) {
     const {positions, moves} = replayed;
     fillThinkTime(moves, incrementFromTimeControl(game.tags.TimeControl));
 
-    let total = positions.length + (rig.human ? moves.length : 0);
+    // THE STRENGTH SWEEP IS IN THE TOTAL FROM THE START, at its largest (every move, every band).
+    // Added only when the sweep began, it took the bar from ~99% back to ~12%. Its exact size is
+    // known after assemble (book and forced moves drop out), and swapping it in can only shrink
+    // the total, so the bar jumps forward, never back.
+    const sweepKind = strengthKind(rig);
+    const sweepMax = sweepKind ? strengthBands(sweepKind).length * moves.length : 0;
+    let total = positions.length + (rig.human ? moves.length : 0) + sweepMax;
     let done = 0;
     const tick = (what) => { done++; onProgress(done / total, what); };
 
@@ -472,7 +478,7 @@ async function runReview(game, rig, onProgress) {
     // the one the page describes.
     const built = assemble(game, positions, moves, book, opts);
     const sprog = {
-        plan: (n) => { total += n; },
+        plan: (n) => { total += n - sweepMax; },
         tick: (what) => { done++; onProgress(done / total, what); },
     };
     built.strength = await strengthPass(positions, moves, sprog, rig);
@@ -521,7 +527,8 @@ function strengthBands(kind) {
 // forced moves are arithmetic, and both are played the same way by everyone.
 function strengthUsable(m) { return !m.isBook && !m.onlyMove && m.uci; }
 
-async function strengthPass(positions, moves, prog, rig) {
+// The human model the strength sweep will ask, or null when no sweep runs for this rig.
+function strengthKind(rig) {
     // The chess.com-classifier mode has no human pass and no strength estimate: neither is part of
     // their verdict, and this reads the SETTING rather than the rig, so without this guard it would
     // start a Maia of its own and then look for a human engine that was never created.
@@ -529,7 +536,12 @@ async function strengthPass(positions, moves, prog, rig) {
     // Maia knows one game: no strength estimate for any other rules
     if ((rig?.opts?.variant || 'chess') !== 'chess') return null;
     const kind = cfg('rv_human');
-    if (!cfg('rv_strength') || !kind) return null;
+    return (cfg('rv_strength') && kind) ? kind : null;
+}
+
+async function strengthPass(positions, moves, prog, rig) {
+    const kind = strengthKind(rig);
+    if (!kind) return null;
     const usable = moves.map((m, i) => ({m, i})).filter(({m}) => strengthUsable(m));
     if (usable.length < 6) return null;   // too few decisions to say anything at all
     const bands = strengthBands(kind);

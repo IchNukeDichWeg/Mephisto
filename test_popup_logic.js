@@ -6898,7 +6898,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const ea = {analyse: async () => { calls.a++; throw new Error('engine disposed'); }};
         const eb = {analyse: async () => { calls.b++; await new Promise(r => setTimeout(r, 5)); return {lines: [], depth: 1}; }};
         const positions = Array.from({length: 6}, () => ({fen: 'x', turn: 'w'}));
-        const c4 = mk({buildPositions: () => ({positions, moves: []}), fillThinkTime() {}, incrementFromTimeControl: () => 0}, true);
+        const c4 = mk({buildPositions: () => ({positions, moves: []}), fillThinkTime() {}, incrementFromTimeControl: () => 0, strengthKind: () => null}, true);
         let e4 = null; try { await c4.runReview({tags: {}}, {opts: {}, engines: [ea, eb]}, () => {}); } catch (e) { e4 = e; }
         await new Promise(r => setTimeout(r, 60));
         ok('REVIEW-2: after one worker fails the other takes no further position', e4 && !e4.replayFailed && calls.a === 1 && calls.b === 1, [calls, e4 && e4.message]);
@@ -9104,7 +9104,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
             buildPositions: () => ({positions: [{fen: 'a', turn: 'w'}, {fen: 'b', turn: 'b'}], moves: []}),
             fillThinkTime() {}, incrementFromTimeControl: () => 0,
             lookupOpening: async () => ({name: 'Zukertort Opening', plies: 1}),
-            assemble: (g, p, m, book) => ({book}), strengthPass: async () => null});
+            assemble: (g, p, m, book) => ({book}), strengthPass: async () => null, strengthKind: () => null});
         vm.runInContext(fn('async function runReview(game, rig, onProgress) {'), c);
         const e = {analyse: async () => ({lines: [], depth: 1})};
         try { return (await c.runReview({tags: {}}, {opts: {variant}, engine: e}, () => {})).book; }
@@ -10481,7 +10481,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const sc = vm.createContext({Math, Number, String, cfg: (k) => (k === 'rv_human' ? 'maia3' : k === 'rv_strength' ? true : 1500),
         takesRating: () => true, ratingSteps: () => [1100, 1500, 1900], ratingFor: () => 1500, MAIA_BANDS: [],
         STRENGTH_MULTIPV: 64, strengthBands: () => [1100, 1500, 1900], strengthUsable: (m) => !!m.uci, Core: {gamePhases: () => []}, strengthForSide: () => null, makeEngine() { throw new Error('no'); }});
-    vm.runInContext('var cancel = false;' + fn('async function strengthPass('), sc);
+    vm.runInContext('var cancel = false;' + fn('function strengthKind(rig)') + fn('async function strengthPass('), sc);
     const prog = {plan() {}, tick() {}};
     const res = await sc.strengthPass(positions, moves, prog, {opts: {variant: 'chess'}, human});
     ok('REVIEWA-5: a Stop inside the strength sweep is marked as a stop, not "no estimate"', res === null && prog.stopped === true, [res, prog.stopped]);
@@ -13579,7 +13579,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         vm.runInContext(`const Core = self.MephistoReviewCore; const CFG_DEFAULTS = {rv_book: false}; const store = {};
             const MephistoConfig = {get: k => store[k]}; function cfg(k){ return CFG_DEFAULTS[k]; } function setCfg(){}
             let report = null, running = false, cancel = false; const ENGINES = [];
-            function note(){} async function lookupOpening(){ return {name: null, plies: 0}; } async function strengthPass(){ return null; }
+            function note(){} async function lookupOpening(){ return {name: null, plies: 0}; } async function strengthPass(){ return null; } function strengthKind(){ return null; }
             ` + sl('const RV_FAIRY_ONLY =', 'function looks960(') + sl('function threeCheckCounts(fen)', '// ---- strength estimate')
             + sl('function assemble(game, positions, moves, book, opts) {', '// ---- rendering ----') + `
             class Fake { analyse(){ return new Promise(res => { const r = (d) => { clearTimeout(t); this.cur = null;
@@ -20051,3 +20051,24 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        vm.runInContext(`[strengthModel('elite-leela'), strengthModel('maia'), strengthModel('maia3'), strengthModel('maia2')].join()`, c) === 'maia,maia,maia3,maia2'
        && /return \{kind: strengthModel\(kind\), asked: kind,/.test(rj) && /has no rating dial, so this estimate uses/.test(rj));
 }
+// ---- REVIEW-PROGRESS: the bar never goes back when the strength sweep starts ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head), b = rj.indexOf('\n}\n', a) + 3; return rj.slice(a, b); };
+    // the REAL runReview + strengthKind: 6 positions, 5 moves, a human model, a 3-band sweep over the 2 moves left after book
+    const fracs = [];
+    const c = vm.createContext({console, Promise, Error, Object, Math, String, cancel: false, note() {},
+        cfg: (k) => ({rv_human: 'maia3', rv_strength: true, rv_book: false}[k]),
+        buildPositions: () => ({positions: Array.from({length: 6}, () => ({fen: 'x', turn: 'w'})), moves: Array.from({length: 5}, (_, i) => ({uci: 'a', ply: i}))}),
+        fillThinkTime() {}, incrementFromTimeControl: () => 0, lookupOpening: async () => ({name: null, plies: 0}),
+        assemble: () => ({}), strengthBands: () => [1100, 1500, 1900],
+        strengthPass: async (p, m, prog) => { prog.plan(3 * 2); for (let k = 0; k < 6; k++) prog.tick('sweep'); return null; }});
+    vm.runInContext(fn('function strengthKind(rig)') + fn('async function runReview(game, rig, onProgress) {'), c);
+    const e = {analyse: async () => ({lines: [], depth: 1})};
+    const h = {analyse: async () => ({lines: []})};
+    await c.runReview({tags: {}}, {opts: {variant: 'chess'}, engines: [e], human: h}, (f) => fracs.push(f));
+    const back = fracs.findIndex((f, i) => i > 0 && f < fracs[i - 1] - 1e-9);
+    ok('REVIEW-PROGRESS: engine, human model and sweep climb to 100% without a step back', back < 0 && Math.abs(fracs[fracs.length - 1] - 1) < 1e-9,
+       fracs.map(f => +f.toFixed(3)));
+})().catch(e => { fails++; console.log('FAIL REVIEW-PROGRESS threw: ' + (e && e.stack || e)); });
