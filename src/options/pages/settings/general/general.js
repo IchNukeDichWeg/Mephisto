@@ -69,6 +69,22 @@ const PANEL_DETAIL = {
 const panel_detail_of = (vals) => Object.keys(PANEL_DETAIL).find(k => PANEL_DETAIL[k].every((v, i) => v === vals[i])) || 'custom';
 const puzzleImport = {running: false, line: ''};
 
+// WHICH UPDATER BUTTONS A STATE CALLS FOR. A button that cannot do anything in the current state is not
+// shown: with automatic updates off there is nothing to press; Choose Folder is only for a section with no
+// folder yet (or after a failed write, when picking it again is the likely fix); Install only when a
+// newer release with an update archive is known and a folder is set; Roll Back and Finish only when
+// there is something to undo or finish. Check stays whenever updates are on. Pure, so the suite runs it.
+function updater_buttons(s) {
+    const live = !!s.on && !!s.granted;
+    return {
+        check: live,
+        folder: live && (!s.dir || !!s.forceFolder),
+        install: live && !!s.dir && !!s.newer && !!s.asset && !s.pending,
+        rollback: live && !!s.back,
+        resume: live && !!s.pending,
+    };
+}
+
 class GeneralSettings extends SettingsPage {
     init() {
         // The bot-game dropdown is built from the shared library BEFORE Materialize wraps the
@@ -1494,10 +1510,20 @@ class GeneralSettings extends SettingsPage {
         };
         // After a failure the buttons on offer can have changed (a write that stopped part-way leaves a
         // Finish or a Roll Back to press, UPDATER-6), so the section is drawn again, then the line shown.
-        const failed = async (line) => { await render().catch(() => {}); say(line); };
+        const failed = async (line) => { st.forceFolder = true; await render().catch(() => {}); say(line); };
         const buttons = [checkBtn, folderBtn, installBtn, rollbackBtn, resumeBtn].filter(Boolean);
         const current = chrome.runtime.getManifest().version;
         let latest = null; // last release seen, so Install can name it
+        // what the buttons are drawn from (updater_buttons): refreshed by render(), report() and the failure paths
+        const st = {on: false, granted: false, dir: null, back: null, pending: null, forceFolder: false};
+        const layout = () => {
+            const want = updater_buttons({...st, newer: latest?.newer, asset: latest?.asset});
+            checkBtn.classList.toggle('hidden', !want.check);
+            folderBtn.classList.toggle('hidden', !want.folder);
+            installBtn.classList.toggle('hidden', !want.install);
+            rollbackBtn?.classList.toggle('hidden', !want.rollback);
+            resumeBtn?.classList.toggle('hidden', !want.resume);
+        };
 
         const render = async () => {
             // The SETTING is what the user chose; the permission is only a capability. Reading the
@@ -1506,13 +1532,16 @@ class GeneralSettings extends SettingsPage {
             const granted = on && await MephistoUpdater.hasPermission();
             cb.checked = on;
             buttons.forEach(b => b.disabled = !granted);
-            if (!on) return say('Off - Mephisto downloads nothing and asks GitHub for nothing extra.');
+            Object.assign(st, {on, granted, dir: null, back: null, pending: null});
+            if (!on) { layout(); return say('Off - Mephisto downloads nothing and asks GitHub for nothing extra.'); }
             if (!granted) {
+                layout();
                 return say('On, but Chrome is no longer holding the download permission - ' +
                     'switch this off and on again to ask for it.');
             }
             const dir = await MephistoUpdater.savedFolder();
-            if (!dir) return say(`On - you have v${current}. Choose the extension folder to finish setting this up.`);
+            st.dir = dir;
+            if (!dir) { layout(); return say(`On - you have v${current}. Choose the extension folder to finish setting this up.`); }
             say(`On - you have v${current}, and updates go into "${dir.name}".`);
             // Both of these exist only as a consequence of a previous install, so they are hidden
             // until there is actually something to undo or finish -- a permanently greyed-out
@@ -1521,9 +1550,9 @@ class GeneralSettings extends SettingsPage {
                 MephistoUpdater.rollbackInfo().catch(() => null),
                 MephistoUpdater.pendingInstall().catch(() => null),
             ]);
-            rollbackBtn?.classList.toggle('hidden', !back);
+            Object.assign(st, {back, pending});
             if (back && rollbackBtn) rollbackBtn.textContent = `Roll Back to v${back.version}`;
-            resumeBtn?.classList.toggle('hidden', !pending);
+            layout();
             if (pending) return say(`An update to v${pending.version} was interrupted before it finished. ` +
                 `Press Finish Interrupted Update - the files are already downloaded.`);
             report(await MephistoUpdater.check().catch(() => null), dir);
@@ -1532,6 +1561,9 @@ class GeneralSettings extends SettingsPage {
         // One place that turns a release into a sentence, so the automatic check on page open and
         // the Check button cannot word the same state two different ways.
         const report = (rel, dir) => {
+            st.dir = dir || null;
+            if (rel && rel.latest) latest = rel;
+            layout();
             if (!rel || !rel.latest) return say(`On - you have v${current}. Could not reach GitHub just now.`);
             latest = rel;
             if (!rel.newer) return say(`Up to date - v${current} is the newest release.`);
@@ -1570,6 +1602,7 @@ class GeneralSettings extends SettingsPage {
         folderBtn.addEventListener('click', async () => {
             try {
                 const picked = await MephistoUpdater.pickFolder();
+                st.forceFolder = false;
                 say(`Folder set - "${picked.name}", holding v${picked.version}.`);
                 report(latest || await MephistoUpdater.check().catch(() => null), {name: picked.name});
             } catch (e) {

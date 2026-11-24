@@ -5041,6 +5041,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SIMP-PUZZLEDELAY: both delays read 300 whatever an old saved value says', vm.runInContext('[puzzle_move_delay_ms(), puzzleNextDelayMs()].join()', c) === '300,300');
     ok('SIMP-PUZZLEDELAY: no row, binding or live key is left for either', !/puzzle_delay|puzzle_next_delay/.test(gh + gj + psrc + csrc));
 }
+// ---- SIMP-UPDBTN: each updater button shows only in the state that needs it; the three notes are one ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const a = gj.indexOf('function updater_buttons(s) {'), fnsrc = a < 0 ? '' : gj.slice(a, gj.indexOf('\n}\n', a) + 3);
+    const c = vm.createContext({}); vm.runInContext(fnsrc + ';this.f = updater_buttons;', c);
+    const show = (s) => { const w = c.f(s); return ['check', 'folder', 'install', 'rollback', 'resume'].filter(k => w[k]).join('+') || 'none'; };
+    const dir = {name: 'Mephisto'};
+    const got = {
+        off: show({on: false, granted: false}), noPermission: show({on: true, granted: false}),
+        noFolder: show({on: true, granted: true, dir: null, newer: true, asset: true}),
+        upToDate: show({on: true, granted: true, dir}), newer: show({on: true, granted: true, dir, newer: true, asset: true}),
+        newerNoArchive: show({on: true, granted: true, dir, newer: true, asset: false}),
+        afterFailure: show({on: true, granted: true, dir, newer: true, asset: true, forceFolder: true}),
+        rollBackOnly: show({on: true, granted: true, dir, back: {version: '1'}}),
+        interrupted: show({on: true, granted: true, dir, newer: true, asset: true, pending: {version: '2'}, back: {version: '1'}}),
+    };
+    ok('SIMP-UPDBTN: nothing with updates off; Check + Choose Folder with no folder; Check alone when current; Install only for a newer release with an archive',
+       JSON.stringify(got) === JSON.stringify({off: 'none', noPermission: 'none', noFolder: 'check+folder', upToDate: 'check', newer: 'check+install', newerNoArchive: 'check',
+           afterFailure: 'check+folder+install', rollBackOnly: 'check+rollback', interrupted: 'check+rollback+resume'}), got);
+    ok('SIMP-UPDBTN: Check, Choose Folder and Install start hidden in the markup, so the page never flashes buttons the state does not call for',
+       ['update_check_btn', 'update_folder_btn', 'update_install_btn'].every(id => new RegExp(`id="${id}" type="button" class="set-btn hidden"`).test(gh)));
+    ok('SIMP-UPDBTN: the three notes are one line, in all 14 locales',
+       (gh.match(/<p data-i18n(?:-html)?="set\.note\.(?:updates|updates_permission_scope|every_update_is_undoable|updates_are_applied_in_place)"/g) || []).join() === '<p data-i18n-html="set.note.updates"'
+       && fs.readdirSync(ROOT + '/src/i18n/locales').every(f => { const d = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')); return d['set.note.updates'] && !('set.note.updates_permission_scope' in d) && !('set.note.every_update_is_undoable' in d) && !('set.note.updates_are_applied_in_place' in d); }));
+}
 // ---- SIMP-ADV4: Hotkeys, Verbose Logging and the per-site puzzle database buttons sit behind their section's Advanced ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
@@ -11152,7 +11179,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SYSB-4: the README MPH-U09 row names the full archive by its lib/engine, not a 585 MB size, and says it is refused before anything is written',
        /lib\/engine/.test(row) && !/585/.test(row) && /before anything is written/.test(row), row);
     const bad = fs.readdirSync(ROOT + '/src/i18n/locales').filter(f => {
-        const v = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8'))['set.note.updates_are_applied_in_place'] || '';
+        const v = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8'))['set.note.updates'] || '';
         return /585/.test(v) || !/<b>7 (MB|Mo|МБ)<\/b>/.test(v); });
     ok('SYSB-4: no locale\'s Updates note compares the download with 585 MB any more; each says about 7 MB', bad.length === 0, bad);
     ok('SYSB-4: ...nor does the page\'s own fallback text', !/585/.test(fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8')));
@@ -15263,11 +15290,12 @@ print(r['category'], r['moves'][0]['uci'] if r['moves'] else '-', ','.join(sorte
     const ga = g.indexOf('        const oops = (e, fallback, changed) => {'), gb = g.indexOf('        const buttons = [', ga);
     const said = [], c = vm.createContext({console: {warn() {}}, said, renders: 0,
         MephistoI18n: {errMsg: (e) => e.code + ': msg', t: (k, en) => en}});
-    vm.runInContext('var say = (t) => said.push(t); var render = async () => { renders++; say("drawn"); };\n' + g.slice(ga, gb) + '\nvar o = oops, f = failed;', c);
+    vm.runInContext('var st = {}; var say = (t) => said.push(t); var render = async () => { renders++; say("drawn"); };\n' + g.slice(ga, gb) + '\nvar o = oops, f = failed;', c);
     const coded = c.o({code: 'MPH-U16'}, 'x', true), part = c.o({code: 'MPH-U18', partial: true}, 'x', true);
     await c.f(part);
     ok('UPDATER-6: Settings drops "Nothing was changed." for a partial failure only, and shows the line after drawing the section again',
        /Nothing was changed\.$/.test(coded) && part === 'MPH-U18: msg' && c.renders === 1 && said.join('|') === 'drawn|MPH-U18: msg', [coded, part, said]);
+    ok('UPDATER-6: a failure also puts Choose Folder back on offer (SIMP-UPDBTN), the likeliest fix for a failed write', c.st.forceFolder === true);
     ok('UPDATER-6: ...for Install, Roll Back and Finish alike',
        ["'Update failed, and nothing was changed'", "'Roll back failed, and nothing was changed'", "'Could not finish the update, and nothing was changed'"]
            .every(f => g.includes('await failed(oops(e, ' + f + ', true));')));

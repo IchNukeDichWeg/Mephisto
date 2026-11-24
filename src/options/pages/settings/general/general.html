@@ -1940,25 +1940,16 @@
                     </div>
                 </div>
 
-                <p data-i18n-html="set.note.updates_are_applied_in_place" class="set-note">
-                    Updates are applied <b>in place</b>, which is the point: your extension ID never changes, so the
-                    native engine hosts you installed keep working, and the bundled engines are left alone - the
-                    download is about <b>7 MB</b>. Choose the folder you loaded as an unpacked
-                    extension once; Chrome remembers it. After an update, reload any game tab you had open.
-                </p>
-                <p data-i18n="set.note.updates_permission_scope" class="set-note">
-                    The permission covers only this project's release downloads. Switching this off gives it back.
-                </p>
-                <p data-i18n-html="set.note.every_update_is_undoable" class="set-note">
-                    Every update is <b>undoable</b>. Before anything is overwritten the new version is written to a
-                    staging folder, and the files it replaces are copied to a backup - so <b>Roll Back</b> puts the
-                    previous version straight back, and an update interrupted halfway can be finished without
-                    downloading it again. One generation is kept, and the bundled engines are never part of it.
+                <p data-i18n-html="set.note.updates" class="set-note">
+                    Updates are applied <b>in place</b>, so your extension ID never changes and the native engine hosts
+                    you installed keep working; the download is about <b>7 MB</b> and the bundled engines are left alone.
+                    Every update is <b>undoable</b> with Roll Back, and the download permission covers only this
+                    project's releases.
                 </p>
                 <div class="set-btnrow">
-                    <button data-i18n="set.check_for_updates" id="update_check_btn" type="button" class="set-btn">Check for Updates</button>
-                    <button data-i18n="set.choose_extension_folder" id="update_folder_btn" type="button" class="set-btn">Choose Extension Folder</button>
-                    <button data-i18n="set.install_update" id="update_install_btn" type="button" class="set-btn">Install Update</button>
+                    <button data-i18n="set.check_for_updates" id="update_check_btn" type="button" class="set-btn hidden">Check for Updates</button>
+                    <button data-i18n="set.choose_extension_folder" id="update_folder_btn" type="button" class="set-btn hidden">Choose Extension Folder</button>
+                    <button data-i18n="set.install_update" id="update_install_btn" type="button" class="set-btn hidden">Install Update</button>
                     <button data-i18n="set.roll_back" id="update_rollback_btn" type="button" class="set-btn hidden">Roll Back</button>
                     <button data-i18n="set.finish_update" id="update_resume_btn" type="button" class="set-btn hidden">Finish Interrupted Update</button>
                 </div>
