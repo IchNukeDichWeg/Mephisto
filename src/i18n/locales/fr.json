@@ -449,6 +449,7 @@
   "an.tip.wdl": "Afficher les pourcentages de gain, nulle et défaite du moteur à côté de l'échiquier.",
   "an.tip.book": "Afficher les coups de livre pour la position depuis un livre chargé ci-dessous.",
   "set.filter_ph": "Rechercher dans ces réglages…",
+  "set.advanced": "Avancé",
   "set.storage": "Stockage : {used} utilisés{idb} - sur {quota} disponibles pour ce profil de navigateur.",
   "set.imported_n": "{n} réglages importés. Les panneaux ouverts les prennent en compte au coup suivant ; rechargez l'onglet de la partie pour appliquer dès maintenant un changement de moteur.",
   "set.warn_threads": "Cette machine a {cores} cœurs - {n} threads se gêneront mutuellement et chercheront plus lentement, pas plus vite.",

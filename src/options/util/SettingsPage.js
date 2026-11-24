@@ -57,6 +57,7 @@ export class SettingsPage {
         this.init();
         MephistoI18n.apply(document); // the page's own markup, which only exists after init()
         this.decorateTooltips();
+        this.wireAdvanced();
         this.wireFilter();
         this.pullConfigValues();
     }
@@ -77,6 +78,46 @@ export class SettingsPage {
             el.appendChild(icon);
         }
         M.Tooltip.init(document.querySelectorAll('.tooltipped'), {enterDelay: 250});
+    }
+
+    // ADVANCED, PER SECTION. The rows a person sets once or never sit at the end of their section
+    // inside <div class="set-adv" data-adv="<section id>">: a <button class="set-adv-btn"> and a
+    // <div class="set-adv-body"> holding ordinary rows, ids and bindings unchanged. Closed by default,
+    // and each section's open/closed state is remembered in this page's localStorage. That is a
+    // convenience, so every read and write is guarded: a profile that refuses storage just starts
+    // closed. A block whose rows are all hidden by their parent toggle hides itself, so an empty
+    // "Advanced" never sits under a section. The search box opens a block that holds a match (see
+    // wireFilter) without touching the remembered state.
+    wireAdvanced() {
+        for (const adv of document.querySelectorAll('.set-adv')) {
+            const btn = adv.querySelector(':scope > .set-adv-btn');
+            const body = adv.querySelector(':scope > .set-adv-body');
+            if (!btn || !body) continue;
+            const key = 'mephisto.set_adv.' + (adv.dataset.adv || adv.closest('.set-sec')?.id || 'page');
+            let open = false;
+            try { open = localStorage.getItem(key) === '1'; } catch (e) { /* closed is the default */ }
+            const render = () => {
+                const shown = open || adv.classList.contains('set-adv-match');
+                btn.setAttribute('aria-expanded', String(shown));
+                body.hidden = !shown;
+            };
+            // a row hidden by its parent (class `hidden` or an inline display:none) does not count
+            const refreshEmpty = () => {
+                const any = [...body.querySelectorAll('.set-row')]
+                    .some(r => !r.classList.contains('hidden') && r.style.display !== 'none');
+                adv.classList.toggle('set-adv-empty', !any);
+            };
+            btn.addEventListener('click', () => {
+                open = btn.getAttribute('aria-expanded') !== 'true';
+                adv.classList.remove('set-adv-match');
+                try { localStorage.setItem(key, open ? '1' : '0'); } catch (e) { /* this visit only */ }
+                render();
+            });
+            new MutationObserver(refreshEmpty).observe(body, {subtree: true, attributes: true, attributeFilter: ['class', 'style']});
+            adv._render = render;
+            render();
+            refreshEmpty();
+        }
     }
 
     // A SEARCH BOX OVER THE ROWS. Over a hundred controls on General alone: typing "premove" should get
@@ -100,6 +141,14 @@ export class SettingsPage {
                     [...row.querySelectorAll('[data-tooltip]')].map(el => el.getAttribute('data-tooltip')).join(' '))
                     .toLowerCase();
                 row.classList.toggle('filter-hidden', !!q && !hay.includes(q));
+            }
+            // an Advanced block opens while it holds a match and folds away while it holds none;
+            // emptying the box hands it back to the state the person left it in
+            for (const adv of document.querySelectorAll('.set-adv')) {
+                const hit = !!q && [...adv.querySelectorAll('.set-row')].some(r => !r.classList.contains('filter-hidden'));
+                adv.classList.toggle('set-adv-match', hit);
+                adv.classList.toggle('filter-hidden', !!q && !hit);
+                adv._render?.();
             }
             // a section folds when none of ITS rows survived; one that never held rows (About and
             // its kin) is not the filter's business

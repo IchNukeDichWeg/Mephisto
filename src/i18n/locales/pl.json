@@ -449,6 +449,7 @@
   "an.tip.wdl": "Pokaż procenty wygranej, remisu i przegranej silnika obok szachownicy.",
   "an.tip.book": "Pokaż posunięcia książkowe dla pozycji z księgi wczytanej poniżej.",
   "set.filter_ph": "Szukaj w tych ustawieniach…",
+  "set.advanced": "Zaawansowane",
   "set.storage": "Pamięć: {used} zajęte{idb} - z {quota} dostępnych dla tego profilu przeglądarki.",
   "set.imported_n": "Zaimportowano ustawienia: {n}. Otwarte panele przejmą je przy następnym ruchu; załaduj ponownie kartę z partią, aby zastosować zmianę silnika od razu.",
   "set.warn_threads": "Ta maszyna ma {cores} rdzeni - {n} wątków będzie sobie przeszkadzać i szukać wolniej, a nie szybciej.",

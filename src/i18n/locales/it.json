@@ -449,6 +449,7 @@
   "an.tip.wdl": "Mostra le percentuali di vittoria, patta e sconfitta del motore accanto alla scacchiera.",
   "an.tip.book": "Mostra le mosse di libro per la posizione da un libro caricato sotto.",
   "set.filter_ph": "Cerca in queste impostazioni…",
+  "set.advanced": "Avanzate",
   "set.storage": "Spazio: {used} in uso{idb} - su {quota} disponibili per questo profilo del browser.",
   "set.imported_n": "Importate {n} impostazioni. I pannelli aperti le recepiscono alla mossa successiva; ricarica la scheda della partita per applicare subito una modifica del motore.",
   "set.warn_threads": "Questa macchina ha {cores} core - {n} thread si ostacoleranno a vicenda e cercheranno più lentamente, non più velocemente.",

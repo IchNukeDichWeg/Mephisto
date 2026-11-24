@@ -449,6 +449,7 @@
   "an.tip.wdl": "Mostrar los porcentajes de victoria, tablas y derrota del motor junto al tablero.",
   "an.tip.book": "Mostrar jugadas de libro para la posición desde un libro que cargues abajo.",
   "set.filter_ph": "Buscar en estos ajustes…",
+  "set.advanced": "Avanzado",
   "set.storage": "Almacenamiento: {used} en uso{idb} - de {quota} disponibles para este perfil del navegador.",
   "set.imported_n": "Se importaron {n} ajustes. Los paneles abiertos los toman en su próxima jugada; recarga la pestaña de la partida para aplicar ya un cambio de motor.",
   "set.warn_threads": "Este equipo tiene {cores} núcleos - {n} hilos se estorbarán entre sí y buscarán más lento, no más rápido.",

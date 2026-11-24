@@ -16784,6 +16784,25 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
         else { fails++; console.log(`FAIL ROWS-1: ${id} (row id ${row}, sync ${synced})`); }
     }
 }
+// ---- SIMP-ADV: the per-section Advanced disclosure (SettingsPage.wireAdvanced) ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const sp = fs.readFileSync(ROOT + '/src/options/util/SettingsPage.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const fn = sp.slice(sp.indexOf('    wireAdvanced() {'), sp.indexOf('    wireFilter() {'));
+    ok('SIMP-ADV: onInit wires the Advanced blocks before the filter', /this\.wireAdvanced\(\);\s*this\.wireFilter\(\);/.test(sp));
+    ok('SIMP-ADV: open state is per section in localStorage, every access guarded',
+       /try \{ open = localStorage\.getItem\(key\) === '1'; \} catch/.test(fn) && /try \{ localStorage\.setItem\(key, open \? '1' : '0'\); \} catch/.test(fn));
+    ok('SIMP-ADV: the button carries aria-expanded and the body is hidden while closed',
+       /btn\.setAttribute\('aria-expanded', String\(shown\)\)/.test(fn) && /body\.hidden = !shown/.test(fn));
+    ok('SIMP-ADV: the filter opens a block that holds a match and folds one that holds none',
+       /adv\.classList\.toggle\('set-adv-match', hit\)/.test(sp) && /adv\.classList\.toggle\('filter-hidden', !!q && !hit\)/.test(sp));
+    // every block in the markup: a closed button that names its body, translated label
+    const blocks = [...gh.matchAll(/<div class="set-adv" data-adv="(\w+)">\s*<button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="(\w+)">[^\n]*data-i18n="set\.advanced"[^\n]*\n\s*<div class="set-adv-body" id="(\w+)" hidden>/g)];
+    ok('SIMP-ADV: every Advanced block starts closed, its button names its body', blocks.length >= 1 && blocks.length === (gh.match(/class="set-adv"/g) || []).length && blocks.every(m => m[2] === m[3]), blocks.map(m => m[1]));
+    const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
+    ok('SIMP-ADV: the label is translated', en['set.advanced'] === 'Advanced');
+}
 // ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

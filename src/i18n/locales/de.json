@@ -449,6 +449,7 @@
   "an.tip.wdl": "Die Gewinn-, Remis- und Verlustprozente der Engine neben dem Brett anzeigen.",
   "an.tip.book": "Buchzüge für die Stellung aus einem unten geladenen Buch anzeigen.",
   "set.filter_ph": "Diese Einstellungen durchsuchen…",
+  "set.advanced": "Erweitert",
   "set.storage": "Speicher: {used} belegt{idb} - von {quota}, die diesem Browserprofil zur Verfügung stehen.",
   "set.imported_n": "{n} Einstellungen importiert. Offene Panels übernehmen sie bei ihrem nächsten Zug; lade den Spiel-Tab neu, um eine Engine-Änderung sofort anzuwenden.",
   "set.warn_threads": "Dieser Rechner hat {cores} Kerne - {n} Threads behindern sich gegenseitig und suchen langsamer, nicht schneller.",

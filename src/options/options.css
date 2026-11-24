@@ -751,6 +751,33 @@ html.dark .limit-warn { color: #d8a628; }
 .set-filter input:focus { border-color: var(--mp-on) !important; outline: none; box-shadow: none !important; }
 .filter-hidden { display: none !important; }
 
+/* ADVANCED, one per section (SettingsPage.wireAdvanced): a quiet disclosure under the section's own
+   rows, closed by default. The button is a full-width row in the mute colour with a chevron that
+   turns when open, so it reads as "more of this section" and not as an action. The rows inside are
+   ordinary rows. */
+.set-adv { border-bottom: 1px solid var(--mp-hair); }
+.set-adv-empty { display: none; }
+.set-adv-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    min-height: 38px;
+    padding: 6px 2px;
+    border: 0;
+    background: none;
+    color: var(--mp-mute);
+    font: 600 12.5px/1.4 -apple-system, Roboto, system-ui, sans-serif;
+    text-align: left;
+    cursor: pointer;
+}
+.set-adv-btn:hover { color: var(--mp-text); }
+.set-adv-btn:focus-visible { outline: 2px solid var(--mp-on); outline-offset: 2px; }
+.set-adv-btn .material-icons { font-size: 18px; transition: transform .15s; }
+.set-adv-btn[aria-expanded="true"] .material-icons { transform: rotate(90deg); }
+.set-adv-body { padding-left: 14px; border-left: 2px solid var(--mp-hair); margin-bottom: 6px; }
+.set-adv-body > .set-row:last-child { border-bottom: 0; }
+
 /* ---------------------------------------------------------------- narrow windows
    The layout is three bands -- sidebar, content, section nav -- and each one gives way in turn as
    the window shrinks, rather than everything staying put and something falling off the edge.  */

@@ -449,6 +449,7 @@
   "an.tip.wdl": "De winst-, remise- en verliespercentages van de engine naast het bord tonen.",
   "an.tip.book": "Boekzetten voor de stelling tonen uit een boek dat je hieronder laadt.",
   "set.filter_ph": "Zoek in deze instellingen…",
+  "set.advanced": "Geavanceerd",
   "set.storage": "Opslag: {used} in gebruik{idb} - van {quota} beschikbaar voor dit browserprofiel.",
   "set.imported_n": "{n} instellingen geïmporteerd. Open panelen nemen ze over bij hun volgende zet; laad het speltabblad opnieuw om een engine-wijziging nu toe te passen.",
   "set.warn_threads": "Deze machine heeft {cores} kernen - {n} threads gaan elkaar in de weg zitten en zoeken trager, niet sneller.",

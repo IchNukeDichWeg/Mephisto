@@ -140,72 +140,11 @@
                     </div>
                 </div>
 
-                <!-- Four-player mode override. Its own row rather than options on Variant: which
-                     RULES a four-player board plays by is a different question from which chess
-                     variant this is, and `variant` is read by the whole 8x8 lane. Shown only for
-                     Tetrarch, where the Variant row above is hidden anyway. -->
-                <div class="set-row section hidden" id="fourpc_mode_section">
-                    <div class="set-lbl">
-                        <span data-i18n="set.four_player_mode" data-i18n-tip="set.tip.four_player_mode" class="tooltipped" data-position="right"
-                              data-tooltip="Which rules the four-player board is played under. Auto-detect reads it from chess.com's own mode label, which is a guess about someone else's markup - set it yourself when that guess is wrong. It changes the rules the search runs under: promotion is the 8th rank in free-for-all and the 11th in Teams. Tetrarch searches both modes.">
-                            Four-player Mode <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <select name="fourpc_mode" id="fourpc_mode_select">
-                            <option data-i18n="panel.fourpc_mode_auto" value="auto">Auto-detect</option>
-                            <option data-i18n="panel.fourpc_mode_teams" value="teams">Teams</option>
-                            <option data-i18n="panel.fourpc_mode_ffa" value="ffa">Free-for-all</option>
-                        </select>
-                    </div>
-                </div>
-
                 <div class="set-row section">
                     <div class="set-lbl"><span data-i18n-tip="panel.tip.threads" class="tooltipped" data-position="right" data-tooltip="How many CPU threads the engine may use. More is stronger up to the cores you actually have; past that it is slower, not faster."><span data-i18n="panel.threads">Threads</span></span></div>
                     <div class="set-ctl">
                         <input id="threads_range" type="range" min="1" max="24" step="1">
                         <span class="value set-val"></span>
-                    </div>
-                </div>
-
-                <div class="set-row section">
-                    <div class="set-lbl"><span data-i18n-tip="panel.tip.memory" class="tooltipped" data-position="right" data-tooltip="The
-                                                                                                                                       engine's
-                                                                                                                                       hash
-                                                                                                                                       table.
-                                                                                                                                       Bigger
-                                                                                                                                       helps
-                                                                                                                                       long
-                                                                                                                                       searches;
-                                                                                                                                       bigger
-                                                                                                                                       than
-                                                                                                                                       the
-                                                                                                                                       machine
-                                                                                                                                       can
-                                                                                                                                       spare
-                                                                                                                                       hurts
-                                                                                                                                       everything.
-                                                                                                                                       The
-                                                                                                                                       WASM
-                                                                                                                                       engines
-                                                                                                                                       use
-                                                                                                                                       at
-                                                                                                                                       most
-                                                                                                                                       512
-                                                                                                                                       MB
-                                                                                                                                       whatever
-                                                                                                                                       the
-                                                                                                                                       slider
-                                                                                                                                       shows;
-                                                                                                                                       native
-                                                                                                                                       engines
-                                                                                                                                       take
-                                                                                                                                       the
-                                                                                                                                       full
-                                                                                                                                       value."><span data-i18n="panel.memory">Memory</span></span></div>
-                    <div class="set-ctl">
-                        <input id="memory_range" type="range" min="32" max="4096" step="32">
-                        <span class="value set-val"></span><span class="set-unit">MB</span>
                     </div>
                 </div>
 
@@ -829,31 +768,6 @@
                     </div>
                 </div>
 
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.analysis_limit" class="tooltipped" data-position="right"
-                              data-tooltip="What bounds the search when there is no move to play -- Autoplay off, Help Mode, Manual Mode, or a ponder on the opponent's turn. That search has always run until the position changed; it still does, because the slider's far right is No Limit in every mode. Depth and Nodes are reproducible (the same search on any machine), Time is not. On a native engine the budget is capped at 60 seconds whatever the unit, so a nodes limit that cannot be reached in a minute ends there."><span data-i18n="set.analysis_limit">Analysis Limit</span></span>
-                    </div>
-                    <div class="set-ctl">
-                        <select name="analysis_limit_mode" id="analysis_limit_mode_select">
-                            <option value="time" data-i18n="set.limit_time">Time</option>
-                            <option value="depth" data-i18n="set.limit_depth">Depth</option>
-                            <option value="nodes" data-i18n="set.limit_nodes">Nodes</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.analysis_limit_value" class="tooltipped" data-position="right"
-                              data-tooltip="How much of the unit above one analysis search may spend: 1-60 plies, 1-60 seconds, or 1M-1B nodes on a logarithmic scale. The far right is No Limit -- the search deepens until the position changes, which is what it has always done."><span data-i18n="set.analysis_limit_value">Limit Amount</span></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="analysis_limit_range" type="range" min="1" max="61" step="1">
-                        <span class="value set-val set-val-wide"></span>
-                    </div>
-                </div>
-
                 <div class="set-row" id="compute_time_row">
                     <div class="set-lbl"><span data-i18n-tip="set.tip.compute_time" class="tooltipped" data-position="right" data-tooltip="How long the engine thinks per move, in milliseconds. More time means stronger play."><span data-i18n="set.search_time_ms">Search Time (ms)</span></span></div>
                     <div class="set-ctl">
@@ -911,6 +825,99 @@
                         <label for="ponder_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
+                    </div>
+                </div>
+                <!-- ADVANCED: rows set once or never, behind one closed disclosure (SettingsPage.wireAdvanced).
+                     The rows inside are ordinary rows; ids and bindings are unchanged. -->
+                <div class="set-adv" data-adv="engine">
+                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="engine_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
+                    <div class="set-adv-body" id="engine_adv" hidden>
+
+                <div class="set-row section">
+                    <div class="set-lbl"><span data-i18n-tip="panel.tip.memory" class="tooltipped" data-position="right" data-tooltip="The
+                                                                                                                                       engine's
+                                                                                                                                       hash
+                                                                                                                                       table.
+                                                                                                                                       Bigger
+                                                                                                                                       helps
+                                                                                                                                       long
+                                                                                                                                       searches;
+                                                                                                                                       bigger
+                                                                                                                                       than
+                                                                                                                                       the
+                                                                                                                                       machine
+                                                                                                                                       can
+                                                                                                                                       spare
+                                                                                                                                       hurts
+                                                                                                                                       everything.
+                                                                                                                                       The
+                                                                                                                                       WASM
+                                                                                                                                       engines
+                                                                                                                                       use
+                                                                                                                                       at
+                                                                                                                                       most
+                                                                                                                                       512
+                                                                                                                                       MB
+                                                                                                                                       whatever
+                                                                                                                                       the
+                                                                                                                                       slider
+                                                                                                                                       shows;
+                                                                                                                                       native
+                                                                                                                                       engines
+                                                                                                                                       take
+                                                                                                                                       the
+                                                                                                                                       full
+                                                                                                                                       value."><span data-i18n="panel.memory">Memory</span></span></div>
+                    <div class="set-ctl">
+                        <input id="memory_range" type="range" min="32" max="4096" step="32">
+                        <span class="value set-val"></span><span class="set-unit">MB</span>
+                    </div>
+                </div>
+
+                <!-- Four-player mode override. Its own row rather than options on Variant: which
+                     RULES a four-player board plays by is a different question from which chess
+                     variant this is, and `variant` is read by the whole 8x8 lane. Shown only for
+                     Tetrarch, where the Variant row above is hidden anyway. -->
+                <div class="set-row section hidden" id="fourpc_mode_section">
+                    <div class="set-lbl">
+                        <span data-i18n="set.four_player_mode" data-i18n-tip="set.tip.four_player_mode" class="tooltipped" data-position="right"
+                              data-tooltip="Which rules the four-player board is played under. Auto-detect reads it from chess.com's own mode label, which is a guess about someone else's markup - set it yourself when that guess is wrong. It changes the rules the search runs under: promotion is the 8th rank in free-for-all and the 11th in Teams. Tetrarch searches both modes.">
+                            Four-player Mode <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <select name="fourpc_mode" id="fourpc_mode_select">
+                            <option data-i18n="panel.fourpc_mode_auto" value="auto">Auto-detect</option>
+                            <option data-i18n="panel.fourpc_mode_teams" value="teams">Teams</option>
+                            <option data-i18n="panel.fourpc_mode_ffa" value="ffa">Free-for-all</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.analysis_limit" class="tooltipped" data-position="right"
+                              data-tooltip="What bounds the search when there is no move to play -- Autoplay off, Help Mode, Manual Mode, or a ponder on the opponent's turn. That search has always run until the position changed; it still does, because the slider's far right is No Limit in every mode. Depth and Nodes are reproducible (the same search on any machine), Time is not. On a native engine the budget is capped at 60 seconds whatever the unit, so a nodes limit that cannot be reached in a minute ends there."><span data-i18n="set.analysis_limit">Analysis Limit</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <select name="analysis_limit_mode" id="analysis_limit_mode_select">
+                            <option value="time" data-i18n="set.limit_time">Time</option>
+                            <option value="depth" data-i18n="set.limit_depth">Depth</option>
+                            <option value="nodes" data-i18n="set.limit_nodes">Nodes</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.analysis_limit_value" class="tooltipped" data-position="right"
+                              data-tooltip="How much of the unit above one analysis search may spend: 1-60 plies, 1-60 seconds, or 1M-1B nodes on a logarithmic scale. The far right is No Limit -- the search deepens until the position changes, which is what it has always done."><span data-i18n="set.analysis_limit_value">Limit Amount</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="analysis_limit_range" type="range" min="1" max="61" step="1">
+                        <span class="value set-val set-val-wide"></span>
+                    </div>
+                </div>
                     </div>
                 </div>
             </section>

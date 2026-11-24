@@ -449,6 +449,7 @@
   "an.tip.wdl": "Motorun kazanma, beraberlik ve kaybetme yüzdelerini tahtanın yanında göster.",
   "an.tip.book": "Aşağıda yüklediğiniz bir kitaptan bu konumun kitap hamlelerini göster.",
   "set.filter_ph": "Bu ayarlarda ara…",
+  "set.advanced": "Gelişmiş",
   "set.storage": "Depolama: {used} kullanımda{idb} - bu tarayıcı profiline açık {quota} içinden.",
   "set.imported_n": "{n} ayar içe aktarıldı. Açık paneller bunları bir sonraki hamlede alır; bir motor değişikliğini hemen uygulamak için oyun sekmesini yeniden yükleyin.",
   "set.warn_threads": "Bu makinede {cores} çekirdek var - {n} iş parçacığı birbiriyle çekişir ve daha hızlı değil, daha yavaş arar.",
