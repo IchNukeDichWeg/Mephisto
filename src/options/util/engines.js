@@ -280,6 +280,14 @@ class WasmEngine {
         await wait;
     }
 
+    // A new game on the same engine: the hash and history go, so the second game of a batch is
+    // searched exactly as it would be alone. Without it a batch game's accuracy depended on the game
+    // before it (one game alone 97.8/42.4, the same game second in a batch 98.0/45.5).
+    async newGame() {
+        this.send('ucinewgame');
+        await this.isready();
+    }
+
     // One position. Collects the best info line PER multipv slot at the deepest depth reached, then
     // returns when `bestmove` arrives -- which is the only reliable "the search is over" signal UCI
     // has. A slot is overwritten only by a line at least as deep, so a shallow re-search late in the
@@ -499,6 +507,11 @@ class NativeEngine {
         };
         await this.request('configure', {options: this.configured});
     }
+
+    // The host protocol has no ucinewgame (python-chess sends one only when its game object
+    // changes), so a native engine keeps its hash from one batch game to the next. A per-game reset
+    // needs a host command; add one if batch reproducibility on a native engine ever matters.
+    async newGame() {}
 
     // `extra.onInfo` receives every streamed `{info}` frame for THIS request (already matched by
     // id, so another request's tail can never leak in); `extra.timeoutMs` overrides the backstop

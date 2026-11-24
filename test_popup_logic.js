@@ -20014,3 +20014,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-FAIRPLAY: the match rate over real choices leaves out the shuffles and the decided moves',
        ind.realN === 20 && ind.realTop1 === 0.5 && ind.streak === 1, [ind.realN, ind.realTop1, ind.streak]);
 }
+// ---- REVIEW-NEWGAME: every review game starts its engines clean, so a batch game reads as it does alone ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const ej = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const sent = [];
+    const c = vm.createContext({console, setTimeout, clearTimeout, chrome: {runtime: {sendMessage: (m) => { sent.push(m.line); }}}});
+    vm.runInContext(ej.slice(ej.indexOf('class WasmEngine {'), ej.indexOf('class NativeEngine {')) + ';this.E = new WasmEngine("sf", {}, "r1");', c);
+    const done = vm.runInContext('E.newGame().then(() => "resolved")', c);
+    const before = sent.slice();
+    c.E.onMessage({fromOffscreen: true, clientId: 'r1', kind: 'line', line: 'readyok'});
+    done.then((v) => {
+        ok('REVIEW-NEWGAME: newGame sends ucinewgame then isready, and resolves on readyok', JSON.stringify(before) === '["ucinewgame","isready"]' && v === 'resolved', [before, v]);
+    }).catch(e => { fails++; console.log('FAIL REVIEW-NEWGAME threw: ' + e); });
+    const i = rj.indexOf('async function runReview(game, rig, onProgress) {'), j = rj.indexOf('const enginePass = (async () => {', i);
+    ok('REVIEW-NEWGAME: runReview resets the whole pool and the human model before the first search of each game',
+       i > 0 && j > i && /await Promise\.all\(\[\.\.\.pool, rig\.human\]\.filter\(e => e && e\.newGame\)\.map\(e => e\.newGame\(\)\)\);/.test(rj.slice(i, j))
+       && /class NativeEngine \{[\s\S]*async newGame\(\) \{\}/.test(ej));
+}

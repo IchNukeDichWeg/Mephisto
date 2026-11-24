@@ -381,6 +381,8 @@ async function runReview(game, rig, onProgress) {
     // The count reported is COMPLETED positions, not an index: with workers running out of order
     // "position 7 of 103" would jump around and read like a bug.
     const pool = (rig.engines && rig.engines.length) ? rig.engines : [rig.engine];
+    // every engine of the rig starts this game clean (a batch reuses the rig across games)
+    await Promise.all([...pool, rig.human].filter(e => e && e.newGame).map(e => e.newGame()));
     let nextPos = 0;
     // ONE WORKER FAILED, SO THE PASS HAS: the others take no further position. They only checked
     // `cancel`, so the surviving worker of a failed game went on searching that game's positions on
