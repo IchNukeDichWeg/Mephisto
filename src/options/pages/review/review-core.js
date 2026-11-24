@@ -892,6 +892,66 @@ function markPromoted(placement, squares) {
     }).join('/');
 }
 
+// ---- key moments and mistake stops -------------------------------------------------------------
+// Every graded move's swing in WHITE's win% (what the eval graph draws), so "crossed 50" means what
+// it says on the graph and a swing is the same size whichever side moved.
+function whiteSwings(moves) {
+    return moves.filter(m => m.winBefore != null && m.winAfter != null).map(m => {
+        const wBefore = m.color === 'w' ? m.winBefore : 100 - m.winBefore;
+        const wAfter = m.color === 'w' ? m.winAfter : 100 - m.winAfter;
+        return {m, ply: m.ply, wBefore, wAfter, swing: Math.abs(wBefore - wAfter),
+                crossed: (wBefore - 50) * (wAfter - 50) < 0};
+    });
+}
+
+// THE MOMENT THE GAME TURNED: the biggest swing that moved the advantage across 50%, because "it
+// was equal and then it was lost" is what "turned" means; when nothing crossed, the biggest swing
+// stands in. Below a 15-point swing a quiet game has no turning point.
+const TURN_MIN = 15;
+function turningPoint(swings) {
+    const big = swings.filter(x => x.swing >= TURN_MIN);
+    const crossers = big.filter(x => x.crossed);
+    return (crossers.length ? crossers : big).slice().sort((a, b) => b.swing - a.swing)[0] || null;
+}
+
+// THE KEY MOMENTS: the n biggest swings, either player, in game order, the turning point always
+// among them and flagged. KEY_MIN = 10 is the Mistake band's floor: a smaller swing did not change
+// what the game was about.
+const KEY_MIN = 10;
+function keyMoments(moves, n = 5) {
+    const swings = whiteSwings(moves);
+    const turn = turningPoint(swings);
+    const top = swings.filter(x => x.swing >= KEY_MIN).sort((a, b) => b.swing - a.swing).slice(0, n);
+    if (turn && !top.includes(turn)) top.splice(Math.max(0, top.length - (top.length >= n ? 1 : 0)), 1, turn);
+    return top.sort((a, b) => a.ply - b.ply).map(x => ({...x, turning: x === turn}));
+}
+
+// The moves the previous / next buttons stop at: an Inaccuracy or worse (a Miss counts), by one side
+// when the page knows whose game this is, else both.
+const STOP_CLASSES = ['inaccuracy', 'mistake', 'blunder', 'miss'];
+function mistakeStops(moves, side) {
+    return moves.filter(m => STOP_CLASSES.includes(m.klass) && (!side || m.color === side)).map(m => m.ply);
+}
+
+// The board position to jump to from `cursor` (a position index: the move shown is ply cursor - 1),
+// dir +1 or -1. A stop is shown AFTER its move, where its badge is, so stop ply p lives at p + 1.
+// null when there is none that way.
+function stepToStop(stops, cursor, dir) {
+    const at = stops.map(p => p + 1);
+    if (dir > 0) return at.find(x => x > cursor) ?? null;
+    return at.filter(x => x < cursor).pop() ?? null;
+}
+
+// Whose game this is, when the page knows: the username games were fetched for, matched against the
+// PGN's player tags (case-insensitive, as both sites treat names). null = both sides.
+function reviewSide(tags, user) {
+    const u = String(user || '').trim().toLowerCase();
+    if (!u || !tags) return null;
+    if (String(tags.White || '').toLowerCase() === u) return 'w';
+    if (String(tags.Black || '').toLowerCase() === u) return 'b';
+    return null;
+}
+
 // What the page and the test ladder actually call. parseGame/splitGames/parseTags/stripVariations
 // and the three statistics helpers stay internal: they are steps of the functions below, and an
 // export with no caller is surface that has to keep working for nobody.
@@ -899,6 +959,7 @@ root.MephistoReviewCore = {
     parsePgn, clockToSeconds, formatDate, gamePhases, phaseOf, LEVELS,
     toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
     accuracyFor, indicators, evidence, estimate, parseInfo, clamp,
+    whiteSwings, turningPoint, keyMoments, mistakeStops, stepToStop, reviewSide,
     NAG_FOR_CLASS, annotatedPgn, plyMove, lichessStudyId, lichessRequest, lichessResultUrl, lichessFailure,
     liftPromoted, markPromoted,
 };

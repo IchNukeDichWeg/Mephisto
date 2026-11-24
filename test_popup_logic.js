@@ -20277,3 +20277,48 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-CPU: the pool cap is High\'s ceiling of 8', /const wantWorkers = Math\.max\(1, Math\.min\(8, override/.test(rj));
     ok('REVIEW-CPU: the three boxes are gone from the page', !/id="rv_(workers|threads|hash)"/.test(html) && /id="rv_cpu"/.test(html));
 }
+// ---- REVIEW-KEYS: key moments, the turning point and the mistake stops ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const C = c.MephistoReviewCore;
+    // white's win% after each ply; mover-relative winBefore/winAfter built from it
+    const W = [50, 52, 50, 51, 30, 32, 60, 58, 57, 87, 84, 40, 41, 43, 42, 90, 88, 89, 20, 22, 80];
+    const klass = {3: 'mistake', 5: 'great', 8: 'blunder', 10: 'blunder', 14: 'inaccuracy', 17: 'blunder', 19: 'miss'};
+    const moves = [];
+    for (let i = 0; i < W.length - 1; i++) {
+        const color = i % 2 ? 'b' : 'w';
+        const mv = (w) => color === 'w' ? w : 100 - w;
+        moves.push({ply: i, color, san: 'x' + i, winBefore: mv(W[i]), winAfter: mv(W[i + 1]), klass: klass[i] || 'best'});
+    }
+    const keys = C.keyMoments(moves, 5);
+    ok('REVIEW-KEYS: the five biggest swings, either side, in game order',
+       JSON.stringify(keys.map(k => k.ply)) === JSON.stringify([8, 10, 14, 17, 19]), keys.map(k => [k.ply, Math.round(k.swing)]));
+    const turn = keys.find(k => k.turning);
+    ok('REVIEW-KEYS: the turning point is the biggest swing ACROSS 50%, flagged once', turn && turn.ply === 17 && keys.filter(k => k.turning).length === 1, turn && turn.ply);
+    // a crosser smaller than five bigger non-crossers is still listed (it replaces the smallest)
+    const mk = (ply, wB, wA) => { const color = ply % 2 ? 'b' : 'w'; return {ply, color, winBefore: color === 'w' ? wB : 100 - wB, winAfter: color === 'w' ? wA : 100 - wA}; };
+    const k2 = C.keyMoments([mk(0, 60, 99), mk(1, 99, 60), mk(2, 60, 98), mk(3, 98, 61), mk(4, 61, 97), mk(5, 97, 62), mk(6, 62, 63), mk(7, 52, 34)], 5);
+    ok('REVIEW-KEYS: a turning point outside the top five still makes the list', k2.length === 5 && k2.some(k => k.ply === 7 && k.turning) && !k2.some(k => k.ply === 5), k2.map(k => [k.ply, k.turning]));
+    ok('REVIEW-KEYS: a quiet game has no key moments', C.keyMoments(moves.map(m => ({...m, winAfter: m.winBefore + 3})), 5).length === 0);
+    const all = C.mistakeStops(moves, null), white = C.mistakeStops(moves, 'w'), black = C.mistakeStops(moves, 'b');
+    ok('REVIEW-KEYS: the stops are Inaccuracy or worse (Miss included), Great is not; one side when the game is theirs',
+       JSON.stringify([all, white, black]) === JSON.stringify([[3, 8, 10, 14, 17, 19], [8, 10, 14], [3, 17, 19]]), [all, white, black]);
+    // positions: stop ply p is shown at p + 1
+    const steps = [C.stepToStop(all, 0, 1), C.stepToStop(all, 4, 1), C.stepToStop(all, 9, -1), C.stepToStop(all, 4, -1), C.stepToStop(all, 20, 1), C.stepToStop(all, 4, -1 * 1) && C.stepToStop(all, 3, -1)];
+    ok('REVIEW-KEYS: next / previous step from the board position, null past the ends',
+       JSON.stringify(steps) === JSON.stringify([4, 9, 4, null, null, null]), steps);
+    const tags = {White: 'Hikaru', Black: 'LiamPutnam2008'};
+    ok('REVIEW-KEYS: the reviewed side is the fetched username matched case-insensitively, else both',
+       JSON.stringify([C.reviewSide(tags, 'hikaru'), C.reviewSide(tags, ' liamputnam2008 '), C.reviewSide(tags, 'someone'), C.reviewSide(tags, '')]) === JSON.stringify(['w', 'b', null, null]));
+    const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    ok('REVIEW-KEYS: the two buttons sit in the board nav and Shift+arrows reach them',
+       /class="rv-nav">[\s\S]*id="rv_prev_mistake"[\s\S]*id="rv_next_mistake"[\s\S]*id="rv_flip"/.test(html)
+       && /e\.key === 'ArrowLeft' && e\.shiftKey\) \{ stepMistake\(-1\)/.test(rj) && /syncMistakeNav\(\);/.test(rj));
+}

@@ -1381,34 +1381,45 @@ function renderCards() {
     $('rv_cards').innerHTML = card('w') + card('b');
 }
 
-// THE MOMENT THE GAME TURNED, named instead of left for the reader to find on the graph. The move
-// with the biggest single swing in win percentage -- preferring one that moved the advantage across
-// the 50% line, because "it was equal and then it was lost" is what "turned" means; when nothing
-// crossed, the biggest swing stands in. A quiet game has no turning point and this says nothing:
-// below a 15-point swing there is no story to tell. Clicking the line jumps the board there.
+// THE KEY MOMENTS, named instead of left for the reader to find on the graph: the five biggest
+// win% swings of the game, either player, in game order (Core.keyMoments). The turning point -- the
+// biggest swing across 50%, else the biggest -- is always among them and outlined. A quiet game with
+// no swing of 10 points says nothing. Each chip jumps the board to its move. It used to be one line,
+// "The game turned on ...", and it sat UNDER the absolutely positioned graph, so nobody saw it.
 function renderTurning() {
     const el = $('rv_turning');
     if (!el) return;
-    // white-view win% both sides of every move, so "crossed 50" means what it says on the graph
-    const swings = report.moves
-        .filter(m => m.winBefore != null && m.winAfter != null)
-        .map(m => {
-            const wBefore = m.color === 'w' ? m.winBefore : 100 - m.winBefore;
-            const wAfter = m.color === 'w' ? m.winAfter : 100 - m.winAfter;
-            return {m, wBefore, wAfter, drop: Math.abs(wBefore - wAfter),
-                    crossed: (wBefore - 50) * (wAfter - 50) < 0};
-        });
-    const crossers = swings.filter(x => x.crossed && x.drop >= 15);
-    const pick = (crossers.length ? crossers : swings.filter(x => x.drop >= 15))
-        .sort((a, b) => b.drop - a.drop)[0];
-    // one line of why, because "no turning point" and "the data never arrived" look identical
-    console.log(`[review] turning: ${swings.length} swings, max drop ${swings.length
-        ? Math.round(Math.max(...swings.map(x => x.drop))) : 0}, crossers ${crossers.length}`);
-    el.classList.toggle('hidden', !pick);
-    if (!pick) return;
-    el.innerHTML = `The game turned on <span class="rv-turn-move rv-c-${pick.m.klass}">${esc(moveLabel(pick.m))}</span>`
-        + ` - White ${Math.round(pick.wBefore)}% → ${Math.round(pick.wAfter)}%`;
-    el.querySelector('.rv-turn-move')?.addEventListener('click', () => showPly(pick.m.ply + 1));
+    const keys = Core.keyMoments(report.moves, 5);
+    el.classList.toggle('hidden', !keys.length);
+    if (!keys.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `<span class="rv-keys-h">Key moments</span>` + keys.map(k => {
+        const kl = shownClass(k.m);
+        const tip = `${moveLabel(k.m)} ${shownLabel(kl)}: White ${Math.round(k.wBefore)}% to ${Math.round(k.wAfter)}%`
+            + (k.turning ? ' - the game turned here' : '');
+        return `<button type="button" class="rv-key rv-c-${kl}${k.turning ? ' rv-key-turn' : ''}" data-ply="${k.ply}" title="${esc(tip)}">`
+            + `${classIcon(kl)}<b>${esc(moveLabel(k.m))}</b>`
+            + `<span class="rv-key-sw">${Math.round(k.wBefore)}\u2192${Math.round(k.wAfter)}%</span></button>`;
+    }).join('');
+    // the container is redrawn per report, so per-chip listeners go with it
+    el.querySelectorAll('.rv-key').forEach(btn => btn.addEventListener('click', () => showPly(+btn.dataset.ply + 1)));
+}
+
+// THE MISTAKE STOPS: previous / next Inaccuracy or worse. Only the fetched player's moves when the
+// game is theirs (the username typed for Fetch games matches a player tag), else both sides.
+function mistakeSide() {
+    return report?.game ? Core.reviewSide(report.game.tags, $('rv_user')?.value) : null;
+}
+function stepMistake(dir) {
+    if (!report) return;
+    const to = Core.stepToStop(Core.mistakeStops(report.moves, mistakeSide()), cursor, dir);
+    if (to != null) showPly(to);
+}
+function syncMistakeNav() {
+    const prev = $('rv_prev_mistake'), next = $('rv_next_mistake');
+    if (!prev || !next) return;
+    const stops = report ? Core.mistakeStops(report.moves, mistakeSide()) : [];
+    prev.disabled = Core.stepToStop(stops, cursor, -1) == null;
+    next.disabled = Core.stepToStop(stops, cursor, 1) == null;
 }
 
 // HOW THE CLOCK WAS SPENT, per player, when the PGN carried clocks at all. The shape is the point:
@@ -1955,6 +1966,7 @@ function showPly(ply) {
     renderEvalBar(pos);
     renderDetail(pos, played);
     setGraphCursor();
+    syncMistakeNav();
     document.querySelectorAll('.rv-mcell.rv-sel').forEach(el => el.classList.remove('rv-sel'));
     const sel = document.querySelector(`.rv-mcell[data-ply="${cursor - 1}"]`);
     if (sel) {
@@ -3957,6 +3969,8 @@ class ReviewPage {
         $('rv_prev').addEventListener('click', () => showPly(cursor - 1));
         $('rv_next').addEventListener('click', () => showPly(cursor + 1));
         $('rv_last').addEventListener('click', () => showPly(report ? report.positions.length - 1 : 0));
+        $('rv_prev_mistake')?.addEventListener('click', () => stepMistake(-1));
+        $('rv_next_mistake')?.addEventListener('click', () => stepMistake(1));
         $('rv_flip').addEventListener('click', () => {
             flipped = !flipped;
             board?.orientation(flipped ? 'black' : 'white');
@@ -4031,6 +4045,9 @@ function onKey(e) {
     if (!report || !$('rv_board')) return;
     // optional call: the target is not always an Element (a key dispatched at the document is not)
     if (e.target.matches?.('input, textarea, select')) return;
+    // Shift jumps to the previous / next mistake, the two buttons under the board
+    if (e.key === 'ArrowLeft' && e.shiftKey) { stepMistake(-1); e.preventDefault(); return; }
+    if (e.key === 'ArrowRight' && e.shiftKey) { stepMistake(1); e.preventDefault(); return; }
     if (e.key === 'ArrowLeft') { showPly(cursor - 1); e.preventDefault(); }
     if (e.key === 'ArrowRight') { showPly(cursor + 1); e.preventDefault(); }
     if (e.key === 'Home') { showPly(0); e.preventDefault(); }

@@ -148,9 +148,11 @@ html.dark .rv-status.rv-bad { color: #d15050; }
    from that ratio, and that height then sized the row -- so a wide window blew the summary up to
    395px (and further on each resize) with the cards stretched into empty space beneath their text.
    Out of flow the row is the cards' own height and the graph fills exactly that. */
-.rv-summary .rv-graph-wrap { margin: 0; min-width: 0; position: relative; }
-.rv-summary #rv_graph { position: absolute; inset: 0; }
-.rv-summary #rv_graph svg { display: block; height: 100%; width: 100%; }
+.rv-summary .rv-graph-wrap { margin: 0; min-width: 0; position: relative; display: flex; flex-direction: column; gap: 8px; }
+/* The graph takes whatever height the cards leave after the strips under it (key moments, clock).
+   The SVG stays out of flow inside it, which is what breaks the feedback loop described above. */
+.rv-summary #rv_graph { position: relative; flex: 1 1 0; min-height: 140px; }
+.rv-summary #rv_graph svg { position: absolute; inset: 0; display: block; height: 100%; width: 100%; }
 @media (max-width: 1000px) { .rv-summary { grid-template-columns: 1fr; } }
 
 #rv_cards .rv-card { padding: 9px 11px; }
@@ -196,11 +198,17 @@ html.dark .rv-status.rv-bad { color: #d15050; }
     border-bottom: 1px solid var(--mp-line); font-size: 12px; }
 .rv-str-cmp-tbl td { padding: 4px 10px 4px 0; border-bottom: 1px solid var(--mp-line); vertical-align: baseline; }
 
-/* the sentence under the graph naming where the game turned; the move is clickable and wears its
-   classification's colour, same as everywhere else a verdict shows */
-.rv-turning { margin-top: 8px; font-size: 13px; color: var(--mp-dim); }
-.rv-turning .rv-turn-move { color: var(--rv-c, var(--mp-text)); font-weight: 600; cursor: pointer; }
-.rv-turning .rv-turn-move:hover { text-decoration: underline; }
+/* the key moments under the graph: one chip per big swing, wearing its move's classification colour
+   like every other verdict; the turning point gets its outline in that colour */
+.rv-turning { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 6px; font-size: 12.5px; color: var(--mp-dim); }
+.rv-keys-h { font-weight: 600; color: var(--mp-mute); margin-right: 2px; }
+.rv-key { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 4px; border: 1px solid var(--mp-line);
+    border-radius: 12px; background: var(--mp-raised); color: var(--mp-text); font: inherit; line-height: 20px; cursor: pointer; }
+.rv-key:hover { border-color: var(--mp-mute); }
+.rv-key .rv-mic { width: 15px; height: 15px; margin: 0; }
+.rv-key b { font-weight: 600; color: var(--rv-c, var(--mp-text)); }
+.rv-key-sw { color: var(--mp-dim); font-variant-numeric: tabular-nums; }
+.rv-key-turn { border-color: var(--rv-c, var(--mp-line)); box-shadow: inset 0 0 0 1px var(--rv-c, transparent); }
 
 /* bucket labels under the think-time bars */
 .rv-time-labels { display: flex; gap: 2px; margin-top: 3px; }
