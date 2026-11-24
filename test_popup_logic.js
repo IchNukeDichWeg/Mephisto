@@ -17204,6 +17204,23 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
            && ['panel.move_time_var_ms', 'panel.tip.move_time_var', 'set.simulated_think_time_variance_ms', 'set.simulated_move_time_variance_ms',
                'set.tip.mephisto_will_wait_a_random', 'set.tip.mephisto_will_take_a_random'].every(k => !(k in l))));
 }
+// ---- SIMP-ADV2: the niche switches of Automated play, Timing and Humanize sit behind Advanced ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const where = (sec, marker) => {
+        const i = gh.indexOf(`<section id="${sec}"`), j = gh.indexOf('</section>', i), b = gh.indexOf(`<div class="set-adv-body" id="${sec}_adv" hidden>`, i), m = gh.indexOf(marker, i);
+        return (gh.split(marker).length - 1) !== 1 ? 'count' : m < 0 || m > j ? 'outside' : b > 0 && b < m ? 'advanced' : 'normal';
+    };
+    const want = {autoplay: ['id="grind_delay_row"', 'id="background_play_checkbox"', 'id="python_autoplay_backend_checkbox"', 'id="bot_trick_delay_row"', 'id="bot_trick_pgn_row"'],
+                  timing: ['id="drag_moves_checkbox"'], humanize: ['id="humanize_guards_checkbox"', 'id="humanize_maia_checkbox"']};
+    const got = Object.entries(want).flatMap(([sec, ms]) => ms.map(m => [sec, m, where(sec, m)]));
+    ok('SIMP-ADV2: guards, Human-Like Mistakes, drag, background play, the python backend, grind delay, bot delay and bot PGN are in their section\'s Advanced block',
+       got.every(g => g[2] === 'advanced'), got.filter(g => g[2] !== 'advanced'));
+    ok('SIMP-ADV2: ...while the choices people make every game stay out of it',
+       [['autoplay', 'id="moves_view"'], ['autoplay', 'id="after_game_view"'], ['autoplay', 'id="bot_trick_game_row"'], ['timing', 'id="clock_pacing_view"'],
+        ['timing', 'id="think_time_input"'], ['humanize', 'id="humanize_model_view"'], ['humanize', 'id="humanize_think_tc_checkbox"']].every(([s, m]) => where(s, m) === 'normal'));
+}
 // ---- SIMP-SEL: one select over two switches writes the two existing keys (view only) ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

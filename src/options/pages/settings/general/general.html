@@ -729,20 +729,6 @@
                     </div>
                 </div>
 
-                <div class="set-row" id="grind_delay_row">
-                    <div class="set-lbl">
-                        <span data-i18n="set.grind_delay_s" data-i18n-tip="set.tip.grind_delay" class="tooltipped" data-position="right"
-                              data-tooltip="How long to wait after a game ends before the next one is started. This is the window in which you can stop it -- 0 starts immediately, and the maximum is 600 seconds.">Grind Delay (s) <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="grind_delay_input" type="number" min="0" max="600" step="1">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
-                    </div>
-                </div>
-
                 <div class="set-row set-toggle" id="premove_row">
                     <div class="set-lbl">
                         <span data-i18n="panel.premove">Premove</span>
@@ -759,6 +745,99 @@
                         <label for="premove_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
+                    </div>
+                </div>
+
+                <div class="set-row set-toggle">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.bot_tricks" class="tooltipped" data-position="right" data-tooltip="Adds a Bot game row to the panel on chess.com's Play Computer page. A game against a bot there is decided in the browser, not on a server, so the page will accept a whole game handed to it move by move - and will accept a draw nobody offered. Off everywhere else, and the row does not exist while this is off."><span data-i18n="set.bot_tricks">Bot Tricks (Play Computer)</span></span></div>
+                    <div class="set-ctl">
+                        <input id="bot_tricks_checkbox" type="checkbox" class="set-cb">
+                        <label for="bot_tricks_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="set-row" id="bot_trick_game_row">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.bot_trick_game" class="tooltipped" data-position="right" data-tooltip="Which game to hand the bot. Every line here ends the game -- a checkmate, or a draw the client claims itself -- because a game that ended in resignation would stop with the bot still to move and it would then answer for real. Auto picks one that wins for whichever colour you were dealt. The panel's own dropdown sets the same thing."><span data-i18n="set.bot_trick_game">Bot Game</span></span></div>
+                    <div class="set-ctl">
+                        <select name="bot_trick_game" id="bot_trick_game_select"></select>
+                    </div>
+                </div>
+
+                <!-- "0 = off" stepper over the auto_resign switch and its auto_resign_cp (general.js bindOffStepper):
+                     both stored controls stay here, hidden, and keep their keys -->
+                <div class="set-row" id="auto_resign_row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.auto_resign" class="tooltipped" data-position="right"
+                              data-tooltip="Resign when the game is gone. The score has to stay below the threshold
+                                            for three of YOUR turns running, so one deep line at one depth cannot
+                                            end a game. Needs Autoplay, presses the site's own resign button and
+                                            confirms it, and does it once - after that no move is played into a
+                                            game you have resigned. Off unless you switch it on, for the obvious
+                                            reason. The number is how far behind counts as gone, in centipawns (100 to 3000, 900 is a queen); 0 is off."><span data-i18n="set.auto_resign">Auto Resign</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="auto_resign_checkbox" type="checkbox" hidden>
+                        <input id="auto_resign_cp_input" type="number" min="100" max="3000" step="100" hidden>
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                            <input id="auto_resign_view" type="number" min="0" max="3000" step="100">
+                            <button type="button" class="set-step-btn" data-step="1">+</button>
+                        </span>
+                        <span class="set-unit" data-unit="cp">cp</span>
+                    </div>
+                </div>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.auto_draw" class="tooltipped" data-position="right"
+                              data-tooltip="Offer a draw in a position neither side can change: the score within a
+                                            fifth of a pawn either way, for three of YOUR turns running, and past move 20 -
+                                            nobody offers a draw on move six. Needs Autoplay, and it offers ONCE per
+                                            game, because a declined offer repeated every move is what gets people
+                                            muted. The move is still played: offering a draw is something you do
+                                            alongside a move, not instead of one."><span data-i18n="set.auto_draw">Auto Draw Offer</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="auto_draw_checkbox" type="checkbox" class="set-cb">
+                        <label for="auto_draw_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- ADVANCED: rows set once or never, behind one closed disclosure (SettingsPage.wireAdvanced).
+                     The rows inside are ordinary rows; ids and bindings are unchanged. -->
+                <div class="set-adv" data-adv="autoplay">
+                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="autoplay_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
+                    <div class="set-adv-body" id="autoplay_adv" hidden>
+
+                <div class="set-row">
+                    <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.premove_plies" class="tooltipped" data-position="right"
+                              data-tooltip="How many premoves a forced sequence may queue in one click session, 1-5 (default 2). Chess.com queues them all; lichess REPLACES a queued premove rather than queueing another, so anything past the first is chess.com-only. Every queued move follows the same certainty rule as the forced-lines arrows: the opponent's replies must be their only legal move and agree with the engine's line."><span data-i18n="set.premove_plies">Premove Plies</span></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                            <input id="premove_plies_input" type="number" min="1" max="5" step="1">
+                            <button type="button" class="set-step-btn" data-step="1">+</button>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="set-row" id="grind_delay_row">
+                    <div class="set-lbl">
+                        <span data-i18n="set.grind_delay_s" data-i18n-tip="set.tip.grind_delay" class="tooltipped" data-position="right"
+                              data-tooltip="How long to wait after a game ends before the next one is started. This is the window in which you can stop it -- 0 starts immediately, and the maximum is 600 seconds.">Grind Delay (s) <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <span class="set-step">
+                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
+                            <input id="grind_delay_input" type="number" min="0" max="600" step="1">
+                            <button type="button" class="set-step-btn" data-step="1">+</button>
+                        </span>
                     </div>
                 </div>
 
@@ -796,22 +875,6 @@
                         <label for="python_autoplay_backend_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
-                    </div>
-                </div>
-                <div class="set-row set-toggle">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.bot_tricks" class="tooltipped" data-position="right" data-tooltip="Adds a Bot game row to the panel on chess.com's Play Computer page. A game against a bot there is decided in the browser, not on a server, so the page will accept a whole game handed to it move by move - and will accept a draw nobody offered. Off everywhere else, and the row does not exist while this is off."><span data-i18n="set.bot_tricks">Bot Tricks (Play Computer)</span></span></div>
-                    <div class="set-ctl">
-                        <input id="bot_tricks_checkbox" type="checkbox" class="set-cb">
-                        <label for="bot_tricks_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row" id="bot_trick_game_row">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.bot_trick_game" class="tooltipped" data-position="right" data-tooltip="Which game to hand the bot. Every line here ends the game -- a checkmate, or a draw the client claims itself -- because a game that ended in resignation would stop with the bot still to move and it would then answer for real. Auto picks one that wins for whichever colour you were dealt. The panel's own dropdown sets the same thing."><span data-i18n="set.bot_trick_game">Bot Game</span></span></div>
-                    <div class="set-ctl">
-                        <select name="bot_trick_game" id="bot_trick_game_select"></select>
                     </div>
                 </div>
 
@@ -895,68 +958,6 @@
                     <div class="set-ctl">
                         <textarea id="bot_trick_pgn_input" rows="4" class="set-ta" spellcheck="false"
                                   placeholder="1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7#"></textarea>
-                    </div>
-                </div>
-
-                <!-- "0 = off" stepper over the auto_resign switch and its auto_resign_cp (general.js bindOffStepper):
-                     both stored controls stay here, hidden, and keep their keys -->
-                <div class="set-row" id="auto_resign_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.auto_resign" class="tooltipped" data-position="right"
-                              data-tooltip="Resign when the game is gone. The score has to stay below the threshold
-                                            for three of YOUR turns running, so one deep line at one depth cannot
-                                            end a game. Needs Autoplay, presses the site's own resign button and
-                                            confirms it, and does it once - after that no move is played into a
-                                            game you have resigned. Off unless you switch it on, for the obvious
-                                            reason. The number is how far behind counts as gone, in centipawns (100 to 3000, 900 is a queen); 0 is off."><span data-i18n="set.auto_resign">Auto Resign</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="auto_resign_checkbox" type="checkbox" hidden>
-                        <input id="auto_resign_cp_input" type="number" min="100" max="3000" step="100" hidden>
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="auto_resign_view" type="number" min="0" max="3000" step="100">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
-                        <span class="set-unit" data-unit="cp">cp</span>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.auto_draw" class="tooltipped" data-position="right"
-                              data-tooltip="Offer a draw in a position neither side can change: the score within a
-                                            fifth of a pawn either way, for three of YOUR turns running, and past move 20 -
-                                            nobody offers a draw on move six. Needs Autoplay, and it offers ONCE per
-                                            game, because a declined offer repeated every move is what gets people
-                                            muted. The move is still played: offering a draw is something you do
-                                            alongside a move, not instead of one."><span data-i18n="set.auto_draw">Auto Draw Offer</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="auto_draw_checkbox" type="checkbox" class="set-cb">
-                        <label for="auto_draw_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- ADVANCED: rows set once or never, behind one closed disclosure (SettingsPage.wireAdvanced).
-                     The rows inside are ordinary rows; ids and bindings are unchanged. -->
-                <div class="set-adv" data-adv="autoplay">
-                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="autoplay_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
-                    <div class="set-adv-body" id="autoplay_adv" hidden>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.premove_plies" class="tooltipped" data-position="right"
-                              data-tooltip="How many premoves a forced sequence may queue in one click session, 1-5 (default 2). Chess.com queues them all; lichess REPLACES a queued premove rather than queueing another, so anything past the first is chess.com-only. Every queued move follows the same certainty rule as the forced-lines arrows: the opponent's replies must be their only legal move and agree with the engine's line."><span data-i18n="set.premove_plies">Premove Plies</span></span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="premove_plies_input" type="number" min="1" max="5" step="1">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
                     </div>
                 </div>
                     </div>
@@ -1583,29 +1584,6 @@
                     </div>
                 </div>
 
-                <div class="set-row set-toggle">
-                    <div class="set-lbl">
-                        <span data-i18n="set.drag_moves" data-i18n-tip="set.tip.drag_moves" class="tooltipped" data-position="right"
-                              data-tooltip="Play moves by dragging the piece instead of clicking the two squares.
-                                            Most boards accept either, so this is off by default and the two
-                                            clicks stay the normal path. Chess.com's VARIANTS boards are the
-                                            exception -- a quiet move works either way there, but a CAPTURE only
-                                            registers as a drag -- so they always drag whatever this is set to.
-                                            Turn it on if a board takes your quiet moves and silently ignores
-                                            your captures. It costs the same move time either way. A drag needs time to
-                                            move, so below a Move Time of 250 ms this setting is ignored and the
-                                            two clicks are used.">
-                            Drag Pieces <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="drag_moves_checkbox" type="checkbox" class="set-cb">
-                        <label for="drag_moves_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
                 <!-- "0 = off" stepper over the time_trouble switch and its time_trouble_at (general.js bindOffStepper):
                      both stored controls stay here, hidden, and keep their keys -->
                 <div class="set-row" id="time_trouble_row">
@@ -1700,6 +1678,29 @@
                             <input id="mirror_ratio_input" type="number" min="50" max="150" step="5">
                             <button type="button" class="set-step-btn" data-step="5">+</button>
                         </span>
+                    </div>
+                </div>
+
+                <div class="set-row set-toggle">
+                    <div class="set-lbl">
+                        <span data-i18n="set.drag_moves" data-i18n-tip="set.tip.drag_moves" class="tooltipped" data-position="right"
+                              data-tooltip="Play moves by dragging the piece instead of clicking the two squares.
+                                            Most boards accept either, so this is off by default and the two
+                                            clicks stay the normal path. Chess.com's VARIANTS boards are the
+                                            exception -- a quiet move works either way there, but a CAPTURE only
+                                            registers as a drag -- so they always drag whatever this is set to.
+                                            Turn it on if a board takes your quiet moves and silently ignores
+                                            your captures. It costs the same move time either way. A drag needs time to
+                                            move, so below a Move Time of 250 ms this setting is ignored and the
+                                            two clicks are used.">
+                            Drag Pieces <i class="material-icons info-tooltip">info</i>
+                        </span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="drag_moves_checkbox" type="checkbox" class="set-cb">
+                        <label for="drag_moves_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
                     </div>
                 </div>
                     </div>
@@ -1901,6 +1902,25 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
+                        <span data-i18n-tip="set.tip.humanize_think_tc" class="tooltipped" data-position="right"
+                              data-tooltip="Off by default. With Humanize or Clock Mode on and a readable clock, each think is drawn from how long lichess players spent per move at this time control, game phase and clock left (October 2025): about 2% of the game per blitz move, nearly twice as long in the middlegame as in the endgame, and a quarter of that with under 5% of the clock left. Obvious moves go quicker and tense ones slower, and the spread is a person's: the slow tenth of moves takes over twice the average. The cursor travel is taken off. Without a clock, Humanize's usual times stand. A move it is about to get wrong takes longer, as people's do: in blitz a blunder about 1.4x an average move, a good move 0.9x. And the thinks run in streaks, a fast stretch then a slow one, as a person's do."><span data-i18n="set.humanize_think_tc">Think Like Your Time Control</span> <i class="material-icons info-tooltip">info</i></span>
+                    </div>
+                    <div class="set-ctl">
+                        <input id="humanize_think_tc_checkbox" type="checkbox" class="set-cb">
+                        <label for="humanize_think_tc_checkbox" class="set-tgl">
+                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- ADVANCED: rows set once or never, behind one closed disclosure (SettingsPage.wireAdvanced).
+                     The rows inside are ordinary rows; ids and bindings are unchanged. -->
+                <div class="set-adv" data-adv="humanize">
+                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="humanize_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
+                    <div class="set-adv-body" id="humanize_adv" hidden>
+
+                <div class="set-row">
+                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.humanize_guards" class="tooltipped" data-position="right"
                               data-tooltip="On by default. Rules on top of the move mix and Target Accuracy that can only take a planned mistake away: never a move that hangs a minor piece or more (an exchange check on every piece; a hanging pawn is still allowed, people drop those), usually take material the opponent just gave away, and from +3 up no mistakes or blunders and never below 60% of the lead. Short mates are always played; a long mate (7 or more) is now and then traded for a line that still wins clearly. When a guard keeps the engine's move the countdown says &quot;guard held&quot;. With a Maia option on, a hang that players of your Play Like Rating really make there (Maia gives it 2% or more) is let through."><span data-i18n="set.humanize_guards">Humanize Guards</span> <i class="material-icons info-tooltip">info</i></span>
                     </div>
@@ -1924,17 +1944,6 @@
                         </label>
                     </div>
                 </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.humanize_think_tc" class="tooltipped" data-position="right"
-                              data-tooltip="Off by default. With Humanize or Clock Mode on and a readable clock, each think is drawn from how long lichess players spent per move at this time control, game phase and clock left (October 2025): about 2% of the game per blitz move, nearly twice as long in the middlegame as in the endgame, and a quarter of that with under 5% of the clock left. Obvious moves go quicker and tense ones slower, and the spread is a person's: the slow tenth of moves takes over twice the average. The cursor travel is taken off. Without a clock, Humanize's usual times stand. A move it is about to get wrong takes longer, as people's do: in blitz a blunder about 1.4x an average move, a good move 0.9x. And the thinks run in streaks, a fast stretch then a slow one, as a person's do."><span data-i18n="set.humanize_think_tc">Think Like Your Time Control</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="humanize_think_tc_checkbox" type="checkbox" class="set-cb">
-                        <label for="humanize_think_tc_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
                     </div>
                 </div>
             </section>
