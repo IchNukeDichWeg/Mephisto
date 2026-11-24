@@ -20109,3 +20109,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-WORKERS: 4 workers on 2 threads start 2 engines of 1 thread; on 8 threads 4 of 2; the classifier lane is capped the same',
        JSON.stringify([two, eight, ee]) === JSON.stringify([[1, 1], [2, 2, 2, 2], [1, 1]]), [two, eight, ee]);
 })().catch(e => { fails++; console.log('FAIL REVIEW-WORKERS threw: ' + (e && e.stack || e)); });
+// ---- REVIEW-COSMETIC: the eval label never reads -0.0, and an unknown chess.com user is named ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    const c = vm.createContext({Math, Promise, Error, String});
+    vm.runInContext(fn('function evalLabel(cp)') + fn('async function fetchChesscom(user)'), c);
+    const labels = [-4, -5, 0, 4, 37, -37, -250].map(x => c.evalLabel(x));
+    ok('REVIEW-COSMETIC: -4, -5 and 0 read 0.0, other scores keep their sign', JSON.stringify(labels) === JSON.stringify(['0.0', '0.0', '0.0', '0.0', '0.4', '-0.4', '-2.5']), labels);
+    c.fetch = async () => ({ok: false, status: 404});
+    let msg = ''; try { await c.fetchChesscom('no_such_user_x'); } catch (e) { msg = e.message; }
+    ok('REVIEW-COSMETIC: a chess.com 404 says there is no such player', msg === 'No chess.com player called "no_such_user_x".', msg);
+})().catch(e => { fails++; console.log('FAIL REVIEW-COSMETIC threw: ' + (e && e.stack || e)); });

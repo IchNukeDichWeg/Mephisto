@@ -1175,6 +1175,13 @@ function ccrPane(outText, copy, save) {
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 
+// The eval bar's one-decimal label. A score between -0.05 and 0 rounded to "-0.0", a sign with no
+// number behind it; it reads 0.0.
+function evalLabel(cp) {
+    const v = Math.round(cp / 10) / 10;
+    return (v === 0 ? 0 : v).toFixed(1);
+}
+
 function scoreText(cp, mate) {
     // >= 0, not > 0: chess.com reports mate 0 on the mating move itself, and `mate > 0` sent that
     // through the losing branch as "#-0".
@@ -1961,7 +1968,7 @@ function renderEvalBar(pos) {
         : Core.clamp(50 + 50 * Math.tanh(cp / 400), 2, 98);
     if (fill) fill.style.height = `${pct}%`;
     if (label) {
-        label.textContent = cp == null ? '' : (mated ? (cp > 0 ? 'M' : '-M') + (Core.MATE_CP - Math.abs(cp)) : (cp / 100).toFixed(1));
+        label.textContent = cp == null ? '' : (mated ? (cp > 0 ? 'M' : '-M') + (Core.MATE_CP - Math.abs(cp)) : evalLabel(cp));
         label.classList.toggle('rv-num-top', pct < 50);   // the number rides the filled side
     }
 }
@@ -2654,7 +2661,11 @@ async function fetchChesscom(user) {
     const clean = String(user || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
     if (!clean) throw new Error('Type a chess.com username first.');
     const arch = await fetch(`https://api.chess.com/pub/player/${clean}/games/archives`)
-        .then(r => r.ok ? r.json() : Promise.reject(new Error(`chess.com answered ${r.status}`)));
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(
+            // the same sentences as the Lichess fetch, not a bare status code
+            r.status === 404 ? `No chess.com player called "${clean}".`
+            : r.status === 429 ? 'chess.com is rate-limiting; wait a minute and try again.'
+            : `chess.com answered ${r.status}`)));
     const urls = (arch.archives || []).slice(-2).reverse(); // this month and last
     if (!urls.length) throw new Error(`No public games found for "${clean}".`);
     const out = [];
