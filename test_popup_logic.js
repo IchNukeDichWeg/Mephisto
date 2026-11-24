@@ -19912,3 +19912,23 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SIMP-THEME: label, tip and three options in all 14 locales; the Dark Mode strings are gone',
        locs.length === 14 && locs.every(l => ['set.theme', 'set.tip.theme', 'set.theme.light', 'set.theme.dark', 'set.theme.system'].every(k => l[k]) && !('set.dark_mode' in l) && !('set.tip.dark_mode' in l)));
 }
+// ---- REVIEW-960: chess.com Chess960 castling letters (Shredder-FEN GCgc, HAha) keep their rights ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({console}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    // chess.com game 156242624749's start; the KQkq spelling of the same position is the reference
+    const run = (code) => vm.runInContext(code, c);
+    const shred = run(`new Chess('fischerandom', 'bbrqknrn/pppppppp/8/8/8/8/PPPPPPPP/BBRQKNRN w GCgc - 0 1')`);
+    const xfen = run(`new Chess('fischerandom', 'bbrqknrn/pppppppp/8/8/8/8/PPPPPPPP/BBRQKNRN w KQkq - 0 1')`);
+    ok('REVIEW-960: GCgc reads as the same four rights and rooks as KQkq',
+       shred.fen() === xfen.fen() && JSON.stringify(shred._rooksInitial) === JSON.stringify(xfen._rooksInitial), shred.fen());
+    // one side only, and a named INNER rook: Ba1 Rb1 Kd1 Rh1 with "B" means the b1 rook castles long
+    const one = run(`new Chess('fischerandom', '4k3/8/8/8/8/8/8/RR1K3R w B - 0 1')`);
+    ok('REVIEW-960: a lone file letter gives only that side, and the named rook is the castling rook',
+       one.fen().split(' ')[2] === 'Q' && one._rooksInitial.w.length === 1 && one._rooksInitial.w[0].square === 113, one.fen());
+    // a chess.com 960 start: both sides castle short (king f-file to g, h-rook to f)
+    const g = run(`(() => { const ch = new Chess('fischerandom', 'rbqnbknr/pppppppp/8/8/8/8/PPPPPPPP/RBQNBKNR w HAha - 0 1');
+        for (const s of ['Nf3', 'Nf6', 'O-O', 'O-O']) { try { ch.move(s); } catch (e) { return 'illegal ' + s; } } return ch.fen(); })()`);
+    ok('REVIEW-960: O-O after a HAha start is legal for both sides', /^rbqnbrk1\/.*\/RBQNBRK1 w - - /.test(g), g);
+}
