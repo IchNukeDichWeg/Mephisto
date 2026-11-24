@@ -275,20 +275,6 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.premove_confidence" class="tooltipped" data-position="right"
-                              data-tooltip="How deep the search must agree with itself before a premove is armed: the (their move, our reply) pair must be identical at this depth, the depth before it, and the latest depth reported. 14 is the measured default. When the opponent's predicted move is their ONLY legal move, the stability check is skipped, but our reply still has to reach one depth below this dial."><span data-i18n="set.premove_confidence">Premove Confidence</span></span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="premove_confidence_input" type="number" min="8" max="22" step="1">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
                         <span data-i18n-tip="set.tip.premove_plies" class="tooltipped" data-position="right"
                               data-tooltip="How many premoves a forced sequence may queue in one click session, 1-5 (default 2). Chess.com queues them all; lichess REPLACES a queued premove rather than queueing another, so anything past the first is chess.com-only. Every queued move follows the same certainty rule as the forced-lines arrows: the opponent's replies must be their only legal move and agree with the engine's line."><span data-i18n="set.premove_plies">Premove Plies</span></span>
                     </div>
@@ -325,20 +311,6 @@
                         <label for="refute_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
-                    </div>
-                </div>
-
-                <div class="set-row" id="refute_plies_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.refute_plies" class="tooltipped" data-position="right"
-                              data-tooltip="How many plies of the punishing line to draw, 1 to 6."><span data-i18n="set.refute_plies">Refutation Length</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="refute_plies_input" type="number" min="1" max="6" step="1">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
                     </div>
                 </div>
 
@@ -575,8 +547,8 @@
                 <div class="set-row">
                     <div class="set-lbl">
                         <span data-i18n-tip="set.tip.auto_draw" class="tooltipped" data-position="right"
-                              data-tooltip="Offer a draw in a position neither side can change: the score within the
-                                            threshold below, for three of YOUR turns running, and past move 20 -
+                              data-tooltip="Offer a draw in a position neither side can change: the score within a
+                                            fifth of a pawn either way, for three of YOUR turns running, and past move 20 -
                                             nobody offers a draw on move six. Needs Autoplay, and it offers ONCE per
                                             game, because a declined offer repeated every move is what gets people
                                             muted. The move is still played: offering a draw is something you do
@@ -587,21 +559,6 @@
                         <label for="auto_draw_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
-                    </div>
-                </div>
-
-                <div class="set-row" id="auto_draw_cp_row">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.auto_draw_cp" class="tooltipped" data-position="right"
-                              data-tooltip="How level counts as level, in centipawns either way, 0 to 100. 20 is a
-                                            fifth of a pawn."><span data-i18n="set.auto_draw_cp">Draw Within (cp)</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-5">&minus;</button>
-                            <input id="auto_draw_cp_input" type="number" min="0" max="100" step="5">
-                            <button type="button" class="set-step-btn" data-step="5">+</button>
-                        </span>
                     </div>
                 </div>
 
@@ -772,25 +729,6 @@
                         <span class="set-step">
                             <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
                             <input id="compute_depth_input" type="number" min="1" max="60" step="1">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n="set.fallback_poll_ms" data-i18n-tip="set.tip.position_changes_are_detected_inst" class="tooltipped" data-position="right"
-                              data-tooltip="Position changes are detected instantly (event-driven). This is
-                                            only a slow safety-net poll that heals a missed update; 1000ms is
-                                            fine, and it is also the floor: a smaller value polls every
-                                            1000ms.">
-                            Fallback Poll Interval (ms) <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="fen_refresh_input" type="number" min="1000" step="50">
                             <button type="button" class="set-step-btn" data-step="1">+</button>
                         </span>
                     </div>

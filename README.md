@@ -299,8 +299,9 @@ software did not change, the measurement did.
   board.
 - **Time Trouble Mode** - below a threshold you set, the search is capped and the simulated delay drops to the floor a
   click needs. At ten seconds it is the cursor travel that loses games, not the depth.
-- **Auto Resign** / **Auto Draw Offer** - end a game that is over. The score has to stay past your threshold for three
-  of *your* turns running; it presses the site's own button, once per game.
+- **Auto Resign** / **Auto Draw Offer** - end a game that is over. The score has to stay below your resign threshold
+  (or within a fifth of a pawn, for a draw) for three of *your* turns running; it presses the site's own button, once
+  per game.
 - **Grind Mode** / **Accept Rematch** - with Autoplay on, Grind Mode starts the next game when one ends and Accept
   Rematch takes the opponent's rematch offer after a one-to-three-second pause (lichess only so far; your own offer is
   never touched). Closing the panel stops both.

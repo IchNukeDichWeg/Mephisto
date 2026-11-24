@@ -14,6 +14,8 @@ let engine_init_promise = null; // boot fires engine init without blocking the p
 // the poll is kept to be cleared and the listeners go on once, or each reopen stacked another full
 // scrape a second, and a closed panel kept scraping for the life of the tab (P1, ENG-2, PAGE-11).
 let fen_poll_timer = null, page_listeners_on = false, config_watch_on = false;
+// the fallback poll's period; positions arrive event-driven and this only heals a missed push
+const FEN_POLL_MS = 1000;
 let PANEL_BOOTED = false; // popup.js also loads on every chess page as a content script --
 // its listeners must stay inert until THIS tab's panel is actually opened.
 
@@ -412,7 +414,6 @@ async function initPanel(root, tabId) {
     await MephistoConfig.init(); // load config from chrome.storage.local into the sync cache first
     // load extension configurations from the config store (chrome.storage.local, cached)
     const computeTime = JSON.parse(MephistoConfig.get('compute_time'));
-    const fenRefresh = JSON.parse(MephistoConfig.get('fen_refresh'));
     const thinkTime = JSON.parse(MephistoConfig.get('think_time'));
     const thinkVariance = JSON.parse(MephistoConfig.get('think_variance'));
     const moveTime = JSON.parse(MephistoConfig.get('move_time'));
@@ -439,7 +440,6 @@ async function initPanel(root, tabId) {
         tablebase_show: JSON.parse(MephistoConfig.get('tablebase_show')) || 'both', // both | tablebase | engine (display only)
         pv_keys: JSON.parse(MephistoConfig.get('pv_keys')) || false, // arrow keys walk the engine's line
         refute: JSON.parse(MephistoConfig.get('refute')) || false,   // draw the punishing line after a bad move
-        refute_plies: JSON.parse(MephistoConfig.get('refute_plies')) || 4,
         game_log: JSON.parse(MephistoConfig.get('game_log')) || false, // write evals into the copied PGN
         second_opinion: JSON.parse(MephistoConfig.get('second_opinion')) || false, // a human net beside the engine
         human_error: JSON.parse(MephistoConfig.get('human_error')) || false, // one plausible human error, shown and never played
@@ -503,9 +503,8 @@ async function initPanel(root, tabId) {
             let v = ''; try { v = JSON.parse(MephistoConfig.get(k)) || ''; } catch (e) { /* junk -> default */ }
             return [k, v];
         })),
-        // The premove framework's two dials. Confidence is the certification depth (see
-        // premove_cert_last); plies is how deep a forced chain may queue (1 = single premoves).
-        premove_confidence: JSON.parse(MephistoConfig.get('premove_confidence')) || 14,
+        // How deep a forced premove chain may queue (1 = single premoves). The certification depth
+        // beside it is fixed (PREMOVE_CERT_DEPTH).
         premove_plies: Math.max(1, Math.min(5, JSON.parse(MephistoConfig.get('premove_plies')) || 2)),
         // How loud the arrows are, as a PERCENTAGE (1..100) -- what the slider shows is what is
         // stored, so the number in the settings and the number on disk are the same thing.
@@ -536,7 +535,6 @@ async function initPanel(root, tabId) {
             } catch (e) { return null; }
         })(),
         compute_depth: JSON.parse(MephistoConfig.get('compute_depth')) || 16,
-        fen_refresh: (fenRefresh != null) ? fenRefresh : 1000, // FALLBACK poll; positions arrive event-driven
         multiple_lines: JSON.parse(MephistoConfig.get('multiple_lines')) || 1,
         threads: JSON.parse(MephistoConfig.get('threads')) || MephistoConfig.defaultThreads(),
         memory: JSON.parse(MephistoConfig.get('memory')) || 512,
@@ -565,7 +563,6 @@ async function initPanel(root, tabId) {
         auto_resign: JSON.parse(MephistoConfig.get('auto_resign')) || false,
         auto_resign_cp: JSON.parse(MephistoConfig.get('auto_resign_cp')) || 900,
         auto_draw: JSON.parse(MephistoConfig.get('auto_draw')) || false,
-        auto_draw_cp: JSON.parse(MephistoConfig.get('auto_draw_cp')) ?? 20,   // ?? not ||: 0 is a value the page offers
         // The complexity clock: think by how hard the position is. See complexity_k.
         complexity_clock: JSON.parse(MephistoConfig.get('complexity_clock')) || false,
         time_trouble: JSON.parse(MephistoConfig.get('time_trouble')) || false,
@@ -808,7 +805,7 @@ async function initPanel(root, tabId) {
             } catch (e) {
                 turn = turn_before;
                 console.warn('Mephisto: skipping unparseable scrape:', e.message);
-                return; // transient scrape garbage - the next poll (fen_refresh, at least 1 s) retries
+                return; // transient scrape garbage - the next fallback poll (FEN_POLL_MS) retries
             }
             // stamped before anything can reject this push; promoted to `analysed_push_key` only
             // once the position is actually accepted (see on_new_pos)
@@ -971,8 +968,8 @@ async function initPanel(root, tabId) {
 
     // FALLBACK poll only: the content-script pushes positions event-driven (MutationObserver);
     // this slow poll just heals a missed push (e.g. a mutation the observer filter skipped).
-    // Clamped to >=1s so a legacy saved fen_refresh (10ms era) can't reinstate the old
-    // 100-scrapes-a-second polling stampede.
+    // Fixed at FEN_POLL_MS. It was a setting (fen_refresh) whose floor was also 1 s, so the only
+    // thing it could do was heal a missed update more slowly.
     request_fen();
     clearInterval(fen_poll_timer);
     fen_poll_timer = setInterval(function () {
@@ -986,7 +983,7 @@ async function initPanel(root, tabId) {
         // backgrounded game quietly stops. Resume-only (no gesture here), and a no-op when the
         // context is already running or Background Play is off.
         keep_alive(keep_alive_wanted());
-    }, Math.max(1000, config.fen_refresh));
+    }, FEN_POLL_MS);
 
     // Update check: one message to the SW, which caches for 12h. Silent unless there is genuinely a
     // newer release -- a failed or rate-limited check leaves the notice hidden, exactly as if the
@@ -3537,8 +3534,8 @@ function is_legal_position(fen) {
 // "Premove" without the blunder risk: while the opponent thinks we certify a reply to their
 // PREDICTED move (max 2 candidate lines). It only fires if the new position is EXACTLY the
 // predicted one -- any other move discards the table and searches normally, so a wrong guess
-// costs nothing. Certification = the reply is identical at depth N-1, depth N (Premove Confidence,
-// default 14) and the latest depth -- see premove_cert_prev/premove_cert_last. Residual risk is only a marginally weaker
+// costs nothing. Certification = the reply is identical at depth N-1, depth N (PREMOVE_CERT_DEPTH,
+// 14) and the latest depth -- see premove_cert_prev/premove_cert_last. Residual risk is only a marginally weaker
 // (still certified) move, never a move meant for a different position.
 // Final gate before ANY premove reply is clicked: it must move OUR piece, and when it is already
 // our turn (an instant reply, not a premove queued during the opponent's turn) it must be fully
@@ -3549,14 +3546,12 @@ function is_legal_position(fen) {
 // must be identical at depth N-1, at depth N (default 14), and at the latest depth reported. Raised from the old
 // 6 / 9 / >=10 window -- a pair that is merely stable in shallow search still flips often enough by
 // depth 14 that premoves were firing on replies the engine went on to abandon.
-// The certification depth is the CONFIDENCE dial (Settings -> Premove Confidence): the pair must
-// be identical at depth N-1, at depth N, and at the latest depth reported. 14 is the measured
-// default from the 6/9/10 -> 13/14 raise; the clamp keeps a typed value inside depths engines
-// actually reach in a think.
-function premove_cert_last() {
-    const n = parseInt(config?.premove_confidence);
-    return Number.isFinite(n) ? Math.max(8, Math.min(22, n)) : 14;
-}
+// The certification depth N: the pair must be identical at depth N-1, at depth N, and at the latest
+// depth reported. 14 is the measured value from the 6/9/10 -> 13/14 raise. It was a settings dial
+// (Premove Confidence, 8-22) until the settings simplification; lowering it only armed premoves on
+// replies the engine went on to abandon, so it is fixed now.
+const PREMOVE_CERT_DEPTH = 14;
+function premove_cert_last() { return PREMOVE_CERT_DEPTH; }
 function premove_cert_prev() { return premove_cert_last() - 1; }
 
 // shared by BOTH `info depth` parsers (WASM and native) so the two gates cannot drift apart
@@ -3578,8 +3573,8 @@ function premove_certified(line) {
     // A PREDICTION that is the opponent's ONLY legal move is a fact about the rules: no depth window
     // can add or subtract confidence from it, so the pair need not be stable across iterations. OUR
     // REPLY is still a judgement. Certifying at any depth queued it from the first two-move pv, a
-    // depth-2 move in the sharpest positions of a game, so it has to reach the Premove Confidence
-    // dial's first checkpoint and the stability half is all the rules excuse.
+    // depth-2 move in the sharpest positions of a game, so it has to reach the certification
+    // window's first checkpoint and the stability half is all the rules excuse.
     // NOTE what this does NOT do: it does not let a
     // single-move engine premove (an earlier revision of this comment claimed it did, and was
     // wrong). Certification answers "is the prediction trustworthy" -- but a Maia line has no
@@ -11115,15 +11110,15 @@ const LIVE_CONFIG_KEYS = [
     'live_classify', 'class_on_board', 'live_classify_which', 'playstyle', 'tablebase_show',
     'contempt', 'contempt_cp', 'complexity_clock', 'human_times',
     'player_book', 'player_book_user', 'player_book_wins',
-    'auto_resign', 'auto_resign_cp', 'auto_draw', 'auto_draw_cp', 'session_stats',
+    'auto_resign', 'auto_resign_cp', 'auto_draw', 'session_stats',
     // the new panel-side features: all display or pacing decisions the panel makes per move, so a
     // change on the settings page has to reach an open panel rather than waiting for a reopen
-    'pv_keys', 'refute', 'refute_plies', 'second_opinion', 'human_error', 'opp_prep', 'game_log',
+    'pv_keys', 'refute', 'second_opinion', 'human_error', 'opp_prep', 'game_log',
     'mirror_ratio', 'time_trouble', 'time_trouble_at',
     'maia2_self_elo', 'maia2_oppo_elo', 'maia3_elo', 'rodent_personality',
     'analysis_limit', 'analysis_limit_mode',
     'arrow_opacity', 'arrow_rank', 'arrow_labels', 'arrow_eval_side', 'user_arrow_evals', 'user_arrow_replies', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
-    'premove_confidence', 'premove_plies', 'move_time', 'move_variance', 'move_reason',
+    'premove_plies', 'move_time', 'move_variance', 'move_reason',
     'material_balance', 'square_heatmap',
     ...ARROW_COLOR_KEYS, // repaint on the next frame, no reload
     'think_time', 'think_variance', 'elo', 'opp_alert', 'dark_mode',
@@ -11324,7 +11319,7 @@ function watch_config_changes() {
                 // are both drawn from what is already in hand and have to be repainted now rather
                 // than at the next engine frame -- with Autoplay off there may not be another one.
                 if (key === 'tablebase' || key === 'tablebase_show') { draw_moves(); update_best_move(null); }
-                if (key === 'refute' || key === 'refute_plies' || key === 'second_opinion' || key === 'human_error') {
+                if (key === 'refute' || key === 'second_opinion' || key === 'human_error') {
                     draw_moves(); update_best_move(null);
                 }
                 if (key === 'refute' || key === 'game_log') ensure_classifier();   // both read the graded history
@@ -11541,6 +11536,7 @@ let last_draw_trace = null; // see the note in draw_moves: this trace is per-CHA
 const REFUTE_CLASSES = ['inaccuracy', 'mistake', 'miss', 'blunder'];
 const REFUTE_COLOR = '#d1495b';   // its own red, darker than the threat arrow's, and it is the only
                                   // thing on the board that means "this already happened"
+const REFUTE_PLIES = 4;           // how much of the punishing line is drawn (was a 1-6 setting)
 function draw_refutation(hint_arrows, page_arrows) {
     if (!config.refute) return;
     const moves = (premove_tracker.moves || '').trim().split(/\s+/).filter(Boolean);
@@ -11558,8 +11554,7 @@ function draw_refutation(hint_arrows, page_arrows) {
     if (!REFUTE_CLASSES.includes(klass)) return;
     const pv = last_eval.lines?.[0]?.pv;
     if (!pv) return;
-    const limit = Math.max(1, Math.min(6, config.refute_plies || 4));
-    const steps = pv_walk_moves(last_eval.fen, pv, limit);
+    const steps = pv_walk_moves(last_eval.fen, pv, REFUTE_PLIES);
     const col = user_color('arrow_color_refute', REFUTE_COLOR);
     for (const step of steps) {
         draw_move(step.uci, col, PANEL_ROOT.getElementById('move-annotations'), 0.14, step.ply + 1, '');
@@ -12631,10 +12626,10 @@ function auto_resign_cp() {
     return Number.isFinite(n) ? Math.max(100, Math.min(3000, n)) : 900;
 }
 
-function auto_draw_cp() {
-    const n = parseInt(config.auto_draw_cp);
-    return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 20;
-}
+// How level counts as level for a draw offer: within a fifth of a pawn either way. A fixed value
+// since the settings simplification (it was Draw Within, 0-100, default 20).
+const AUTO_DRAW_CP = 20;
+function auto_draw_cp() { return AUTO_DRAW_CP; }
 
 // A PROVED RESULT OUTRANKS A SEARCH. At seven men or fewer the tablebase knows how the game ends and
 // the engine only has an opinion, and the two disagree exactly where it matters: a fortress the

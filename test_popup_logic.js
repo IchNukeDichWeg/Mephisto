@@ -42,9 +42,9 @@ vm.runInContext(src.slice(cStart, cEnd), ctx);
 // top-level `const` lives in the context's lexical scope, not on the global object -- read it by
 // evaluating the name rather than off `ctx` (function declarations DO land on ctx)
 const premove_certified = ctx.premove_certified;
-// The window is a SETTING now (premove_confidence, default 14) -- give the sliced context the
-// config and tracker state premove_certified reads, then evaluate the accessors it derives from it.
-vm.runInContext("var config = {premove_confidence: 14, variant: 'chess'}; var premove_tracker = {fen: '', lines: {}};", ctx);
+// The window is fixed (PREMOVE_CERT_DEPTH = 14) -- give the sliced context the config and tracker
+// state premove_certified reads, then evaluate the accessors it derives from it.
+vm.runInContext("var config = {variant: 'chess'}; var premove_tracker = {fen: '', lines: {}};", ctx);
 const PREMOVE_DEPTH_PREV = vm.runInContext('premove_cert_prev()', ctx);
 const PREMOVE_DEPTH_LAST = vm.runInContext('premove_cert_last()', ctx);
 
@@ -77,12 +77,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     fails++;
     console.log(`FAIL checkpoints default to ${PREMOVE_DEPTH_PREV} / ${PREMOVE_DEPTH_LAST}, want 13 / 14`);
 }
-// the dial: the window follows the setting, clamped to depths a think actually reaches
+// the window is FIXED at 14 (Premove Confidence left the settings): a stale stored dial is ignored
 {
-    const at = (n) => { vm.runInContext(`config.premove_confidence = ${JSON.stringify(n)};`, ctx); const v = vm.runInContext('premove_cert_last()', ctx); vm.runInContext('config.premove_confidence = 14;', ctx); return v; };
-    const okDial = at(10) === 10 && at(22) === 22 && at(5) === 8 && at(99) === 22 && at('x') === 14;
-    if (okDial) console.log('ok   confidence is a dial: follows the setting, clamped [8,22], defaults 14');
-    else { fails++; console.log('FAIL confidence dial (10->' + at(10) + ' 5->' + at(5) + ' 99->' + at(99) + ')'); }
+    const at = (n) => { vm.runInContext(`config.premove_confidence = ${JSON.stringify(n)};`, ctx); const v = vm.runInContext('premove_cert_last()', ctx); vm.runInContext('delete config.premove_confidence;', ctx); return v; };
+    const fixed = at(10) === 14 && at(22) === 14 && at(5) === 14 && at('x') === 14;
+    if (fixed) console.log('ok   SIMP-RM: the certification depth is fixed at 14, a stored premove_confidence is ignored');
+    else { fails++; console.log('FAIL SIMP-RM: certification depth follows a stale setting (10->' + at(10) + ' 5->' + at(5) + ')'); }
 }
 // a PREDICTION that is the opponent's ONLY legal move is certified by the RULES, stable or not, but
 // our reply on top of it still has to come from a real search
@@ -3412,8 +3412,8 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     const d = sans('[FEN "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"]\n\n1. ... e5 2. Nf3 1-0');
     ok('PGN reader: castling written with zeros and "1. ... e5" both load', z === 'e4 e5 Nf3 Nc6 Bc4 Bc5 O-O Nf6 d3 O-O-O' && d === 'e5 Nf3', {z, d}); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
-    ok('Bot Move Delay, Draw Within and Contempt keep a value of 0 instead of falling back to the default',
-       ['auto_draw_cp', 'bot_trick_delay', 'contempt_cp'].every(k => new RegExp(k + ": JSON\\.parse\\(MephistoConfig\\.get\\('" + k + "'\\)\\) \\?\\? ").test(psrc))); }
+    ok('Bot Move Delay and Contempt keep a value of 0 instead of falling back to the default',
+       ['bot_trick_delay', 'contempt_cp'].every(k => new RegExp(k + ": JSON\\.parse\\(MephistoConfig\\.get\\('" + k + "'\\)\\) \\?\\? ").test(psrc))); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const ah = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.html', 'utf8');
     const themes = eval(psrc.match(/const BOARD_THEMES = (\[[^\]]*\]);/)[1]);
@@ -7824,7 +7824,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const cut = (a, b) => { const i = psrc.indexOf(a), j = psrc.indexOf(b, i); return i < 0 || j < 0 ? '' : psrc.slice(i, j); };
     const c = vm.createContext({}); c.self = c;
     vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
-    vm.runInContext("var config = {variant: 'crazyhouse', premove_confidence: 14}; var premove_tracker = {fen: ''};"
+    vm.runInContext("var config = {variant: 'crazyhouse'}; var premove_tracker = {fen: ''};"
         + cut('// Premove certification window.', 'function premove_reply_playable')
         + cut('function premove_is_safe', '\n// Don\'t wait for the opponent'), c);
     const run = (variant, expr) => vm.runInContext(`config.variant = ${JSON.stringify(variant)}; ${expr}`, c);
@@ -12977,7 +12977,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     // the real classify_history is stubbed to grade the last ply a blunder; the PV walk returns one step
     const drawn = (startFen, moves, ourSide, fen) => {
         const out = [];
-        const c = vm.createContext({config: {refute: true, refute_plies: 4}, REFUTE_CLASSES: ['inaccuracy', 'mistake', 'miss', 'blunder'],
+        const c = vm.createContext({config: {refute: true}, REFUTE_CLASSES: ['inaccuracy', 'mistake', 'miss', 'blunder'], REFUTE_PLIES: 4,
             REFUTE_COLOR: '#d1495b', premove_tracker: {startFen, moves}, our_side: () => ourSide,
             classify_history: () => { const r = []; r[moves.split(' ').length - 1] = 'blunder'; return r; },
             last_eval: {fen, lines: [{pv: 'x'}]}, pv_walk_moves: () => [{uci: 'h1h8', ply: 0}], user_color: (k, d) => d,
@@ -14176,7 +14176,7 @@ globalThis.largeBoardTable = () => {
             }
         }
     } catch (e) { bad = ['threw ' + e.message]; }
-    ok('GENERAL-1: every -/+ button on the settings page moves its field by one input step (not step*step)', rows.length >= 20 && bad.length === 0, bad.length ? bad : rows.length);
+    ok('GENERAL-1: every -/+ button on the settings page moves its field by one input step (not step*step)', rows.length >= 15 && bad.length === 0, bad.length ? bad : rows.length);
     const resign = rows.find(r => r.input.id === 'auto_resign_cp_input');
     if (resign) { resign.input.value = '900'; resign.btns[0].click(); }
     ok('GENERAL-1: ...Resign Below 900 with "-" gives 800, not 100', resign && +resign.input.value === 800, resign && resign.input.value);
@@ -16809,6 +16809,12 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     const all = ['/src/popup/popup.js', '/src/options/pages/settings/general/general.js', '/src/options/pages/settings/general/general.html',
                  '/src/scripts/config-store.js', '/src/scripts/content-script.js'].map(f => fs.readFileSync(ROOT + f, 'utf8')).join('\n');
     ok('SIMP-RM: Board Animation (read by nothing) has no row, no registration and no config entry', !/board_animation/.test(all));
+    // hard-wired to their defaults: no row, no registration, no config read; the readers use a constant
+    for (const [k, c] of [['fen_refresh', 'FEN_POLL_MS = 1000'], ['premove_confidence', 'PREMOVE_CERT_DEPTH = 14'],
+                          ['refute_plies', 'REFUTE_PLIES = 4'], ['auto_draw_cp', 'AUTO_DRAW_CP = 20']]) {
+        const left = all.split('\n').filter(l => new RegExp(`['"]${k}['"]|config\\.${k}\\b|${k}_(input|row)`).test(l));
+        ok(`SIMP-RM: ${k} is no setting any more, its reader uses ${c}`, left.length === 0 && all.includes('const ' + c), left);
+    }
 }
 // ---- audit 3.1.332 POPUP2-1: a panel-board move, a line-strip walk or a typed FEN ends Follow Screen ----
 {

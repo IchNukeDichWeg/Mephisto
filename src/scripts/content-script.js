@@ -6343,8 +6343,8 @@ function simulatePvMoves(pv, sessionGen = undefined) {
     async function confirmResponse(move, lastMove) {
         let runtime = 0;
         while (runtime < 10000) { // < 10 seconds
-            // fixed 50ms cadence: this used to piggyback on config.fen_refresh back when that was
-            // a 10ms poll interval; fen_refresh is now a >=1s fallback poll and would make puzzle
+            // fixed 50ms cadence: this used to piggyback on the panel's poll interval back when that
+            // was a 10ms setting; the poll is now a fixed 1 s fallback and would make puzzle
             // replies crawl (highlight checks are two getBoundingClientRect calls -- cheap).
             runtime += await promiseTimeout(50);
             try {

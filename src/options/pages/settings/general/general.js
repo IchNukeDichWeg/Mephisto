@@ -96,7 +96,6 @@ class GeneralSettings extends SettingsPage {
         };
         pv_walk.registerChangeListener(sync_pv_walk_row);
         sync_pv_walk_row();
-        this.registerFormElement('premove_confidence', 'Premove Confidence:', 'input', 14);
         this.registerFormElement('premove_plies', 'Premove Plies:', 'input', 2);
         this.registerFormElement('live_stats', 'Live Stats:', 'checkbox', false);
         this.registerFormElement('live_classify', 'Move Classification:', 'checkbox', false);
@@ -160,7 +159,6 @@ class GeneralSettings extends SettingsPage {
         };
         search_mode_select.registerChangeListener(sync_budget_rows);
         sync_budget_rows();
-        this.registerFormElement('fen_refresh', 'Fallback Poll Interval (ms):', 'input', 1000);
         const multipv_range = this.registerFormElement('multiple_lines', 'Multiple Lines:', 'range', 1);
         const threads_range = this.registerFormElement('threads', 'Threads:', 'range', MephistoConfig.defaultThreads());
         const memory_range = this.registerFormElement('memory', 'Memory:', 'range', 512);
@@ -262,8 +260,7 @@ class GeneralSettings extends SettingsPage {
         this.registerFormElement('tablebase_show', 'Tablebase Display:', 'select', 'both');
         this.registerFormElement('pv_keys', 'Walk With Arrow Keys:', 'checkbox', false);
         this.registerFormElement('mirror_ratio', 'Mirror Ratio (%):', 'input', 90);
-        const refute = this.registerFormElement('refute', 'Refute My Mistakes:', 'checkbox', false);
-        this.registerFormElement('refute_plies', 'Refutation Length:', 'input', 4);
+        this.registerFormElement('refute', 'Refute My Mistakes:', 'checkbox', false);
         second_opinion = this.registerFormElement('second_opinion', 'Second Opinion:', 'checkbox', false);
         second_opinion.registerChangeListener(sync_human_reply_row);
         sync_human_reply_row();
@@ -282,23 +279,16 @@ class GeneralSettings extends SettingsPage {
         player_book.registerChangeListener(sync_player_book_rows);
         sync_player_book_rows();
         this.registerFormElement('game_log', 'Evals In Copied PGN:', 'checkbox', false);
-        const sync_refute_row = () => {
-            document.getElementById('refute_plies_row')?.classList.toggle('hidden', !refute.getValue());
-        };
-        refute.registerChangeListener(sync_refute_row);
-        sync_refute_row();
         this.registerFormElement('session_stats', 'Session Stats:', 'checkbox', false);
-        // Ending the game. Both thresholds follow their toggle, like every other dependent row.
+        // Ending the game. The resign threshold follows its toggle, like every other dependent row;
+        // the draw offer's is fixed (AUTO_DRAW_CP in popup.js).
         const auto_resign = this.registerFormElement('auto_resign', 'Auto Resign:', 'checkbox', false);
         this.registerFormElement('auto_resign_cp', 'Resign Below (cp):', 'input', 900);
-        const auto_draw = this.registerFormElement('auto_draw', 'Auto Draw Offer:', 'checkbox', false);
-        this.registerFormElement('auto_draw_cp', 'Draw Within (cp):', 'input', 20);
+        this.registerFormElement('auto_draw', 'Auto Draw Offer:', 'checkbox', false);
         const sync_end_rows = () => {
             document.getElementById('auto_resign_cp_row')?.classList.toggle('hidden', !auto_resign.getValue());
-            document.getElementById('auto_draw_cp_row')?.classList.toggle('hidden', !auto_draw.getValue());
         };
         auto_resign.registerChangeListener(sync_end_rows);
-        auto_draw.registerChangeListener(sync_end_rows);
         sync_end_rows();
         this.registerFormElement('human_times', 'Human Move Times:', 'checkbox', false);
         this.registerFormElement('complexity_clock', 'Complexity Clock:', 'checkbox', false);
