@@ -10821,6 +10821,7 @@ function classify_history() {
     move_classes = [];
     try {
         const board = new Chess(config.variant || 'chess', startFen || undefined);
+        let prev = null;   // the previous ply's chess.js move, for the recapture test Great needs
         for (let i = 0; i < moves.length; i++) {
             const uci = moves[i];
             const fen = board.fen();
@@ -10871,7 +10872,8 @@ function classify_history() {
                                && winAfter >= 50 && winBefore < 90 && Math.max(0, winBefore - winAfter) < 2)
                 ? C.sacrificesMaterial(Chess, config.variant || 'chess', fen, uci) : false;
             move_classes[i] = (winBefore == null || winAfter == null || !comparable) ? null
-                : C.classify({winBefore, winAfter, rank, onlyMove, isBook: false, secondWin, sacrifice});
+                : C.classify({winBefore, winAfter, rank, onlyMove, isBook: false, secondWin, sacrifice,
+                              isRecapture: !!(prev && prev.captured && prev.to === uci.slice(2, 4) && board.get(uci.slice(2, 4)))});
             // A SOLVED POSITION IS NOT A MATTER OF OPINION. At seven men or fewer the tablebase
             // knows the result, and a move that holds it cannot be a mistake however the engine's
             // number moved -- the conversion that wins a K+P ending by giving up a rook reads as a
@@ -10899,6 +10901,7 @@ function classify_history() {
             }
             const mv = board.move({from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4]});
             if (!mv) break;   // the move list and the start position disagree: grade no further
+            prev = mv;
         }
     } catch (e) {
         // a variant chess.js cannot replay just means no classes this game, never a broken panel

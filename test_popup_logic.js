@@ -379,6 +379,12 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
             {winBefore: 60, winAfter: 60, rank: 1, secondWin: 45}, 'great'],
         ['...a best move with a close second is just Best',
             {winBefore: 60, winAfter: 60, rank: 1, secondWin: 58}, 'best'],
+        ['...a recapture is never Great, however bad not taking back would be',
+            {winBefore: 50, winAfter: 50, rank: 1, secondWin: 10, isRecapture: true}, 'best'],
+        ['...nor a move in a won position (a mate on the board counts as 100)',
+            {winBefore: 100, winAfter: 100, rank: 1, secondWin: 60}, 'best'],
+        ['...nor one in a lost position',
+            {winBefore: 5, winAfter: 5, rank: 1, secondWin: 0}, 'best'],
         ['dropping a winning position is a Miss, not a Mistake',
             {winBefore: 85, winAfter: 50, rank: 7}, 'miss'],
         ['...and a small slip in a winning position is still an Inaccuracy',
@@ -19931,4 +19937,28 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const g = run(`(() => { const ch = new Chess('fischerandom', 'rbqnbknr/pppppppp/8/8/8/8/PPPPPPPP/RBQNBKNR w HAha - 0 1');
         for (const s of ['Nf3', 'Nf6', 'O-O', 'O-O']) { try { ch.move(s); } catch (e) { return 'illegal ' + s; } } return ch.fen(); })()`);
     ok('REVIEW-960: O-O after a HAha start is legal for both sides', /^rbqnbrk1\/.*\/RBQNBRK1 w - - /.test(g), g);
+}
+// ---- REVIEW-GREAT: the panel's classify_history passes the recapture flag, so taking back is never Great ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = psrc.indexOf('function classify_history()'), fnSrc = psrc.slice(a, psrc.indexOf('\n}\n', a) + 3);
+    const run = (moves, last) => {
+        const c = vm.createContext({console: {log() {}}}); c.self = c;
+        vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8') + ';' + fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+        // every position level (win 50%), the engine's second line at -3 for the mover on the last ply
+        vm.runInContext(`var config = {variant: 'chess'}, premove_tracker = {startFen: '', moves: ${JSON.stringify(moves)}}, move_class_key = '', move_classes = [], last_logged_class = [];
+            const CLASSIFY_MIN_DEPTH = 10, CLASSIFY_DEPTH_SLACK = 4, TB_OVERRIDABLE = new Set(); function tb_held_the_result() { return false; } function ensure_classifier() {}
+            const U = premove_tracker.moves.split(' '), b = new Chess(), fens = [b.fen()];
+            for (const u of U) { b.move({from: u.slice(0, 2), to: u.slice(2, 4)}); fens.push(b.fen()); }
+            var eval_seen = fens.map(() => true), eval_history = fens.map(() => 0.5);
+            var ply_facts = fens.map((fen, i) => ({fen, depth: 20, ref: {frac: 0.5, depth: 20},
+                lines: i === U.length - 1 ? [{move: ${JSON.stringify(last)}, score: 0}, {move: 'a7a6', score: (i % 2 ? 300 : -300)}] : [{move: U[i] || 'a2a3', score: 0}]}));
+            ${fnSrc}`, c);
+        return vm.runInContext('classify_history()', c);
+    };
+    const recap = run('e2e4 d7d5 e4d5 d8d5', 'd8d5');
+    const quiet = run('e2e4 d7d5 b1c3 g8f6', 'g8f6');
+    ok('REVIEW-GREAT: the panel grades Qxd5 (taking the pawn back) Best, while the same numbers on a quiet only-move read Great',
+       recap[3] === 'best' && quiet[3] === 'great', [recap[3], quiet[3]]);
 }

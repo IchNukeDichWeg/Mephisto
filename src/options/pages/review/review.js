@@ -995,6 +995,7 @@ function assemble(game, positions, moves, book, opts) {
         m.klass = Core.classify({
             winBefore: m.winBefore, winAfter: m.winAfter, rank: m.rank,
             onlyMove: m.onlyMove, isBook: m.isBook, secondWin: m.secondWin, sacrifice: m.sacrifice,
+            isRecapture: m.isRecapture,
         });
     }
     const phases = Core.gamePhases(positions.map(p => p.fen));

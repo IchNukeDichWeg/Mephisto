@@ -120,9 +120,10 @@ function onlyLegalMove(Chess, variant, fen, lines, multipv) {
 //   isBook      still inside the opening book
 //   secondWin   win% of the engine's SECOND choice, for "the only move that holds"
 //   sacrifice   sacrificesMaterial() for this move, computed by the caller (it needs chess.js)
+//   isRecapture the move takes back on the square the opponent just captured on
 //   winBefore/winAfter are the mover's win% before and after, both already mover-relative.
 
-function classify({winBefore, winAfter, rank, onlyMove, isBook, secondWin, sacrifice}) {
+function classify({winBefore, winAfter, rank, onlyMove, isBook, secondWin, sacrifice, isRecapture}) {
     const lost = Math.max(0, winBefore - winAfter);
     if (isBook) return 'book';
     if (onlyMove) return 'forced';                       // no credit and no blame for a forced move
@@ -134,7 +135,14 @@ function classify({winBefore, winAfter, rank, onlyMove, isBook, secondWin, sacri
 
     // GREAT: the only move that holds the position. Measured against the engine's second choice --
     // if every other move loses a chunk of the game and this one does not, finding it was the move.
-    if (rank === 1 && secondWin != null && (winAfter - secondWin) >= 10 && lost < GOOD) return 'great';
+    // Never a recapture (taking back is the obvious move, and the engine's second line is "don't")
+    // and never in a decided position (a mate on the board, or 90/10 either way): Great came out
+    // 243 times against chess.com's 126 on the same evals, 98 of the extra ones recaptures, and
+    // chess.com graded 0 of its 126 Greats on a recapture (42 games, depth 10, 24.11.2026).
+    // Requiring the second line to fall under 50% as well was measured and dropped: precision vs
+    // chess.com went 52% -> 47% and recall 53% -> 29%.
+    if (rank === 1 && !isRecapture && winBefore > 10 && winBefore < 90
+        && secondWin != null && (winAfter - secondWin) >= 10 && lost < GOOD) return 'great';
 
     // MISS: a winning position let go. Chess.com shows this instead of Mistake/Blunder when the
     // loss is specifically the win being dropped, which reads very differently from a slip.
