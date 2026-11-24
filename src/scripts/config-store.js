@@ -102,6 +102,24 @@
         // every other family, dark-red refutation >= 31, and forced-theirs moved off human reply's
         // grey (5 -> 23).
         ARROW_PALETTES: ['default', 'colorblind', 'custom'],
+        // LIGHT, DARK OR SYSTEM (theme). System follows prefers-color-scheme, and every reader
+        // (options.js for the settings, review and analysis pages; popup.js for the panel) re-applies
+        // on its change, so it updates live. No key stored is System. Before the one-time migration
+        // below has run, a stored dark_mode still says dark, so an existing dark install does not
+        // flash light on its first load.
+        THEMES: ['light', 'dark', 'system'],
+        theme() {
+            let v = null;
+            try { v = JSON.parse(this.get('theme') ?? 'null'); } catch (e) { /* corrupt -> system */ }
+            if (this.THEMES.includes(v)) return v;
+            try { if (JSON.parse(this.get('dark_mode') ?? 'false') === true) return 'dark'; } catch (e) { /* corrupt */ }
+            return 'system';
+        },
+        themeIsDark(theme = this.theme()) {
+            if (theme === 'dark') return true;
+            if (theme !== 'system') return false;
+            try { return !!globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches; } catch (e) { return false; }
+        },
         ARROW_COLORBLIND: {
             arrow_color_line1: '#0072b2', arrow_color_line2: '#009e73', arrow_color_line3: '#e69f00',
             arrow_color_line4: '#56b4e9', arrow_color_line5: '#cc79a7',
@@ -457,6 +475,29 @@
                     for (const k of ['contempt', 'contempt_cp']) if (k in CACHE) api.remove(k);
                 }
             } catch (e) { /* corrupt -> the style stays as stored */ }
+            // DARK MODE IS THE THEME SELECT (owner call): Light, Dark or System. A stored dark_mode true is
+            // Dark; false or nothing stored is Light, which is what that install has been showing. A fresh
+            // install gets System, written by the service worker's onInstalled, so a theme already stored
+            // is left alone. The old key is dropped, and a custom hotkey on it is unassigned.
+            try {
+                if (loaded && !CACHE.__theme) {
+                    const write = {__theme: '1'};
+                    if (!('theme' in CACHE)) {
+                        let dark = false;
+                        try { dark = JSON.parse(CACHE['dark_mode'] ?? 'false') === true; } catch (e) { /* corrupt -> light */ }
+                        write.theme = JSON.stringify(dark ? 'dark' : 'light');
+                    }
+                    let custom = null;
+                    try { custom = JSON.parse(CACHE['hotkey_custom'] ?? 'null'); } catch (e) { /* corrupt */ }
+                    if (Array.isArray(custom) && custom.some(c => c && c.setting === 'dark_mode')) {
+                        write.hotkey_custom = JSON.stringify(custom.map(c => (c && c.setting === 'dark_mode') ? {setting: ''} : c));
+                    }
+                    Object.assign(CACHE, write);
+                    try { chrome.storage.local.set(write); } catch (e) { /* cache still set */ }
+                    for (const [k, v] of Object.entries(write)) lsSet(k, v);
+                    if ('dark_mode' in CACHE) api.remove('dark_mode');
+                }
+            } catch (e) { /* corrupt -> System until the next load */ }
             ready = true;
         },
     };

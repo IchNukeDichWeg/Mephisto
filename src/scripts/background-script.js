@@ -726,6 +726,9 @@ const EXPLORER_CACHE_MAX = 300;  // position constantly, so without this every r
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason !== 'install') return;
   chrome.storage.local.set({calibrate_pending: 'true'}).catch(() => {});
+  // A new install follows the system theme. The theme migration (config-store.js) reads an install
+  // with no theme stored as one that has been showing Light all along, so this is what tells them apart.
+  chrome.storage.local.set({theme: '"system"'}).catch(() => {});
 });
 
 // --- Update check ------------------------------------------------------------------------------

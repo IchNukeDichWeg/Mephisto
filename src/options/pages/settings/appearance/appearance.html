@@ -68,13 +68,14 @@
                     </div>
                 </div>
 
-                <div class="set-row set-toggle">
-                    <div class="set-lbl"><span data-i18n-tip="set.tip.dark_mode" class="tooltipped" data-position="right" data-tooltip="Dark colours for the settings pages and the panel."><span data-i18n="set.dark_mode">Dark Mode</span></span></div>
+                <div class="set-row">
+                    <div class="set-lbl"><span data-i18n-tip="set.tip.theme" class="tooltipped" data-position="right" data-tooltip="Light or dark colours for the settings pages, the review and analysis pages and the panel. System follows your operating system or browser, and changes with it."><span data-i18n="set.theme">Theme</span></span></div>
                     <div class="set-ctl">
-                        <input id="dark_mode_checkbox" type="checkbox" class="set-cb">
-                        <label for="dark_mode_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
+                        <select name="theme" id="theme_select">
+                            <option value="light" data-i18n="set.theme.light">Light</option>
+                            <option value="dark" data-i18n="set.theme.dark">Dark</option>
+                            <option value="system" data-i18n="set.theme.system">System</option>
+                        </select>
                     </div>
                 </div>
             </section>

@@ -18,8 +18,8 @@ class AppearanceSettings extends SettingsPage {
         this.registerFormElement('pieces', 'Pieces:', 'select', 'wikipedia.svg');
         this.registerFormElement('board', 'Board:', 'select', 'brown');
         this.registerFormElement('coordinates', 'Coordinates:', 'checkbox', false);
-        const darkToggle = this.registerFormElement('dark_mode', 'Dark Mode:', 'checkbox', false);
-        darkToggle.registerChangeListener(() => window.mephistoApplyTheme?.());
+        const theme = this.registerFormElement('theme', 'Theme:', 'select', 'system');
+        theme.registerChangeListener(() => window.mephistoApplyTheme?.());
         // Re-translate immediately on change: waiting for a reload to see whether you picked the
         // right language is the one thing a language picker must not do.
         const lang = this.registerFormElement('language', 'Language:', 'select', MephistoI18n.DEFAULT_LANG);

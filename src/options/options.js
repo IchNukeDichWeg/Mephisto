@@ -2,14 +2,15 @@ import { require } from "./framework/require.js";
 
 let registerPageScript;
 
-// dark mode: a single class on <html>, toggled from the Appearance settings. Applied before
-// anything renders and re-applied live when the toggle changes (window.mephistoApplyTheme).
+// theme: a single class on <html>, from the Appearance Theme select (Light / Dark / System).
+// Applied before anything renders, re-applied live when the select changes
+// (window.mephistoApplyTheme) and, under System, when the OS or browser preference changes.
 function applyTheme() {
-    const dark = JSON.parse(MephistoConfig.get('dark_mode') || 'false');
-    document.documentElement.classList.toggle('dark', dark);
+    document.documentElement.classList.toggle('dark', MephistoConfig.themeIsDark());
 }
 applyTheme();
 MephistoConfig.ready.then(applyTheme); // re-apply once chrome.storage (source of truth) is loaded
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme); } catch (e) { /* no matchMedia */ }
 window.mephistoApplyTheme = applyTheme;
 
 // UI language, same shape as the theme: applied to whatever is on screen and re-applied live when

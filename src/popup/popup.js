@@ -650,10 +650,11 @@ async function initPanel(root, tabId) {
         pieces: JSON.parse(MephistoConfig.get('pieces')) || 'wikipedia.svg',
         board: JSON.parse(MephistoConfig.get('board')) || 'brown',
         coordinates: JSON.parse(MephistoConfig.get('coordinates')) || false,
-        dark_mode: JSON.parse(MephistoConfig.get('dark_mode')) || false,
+        theme: MephistoConfig.theme(),
         compact: JSON.parse(MephistoConfig.get('compact')) || false,
     });
-    panel_body()?.classList.toggle('mephisto-dark', config.dark_mode); // dark theme (set in Appearance)
+    apply_theme();   // Light / Dark / System (set in Appearance)
+    watch_system_theme();
     apply_compact();
     // Keep-alive tone. Chrome applies intensive timer throttling to a hidden tab after ~5 minutes,
     // which is what actually stops a backgrounded game -- an inaudible oscillator makes the tab count
@@ -7168,6 +7169,21 @@ function toggle_compact() {
     apply_compact();
 }
 
+// THE PANEL'S THEME. Dark and Light are fixed; System follows prefers-color-scheme and changes
+// with it while the panel is open, without a rebuild. One listener per document: it reads
+// config.theme each time, so a panel rebuilt under another theme needs no second one.
+function apply_theme() {
+    panel_body()?.classList.toggle('mephisto-dark', MephistoConfig.themeIsDark(config.theme));
+}
+let theme_mq = null;
+function watch_system_theme() {
+    if (theme_mq) return;
+    try {
+        theme_mq = matchMedia('(prefers-color-scheme: dark)');
+        theme_mq.addEventListener('change', apply_theme);
+    } catch (e) { /* no matchMedia: System reads as light */ }
+}
+
 function apply_compact() {
     panel_body()?.classList.toggle('mephisto-compact', !!config.compact);
     // Hiding elements can't shrink the panel on its own: it's a FIXED-size box that the content
@@ -11122,7 +11138,7 @@ const LIVE_CONFIG_KEYS = [
     'premove_plies', 'move_time', 'move_reason',
     'material_balance', 'square_heatmap',
     ...ARROW_COLOR_KEYS, 'arrow_palette', // repaint on the next frame, no reload
-    'think_time', 'elo', 'opp_alert', 'dark_mode',
+    'think_time', 'elo', 'opp_alert', 'theme',
     // toggling the trace has to take effect on the session you are already debugging
     'verbose_log', 'fourpc_mode', 'puzzle_delay', 'puzzle_auto_next', 'puzzle_next_delay',
     'drag_moves',
@@ -11257,7 +11273,7 @@ function watch_config_changes() {
             // the board it constructs, and the dark class is set at init. A change on the Appearance
             // page did nothing to an open panel until it was closed and reopened by hand. Rebuild it
             // -- the position is re-read from the page, exactly as after an engine change.
-            if (['pieces', 'board', 'coordinates', 'dark_mode'].some(k => k in changes
+            if (['pieces', 'board', 'coordinates', 'theme'].some(k => k in changes
                     && changes[k].newValue !== changes[k].oldValue)) {
                 return panel_reload();
             }

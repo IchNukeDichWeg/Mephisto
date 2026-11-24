@@ -3501,7 +3501,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('keyboard focus is drawn on the options pages and the panel controls that had none',
        /main input:focus-visible,[\s\S]{0,200}outline: 2px solid var\(--mp-on\) !important;/.test(ocss) && /#quick-settings \.qs-tab:focus-visible,/.test(pcss)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
-    ok('an Appearance change (pieces, board, coordinates, dark mode) rebuilds an open panel', /if \(\['pieces', 'board', 'coordinates', 'dark_mode'\]\.some\(k => k in changes[\s\S]{0,90}\{\s*return panel_reload\(\);/.test(psrc)); }
+    ok('an Appearance change (pieces, board, coordinates, theme) rebuilds an open panel', /if \(\['pieces', 'board', 'coordinates', 'theme'\]\.some\(k => k in changes[\s\S]{0,90}\{\s*return panel_reload\(\);/.test(psrc)); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const r = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
     ok('Game Review: starting a run takes the previous game\'s report off the screen', /async function onRun\(\) \{[\s\S]{0,1500}?\['rv-report', 'rv-indicators',[^\]]*\]\) \$\(id\)\?\.classList\.add\('hidden'\);[\s\S]{0,1000}?if \(is4pcGame/.test(r)); }
@@ -3531,7 +3531,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const dir = ROOT + '/src/i18n/locales/', bad = [];
     for (const f of fs.readdirSync(dir)) { const j = JSON.parse(fs.readFileSync(dir + f, 'utf8'));
-        for (const k of ['set.pieces', 'set.board', 'set.coordinates', 'set.dark_mode']) if (/[:：]\s*$/.test(j[k] || '')) bad.push(f + ' ' + k); }
+        for (const k of ['set.pieces', 'set.board', 'set.coordinates', 'set.theme']) if (/[:：]\s*$/.test(j[k] || '')) bad.push(f + ' ' + k); }
     ok('Appearance labels carry no trailing colon in any language, like every other label', bad.length === 0, bad); }
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } }; const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8'); const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const ocss = fs.readFileSync(ROOT + '/src/options/options.css', 'utf8');
@@ -14403,7 +14403,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const titles = {'settings/general': 'General Settings', analysis: 'Analysis', about: 'About'};
         const c = vm.createContext({console, setTimeout, Promise, JSON, Array, location: loc,
             M: {Sidenav: {init() {}}, ScrollSpy: {init: () => []}, Tooltip: {init() {}}},
-            MephistoConfig: {get: () => null, ready: Promise.resolve()},
+            MephistoConfig: {get: () => null, ready: Promise.resolve(), themeIsDark: () => false},
             chrome: {storage: {onChanged: {addListener() {}}}},   // UPDATER-5's focus listener
             MephistoI18n: {use: async () => {}, apply() {}, lang: 'en'},
             document: {addEventListener: on(doc), documentElement: {classList: cls},
@@ -14485,7 +14485,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const c = vm.createContext({console, setTimeout, Promise, JSON, Array, location: loc,
         history: {replaceState: (s, t, u) => { loc.h = u; }},
         M: {Sidenav: {init() {}}, ScrollSpy: {init: () => []}, Tooltip: {init() {}}},
-        MephistoConfig: {get: () => null, ready: Promise.resolve()},
+        MephistoConfig: {get: () => null, ready: Promise.resolve(), themeIsDark: () => false},
         chrome: {storage: {onChanged: {addListener() {}}}},   // UPDATER-5's focus listener
         MephistoI18n: {use: async () => {}, apply() {}, lang: 'en'},
         document: {addEventListener: on(doc), documentElement: {classList: cls},
@@ -18153,7 +18153,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const c = vm.createContext({console, setTimeout, Promise, JSON, Array, location: loc,
             history: {replaceState: (s, t, u) => { loc.h = u; }},
             M: {Sidenav: {init() {}}, ScrollSpy: {init: () => []}, Tooltip: {init() {}}},
-            MephistoConfig: {get: () => null, ready: Promise.resolve()},
+            MephistoConfig: {get: () => null, ready: Promise.resolve(), themeIsDark: () => false},
             chrome: {storage: {onChanged: {addListener() {}}}},
             MephistoI18n: {use: async () => {}, apply() {}, lang: 'en'},
             document: {addEventListener: on(doc), documentElement: {classList: cls},
@@ -18211,7 +18211,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const c = vm.createContext({console, setTimeout, Promise, JSON, Array, location: loc,
             history: {replaceState: (s, t, u) => { loc.h = u; }},
             M: {Sidenav: {init() {}}, ScrollSpy: {init: () => []}, Tooltip: {init() {}}},
-            MephistoConfig: {get: () => null, ready: Promise.resolve()},
+            MephistoConfig: {get: () => null, ready: Promise.resolve(), themeIsDark: () => false},
             chrome: {storage: {onChanged: {addListener() {}}}},
             MephistoI18n: {use: async () => {}, apply() {}, lang: 'en'},
             document: {addEventListener: on(doc), documentElement: {classList: cls},
@@ -19699,4 +19699,62 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        && adv.indexOf('id="tb_choose"') < adv.indexOf('id="tb_path_status"') && adv.indexOf('id="tb_path_status"') < adv.indexOf('id="tb_path_input"'),
        ids.filter(id => !adv.includes(`id="${id}"`)));
     ok('SIMP-BEYOND-ADV: the Tablebase switch itself stays in view', sec.indexOf('id="tablebase_checkbox"') < sec.indexOf('id="beyond_adv"'));
+}
+// ---- SIMP-THEME: Dark Mode is a Light / Dark / System select; System follows prefers-color-scheme live ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const cs = fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8');
+    const boot = async (stored, osDark = false) => {
+        const removed = [];
+        const c = vm.createContext({console, location: {protocol: 'https:'}, matchMedia: (q) => ({matches: q === '(prefers-color-scheme: dark)' && osDark}),
+            chrome: {storage: {local: {get: async () => ({...stored}), set() {}, remove(k) { removed.push(k); }}, onChanged: {addListener() {}}}}});
+        c.self = c; c.window = c;
+        vm.runInContext(cs, c);
+        await c.MephistoConfig.ready;
+        const M = c.MephistoConfig;
+        return {theme: M.get('theme'), read: M.theme(), dark: M.themeIsDark(), dm: M.get('dark_mode'), hk: M.get('hotkey_custom'), removed: removed.join(), M};
+    };
+    const hk = JSON.stringify([{setting: 'autoplay', label: 'Autoplay', def: false}, {setting: 'dark_mode', label: 'Dark Mode', def: false}]);
+    Promise.all([
+        boot({dark_mode: 'true', hotkey_custom: hk}), boot({dark_mode: 'false'}), boot({autoplay: 'true'}), boot({theme: '"system"'}, true),
+        boot({theme: '"system"'}, false), boot({theme: '"bogus"', __theme: '1'}, true), boot({dark_mode: 'true', __theme: '1'}),
+    ]).then(([dk, lt, old, sysDark, sysLight, bogus, premig]) => {
+        ok('SIMP-THEME: once on load, dark_mode true is Dark, false or nothing stored is Light; the old key goes and a custom hotkey on it is unassigned',
+           dk.theme === '"dark"' && dk.dark && dk.dm === null && dk.removed === 'dark_mode'
+           && JSON.stringify(JSON.parse(dk.hk)) === JSON.stringify([{setting: 'autoplay', label: 'Autoplay', def: false}, {setting: ''}])
+           && lt.theme === '"light"' && !lt.dark && old.theme === '"light"', {dk, lt: lt.theme, old: old.theme});
+        ok('SIMP-THEME: a theme already stored (a fresh install\'s System) is kept, and System follows prefers-color-scheme',
+           sysDark.theme === '"system"' && sysDark.dark === true && sysLight.dark === false, [sysDark.dark, sysLight.dark]);
+        ok('SIMP-THEME: a corrupt value reads as System; before the migration a stored dark_mode still reads Dark',
+           bogus.read === 'system' && bogus.dark === true && premig.read === 'dark', [bogus.read, premig.read]);
+    }).catch(e => { fails++; console.log('FAIL SIMP-THEME migration threw: ' + (e && e.stack || e)); });
+    const oj = fs.readFileSync(ROOT + '/src/options/options.js', 'utf8');
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const ah = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.html', 'utf8');
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/settings/appearance/appearance.js', 'utf8');
+    ok('SIMP-THEME: the options pages (settings, review, analysis) apply it and re-apply on a system change',
+       /document\.documentElement\.classList\.toggle\('dark', MephistoConfig\.themeIsDark\(\)\);/.test(oj)
+       && /matchMedia\('\(prefers-color-scheme: dark\)'\)\.addEventListener\('change', applyTheme\)/.test(oj) && !/dark_mode/.test(oj));
+    // the panel: apply_theme follows config.theme, and the one listener re-applies on a system change
+    const fn = (name) => { const i = pj.indexOf('\nfunction ' + name + '(') + 1; return pj.slice(i, pj.indexOf('\n}\n', i) + 3); };
+    let listener = null; const cls = {on: null};
+    const c = vm.createContext({config: {theme: 'system'}, osDark: false,
+        MephistoConfig: {themeIsDark: (t) => t === 'dark' || (t === 'system' && c.osDark)},
+        panel_body: () => ({classList: {toggle: (k, on) => { if (k === 'mephisto-dark') cls.on = on; }}}),
+        matchMedia: () => ({addEventListener: (t, f) => { listener = f; }})});
+    vm.runInContext('let theme_mq = null;\n' + fn('apply_theme') + fn('watch_system_theme') + 'apply_theme(); watch_system_theme(); watch_system_theme();', c);
+    const before = cls.on; c.osDark = true; listener && listener(); const after = cls.on;
+    c.config.theme = 'light'; listener && listener();
+    ok('SIMP-THEME: the panel follows System live without a rebuild, wires one listener, and a fixed theme ignores the system',
+       before === false && after === true && cls.on === false && typeof listener === 'function', [before, after, cls.on]);
+    ok('SIMP-THEME: the panel reads theme at boot, rebuilds on a theme change, and no longer reads dark_mode',
+       /theme: MephistoConfig\.theme\(\),/.test(pj) && /\['pieces', 'board', 'coordinates', 'theme'\]\.some/.test(pj) && !/dark_mode/.test(pj));
+    ok('SIMP-THEME: a fresh install is written System; the Appearance page has the three-way select and no Dark Mode toggle',
+       /if \(details\.reason !== 'install'\) return;[\s\S]{0,400}chrome\.storage\.local\.set\(\{theme: '"system"'\}\)/.test(bg)
+       && /<select name="theme" id="theme_select">\s*<option value="light"[^>]*>Light<\/option>\s*<option value="dark"[^>]*>Dark<\/option>\s*<option value="system"[^>]*>System<\/option>/.test(ah)
+       && /registerFormElement\('theme', 'Theme:', 'select', 'system'\)/.test(aj) && !/dark_mode/.test(ah + aj));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-THEME: label, tip and three options in all 14 locales; the Dark Mode strings are gone',
+       locs.length === 14 && locs.every(l => ['set.theme', 'set.tip.theme', 'set.theme.light', 'set.theme.dark', 'set.theme.system'].every(k => l[k]) && !('set.dark_mode' in l) && !('set.tip.dark_mode' in l)));
 }
