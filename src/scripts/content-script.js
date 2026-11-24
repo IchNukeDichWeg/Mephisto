@@ -3785,8 +3785,8 @@ function simulateMove4PC(move, think = null, sessionGen = undefined) {
     }
     return (async () => {
         await warmClicker();
-        await promiseTimeout(think != null ? think : config.think_time + Math.random() * config.think_variance);
-        const total = config.move_time + Math.random() * config.move_variance;
+        await promiseTimeout(think != null ? think : config.think_time + Math.random() * (config.think_variance ?? config.think_time));
+        const total = config.move_time + Math.random() * (config.move_variance ?? config.move_time);
         // Asked before the FROM-click only, like the 8x8 path: once the piece is picked up, the pair is
         // finished. Held back between the two, the piece stayed selected, and the re-issue on return
         // clicked it again, which deselects it, so the move never landed (audit 3.1.329 CLICK-3).
@@ -3992,8 +3992,8 @@ function beginMoving(thinkMs = null, speculative = false) {
     // guard mid-think (audit 3.1.332 CONTENT1-2), so the budget takes the largest think that draw can
     // give, plus the largest click budget (move_time + variance at Fitts' 1.6 ceiling).
     const num = (v) => Number(v) || 0;
-    const think = (thinkMs != null) ? num(thinkMs) : num(config?.think_time) + num(config?.think_variance);
-    movingBudget = think + (num(config?.move_time) + num(config?.move_variance)) * 1.6 + 15000;
+    const think = (thinkMs != null) ? num(thinkMs) : num(config?.think_time) + num(config?.think_variance ?? config?.think_time);
+    movingBudget = think + (num(config?.move_time) + num(config?.move_variance ?? config?.move_time)) * 1.6 + 15000;
     // Safety net: while `moving` is true the content-script ignores ALL scrape requests, so a move
     // simulation that never resolves (a hung click / promotion) would freeze the extension ("gets
     // stuck and doesn't play anything"). The grace sits ON TOP of this move's think, which is
@@ -5994,11 +5994,13 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
         // an explicit per-move think (humanize / clock mode, computed in the popup) overrides the
         // static configured delay
         if (think != null) return think;
-        return config.think_time + Math.random() * config.think_variance;
+        // the timing the popup sent carries the variance; a config without one draws up to the time
+        // itself, as the popup's fresh_timing does (the Variance settings were folded into the times)
+        return config.think_time + Math.random() * (config.think_variance ?? config.think_time);
     }
 
     function getMoveTime() {
-        return config.move_time + Math.random() * config.move_variance;
+        return config.move_time + Math.random() * (config.move_variance ?? config.move_time);
     }
 
     async function performSimulatedMoveClicks(approachMs, travelMs, total) {

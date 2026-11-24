@@ -415,9 +415,7 @@ async function initPanel(root, tabId) {
     // load extension configurations from the config store (chrome.storage.local, cached)
     const computeTime = JSON.parse(MephistoConfig.get('compute_time'));
     const thinkTime = JSON.parse(MephistoConfig.get('think_time'));
-    const thinkVariance = JSON.parse(MephistoConfig.get('think_variance'));
     const moveTime = JSON.parse(MephistoConfig.get('move_time'));
-    const moveVariance = JSON.parse(MephistoConfig.get('move_variance'));
     // the unit the Analysis Limit is read in; anything else in storage means the default
     const analysisLimitMode = (() => { try { return JSON.parse(MephistoConfig.get('analysis_limit_mode')); }
                                        catch (e) { return null; } })();
@@ -538,9 +536,7 @@ async function initPanel(root, tabId) {
         threads: JSON.parse(MephistoConfig.get('threads')) || MephistoConfig.defaultThreads(),
         memory: JSON.parse(MephistoConfig.get('memory')) || 512,
         think_time: (thinkTime != null) ? thinkTime : 0,
-        think_variance: (thinkVariance != null) ? thinkVariance : 0,
         move_time: (moveTime != null) ? moveTime : 400, // ms of cursor travel to the target square (M2)
-        move_variance: (moveVariance != null) ? moveVariance : 400,
         humanize: JSON.parse(MephistoConfig.get('humanize')) || false,
         clock_mode: JSON.parse(MephistoConfig.get('clock_mode')) || false,
         puzzle_auto_next: JSON.parse(MephistoConfig.get('puzzle_auto_next')) || false,
@@ -1357,7 +1353,7 @@ function init_quick_settings() {
         });
     }
     // timing settings apply live: the search budget is read at every 'go', think/move times are pushed to the page
-    for (const [id, key] of [['qs_move', 'move_time'], ['qs_move_var', 'move_variance']]) {
+    for (const [id, key] of [['qs_move', 'move_time']]) {
         const elem = PANEL_ROOT.getElementById(id);
         if (!elem) continue;
         elem.value = config[key];
@@ -9336,12 +9332,13 @@ function fresh_timing(situation) {
     // Situation first (what the move IS), then the clock cap (what the clock allows). In that
     // order, because the cap is a ceiling: scaling a move up for a visible mate must not be able to
     // spend time the clock does not have.
-    const t = {
-        think_time: num('think_time', config.think_time),
-        think_variance: num('think_variance', config.think_variance),
-        move_time: num('move_time', config.move_time),
-        move_variance: num('move_variance', config.move_variance),
-    };
+    // ONE NUMBER EACH. The random extra on top of a time is up to the time itself, so a move waits
+    // between Think Time and twice it (mean 1.5x) and travels between Move Time and twice it. The two
+    // Variance settings were folded in by an owner call: the migration in config-store.js
+    // (__variance_folded) rewrote the base so the mean stayed. The timing still carries the
+    // *_variance fields, as the shape the pacing below and the content script draw from.
+    const think = num('think_time', config.think_time), move = num('move_time', config.move_time);
+    const t = {think_time: think, think_variance: think, move_time: move, move_variance: move};
     // Human Move Times replaces the flat draw with a log-normal one of the same average, and hands
     // on a FIXED number (variance 0): the shape is decided here, in one place, rather than half here
     // and half in the content script's own `think_time + random * variance`.
@@ -11109,10 +11106,10 @@ const LIVE_CONFIG_KEYS = [
     'maia2_self_elo', 'maia2_oppo_elo', 'maia3_elo', 'rodent_personality',
     'analysis_limit', 'analysis_limit_mode',
     'arrow_opacity', 'arrow_rank', 'arrow_labels', 'arrow_eval_side', 'user_arrow_evals', 'user_arrow_replies', 'move_notation', 'forced_lines', 'pv_walk', 'pv_walk_limit',
-    'premove_plies', 'move_time', 'move_variance', 'move_reason',
+    'premove_plies', 'move_time', 'move_reason',
     'material_balance', 'square_heatmap',
     ...ARROW_COLOR_KEYS, // repaint on the next frame, no reload
-    'think_time', 'think_variance', 'elo', 'opp_alert', 'dark_mode',
+    'think_time', 'elo', 'opp_alert', 'dark_mode',
     // toggling the trace has to take effect on the session you are already debugging
     'verbose_log', 'fourpc_mode', 'puzzle_delay', 'puzzle_auto_next', 'puzzle_next_delay',
     'drag_moves',
@@ -11439,7 +11436,7 @@ function sync_quick_settings() {
             box.checked = config[key];
         }
     }
-    for (const [id, key] of [['qs_move', 'move_time'], ['qs_move_var', 'move_variance']]) {
+    for (const [id, key] of [['qs_move', 'move_time']]) {
         const el = PANEL_ROOT.getElementById(id);
         if (el && String(el.value) !== String(config[key])) el.value = config[key];
     }

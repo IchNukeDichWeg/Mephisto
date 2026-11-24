@@ -362,6 +362,32 @@
                     api.set('__clock_pace_retired', '1');
                 }
             } catch (e) { /* corrupt -> nothing to drop */ }
+            // THE VARIANCES ARE FOLDED INTO THEIR TIMES (owner call). A move now draws Think Time + up to
+            // Think Time again (popup fresh_timing), so a time and its variance become ONE number that
+            // keeps the old average: base + variance/2 = 1.5 * new. Absent keys are their defaults (think
+            // 0 +0, move 400 +400, the latter unchanged). Base and flag go in ONE write, so another
+            // context loading at the same moment sees either the old pair or the new number with its flag,
+            // never the new number without it (which would fold it a second time). Skipped when storage
+            // could not be read: an empty cache would only set the flag. An imported settings file from
+            // before carries no flag, so the import clears it and the reload folds that file's values.
+            try {
+                if (loaded && !CACHE.__variance_folded) {
+                    const num = (k, d) => {
+                        let v = d;
+                        try { v = Number(JSON.parse(CACHE[k] ?? 'null') ?? d); } catch (e) { /* corrupt -> default */ }
+                        return Number.isFinite(v) && v >= 0 ? v : d;
+                    };
+                    const write = {__variance_folded: '1'};
+                    for (const [base, vari, d0, d1] of [['think_time', 'think_variance', 0, 0], ['move_time', 'move_variance', 400, 400]]) {
+                        if (!(base in CACHE) && !(vari in CACHE)) continue;
+                        write[base] = JSON.stringify(Math.round((num(base, d0) + num(vari, d1) / 2) / 1.5));
+                    }
+                    Object.assign(CACHE, write);
+                    try { chrome.storage.local.set(write); } catch (e) { /* cache still set */ }
+                    for (const [k, v] of Object.entries(write)) lsSet(k, v);
+                    for (const k of ['think_variance', 'move_variance']) if (k in CACHE) api.remove(k);
+                }
+            } catch (e) { /* corrupt -> the times stay as stored */ }
             ready = true;
         },
     };

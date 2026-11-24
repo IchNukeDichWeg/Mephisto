@@ -349,7 +349,8 @@ recaptures, forced moves and your first move. **Clock Pacing** picks one of two 
 Time toggles). **Clock budget** budgets each move off the page clock (~time/30 + 60% of the increment). **Mirror
 opponent** paces to a share of the opponent's last spend, 50-150% (90 by default); being behind on the clock always cuts
 the target by a further 30%. Both size the search to the wait. When the clock gets short the *simulated* delay shrinks
-with it, whatever the mode; it never gets longer.
+with it, whatever the mode; it never gets longer. Simulated Think Time and Move Time are one number each: a move takes
+between that number and twice it, at random.
 
 > **Priority** - *Time:* Mirror ▸ Clock ▸ Humanize ▸ Search Time. *Move:* Book ▸ Humanize ▸ engine best.
 

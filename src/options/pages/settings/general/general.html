@@ -1545,7 +1545,8 @@
                     <div class="set-lbl">
                         <span data-i18n="set.simulated_think_time_ms" data-i18n-tip="set.tip.mephisto_will_always_wait_at" class="tooltipped" data-position="right"
                               data-tooltip="Mephisto waits at least this long after fully evaluating a
-                                            position (determined by Search Time) to make a move. Humanize,
+                                            position (determined by Search Time) to make a move, plus a random
+                                            extra of up to the same amount. Humanize,
                                             Clock Mode and Mirror Time replace this timing, and it is scaled by the situation (a recapture or a forced move
                                             goes faster), by a low clock (under 2 minutes) and by Complexity
                                             Clock.">
@@ -1563,25 +1564,9 @@
 
                 <div class="set-row">
                     <div class="set-lbl">
-                        <span data-i18n="set.simulated_think_time_variance_ms" data-i18n-tip="set.tip.mephisto_will_wait_a_random" class="tooltipped" data-position="right"
-                              data-tooltip="Mephisto will wait a random extra amount of time, up to this amount, on
-                                            top of Simulated Think Time.">
-                            Simulated Think Time Variance (ms) <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="think_variance_input" type="number" min="0" step="25">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
                         <span data-i18n="set.simulated_move_time_ms" data-i18n-tip="set.tip.mephisto_will_always_take_at" class="tooltipped" data-position="right"
-                              data-tooltip="How long Mephisto takes for the mouse actions of a typical move.
+                              data-tooltip="How long Mephisto takes for the mouse actions of a typical move,
+                                            plus a random extra of up to the same amount.
                                             Short moves take as little as 60% of it and long ones up to 160%,
                                             as a hand does. Human Move Times and Time Trouble
                                             Mode replace it when they set the timing, and a short
@@ -1593,23 +1578,6 @@
                         <span class="set-step">
                             <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
                             <input id="move_time_input" type="number" min="0" step="25">
-                            <button type="button" class="set-step-btn" data-step="1">+</button>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="set-row">
-                    <div class="set-lbl">
-                        <span data-i18n="set.simulated_move_time_variance_ms" data-i18n-tip="set.tip.mephisto_will_take_a_random" class="tooltipped" data-position="right"
-                              data-tooltip="Mephisto will take a random extra amount of time, up to this amount,
-                                            on top of Simulated Move Time.">
-                            Simulated Move Time Variance (ms) <i class="material-icons info-tooltip">info</i>
-                        </span>
-                    </div>
-                    <div class="set-ctl">
-                        <span class="set-step">
-                            <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="move_variance_input" type="number" min="0" step="25">
                             <button type="button" class="set-step-btn" data-step="1">+</button>
                         </span>
                     </div>

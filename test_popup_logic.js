@@ -17147,6 +17147,63 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
        locs.length === 14 && locs.every(l => ['set.after_game', 'set.tip.after_game', 'set.after_game.stop', 'set.after_game.rematch', 'set.after_game.both', 'set.after_game.new'].every(k => l[k])
            && !('set.tip.grind_mode' in l) && !('set.tip.accept_rematch' in l)));
 }
+// ---- SIMP-VAR: the two Variance settings are folded into their times, keeping the average ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const fn = (name) => { const i = psrc.search(new RegExp('^function ' + name + '\\(', 'm')); return i < 0 ? '' : psrc.slice(i, psrc.indexOf('\n}\n', i) + 3); };
+    const timing = (stored, human) => {
+        const c = vm.createContext({JSON, Math, Number});
+        c.MephistoConfig = {get: (k) => (k in stored ? stored[k] : null)};
+        vm.runInContext(`var config = {think_time: 0, move_time: 400, human_times: ${!!human}}; function lognormal_ms(m) { return 'ln' + m; }
+            function situational_timing(t) { return t; } function clock_pace_timing(t) { return t; }\n` + fn('fresh_timing'), c);
+        return vm.runInContext('fresh_timing()', c);
+    };
+    const a = timing({}), b = timing({think_time: '600', move_time: '200', think_variance: '9999', move_variance: '9999'}), h = timing({think_time: '600'}, true);
+    ok('SIMP-VAR: the timing draws up to the time itself on top (variance = time), whatever a stale variance key says',
+       JSON.stringify(a) === '{"think_time":0,"think_variance":0,"move_time":400,"move_variance":400}'
+       && JSON.stringify(b) === '{"think_time":600,"think_variance":600,"move_time":200,"move_variance":200}', [a, b]);
+    ok('SIMP-VAR: ...and Human Move Times draws its log-normal around the same 1.5x average', h.think_time === 'ln900' && h.think_variance === 0, h);
+    const cs = fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8');
+    const boot = async (stored) => {
+        const writes = [], removed = [];
+        const c = vm.createContext({console, location: {protocol: 'https:'}, chrome: {storage: {local: {get: async () => ({...stored}), set(o) { writes.push(o); }, remove(k) { removed.push(k); }},
+                                                       onChanged: {addListener() {}}}}});
+        c.self = c; c.window = c;
+        vm.runInContext(cs, c);
+        await c.MephistoConfig.ready;
+        const g = (k) => c.MephistoConfig.get(k) ?? null;
+        return {tt: g('think_time'), tv: g('think_variance'), mt: g('move_time'), mv: g('move_variance'), flag: g('__variance_folded'),
+                together: writes.some(w => w.__variance_folded === '1' && (!('think_time' in w) || 'think_time' in stored || 'think_variance' in stored)), removed: removed.sort().join()};
+    };
+    Promise.all([boot({}), boot({think_time: '1000'}), boot({think_time: '600', think_variance: '600', move_time: '300', move_variance: '0'}),
+                 boot({move_variance: '200'}), boot({think_time: '1000', __variance_folded: '1'}), boot({think_time: '"bad', move_time: '400', move_variance: '400'})])
+        .then(([fresh, think, both, mvOnly, done, bad]) => {
+        ok('SIMP-VAR: once on load, each pair becomes one time with the same average ((time + variance/2) / 1.5), defaults for what is absent',
+           fresh.flag === '1' && fresh.tt === null && fresh.mt === null
+           && think.tt === '667' && think.mt === null
+           && both.tt === '600' && both.mt === '200' && both.tv === null && both.mv === null && both.removed === 'move_variance,think_variance'
+           && mvOnly.mt === '333' && mvOnly.tt === null, {fresh, think, both, mvOnly});
+        ok('SIMP-VAR: ...not twice (the flag goes in the same write as the times), and a corrupt time falls back to its default',
+           done.tt === '1000' && both.together && bad.tt === '0' && bad.mt === '400' && bad.flag === '1', {done, both, bad});
+    });
+    const ph = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const live = psrc.slice(psrc.indexOf('const LIVE_CONFIG_KEYS'), psrc.indexOf('];', psrc.indexOf('const LIVE_CONFIG_KEYS')));
+    ok('SIMP-VAR: no variance setting is read, registered or shown: not in the panel config, its live keys, the quick row or the settings page',
+       !/MephistoConfig\.get\('(think|move)_variance'\)|num\('(think|move)_variance'/.test(psrc) && !/(think|move)_variance/.test(live)
+       && !/qs_move_var/.test(psrc + ph) && !/(think|move)_variance/.test(gh + gj)
+       && /<span data-i18n="panel\.move_time_ms" data-i18n-tip="panel\.tip\.move_time"/.test(ph));
+    ok('SIMP-VAR: the content script draws up to the time itself when a config carries no variance',
+       (csrc.match(/config\??\.think_variance \?\? config\??\.think_time/g) || []).length === 3 && (csrc.match(/config\??\.move_variance \?\? config\??\.move_time/g) || []).length === 3);
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-VAR: the panel label and tip in all 14 locales; the four variance strings and the old panel pair are gone',
+       locs.length === 14 && locs.every(l => l['panel.move_time_ms'] && l['panel.tip.move_time']
+           && ['panel.move_time_var_ms', 'panel.tip.move_time_var', 'set.simulated_think_time_variance_ms', 'set.simulated_move_time_variance_ms',
+               'set.tip.mephisto_will_wait_a_random', 'set.tip.mephisto_will_take_a_random'].every(k => !(k in l))));
+}
 // ---- SIMP-SEL: one select over two switches writes the two existing keys (view only) ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
@@ -18658,9 +18715,10 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const en = JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/en.json', 'utf8'));
     const html = fs.readFileSync(ROOT + '/src/popup/popup.html', 'utf8');
-    ok('POPUP1-1 (3.1.333): panel.tip.move_time_var names the mouse and the think pause, not a search inside the time',
-       /mouse/.test(en['panel.tip.move_time_var']) && /Simulated Think Time/.test(en['panel.tip.move_time_var']) && !/search happens inside/.test(en['panel.tip.move_time_var']));
-    ok('POPUP1-1 (3.1.333): the popup.html fallback matches en.json', html.includes('data-tooltip="' + en['panel.tip.move_time_var'] + '">Move Time')); }
+    // the key is panel.tip.move_time since the variance was folded into the time (SIMP-VAR)
+    ok('POPUP1-1 (3.1.333): panel.tip.move_time names the mouse and the think pause, not a search inside the time',
+       /mouse/.test(en['panel.tip.move_time']) && /Simulated Think Time/.test(en['panel.tip.move_time']) && !/search happens inside/.test(en['panel.tip.move_time']));
+    ok('POPUP1-1 (3.1.333): the popup.html fallback matches en.json', html.includes('data-tooltip="' + en['panel.tip.move_time'] + '">Move Time')); }
 // ---- audit 3.1.333 POPUP2-1: tablebase asks only inside each variant's tables and drops 'unknown' answers ----
 { const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
