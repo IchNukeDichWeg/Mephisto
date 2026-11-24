@@ -17104,6 +17104,49 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
        locs.length === 14 && locs.every(l => l['set.moves'] && l['set.tip.moves'] && l['panel.autoplay'] && l['panel.help_mode'] && l['panel.manual_mode'] && l['set.hand_brain_mode']
            && !('set.tip.instead_of_autoplaying_all_analysi' in l) && !('set.tip.mephisto_plays_as_the_brain' in l)));
 }
+// ---- SIMP-AFTER: one After the Game select over Grind Mode and Accept Rematch ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const i = gj.indexOf('    bindPairSelect(viewId, a, b, values) {'), body = i < 0 ? '' : gj.slice(i, gj.indexOf('\n    }\n', i) + 7);
+    const a = gj.indexOf("        const grind_mode = this.registerFormElement('grind_mode',"), b = gj.indexOf('        sync_grind_row();\n', a) + 26;
+    const wiring = a < 0 ? '' : gj.slice(a, b);
+    const fe = (v) => { const ls = []; const o = {missing: false, v, getValue: () => o.v, setValue: (x) => { o.v = x; ls.forEach(f => f()); }, registerChangeListener: (f) => ls.push(f)}; return o; };
+    const run = (st, steps = []) => {
+        const autoplay = fe(st[0]), keys = {grind_mode: fe(st[1]), accept_rematch: fe(st[2]), grind_delay: fe(5)};
+        const hidden = {};
+        const sel = {value: '', ev: {}, parentElement: null, selectedOptions: [], addEventListener(t, f) { this.ev[t] = f; }};
+        const document = {getElementById: (id) => id === 'after_game_view' ? sel : {classList: {toggle: (c, on) => { hidden[id] = on; }}}};
+        const c = vm.createContext({document, autoplay, keys});
+        vm.runInContext(`const page = {${body}, registerFormElement: (k) => keys[k]}; (function () { ${wiring} }).call(page);`, c);
+        const snap = () => [sel.value, keys.grind_mode.v, keys.accept_rematch.v, hidden.after_game_row, hidden.grind_delay_row];
+        const out = [snap()];
+        for (const s of steps) {
+            if (s === 'autoplay_off') autoplay.setValue(false);
+            else if (s === 'autoplay_on') autoplay.setValue(true);
+            else { sel.value = s; sel.ev.change(); }
+            out.push(snap());
+        }
+        return out;
+    };
+    const F = false, T = true;
+    const shown = [[T, F, F], [T, F, T], [T, T, T], [T, T, F]].map(s => run(s)[0][0]);
+    ok('SIMP-AFTER: the select shows the stored pair: Stop, Accept rematches, Rematch else a new game, New game',
+       shown.join() === 'stop,rematch,both,new', shown);
+    const st = run([T, F, F], ['new', 'both', 'rematch', 'stop', 'new', 'autoplay_off', 'autoplay_on']);
+    ok('SIMP-AFTER: picking writes both keys; the row shows with Autoplay and the delay only when a new game would start',
+       JSON.stringify(st) === JSON.stringify([['stop', F, F, F, T], ['new', T, F, F, F], ['both', T, T, F, F], ['rematch', F, T, F, T],
+           ['stop', F, F, F, T], ['new', T, F, F, F], ['new', T, F, T, T], ['new', T, F, F, F]]), st);
+    ok('SIMP-AFTER: one row holds the two hidden switches (named for the custom-hotkey picker) and the select; the delay row stays; the old rows are gone',
+       /<div class="set-row" id="after_game_row">[\s\S]*?<input id="grind_mode_checkbox" type="checkbox" hidden title="Grind Mode" data-i18n-title="set\.grind_mode">\s*<input id="accept_rematch_checkbox" type="checkbox" hidden title="Accept Rematch" data-i18n-title="set\.accept_rematch">\s*<select id="after_game_view">/.test(gh)
+       && ['grind_mode', 'accept_rematch'].every(k => (gh.match(new RegExp(`id="${k}_checkbox"`, 'g')) || []).length === 1)
+       && /<div class="set-row" id="grind_delay_row">/.test(gh));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-AFTER: label, tip and four options in all 14 locales; the two per-row tips are gone',
+       locs.length === 14 && locs.every(l => ['set.after_game', 'set.tip.after_game', 'set.after_game.stop', 'set.after_game.rematch', 'set.after_game.both', 'set.after_game.new'].every(k => l[k])
+           && !('set.tip.grind_mode' in l) && !('set.tip.accept_rematch' in l)));
+}
 // ---- SIMP-SEL: one select over two switches writes the two existing keys (view only) ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

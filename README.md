@@ -304,9 +304,9 @@ software did not change, the measurement did.
 - **Auto Resign** / **Auto Draw Offer** - end a game that is over. The score has to stay below your resign threshold
   (or within a fifth of a pawn, for a draw) for three of *your* turns running; it presses the site's own button, once
   per game.
-- **Grind Mode** / **Accept Rematch** - with Autoplay on, Grind Mode starts the next game when one ends and Accept
-  Rematch takes the opponent's rematch offer after a one-to-three-second pause (lichess only so far; your own offer is
-  never touched). Closing the panel stops both.
+- **After the Game** - with Autoplay on, one choice: stop, accept the opponent's rematch offer after a
+  one-to-three-second pause (lichess only so far; your own offer is never touched), start the next game after the Grind
+  Delay (Grind Mode), or take a rematch when one is offered and start a new game otherwise. Closing the panel stops it.
 - **Complexity Clock** - thinks longer when the top two lines are within 15cp (1.6x) and shorter when one move is 250cp
   clear (0.6x). **Human Move Times** draws the think from a log-normal shape instead of a flat band: most moves are
   quick, a few take several times the median, none takes zero.

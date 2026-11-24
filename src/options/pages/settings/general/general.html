@@ -712,16 +712,20 @@
                     </div>
                 </div>
 
-                <div class="set-row set-toggle">
+                <div class="set-row" id="after_game_row">
                     <div class="set-lbl">
-                        <span data-i18n="set.grind_mode" data-i18n-tip="set.tip.grind_mode" class="tooltipped" data-position="right"
-                              data-tooltip="Lichess and Chess.com, and only while Autoplay is on. When a game finishes, Mephisto clicks the button that starts the next one -- &quot;New opponent&quot; on Lichess, &quot;New 1 min&quot; (whatever your time control is) on Chess.com -- so a session keeps going without you. The delay below is your window to stop it: close the tab, navigate away or switch this off during it and no new game is searched for. If the button is not where it was expected, nothing happens and the game simply stays finished.">Grind Mode <i class="material-icons info-tooltip">info</i></span>
+                        <span data-i18n="set.after_game" data-i18n-tip="set.tip.after_game" class="tooltipped" data-position="right"
+                              data-tooltip="What happens when a game ends, only while Autoplay plays. Stop: nothing, the game stays finished. Accept rematches (Lichess only): an opponent's rematch offer is accepted after a one-to-three-second pause; your own offer is never touched. New game (Lichess and Chess.com): after the Grind Delay, Mephisto clicks the button that starts the next game (&quot;New opponent&quot; on Lichess, &quot;New 1 min&quot; or your time control on Chess.com); the delay is your window to stop it by closing the tab, navigating away or switching this off. Rematch, else a new game: an offered rematch is the next game, otherwise a new one is started. If a button is not where it was expected, nothing happens.">After the Game <i class="material-icons info-tooltip">info</i></span>
                     </div>
                     <div class="set-ctl">
-                        <input id="grind_mode_checkbox" type="checkbox" class="set-cb">
-                        <label for="grind_mode_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
+                        <input id="grind_mode_checkbox" type="checkbox" hidden title="Grind Mode" data-i18n-title="set.grind_mode">
+                        <input id="accept_rematch_checkbox" type="checkbox" hidden title="Accept Rematch" data-i18n-title="set.accept_rematch">
+                        <select id="after_game_view">
+                            <option value="stop" data-i18n="set.after_game.stop">Stop</option>
+                            <option value="rematch" data-i18n="set.after_game.rematch">Accept rematches</option>
+                            <option value="both" data-i18n="set.after_game.both">Rematch, else a new game</option>
+                            <option value="new" data-i18n="set.after_game.new">New game (ignore rematches)</option>
+                        </select>
                     </div>
                 </div>
 
@@ -736,19 +740,6 @@
                             <input id="grind_delay_input" type="number" min="0" max="600" step="1">
                             <button type="button" class="set-step-btn" data-step="1">+</button>
                         </span>
-                    </div>
-                </div>
-
-                <div class="set-row set-toggle">
-                    <div class="set-lbl">
-                        <span data-i18n-tip="set.tip.accept_rematch" class="tooltipped" data-position="right"
-                              data-tooltip="Lichess only, and only while Autoplay is on. When your opponent offers a rematch after a game, Mephisto accepts it after a pause of one to three seconds. It wins over Grind Mode: an opponent asking for another game is the next game. Your own rematch offer is never touched. Chess.com is not covered yet. If the button is not where it was expected, nothing happens."><span data-i18n="set.accept_rematch">Accept Rematch</span> <i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="accept_rematch_checkbox" type="checkbox" class="set-cb">
-                        <label for="accept_rematch_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
                     </div>
                 </div>
 

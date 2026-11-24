@@ -247,17 +247,23 @@ class GeneralSettings extends SettingsPage {
         sync_human_reply_row();
         const simon_says_mode = this.registerFormElement('simon_says_mode', '"Hand and Brain" Mode:', 'checkbox', false);
         const autoplay = this.registerFormElement('autoplay', 'Autoplay:', 'checkbox', false);
-        // Grind Mode rides on Autoplay -- it only ever acts while Autoplay is on -- and its delay is
-        // the window in which the next game can still be called off.
+        // AFTER THE GAME: Grind Mode and Accept Rematch as one select. Both only act while Autoplay is
+        // on (content-script grindTick/rematchTick), so the row shows with Autoplay; an offered rematch
+        // wins over Grind when both are on. The delay is the window in which the next game can still be
+        // called off, so it shows only when a new game would be started.
         const grind_mode = this.registerFormElement('grind_mode', 'Grind Mode:', 'checkbox', false);
         this.registerFormElement('grind_delay', 'Grind Delay (s):', 'input', 5);
-        // dependent rows hide with their parent, like every other row below
+        const accept_rematch = this.registerFormElement('accept_rematch', 'Accept Rematch:', 'checkbox', false);
+        this.bindPairSelect('after_game_view', grind_mode, accept_rematch,
+            {stop: [false, false], rematch: [false, true], both: [true, true], new: [true, false]});
         const sync_grind_row = () => {
-            document.getElementById('grind_delay_row')?.classList.toggle('hidden', !grind_mode.getValue());
+            const on = autoplay.getValue();
+            document.getElementById('after_game_row')?.classList.toggle('hidden', !on);
+            document.getElementById('grind_delay_row')?.classList.toggle('hidden', !(on && grind_mode.getValue()));
         };
         grind_mode.registerChangeListener(sync_grind_row);
+        autoplay.registerChangeListener(sync_grind_row);
         sync_grind_row();
-        this.registerFormElement('accept_rematch', 'Accept Rematch:', 'checkbox', false);
         this.registerFormElement('premove', 'Premove:', 'checkbox', false);
         this.registerFormElement('ponder', 'Pondering:', 'checkbox', false);
         const tablebase_cb = this.registerFormElement('tablebase', 'Endgame Tablebase:', 'checkbox', false);
