@@ -19991,3 +19991,26 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-ACC: all six player accuracies land within 0.6 of lichess (lichess rounds to a whole number)',
        got.every(([, , ours, li]) => Math.abs(ours - li) <= 0.6), got);
 }
+// ---- REVIEW-FAIRPLAY: repetition shuffles and decided positions are not counted as real choices ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const c = vm.createContext({console}); c.self = c;
+    for (const f of ['/lib/chess.js', '/src/scripts/classify-core.js', '/src/options/pages/review/review-core.js']) vm.runInContext(fs.readFileSync(ROOT + f, 'utf8'), c);
+    vm.runInContext('const Core = self.MephistoReviewCore; const RV_FAIRY_ONLY = [];\n'
+        + rj.slice(rj.indexOf('function buildPositions'), rj.indexOf('function incrementFromTimeControl')), c);
+    // knights out and back twice: the second trip's four moves return to positions already seen
+    const rep = vm.runInContext(`buildPositions(Core.parsePgn('1. Nf3 Nf6 2. Ng1 Ng8 3. Nf3 Nf6 4. Ng1 Ng8 *')[0]).moves.map(m => m.isRepeat)`, c);
+    ok('REVIEW-FAIRPLAY: a move back to a position already on the board is flagged, the first trip is not',
+       JSON.stringify(rep) === JSON.stringify([false, false, false, true, true, true, true, true]), rep);
+    // 20 real white choices, half the engine's first; then 10 repetition moves and 10 moves at 95%, all first choice
+    const moves = [];
+    for (let k = 0; k < 40; k++) {
+        moves.push({color: 'w', ply: 2 * k, best: 'x', rank: (k < 20 ? k % 2 === 0 : true) ? 1 : 2, winBefore: k >= 30 ? 95 : 55,
+                    isRepeat: k >= 20 && k < 30, isBook: false, onlyMove: false, isRecapture: false, acc: 90, cpLoss: 10});
+        moves.push({color: 'b', ply: 2 * k + 1});
+    }
+    const ind = c.MephistoReviewCore.indicators(moves, 'w', 3, null, {});
+    ok('REVIEW-FAIRPLAY: the match rate over real choices leaves out the shuffles and the decided moves',
+       ind.realN === 20 && ind.realTop1 === 0.5 && ind.streak === 1, [ind.realN, ind.realTop1, ind.streak]);
+}

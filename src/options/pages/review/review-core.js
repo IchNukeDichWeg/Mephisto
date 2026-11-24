@@ -400,9 +400,13 @@ function indicators(moves, color, multipv, phases, tags) {
     // made its list. A move outside the top N is emphatically not the engine's first choice, and
     // dropping those was reporting 100% for a player who had just been told they hung a queen.
     const rated = mine.filter(m => m.best != null);
-    // The moves where being right is a CHOICE: out of book, more than one legal move, and not a
-    // recapture that any club player finds. This is the population that carries the signal.
-    const real = rated.filter(m => !m.isBook && !m.onlyMove && !m.isRecapture);
+    // The moves where being right is a CHOICE: out of book, more than one legal move, not a
+    // recapture that any club player finds, not a repetition shuffle, and not played in a decided
+    // position (90/10 either way), where most moves win or lose alike and the engine's pick is
+    // easy. With those two left in, a Berlin draw by repetition read High and an odds game pooled
+    // read Strong. This is the population that carries the signal.
+    const real = rated.filter(m => !m.isBook && !m.onlyMove && !m.isRecapture && !m.isRepeat
+                                   && !(m.winBefore >= 90 || m.winBefore <= 10));
     const sharp = real.filter(m => m.complexity != null && m.complexity >= 100); // >=1 pawn between
                                                                                 // best and second
     const timed = mine.filter(m => Number.isFinite(m.seconds));

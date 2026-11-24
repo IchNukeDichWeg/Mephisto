@@ -252,6 +252,9 @@ function buildPositions(game, variant = 'chess') {
     };
     const positions = [{fen: chess.fen(), turn: chess.turn(), over: null, efen: efenOf()}];
     const moves = [];
+    // positions met so far, without the move counters: a move that returns to one is a repetition
+    const posKey = () => chess.fen().split(' ').slice(0, 4).join(' ');
+    const seen = new Set([posKey()]);
     for (let i = 0; i < game.moves.length; i++) {
         const san = game.moves[i].san;
         let mv;
@@ -304,8 +307,12 @@ function buildPositions(game, variant = 'chess') {
             // read 80% for everyone.
             isRecapture: !!(mv.captured && i > 0 && moves[i - 1] && moves[i - 1].to === mv.to
                 && moves[i - 1].captured),
+            // Back to a position already on the board: a repetition shuffle, which an engine and a
+            // human both play by rote. Excluded from the engine-match numbers like a recapture.
+            isRepeat: seen.has(posKey()),
             captured: mv.captured || null,
         });
+        seen.add(posKey());
         // A finished position gets NO info lines from any engine -- there is nothing to search -- so
         // the score has to come from the rules. Without this the last move of every decisive game
         // was left unclassified, which is the one move a review is most often opened to look at.
