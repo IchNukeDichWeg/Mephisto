@@ -10472,6 +10472,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
     const a = rj.indexOf('async function startRig(override'), b = rj.indexOf('\n}\n', a) + 3;
+    // failAt: the engine indexes whose start fails. The pool is made first and started all at once,
+    // so the index is taken when the engine is made, not when it starts.
     const run = async (failAt) => {
         const made = [];
         const store = {rv_limit_kind: 'time', rv_limit_value: 500, rv_multipv: 1, rv_threads: 2, rv_hash: 16,
@@ -10479,8 +10481,9 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const c = vm.createContext({Math, String, cfg: (k) => store[k], rvChessVariant: () => 'chess', RV_FAIRY_ONLY: [],
             RV_FAIRY_ENGINE: 'fairy', ENGINES: [], note() {}, takesRating: () => false, ratingFor() {},
             makeEngine: (id, opts, cid) => {
+                const n = made.length;
                 const e = {cid, disposed: false, dispose() { e.disposed = true; },
-                           start: async () => { if (made.length - 1 === failAt) throw new Error('net did not load'); }};
+                           start: async () => { if (failAt.includes(n)) throw new Error('net did not load'); }};
                 made.push(e); return e;
             }});
         vm.runInContext('var activeEngine = null, activeEngines = [];' + rj.slice(a, b), c);
@@ -10488,11 +10491,16 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         try { rig = await c.startRig(); } catch (e) { err = e; }
         return {made, rig, err};
     };
-    let r = await run(1);
-    ok('REVIEWA-4: engine 2 of 3 failing to start is disposed, and the run goes on with engine 1',
+    let r = await run([1]);
+    ok('REVIEWA-4: engine 2 of 2 failing to start is disposed, and the run goes on with engine 1',
        r.rig && r.rig.engines.length === 1 && r.made[1].disposed && !r.made[0].disposed, r.made.map(e => e.disposed));
-    r = await run(0);
-    ok('REVIEWA-4: engine 1 failing is disposed before the error is thrown', r.err && r.made[0].disposed && r.made.length === 1, [String(r.err), r.made.map(e => e.disposed)]);
+    r = await run([0]);
+    ok('REVIEWA-4: engine 1 failing is disposed, and the run goes on with engine 2 (the pool starts at once)',
+       r.rig && r.rig.engines.length === 1 && r.rig.engines[0] === r.made[1] && r.made[0].disposed && !r.made[1].disposed,
+       r.made.map(e => e.disposed));
+    r = await run([0, 1]);
+    ok('REVIEWA-4: every engine failing disposes them all before the first error is thrown',
+       r.err && /net did not load/.test(r.err.message) && r.made.length === 2 && r.made.every(e => e.disposed), [String(r.err), r.made.map(e => e.disposed)]);
 })().catch(e => { fails++; console.log('FAIL REVIEWA-4 checks threw: ' + (e && e.stack || e)); });
 // ---- audit 3.1.330 REVIEWA-5: Stop during the strength estimate says so, the report does not read as finished ----
 (async () => {

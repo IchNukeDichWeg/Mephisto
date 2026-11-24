@@ -762,20 +762,26 @@ async function startRig(override, rules) {
     const wantWorkers = Math.max(1, Math.min(4, override?.workers || +cfg('rv_workers') || 1,
                                              Math.max(1, +cfg('rv_threads') || 1)));
     const per = Math.max(1, Math.floor(opts.threads / wantWorkers));
+    // ALL AT ONCE. Started one after another, each engine's net load (~0.9 s for Stockfish 18 here)
+    // queued behind the last: 8 engines spent 7.2 s before the first position came back, which ate
+    // the whole gain over 4 at depth 16 (M5 Pro, 25.11.2026).
+    const pending = [];
+    for (let w = 0; w < wantWorkers; w++) pending.push(makeEngine(engineId, {...opts, threads: per}, w ? `review-${w}` : 'review'));
+    const started = await Promise.allSettled(pending.map(e => e.start()));
     const engines = [];
-    for (let w = 0; w < wantWorkers; w++) {
-        const e = makeEngine(engineId, {...opts, threads: per}, w ? `review-${w}` : 'review');
-        // one failing to start is not fatal while another runs: the pass just goes that much slower
-        try { await e.start(); engines.push(e); } catch (err) {
-            // Disposed here or nowhere: it is in neither `engines` nor a rig, so its 15 s lease ping
-            // (or a native host port) outlived the run and kept the offscreen document from ever
-            // idling closed (audit 3.1.330 REVIEWA-4).
-            try { e.dispose(); } catch (e2) { /* */ }
-            if (!engines.length) throw err;
-            note(`Engine ${w + 1} of ${wantWorkers} did not start (${err.message}) - running with ${engines.length}.`, true);
-            break;
-        }
-    }
+    let firstErr = null, failed = 0;
+    started.forEach((r, w) => {
+        if (r.status === 'fulfilled') { engines.push(pending[w]); return; }
+        // Disposed here or nowhere: it is in neither `engines` nor a rig, so its 15 s lease ping
+        // (or a native host port) outlived the run and kept the offscreen document from ever
+        // idling closed (audit 3.1.330 REVIEWA-4).
+        try { pending[w].dispose(); } catch (e2) { /* */ }
+        firstErr = firstErr || r.reason;
+        failed++;
+    });
+    if (!engines.length) throw firstErr;
+    // one failing to start is not fatal while another runs: the pass just goes that much slower
+    if (failed) note(`${failed} of ${wantWorkers} engines did not start (${firstErr?.message || firstErr}) - running with ${engines.length}.`, true);
     const engine = engines[0];
     opts.workers = engines.length;
     activeEngine = engine;
