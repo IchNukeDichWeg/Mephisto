@@ -1565,22 +1565,23 @@
                     </div>
                 </div>
 
-                <div class="set-row set-toggle">
+                <!-- CLOCK PACING: one select over Clock Mode and Mirror Time (general.js bindViewSelect). Mirror
+                     wins when both are on, and its fallback IS the clock budget, so the two switches hold three
+                     states. View only: both keys stay here as hidden inputs, so the panel toggles, hotkeys and
+                     saved configs are unchanged. -->
+                <div class="set-row" id="clock_pacing_row">
                     <div class="set-lbl">
-                        <span data-i18n="panel.clock_mode">Clock Mode</span>
-                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.read_the_game_clock_off"
-                              data-tooltip="Read the game clock off the page and budget thinking + search to it:
-                                            roughly time/30 plus 60% of the increment per move, near-instant when
-                                            short on time.
-                                            Priority -- Time: Mirror &gt; Clock &gt; Humanize &gt; Search Time (first one
-                                            enabled sets the duration; recaptures &amp; forced moves always instant).
-                                            Move: Humanize &gt; engine best."><i class="material-icons info-tooltip">info</i></span>
+                        <span data-i18n-tip="set.tip.clock_pacing" class="tooltipped" data-position="right"
+                              data-tooltip="Paces every move to the game clock read off the page. Clock budget (the panel's Clock Mode): thinking and search get roughly time/30 plus 60% of the increment per move, near-instant when short on time. Mirror opponent (the panel's Mirror Time): spend what the opponent spent on their last move, times your Mirror Ratio (90% by default), with 30% extra haste when behind on the clock; until their spend is known the clock budget stands in. Both size the search to the wait. Recaptures and forced moves stay instant. Off: the search time and the simulated delays decide."><span data-i18n="set.clock_pacing">Clock Pacing</span></span>
                     </div>
                     <div class="set-ctl">
-                        <input id="clock_mode_checkbox" type="checkbox" class="set-cb">
-                        <label for="clock_mode_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
+                        <input id="clock_mode_checkbox" type="checkbox" hidden title="Clock Mode" data-i18n-title="panel.clock_mode">
+                        <input id="mirror_mode_checkbox" type="checkbox" hidden title="Mirror Time" data-i18n-title="panel.mirror_time">
+                        <select id="clock_pacing_view">
+                            <option value="off" data-i18n="set.clock_pacing.off">Off</option>
+                            <option value="budget" data-i18n="set.clock_pacing.budget">Clock budget</option>
+                            <option value="mirror" data-i18n="set.clock_pacing.mirror">Mirror opponent</option>
+                        </select>
                     </div>
                 </div>
 
@@ -1598,20 +1599,6 @@
                     <div class="set-ctl">
                         <input id="clock_pace_checkbox" type="checkbox" class="set-cb">
                         <label for="clock_pace_checkbox" class="set-tgl">
-                            <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-row set-toggle">
-                    <div class="set-lbl">
-                        <span data-i18n="panel.mirror_time">Mirror Time</span>
-                        <span class="set-tip tooltipped" data-position="left" data-i18n-tip="set.tip.pace_to_the_opponent_instead"
-                              data-tooltip="Pace to the opponent instead: spend what they spent on their last move, times your Mirror Ratio (default 90%), staying just ahead on the clock (30% extra haste when behind). Falls back to the Clock Mode budget when their spend is unknown. Recaptures and forced moves stay instant. Priority -- Time: Mirror > Clock > Humanize > Search Time (first one enabled sets the duration; recaptures & forced moves always instant). Move: Humanize > engine best."><i class="material-icons info-tooltip">info</i></span>
-                    </div>
-                    <div class="set-ctl">
-                        <input id="mirror_mode_checkbox" type="checkbox" class="set-cb">
-                        <label for="mirror_mode_checkbox" class="set-tgl">
                             <span data-i18n="ui.on" class="set-on">On</span><span data-i18n="ui.off" class="set-off">Off</span>
                         </label>
                     </div>

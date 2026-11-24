@@ -16944,6 +16944,40 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     ok('SIMP-MODEL: the label, tip and three options are translated in all 14 locales',
        locs.length === 14 && locs.every(l => ['set.humanize_model', 'set.tip.humanize_model', 'set.humanize_model.rating', 'set.humanize_model.target', 'set.humanize_model.custom'].every(k => l[k])));
 }
+// ---- SIMP-PACE: the Clock Pacing select is a view over clock_mode and mirror_mode ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const i = gj.indexOf('    bindViewSelect(viewId, elems, read, write, onShow) {'), body = i < 0 ? '' : gj.slice(i, gj.indexOf('\n    }\n', i) + 7);
+    const a = gj.indexOf("        this.bindViewSelect('clock_pacing_view',"), b = gj.indexOf('});\n', a) + 4;
+    const wiring = a < 0 ? '' : gj.slice(a, b);
+    const fe = (v) => { const ls = []; const o = {missing: false, v, getValue: () => o.v, setValue: (x) => { o.v = x; ls.forEach(f => f()); }, registerChangeListener: (f) => ls.push(f)}; return o; };
+    const run = (c0, m0, picks = []) => {
+        const clock_mode = fe(c0), mirror_mode = fe(m0);
+        const sel = {value: '', ev: {}, parentElement: null, selectedOptions: [], addEventListener(t, f) { this.ev[t] = f; }};
+        const c = vm.createContext({document: {getElementById: () => sel}, clock_mode, mirror_mode});
+        vm.runInContext(`const page = {${body}}; (function () { ${wiring} }).call(page);`, c);
+        const out = [[sel.value, clock_mode.v, mirror_mode.v]];
+        for (const p of picks) { sel.value = p; sel.ev.change(); out.push([sel.value, clock_mode.v, mirror_mode.v]); }
+        return out;
+    };
+    const shown = [run(false, false), run(true, false), run(false, true), run(true, true)].map(r => r[0][0]);
+    ok('SIMP-PACE: the select shows off / budget / mirror, and Mirror wins when both switches are on (as clock_aware and humanize_pick play it)',
+       shown.join() === 'off,budget,mirror,mirror' && /function clock_aware\(\) \{\n    return config\.clock_mode \|\| config\.mirror_mode;/.test(psrc), shown);
+    const st = run(true, true, ['off', 'budget', 'mirror', 'off']);
+    ok('SIMP-PACE: picking writes exactly one switch (or none for Off)',
+       JSON.stringify(st) === JSON.stringify([['mirror', true, true], ['off', false, false], ['budget', true, false], ['mirror', false, true], ['off', false, false]]), st);
+    ok('SIMP-PACE: one row holds both hidden switches (named for the custom-hotkey picker) and the select; the old rows and their settings-only tips are gone',
+       /<div class="set-row" id="clock_pacing_row">[\s\S]*?<input id="clock_mode_checkbox" type="checkbox" hidden title="Clock Mode" data-i18n-title="panel\.clock_mode">\s*<input id="mirror_mode_checkbox" type="checkbox" hidden title="Mirror Time" data-i18n-title="panel\.mirror_time">\s*<select id="clock_pacing_view">/.test(gh)
+       && (gh.match(/id="clock_mode_checkbox"/g) || []).length === 1 && (gh.match(/id="mirror_mode_checkbox"/g) || []).length === 1
+       && !/set\.tip\.read_the_game_clock_off|set\.tip\.pace_to_the_opponent_instead/.test(gh));
+    const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
+    ok('SIMP-PACE: the label, tip and three options are translated in all 14 locales; the panel keeps its own two tips',
+       locs.length === 14 && locs.every(l => ['set.clock_pacing', 'set.tip.clock_pacing', 'set.clock_pacing.off', 'set.clock_pacing.budget', 'set.clock_pacing.mirror'].every(k => l[k])
+           && l['panel.tip.read_the_game_clock_off'] && l['panel.tip.pace_to_the_opponent_instead'] && !('set.tip.read_the_game_clock_off' in l)));
+}
 // ---- SIMP-SEL: one select over two switches writes the two existing keys (view only) ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

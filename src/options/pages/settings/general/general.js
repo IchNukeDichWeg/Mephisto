@@ -359,7 +359,7 @@ class GeneralSettings extends SettingsPage {
             });
         // opt-in: think times from the measured spend per time control, phase and clock (HUMANIZE THINK)
         this.registerFormElement('humanize_think_tc', 'Think Like Your Time Control:', 'checkbox', false);
-        this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
+        const clock_mode = this.registerFormElement('clock_mode', 'Clock Mode:', 'checkbox', false);
         this.registerFormElement('clock_pace', 'Pace to Clock:', 'checkbox', false);
         const mirror_mode = this.registerFormElement('mirror_mode', 'Mirror Time:', 'checkbox', false);
         // Mirror Ratio is only read while Mirror Time is on (its row is in Timing's Advanced block)
@@ -368,6 +368,12 @@ class GeneralSettings extends SettingsPage {
         };
         mirror_mode.registerChangeListener(sync_mirror_row);
         sync_mirror_row();
+        // CLOCK PACING: Clock Mode and Mirror Time as one select (bindViewSelect). Mirror Time wins when
+        // both are on and falls back to the clock budget itself (clock_aware() is one OR the other), so
+        // the two switches hold three states; picking Mirror opponent clears Clock Mode.
+        this.bindViewSelect('clock_pacing_view', [clock_mode, mirror_mode],
+            () => (mirror_mode.getValue() ? 'mirror' : clock_mode.getValue() ? 'budget' : 'off'),
+            (v) => { clock_mode.setValue(v === 'budget'); mirror_mode.setValue(v === 'mirror'); });
         this.registerFormElement('manual_mode', 'Manual Mode:', 'checkbox', false);
         this.registerFormElement('opp_alert', 'Opponent Mistake Alert:', 'checkbox', false);
         this.registerFormElement('verbose_log', 'Verbose Logging:', 'checkbox', false);

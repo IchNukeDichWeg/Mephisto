@@ -343,9 +343,10 @@ Humanize makes the engine play like a person at a chosen rating instead of alway
 How each option works and what it was measured against: [docs/humanize-details.md](docs/humanize-details.md).
 
 **Timing.** Moves are quick when obvious and through the opening, long in critical positions, and instant for true
-recaptures, forced moves and your first move. **Clock Mode** budgets each move off the page clock (~time/30 + 60% of
-the increment). **Mirror Time** paces to a share of the opponent's last spend, 50-150% (90 by default); being behind on
-the clock always cuts the target by a further 30%. Both size the search to the wait. **Pace to Clock** (off) shortens
+recaptures, forced moves and your first move. **Clock Pacing** picks one of two modes (the panel's Clock Mode and Mirror
+Time toggles). **Clock budget** budgets each move off the page clock (~time/30 + 60% of the increment). **Mirror
+opponent** paces to a share of the opponent's last spend, 50-150% (90 by default); being behind on the clock always cuts
+the target by a further 30%. Both size the search to the wait. **Pace to Clock** (off) shortens
 the *simulated* delay when the clock gets short, and never lengthens it.
 
 > **Priority** - *Time:* Mirror ▸ Clock ▸ Humanize ▸ Search Time. *Move:* Book ▸ Humanize ▸ engine best.
