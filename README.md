@@ -803,7 +803,7 @@ playing moves on lichess this morning" is a perfectly good issue. PRs are welcom
 **Paste a diagnostics report into the issue.** Press **D** on the page, or use the panel's **Engine** tab → **Copy
 Diagnostics**. It carries the build, the engine, what was detected, whether the last move played (and why not, if it
 didn't), and the recent trace, with **no addresses, no account, no token and nothing identifying**. Turn on **Verbose
-Logging** first and reproduce the problem, and **copy while it is broken**, because reloading to get a clean report
+Logging** (Settings → Diagnostics → Advanced) first and reproduce the problem, and **copy while it is broken**, because reloading to get a clean report
 throws away the state that explains the fault.
 
 **If the Windows four-player setup fails, say which stage broke**, since each has a different cause: (1) `./setup.sh`

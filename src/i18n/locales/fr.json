@@ -114,6 +114,7 @@
   "set.remove": "Tout supprimer",
   "set.remove_lichess": "Retirer Lichess",
   "set.remove_chesscom": "Retirer Chess.com",
+  "set.puzzle_remove_one": "Supprimer une seule base",
   "set.reset_hotkeys_to_defaults": "Réinitialiser les raccourcis",
   "set.restore_defaults": "Rétablir les valeurs par défaut",
   "set.export_settings": "Exporter les paramètres",

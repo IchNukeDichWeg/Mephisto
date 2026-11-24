@@ -114,6 +114,7 @@
   "set.remove": "Tümünü kaldır",
   "set.remove_lichess": "Lichess’i kaldır",
   "set.remove_chesscom": "Chess.com’u kaldır",
+  "set.puzzle_remove_one": "Tek bir veritabanını kaldır",
   "set.reset_hotkeys_to_defaults": "Kısayolları sıfırla",
   "set.restore_defaults": "Varsayılanlara dön",
   "set.export_settings": "Ayarları dışa aktar",

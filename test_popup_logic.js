@@ -5041,6 +5041,19 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('SIMP-PUZZLEDELAY: both delays read 300 whatever an old saved value says', vm.runInContext('[puzzle_move_delay_ms(), puzzleNextDelayMs()].join()', c) === '300,300');
     ok('SIMP-PUZZLEDELAY: no row, binding or live key is left for either', !/puzzle_delay|puzzle_next_delay/.test(gh + gj + psrc + csrc));
 }
+// ---- SIMP-ADV4: Hotkeys, Verbose Logging and the per-site puzzle database buttons sit behind their section's Advanced ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const sec = (id) => { const i = gh.indexOf(`<section id="${id}"`); return gh.slice(i, gh.indexOf('</section>', i)); };
+    const inAdv = (id, needle) => { const s = sec(id), a = s.indexOf(`<div class="set-adv-body" id="${id}_adv" hidden>`); return a >= 0 && s.indexOf(needle) > a; };
+    ok('SIMP-ADV4: the whole Hotkeys section (rows, notes, macros, reset) is inside its Advanced body',
+       ['hotkey_rows', 'hotkey_macro_add_btn', 'hotkey_reset_btn', 'hotkey_macros'].every(n => inAdv('hotkeys', `id="${n}"`)) && sec('hotkeys').indexOf('<div class="set-adv"') < sec('hotkeys').indexOf('id="hotkey_rows"'));
+    ok('SIMP-ADV4: Verbose Logging is inside Diagnostics\' Advanced; Copy Diagnostics stays outside it', inAdv('diagnostics', 'id="verbose_log_checkbox"') && !inAdv('diagnostics', 'id="copy_diag_btn"'));
+    ok('SIMP-ADV4: Remove Lichess and Remove Chess.com are inside Puzzles\' Advanced; Load and Remove all stay outside, every id still present once',
+       inAdv('puzzles', 'id="puzzle_db_clear_li_btn"') && inAdv('puzzles', 'id="puzzle_db_clear_cc_btn"') && !inAdv('puzzles', 'id="puzzle_db_btn"') && !inAdv('puzzles', 'id="puzzle_db_clear_btn"')
+       && ['puzzle_db_btn', 'puzzle_db_clear_btn', 'puzzle_db_clear_li_btn', 'puzzle_db_clear_cc_btn'].every(n => (gh.match(new RegExp(`id="${n}"`, 'g')) || []).length === 1));
+}
 // ---- SIMP-PUZZLENEXT: the Auto-Next row shows only while Puzzle Mode is on ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };

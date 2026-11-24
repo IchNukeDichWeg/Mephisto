@@ -114,6 +114,7 @@
   "set.remove": "全部移除",
   "set.remove_lichess": "移除 Lichess",
   "set.remove_chesscom": "移除 Chess.com",
+  "set.puzzle_remove_one": "移除其中一个数据库",
   "set.reset_hotkeys_to_defaults": "恢复默认快捷键",
   "set.restore_defaults": "恢复默认设置",
   "set.export_settings": "导出设置",

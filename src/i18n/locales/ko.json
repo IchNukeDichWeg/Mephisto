@@ -114,6 +114,7 @@
   "set.remove": "모두 제거",
   "set.remove_lichess": "Lichess 제거",
   "set.remove_chesscom": "Chess.com 제거",
+  "set.puzzle_remove_one": "데이터베이스 하나 제거",
   "set.reset_hotkeys_to_defaults": "단축키 초기화",
   "set.restore_defaults": "기본값 복원",
   "set.export_settings": "설정 내보내기",

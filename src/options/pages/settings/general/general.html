@@ -1347,11 +1347,26 @@
                 <div class="set-btnrow">
                     <button data-i18n="set.load_puzzle_database" id="puzzle_db_btn" type="button" class="set-btn">Load Puzzle Database</button>
                     <button data-i18n="set.remove" id="puzzle_db_clear_btn" type="button" class="set-btn">Remove all</button>
-                    <button data-i18n="set.remove_lichess" id="puzzle_db_clear_li_btn" type="button" class="set-btn">Remove Lichess</button>
-                    <button data-i18n="set.remove_chesscom" id="puzzle_db_clear_cc_btn" type="button" class="set-btn">Remove Chess.com</button>
                     <input id="puzzle_db_file" type="file" accept="text/csv,.csv" style="display: none">
                 </div>
                 <p id="puzzle_db_status" class="set-status"></p>
+
+                <!-- ADVANCED: rows set once or never, behind one closed disclosure (SettingsPage.wireAdvanced).
+                     The rows inside are ordinary rows; ids and bindings are unchanged. -->
+                <div class="set-adv" data-adv="puzzles">
+                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="puzzles_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
+                    <div class="set-adv-body" id="puzzles_adv" hidden>
+
+                <div class="set-row">
+                    <div class="set-lbl"><span data-i18n="set.puzzle_remove_one">Remove one database</span></div>
+                    <div class="set-ctl">
+                        <button data-i18n="set.remove_lichess" id="puzzle_db_clear_li_btn" type="button" class="set-btn">Remove Lichess</button>
+                        <button data-i18n="set.remove_chesscom" id="puzzle_db_clear_cc_btn" type="button" class="set-btn">Remove Chess.com</button>
+                    </div>
+                </div>
+
+                    </div>
+                </div>
             </section>
 
             <!-- ============================ TIMING ============================ -->
@@ -1806,6 +1821,13 @@
             <!-- ============================ HOTKEYS ============================ -->
             <section id="hotkeys" class="set-sec scrollspy">
                 <h3 data-i18n="set.hotkeys" class="set-h">Hotkeys</h3>
+
+                <!-- ADVANCED: rows set once or never, behind one closed disclosure (SettingsPage.wireAdvanced).
+                     The rows inside are ordinary rows; ids and bindings are unchanged. -->
+                <div class="set-adv" data-adv="hotkeys">
+                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="hotkeys_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
+                    <div class="set-adv-body" id="hotkeys_adv" hidden>
+
                 <p data-i18n-html="set.note.keyboard_shortcuts_that_work_while" class="set-note">
                     Keyboard shortcuts that work while you're on the game page (they only fire when the floating panel
                     is open). Click a key to rebind it - the next key you press (with any Ctrl/Alt/Shift/Meta) becomes
@@ -1844,11 +1866,32 @@
                 <div class="set-btnrow">
                     <button data-i18n="set.reset_hotkeys_to_defaults" id="hotkey_reset_btn" type="button" class="set-btn">Reset hotkeys to defaults</button>
                 </div>
+
+                    </div>
+                </div>
             </section>
 
             <!-- ========================== DIAGNOSTICS ========================== -->
             <section id="diagnostics" class="set-sec scrollspy">
                 <h3 data-i18n="set.sec.diagnostics" class="set-h">Diagnostics</h3>
+
+                <div class="set-btnrow">
+                    <button data-i18n="set.copy_diagnostics" id="copy_diag_btn" type="button" class="set-btn">Copy Diagnostics</button>
+                </div>
+                <p id="copy_diag_status" class="set-status"></p>
+                <p data-i18n-html="set.note.the_panel_s_clipboard_button" class="set-note">
+                    The button above - and <b>D</b> on the game page, rebindable under Hotkeys - copies a report you
+                    can paste straight into a bug report:
+                    version, engine, what was detected, why the last move was or was not played (from the game page only: this page has no panel to ask), and the last 200 trace
+                    lines. It deliberately carries <b>no addresses and nothing that identifies you</b> - no full URL, no
+                    query string, no extension id.
+                </p>
+
+                <!-- ADVANCED: rows set once or never, behind one closed disclosure (SettingsPage.wireAdvanced).
+                     The rows inside are ordinary rows; ids and bindings are unchanged. -->
+                <div class="set-adv" data-adv="diagnostics">
+                    <button type="button" class="set-adv-btn" aria-expanded="false" aria-controls="diagnostics_adv"><i class="material-icons" aria-hidden="true">chevron_right</i><span data-i18n="set.advanced">Advanced</span></button>
+                    <div class="set-adv-body" id="diagnostics_adv" hidden>
 
                 <div class="set-row set-toggle">
                     <div class="set-lbl">
@@ -1867,17 +1910,9 @@
                     </div>
                 </div>
 
-                <div class="set-btnrow">
-                    <button data-i18n="set.copy_diagnostics" id="copy_diag_btn" type="button" class="set-btn">Copy Diagnostics</button>
+
+                    </div>
                 </div>
-                <p id="copy_diag_status" class="set-status"></p>
-                <p data-i18n-html="set.note.the_panel_s_clipboard_button" class="set-note">
-                    The button above - and <b>D</b> on the game page, rebindable under Hotkeys - copies a report you
-                    can paste straight into a bug report:
-                    version, engine, what was detected, why the last move was or was not played (from the game page only: this page has no panel to ask), and the last 200 trace
-                    lines. It deliberately carries <b>no addresses and nothing that identifies you</b> - no full URL, no
-                    query string, no extension id.
-                </p>
             </section>
 
             <!-- ============================ UPDATES ============================ -->

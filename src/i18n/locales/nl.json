@@ -114,6 +114,7 @@
   "set.remove": "Alles verwijderen",
   "set.remove_lichess": "Lichess verwijderen",
   "set.remove_chesscom": "Chess.com verwijderen",
+  "set.puzzle_remove_one": "Eén database verwijderen",
   "set.reset_hotkeys_to_defaults": "Sneltoetsen herstellen",
   "set.restore_defaults": "Standaardwaarden herstellen",
   "set.export_settings": "Instellingen exporteren",

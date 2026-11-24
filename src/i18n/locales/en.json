@@ -114,6 +114,7 @@
   "set.remove": "Remove all",
   "set.remove_lichess": "Remove Lichess",
   "set.remove_chesscom": "Remove Chess.com",
+  "set.puzzle_remove_one": "Remove one database",
   "set.reset_hotkeys_to_defaults": "Reset hotkeys to defaults",
   "set.restore_defaults": "Restore Defaults",
   "set.filter_ph": "Search these settings…",

@@ -114,6 +114,7 @@
   "set.remove": "すべて削除",
   "set.remove_lichess": "Lichessを削除",
   "set.remove_chesscom": "Chess.comを削除",
+  "set.puzzle_remove_one": "データベースを1つ削除",
   "set.reset_hotkeys_to_defaults": "ショートカットを初期化",
   "set.restore_defaults": "初期設定に戻す",
   "set.export_settings": "設定をエクスポート",

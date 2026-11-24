@@ -114,6 +114,7 @@
   "set.remove": "Remover tudo",
   "set.remove_lichess": "Remover Lichess",
   "set.remove_chesscom": "Remover Chess.com",
+  "set.puzzle_remove_one": "Remover uma base de dados",
   "set.reset_hotkeys_to_defaults": "Repor os atalhos",
   "set.restore_defaults": "Repor predefinições",
   "set.export_settings": "Exportar definições",

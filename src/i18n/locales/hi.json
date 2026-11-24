@@ -114,6 +114,7 @@
   "set.remove": "सब हटाएँ",
   "set.remove_lichess": "Lichess हटाएँ",
   "set.remove_chesscom": "Chess.com हटाएँ",
+  "set.puzzle_remove_one": "एक डेटाबेस हटाएँ",
   "set.reset_hotkeys_to_defaults": "शॉर्टकट रीसेट करें",
   "set.restore_defaults": "डिफ़ॉल्ट पर लौटाएँ",
   "set.export_settings": "सेटिंग्स निर्यात करें",
