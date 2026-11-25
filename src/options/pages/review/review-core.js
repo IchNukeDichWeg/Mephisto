@@ -285,7 +285,7 @@ function phaseOf(ply, phases) {
 // The classifier itself lives in src/scripts/classify-core.js, which the panel loads too: the
 // published scheme has ONE implementation, or the strip and the report grade the same move
 // differently the first time either is tuned. This file keeps the review's arithmetic around it.
-const {winPercent, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, isMateScore, MATE_CP, clamp,
+const {winPercent, classify, lossScale, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, isMateScore, MATE_CP, clamp,
        BLUNDER, MISTAKE, INACCURACY, GOOD, PIECE_VAL} = root.MephistoClassify;
 
 
@@ -990,8 +990,15 @@ function reviewSide(tags, user) {
 // move (white-relative cp); an attempt that is one of them is graded off its own line, anything else
 // off `afterCp`, the eval of the position after it (a short search the page runs, or the game's own
 // next position when the attempt IS the game move). null = not gradable.
+// The rating the grades scale by: the PGN's WhiteElo/BlackElo for the side that moved
+// (classify-core.js, RATING_SCALED), null when absent.
+function moverRating(tags, color) {
+    const r = Number(tags?.[color === 'w' ? 'WhiteElo' : 'BlackElo']);
+    return r > 0 ? r : null;
+}
+
 const RETRY_CLASSES = ['mistake', 'blunder', 'miss'];
-function gradeAttempt({lines, color, uci, afterCp = null, sacrifice = false, isRecapture = false}) {
+function gradeAttempt({lines, color, uci, afterCp = null, sacrifice = false, isRecapture = false, rating = null}) {
     if (!lines || !lines.length || lines[0].cp == null) return null;
     const sign = color === 'w' ? 1 : -1;
     const idx = lines.findIndex(l => l.pv?.[0] === uci);
@@ -1001,7 +1008,7 @@ function gradeAttempt({lines, color, uci, afterCp = null, sacrifice = false, isR
     const secondWin = lines.length > 1 ? winPercent(lines[1].cp * sign) : null;
     const rank = idx >= 0 ? idx + 1 : null;
     const klass = classify({winBefore, winAfter, rank, onlyMove: false, isBook: false, secondWin,
-                            sacrifice, isRecapture});
+                            sacrifice, isRecapture, rating});
     return {klass, rank, cp, winBefore, winAfter, lost: Math.max(0, winBefore - winAfter), best: lines[0].pv?.[0] || null};
 }
 
@@ -1010,10 +1017,10 @@ function gradeAttempt({lines, color, uci, afterCp = null, sacrifice = false, isR
 // export with no caller is surface that has to keep working for nobody.
 root.MephistoReviewCore = {
     parsePgn, clockToSeconds, formatDate, gamePhases, phaseOf, LEVELS,
-    toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
+    toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, lossScale, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
     accuracyFor, phaseAccuracy, indicators, evidence, estimate, parseInfo, clamp,
     whiteSwings, turningPoint, keyMoments, mistakeStops, stepToStop, reviewSide, bookExit, STOP_CLASSES,
-    RETRY_CLASSES, gradeAttempt,
+    RETRY_CLASSES, gradeAttempt, moverRating,
     NAG_FOR_CLASS, annotatedPgn, plyMove, lichessStudyId, lichessRequest, lichessResultUrl, lichessFailure,
     liftPromoted, markPromoted,
 };

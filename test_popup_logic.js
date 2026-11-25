@@ -394,6 +394,13 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
             {winBefore: 85, winAfter: 78, rank: 4}, 'inaccuracy'],
         ['...and throwing a won game into a lost one is a Blunder, not a Miss',
             {winBefore: 95, winAfter: 5, rank: 7}, 'blunder'],
+        // RATING_SCALED: the loss is scaled by sqrt(rating / 1500), as chess.com's classifier grades by rating
+        ['RATING: an 800 player\'s 6-point slip is Good (x0.73), not an Inaccuracy',
+            {winBefore: 55, winAfter: 49, rank: 5, rating: 800}, 'good'],
+        ['RATING: ...the same slip at 1500 stays an Inaccuracy', {winBefore: 55, winAfter: 49, rank: 5, rating: 1500}, 'inaccuracy'],
+        ['RATING: ...and with no rating it is graded as before', {winBefore: 55, winAfter: 49, rank: 5}, 'inaccuracy'],
+        ['RATING: a 3000 player\'s 4-point loss is an Inaccuracy (x1.41)', {winBefore: 55, winAfter: 51, rank: 4, rating: 3000}, 'inaccuracy'],
+        ['RATING: a move that gains is not rescaled', {winBefore: 55, winAfter: 60, rank: 1, secondWin: 58, rating: 800}, 'best'],
     ];
     for (const [name, input, want] of cases) {
         const got = K(input);
@@ -464,6 +471,21 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
                      {variant: ${JSON.stringify(variant || 'chess')}, multipv: ${multipv}});
             return moves[0].klass;
         })()`, actx);
+        // the PGN's ratings reach the classifier: an 800 and a 3000 grade the same -18 cp slip differently
+        const runTagged = (tags, cpBefore, cpAfter) => vm.runInContext(`(() => {
+            const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+            const b = new Chess('chess', fen); b.move({from: 'a2', to: 'a3'});
+            const positions = [{fen, turn: 'w', lines: [{cp: ${cpBefore}, mate: null, pv: ['e2e4']}, {cp: ${cpBefore - 5}, mate: null, pv: ['d2d4']}], depth: 10},
+                               {fen: b.fen(), turn: 'b', lines: [{cp: ${cpAfter}, mate: null, pv: []}], depth: 10}];
+            const moves = [{san: 'a3', uci: 'a2a3', color: 'w', ply: 0}];
+            assemble({tags: ${JSON.stringify(tags)}}, positions, moves, {plies: 0}, {variant: 'chess', multipv: 2});
+            return moves[0].klass;
+        })()`, actx);
+        // -30 cp is 5.5 win% lost (an Inaccuracy), -58 cp is 8.1; x0.73 at 800, x1.41 at 3000
+        const got = [runTagged({WhiteElo: '800'}, 30, -30), runTagged({}, 30, -30),
+                     runTagged({WhiteElo: '3000', BlackElo: '800'}, 30, -58), runTagged({}, 30, -58)].join('/');
+        if (got === 'good/inaccuracy/mistake/inaccuracy') console.log('ok   assemble: RATING: the mover\'s PGN rating scales the grade, and only the mover\'s');
+        else { fails++; console.log(`FAIL assemble: RATING: the mover's PGN rating scales the grade (got ${got})`); }
         const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
         const ONE = 'k7/8/8/8/8/8/1q6/K7 w - - 0 1';   // Ka1 in check from an undefended Qb2: Kxb2 only
         const legal = vm.runInContext(`new Chess('chess', ${JSON.stringify(ONE)}).moves().length`, actx);

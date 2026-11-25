@@ -1054,13 +1054,16 @@ function assemble(game, positions, moves, book, opts) {
         m.secondWin = before.lines.length > 1 ? Core.winPercent(before.lines[1].cp * sign) : null;
         // Only ask the sacrifice question when the answer can matter -- it replays an exchange on
         // the board, and most moves cannot be brilliant anyway.
-        m.sacrifice = (!m.isBook && !m.onlyMove && m.winAfter >= 50 && m.winBefore < 90
-                       && Math.max(0, m.winBefore - m.winAfter) < 2)
+        // The mover's rating from the PGN: the classifier judges a weaker player more gently, as
+        // chess.com's does (classify-core.js, RATING_SCALED). The sacrifice gate uses the same scaled loss.
+        const rating = Core.moverRating(game.tags, m.color);
+        const lostScaled = Math.max(0, m.winBefore - m.winAfter) * Core.lossScale(rating);
+        m.sacrifice = (!m.isBook && !m.onlyMove && m.winBefore - lostScaled >= 50 && m.winBefore < 90 && lostScaled < 2)
             ? Core.sacrificesMaterial(Chess, opts.variant, before.fen, m.uci) : false;
         m.klass = Core.classify({
             winBefore: m.winBefore, winAfter: m.winAfter, rank: m.rank,
             onlyMove: m.onlyMove, isBook: m.isBook, secondWin: m.secondWin, sacrifice: m.sacrifice,
-            isRecapture: m.isRecapture,
+            isRecapture: m.isRecapture, rating,
         });
     }
     const phases = Core.gamePhases(positions.map(p => p.fen));
@@ -1528,9 +1531,11 @@ function retryMove(from, to, promotion) {
         const cp = idx >= 0 ? lines[idx].cp : afterCp;
         const winBefore = Core.winPercent(lines[0].cp * sign), winAfter = cp == null ? null : Core.winPercent(cp * sign);
         // the brilliant test replays an exchange; asked only when it can change the answer, as in assemble
-        const sacrifice = winAfter != null && winAfter >= 50 && winBefore < 90 && winBefore - winAfter < 2
+        const rating = Core.moverRating(report.game?.tags, m.color);
+        const lostScaled = winAfter == null ? null : Math.max(0, winBefore - winAfter) * Core.lossScale(rating);
+        const sacrifice = winAfter != null && winBefore - lostScaled >= 50 && winBefore < 90 && lostScaled < 2
             ? Core.sacrificesMaterial(Chess, 'chess', retry.fen, uci) : false;
-        return Core.gradeAttempt({lines, color: m.color, uci, afterCp, sacrifice,
+        return Core.gradeAttempt({lines, color: m.color, uci, afterCp, sacrifice, rating,
             isRecapture: !!(mv.captured && prev?.captured && prev.to === mv.to)});
     };
     board?.position(attempt.fenAfter);

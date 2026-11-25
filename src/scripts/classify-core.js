@@ -32,6 +32,20 @@ const BLUNDER = 20, MISTAKE = 10, INACCURACY = 5, GOOD = 2;
 // 61.2%, and different values on each half), so they stay as published.
 const BEST = 0.1;
 
+// RATING-SCALED GRADES. chess.com's classifier reads both players' ratings and judges a weaker player
+// more gently: fed the SAME engine lines with only WhiteElo/BlackElo changed, it changed 263 of 858
+// grades at 800, 127 at 1500 and 57 at 2200, and a rerun at the real ratings changed 0 (10 games,
+// 25.11.2026). So a loss is scaled by sqrt(rating / 1500) before the bands: x0.73 at 800, x1 at 1500,
+// x1.41 at 3000. Agreement with that classifier, held-out games, both halves: 800 66.1/58.7% ->
+// 70.8/71.2%, 2200 62.8/62.2 -> 63.0/64.8, 3000 56.6/58.7 -> 57.4/60.2, 1500 unchanged. A missing
+// rating changes nothing. Ratings from either site are read as they are; the two scales differ by a
+// few hundred points, which this curve barely feels.
+const RATING_SCALED = true;
+function lossScale(rating) {
+    if (!RATING_SCALED || !(rating > 0)) return 1;
+    return Math.sqrt(clamp(rating, 400, 3200) / 1500);
+}
+
 // Piece values for the sacrifice test. Only relative size matters here.
 
 const PIECE_VAL = {p: 1, n: 3, b: 3, r: 5, q: 9, k: 0};
@@ -131,7 +145,9 @@ function onlyLegalMove(Chess, variant, fen, lines, multipv) {
 //   isRecapture the move takes back on the square the opponent just captured on
 //   winBefore/winAfter are the mover's win% before and after, both already mover-relative.
 
-function classify({winBefore, winAfter, rank, onlyMove, isBook, secondWin, sacrifice, isRecapture}) {
+function classify({winBefore, winAfter, rank, onlyMove, isBook, secondWin, sacrifice, isRecapture, rating}) {
+    const scale = lossScale(rating);   // the mover's rating; see RATING_SCALED
+    if (scale !== 1 && winAfter < winBefore) winAfter = winBefore - (winBefore - winAfter) * scale;
     const lost = Math.max(0, winBefore - winAfter);
     if (isBook) return 'book';
     if (onlyMove) return 'forced';                       // no credit and no blame for a forced move
@@ -196,7 +212,7 @@ const CLASS_COLOR = {brilliant: '#26c2a3', great: '#5c8bb0', best: '#96bc4b', ex
 const CLASS_NOTABLE = ['blunder', 'miss', 'mistake', 'inaccuracy', 'brilliant', 'great'];
 
 root.MephistoClassify = {CLASS_LABEL, CLASS_GLYPH, CLASS_COLOR, CLASS_NOTABLE,
-                         winPercent, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, isMateScore, MATE_CP, clamp,
+                         winPercent, classify, lossScale, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, isMateScore, MATE_CP, clamp,
                          BLUNDER, MISTAKE, INACCURACY, GOOD, BEST, PIECE_VAL};
 
 })(typeof self !== 'undefined' ? self : globalThis);
