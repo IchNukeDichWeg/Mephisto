@@ -991,7 +991,7 @@ root.MephistoReviewCore = {
     parsePgn, clockToSeconds, formatDate, gamePhases, phaseOf, LEVELS,
     toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
     accuracyFor, phaseAccuracy, indicators, evidence, estimate, parseInfo, clamp,
-    whiteSwings, turningPoint, keyMoments, mistakeStops, stepToStop, reviewSide, bookExit,
+    whiteSwings, turningPoint, keyMoments, mistakeStops, stepToStop, reviewSide, bookExit, STOP_CLASSES,
     NAG_FOR_CLASS, annotatedPgn, plyMove, lichessStudyId, lichessRequest, lichessResultUrl, lichessFailure,
     liftPromoted, markPromoted,
 };

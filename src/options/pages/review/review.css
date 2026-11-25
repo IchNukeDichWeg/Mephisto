@@ -203,6 +203,10 @@ html.dark .rv-status.rv-bad { color: #d15050; }
     border-bottom: 1px solid var(--mp-line); font-size: 12px; }
 .rv-str-cmp-tbl td { padding: 4px 10px 4px 0; border-bottom: 1px solid var(--mp-line); vertical-align: baseline; }
 
+/* the clock strip: same width and x axis as the graph above it, a fixed short height */
+.rv-clock { position: relative; flex: 0 0 56px; height: 56px; border: 1px solid var(--mp-line); border-radius: 3px; overflow: hidden; }
+.rv-clock svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; cursor: pointer; }
+
 /* the key moments under the graph: one chip per big swing, wearing its move's classification colour
    like every other verdict; the turning point gets its outline in that colour */
 .rv-turning { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 6px; font-size: 12.5px; color: var(--mp-dim); }

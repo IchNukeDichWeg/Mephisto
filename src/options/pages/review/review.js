@@ -1494,7 +1494,56 @@ function renderGraph() {
         const r = el.getBoundingClientRect();
         showPly(Math.round(((e.clientX - r.left) / r.width) * (report.positions.length - 1)));
     });
-    }
+    renderClock();
+}
+
+// THE CLOCK, MOVE BY MOVE, under the eval graph and on its x axis: the seconds each move took
+// (fillThinkTime: the previous clock minus this one plus the TimeControl increment, or [%emt] when
+// the PGN has it; a side's first move has no previous clock and no bar). White's bars rise, Black's
+// hang, on a square-root scale so one long think does not flatten every other bar. An Inaccuracy or
+// worse wears its colour, so time trouble and the errors it caused line up with the graph above.
+// No clocks in the PGN, no strip.
+function renderClock() {
+    const host = $('rv_clock');
+    if (!host) return;
+    const timed = report.ccr ? [] : report.moves.filter(m => Number.isFinite(m.seconds));
+    host.classList.toggle('hidden', !timed.length);
+    if (!timed.length) { host.innerHTML = ''; return; }
+    const r = host.getBoundingClientRect();
+    host.innerHTML = buildClockSvg({w: r.width, h: r.height});
+    const el = host.querySelector('svg');
+    el?.addEventListener('click', (e) => {
+        const b = el.getBoundingClientRect();
+        showPly(Math.round(((e.clientX - b.left) / b.width) * (report.positions.length - 1)));
+    });
+}
+
+function buildClockSvg(box) {
+    const W = Math.round(box?.w) || 1000, H = Math.round(box?.h) || 56, MID = H / 2;
+    const n = report.positions.length;
+    const x = (i) => (n <= 1) ? 0 : (i / (n - 1)) * W;
+    const timed = report.moves.filter(m => Number.isFinite(m.seconds));
+    const top = Math.max(1, ...timed.map(m => m.seconds));
+    const bw = Math.max(1.5, Math.min(8, W / Math.max(1, n - 1) * 0.7));
+    const bars = timed.map(m => {
+        const h = Math.max(1, Math.sqrt(m.seconds / top) * (MID - 3));
+        const k = shownClass(m);
+        const hot = Core.STOP_CLASSES.includes(k);
+        return `<rect x="${(x(m.ply + 1) - bw / 2).toFixed(1)}" y="${(m.color === 'w' ? MID - h : MID).toFixed(1)}" `
+            + `width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1" `
+            + (hot ? `class="rv-c-${k}" fill="var(--rv-c)"` : `fill="var(--mp-mute)" opacity="0.55"`)
+            + `><title>${esc(moveLabel(m))} ${m.seconds.toFixed(1)}s</title></rect>`;
+    }).join('');
+    const font = 'font-family="-apple-system, system-ui, sans-serif" font-size="10.5" fill="var(--mp-mute)"';
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <rect x="0" y="0" width="${W}" height="${H}" fill="var(--mp-raised)"/>
+        <line x1="0" y1="${MID}" x2="${W}" y2="${MID}" stroke="var(--mp-line)" stroke-width="1"/>
+        ${bars}
+        <text x="4" y="11" ${font}>time per move</text>
+        <text x="${W - 4}" y="11" text-anchor="end" ${font}>${top >= 60 ? (top / 60).toFixed(1) + 'm' : Math.round(top) + 's'}</text>
+        <line id="rv_clock_cursor" x1="0" y1="0" x2="0" y2="${H}" stroke="var(--mp-on)" stroke-width="2"/>
+    </svg>`;
+}
 
 // The eval graph. `live` uses the page's CSS variables (so it follows dark mode and the cursor line
 // is there to move); the export needs the same picture with literal colours and no cursor, since it
@@ -1552,11 +1601,15 @@ function buildGraphSvg(live, box) {
 
 // Read the width back off the viewBox: it is the panel's pixel width now, not a fixed 1000.
 function setGraphCursor() {
-    const line = $('rv_graph_cursor');
-    if (!line || !report) return;
-    const W = +(line.ownerSVGElement?.getAttribute('viewBox') || '0 0 1000 150').split(' ')[2];
-    const x = (cursor / Math.max(1, report.positions.length - 1)) * W;
-    line.setAttribute('x1', x); line.setAttribute('x2', x);
+    if (!report) return;
+    // the eval graph and the clock strip under it share the x axis, so both cursors move together
+    for (const id of ['rv_graph_cursor', 'rv_clock_cursor']) {
+        const line = $(id);
+        if (!line) continue;
+        const W = +(line.ownerSVGElement?.getAttribute('viewBox') || '0 0 1000 150').split(' ')[2];
+        const x = (cursor / Math.max(1, report.positions.length - 1)) * W;
+        line.setAttribute('x1', x); line.setAttribute('x2', x);
+    }
 }
 
 // Numbered from the game's start FEN (Core.plyMove), not from ply 0 = 1. White: a game set up with
@@ -2412,6 +2465,7 @@ async function exportHtml(btn) {
         wrap.querySelectorAll('.hidden').forEach(el => el.remove());
         wrap.querySelectorAll('.rv-nav, .rv-share, .tooltipped .info-tooltip').forEach(el => el.remove());
         wrap.querySelector('#rv_graph_cursor')?.remove();
+        wrap.querySelector('#rv_clock_cursor')?.remove();
         wrap.querySelector('#rv_move_detail')?.remove();
 
         // the board's pieces are extension URLs, which mean nothing outside this browser
@@ -3151,6 +3205,7 @@ function renderCcrReport(strengthLabel) {
     $('rv-human')?.classList.add('hidden');
     $('rv_turning')?.classList.add('hidden');
     $('rv_time_wrap')?.classList.add('hidden');
+    $('rv_clock')?.classList.add('hidden');
     renderHeader();
     renderCards();
     renderGraph();

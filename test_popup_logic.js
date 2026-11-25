@@ -20380,3 +20380,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-BOOKEXIT: the header and the move detail both name it',
        /left theory with \$\{esc\(moveLabel\(exit\)\)\}/.test(rj) && /played === Core\.bookExit\(report\.moves, report\.book\)/.test(rj));
 }
+// ---- REVIEW-CLOCK: the per-move clock strip under the eval graph ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const host = {hidden: null, innerHTML: '', classList: {toggle: (k, v) => { host.hidden = v; }}, getBoundingClientRect: () => ({width: 400, height: 56}),
+                  querySelector: () => null};
+    c.host = host;
+    vm.runInContext('const Core = self.MephistoReviewCore; let report = null; const $ = (id) => id === "rv_clock" ? host : null;'
+        + 'const esc = (s) => String(s); const shownClass = (m) => m.klass || "ungraded"; const moveLabel = (m) => m.san;'
+        + fn('function incrementFromTimeControl(') + fn('function fillThinkTime(') + fn('function renderClock(') + fn('function buildClockSvg('), c);
+    // 3+2 blitz: 1.e4 (180) e5 (180) 2.Nf3 (175: 7s used with the 2s back) Nc6 (181: 1s used) 3.Bc4 blunder (150: 27s)
+    const moves = [['e4', 180, 'book'], ['e5', 180, 'book'], ['Nf3', 175, 'best'], ['Nc6', 181, 'best'], ['Bc4', 150, 'blunder']]
+        .map(([san, clk, klass], ply) => ({san, clk, klass, ply, color: ply % 2 ? 'b' : 'w'}));
+    c.moves = moves;
+    vm.runInContext('fillThinkTime(moves, incrementFromTimeControl("180+2"))', c);
+    ok('REVIEW-CLOCK: time used = previous clock - this clock + the TimeControl increment; a side\'s first move has none',
+       JSON.stringify(moves.map(m => m.seconds)) === JSON.stringify([null, null, 7, 1, 27]), moves.map(m => m.seconds));
+    c.report = {moves, positions: new Array(6).fill({})};
+    vm.runInContext('report = this.report; renderClock()', c);
+    const svg = host.innerHTML;
+    const rects = [...svg.matchAll(/<rect x="[\d.]+" y="([\d.]+)" width="[\d.]+" height="([\d.]+)" rx="1" ([^>]*)>/g)];
+    ok('REVIEW-CLOCK: one bar per timed move; White\'s rise from the middle line, Black\'s hang from it',
+       host.hidden === false && rects.length === 3 && +rects[0][1] + +rects[0][2] === 28 && +rects[1][1] === 28, rects.map(r => [r[1], r[2]]));
+    ok('REVIEW-CLOCK: the longest think fills its half (square-root scale) and an Inaccuracy or worse wears its class colour',
+       Math.abs(+rects[2][2] - 25) < 0.01 && /class="rv-c-blunder"/.test(rects[2][3]) && !/rv-c-/.test(rects[0][3]) && /27s</.test(svg), rects.map(r => r[3]));
+    c.report = {moves: moves.map(m => ({...m, seconds: null})), positions: new Array(6).fill({})};
+    vm.runInContext('report = this.report; renderClock()', c);
+    ok('REVIEW-CLOCK: no clocks in the PGN, no strip', host.hidden === true && host.innerHTML === '');
+    const html = fs.readFileSync(ROOT + '/src/options/pages/review/review.html', 'utf8');
+    ok('REVIEW-CLOCK: the strip sits between the graph and the key moments, hidden until drawn, and shares the graph cursor',
+       /id="rv_graph"><\/div>[\s\S]*id="rv_clock" class="rv-clock hidden"[\s\S]*id="rv_turning"/.test(html)
+       && /\['rv_graph_cursor', 'rv_clock_cursor'\]/.test(rj) && /renderClock\(\);\n\}/.test(rj));
+}

@@ -210,7 +210,8 @@ Copy FEN/PGN, the engine's lines next to what a human of a chosen rating would p
   game by your username, only through your own moves.
 - **Eval graph**, **openings named offline** with their ECO code and the move that left theory (from a bundled copy
   of [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings), CC0) and **think time** from the
-  `[%clk]` comments.
+  `[%clk]` comments: a strip under the graph shows the seconds each move took (the TimeControl increment added back),
+  with inaccuracies and worse in their colour.
 - **Human model** (optional) reports where your move sat in Maia's ranking. **Strength estimate** (optional) finds
   which rating best explains the moves played. It estimates strength; it is not a fair-play measurement.
 - **Explain the moves** (optional) - chess.com's explanation engine writes a sentence per move and a line about the
