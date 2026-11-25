@@ -198,8 +198,9 @@ Copy FEN/PGN, the engine's lines next to what a human of a chosen rating would p
 - **Any engine at your budget** - bundled WASM or a native host, a fixed depth (default 16) or a time per move, 2-10
   lines. **CPU use** runs a pool of one-thread engines: Low 1, Normal a quarter of your cores (2 to 4), High half of
   them (up to 8). On an 18-core Mac a Standard review of a 44-move game took 35-41s with 2 engines, 21s with 4 and
-  16s with 8, at about 0.7 GB per engine. Only Low gives the same grades on every run; with several engines, which
-  positions share an engine's memory depends on timing. A **Preset** picks the depth: Quick 12, Standard 16 or
+  16s with 8, at about 0.7 GB per engine. A depth review gives the same grades on every run at every level: each
+  position is searched from an empty engine memory, which costs about 5% (three Normal runs, identical grades;
+  several native engines still vary). A **Preset** picks the depth: Quick 12, Standard 16 or
   Deep 18 (a 44-move game took about 5s, 30s and 70s with two engines). chess.com's Game Review searches at depth 22; set that as a
   custom budget when you want the two accuracy numbers to come from the same search, and expect a much longer wait.
 - **Accuracy** on Lichess's formula: the same evals give Lichess's number, within its rounding. **Move quality** uses Lichess's win% curve with a wider ceiling (past +10 or with a mate on the board) and the same bands the panel judges live moves by, so a review

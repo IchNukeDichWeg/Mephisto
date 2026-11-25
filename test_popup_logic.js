@@ -20132,6 +20132,11 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-NEWGAME: runReview resets the whole pool and the human model before the first search of each game',
        i > 0 && j > i && /await Promise\.all\(\[\.\.\.pool, rig\.human\]\.filter\(e => e && e\.newGame\)\.map\(e => e\.newGame\(\)\)\);/.test(rj.slice(i, j))
        && /class NativeEngine \{[\s\S]*async newGame\(\) \{\}/.test(ej));
+    // ...and EVERY POSITION starts clean too: with several engines, which positions an engine had
+    // searched before (its hash) depended on timing, so a depth review graded differently run to run
+    const k = rj.indexOf('const worker = async (e) => {', j), m = rj.indexOf('searched++;', k);
+    ok('REVIEW-NEWGAME: the review search resets the engine before each position (reproducible with several engines)',
+       k > 0 && m > k && /try \{ if \(e\.newGame\) await e\.newGame\(\); r = await e\.analyse\(p\.efen \|\| p\.fen, p\.turn\); \}/.test(rj.slice(k, m)));
 }
 // ---- REVIEW-HUMANNAME: the human card and the strength note name the model that actually ran ----
 {

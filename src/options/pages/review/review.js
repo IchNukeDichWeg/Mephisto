@@ -418,8 +418,15 @@ async function runReview(game, rig, onProgress) {
                 // run on "starting the engine" for the whole first position.
                 onProgress(done / total, `position ${searched + 1} of ${positions.length}`);
                 // efen: the engine's dialect of the position (crazyhouse pockets, 3check counts)
+                // EVERY POSITION FROM AN EMPTY HASH (ucinewgame + isready). With several engines, which
+                // positions an engine had searched before, and so what its hash held, depended on
+                // timing: depth 12 on one 44-move game gave 54.6 / 56.6 / 54.6% with different grades.
+                // Measured at Standard (depth 16), Normal (4 x Stockfish 18, one thread each), Apple M5
+                // Pro, 25.11.2026: three runs 14.0 / 14.0 / 14.3 s with 24 plies graded differently
+                // between them, and with the reset 14.3 / 14.8 / 15.1 s (+5%) with identical grades and
+                // losses. A native engine's newGame is a no-op (no host command), so it still varies.
                 let r;
-                try { r = await e.analyse(p.efen || p.fen, p.turn); }
+                try { if (e.newGame) await e.newGame(); r = await e.analyse(p.efen || p.fen, p.turn); }
                 catch (err) { poolFailed = true; throw err; }
                 p.lines = r.lines;
                 p.depth = r.depth;
@@ -3564,9 +3571,9 @@ function bindNumber(id, key) {
 // itself is not stored; it is read back from rv_workers, rv_threads and rv_hash, which the run already
 // uses, so values set by hand in an older version show as Custom and stay in use until a level is
 // picked. Normal and High scale with the cores (reviewEngines); Low stays one engine.
-// ONLY LOW IS REPRODUCIBLE. With several engines, which positions share an engine's hash depends on
-// timing: depth 12 on one 44-move game read 52.7% twice on one engine with identical grades, and
-// 54.6 / 56.6 / 54.6% on four engines with different grades (25.11.2026).
+// EVERY LEVEL IS REPRODUCIBLE at a depth budget: each position is searched from an empty hash (see
+// runReview), so which engine draws it no longer matters. Before that only Low was: depth 12 on one
+// 44-move game read 54.6 / 56.6 / 54.6% on four engines with different grades (25.11.2026).
 function cpuLevels(cores = navigator.hardwareConcurrency || 4) {
     const {normal, high} = reviewEngines(cores);
     return {
