@@ -1064,6 +1064,8 @@ function assemble(game, positions, moves, book, opts) {
             winBefore: m.winBefore, winAfter: m.winAfter, rank: m.rank,
             onlyMove: m.onlyMove, isBook: m.isBook, secondWin: m.secondWin, sacrifice: m.sacrifice,
             isRecapture: m.isRecapture, rating,
+            // the opponent's last loss, for Miss (classify-core.js, MISS_ON_OPPONENT_ERROR); 0 at the first move
+            prevLost: Core.prevLoss(moves, m.ply),
         });
     }
     const phases = Core.gamePhases(positions.map(p => p.fen));
@@ -1535,7 +1537,7 @@ function retryMove(from, to, promotion) {
         const lostScaled = winAfter == null ? null : Math.max(0, winBefore - winAfter) * Core.lossScale(rating);
         const sacrifice = winAfter != null && winBefore - lostScaled >= 50 && winBefore < 90 && lostScaled < 2
             ? Core.sacrificesMaterial(Chess, 'chess', retry.fen, uci) : false;
-        return Core.gradeAttempt({lines, color: m.color, uci, afterCp, sacrifice, rating,
+        return Core.gradeAttempt({lines, color: m.color, uci, afterCp, sacrifice, rating, prevLost: Core.prevLoss(report.moves, retry.ply),
             isRecapture: !!(mv.captured && prev?.captured && prev.to === mv.to)});
     };
     board?.position(attempt.fenAfter);

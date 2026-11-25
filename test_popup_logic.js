@@ -401,6 +401,11 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
         ['RATING: ...and with no rating it is graded as before', {winBefore: 55, winAfter: 49, rank: 5}, 'inaccuracy'],
         ['RATING: a 3000 player\'s 4-point loss is an Inaccuracy (x1.41)', {winBefore: 55, winAfter: 51, rank: 4, rating: 3000}, 'inaccuracy'],
         ['RATING: a move that gains is not rescaled', {winBefore: 55, winAfter: 60, rank: 1, secondWin: 58, rating: 800}, 'best'],
+        // MISS_ON_OPPONENT_ERROR: with the opponent's last loss known, a Miss is a chance they gave, not taken
+        ['MISS: the opponent gave 10 away and this gives 8 back: a Miss', {winBefore: 70, winAfter: 62, rank: 4, prevLost: 10}, 'miss'],
+        ['MISS: ...the same 8 with no opponent error is an Inaccuracy', {winBefore: 70, winAfter: 62, rank: 4, prevLost: 0}, 'inaccuracy'],
+        ['MISS: ...and falling under 30% after their error is a Blunder', {winBefore: 55, winAfter: 25, rank: 9, prevLost: 10}, 'blunder'],
+        ['MISS: a winning position dropped with no opponent error is graded by its loss', {winBefore: 85, winAfter: 50, rank: 7, prevLost: 0}, 'blunder'],
     ];
     for (const [name, input, want] of cases) {
         const got = K(input);
@@ -486,6 +491,13 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
                      runTagged({WhiteElo: '3000', BlackElo: '800'}, 30, -58), runTagged({}, 30, -58)].join('/');
         if (got === 'good/inaccuracy/mistake/inaccuracy') console.log('ok   assemble: RATING: the mover\'s PGN rating scales the grade, and only the mover\'s');
         else { fails++; console.log(`FAIL assemble: RATING: the mover's PGN rating scales the grade (got ${got})`); }
+        {   // Game Review hands the classifier the opponent's last loss, found by ply
+            const pl = vm.runInContext(`[Core.prevLoss([{ply: 4, winBefore: 60, winAfter: 48}, {ply: 5, winBefore: 52, winAfter: 51}], 5),
+                Core.prevLoss([{ply: 4, winBefore: 60, winAfter: 48}], 4), Core.prevLoss([{ply: 4, winBefore: null, winAfter: 40}], 5)]`, actx);
+            if (JSON.stringify(pl) === '[12,0,0]' && /prevLost: Core\.prevLoss\(moves, m\.ply\)/.test(rj) && /prevLost: Core\.prevLoss\(report\.moves, retry\.ply\)/.test(rj))
+                console.log('ok   assemble: MISS: the opponent\'s last loss reaches the classifier in the review and in Retry');
+            else { fails++; console.log(`FAIL assemble: MISS: the opponent's last loss reaches the classifier (got ${JSON.stringify(pl)})`); }
+        }
         const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
         const ONE = 'k7/8/8/8/8/8/1q6/K7 w - - 0 1';   // Ka1 in check from an undefended Qb2: Kxb2 only
         const legal = vm.runInContext(`new Chess('chess', ${JSON.stringify(ONE)}).moves().length`, actx);

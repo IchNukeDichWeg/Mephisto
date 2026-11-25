@@ -206,7 +206,9 @@ Copy FEN/PGN, the engine's lines next to what a human of a chosen rating would p
 - **Accuracy** on Lichess's formula: the same evals give Lichess's number, within its rounding. **Move quality** uses Lichess's win% curve with a wider ceiling (past +10 or with a mate on the board) and the same bands the panel judges live moves by, scaled by the
   mover's rating from the PGN, as chess.com's own classifier does: a loss counts x0.73 at 800 and x1.41 at 3000, and a
   game without ratings is graded as before. The panel has no rating to go by, so on a rated game a review can grade a
-  move one band away from what the panel said live. Each player card also splits accuracy into opening, middlegame and
+  move one band away from what the panel said live. A **Miss** in a review is a chance the opponent gave you and you
+  did not take: their last move gave away 7+ win% and yours gave 7+ back. The panel still calls a dropped winning
+  position a Miss. Each player card also splits accuracy into opening, middlegame and
   endgame, at the phase lines the eval graph draws.
 - **Key moments** under the eval graph: the five biggest swings of the game, click one to jump there. **‹ Mistake**
   and **Mistake ›** under the board (or Shift+arrows) step through the inaccuracies and worse; when you fetched the

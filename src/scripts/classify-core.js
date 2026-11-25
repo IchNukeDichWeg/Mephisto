@@ -41,6 +41,15 @@ const BEST = 0.1;
 // rating changes nothing. Ratings from either site are read as they are; the two scales differ by a
 // few hundred points, which this curve barely feels.
 const RATING_SCALED = true;
+
+// MISS = A CHANCE THE OPPONENT GAVE, NOT TAKEN. chess.com's classifier gave about 30 Misses on 10 games
+// where the old rule (a winning position dropped to 40-55%) gave 2. Theirs follow the opponent's own
+// error: when the previous move gave away 7+ win% and this one gives 7+ back, it is a Miss, as long
+// as the mover still holds 30%+ (lower is a Blunder). The rule came from the 42-game calibration and was
+// not fitted on the check (25.11.2026, chess.com's classifier, same evals): agreement 63.8 -> 66.4% at
+// the real ratings, 73.2 -> 74.2% at 1500, 62.3 -> 64.8% at 2200, 57.4 -> 59.9% at 3000, 61.9 -> 61.7% at
+// 800. Needs `prevLost`, the opponent's last loss; a caller without it (the panel) keeps the old rule.
+const MISS_ON_OPPONENT_ERROR = true;
 function lossScale(rating) {
     if (!RATING_SCALED || !(rating > 0)) return 1;
     return Math.sqrt(clamp(rating, 400, 3200) / 1500);
@@ -145,7 +154,7 @@ function onlyLegalMove(Chess, variant, fen, lines, multipv) {
 //   isRecapture the move takes back on the square the opponent just captured on
 //   winBefore/winAfter are the mover's win% before and after, both already mover-relative.
 
-function classify({winBefore, winAfter, rank, onlyMove, isBook, secondWin, sacrifice, isRecapture, rating}) {
+function classify({winBefore, winAfter, rank, onlyMove, isBook, secondWin, sacrifice, isRecapture, rating, prevLost}) {
     const scale = lossScale(rating);   // the mover's rating; see RATING_SCALED
     if (scale !== 1 && winAfter < winBefore) winAfter = winBefore - (winBefore - winAfter) * scale;
     const lost = Math.max(0, winBefore - winAfter);
@@ -173,7 +182,9 @@ function classify({winBefore, winAfter, rank, onlyMove, isBook, secondWin, sacri
     // Only while the position is still holdable (40%+): a move from +5 to -6 threw the game and is
     // a Blunder. Of our Misses that ended under 20%, chess.com's own classifier called 0 of 5 a
     // Miss and 4 a Blunder (42 games, same depth-10 evals, 24.11.2026).
-    if (winBefore >= 75 && winAfter < 55 && winAfter >= 40 && lost >= INACCURACY) return 'miss';
+    if (MISS_ON_OPPONENT_ERROR && prevLost != null) {
+        if (prevLost >= 7 && lost >= 7 && winAfter >= 30) return 'miss';
+    } else if (winBefore >= 75 && winAfter < 55 && winAfter >= 40 && lost >= INACCURACY) return 'miss';
 
     if (lost >= BLUNDER) return 'blunder';
     if (lost >= MISTAKE) return 'mistake';

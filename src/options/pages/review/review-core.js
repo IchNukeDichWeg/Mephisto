@@ -997,8 +997,15 @@ function moverRating(tags, color) {
     return r > 0 ? r : null;
 }
 
+// The win% the opponent's previous move gave away (0 when there is none or it was not graded), for Miss
+// (classify-core.js, MISS_ON_OPPONENT_ERROR). Moves are found by ply, so a game from a FEN works too.
+function prevLoss(moves, ply) {
+    const p = moves.find(x => x.ply === ply - 1);
+    return p && p.winBefore != null && p.winAfter != null ? Math.max(0, p.winBefore - p.winAfter) : 0;
+}
+
 const RETRY_CLASSES = ['mistake', 'blunder', 'miss'];
-function gradeAttempt({lines, color, uci, afterCp = null, sacrifice = false, isRecapture = false, rating = null}) {
+function gradeAttempt({lines, color, uci, afterCp = null, sacrifice = false, isRecapture = false, rating = null, prevLost}) {
     if (!lines || !lines.length || lines[0].cp == null) return null;
     const sign = color === 'w' ? 1 : -1;
     const idx = lines.findIndex(l => l.pv?.[0] === uci);
@@ -1008,7 +1015,7 @@ function gradeAttempt({lines, color, uci, afterCp = null, sacrifice = false, isR
     const secondWin = lines.length > 1 ? winPercent(lines[1].cp * sign) : null;
     const rank = idx >= 0 ? idx + 1 : null;
     const klass = classify({winBefore, winAfter, rank, onlyMove: false, isBook: false, secondWin,
-                            sacrifice, isRecapture, rating});
+                            sacrifice, isRecapture, rating, prevLost});
     return {klass, rank, cp, winBefore, winAfter, lost: Math.max(0, winBefore - winAfter), best: lines[0].pv?.[0] || null};
 }
 
@@ -1020,7 +1027,7 @@ root.MephistoReviewCore = {
     toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, lossScale, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
     accuracyFor, phaseAccuracy, indicators, evidence, estimate, parseInfo, clamp,
     whiteSwings, turningPoint, keyMoments, mistakeStops, stepToStop, reviewSide, bookExit, STOP_CLASSES,
-    RETRY_CLASSES, gradeAttempt, moverRating,
+    RETRY_CLASSES, gradeAttempt, moverRating, prevLoss,
     NAG_FOR_CLASS, annotatedPgn, plyMove, lichessStudyId, lichessRequest, lichessResultUrl, lichessFailure,
     liftPromoted, markPromoted,
 };
