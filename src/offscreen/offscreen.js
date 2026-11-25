@@ -59,10 +59,10 @@ const sticky = {};   // clientId -> {option name: its last `setoption` line}
 // it. Each load claims a generation and abandons itself if a newer one has since started; a dispose
 // bumps it too, so a teardown mid-load can't be undone by the load finishing afterwards.
 const epoch = {};
-// clientId -> {name, engine}: a WASM instance whose net download failed. It cannot be freed (see
-// disposeClient), and the panel retries every 30 s while the download keeps failing, so each retry
-// built one more instance with its own workers and 64 MB+ shared heap. The next load of the same
-// engine for that client takes this one back instead (audit 3.1.331 OFFSCREEN-2).
+// clientId -> {name, engine}: a WASM instance whose net download failed. It could not be freed when
+// this was written (freeEngine can now), and the panel retries every 30 s while the download keeps
+// failing, so each retry built one more instance with its own workers and 64 MB+ shared heap. The
+// next load of the same engine for that client takes this one back instead (audit 3.1.331 OFFSCREEN-2).
 const spare = {};
 
 function send(clientId, payload) {
@@ -132,14 +132,89 @@ async function fetchNnue(base, nnue, onProgress) {
     return (await import('/src/offscreen/model-fetch.js')).fetchModel(base, nnue, onProgress);
 }
 
-// THESE BUILDS CANNOT BE KILLED FROM HERE. lila-stockfish-web exposes `uci` and nothing else --
-// MEASURED: `typeof engine.terminate === 'undefined'`, so the terminate() call this used to rely on
-// has always been a silent no-op. `quit` is all we have, and it does not reap the pthread pool: a
-// dropped engine keeps its workers, and if it was mid-`go infinite` it keeps every core busy for
-// the life of the browser. Found in the wild as ~400% CPU with no window open, and confirmed here
-// as four orphaned sf_dev worker sets alive while the client map was EMPTY.
-// So: stop first (a `quit` behind a running search is not what ends it), then quit, then let the
-// document close once nothing is left -- closing it is the only reclaim that actually works.
+// FREEING A WASM ENGINE. lila-stockfish-web exposes `uci` and nothing else (no terminate), and this
+// used to send `stop` alone, leaving the closing of this whole document as the only reclaim. That
+// never happens while any client holds an engine, and every Game Review re-inits its pool: three
+// back-to-back reviews at Normal (4 x Stockfish 18, 256 MB hash, 44 moves) peaked at 4.7, 7.0 and
+// 9.1 GB and sat at 8.7 GB afterwards (Apple M5 Pro, CfT 152 headless, 25.11.2026).
+// Two things hold a dropped engine. Its pthread Workers, which only the build's own exit path or a
+// terminate() ends. And its main-thread mailbox wait (an Atomics.waitAsync on its Memory), which
+// pins the whole instance and its heap until something notifies it: terminating the workers alone
+// left the same 8.7 GB, unreachable but uncollectable. `quit` takes the build's clean exit, which
+// terminates its own workers, wakes that wait and marks the runtime exited, so the next GC frees it
+// all. Measured: peaks 4.7, 4.3, 4.3 GB over the same three reviews, back at 1.6 GB about 15 s
+// after the last one (V8's own GC, nothing forced).
+// THE BACKSTOP. A `quit` that lands behind a running search can kill the main thread before its
+// stop is processed, leaving the pthreads spinning with nothing to talk to (395% CPU across a
+// dispose, measured on the old path). So every em-pthread Worker is filed under the Memory it is
+// handed in its first message, each load runs on a Memory made here (the same {initial 1024,
+// maximum 32768, shared} all six builds create for themselves), and QUIT_GRACE_MS after the quit
+// whatever is still filed under that Memory is terminated. Only that engine's workers: another
+// client's engine, a parked spare and the Maia sessions are never touched (onnxruntime's own
+// em-pthread worker gets filed too, under a Memory no engine owns, so nothing ever frees it).
+// The chess.com local classifier lane searches on these engines, and it is where this surfaced
+// first: 30 runs in one page at Normal took the browser to 33 GB and the 31st died with "Out of
+// memory: Cannot allocate Wasm memory". Now 35 of 35 runs, flat at 6.4-6.7 GB.
+const ENGINE_MEMORY = {initial: 1024, maximum: 32768, shared: true};
+const QUIT_GRACE_MS = 1500;
+const workersByMemory = new Map();   // WebAssembly.Memory -> Set<Worker>
+const memoryOf = new WeakMap();      // engine instance -> the Memory it was loaded with
+const NativeWorker = globalThis.Worker;
+const canTrackWorkers = typeof NativeWorker === 'function' && typeof WebAssembly !== 'undefined';
+if (canTrackWorkers) {
+    globalThis.Worker = class extends NativeWorker {
+        constructor(url, opts) {
+            super(url, opts);
+            this.__pthread = !!opts && opts.name === 'em-pthread';
+        }
+        postMessage(msg, ...rest) {
+            if (this.__pthread && !this.__memory && msg && typeof msg === 'object') {
+                for (const v of Object.values(msg)) {
+                    if (!(v instanceof WebAssembly.Memory)) continue;
+                    this.__memory = v;
+                    if (!workersByMemory.has(v)) workersByMemory.set(v, new Set());
+                    workersByMemory.get(v).add(this);
+                    break;
+                }
+            }
+            return super.postMessage(msg, ...rest);
+        }
+    };
+}
+
+// Instantiate a build on a Memory we hold, so its workers can be found again. A build whose own
+// memory differs from ENGINE_MEMORY refuses it at link time; that one loads the old way, and is
+// then only stopped on dispose (reclaimed with the document, as before).
+async function instantiate(module) {
+    if (!canTrackWorkers) return module.default();
+    const memory = new WebAssembly.Memory(ENGINE_MEMORY);
+    let engine;
+    try { engine = await module.default({wasmMemory: memory}); } catch (e) {
+        for (const w of workersByMemory.get(memory) || []) { try { w.terminate(); } catch (e2) { /* */ } }
+        workersByMemory.delete(memory);
+        return module.default();
+    }
+    memoryOf.set(engine, memory);
+    return engine;
+}
+
+// Stop it, then end it: the build's own terminate where it has one (the Maia adapters release their
+// onnxruntime session), `quit` for a build loaded on our Memory, and the backstop after that.
+// Silence it BEFORE calling this: the stop flushes a bestmove.
+function freeEngine(engine) {
+    if (!engine) return;
+    try { engine.uci && engine.uci('stop'); } catch (e) { /* */ }
+    try { engine.terminate && engine.terminate(); } catch (e) { /* */ }
+    const memory = memoryOf.get(engine);
+    memoryOf.delete(engine);
+    if (!memory) return;
+    try { engine.uci('quit'); } catch (e) { /* */ }
+    setTimeout(() => {
+        for (const w of workersByMemory.get(memory) || []) { try { w.terminate(); } catch (e) { /* already gone */ } }
+        workersByMemory.delete(memory);
+    }, QUIT_GRACE_MS);
+}
+
 function disposeClient(clientId) {
     epoch[clientId] = (epoch[clientId] || 0) + 1; // invalidate any load still in flight
     const engine = clients[clientId];
@@ -149,18 +224,10 @@ function disposeClient(clientId) {
     // read as silent since time 0, so the next sweep disposed its fresh engine as abandoned (audit
     // 3.1.331 OFFSCREEN-3). The explicit dispose and the abandon sweep clear it.
     if (!engine) return;
-    // STOP, AND DO NOT QUIT. Measured on this build: `stop` takes a 403% search to 0% -- but a
-    // `quit` sent straight after it kills the main thread before it has processed the stop, and the
-    // pthreads keep spinning at full tilt with nothing left to talk to them (395% -> 394% across a
-    // dispose, which is how the leak survived every teardown we thought we had). `stop` alone frees
-    // the cores; closing the document is what hands the workers back.
-    // ponytail: idle workers may linger until the last client goes and the document closes. They
-    // cost memory, not CPU, and that was never what anyone noticed.
     // Silenced first: its flushed bestmove would reach the panel under the same clientId, and the
     // panel has just zeroed the stops it owes, so it would read as an answer to the current position.
     engine.listen = () => {};
-    try { engine.uci && engine.uci('stop'); } catch (e) { /* */ }
-    try { engine.terminate && engine.terminate(); } catch (e) { /* if a build ever grows one */ }
+    freeEngine(engine);
     delete clients[clientId];
     maybeGoIdle();
 }
@@ -243,12 +310,11 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
     // its "unsupported variant" note otherwise land under the same client id as the engine that
     // replaced it (audit 3.1.330 ENGINEB-2).
     const say = (payload) => { if (!superseded()) send(clientId, payload); };
-    // Same rule as disposeClient: stop, never quit. A superseded load is usually not searching yet,
-    // but `quit` cannot reap these workers either (they have no terminate) -- the document close is
-    // what does that, and it needs this engine to be quiet, not half torn down.
-    const abandon = (engine) => {
-        try { engine?.uci && engine.uci('stop'); } catch (e) { /* */ }
-        try { engine?.terminate && engine.terminate(); } catch (e) { /* */ }
+    // A superseded load is freed like a disposed engine (freeEngine). `keep` is the failed-download
+    // case below: that instance is parked for reuse, so it is only stopped.
+    const abandon = (engine, keep = false) => {
+        if (keep) { try { engine?.uci && engine.uci('stop'); } catch (e) { /* */ } }
+        else freeEngine(engine);
         maybeGoIdle();
     };
     // Maia: not a Stockfish WASM build -- a UCI adapter running one onnxruntime forward pass of the
@@ -292,7 +358,7 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
     const module = await import(enginePath);
     const parked = spare[clientId]?.name === engineName ? spare[clientId].engine : null;
     if (parked) delete spare[clientId];
-    const engine = parked || await module.default();
+    const engine = parked || await instantiate(module);
     if (superseded()) return abandon(engine);
     engine.listen = (line) => say({kind: 'line', line});
     engine.onError = (e) => say({kind: 'error', error: String(e)});
@@ -356,8 +422,11 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
         // Silenced first, since its client id is still current and say() would pass the bestmove its
         // stop flushes to the panel as an answer.
         engine.listen = () => {}; engine.onError = () => {};
-        abandon(engine);
-        if (downloadFailed) spare[clientId] = {name: engineName, engine};
+        abandon(engine, downloadFailed);
+        if (downloadFailed) {
+            if (spare[clientId]) freeEngine(spare[clientId].engine);   // one parked instance per client
+            spare[clientId] = {name: engineName, engine};
+        }
         throw e;
     }
     // Fully loaded: publish it and flush everything the panel sent while we were loading, in order.
@@ -434,6 +503,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
     } else if (cmd === 'dispose') {
         disposeClient(clientId);
+        // disposed on purpose: its parked instance (a failed download kept for the retry) goes too
+        if (spare[clientId]) { freeEngine(spare[clientId].engine); delete spare[clientId]; }
         delete pending[clientId];
         delete lastSeen[clientId];
         delete initArgs[clientId];   // disposed on purpose: never respawn it

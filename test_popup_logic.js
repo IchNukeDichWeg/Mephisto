@@ -4612,10 +4612,65 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
 const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const osrc = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8');
     const i = osrc.indexOf('function disposeClient(clientId)'), c = vm.createContext({heard: []});
+    const j = osrc.indexOf('function freeEngine(engine)');
     vm.runInContext(`var epoch = {}, searching = {}, lastSeen = {}, engine = {uci() { this.listen('bestmove e2e4'); }, listen: (l) => heard.push(l)}, clients = {x: engine};
-        function maybeGoIdle() {}` + osrc.slice(i, osrc.indexOf('\n}\n', i) + 3) + `disposeClient('x');`, c);
+        var memoryOf = new WeakMap(), workersByMemory = new Map();
+        function maybeGoIdle() {}` + osrc.slice(j, osrc.indexOf('\n}\n', j) + 3) + osrc.slice(i, osrc.indexOf('\n}\n', i) + 3) + `disposeClient('x');`, c);
     ok('the old search\'s flush never reaches the panel', c.heard.length === 0, c.heard);
 }
+// ---- a disposed WASM engine is FREED: its own pthread workers end, nobody else's ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The whole host with a fake Worker and a fake build that, like the real glue, starts its pthreads
+    // through the global Worker and hands each the Memory it was given. Dispose used to send only
+    // `stop`, so every Game Review's re-init left the previous pool's workers and heap alive (three
+    // reviews at Normal: 4.7 -> 7.0 -> 9.1 GB). Now: `quit` (the build's clean exit) and, after a
+    // grace period, any of ITS workers still alive are terminated.
+    const src = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8').replace(/await import\(/g, 'await __imp(');
+    const workers = [];
+    class FakeWorker { constructor(url, opts) { this.opts = opts; this.dead = false; workers.push(this); }
+        postMessage() {} terminate() { this.dead = true; } }
+    let maiaFreed = 0, sawMemory = 0; const engines = [], timers = [];
+    const build = async (arg) => {
+        const mem = arg && arg.wasmMemory;
+        if (mem && mem.constructor && mem.constructor.name === 'Memory') sawMemory++;   // the vm's own WebAssembly
+        const mine = [0, 1, 2].map(() => new c.Worker('sf.js', {type: 'module', name: 'em-pthread'}));   // the global, as the glue does
+        for (const w of mine) w.postMessage({ha: 'load', La: [], Wa: mem, Xa: {}});
+        const e = {mine, said: [], uci(l) { this.said.push(l); }, getRecommendedNnue: () => null, setNnueBuffer() {}};
+        engines.push(e);
+        return e;
+    };
+    let listener;
+    const c = {console: {log() {}}, Date, setTimeout: (f, ms) => { timers.push({f, ms}); return timers.length; }, setInterval: () => 0, clearTimeout() {}, window: {close() {}},
+        Worker: FakeWorker,
+        __imp: async (u) => /maia/.test(u)
+            ? {createMaiaEngine: async () => ({uci() {}, terminate() { maiaFreed++; }})}
+            : {default: build},
+        chrome: {runtime: {sendMessage: () => {}, onMessage: {addListener: (f) => listener = f}}}};
+    vm.createContext(c); vm.runInContext(src, c);
+    const msg = (id, o) => listener({toOffscreen: true, clientId: id, ...o}, {}, () => {});
+    const settle = () => new Promise(r => setTimeout(r, 20));
+    msg('review', {cmd: 'init', engine: 'stockfish-11-hce'}); msg('review-1', {cmd: 'init', engine: 'stockfish-11-hce'});
+    msg('7', {cmd: 'init', engine: 'stockfish-11-hce'}); msg('review-human', {cmd: 'init', engine: 'maia'});
+    await settle();
+    ok('dispose contract: each load runs on a Memory the host holds', sawMemory === 3, sawMemory);
+    const [a, b, panel] = [workers.slice(0, 3), workers.slice(3, 6), workers.slice(6, 9)];
+    const grace = Number((src.match(/const QUIT_GRACE_MS = (\d+);/) || [])[1]);
+    const graceRuns = () => { for (const t of timers.splice(0)) if (t.ms === grace) t.f(); };
+    msg('review', {cmd: 'dispose'});
+    ok('...a dispose sends that engine stop then quit (the build\'s own exit), and nobody else quit',
+       engines[0].said.join('|') === 'stop|quit' && !engines.slice(1).some(e => e.said.includes('quit')), engines.map(e => e.said));
+    graceRuns();
+    ok('...after the grace period every pthread worker of that engine is terminated', a.every(w => w.dead), a.map(w => w.dead));
+    ok('...and none of another review engine or the panel\'s', !b.some(w => w.dead) && !panel.some(w => w.dead));
+    msg('review-1', {cmd: 'init', engine: 'stockfish-11-hce'}); await settle(); graceRuns();
+    ok('...a re-init (the next review on the same client) frees the engine it replaces', b.every(w => w.dead) && !panel.some(w => w.dead)
+       && engines[1].said.includes('quit') && !engines[2].said.includes('quit'));
+    msg('review-human', {cmd: 'dispose'});
+    ok('...a human-model engine is ended through its own terminate()', maiaFreed === 1, maiaFreed);
+    ok('...the page-side dispose still sends cmd dispose',
+       /dispose\(\) \{[\s\S]{0,400}cmd: 'dispose'/.test(fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8')));
+})().catch(e => { fails++; console.log('FAIL dispose contract checks threw: ' + (e && e.stack || e)); });
 // ---- ENG-10: a failed load is not retried per UCI line ----
 {
 const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
