@@ -2855,6 +2855,45 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     ok('options-page engines ping for as long as they hold an engine, and stop on dispose',
        /this\.keepAlive = setInterval\([\s\S]{0,200}cmd: 'ping'/.test(esrc) && /dispose\(\) \{\s*clearInterval\(this\.keepAlive\)/.test(esrc));
 })().catch(e => { fails++; console.log('FAIL offscreen lease checks threw: ' + (e && e.stack || e)); });
+(async () => {
+    // A CLOSED OPTIONS PAGE FREES ITS ENGINE AT ONCE. The Analysis page's "No limit" search used to run
+    // until the 60 s lease after its tab closed: a tab close sends no dispose. The page now holds a
+    // lease port per engine and the host disposes on its unannounced close.
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8').replace(/await import\(/g, 'await __imp(');
+    let listener, onConnect, inits = 0; const said = [];
+    const c = {console: {log() {}}, Date, setTimeout: () => 0, setInterval: () => 0, clearTimeout() {}, window: {close() {}},
+        __imp: async () => ({default: async () => { const n = ++inits; return {uci: (l) => said.push([n, l]), getRecommendedNnue: () => null, setNnueBuffer() {}}; }}),
+        chrome: {runtime: {sendMessage: () => {}, onMessage: {addListener: (f) => listener = f}, onConnect: {addListener: (f) => onConnect = f}}}};
+    vm.createContext(c); vm.runInContext(src, c);
+    const msg = (id, o) => listener({toOffscreen: true, clientId: id, ...o}, {}, () => {});
+    const port = (name) => { const p = {name, m: [], d: [], onMessage: {addListener: (f) => p.m.push(f)}, onDisconnect: {addListener: (f) => p.d.push(f)}};
+        p.post = (x) => p.m.forEach(f => f(x)); p.close = () => p.d.forEach(f => f()); onConnect(p); return p; };
+    // setImmediate ticks, not a 20 ms timer: Node runs timers in lists by duration, and a 20 ms timer
+    // armed here pulled CLICKA-5's own 20 ms timer ahead of its 0 ms one and broke that test.
+    const settle = async () => { for (let i = 0; i < 30; i++) await new Promise(r => setImmediate(r)); };
+    const stat = () => new Promise(r => listener({offscreenStat: true}, {}, r));
+    const pa = port('mephisto-engine-lease:analysis'); msg('analysis', {cmd: 'init', engine: 'stockfish-11-hce'}); await settle();
+    msg('analysis', {cmd: 'uci', line: 'go infinite'});
+    pa.close(); await settle();
+    const before = inits;
+    msg('analysis', {cmd: 'uci', line: 'go depth 5'}); await settle();
+    ok('LEASE-PORT: a page that closes without a dispose frees its engine at once, and a late line does not respawn it',
+       !(await stat()).clients.includes('analysis') && said.some(([n, l]) => n === 1 && l === 'stop') && inits === before, [await stat(), said]);
+    // a second tab on the same id: closing the FIRST must not take the second's engine
+    const p1 = port('mephisto-engine-lease:analysis-b'); msg('analysis-b', {cmd: 'init', engine: 'stockfish-11-hce'}); await settle();
+    const p2 = port('mephisto-engine-lease:analysis-b'); msg('analysis-b', {cmd: 'init', engine: 'stockfish-11-hce'}); await settle();
+    p1.close(); await settle();
+    ok('LEASE-PORT: only the newest page holding a client id disposes it', (await stat()).clients.includes('analysis-b'));
+    // a dispose on purpose says release: its port closing is not a page close
+    p2.post({release: true}); p2.close(); await settle();
+    ok('LEASE-PORT: a released port leaves the engine to the explicit dispose', (await stat()).clients.includes('analysis-b'));
+    ok('LEASE-PORT: unrelated port names are ignored', (port('stockfish-18-native').close(), true) && (await stat()).clients.includes('analysis-b'));
+    const esrc = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    ok('LEASE-PORT: options-page engines open the port after the document exists and release it on dispose',
+       /ensureOffscreen: true\}\);[\s\S]{0,500}chrome\.runtime\.connect\(\{name: `mephisto-engine-lease:\$\{this\.clientId\}`\}\)/.test(esrc)
+       && /this\.leasePort\?\.postMessage\(\{release: true\}\); this\.leasePort\?\.disconnect\(\);/.test(esrc));
+})().catch(e => { fails++; console.log('FAIL lease port checks threw: ' + (e && e.stack || e)); });
 {
     const ok = (name, cond) => { if (cond) console.log('ok   ' + name); else { fails++; console.log('FAIL ' + name); } };
     const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
@@ -4669,7 +4708,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     msg('review-human', {cmd: 'dispose'});
     ok('...a human-model engine is ended through its own terminate()', maiaFreed === 1, maiaFreed);
     ok('...the page-side dispose still sends cmd dispose',
-       /dispose\(\) \{[\s\S]{0,400}cmd: 'dispose'/.test(fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8')));
+       /dispose\(\) \{[\s\S]{0,700}cmd: 'dispose'/.test(fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8')));
 })().catch(e => { fails++; console.log('FAIL dispose contract checks threw: ' + (e && e.stack || e)); });
 // ---- ENG-10: a failed load is not retried per UCI line ----
 {

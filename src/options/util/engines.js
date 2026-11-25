@@ -201,6 +201,11 @@ class WasmEngine {
     async start() {
         await chrome.runtime.sendMessage({ensureOffscreen: true});
         chrome.runtime.onMessage.addListener(this.onMessage);
+        // THE PAGE'S HANDLE. A closed tab sends no dispose; the browser closes this port with the
+        // page, and the host frees the engine on that (offscreen.js, LEASE_PORT). Opened after the
+        // document exists, or only the service worker would hear it.
+        try { this.leasePort = chrome.runtime.connect({name: `mephisto-engine-lease:${this.clientId}`}); }
+        catch (e) { /* no runtime: the ping lease below still ends a search */ }
         // THE LEASE. The host stops any search whose client has said nothing for 60 s and throws the
         // engine away after 5 minutes of silence (offscreen.js, LEASE_MS / ABANDON_MS). Only the
         // panel ever renewed it, so the Analysis page's "No limit" search ended itself at 60-80 s,
@@ -436,6 +441,9 @@ class WasmEngine {
     dispose() {
         clearInterval(this.keepAlive);
         try { chrome.runtime.onMessage.removeListener(this.onMessage); } catch (e) { /* gone */ }
+        // `release` first: a port closed from this end is a dispose on purpose, not a closed page
+        try { this.leasePort?.postMessage({release: true}); this.leasePort?.disconnect(); } catch (e) { /* gone */ }
+        this.leasePort = null;
         try {
             chrome.runtime.sendMessage({toOffscreen: true, clientId: this.clientId, cmd: 'dispose'});
         } catch (e) { /* the worker or the offscreen doc is already gone */ }

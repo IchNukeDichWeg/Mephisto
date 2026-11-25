@@ -117,6 +117,31 @@ function stopOrphanedSearches(now = Date.now()) {
 }
 setInterval(stopOrphanedSearches, LEASE_SWEEP_MS);
 
+// A CLOSED OPTIONS PAGE SAYS NOTHING. Analysis and Game Review hold their engines here under fixed
+// client ids, and a tab close sends no dispose, so an Analysis "No limit" search kept every thread it
+// was given busy until the 60 s lease above stopped it, and the engine itself stayed for the 5 minute
+// abandon sweep. Each such engine holds a port (engines.js, WasmEngine.start) that the browser closes
+// with its page: an unannounced close is the page going away, so its engine goes at once. Only the
+// NEWEST port of a client id counts: a second Analysis tab re-inits the same ids, and closing the
+// first must not take the second's engines. An engine disposed on purpose says `release` first.
+const LEASE_PORT = 'mephisto-engine-lease:';
+const leaseOwner = {};   // clientId -> the port of the page holding it now
+chrome.runtime.onConnect?.addListener(port => {
+    if (!port.name || !port.name.startsWith(LEASE_PORT)) return;
+    const clientId = port.name.slice(LEASE_PORT.length);
+    leaseOwner[clientId] = port;
+    let released = false;
+    port.onMessage.addListener(m => { if (m && m.release) released = true; });
+    port.onDisconnect.addListener(() => {
+        if (leaseOwner[clientId] !== port) return;
+        delete leaseOwner[clientId];
+        if (released) return;
+        console.log(`[Mephisto] offscreen: the page holding ${clientId} closed -- disposing its engine`);
+        forgetClient(clientId);
+        maybeGoIdle();
+    });
+});
+
 // --- On-demand nets ---------------------------------------------------------------------------
 // The nets are most of the download (the Stockfish and Maia nets alone are ~280 MB), so a build can
 // ship WITHOUT them and fetch what it actually uses on first run. Anything already bundled is used
@@ -213,6 +238,18 @@ function freeEngine(engine) {
         for (const w of workersByMemory.get(memory) || []) { try { w.terminate(); } catch (e) { /* already gone */ } }
         workersByMemory.delete(memory);
     }, QUIT_GRACE_MS);
+}
+
+// Disposed on purpose (the page said so, or its lease port closed): the engine, its parked instance
+// (a failed download kept for the retry), its queue and its respawn arguments all go, so a late
+// command never brings it back.
+function forgetClient(clientId) {
+    disposeClient(clientId);
+    if (spare[clientId]) { freeEngine(spare[clientId].engine); delete spare[clientId]; }
+    delete pending[clientId];
+    delete lastSeen[clientId];
+    delete initArgs[clientId];
+    delete sticky[clientId];
 }
 
 function disposeClient(clientId) {
@@ -502,13 +539,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             (pending[clientId] = pending[clientId] || []).push(line); // still loading -> queue
         }
     } else if (cmd === 'dispose') {
-        disposeClient(clientId);
-        // disposed on purpose: its parked instance (a failed download kept for the retry) goes too
-        if (spare[clientId]) { freeEngine(spare[clientId].engine); delete spare[clientId]; }
-        delete pending[clientId];
-        delete lastSeen[clientId];
-        delete initArgs[clientId];   // disposed on purpose: never respawn it
-        delete sticky[clientId];
+        forgetClient(clientId);
     }
     // RE-ARM, NOT JUST CLEAR. This used to only clear the idle timer, and nothing re-armed it unless
     // a load finished or a dispose found an engine: a tab close disposes '<tab>' then ':m2', ':hr',
