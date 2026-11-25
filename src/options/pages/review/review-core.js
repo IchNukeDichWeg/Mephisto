@@ -984,6 +984,27 @@ function reviewSide(tags, user) {
     return null;
 }
 
+// RETRY A MISTAKE: the moves worth replaying, and how an attempt from the position before one is
+// graded. Same classifier and the same win% curve as the game's own moves, so an attempt and the
+// move it replaces are judged on one scale. `lines` are the stored lines of the position before the
+// move (white-relative cp); an attempt that is one of them is graded off its own line, anything else
+// off `afterCp`, the eval of the position after it (a short search the page runs, or the game's own
+// next position when the attempt IS the game move). null = not gradable.
+const RETRY_CLASSES = ['mistake', 'blunder', 'miss'];
+function gradeAttempt({lines, color, uci, afterCp = null, sacrifice = false, isRecapture = false}) {
+    if (!lines || !lines.length || lines[0].cp == null) return null;
+    const sign = color === 'w' ? 1 : -1;
+    const idx = lines.findIndex(l => l.pv?.[0] === uci);
+    const cp = idx >= 0 ? lines[idx].cp : afterCp;
+    if (cp == null || !Number.isFinite(cp)) return null;
+    const winBefore = winPercent(lines[0].cp * sign), winAfter = winPercent(cp * sign);
+    const secondWin = lines.length > 1 ? winPercent(lines[1].cp * sign) : null;
+    const rank = idx >= 0 ? idx + 1 : null;
+    const klass = classify({winBefore, winAfter, rank, onlyMove: false, isBook: false, secondWin,
+                            sacrifice, isRecapture});
+    return {klass, rank, cp, winBefore, winAfter, lost: Math.max(0, winBefore - winAfter), best: lines[0].pv?.[0] || null};
+}
+
 // What the page and the test ladder actually call. parseGame/splitGames/parseTags/stripVariations
 // and the three statistics helpers stay internal: they are steps of the functions below, and an
 // export with no caller is surface that has to keep working for nobody.
@@ -992,6 +1013,7 @@ root.MephistoReviewCore = {
     toWhiteCp, isMateScore, winPercent, moveAccuracy, classify, sacrificesMaterial, onlyLegalMove, CLASS_ORDER, MATE_CP,
     accuracyFor, phaseAccuracy, indicators, evidence, estimate, parseInfo, clamp,
     whiteSwings, turningPoint, keyMoments, mistakeStops, stepToStop, reviewSide, bookExit, STOP_CLASSES,
+    RETRY_CLASSES, gradeAttempt,
     NAG_FOR_CLASS, annotatedPgn, plyMove, lichessStudyId, lichessRequest, lichessResultUrl, lichessFailure,
     liftPromoted, markPromoted,
 };

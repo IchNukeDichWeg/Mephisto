@@ -1409,12 +1409,16 @@ function renderTurning() {
         const kl = shownClass(k.m);
         const tip = `${moveLabel(k.m)} ${shownLabel(kl)}: White ${Math.round(k.wBefore)}% to ${Math.round(k.wAfter)}%`
             + (k.turning ? ' - the game turned here' : '');
-        return `<button type="button" class="rv-key rv-c-${kl}${k.turning ? ' rv-key-turn' : ''}" data-ply="${k.ply}" title="${esc(tip)}">`
+        const chip = `<button type="button" class="rv-key rv-c-${kl}${k.turning ? ' rv-key-turn' : ''}" data-ply="${k.ply}" title="${esc(tip)}">`
             + `${classIcon(kl)}<b>${esc(moveLabel(k.m))}</b>`
             + `<span class="rv-key-sw">${Math.round(k.wBefore)}\u2192${Math.round(k.wAfter)}%</span></button>`;
+        // a Mistake, Miss or Blunder carries its own Retry, attached to the chip
+        return !canRetry(k.m) ? chip : `<span class="rv-key-g">${chip}<button type="button" class="rv-key-retry rv-c-${kl}" `
+            + `data-ply="${k.ply}" title="${esc(tr('rv.tip.retry', 'Go back to the position before this move and play your own'))}">\u21bb</button></span>`;
     }).join('');
     // the container is redrawn per report, so per-chip listeners go with it
     el.querySelectorAll('.rv-key').forEach(btn => btn.addEventListener('click', () => showPly(+btn.dataset.ply + 1)));
+    el.querySelectorAll('.rv-key-retry').forEach(btn => btn.addEventListener('click', () => startRetry(+btn.dataset.ply)));
 }
 
 // THE MISTAKE STOPS: previous / next Inaccuracy or worse. Only the fetched player's moves when the
@@ -1433,6 +1437,173 @@ function syncMistakeNav() {
     const stops = report ? Core.mistakeStops(report.moves, mistakeSide()) : [];
     prev.disabled = Core.stepToStop(stops, cursor, -1) == null;
     next.disabled = Core.stepToStop(stops, cursor, 1) == null;
+}
+
+// ---- retry a mistake -----------------------------------------------------------------------------
+// From a Mistake, Miss or Blunder the board goes back to the position before it and takes a move.
+// The attempt is graded by Core.gradeAttempt on the same classifier as the game: off its own stored
+// line when it is one of the engine's choices, else off one short search of the position after it
+// with the review's engine at the review's budget (the game's moves were judged the same way), so
+// "Best" here and "Best" in the move list mean the same thing. Nothing is revealed before the move:
+// no engine arrows, no lines. Any navigation leaves it.
+let retry = null;        // {ply, m, fen, attempt: null | {uci, san, fenAfter, grade, pending}}
+let retryEngine = null;  // started on the first attempt that needs a search, reused until Retry ends
+let retrySeq = 0;        // a stale search's answer (Try again, Back, a new run) is dropped by this
+
+function canRetry(m) {
+    return !!(m && report && !report.ccr && reportVariant() === 'chess'
+        && Core.RETRY_CLASSES.includes(m.klass)
+        && report.positions[m.ply]?.lines?.[0]?.pv?.length);
+}
+
+function retryBoard() {
+    try { return new Chess('chess', retry.fen); } catch (e) { return null; }
+}
+function retryTargets(from) {
+    if (!retry || retry.attempt) return [];
+    try { return retryBoard().moves({square: from, verbose: true}).map(x => x.to); } catch (e) { return []; }
+}
+function retryPromotes(from, to) {
+    if (!retry || retry.attempt || !retryTargets(from).includes(to)) return null;
+    const piece = retryBoard()?.get(from);
+    if (!piece || piece.type !== 'p') return null;
+    return (piece.color === 'w' && to[1] === '8') || (piece.color === 'b' && to[1] === '1') ? piece.color : null;
+}
+
+function startRetry(ply) {
+    const m = report?.moves?.[ply];
+    if (!canRetry(m)) return;
+    endRetry();
+    retry = {ply, m, fen: report.positions[ply].fen, attempt: null};
+    cursor = ply;
+    ensureBoard(true);
+    board?.position(retry.fen);
+    renderRetry();
+    setGraphCursor();
+    syncMistakeNav();
+    document.querySelectorAll('.rv-mcell.rv-sel').forEach(el => el.classList.remove('rv-sel'));
+    document.querySelector(`.rv-mcell[data-ply="${ply}"]`)?.classList.add('rv-sel');
+}
+
+// Back to the plain board. The caller shows a position afterwards (showPly does this itself).
+function endRetry(rebuild = true) {
+    if (!retry && !retryEngine) return;
+    retrySeq++;
+    try { retryEngine?.dispose(); } catch (e) { /* already gone */ }
+    retryEngine = null;
+    const was = retry;
+    retry = null;
+    if (was && rebuild) ensureBoard();
+}
+
+function retryAgain() {
+    if (!retry) return;
+    // a search still out is abandoned, not awaited: its engine goes and the next attempt starts one
+    if (retry.attempt?.pending) { retrySeq++; try { retryEngine?.dispose(); } catch (e) { /* */ } retryEngine = null; }
+    retry.attempt = null;
+    board?.position(retry.fen);
+    renderRetry();
+}
+
+function retryMove(from, to, promotion) {
+    if (!retry || retry.attempt) return false;
+    const chess = retryBoard();
+    let mv = null;
+    try { mv = chess?.move({from, to, promotion: promotion || 'q'}); } catch (e) { mv = null; }
+    if (!mv) return false;
+    const m = retry.m, before = report.positions[retry.ply];
+    const uci = mv.lan || (mv.from + mv.to + (mv.promotion || ''));
+    const prev = report.moves[retry.ply - 1];
+    const attempt = retry.attempt = {uci, san: mv.san, fenAfter: chess.fen(), grade: null, pending: false};
+    const grade = (afterCp) => {
+        const sign = m.color === 'w' ? 1 : -1;
+        const lines = before.lines, idx = lines.findIndex(l => l.pv?.[0] === uci);
+        const cp = idx >= 0 ? lines[idx].cp : afterCp;
+        const winBefore = Core.winPercent(lines[0].cp * sign), winAfter = cp == null ? null : Core.winPercent(cp * sign);
+        // the brilliant test replays an exchange; asked only when it can change the answer, as in assemble
+        const sacrifice = winAfter != null && winAfter >= 50 && winBefore < 90 && winBefore - winAfter < 2
+            ? Core.sacrificesMaterial(Chess, 'chess', retry.fen, uci) : false;
+        return Core.gradeAttempt({lines, color: m.color, uci, afterCp, sacrifice,
+            isRecapture: !!(mv.captured && prev?.captured && prev.to === mv.to)});
+    };
+    board?.position(attempt.fenAfter);
+    // where the score is already known: one of the stored lines, the game's own move, a finished game
+    let known = before.lines.some(l => l.pv?.[0] === uci) ? null : undefined;
+    if (known === undefined && uci === m.uci) known = report.positions[retry.ply + 1]?.lines?.[0]?.cp;
+    if (known === undefined && chess.isCheckmate()) known = m.color === 'w' ? Core.MATE_CP : -Core.MATE_CP;
+    else if (known === undefined && chess.isGameOver()) known = 0;
+    if (known !== undefined) { attempt.grade = grade(known); renderRetry(); return true; }
+    attempt.pending = true;
+    renderRetry();
+    const seq = ++retrySeq;
+    (async () => {
+        let cp = null;
+        try {
+            const o = report.opts || {};
+            // an unbounded review (`go infinite`) has no budget to reuse: one search gets depth 16
+            const bounded = o.limitKind === 'depth' || (o.limitValue && o.limitValue < LIMIT_INFINITE);
+            if (!retryEngine) {
+                retryEngine = makeEngine(report.engineId, {variant: 'chess', multipv: 1,
+                    limitKind: bounded ? o.limitKind : 'depth', limitValue: bounded ? o.limitValue : 16,
+                    threads: Math.max(1, +o.threads || 1), hash: Math.max(16, +o.hash || 64)}, 'review-retry');
+                await retryEngine.start();
+            }
+            if (seq !== retrySeq) return;
+            const r = await retryEngine.analyse(attempt.fenAfter, chess.turn());
+            cp = r?.lines?.[0]?.cp ?? null;
+        } catch (e) {
+            cp = null;
+            if (seq === retrySeq) { try { retryEngine?.dispose(); } catch (e2) { /* */ } retryEngine = null; }
+        }
+        if (seq !== retrySeq || retry?.attempt !== attempt) return;
+        attempt.pending = false;
+        attempt.grade = cp == null ? null : grade(cp);
+        renderRetry();
+    })();
+    return true;
+}
+
+// The detail line, the lines box, the arrows and the eval bar while Retry is on. English prose like
+// the rest of the report; the buttons are controls and go through the locale files.
+function renderRetry() {
+    if (!retry) return;
+    const {m, attempt} = retry;
+    const before = report.positions[retry.ply];
+    const side = m.color === 'w' ? 'White' : 'Black';
+    const btn = (id, key, dflt) => `<button type="button" class="set-btn rv-retry-btn" id="${id}">${esc(tr(key, dflt))}</button>`;
+    const el = $('rv_move_detail');
+    let html = `<span class="rv-retry-h">${esc(tr('rv.retry', 'Retry'))}</span> `;
+    if (!attempt) {
+        html += `Find a better move than <b>${esc(moveLabel(m))}</b> for ${side}. Play it on the board.`
+            + ` ${btn('rv_retry_back', 'rv.back_to_game', 'Back to the game')}`;
+    } else {
+        const num = Math.floor(m.ply / 2) + 1;
+        const label = `${num}${m.color === 'w' ? '.' : '...'} ${attempt.san}`;
+        const g = attempt.grade;
+        const bits = [];
+        if (attempt.pending) bits.push(`<b>${esc(label)}</b>`, 'the engine is checking it...');
+        else if (!g) bits.push(`<b>${esc(label)}</b>`, '<span class="rv-c-ungraded"><span class="rv-klass">Not graded</span></span>', 'the engine gave no score for it');
+        else {
+            bits.push(`<span class="rv-c-${g.klass}"><span class="rv-klass">${shownLabel(g.klass)}</span></span> <b>${esc(label)}</b>`);
+            bits.push(`${side}'s win chance ${Math.round(g.winAfter)}%`);
+            if (attempt.uci === m.uci) bits.push('the move from the game');
+            else if (m.winAfter != null) bits.push(`the game move left ${Math.round(m.winAfter)}%`);
+            if (g.rank === 1) bits.push("the engine's first choice");
+            else if (g.best) bits.push(`the engine played ${esc(uciToSan(retry.fen, g.best))}`);
+        }
+        html += bits.join(' · ') + ` ${btn('rv_retry_again', 'rv.try_again', 'Try again')} ${btn('rv_retry_back', 'rv.back_to_game', 'Back to the game')}`;
+    }
+    if (el) el.innerHTML = html;
+    $('rv_retry_again')?.addEventListener('click', retryAgain);
+    $('rv_retry_back')?.addEventListener('click', () => showPly(retry.ply + 1));
+    // the engine's lines are the answer: shown once the attempt is graded, not before
+    const reveal = attempt && !attempt.pending;
+    $('rv_lines').innerHTML = !reveal ? '' : (before.lines || []).slice(0, report.opts.multipv).map(l =>
+        `<div class="rv-line"><span class="rv-score">${esc(scoreText(l.cp))}</span>
+            <span class="rv-pv">${esc(pvToSan(retry.fen, l.pv).join(' '))}</span></div>`).join('');
+    drawArrows({lines: reveal && attempt.grade?.best ? [before.lines[0]] : []},
+               attempt ? {uci: attempt.uci, klass: attempt.grade?.klass || null} : null);
+    renderEvalBar(reveal && attempt.grade ? {lines: [{cp: attempt.grade.cp}]} : before);
 }
 
 // HOW THE CLOCK WAS SPENT, per player, when the PGN carried clocks at all. The shape is the point:
@@ -1985,7 +2156,8 @@ function renderBatch() {
 
 // ---- board ------------------------------------------------------------------------------------
 
-function ensureBoard() {
+// `playable` only while Retry is on: the board's move handlers are fixed when it is built.
+function ensureBoard(playable = false) {
     const host = $('rv_board');
     if (!host) return;
     const [set, ext] = String(cfg('pieces') || 'wikipedia.svg').split('.');
@@ -1994,6 +2166,7 @@ function ensureBoard() {
         pieceTheme: `/res/chesspieces/${set}/{piece}.${ext}`,
         showNotation: true,
         orientation: flipped ? 'black' : 'white',
+        ...(playable ? {onMove: retryMove, needsPromotion: retryPromotes, legalTargets: retryTargets} : {}),
     });
 }
 
@@ -2022,6 +2195,7 @@ function renderPlayers() {
 }
 
 function showPly(ply) {
+    endRetry();   // any step through the game leaves Retry
     renderPlayers();
     if (!report) return;
     cursor = Core.clamp(ply, 0, report.positions.length - 1);
@@ -2295,7 +2469,9 @@ function renderDetail(pos, played) {
         }
         // chess.com's coach line, when this is a chess.com review (engine reviews have none).
         if (played.commentary) bits.push(`<span class="rv-ccr-say">${esc(played.commentary)}</span>`);
-        el.innerHTML = bits.join(' · ');
+        el.innerHTML = bits.join(' · ') + (canRetry(played)
+            ? ` <button type="button" class="set-btn rv-retry-btn" id="rv_retry" title="${esc(tr('rv.tip.retry', 'Go back to the position before this move and play your own'))}">${esc(tr('rv.retry', 'Retry'))}</button>` : '');
+        $('rv_retry')?.addEventListener('click', () => startRetry(played.ply));
     }
     const lines = (pos.lines || []).slice(0, report.opts.multipv);
     $('rv_lines').innerHTML = lines.map((l, i) => {
@@ -3991,8 +4167,9 @@ class ReviewPage {
             updateEngineOptions();
         }
 
-        $('rv_run').addEventListener('click', () => onRun());
-        $('rv_run_all')?.addEventListener('click', () => onRun(true));
+        // a Retry's engine and playable board belong to the old report: a new run ends it first
+        $('rv_run').addEventListener('click', () => { endRetry(false); onRun(); });
+        $('rv_run_all')?.addEventListener('click', () => { endRetry(false); onRun(true); });
         $('rv_stop').addEventListener('click', () => {
             cancel = true;
             // An unbounded search never returns on its own, so asking the loop to stop "after this
@@ -4043,7 +4220,7 @@ class ReviewPage {
         $('rv_flip').addEventListener('click', () => {
             flipped = !flipped;
             board?.orientation(flipped ? 'black' : 'white');
-            showPly(cursor);
+            if (retry) renderRetry(); else showPly(cursor);
         });
         document.removeEventListener('keydown', onKey); // re-injected page: never bind twice
         document.addEventListener('keydown', onKey);
@@ -4100,6 +4277,7 @@ class ReviewPage {
 
 function stopOnUnload() {
     cancel = true;
+    endRetry(false);   // a Retry search is an engine too
     // The whole pool: a closed tab used to orphan workers 1..N-1, each still burning its threads.
     for (const e of (activeEngines.length ? activeEngines : [activeEngine])) {
         try { e?.dispose(); } catch (err) { /* already gone */ }
@@ -4114,6 +4292,7 @@ function onKey(e) {
     if (!report || !$('rv_board')) return;
     // optional call: the target is not always an Element (a key dispatched at the document is not)
     if (e.target.matches?.('input, textarea, select')) return;
+    if (e.key === 'Escape' && retry) { showPly(retry.ply + 1); e.preventDefault(); return; }
     // Shift jumps to the previous / next mistake, the two buttons under the board
     if (e.key === 'ArrowLeft' && e.shiftKey) { stepMistake(-1); e.preventDefault(); return; }
     if (e.key === 'ArrowRight' && e.shiftKey) { stepMistake(1); e.preventDefault(); return; }

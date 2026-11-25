@@ -208,6 +208,10 @@ Copy FEN/PGN, the engine's lines next to what a human of a chosen rating would p
 - **Key moments** under the eval graph: the five biggest swings of the game, click one to jump there. **‹ Mistake**
   and **Mistake ›** under the board (or Shift+arrows) step through the inaccuracies and worse; when you fetched the
   game by your username, only through your own moves.
+- **Retry** on a mistake, miss or blunder (the button beside the move, or ↻ on its key moment) puts the board back
+  one move and lets you play your own. It is graded the same way as the game's moves: from the stored engine line
+  when your move is one of them, otherwise from one search of the position after it, on the review's budget. The
+  engine's lines stay hidden until you have moved.
 - **Eval graph**, **openings named offline** with their ECO code and the move that left theory (from a bundled copy
   of [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings), CC0) and **think time** from the
   `[%clk]` comments: a strip under the graph shows the seconds each move took (the TimeControl increment added back),

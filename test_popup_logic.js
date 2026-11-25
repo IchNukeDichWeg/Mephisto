@@ -20229,7 +20229,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-RUNALL: Analyse all games shows for 3 games beside a shown Analyse game, not for 1, not where Analyse game is hidden',
        JSON.stringify(got) === '[true,false,true]', got);
     ok('REVIEW-RUNALL: Analyse game runs one game (the click event is not the flag), the new button runs all',
-       /\$\('rv_run'\)\.addEventListener\('click', \(\) => onRun\(\)\);/.test(rj) && /\$\('rv_run_all'\)\?\.addEventListener\('click', \(\) => onRun\(true\)\);/.test(rj)
+       /\$\('rv_run'\)\.addEventListener\('click', \(\) => \{ endRetry\(false\); onRun\(\); \}\);/.test(rj) && /\$\('rv_run_all'\)\?\.addEventListener\('click', \(\) => \{ endRetry\(false\); onRun\(true\); \}\);/.test(rj)
        && /const batch = all === true && games\.length > 1;/.test(rj));
     ok('REVIEW-RUNALL: the stored rv_batch toggle is gone from the page, the defaults and the run',
        !/id="rv_batch"/.test(html) && !/rv_batch:/.test(ej) && !/cfg\('rv_batch'\)/.test(rj) && /id="rv_run_all" class="set-btn hidden"/.test(html));
@@ -20418,4 +20418,95 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('REVIEW-CLOCK: the strip sits between the graph and the key moments, hidden until drawn, and shares the graph cursor',
        /id="rv_graph"><\/div>[\s\S]*id="rv_clock" class="rv-clock hidden"[\s\S]*id="rv_turning"/.test(html)
        && /\['rv_graph_cursor', 'rv_clock_cursor'\]/.test(rj) && /renderClock\(\);\n\}/.test(rj));
+}
+// ---- REVIEW-RETRY: replay a Mistake, Miss or Blunder from the position before it ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const rj = fs.readFileSync(ROOT + '/src/options/pages/review/review.js', 'utf8');
+    const fn = (head) => { const a = rj.indexOf(head); return rj.slice(a, rj.indexOf('\n}\n', a) + 3); };
+    const c = {console};
+    c.self = c;
+    vm.createContext(c);
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/classify-core.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/options/pages/review/review-core.js', 'utf8'), c);
+    const C = c.MephistoReviewCore;
+    // gradeAttempt: white to move, lines white-relative
+    const L = [{cp: 200, pv: ['g1f3']}, {cp: 50, pv: ['e2e4']}, {cp: -300, pv: ['d2d4']}];
+    const g1 = C.gradeAttempt({lines: L, color: 'w', uci: 'g1f3'}), g3 = C.gradeAttempt({lines: L, color: 'w', uci: 'd2d4'});
+    const gOff = C.gradeAttempt({lines: L, color: 'w', uci: 'h2h3', afterCp: 200}), gNone = C.gradeAttempt({lines: L, color: 'w', uci: 'h2h3'});
+    ok('REVIEW-RETRY: an attempt among the stored lines is graded off its own line, on the game\'s classifier',
+       g1.rank === 1 && g1.lost === 0 && ['best', 'great'].includes(g1.klass) && g3.rank === 3 && g3.cp === -300
+       && g3.klass === C.classify({winBefore: C.winPercent(200), winAfter: C.winPercent(-300), rank: 3, onlyMove: false, isBook: false, secondWin: C.winPercent(50), sacrifice: false, isRecapture: false})
+       && g1.best === 'g1f3', [g1, g3]);
+    ok('REVIEW-RETRY: any other attempt is graded off the eval after it, and is not gradable without one',
+       gOff.rank === null && gOff.klass === 'best' && gNone === null && C.gradeAttempt({lines: [], color: 'w', uci: 'g1f3'}) === null, [gOff, gNone]);
+    const gb = C.gradeAttempt({lines: [{cp: -200, pv: ['e7e5']}, {cp: 100, pv: ['a7a6']}], color: 'b', uci: 'a7a6'});
+    ok('REVIEW-RETRY: Black\'s attempt is judged from Black\'s side', gb.winBefore > 50 && gb.winAfter < 50 && gb.lost > 0 && gb.rank === 2, gb);
+    ok('REVIEW-RETRY: the moves worth a Retry are Mistake, Miss and Blunder', JSON.stringify(C.RETRY_CLASSES) === JSON.stringify(['mistake', 'blunder', 'miss']));
+
+    // the page flow, with the real chess.js and stubbed rendering. 4.Qxe5+?? from the Scholar's-mate
+    // setup (Qxf7# was on), stored lines without the mate so the rules have to find it.
+    const fen = 'r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4';
+    const els = {};
+    c.els = els;
+    const engines = [];
+    c.engines = engines;
+    vm.runInContext('const Core = self.MephistoReviewCore; let report = null, cursor = 0, board = {position(f) { board.at = f; }}; let built = [];'
+        + 'const $ = (id) => (els[id] = els[id] || {innerHTML: "", addEventListener() {}});'
+        + 'const esc = (s) => String(s); const tr = (k, d) => d; const shownLabel = (k) => k; const moveLabel = (m) => m.san;'
+        + 'const uciToSan = (f, u) => u; const pvToSan = (f, pv) => pv; const scoreText = (cp) => String(cp);'
+        + 'let arrows = null, bar = null; const drawArrows = (p, pl) => { arrows = [p, pl]; }; const renderEvalBar = (p) => { bar = p; };'
+        + 'const setGraphCursor = () => {}; const syncMistakeNav = () => {}; const ensureBoard = (pl) => { built.push(!!pl); };'
+        + 'const reportVariant = () => report?.opts?.variant || "chess"; const LIMIT_INFINITE = 1e9;'
+        + 'const document = {querySelectorAll: () => [], querySelector: () => null};'
+        + 'const makeEngine = (id, opts, client) => { const e = {id, opts, client, disposed: false, start: async () => {}, '
+        + '  analyse: async (f, t) => { e.asked = [f, t]; return {lines: [{cp: 120, pv: []}]}; }, dispose() { e.disposed = true; }}; engines.push(e); return e; };'
+        + 'let retry = null; let retryEngine = null; let retrySeq = 0;'
+        + ['canRetry(', 'retryBoard(', 'retryTargets(', 'retryPromotes(', 'startRetry(', 'endRetry(', 'retryAgain(', 'retryMove(', 'renderRetry(']
+            .map(h => fn('function ' + h)).join('\n'), c);
+    const MATE = C.MATE_CP;
+    c.report = {opts: {variant: 'chess', multipv: 2, limitKind: 'depth', limitValue: 12, threads: 2, hash: 64}, engineId: 'stockfish-18-nnue',
+        moves: [], positions: []};
+    for (let i = 0; i < 6; i++) { c.report.moves.push({ply: i, color: i % 2 ? 'b' : 'w', klass: 'best', san: 'm' + i, uci: 'a1a1'}); c.report.positions.push({fen, lines: [{cp: 0, pv: ['a1a1']}]}); }
+    c.report.moves.push({ply: 6, color: 'w', klass: 'blunder', san: 'Qxe5+', uci: 'h5e5', winAfter: 12, captured: 'p', to: 'e5'});
+    c.report.positions.push({fen, lines: [{cp: 300, pv: ['d2d3']}, {cp: 150, pv: ['b1c3']}]});
+    c.report.positions.push({fen: 'x', lines: [{cp: -400, pv: []}]});
+    const run = (src) => vm.runInContext(src, c);
+    run('report = this.report; startRetry(6)');
+    ok('REVIEW-RETRY: Retry sets the board to the position before the move, playable, with nothing revealed',
+       run('retry.ply') === 6 && run('cursor') === 6 && run('board.at') === fen && run('built[built.length - 1]') === true
+       && run('arrows[0].lines.length') === 0 && run('arrows[1]') === null && els.rv_lines.innerHTML === '' && /Find a better move than <b>Qxe5\+/.test(els.rv_move_detail.innerHTML));
+    ok('REVIEW-RETRY: only legal moves of the side to move; a promotion is asked only for a legal one',
+       run('retryMove("h5", "h8")') === false && run('retryTargets("e1").length') === 3 && run('retryTargets("e8").length') === 0 && run('retryPromotes("h2", "h1")') === null);
+    run('retryMove("b1", "c3")');
+    ok('REVIEW-RETRY: a stored line grades at once, then the lines and the best-move arrow show',
+       run('retry.attempt.grade.rank') === 2 && run('retry.attempt.grade.cp') === 150 && !run('retry.attempt.pending') && engines.length === 0
+       && /b1c3/.test(els.rv_lines.innerHTML) && run('arrows[0].lines[0].pv[0]') === 'd2d3' && run('arrows[1].uci') === 'b1c3'
+       && run('retryMove("d2", "d3")') === false && run('retryTargets("d2").length') === 0, run('retry.attempt'));
+    run('retryAgain(); retryMove("h5", "e5")');
+    ok('REVIEW-RETRY: the game\'s own move is graded off the game\'s next position', run('retry.attempt.grade.cp') === -400 && /the move from the game/.test(els.rv_move_detail.innerHTML));
+    run('retryAgain(); retryMove("h5", "f7")');
+    ok('REVIEW-RETRY: a mate the lines did not hold is scored by the rules, no search', run('retry.attempt.grade.cp') === MATE && run('retry.attempt.grade.klass') === 'best' && engines.length === 0);
+    run('retryAgain(); retryMove("g1", "f3")');
+    const pend = run('retry.attempt.pending') && /checking it/.test(els.rv_move_detail.innerHTML) && els.rv_lines.innerHTML === '';
+    new Promise(r => setTimeout(r, 0)).then(() => {
+        ok('REVIEW-RETRY: any other move gets one search of the position after it, on the review\'s engine and budget',
+           pend && engines.length === 1 && engines[0].client === 'review-retry' && engines[0].id === 'stockfish-18-nnue'
+           && engines[0].opts.limitKind === 'depth' && engines[0].opts.limitValue === 12 && engines[0].opts.multipv === 1
+           && engines[0].asked[1] === 'b' && run('retry.attempt.grade.cp') === 120 && run('retry.attempt.grade.rank') === null, engines.map(e => [e.opts, e.asked]));
+        run('endRetry()');
+        ok('REVIEW-RETRY: leaving Retry disposes its engine and rebuilds the plain board', engines[0].disposed && run('retry') === null && run('built[built.length - 1]') === false);
+        c.report.ccr = true;
+        ok('REVIEW-RETRY: no Retry on a chess.com review, a variant, or a move better than a Mistake',
+           !run('canRetry(report.moves[6])') && (c.report.ccr = false, c.report.opts.variant = 'atomic', !run('canRetry(report.moves[6])'))
+           && (c.report.opts.variant = 'chess', !run('canRetry(report.moves[5])')) && run('canRetry(report.moves[6])'));
+        ok('REVIEW-RETRY: any step through the game, Escape, a new run and closing the tab all leave it',
+           /function showPly\(ply\) \{\n    endRetry\(\);/.test(rj) && /e\.key === 'Escape' && retry\) \{ showPly\(retry\.ply \+ 1\)/.test(rj)
+           && /addEventListener\('click', \(\) => \{ endRetry\(false\); onRun\(\); \}\)/.test(rj) && /\{ endRetry\(false\); onRun\(true\); \}/.test(rj) && /function stopOnUnload\(\) \{\n    cancel = true;\n    endRetry\(false\);/.test(rj)
+           && /playable \? \{onMove: retryMove, needsPromotion: retryPromotes, legalTargets: retryTargets\}/.test(rj));
+        ok('REVIEW-RETRY: the move detail and the key-moment chips carry the Retry button',
+           /canRetry\(played\)[\s\S]{0,300}id="rv_retry"/.test(rj) && /\$\('rv_retry'\)\?\.addEventListener\('click', \(\) => startRetry\(played\.ply\)\)/.test(rj)
+           && /class="rv-key-retry/.test(rj) && /\.rv-key-retry'\)\.forEach\(btn => btn\.addEventListener\('click', \(\) => startRetry\(\+btn\.dataset\.ply\)\)\)/.test(rj));
+    });
 }

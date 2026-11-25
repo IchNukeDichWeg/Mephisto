@@ -218,6 +218,12 @@ html.dark .rv-status.rv-bad { color: #d15050; }
 .rv-key b { font-weight: 600; color: var(--rv-c, var(--mp-text)); }
 .rv-key-sw { color: var(--mp-dim); font-variant-numeric: tabular-nums; }
 .rv-key-turn { border-color: var(--rv-c, var(--mp-line)); box-shadow: inset 0 0 0 1px var(--rv-c, transparent); }
+/* a Mistake / Miss / Blunder chip with its Retry attached on the right */
+.rv-key-g { display: inline-flex; }
+.rv-key-g .rv-key { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.rv-key-retry { padding: 1px 7px; border: 1px solid var(--mp-line); border-left: 0; border-radius: 0 12px 12px 0;
+    background: var(--mp-raised); color: var(--rv-c, var(--mp-text)); font: inherit; line-height: 20px; cursor: pointer; }
+.rv-key-retry:hover { border-color: var(--mp-mute); }
 
 /* bucket labels under the think-time bars */
 .rv-time-labels { display: flex; gap: 2px; margin-top: 3px; }
@@ -680,6 +686,8 @@ html.dark .rv-ev-strong  { color: #d15050; }
     background: var(--mp-mute);
 }
 .rv-detail .rv-alt-grade { color: var(--mp-dim); }
+.rv-detail .rv-retry-btn { margin-left: 4px; padding: 1px 10px; min-height: 0; line-height: 20px; vertical-align: baseline; }
+.rv-detail .rv-retry-h { font-weight: 600; color: var(--mp-mute); }
 
 .rv-share { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--mp-hair); }
 .rv-share .rv-btns + .rv-btns { margin-top: 8px; }
