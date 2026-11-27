@@ -34,6 +34,9 @@ const ctx = vm.createContext({
     cdpSleep: async (ms) => { clock += ms; },
     pacedCalls: 0, pacedTotalMs: 0,
     stepCostMs: () => 16,             // the idle-Mac average the worker itself falls back to
+    // cdpMove skips a tab that has stopped answering moves. Empty here: this tab answers, so the
+    // path is drawn. Without the stub the whole oracle died on `moveStalled is not defined`.
+    moveStalled: new Map(),
 });
 vm.runInContext(slice('src/scripts/background-script.js', 'function pathSteps(travelMs)',
                       '// How long to let the page settle'), ctx);
@@ -50,7 +53,7 @@ ctx.B = (sq) => ({x: (sq.charCodeAt(0) - 97) * 60 + 30, y: (8 - Number(sq[1])) *
 
 async function move(dist, travelMs) {
     points.length = 0; clock = 0;
-    await ctx.cdpMove(null, 0, 0, dist, 0, travelMs);
+    await ctx.cdpMove({tabId: 1}, 0, 0, dist, 0, travelMs);
     return points.slice();
 }
 
