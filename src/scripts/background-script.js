@@ -2053,6 +2053,11 @@ function pathSteps(travelMs) {
 // Deriving it from pathSteps meant the calibration decided detection-relevant behaviour.
 const CDP_SNAP_MS = 10;
 
+// Spread on each waypoint's due time, as a fraction of one step. Provisional, like the hold
+// medians: test/record-cursor.html measures what a real stream's spread actually is.
+const CDP_STEP_JITTER = true;
+const STEP_JITTER = 0.35;
+
 // HOW A HAND ACCELERATES, which is not how a tween does. The path used smoothstep --
 // t*t*(3-2t) -- whose acceleration and deceleration are exact mirror images: peak speed lands at
 // the midpoint and half the distance is covered in half the time. Measured on the emitted stream
@@ -2173,7 +2178,17 @@ async function cdpMove(target, fromX, fromY, x, y, travelMs, held = false, expir
     const r = await cdpDispatch(target, held ? {type: 'mouseMoved', x: mx, y: my, button: 'left', buttons: 1}
                                              : {type: 'mouseMoved', x: mx, y: my, button: 'none'}, true);
     if (r === 'stalled') return false;   // not rendering: drawing more of the path only queues more
-    const behind = (startedAt + travelMs * t) - Date.now();
+    // WHEN THE NEXT POINT IS DUE, which is not exactly on the grid. Pacing to an absolute deadline
+    // with waypoints uniform in t makes the gap between consecutive mousemoves identical every
+    // time: measured on the oracle, the spread of that gap was exactly 0.00 ms at every distance.
+    // A real mousemove stream is rAF-cadenced with jitter and never arrives on a perfect grid.
+    //
+    // The jitter is on each point's DUE TIME, not on the total: the schedule still ends at
+    // travelMs, so the move costs its caller exactly what it was given. The last point is left
+    // exact so the path cannot finish late. A step jittered early simply has nothing to sleep off,
+    // which is also what happens on a loaded machine when the dispatch itself eats the slice.
+    const slip = (CDP_STEP_JITTER && i < steps) ? (Math.random() - 0.5) * 2 * STEP_JITTER * (travelMs / steps) : 0;
+    const behind = (startedAt + travelMs * t + slip) - Date.now();
     if (behind > 0) await cdpSleep(behind);
   }
   return true;

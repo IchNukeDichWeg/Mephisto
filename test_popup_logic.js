@@ -20760,3 +20760,45 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /lastDrawn\.get\(tabId\) \|\| \{x, y\}/.test(b));
     ok('CDP-PRESS-END: the toggle is a visible in-file constant', /const CDP_PRESS_AT_PATH_END = true;/.test(b));
 })();
+
+// --- CDP-STEP-JITTER: the gap between mousemoves is not a constant --------------------------------
+(() => {
+    // Pacing to an absolute deadline with waypoints uniform in t made every gap between consecutive
+    // mousemoves identical: the oracle measured the spread of that gap at exactly 0.00 ms, at every
+    // distance. The real cdpMove is RUN here against a stubbed clock and the emitted stream is
+    // measured, the same way test/cursor-oracle.mjs does it, so this is the shipped path.
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = b.indexOf('function pathSteps(travelMs)'), e = b.indexOf('// How long to let the page settle');
+    ok('CDP-JITTER: the slice really holds the path', a > 0 && e > a && /async function cdpMove/.test(b.slice(a, e)));
+    const run = async (on) => {
+        let clock = 0; const pts = [];
+        const c = vm.createContext({Math, Date: {now: () => clock}, console,
+            cdpDispatch: async (_t, ev) => { pts.push({t: clock, x: ev.x}); },
+            cdpSleep: async (ms) => { clock += ms; },
+            stepCostMs: () => 16, moveStalled: new Map(), lastDrawn: new Map()});
+        vm.runInContext(b.slice(a, e).replace('const CDP_STEP_JITTER = true;', `const CDP_STEP_JITTER = ${on};`), c);
+        await c.cdpMove({tabId: 1}, 0, 0, 300, 0, 600);
+        const dts = []; for (let i = 1; i < pts.length; i++) dts.push(pts[i].t - pts[i - 1].t);
+        const mu = dts.reduce((p, q) => p + q, 0) / dts.length;
+        // `clock` AFTER the call is what the move cost its caller. The last DISPATCH lands about a
+        // step before that either way, because the loop dispatches and then sleeps off the slice.
+        return {n: pts.length, cost: clock, lastAt: pts[pts.length - 1].t, mu,
+                sd: Math.sqrt(dts.reduce((p, q) => p + (q - mu) ** 2, 0) / dts.length)};
+    };
+    Promise.all([run(true), run(false)]).then(([on, off]) => {
+        ok('CDP-JITTER: with the toggle off every gap is identical, which is the bug this fixes',
+           off.sd < 1e-9, off);
+        ok('CDP-JITTER: with it on the gaps have real spread', on.sd > 1, on);
+        ok('CDP-JITTER: the mean gap is left alone, so the path still moves at the same rate',
+           Math.abs(on.mu - off.mu) < 2, [on.mu, off.mu]);
+        // The budget, not the last dispatch: the final point's due time is left unjittered, so the
+        // loop still ends exactly on travelMs. An individual waypoint may land up to a step either
+        // side of its unjittered slot, which is the whole point of the change.
+        ok('CDP-JITTER: the move still costs its caller exactly the budget it was given',
+           on.cost === off.cost && on.cost === 600, [on.cost, off.cost]);
+        ok('CDP-JITTER: no single waypoint slips more than a step out of place',
+           Math.abs(on.lastAt - off.lastAt) <= 600 / off.n, [on.lastAt, off.lastAt, 600 / off.n]);
+        ok('CDP-JITTER: the same number of waypoints go out either way', on.n === off.n, [on.n, off.n]);
+    });
+})();
