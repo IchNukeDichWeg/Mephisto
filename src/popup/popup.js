@@ -7876,12 +7876,31 @@ function humanize_presearch_ms(fen) {
 // which lost bullet games on time (audit 3.1.328 PLAY-1). The rails are Clock Mode's own (under 20 s
 // a quarter second, under 8 s nothing); above them one move takes at most a share of what is left.
 const HZ_CLOCK_SHARE_MAX = 1 / 15;   // chosen, not measured: 4 s of a minute, 1.3 s of 20 s
+// A RAIL THAT BINDS IS A SPIKE. Every one of these is a hard Math.min, so every think the cap
+// catches came out as the SAME millisecond value, and the cap catches a lot of perfectly ordinary
+// moves. Measured on test/think-oracle.mjs, 20,000 draws a cell:
+//
+//   blitz at 15% of the clock       66.0% landed on exactly 1800 ms
+//   rapid at 15% of the clock       56.0% landed on exactly 6000 ms
+//   classical at 15% of the clock   47.9% landed on exactly 18000 ms
+//   bullet at 15% of the clock      97.2% landed on exactly 250 ms
+//
+// A move-time histogram with two thirds of its mass on one value is not a person, whatever the
+// rest of the distribution does. The jitter only ever takes time OFF the cap, never adds it: the
+// rails exist so a scramble does not lose on time (audit 3.1.328 PLAY-1), and a jitter that could
+// round upward would put that back. A think already under the cap is not touched at all, so this
+// shortens nothing that was not about to be clamped anyway.
+const HZ_RAIL_JITTER = 0.25;
+function hz_rail_cap(ms, cap) {
+    if (ms <= cap) return ms;
+    return Math.round(cap * (1 - HZ_RAIL_JITTER * Math.random()));
+}
 function hz_clock_rail(ms) {
     if (!last_clocks || last_clocks.mine == null) return ms;
     const T = last_clocks.mine - (Date.now() - last_clocks.at) / 1000;
     if (T < 8) return 0;
-    if (T < 20) return Math.min(ms, 250);
-    return Math.min(ms, T * 1000 * HZ_CLOCK_SHARE_MAX);
+    if (T < 20) return hz_rail_cap(ms, 250);
+    return hz_rail_cap(ms, T * 1000 * HZ_CLOCK_SHARE_MAX);
 }
 
 // {move, think}: which move to actually play, and how long to sit on it first
@@ -9161,7 +9180,7 @@ function humanize_pick(best, overridden = false) {
             // Time's move, not Clock Mode's (audit 3.1.333 POPUP3-5)
             if (kind !== 'instant') source = config.mirror_mode ? 'Mirror Time' : 'Clock Mode';
         }
-        if (T < 20) think = Math.min(think, 250);
+        if (T < 20) think = hz_rail_cap(think, 250);   // the same spike as hz_clock_rail's; see it
         if (T < 8) think = 0;
     } else {
         think = hz_clock_rail(think);   // no pacing mode on: the clock still bounds the think (PLAY-1)

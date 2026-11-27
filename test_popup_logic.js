@@ -5667,8 +5667,23 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const at = (mine) => { c.last_clocks = {mine, at: Date.now()}; return vm.runInContext('hz_clock_rail(6500)', c); };
     c.last_clocks = null;
     ok('no clock read: the think is untouched', vm.runInContext('hz_clock_rail(6500)', c) === 6500);
-    ok('a minute left: at most 4 s', Math.round(at(60)) === 4000, at(60));
-    ok('15 s left: a quarter second; 5 s left: nothing', at(15) === 250 && at(5) === 0, [at(15), at(5)]);
+    // The rails now jitter DOWNWARD off the cap, because a hard Math.min made every think the cap
+    // caught come out as the same millisecond: measured on test/think-oracle.mjs, 66% of blitz
+    // thinks at 15% of the clock landed on exactly 1800 ms. So these check a BAND, and that the
+    // band never reaches above the old cap -- a rail that could round up would put PLAY-1 back.
+    const many = (mine, n = 400) => Array.from({length: n}, () => at(mine));
+    const minute = many(60), fifteen = many(15);
+    ok('a minute left: at most 4 s, and never more', Math.max(...minute) <= 4000, Math.max(...minute));
+    ok('...and not always exactly 4 s, which is what made it a spike',
+       new Set(minute.map(Math.round)).size > 50 && Math.min(...minute) >= 4000 * (1 - 0.25) - 1,
+       [new Set(minute.map(Math.round)).size, Math.min(...minute)]);
+    ok('15 s left: a quarter second at most, spread below it; 5 s left: nothing',
+       Math.max(...fifteen) <= 250 && new Set(fifteen).size > 20 && at(5) === 0,
+       [Math.max(...fifteen), new Set(fifteen).size, at(5)]);
+    // the cap must not touch a think that was never going to hit it
+    c.last_clocks = {mine: 600, at: Date.now()};
+    ok('a think already under the cap is passed through untouched, not shortened',
+       vm.runInContext('hz_clock_rail(6500)', c) === 6500);
     ok('humanize_pick rails the think when no pacing mode is on, and the presearch is railed too',
        /\} else \{\s*think = hz_clock_rail\(think\);/.test(s) && /if \(evalCp < 150\) return hz_clock_rail\(2500\);/.test(s));
 }
