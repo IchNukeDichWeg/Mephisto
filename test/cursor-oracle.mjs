@@ -37,6 +37,7 @@ const ctx = vm.createContext({
     // cdpMove skips a tab that has stopped answering moves. Empty here: this tab answers, so the
     // path is drawn. Without the stub the whole oracle died on `moveStalled is not defined`.
     moveStalled: new Map(),
+    lastDrawn: new Map(),     // where cdpMove reports it finished; the click section below reads it
 });
 vm.runInContext(slice('src/scripts/background-script.js', 'function pathSteps(travelMs)',
                       '// How long to let the page settle'), ctx);
@@ -125,6 +126,7 @@ const clickCtx = vm.createContext({
     pacedCalls: 0, pacedTotalMs: 0,
     stepCostMs: () => 16,
     moveStalled: new Map(),
+    lastDrawn: new Map(),
     cdpInputTabs: new Set(),
     lastPos: new Map(),
     cdpAttach: async () => ({tabId: 1}),
