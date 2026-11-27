@@ -103,3 +103,88 @@ for (let i = 0; i < N; i++) {
     if (pts.some(p => p.x > 300 + 3)) over++;        // past the target, beyond the +-0.75px jitter
 }
 console.log(`\novershoot-and-correct on ${f(over / N * 100, 1)}% of long moves (aimed at ~30%)`);
+
+// --- THE CLICK ITSELF, not the path to it --------------------------------------------------------
+// The path was the only thing measured here, and the click at the end of it was never looked at.
+// Three numbers a page can read straight off a pointerdown, with no trajectory analysis at all:
+//
+//   dwell_ms   arrival at the square to the press. A hand lands and settles; measured human dwell
+//              is tens of milliseconds, never zero.
+//   hold_ms    press to release. A real click holds the button 60-120 ms. Zero is impossible.
+//   press_dpx  how far the press is from where the path actually ended. Waypoints carry +-0.75px
+//              of jitter and the press used the un-jittered nominal target, so a press that does
+//              not sit on the last mousemove is a discontinuity no hand produces.
+//   dt sd      spread of the gap between consecutive mousemoves. Pacing to an absolute deadline
+//              with waypoints uniform in t makes every gap identical, which a real hand's is not.
+//
+// cdpClick is lifted whole, the same way cdpMove is, so these measure the shipped click.
+const clickCtx = vm.createContext({
+    Math, Date: {now: () => clock}, console,
+    cdpDispatch: async (_t, e) => { events.push({t: clock, ...clickCtx.withForce(e)}); },
+    cdpSleep: async (ms) => { clock += ms; },
+    pacedCalls: 0, pacedTotalMs: 0,
+    stepCostMs: () => 16,
+    moveStalled: new Map(),
+    cdpInputTabs: new Set(),
+    lastPos: new Map(),
+    cdpAttach: async () => ({tabId: 1}),
+    setTimeout, clearTimeout, Promise,
+});
+let events = [];
+// cdpClick reads two constants that live above the dispatcher, which cannot be lifted here (it
+// talks to chrome.debugger). Take their VALUES from source rather than restating them, so a change
+// to either one shows up in these numbers instead of being silently shadowed by a stale copy.
+const constFromSource = (name) => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/scripts/background-script.js'), 'utf8');
+    const m = new RegExp(`const ${name} = (\\d+);`).exec(src);
+    if (!m) throw new Error(`${name} is no longer a plain numeric const -- fix this oracle`);
+    return Number(m[1]);
+};
+clickCtx.CDP_CLICK_GRACE_MS = constFromSource('CDP_CLICK_GRACE_MS');
+// Only the force helper, stopping at the dispatcher: cdpDispatch itself talks to chrome.debugger
+// and is replaced by the recording stub above. The stub routes through the REAL withForce, so the
+// force column below is the value the page would actually receive.
+vm.runInContext(slice('src/scripts/background-script.js', '// WHAT THE PAGE READS OFF THE BUTTON',
+                      'const cdpDispatch ='), clickCtx);
+// the path, exactly as the section above lifts it
+vm.runInContext(slice('src/scripts/background-script.js', 'function pathSteps(travelMs)',
+                      '// How long to let the page settle'), clickCtx);
+vm.runInContext(slice('src/scripts/background-script.js', 'function cdpClick(tabId',
+                      '// Press at the origin, travel with the button DOWN'), clickCtx);
+
+async function click(fromX, fromY, x, y, travelMs) {
+    events = []; clock = 0;
+    clickCtx.lastPos.set(1, {x: fromX, y: fromY});
+    await clickCtx.cdpClick(1, x, y, travelMs);
+    return events.slice();
+}
+
+function clickShape(evs) {
+    const moves = evs.filter(e => e.type === 'mouseMoved');
+    const press = evs.find(e => e.type === 'mousePressed');
+    const rel = evs.find(e => e.type === 'mouseReleased');
+    const last = moves[moves.length - 1];
+    const dts = [];
+    for (let i = 1; i < moves.length; i++) dts.push(moves[i].t - moves[i - 1].t);
+    return {
+        dwell: press && last ? press.t - last.t : NaN,
+        hold: press && rel ? rel.t - press.t : NaN,
+        pressDpx: press && last ? Math.hypot(press.x - last.x, press.y - last.y) : NaN,
+        dtMean: dts.length ? mean(dts) : NaN,
+        dtSd: dts.length ? sd(dts) : NaN,
+        moves: moves.length,
+        force: press ? press.force : undefined,
+    };
+}
+
+console.log('\nthe click at the end of the path (30 clicks per row)\n');
+console.log('  travel   moves   dwell_ms   hold_ms   press_dpx   dt_ms   dt_sd   press force');
+for (const travelMs of [8, 120, 300, 600]) {
+    const runs = [];
+    for (let i = 0; i < 30; i++) runs.push(clickShape(await click(0, 0, 300, 120, travelMs)));
+    const col = (k, d = 2) => f(mean(runs.map(r => r[k]).filter(v => !Number.isNaN(v))) || 0, d);
+    console.log(`  ${String(travelMs).padStart(4)}ms  ${col('moves', 1).padStart(6)}   `
+        + `${col('dwell', 1).padStart(7)}   ${col('hold', 1).padStart(7)}   ${col('pressDpx').padStart(8)}   `
+        + `${col('dtMean', 1).padStart(5)}   ${col('dtSd', 2).padStart(5)}   ${runs[0].force}`);
+}
+console.log('\n  a hand: dwell tens of ms, hold 60-120 ms, press_dpx 0, dt_sd well above 0, force 0.5');
