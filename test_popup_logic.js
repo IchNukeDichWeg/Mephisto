@@ -3048,7 +3048,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
     // does not: the click attaches for real and goes through instead of failing for the session.
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
-    const disp = b.slice(b.indexOf('const cdpDispatch = '), b.indexOf('\n});\n', b.indexOf('const cdpDispatch = ')) + 5);
+    // The dispatcher now puts every event through withForce (CDP_FORCE), so the helper has to come
+    // with it: slicing the dispatcher alone leaves a ReferenceError, not a passing test.
+    const frc = b.slice(b.indexOf('const CDP_FORCE = '), b.indexOf('\n}\n', b.indexOf('function withForce')) + 3);
+    const disp = frc + b.slice(b.indexOf('const cdpDispatch = '), b.indexOf('\n});\n', b.indexOf('const cdpDispatch = ')) + 5);
     const att = b.slice(b.indexOf('function cdpAttach('), b.indexOf('\n}\n', b.indexOf('function cdpAttach(')) + 3);
     let really = false, sent = 0;
     const chromeStub = {runtime: {lastError: null}, debugger: {
@@ -20643,3 +20646,40 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            && /class="rv-key-retry/.test(rj) && /\.rv-key-retry'\)\.forEach\(btn => btn\.addEventListener\('click', \(\) => startRetry\(\+btn\.dataset\.ply\)\)\)/.test(rj));
     });
 }
+
+// --- CDP-FORCE: what the page reads off the button ----------------------------------------------
+(() => {
+    // Input.dispatchMouseEvent defaults `force` to 0, so every pointerdown this extension sent used
+    // to carry PointerEvent.pressure 0 -- a value no mouse, pen or finger reports. Measured in
+    // Chrome for Testing 152: no force field gives pointerdown.pressure 0, force 0.5 gives 0.5.
+    // The real withForce is RUN here rather than grepped, so a rewrite that kept the shape is caught.
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = b.indexOf('const CDP_FORCE = ');
+    const e = b.indexOf('\n}\n', b.indexOf('function withForce')) + 2;
+    ok('CDP-FORCE: the slice really holds the constant and the helper', a > 0 && e > a && /function withForce/.test(b.slice(a, e)));
+    const load = (on) => {
+        const ctx = {};
+        vm.runInNewContext(b.slice(a, e).replace('const CDP_FORCE = true;', `const CDP_FORCE = ${on};`)
+            + '\nthis.withForce = withForce;', ctx);
+        return ctx.withForce;
+    };
+    const wf = load(true);
+    const press = wf({type: 'mousePressed', x: 1, y: 2, button: 'left', clickCount: 1});
+    const rel = wf({type: 'mouseReleased', x: 1, y: 2, button: 'left', buttons: 0, clickCount: 1});
+    const hover = wf({type: 'mouseMoved', x: 1, y: 2, button: 'none'});
+    const carry = wf({type: 'mouseMoved', x: 1, y: 2, button: 'left', buttons: 1});
+    ok('CDP-FORCE: a press carries the pressure a real mouse reports', press.force === 0.5, press);
+    ok('CDP-FORCE: a drag\'s buttons-down move carries it too', carry.force === 0.5, carry);
+    ok('CDP-FORCE: a release and a plain hover carry 0, which is also what a mouse reports',
+       rel.force === 0 && hover.force === 0, [rel.force, hover.force]);
+    ok('CDP-FORCE: nothing else about the event is touched',
+       press.x === 1 && press.y === 2 && press.button === 'left' && press.clickCount === 1, press);
+    // the mutation check: with the toggle off the field is absent, not 0 -- so the constant is live
+    const off = load(false)({type: 'mousePressed', x: 1, y: 2, button: 'left', clickCount: 1});
+    ok('CDP-FORCE: the toggle is real, and off means the field is absent rather than zero',
+       !('force' in off), off);
+    // and it has to be wired into the one place every input event goes through
+    ok('CDP-FORCE: every dispatched event passes through it',
+       /sendCommand\(target, 'Input\.dispatchMouseEvent', withForce\(params\)/.test(b));
+})();

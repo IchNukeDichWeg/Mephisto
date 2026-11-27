@@ -1913,6 +1913,27 @@ const moveStalled = new Set();
 // 3000 in popup.js) plus its own travel. Past that the move has been verified, retried or dropped
 // by the page, and playing the rest of an old sequence would click a board it was never aimed at.
 const CDP_CLICK_GRACE_MS = 3000;
+// WHAT THE PAGE READS OFF THE BUTTON. Input.dispatchMouseEvent defaults `force` to 0 when the
+// field is omitted, and it was omitted everywhere -- so every pointerdown this extension has ever
+// sent carried PointerEvent.pressure 0. A real mouse reports 0.5 while a button is down and 0 the
+// rest of the time (a mouse has no pressure sensor, so the spec pins those two values); 0 on a
+// pointerdown is a value no mouse, pen or finger can produce, and it is readable from the page
+// without any analysis of the path.
+//
+// Measured in Chrome for Testing 152, one page, two clicks: with no force field,
+// pointerdown.pressure 0; with force 0.5, pointerdown.pressure 0.5. isTrusted was true either way,
+// so this is not about trust -- it is one number that was simply wrong.
+//
+// Applied in cdpDispatch, which every input event goes through, so the click path, the snap path
+// and both legs of a drag are covered by one line. Hover moves stay at 0: pressure 0 with no
+// button down is exactly what a mouse reports.
+const CDP_FORCE = true;
+const PRESS_FORCE = 0.5;
+function withForce(e) {
+    if (!CDP_FORCE || e.type === 'mouseWheel') return e;
+    const down = e.type === 'mousePressed' || (e.buttons & 1) === 1;
+    return {...e, force: down ? PRESS_FORCE : 0};
+}
 const cdpDispatch = (target, params, paced = false, retried = false) => new Promise((resolve, reject) => {
   const t0 = Date.now();
   const isMove = params.type === 'mouseMoved';
@@ -1924,7 +1945,7 @@ const cdpDispatch = (target, params, paced = false, retried = false) => new Prom
     if (target.tabId) moveStalled.add(target.tabId);
     resolve('stalled');
   }, CDP_MOVE_ACK_MS) : null;
-  chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', params, () => {
+  chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', withForce(params), () => {
     clearTimeout(hungAt);
     clearTimeout(giveUp);
     cdpPending--;
