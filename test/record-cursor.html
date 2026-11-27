@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<!--
+GROUND TRUTH FOR THE CURSOR, FROM A REAL HAND.
+
+Every cursor-realism number in this project is currently scored against numbers from the
+literature. Literature values come from other people, other mice, other screens and other tasks,
+so they can only ever say "roughly human". This page records the stream a real hand actually
+produces on this machine, on the same 8x8 board of 60px squares that test/cursor-oracle.mjs
+assumes, so the synthetic path can be measured against the hand it is imitating instead.
+
+No automation ever touches this file. Open it in a normal browser, use it with a real mouse, read
+the live summary, download the two files. Synthetic events can check that the plumbing works; they
+cannot produce a usable number, because the thing being measured IS the hand.
+
+THE NUMBERS, AND WHY EACH ONE IS HERE
+
+  hold_ms           press to release on the same click (pointerdown to pointerup, same button,
+                    same pointerId). A click that holds the button for exactly N ms every time is
+                    a tell; the spread is what matters.
+  dwell_ms          arrival at the target to the press: press time minus the time of the last
+                    sampled position still OUTSIDE the target square. This is the pause between
+                    the cursor getting there and the finger committing. A path that clicks the
+                    instant it arrives has dwell 0 on every move, which no hand does.
+  dt_ms             gap between consecutive mousemoves. Mean and sd as well as percentiles,
+                    because the sd is the part a tween cannot fake: a fixed-interval emitter has
+                    sd near zero. Gaps longer than PAUSE_MS are treated as a pause between bursts,
+                    not as a sample interval, so a coffee break does not land in the mean.
+  dt_ms_in_move     the same gap, restricted to samples inside a target move. Over the whole log
+                    the sd of dt mostly measures how often the hand stops; inside a move it is the
+                    sampling jitter, which is the thing a fixed step emitter does not have.
+  event_rate_per_s  mousemoves per second during a target move. Directly comparable to the
+                    oracle's rate/s column.
+  idle_rate_per_s   events per second while NOT moving to a target: everything outside the
+                    onset-to-press window of a target trial, which includes free play and the gap
+                    between a click and the next target. The between-actions rate. A synthetic
+                    cursor usually emits nothing at all here, which is itself a signature.
+  pressure          the modal pointerdown pressure. A physical mouse reports a constant (0.5 in
+                    Chromium), so this is a reference value, not a distribution. Worth having
+                    written down because a synthesised event that reports 0 or 1 stands out.
+  coalesced_n       the modal getCoalescedEvents().length on a pointermove. How many positions the
+                    OS actually handed over per delivered event. Says what sampling rate the real
+                    device runs at behind the event loop.
+  frac_coord_share  share of recorded events whose clientX or clientY is not an integer. Real
+                    pointers on a scaled display land on sub-pixel coordinates; coordinates that
+                    are always whole numbers are a tell, so coordinates are never rounded here.
+  overshoot_share   share of hit target moves whose path passes the aim point and comes back.
+                    Same test as the oracle: projection onto the start-to-target chord exceeds the
+                    distance by more than OVERSHOOT_PX at some sample.
+  tPeak             fraction of the move at which speed peaks. Ballistic movement peaks early.
+  d@half            fraction of the distance covered by half of the elapsed time.
+  dev / dev_at      how far the path bows off the straight chord, and where along the chord that
+                    maximum sits. A symmetric bow peaks at 0.50 on every move, so the spread of
+                    dev_at is the asymmetry a hand has and a curve does not.
+
+tPeak, d@half, dev, dev_at and overshoot use the SAME definitions as test/cursor-oracle.mjs, or
+the two instruments cannot be compared:
+  speed per segment     hypot(dx, dy) / max(1, dt), over consecutive samples
+  tPeak                 midpoint time of the fastest segment, divided by the move duration
+  d@half                chord projection of the sample nearest the half-time mark, over distance
+  dev / dev_at          maximum absolute perpendicular offset, and its chord projection / distance
+  overshoot             any sample with chord projection > distance + 3px
+One difference is unavoidable and deliberate: the oracle's clock starts when the move is commanded,
+so its duration includes the lead-in before the first dispatch. A hand has no command instant, so
+the move here starts at its first mousemove after the target lights. Reaction time is reported
+separately as dwell and idle rather than folded into tPeak.
+
+WHAT TO DO WITH IT
+  Targets mode gives controlled distance and width pairs, which is what makes the shape numbers
+  comparable to the oracle's dist x budget grid. Free play catches what a scripted task cannot:
+  what the hand does between actions.
+  Download CSV writes the raw event log, one row per event, nothing rounded. Download summary
+  writes this summary as JSON, with the definitions and the session geometry alongside it so a
+  number can still be interpreted a year later.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cursor recorder</title>
+<style>
+    :root {
+        --bg: #14161a;
+        --panel: #1c1f25;
+        --line: #2b3038;
+        --fg: #d7dbe0;
+        --dim: #8b929c;
+        --accent: #7fb2e5;
+        --hot: #d8a657;
+        --light: #4a5160;
+        --dark: #30353f;
+        --sq: 60px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 13px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    body { padding: 14px 16px 24px; }
+    h1 {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 0 0 2px;
+        letter-spacing: 0.02em;
+    }
+    .sub { color: var(--dim); margin: 0 0 12px; max-width: 980px; }
+    .wrap { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+    .col { display: flex; flex-direction: column; gap: 10px; }
+
+    /* The board is the instrument: 8 squares of exactly 60px, so a square's width is the width
+       Fitts's law is measured against in cursor-oracle.mjs. Do not restyle these sizes. */
+    #board {
+        width: calc(var(--sq) * 8);
+        height: calc(var(--sq) * 8);
+        display: grid;
+        grid-template-columns: repeat(8, var(--sq));
+        grid-template-rows: repeat(8, var(--sq));
+        border: 1px solid var(--line);
+        user-select: none;
+        touch-action: none;
+        position: relative;
+    }
+    .sq {
+        width: var(--sq);
+        height: var(--sq);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 38px;
+        line-height: 1;
+        color: #e8ebef;
+        position: relative;
+    }
+    .sq.l { background: var(--light); }
+    .sq.d { background: var(--dark); }
+    .sq.hot { box-shadow: inset 0 0 0 3px var(--hot); }
+    .sq.hot::after {
+        content: "";
+        position: absolute;
+        width: 14px; height: 14px;
+        border-radius: 50%;
+        background: var(--hot);
+        opacity: 0.85;
+    }
+    .sq.sel { box-shadow: inset 0 0 0 3px var(--accent); }
+    .sq .co {
+        position: absolute;
+        left: 3px; top: 2px;
+        font-size: 9px;
+        color: rgba(255,255,255,0.3);
+    }
+    #ghost {
+        position: fixed;
+        font-size: 38px;
+        line-height: 1;
+        pointer-events: none;
+        opacity: 0.8;
+        display: none;
+        z-index: 9;
+    }
+
+    .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        padding: 10px 12px;
+        min-width: 420px;
+    }
+    .panel h2 {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--dim);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin: 0 0 8px;
+    }
+    button {
+        font: inherit;
+        color: var(--fg);
+        background: #262b33;
+        border: 1px solid var(--line);
+        padding: 5px 10px;
+        cursor: pointer;
+    }
+    button:hover { background: #2f3540; }
+    button.on { background: #2b4a6b; border-color: var(--accent); color: #eaf2fb; }
+    .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: right; padding: 2px 6px; white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    thead th { color: var(--dim); font-weight: 500; border-bottom: 1px solid var(--line); }
+    tbody tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
+    td.n { font-variant-numeric: tabular-nums; }
+    .note { color: var(--dim); }
+    .ok { color: #a9c98a; }
+    .warn { color: var(--hot); }
+    #status { min-height: 18px; }
+    ol { margin: 6px 0 0; padding-left: 20px; color: var(--dim); }
+    li { margin-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<h1>Cursor recorder</h1>
+<p class="sub">
+    Ground truth for the synthetic cursor, from your own hand. Pick a mode, use the board with a
+    real mouse, then download both files. Nothing leaves this page and nothing is rounded.
+</p>
+
+<div class="wrap">
+    <div class="col">
+        <div id="board"></div>
+        <div class="panel" style="min-width:0;width:calc(var(--sq) * 8)">
+            <h2>Mode</h2>
+            <div class="row">
+                <button id="mTargets">Targets</button>
+                <button id="mFree">Free play</button>
+                <button id="mIdle" class="on">Paused</button>
+            </div>
+            <p id="status" class="note" style="margin:8px 0 0"></p>
+            <ol id="howto">
+                <li>Targets: click the lit square, then the next one. Keep going for about three
+                    minutes, which is roughly 150 clicks.</li>
+                <li>Free play: move pieces around however you like, click-click and drag both, for
+                    about two minutes.</li>
+                <li>Then download both files. Twenty or more trials per distance band is where the
+                    percentiles stop moving.</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="col">
+        <div class="panel">
+            <h2>Summary (live)</h2>
+            <table id="sum">
+                <thead><tr><th>metric</th><th>p10</th><th>p50</th><th>p90</th><th>n</th><th>note</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div class="panel">
+            <h2>Session</h2>
+            <table id="meta"><tbody></tbody></table>
+            <div class="row" style="margin-top:10px">
+                <button id="dlCsv">Download CSV</button>
+                <button id="dlJson">Download summary</button>
+                <button id="reset">Clear log</button>
+            </div>
+        </div>
+        <div class="panel">
+            <h2>Per-distance shape</h2>
+            <table id="bands">
+                <thead><tr><th>band</th><th>n</th><th>dist px</th><th>T ms</th><th>rate/s</th><th>tPeak</th><th>d@half</th><th>dev px</th><th>dev at</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <p class="note" style="margin:8px 0 0">
+                Same columns as <code>node test/cursor-oracle.mjs</code> prints, computed the same
+                way, so the two can be read side by side.
+            </p>
+        </div>
+    </div>
+</div>
+
+<div id="ghost"></div>
+
+<script>
+'use strict';
+
+// ---- instrument constants -----------------------------------------------------------------------
+// Changing any of these changes what the numbers mean, so they are visible and named rather than
+// buried in the code that uses them.
+const SQ = 60;                 // square size in px; must match the oracle's assumed geometry
+const OVERSHOOT_PX = 3;        // the oracle's threshold: past the aim point by more than this
+const PAUSE_MS = 250;          // a mousemove gap longer than this is a pause, not a sample interval
+const MIN_MOVES = 5;           // fewer samples than this cannot carry a shape number
+const MIN_DIST = 30;           // a move shorter than half a square has no reliable shape either
+const MAX_EVENTS = 400000;     // ~40MB of CSV; stop growing rather than freeze the tab
+const DIST_BANDS = [60, 120, 180, 240, 300, 360, 420, 480, 540, 594];  // 594 is corner to corner
+
+const FILES = 'abcdefgh';
+const START = [  // free play starts from the normal position; the pieces are only something to move
+    'rnbqkbnr',
+    'pppppppp',
+    '        ',
+    '        ',
+    '        ',
+    '        ',
+    'PPPPPPPP',
+    'RNBQKBNR',
+];
+const GLYPH = {
+    K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙',
+    k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟',
+};
+
+// ---- state --------------------------------------------------------------------------------------
+const log = [];                // the raw event log; every recorded event, nothing rounded
+let mode = 'idle';             // 'idle' | 'targets' | 'free'
+let trials = [];               // closed target trials
+let openTrial = null;
+let bandOrder = [], bandAt = 0;
+let lastPos = null;            // most recent sampled cursor position, for the next target's origin
+let board = {};                // square -> {el, rect}
+let pieces = {};               // square -> piece letter
+let selected = null, drag = null;
+let capped = false;
+let modeSince = performance.now();
+const modeMs = {idle: 0, targets: 0, free: 0};
+// Banked time plus the mode that is still running. Without the running part a three minute
+// recording reads 0s right up to the moment the mode is switched, including in the download.
+function msIn(m) { return modeMs[m] + (m === mode ? performance.now() - modeSince : 0); }
+const t0Wall = new Date();
+
+// ---- board --------------------------------------------------------------------------------------
+const boardEl = document.getElementById('board');
+const ghost = document.getElementById('ghost');
+
+function buildBoard() {
+    boardEl.textContent = '';
+    board = {};
+    pieces = {};
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const sq = FILES[c] + (8 - r);
+            const el = document.createElement('div');
+            el.className = 'sq ' + ((r + c) % 2 ? 'd' : 'l');
+            el.dataset.sq = sq;
+            const co = document.createElement('span');
+            co.className = 'co';
+            co.textContent = sq;
+            el.appendChild(co);
+            const glyph = document.createElement('span');
+            glyph.className = 'pc';
+            el.appendChild(glyph);
+            boardEl.appendChild(el);
+            board[sq] = {el, glyph};
+            const p = START[r][c];
+            if (p !== ' ') pieces[sq] = p;
+        }
+    }
+    paint();
+}
+
+function paint() {
+    for (const sq in board) board[sq].glyph.textContent = pieces[sq] ? GLYPH[pieces[sq]] : '';
+}
+
+// Centres are read live rather than cached: a window resize or a zoom moves the board, and a stale
+// centre would silently corrupt every distance in the file.
+function centre(sq) {
+    const r = board[sq].el.getBoundingClientRect();
+    return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+}
+function rectOf(sq) {
+    const r = board[sq].el.getBoundingClientRect();
+    return {l: r.left, t: r.top, r: r.right, b: r.bottom};
+}
+function sqAt(x, y) {
+    for (const sq in board) {
+        const r = rectOf(sq);
+        if (x >= r.l && x < r.r && y >= r.t && y < r.b) return sq;
+    }
+    return null;
+}
+
+// ---- recording ----------------------------------------------------------------------------------
+// One listener per type on the window in the capture phase, so an event is logged even if some
+// handler further in stops it. Passive: the recorder must never change what the browser does with
+// the pointer, or it would be measuring itself.
+const TYPES = [
+    'pointerdown', 'pointerup', 'pointermove', 'pointercancel', 'pointerover', 'pointerout',
+    'mousedown', 'mouseup', 'mousemove', 'click', 'contextmenu',
+];
+
+function record(e) {
+    if (capped) return;
+    if (log.length >= MAX_EVENTS) { capped = true; setStatus('Event cap reached, recording stopped. Download now.', 'warn'); return; }
+    // getCoalescedEvents only exists on pointer events, and only reports anything on moves. It has
+    // to be read here, synchronously: the list is empty once dispatch is over.
+    let coal = '';
+    if (e.type === 'pointermove' && typeof e.getCoalescedEvents === 'function') {
+        try { coal = e.getCoalescedEvents().length; } catch (_) { coal = ''; }
+    }
+    log.push({
+        t: e.timeStamp && e.timeStamp > 0 ? e.timeStamp : performance.now(),
+        type: e.type,
+        mode: mode,
+        trial: openTrial ? openTrial.id : '',
+        x: e.clientX, y: e.clientY,          // never rounded: sub-pixel position is a measurand
+        sx: e.screenX, sy: e.screenY,
+        mx: typeof e.movementX === 'number' ? e.movementX : '',
+        my: typeof e.movementY === 'number' ? e.movementY : '',
+        pr: typeof e.pressure === 'number' ? e.pressure : '',
+        bt: typeof e.buttons === 'number' ? e.buttons : '',
+        btn: typeof e.button === 'number' ? e.button : '',
+        tr: e.isTrusted ? 1 : 0,
+        pt: e.pointerType || '',
+        pid: typeof e.pointerId === 'number' ? e.pointerId : '',
+        coal: coal,
+        tgt: openTrial ? openTrial.sq : '',
+        tdist: openTrial ? openTrial.dist : '',
+    });
+    if (e.type === 'mousemove' || e.type === 'pointermove') lastPos = {x: e.clientX, y: e.clientY};
+}
+
+for (const t of TYPES) window.addEventListener(t, record, {capture: true, passive: true});
+
+// performance.now() and event.timeStamp share an origin in every current browser, so the two can be
+// mixed. Resolution is clamped for privacy (100us in Chromium, 1ms in Safari without cross-origin
+// isolation); that clamp is reported in the summary so a dt sd of exactly 0 is not read as a bug.
+function clockResolutionMs() {
+    let min = Infinity, a = performance.now();
+    for (let i = 0; i < 20000; i++) {
+        const b = performance.now();
+        if (b > a) { if (b - a < min) min = b - a; a = b; }
+    }
+    return min === Infinity ? null : min;
+}
+const CLOCK_MS = clockResolutionMs();
+
+// ---- modes --------------------------------------------------------------------------------------
+const statusEl = document.getElementById('status');
+function setStatus(s, cls) { statusEl.textContent = s; statusEl.className = cls || 'note'; }
+
+function setMode(m) {
+    const now = performance.now();
+    modeMs[mode] += now - modeSince;
+    modeSince = now;
+    closeTrial(null, false);
+    clearHot();
+    selected = null;
+    document.querySelectorAll('.sq.sel').forEach(el => el.classList.remove('sel'));
+    mode = m;
+    for (const [id, name] of [['mTargets', 'targets'], ['mFree', 'free'], ['mIdle', 'idle']]) {
+        document.getElementById(id).classList.toggle('on', name === m);
+    }
+    if (m === 'targets') { setStatus('Click the lit square. The next one lights straight after.'); nextTarget(); }
+    else if (m === 'free') { setStatus('Move pieces however you like: click-click and drag both.'); }
+    else { setStatus('Paused. Nothing is being added to the log.'); }
+    render();
+}
+
+function clearHot() { document.querySelectorAll('.sq.hot').forEach(el => el.classList.remove('hot')); }
+
+// The band cycle is reshuffled each pass instead of walking the list in order, so a learned
+// rhythm cannot ride along with the distance and show up as a shape effect.
+function nextBand() {
+    if (bandAt >= bandOrder.length) {
+        bandOrder = DIST_BANDS.slice();
+        for (let i = bandOrder.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [bandOrder[i], bandOrder[j]] = [bandOrder[j], bandOrder[i]];
+        }
+        bandAt = 0;
+    }
+    return bandOrder[bandAt++];
+}
+
+function nextTarget() {
+    clearHot();
+    const band = nextBand();
+    // Before the first sampled position there is no origin. Falling back to a made-up one put a
+    // path with a wrong start into the file and poisoned one trial's dev and tPeak, so the first
+    // trial of a session is lit normally but left unscored instead.
+    const from = lastPos || centre('d4');
+    const haveOrigin = lastPos !== null;
+    // Among the squares whose centre distance is closest to the wanted band, pick one at random:
+    // the band stays honest while the direction does not repeat.
+    const ranked = Object.keys(board)
+        .map(sq => { const c = centre(sq); return {sq, d: Math.hypot(c.x - from.x, c.y - from.y)}; })
+        .filter(o => o.d > SQ * 0.4)
+        .sort((a, b) => Math.abs(a.d - band) - Math.abs(b.d - band));
+    if (!ranked.length) return;
+    const pick = ranked[Math.floor(Math.random() * Math.min(3, ranked.length))];
+    board[pick.sq].el.classList.add('hot');
+    openTrial = {
+        id: trials.length + 1,
+        sq: pick.sq,
+        band: band,
+        dist: pick.d,
+        ox: from.x, oy: from.y, scorable: haveOrigin,
+        cx: centre(pick.sq).x, cy: centre(pick.sq).y,
+        rect: rectOf(pick.sq),
+        tLight: performance.now(),
+        startIdx: log.length,
+        endIdx: null,
+        pressIdx: null,
+        hit: null,
+    };
+}
+
+function closeTrial(pressIdx, hit) {
+    if (!openTrial) return;
+    openTrial.endIdx = log.length;
+    openTrial.pressIdx = pressIdx;
+    openTrial.hit = hit;
+    if (pressIdx !== null) trials.push(openTrial);   // an abandoned trial is dropped, not scored
+    openTrial = null;
+}
+
+// ---- board interaction --------------------------------------------------------------------------
+// preventDefault on mousedown only: it stops text selection and the browser's own drag image, both
+// of which would suppress the mousemove stream this page exists to record.
+boardEl.addEventListener('mousedown', (e) => e.preventDefault());
+
+boardEl.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const sq = sqAt(e.clientX, e.clientY);
+    if (!sq) return;
+    if (mode === 'targets') {
+        const hit = sq === (openTrial && openTrial.sq);
+        const idx = log.length - 1;
+        if (openTrial) { closeTrial(idx, hit); nextTarget(); render(); }
+        return;
+    }
+    if (mode === 'free' && pieces[sq]) {
+        drag = {from: sq, piece: pieces[sq], moved: false};
+        ghost.textContent = GLYPH[pieces[sq]];
+    }
+});
+
+boardEl.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    // The ghost only appears once the hand has actually travelled, so a click-click move does not
+    // flash a dragged piece and confuse what the hand was doing.
+    if (!drag.moved) {
+        const c = centre(drag.from);
+        if (Math.hypot(e.clientX - c.x, e.clientY - c.y) < 8) return;
+        drag.moved = true;
+        board[drag.from].glyph.textContent = '';
+        ghost.style.display = 'block';
+    }
+    ghost.style.left = (e.clientX - 19) + 'px';
+    ghost.style.top = (e.clientY - 19) + 'px';
+});
+
+window.addEventListener('pointerup', (e) => {
+    if (mode === 'free') {
+        const sq = sqAt(e.clientX, e.clientY);
+        if (drag && drag.moved) {
+            ghost.style.display = 'none';
+            if (sq && sq !== drag.from) { delete pieces[drag.from]; pieces[sq] = drag.piece; }
+            drag = null; selected = null;
+            document.querySelectorAll('.sq.sel').forEach(el => el.classList.remove('sel'));
+            paint();
+        } else if (drag) {                       // a press that never travelled is a click-click pick
+            drag = null;
+            document.querySelectorAll('.sq.sel').forEach(el => el.classList.remove('sel'));
+            selected = sq;
+            if (sq) board[sq].el.classList.add('sel');
+        } else if (selected && sq) {
+            if (sq !== selected) { pieces[sq] = pieces[selected]; delete pieces[selected]; }
+            board[selected].el.classList.remove('sel');
+            selected = null;
+            paint();
+        }
+    }
+    render();
+});
+
+// ---- statistics ---------------------------------------------------------------------------------
+const sorted = (a) => a.slice().sort((x, y) => x - y);
+function pct(arr, p) {
+    if (!arr.length) return null;
+    const a = sorted(arr), i = (a.length - 1) * p, lo = Math.floor(i), hi = Math.ceil(i);
+    return lo === hi ? a[lo] : a[lo] + (a[hi] - a[lo]) * (i - lo);
+}
+const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+function sd(a) {
+    if (a.length < 2) return null;
+    const m = mean(a);
+    return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1));
+}
+function modal(a) {
+    if (!a.length) return {value: null, share: null, n: 0};
+    const c = new Map();
+    for (const v of a) c.set(v, (c.get(v) || 0) + 1);
+    let best = null, bn = -1;
+    for (const [v, n] of c) if (n > bn) { best = v; bn = n; }
+    return {value: best, share: bn / a.length, n: a.length, distinct: c.size};
+}
+
+// The oracle's shape pass, on a recorded path. Projection onto the start-to-target chord stands in
+// for the oracle's x axis; everything else is the same arithmetic in the same order.
+function shape(moves, tr) {
+    const n = moves.length;
+    if (n < MIN_MOVES || tr.dist < MIN_DIST) return null;
+    const ux = (tr.cx - tr.ox) / tr.dist, uy = (tr.cy - tr.oy) / tr.dist;
+    const t0 = moves[0].t, T = moves[n - 1].t - t0;
+    if (!(T > 0)) return null;
+    const s = moves.map(p => (p.x - tr.ox) * ux + (p.y - tr.oy) * uy);
+    const off = moves.map(p => Math.abs(-(p.x - tr.ox) * uy + (p.y - tr.oy) * ux));
+    let peakV = -1, tPeak = 0, dev = 0, devAt = 0;
+    for (let i = 1; i < n; i++) {
+        const dt = Math.max(1, moves[i].t - moves[i - 1].t);
+        const v = Math.hypot(moves[i].x - moves[i - 1].x, moves[i].y - moves[i - 1].y) / dt;
+        if (v > peakV) { peakV = v; tPeak = ((moves[i].t + moves[i - 1].t) / 2 - t0) / T; }
+        if (off[i] > dev) { dev = off[i]; devAt = s[i] / tr.dist; }
+    }
+    let hi = 0;
+    for (let i = 1; i < n; i++) {
+        if (Math.abs(moves[i].t - t0 - T / 2) < Math.abs(moves[hi].t - t0 - T / 2)) hi = i;
+    }
+    const over = s.some(v => v > tr.dist + OVERSHOOT_PX);
+    return {n, T, rate: n / (T / 1000), tPeak, dHalf: s[hi] / tr.dist, dev, devAt, over};
+}
+
+function analyse() {
+    const out = {hold: [], dwell: [], dt: [], dtMove: [], rate: [], shapes: [], press: [], coal: []};
+
+    // hold: pointerdown to the matching pointerup. Keyed by pointerId and button so a second
+    // device or a right-click in the middle cannot pair across.
+    const down = new Map();
+    for (const e of log) {
+        const k = e.pid + '/' + e.btn;
+        if (e.type === 'pointerdown') { down.set(k, e); if (e.pr !== '') out.press.push(e.pr); }
+        else if (e.type === 'pointerup' && down.has(k)) { out.hold.push(e.t - down.get(k).t); down.delete(k); }
+    }
+    for (const e of log) if (e.type === 'pointermove' && e.coal !== '') out.coal.push(e.coal);
+
+    // dt and the sub-pixel share run over every mousemove in the log, both modes.
+    const moves = log.filter(e => e.type === 'mousemove');
+    for (let i = 1; i < moves.length; i++) {
+        const d = moves[i].t - moves[i - 1].t;
+        if (d > 0 && d <= PAUSE_MS) out.dt.push(d);
+    }
+    let coordN = 0, coordFrac = 0;
+    for (const e of log) {
+        if (typeof e.x !== 'number' || typeof e.y !== 'number') continue;
+        coordN++;
+        if (!Number.isInteger(e.x) || !Number.isInteger(e.y)) coordFrac++;
+    }
+
+    // Per-trial work. The move window is the trial's own mousemoves up to the press; everything
+    // outside those windows is idle time.
+    const windows = [];
+    for (const tr of trials) {
+        const slice = log.slice(tr.startIdx, tr.pressIdx === null ? tr.endIdx : tr.pressIdx + 1);
+        const mv = slice.filter(e => e.type === 'mousemove');
+        const press = tr.pressIdx === null ? null : log[tr.pressIdx];
+        if (mv.length >= 2) windows.push([mv[0].t, mv[mv.length - 1].t]);
+        // The same gap, but only inside a move. Over the whole log the sd of dt is dominated by how
+        // often the hand stops; inside a move it is the sampling jitter, which is what the oracle's
+        // fixed step has none of.
+        for (let i = 1; i < mv.length; i++) {
+            const d = mv[i].t - mv[i - 1].t;
+            if (d > 0 && d <= PAUSE_MS) out.dtMove.push(d);
+        }
+        if (!tr.hit) continue;                   // a miss says nothing about aiming at that target
+        const sh = tr.scorable === false ? null : shape(mv, tr);
+        if (sh) {
+            out.rate.push(sh.rate);
+            out.shapes.push(Object.assign({band: tr.band, dist: tr.dist}, sh));
+        }
+        // dwell: last sample still outside the target square, to the press. Anything else would
+        // measure reaction plus travel instead of the pause before committing.
+        if (press) {
+            const r = tr.rect;
+            let lastOut = null;
+            for (const e of mv) {
+                if (e.x < r.l || e.x >= r.r || e.y < r.t || e.y >= r.b) lastOut = e;
+            }
+            if (lastOut) out.dwell.push(press.t - lastOut.t);
+        }
+    }
+
+    // Idle windows: the complement of the move windows across the whole recording.
+    if (log.length > 1) {
+        windows.sort((a, b) => a[0] - b[0]);
+        let cur = log[0].t;
+        const gaps = [];
+        for (const [a, b] of windows) {
+            if (a > cur) gaps.push([cur, a]);
+            cur = Math.max(cur, b);
+        }
+        const end = log[log.length - 1].t;
+        if (end > cur) gaps.push([cur, end]);
+        const keep = gaps.filter(([a, b]) => b - a >= 1);
+        let idleN = 0, idleMs = 0, gi = keep.length;
+        for (const [a, b] of keep) idleMs += b - a;
+        // Two pointers, not a nested scan: the log is already in time order and the gaps are
+        // sorted, and a nested scan stalled the live redraw once the log passed a few thousand.
+        let g = 0;
+        for (const e of log) {
+            while (g < keep.length && e.t > keep[g][1]) g++;
+            if (g >= keep.length) break;
+            if (e.t >= keep[g][0]) idleN++;
+        }
+        out.idleN = idleN;
+        out.idleMs = idleMs;
+        out.idleWindows = gi;
+        out.idleRate = idleMs > 0 ? idleN / (idleMs / 1000) : null;
+    }
+
+    out.coordN = coordN;
+    out.coordFrac = coordFrac;
+    out.overshootN = out.shapes.length;
+    out.overshoot = out.shapes.length ? out.shapes.filter(s => s.over).length / out.shapes.length : null;
+    out.trials = trials.length;
+    out.hits = trials.filter(t => t.hit).length;
+    return out;
+}
+
+// ---- rendering ----------------------------------------------------------------------------------
+const f = (x, d) => (x === null || x === undefined || Number.isNaN(x)) ? '-' : Number(x).toFixed(d === undefined ? 2 : d);
+const sumBody = document.querySelector('#sum tbody');
+const metaBody = document.querySelector('#meta tbody');
+const bandBody = document.querySelector('#bands tbody');
+
+function row(tbody, cells, cls) {
+    const tr = document.createElement('tr');
+    if (cls) tr.className = cls;
+    for (let i = 0; i < cells.length; i++) {
+        const td = document.createElement(i === 0 ? 'th' : 'td');
+        if (i === 0) { td.style.textAlign = 'left'; td.style.fontWeight = '400'; }
+        else td.className = 'n';
+        td.textContent = cells[i];
+        tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+}
+
+function spread(tbody, name, arr, d, note) {
+    row(tbody, [name, f(pct(arr, 0.1), d), f(pct(arr, 0.5), d), f(pct(arr, 0.9), d), arr.length, note || '']);
+}
+
+let pending = false;
+function render() {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => { pending = false; draw(); });
+}
+
+function draw() {
+    const a = analyse();
+    sumBody.textContent = '';
+    spread(sumBody, 'hold_ms', a.hold, 1, 'press to release');
+    spread(sumBody, 'dwell_ms', a.dwell, 1, 'arrival to press');
+    spread(sumBody, 'dt_ms', a.dt, 2, 'mean ' + f(mean(a.dt), 2) + '  sd ' + f(sd(a.dt), 2));
+    spread(sumBody, 'dt_ms_in_move', a.dtMove, 2, 'mean ' + f(mean(a.dtMove), 2) + '  sd ' + f(sd(a.dtMove), 2));
+    spread(sumBody, 'event_rate_per_s', a.rate, 1, 'mousemoves during a target move');
+    const pm = modal(a.press), cm = modal(a.coal);
+    row(sumBody, ['idle_rate_per_s', '-', f(a.idleRate, 1), '-', a.idleN || 0,
+        f(a.idleMs / 1000, 1) + 's not moving to a target']);
+    row(sumBody, ['pressure', '-', f(pm.value, 3), '-', pm.n,
+        'modal, ' + f(pm.share * 100, 0) + '% of presses, ' + (pm.distinct || 0) + ' distinct']);
+    row(sumBody, ['coalesced_n', '-', cm.n ? String(cm.value) : '-', '-', cm.n,
+        cm.n ? 'modal, ' + f(cm.share * 100, 0) + '% of pointermoves' : 'no pointermove carried a list']);
+    row(sumBody, ['frac_coord_share', '-', f(a.coordN ? a.coordFrac / a.coordN : null, 3), '-', a.coordN,
+        'sub-pixel clientX or clientY']);
+    row(sumBody, ['overshoot_share', '-', f(a.overshoot, 3), '-', a.overshootN,
+        'past the aim point by >' + OVERSHOOT_PX + 'px']);
+    spread(sumBody, 'tPeak', a.shapes.map(s => s.tPeak), 3, 'mean ' + f(mean(a.shapes.map(s => s.tPeak)), 3));
+    spread(sumBody, 'd@half', a.shapes.map(s => s.dHalf), 3, 'mean ' + f(mean(a.shapes.map(s => s.dHalf)), 3));
+    spread(sumBody, 'dev_px', a.shapes.map(s => s.dev), 2, 'bow off the chord');
+    spread(sumBody, 'dev_at', a.shapes.map(s => s.devAt), 3, 'sd ' + f(sd(a.shapes.map(s => s.devAt)), 3));
+
+    metaBody.textContent = '';
+    row(metaBody, ['events recorded', log.length, '', '', '', capped ? 'CAP REACHED' : '']);
+    row(metaBody, ['target trials', a.trials, '', '', '', a.hits + ' hit, ' + (a.trials - a.hits) + ' missed']);
+    row(metaBody, ['scored moves', a.shapes.length, '', '', '', '>=' + MIN_MOVES + ' samples, >=' + MIN_DIST + 'px']);
+    row(metaBody, ['time targets / free', f(msIn('targets') / 1000, 0) + 's / ' + f(msIn('free') / 1000, 0) + 's', '', '', '', '']);
+    row(metaBody, ['clock resolution ms', f(CLOCK_MS, 4), '', '', '', 'performance.now() floor']);
+    row(metaBody, ['devicePixelRatio', String(window.devicePixelRatio), '', '', '', 'sub-pixel coords depend on it']);
+
+    bandBody.textContent = '';
+    for (const band of DIST_BANDS) {
+        const g = a.shapes.filter(s => s.band === band);
+        if (!g.length) continue;
+        row(bandBody, [band + 'px', g.length, f(mean(g.map(s => s.dist)), 0), f(mean(g.map(s => s.T)), 0),
+            f(mean(g.map(s => s.rate)), 1), f(mean(g.map(s => s.tPeak)), 2), f(mean(g.map(s => s.dHalf)), 2),
+            f(mean(g.map(s => s.dev)), 1), f(mean(g.map(s => s.devAt)), 2) + ' +- ' + f(sd(g.map(s => s.devAt)), 2)]);
+    }
+    return a;
+}
+
+// Live refresh on a timer rather than per event: redrawing inside a 100Hz mousemove stream would
+// have the page measuring its own layout work.
+setInterval(() => { if (mode !== 'idle' || log.length) draw(); }, 700);
+
+// ---- downloads ----------------------------------------------------------------------------------
+function stamp() {
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+function save(name, text, mime) {
+    const url = URL.createObjectURL(new Blob([text], {type: mime}));
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const CSV_COLS = ['i', 't_ms', 'type', 'mode', 'trial', 'clientX', 'clientY', 'screenX', 'screenY',
+    'movementX', 'movementY', 'pressure', 'buttons', 'button', 'isTrusted', 'pointerType',
+    'pointerId', 'coalesced_n', 'target_sq', 'target_dist_px'];
+
+document.getElementById('dlCsv').addEventListener('click', () => {
+    const lines = [CSV_COLS.join(',')];
+    for (let i = 0; i < log.length; i++) {
+        const e = log[i];
+        // No toFixed anywhere: the full double is the point of the file.
+        lines.push([i, e.t, e.type, e.mode, e.trial, e.x, e.y, e.sx, e.sy, e.mx, e.my, e.pr, e.bt,
+            e.btn, e.tr, e.pt, e.pid, e.coal, e.tgt, e.tdist].join(','));
+    }
+    save(`cursor-events-${stamp()}.csv`, lines.join('\n') + '\n', 'text/csv');
+});
+
+document.getElementById('dlJson').addEventListener('click', () => {
+    const a = draw();
+    const band = {};
+    for (const b of DIST_BANDS) {
+        const g = a.shapes.filter(s => s.band === b);
+        if (!g.length) continue;
+        band[b] = {
+            n: g.length, dist_px: mean(g.map(s => s.dist)), T_ms: mean(g.map(s => s.T)),
+            rate_per_s: mean(g.map(s => s.rate)), tPeak: mean(g.map(s => s.tPeak)),
+            d_at_half: mean(g.map(s => s.dHalf)), dev_px: mean(g.map(s => s.dev)),
+            dev_at: mean(g.map(s => s.devAt)), dev_at_sd: sd(g.map(s => s.devAt)),
+            overshoot_share: g.filter(s => s.over).length / g.length,
+        };
+    }
+    const q = (arr) => ({p10: pct(arr, 0.1), p50: pct(arr, 0.5), p90: pct(arr, 0.9),
+        mean: mean(arr), sd: sd(arr), n: arr.length});
+    const pm = modal(a.press), cm = modal(a.coal);
+    save(`cursor-summary-${stamp()}.json`, JSON.stringify({
+        source: 'test/record-cursor.html',
+        what: 'A real hand on an 8x8 board of 60px squares. Ground truth for the synthetic cursor.',
+        recorded_at: t0Wall.toISOString(),
+        geometry: {square_px: SQ, board_px: SQ * 8, devicePixelRatio: window.devicePixelRatio,
+            viewport: [window.innerWidth, window.innerHeight],
+            screen: [window.screen.width, window.screen.height]},
+        clock: {performance_now_resolution_ms: CLOCK_MS,
+            note: 'browsers clamp this for privacy; a dt sd near zero may be the clamp, not the hand'},
+        agent: navigator.userAgent,
+        session: {events: log.length, capped: capped, trials: a.trials, hits: a.hits,
+            scored_moves: a.shapes.length, ms_targets: msIn('targets'), ms_free: msIn('free')},
+        constants: {overshoot_px: OVERSHOOT_PX, pause_ms: PAUSE_MS, min_moves: MIN_MOVES,
+            min_dist_px: MIN_DIST, dist_bands_px: DIST_BANDS},
+        summary: {
+            hold_ms: q(a.hold),
+            dwell_ms: q(a.dwell),
+            dt_ms: q(a.dt),
+            dt_ms_in_move: q(a.dtMove),
+            event_rate_per_s: q(a.rate),
+            idle_rate_per_s: {value: a.idleRate, events: a.idleN, seconds: a.idleMs / 1000,
+                windows: a.idleWindows},
+            pressure: {modal: pm.value, share: pm.share, distinct: pm.distinct, n: pm.n},
+            coalesced_n: {modal: cm.value, share: cm.share, distinct: cm.distinct, n: cm.n},
+            frac_coord_share: {value: a.coordN ? a.coordFrac / a.coordN : null, n: a.coordN},
+            overshoot_share: {value: a.overshoot, n: a.overshootN},
+            tPeak: q(a.shapes.map(s => s.tPeak)),
+            d_at_half: q(a.shapes.map(s => s.dHalf)),
+            dev_px: q(a.shapes.map(s => s.dev)),
+            dev_at: q(a.shapes.map(s => s.devAt)),
+        },
+        by_distance_band: band,
+        definitions: {
+            hold_ms: 'pointerdown to pointerup, same pointerId and button',
+            dwell_ms: 'press time minus the last sampled position outside the target square',
+            dt_ms: 'gap between consecutive mousemoves, gaps over pause_ms excluded as pauses',
+            dt_ms_in_move: 'the same gap, restricted to samples inside a target move: sampling '
+                + 'jitter rather than how often the hand stops',
+            event_rate_per_s: 'mousemoves per second inside a target move, onset to press',
+            idle_rate_per_s: 'events per second outside every target move window',
+            pressure: 'modal pointerdown pressure; a mouse reports a constant',
+            coalesced_n: 'modal getCoalescedEvents().length on a pointermove',
+            frac_coord_share: 'share of events whose clientX or clientY is not an integer',
+            overshoot_share: 'share of hit target moves with a chord projection over dist + overshoot_px',
+            tPeak: 'midpoint time of the fastest segment over the move duration, as cursor-oracle.mjs',
+            d_at_half: 'chord projection of the sample nearest half time, over distance, as cursor-oracle.mjs',
+            dev_px: 'maximum absolute perpendicular offset from the chord, as cursor-oracle.mjs',
+            dev_at: 'chord projection at that maximum, over distance, as cursor-oracle.mjs',
+            move_start: 'first mousemove after the target lights; the oracle instead starts at the '
+                + 'command instant, so its duration carries a lead-in this one reports as dwell',
+        },
+    }, null, 2), 'application/json');
+});
+
+document.getElementById('reset').addEventListener('click', () => {
+    if (!confirm('Clear ' + log.length + ' recorded events? This cannot be undone.')) return;
+    log.length = 0; trials = []; openTrial = null; capped = false;
+    modeMs.idle = modeMs.targets = modeMs.free = 0;
+    modeSince = performance.now();
+    buildBoard();
+    setMode('idle');
+});
+
+document.getElementById('mTargets').addEventListener('click', () => setMode('targets'));
+document.getElementById('mFree').addEventListener('click', () => setMode('free'));
+document.getElementById('mIdle').addEventListener('click', () => setMode('idle'));
+
+buildBoard();
+setMode('idle');
+</script>
+</body>
+</html>
