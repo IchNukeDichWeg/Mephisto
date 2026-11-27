@@ -20726,8 +20726,37 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     // and it has to be wired into both branches of the click
     ok('CDP-HOLD: the snap branch sleeps between its press and its release',
        /await cdpSleep\(clickHoldMs\(\)\);\n\s*await cdpDispatch\(target, \{\.\.\.opts, type: 'mouseReleased'\}\)/.test(b));
+    // The ORDER of the four steps, by position rather than by one long regex: what the press object
+    // looks like is CDP_PRESS_AT_PATH_END's business, and a check that pins its shape here breaks
+    // every time that constant's implementation moves.
+    const after = (needle, from) => { const i = b.indexOf(needle, from); return i < 0 ? Infinity : i; };
+    const iDwell = b.indexOf('await cdpSleep(dwell);');
+    const iPress = after("type: 'mousePressed'}", iDwell);
+    const iHold = after('await cdpSleep(hold);', iPress);
+    const iRel = after("type: 'mouseReleased'}", iHold);
     ok('CDP-HOLD: the pathed branch settles, presses, holds, releases, and carves its path',
        /const dwell = clickDwellMs\(\), hold = clickHoldMs\(\);/.test(b)
        && /carvePath\(Math\.max\(0, travelMs\), dwell, hold\)/.test(b)
-       && /await cdpSleep\(dwell\);[\s\S]{0,120}type: 'mousePressed'\}\);\n\s*await cdpSleep\(hold\);/.test(b));
+       && iDwell > 0 && iPress > iDwell && iHold > iPress && iRel > iHold,
+       {iDwell, iPress, iHold, iRel});
+})();
+
+// --- CDP-PRESS-AT-PATH-END: the press lands where the cursor is ----------------------------------
+(() => {
+    // Every waypoint carries sub-pixel jitter and the press used the un-jittered nominal target, so
+    // a press always sat a fraction of a pixel off the last mousemove it followed. A hand cannot do
+    // that: it presses where it already is. Drags never had it, because a drag lands a final
+    // mouseMoved on the destination before releasing.
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    ok('CDP-PRESS-END: the path reports the point it actually dispatched',
+       /const lastDrawn = new Map\(\)/.test(b)
+       && /if \(target && target\.tabId\) lastDrawn\.set\(target\.tabId, \{x: mx, y: my\}\);/.test(b));
+    ok('CDP-PRESS-END: the click presses and releases on that point, not on the nominal target',
+       /const end = CDP_PRESS_AT_PATH_END \? \(lastDrawn\.get\(tabId\) \|\| \{x, y\}\) : \{x, y\};/.test(b)
+       && /const press = \{\.\.\.opts, x: end\.x, y: end\.y\};/.test(b)
+       && /\{\.\.\.press, type: 'mousePressed'\}/.test(b) && /\{\.\.\.press, type: 'mouseReleased'\}/.test(b));
+    ok('CDP-PRESS-END: a tab whose path never ran falls back to the nominal target',
+       /lastDrawn\.get\(tabId\) \|\| \{x, y\}/.test(b));
+    ok('CDP-PRESS-END: the toggle is a visible in-file constant', /const CDP_PRESS_AT_PATH_END = true;/.test(b));
 })();

@@ -1891,6 +1891,12 @@ const cdpInputTabs = new Set();
 // has since succeeded. Lost on a worker restart, which costs one more refused attach.
 const warmRefused = new Map();
 const lastPos = new Map(); // tabId -> {x, y}: where the synthetic cursor was left after the last click
+// Where the PATH actually finished, which is not where it was aimed. Every waypoint carries sub-pixel
+// jitter and the press used the un-jittered nominal target, so a press always sat a fraction of a
+// pixel off the last mousemove -- a discontinuity between a move and the press that follows it, which
+// a hand cannot produce because the hand IS where it last was. Only clicks had it: a drag already
+// lands a final mouseMoved on the destination before releasing.
+const lastDrawn = new Map(); // tabId -> {x, y}: the last point cdpMove actually dispatched
 const cdpSleep = (ms) => new Promise(r => setTimeout(r, ms));
 // A mouseMoved IS NOT ACKED UNTIL THE PAGE PAINTS A FRAME. Blink hands pointer-move events to the
 // page in step with its rendering, so a tab that is not rendering (hidden, minimised, or covered by
@@ -1947,6 +1953,8 @@ function withForce(e) {
 // exists to replace them with the owner's own hand, and the constants carry their source so a
 // re-fit knows what it is overwriting.
 const CDP_CLICK_HOLD = true;
+// Press on the path's own last point rather than the nominal target; see lastDrawn.
+const CDP_PRESS_AT_PATH_END = true;
 const HOLD_MED_MS = 85, HOLD_LOG_SD = 0.32, HOLD_MIN_MS = 40, HOLD_MAX_MS = 220;
 const DWELL_MED_MS = 35, DWELL_LOG_SD = 0.45, DWELL_MIN_MS = 8, DWELL_MAX_MS = 110;
 function logNormalMs(medianMs, logSd, lo, hi) {
@@ -2161,6 +2169,7 @@ async function cdpMove(target, fromX, fromY, x, y, travelMs, held = false, expir
     }
     mx += (Math.random() - 0.5) * 1.5;
     my += (Math.random() - 0.5) * 1.5;
+    if (target && target.tabId) lastDrawn.set(target.tabId, {x: mx, y: my});
     const r = await cdpDispatch(target, held ? {type: 'mouseMoved', x: mx, y: my, button: 'left', buttons: 1}
                                              : {type: 'mouseMoved', x: mx, y: my, button: 'none'}, true);
     if (r === 'stalled') return false;   // not rendering: drawing more of the path only queues more
@@ -2214,9 +2223,15 @@ function cdpClick(tabId, x, y, travelMs = 0) {
         // The path may have been parked on a hidden tab until now; see CDP_CLICK_GRACE_MS.
         if (expired()) throw new Error('click expired before it was pressed');
         await cdpSleep(dwell);                    // the hand lands and settles before it presses
-        await cdpDispatch(target, {...opts, type: 'mousePressed'});
+        // PRESS WHERE THE CURSOR IS. The path ends a fraction of a pixel off the nominal target
+        // because every waypoint is jittered; pressing on the nominal target put a sub-pixel jump
+        // between the last mousemove and the press. Still inside the square either way -- this is
+        // about the two events agreeing, not about where the click lands.
+        const end = CDP_PRESS_AT_PATH_END ? (lastDrawn.get(tabId) || {x, y}) : {x, y};
+        const press = {...opts, x: end.x, y: end.y};
+        await cdpDispatch(target, {...press, type: 'mousePressed'});
         await cdpSleep(hold);
-        await cdpDispatch(target, {...opts, type: 'mouseReleased'});
+        await cdpDispatch(target, {...press, type: 'mouseReleased'});
         resolve();
       } catch (e) { reject(e); }
     };
