@@ -1934,6 +1934,38 @@ function withForce(e) {
     const down = e.type === 'mousePressed' || (e.buttons & 1) === 1;
     return {...e, force: down ? PRESS_FORCE : 0};
 }
+// A CLICK TAKES TIME. Press and release went out back to back -- on the snap path inside one
+// Promise.all, so down and up carried the same millisecond, and on the pathed one as two bare
+// awaits. Nothing waited between arriving at the square and pressing either. A real click holds
+// the button for tens of milliseconds and the hand settles before it presses; a zero-length press
+// is not a fast human, it is a value a hand cannot produce, and click-duration spread is one of
+// the strongest features in the published automation detectors.
+//
+// Lognormal rather than uniform: key and button hold times are right-skewed, a long press being
+// far more likely than an impossibly short one. The medians here come from the published mouse
+// click-duration range (60-120 ms) and are deliberately provisional -- test/record-cursor.html
+// exists to replace them with the owner's own hand, and the constants carry their source so a
+// re-fit knows what it is overwriting.
+const CDP_CLICK_HOLD = true;
+const HOLD_MED_MS = 85, HOLD_LOG_SD = 0.32, HOLD_MIN_MS = 40, HOLD_MAX_MS = 220;
+const DWELL_MED_MS = 35, DWELL_LOG_SD = 0.45, DWELL_MIN_MS = 8, DWELL_MAX_MS = 110;
+function logNormalMs(medianMs, logSd, lo, hi) {
+    // Box-Muller: a plain Math.random() would give a flat spread, which is its own signature.
+    const u = Math.max(1e-9, Math.random()), v = Math.random();
+    const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    return Math.round(Math.min(hi, Math.max(lo, medianMs * Math.exp(logSd * z))));
+}
+const clickHoldMs = () => CDP_CLICK_HOLD ? logNormalMs(HOLD_MED_MS, HOLD_LOG_SD, HOLD_MIN_MS, HOLD_MAX_MS) : 0;
+const clickDwellMs = () => CDP_CLICK_HOLD ? logNormalMs(DWELL_MED_MS, DWELL_LOG_SD, DWELL_MIN_MS, DWELL_MAX_MS) : 0;
+// The settle and the hold are CARVED OUT of the caller's travel budget, never added to it: the
+// move-time budget is what the humanizer drew for this move, and a click that quietly costs 120 ms
+// more than it was given would shift the whole move-time distribution right. Below about twice the
+// settle plus hold there is not enough budget to carve, so the path keeps half and the click
+// overruns by the remainder -- tens of milliseconds, well inside CDP_CLICK_GRACE_MS.
+function carvePath(travelMs, dwell, hold) {
+    return Math.max(travelMs - dwell - hold, Math.round(travelMs * 0.5));
+}
+
 const cdpDispatch = (target, params, paced = false, retried = false) => new Promise((resolve, reject) => {
   const t0 = Date.now();
   const isMove = params.type === 'mouseMoved';
@@ -2165,16 +2197,25 @@ function cdpClick(tabId, x, y, travelMs = 0) {
         const expired = () => Date.now() > deadline;
         if (travelMs <= CDP_SNAP_MS) {
           const evts = (travelMs > 0 && !moveStalled.has(tabId)) ? [{type: 'mouseMoved', x, y, button: 'none'}] : [];
-          evts.push({...opts, type: 'mousePressed'}, {...opts, type: 'mouseReleased'});
+          evts.push({...opts, type: 'mousePressed'});
           lastPos.set(tabId, {x, y});
           await Promise.all(evts.map(e => cdpDispatch(target, e)));
+          // ONE extra scheduling slot, bought deliberately. Batching the three events was worth it
+          // because each await costs this worker a resumption it may wait hundreds of ms for under
+          // load; the release still cannot be batched with the press, because the whole point is
+          // that a measurable gap separates them. One slot, not the three the pathed branch pays.
+          await cdpSleep(clickHoldMs());
+          await cdpDispatch(target, {...opts, type: 'mouseReleased'});
           return resolve();
         }
-        await cdpMove(target, from.x, from.y, x, y, Math.max(0, travelMs), false, expired);
+        const dwell = clickDwellMs(), hold = clickHoldMs();
+        await cdpMove(target, from.x, from.y, x, y, carvePath(Math.max(0, travelMs), dwell, hold), false, expired);
         lastPos.set(tabId, {x, y});
         // The path may have been parked on a hidden tab until now; see CDP_CLICK_GRACE_MS.
         if (expired()) throw new Error('click expired before it was pressed');
+        await cdpSleep(dwell);                    // the hand lands and settles before it presses
         await cdpDispatch(target, {...opts, type: 'mousePressed'});
+        await cdpSleep(hold);
         await cdpDispatch(target, {...opts, type: 'mouseReleased'});
         resolve();
       } catch (e) { reject(e); }

@@ -20683,3 +20683,51 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('CDP-FORCE: every dispatched event passes through it',
        /sendCommand\(target, 'Input\.dispatchMouseEvent', withForce\(params\)/.test(b));
 })();
+
+// --- CDP-CLICK-HOLD: a click takes time -----------------------------------------------------------
+(() => {
+    // Press and release used to go out back to back: on the snap path inside one Promise.all, so
+    // down and up carried the same millisecond. A real click holds the button 60-120 ms and the
+    // hand settles before it presses. The draws are RUN here, not grepped, so a rewrite that kept
+    // the shape is still caught.
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = b.indexOf('// A CLICK TAKES TIME.');
+    const e = b.indexOf('\n}\n', b.indexOf('function carvePath')) + 2;
+    ok('CDP-HOLD: the slice really holds the model', a > 0 && e > a
+       && /const CDP_CLICK_HOLD/.test(b.slice(a, e)) && /function carvePath/.test(b.slice(a, e)));
+    const load = (on) => {
+        const ctx = {Math};
+        vm.runInNewContext(b.slice(a, e).replace('const CDP_CLICK_HOLD = true;', `const CDP_CLICK_HOLD = ${on};`)
+            + '\nthis.clickHoldMs = clickHoldMs; this.clickDwellMs = clickDwellMs; this.carvePath = carvePath;', ctx);
+        return ctx;
+    };
+    const m = load(true);
+    const holds = Array.from({length: 4000}, () => m.clickHoldMs()).sort((x, y) => x - y);
+    const dwells = Array.from({length: 4000}, () => m.clickDwellMs()).sort((x, y) => x - y);
+    const p = (a2, q) => a2[Math.floor(a2.length * q)];
+    ok('CDP-HOLD: the median hold sits inside the 60-120 ms a real click takes',
+       p(holds, 0.5) >= 60 && p(holds, 0.5) <= 120, p(holds, 0.5));
+    ok('CDP-HOLD: the hold has real spread, and it is right-skewed as a hold time is',
+       p(holds, 0.9) - p(holds, 0.5) > p(holds, 0.5) - p(holds, 0.1), [p(holds, 0.1), p(holds, 0.5), p(holds, 0.9)]);
+    ok('CDP-HOLD: no hold ever escapes its bounds, so a stuck draw cannot hang a click',
+       holds[0] >= 40 && holds[holds.length - 1] <= 220, [holds[0], holds[holds.length - 1]]);
+    ok('CDP-HOLD: the settle before the press is shorter than the hold and never zero',
+       p(dwells, 0.5) > 0 && p(dwells, 0.5) < p(holds, 0.5) && dwells[0] >= 8, [p(dwells, 0.5), dwells[0]]);
+    // the budget: the settle and the hold come OUT of the travel, they are never added to it
+    ok('CDP-HOLD: a roomy budget pays for the click out of its own travel',
+       m.carvePath(600, 35, 85) === 480, m.carvePath(600, 35, 85));
+    ok('CDP-HOLD: a budget too small to carve keeps half its path rather than collapsing to nothing',
+       m.carvePath(120, 35, 85) === 60, m.carvePath(120, 35, 85));
+    // the mutation check: with the toggle off there is no hold, no settle, and nothing is carved
+    const off = load(false);
+    ok('CDP-HOLD: the toggle is real -- off restores the back-to-back press and release',
+       off.clickHoldMs() === 0 && off.clickDwellMs() === 0 && off.carvePath(600, 0, 0) === 600);
+    // and it has to be wired into both branches of the click
+    ok('CDP-HOLD: the snap branch sleeps between its press and its release',
+       /await cdpSleep\(clickHoldMs\(\)\);\n\s*await cdpDispatch\(target, \{\.\.\.opts, type: 'mouseReleased'\}\)/.test(b));
+    ok('CDP-HOLD: the pathed branch settles, presses, holds, releases, and carves its path',
+       /const dwell = clickDwellMs\(\), hold = clickHoldMs\(\);/.test(b)
+       && /carvePath\(Math\.max\(0, travelMs\), dwell, hold\)/.test(b)
+       && /await cdpSleep\(dwell\);[\s\S]{0,120}type: 'mousePressed'\}\);\n\s*await cdpSleep\(hold\);/.test(b));
+})();
