@@ -19,7 +19,7 @@ export function define(module) {
 
 async function requirejs(path) {
     if (moduleMap[path]) return moduleMap[path];
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.id = `${path}-script`;
         script.src = `${path}.js`;
@@ -27,10 +27,27 @@ async function requirejs(path) {
         script.className = 'page-script';
         script.setAttribute('async', '');
         script.setAttribute('defer', '');
+        // A module that throws at top level still fires 'load' (the HTML spec only reports the error),
+        // so reading `latest` unchecked handed this page the PREVIOUS page's module and cached it for
+        // good; a fetch failure fires only 'error', and with no handler the load hung. A module's
+        // define() and its 'load' run in the same task, so clearing `latest` here cannot eat another
+        // page's define (audit 3.1.335 OPTUTIL-2).
+        moduleMap.latest = undefined;
         script.onload = () => {
-            moduleMap[path] = moduleMap.latest;
-            resolve(moduleMap[path]);
+            const module = moduleMap.latest;
+            moduleMap.latest = undefined;
+            if (module === undefined) {
+                script.remove();
+                reject(new Error(`${path}.js ran but did not define a page module (it threw before define?)`));
+                return;
+            }
+            moduleMap[path] = module;
+            resolve(module);
         }
+        script.onerror = () => {
+            script.remove();
+            reject(new Error(`${path}.js failed to load (the file or one of its imports is missing)`));
+        };
         document.body.appendChild(script);
     });
 }

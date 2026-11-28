@@ -20721,6 +20721,52 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('OPTUTIL-1 (3.1.335): a text/* file without an extension still loads', got.length === 1 && got[0] === '1. d4', got);
     })();
 })();
+(() => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/framework/require.js', 'utf8');
+    const code = src.replace(/^export\s+/gm, '');
+    // Browser model per the HTML spec: a module that evaluates runs its define() and then fires 'load'
+    // in the same task; one that throws at top level reports the error and STILL fires 'load'; a fetch
+    // failure (404, missing import) fires only 'error'. A URL is evaluated once per document.
+    const pages = { general: 'define', review: 'throw', missing: '404' };
+    const evaluated = new Set();
+    let ctx;
+    const document = {
+        createElement: () => ({ setAttribute() {}, remove() { this.removed = true; } }),
+        body: {
+            appendChild(s) {
+                const name = s.src.replace(/\.js$/, '');
+                setTimeout(() => {
+                    const kind = pages[name];
+                    if (kind === '404') { s.onerror && s.onerror(); return; }
+                    if (!evaluated.has(s.src)) {
+                        evaluated.add(s.src);
+                        if (kind === 'define') ctx.define({ title: name[0].toUpperCase() + name.slice(1) });
+                    }
+                    s.onload && s.onload();
+                }, 0);
+            },
+        },
+    };
+    ctx = vm.createContext({ document, Promise, Error });
+    vm.runInContext(code + '\nthis.require = require; this.define = define;', ctx);
+    const settle = (p, ms = 50) => Promise.race([
+        p.then(v => ({ v }), e => ({ e: String(e && e.message || e) })),
+        new Promise(r => setTimeout(() => r({ hang: true }), ms)),
+    ]);
+    (async () => {
+        const g = await settle(ctx.require('general'));
+        ok('OPTUTIL-2 (3.1.335): a page that defines itself resolves to its own module', g.v && g.v.title === 'General', g);
+        const r1 = await settle(ctx.require('review'));
+        ok('OPTUTIL-2 (3.1.335): a page that throws before define() is rejected, not given the previous page\'s module', 'e' in r1, r1);
+        const r2 = await settle(ctx.require('review'));
+        ok('OPTUTIL-2 (3.1.335): the wrong module is not cached for later visits', 'e' in r2, r2);
+        const m = await settle(ctx.require('missing'));
+        ok('OPTUTIL-2 (3.1.335): a module that fails to load rejects instead of hanging', 'e' in m, m);
+        const g2 = await settle(ctx.require('general'));
+        ok('OPTUTIL-2 (3.1.335): the cached good module still resolves after the failures', g2.v && g2.v.title === 'General', g2);
+    })();
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
