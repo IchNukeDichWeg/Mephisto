@@ -162,9 +162,12 @@ document.addEventListener('DOMContentLoaded', function () {
     function paintRanges() {
         document.querySelectorAll('input[type=range]').forEach(paintRange);
     }
+    // Capture phase: FormElement.setValue dispatches a NON-bubbling 'input', which a bubble-phase
+    // listener on document never sees, so a value set from code (Appearance's Restore Defaults)
+    // moved the thumb and left the fill at the old value (audit 3.1.335 OPTIONSJS-1).
     document.addEventListener('input', e => { // live update while dragging any slider
         if (e.target.matches?.('input[type=range]')) paintRange(e.target);
-    });
+    }, true);
 
     document.querySelectorAll('#nav-mobile a.menu-item').forEach(elem => {
         elem.addEventListener('click', e => onClick(e));

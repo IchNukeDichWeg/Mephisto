@@ -20646,6 +20646,51 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     h.msg('8', {cmd: 'init', engine: 'stockfish-19-nnue', variant: 'chess'}); await h.advance(10);
     ok('OFFSCREEN-1 (3.1.335): ...and its retry reuses the parked instance', h.engines.length === 1, h.engines.length);
 })().catch(e => { fails++; console.log('FAIL OFFSCREEN-1 (3.1.335) checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.335 OPTIONSJS-1: a range value set from code (Restore Defaults) repaints its slider fill ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const osrc = fs.readFileSync(ROOT + '/src/options/options.js', 'utf8').replace(/^import .*$/m, '');
+    const fsrc = fs.readFileSync(ROOT + '/src/options/util/FormElement.js', 'utf8').replace(/^export class/m, 'class');
+    // the real options.js shell on a stub DOM; document listeners keep their capture flag so the
+    // range's dispatchEvent can follow the DOM rule: capture listeners on ancestors always run,
+    // bubble-phase ones only for an event built with {bubbles: true}
+    const docL = [], win = {};
+    const cls = {add() {}, remove() {}, contains: () => false, toggle() {}};
+    const flag = (o) => typeof o === 'boolean' ? o : !!(o && o.capture);
+    const range = {
+        type: 'range', min: '0', max: '100', value: '20', own: [], props: {},
+        style: {setProperty(k, v) { range.props[k] = v; }},
+        matches: (s) => s === 'input[type=range]',
+        addEventListener(t, f) { this.own.push([t, f]); },
+        dispatchEvent(ev) {
+            const e = {type: ev.type, bubbles: !!ev.bubbles, target: range};
+            docL.filter(l => l.t === e.type && l.capture).forEach(l => l.f(e));
+            this.own.filter(([t]) => t === e.type).forEach(([, f]) => f(e));
+            if (e.bubbles) docL.filter(l => l.t === e.type && !l.capture).forEach(l => l.f(e));
+            return true;
+        },
+    };
+    const doc = {addEventListener: (t, f, o) => docL.push({t, f, capture: flag(o)}), documentElement: {classList: cls},
+        getElementById: (id) => id === 'arrow_opacity_range' ? range : null,
+        querySelector: () => ({appendChild() {}}), querySelectorAll: () => [], getElementsByClassName: () => []};
+    const c = vm.createContext({console, setTimeout, Promise, JSON, Array, Event, location: {hash: '#about'},
+        history: {replaceState() {}},
+        M: {Sidenav: {init() {}}, ScrollSpy: {init: () => []}, Tooltip: {init() {}}},
+        MephistoConfig: {get: () => null, ready: Promise.resolve(), themeIsDark: () => false},
+        chrome: {storage: {onChanged: {addListener() {}}}},
+        MephistoI18n: {use: async () => {}, apply() {}, lang: 'en', t: (k, d) => d},
+        document: doc, require: () => new Promise(() => {})});   // the page load never finishes: only the listeners matter
+    c.window = c; c.addEventListener = (t, f) => (win[t] = win[t] || []).push(f);
+    vm.runInContext(osrc, c);
+    (doc.DOMContentLoaded || []).forEach(f => f());
+    docL.filter(l => l.t === 'DOMContentLoaded').forEach(l => l.f({}));
+    vm.runInContext(fsrc + '; var fe = new FormElement("arrow_opacity", "Arrow Opacity:", "range", 75);', c);
+    c.fe.setValue(75);   // what pullConfigValues does after Appearance's Restore Defaults
+    ok('OPTIONSJS-1 (3.1.335): FormElement.setValue on a range (Appearance Restore Defaults, 20 -> 75) repaints its fill to 75%',
+       range.value === 75 && range.props['--fill'] === '75%', {value: range.value, fill: range.props['--fill']});
+    range.value = '30'; range.dispatchEvent({type: 'input', bubbles: true});   // a user drag: the browser's input bubbles
+    ok('...a user drag still repaints the fill live', range.props['--fill'] === '30%', range.props['--fill']);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
