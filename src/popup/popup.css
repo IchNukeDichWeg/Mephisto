@@ -647,8 +647,11 @@ html, body {
 
 /* The search budget's label IS its selector. Styled to read as the label it replaces rather than
    as a form control: no border, no background, the row's own type size and colour. Only the caret
-   and the pointer say it can be clicked. */
-#quick-settings select.qs-inline-select {
+   and the pointer say it can be clicked. The element is also .browser-default, and
+   `#quick-settings select.browser-default` further down is the same (1,1,1) and won on order: a
+   full-width white box with the caret wiped by its `background` shorthand. Naming both classes
+   here makes this (1,2,1); the dark-mode field rules exclude it with :not(). */
+#quick-settings select.browser-default.qs-inline-select {
     width: auto;
     height: auto;
     padding: 0 18px 0 0;
@@ -974,8 +977,9 @@ body.mephisto-dark #quick-settings { background: #202127; }
 body.mephisto-dark #quick-settings .qs-group { color: var(--mp-mute); }
 /* :not([type=range]) -- a range is not a field with a background, it is a track PAINTED with one.
    This rule is a class more specific than the range styling above, so without the exclusion it
-   replaced the track gradient with a flat fill and the slider showed as a thumb on nothing. */
-body.mephisto-dark #quick-settings select.browser-default,
+   replaced the track gradient with a flat fill and the slider showed as a thumb on nothing.
+   :not(.qs-inline-select) for the same reason: that select is painted as a label with a drawn caret. */
+body.mephisto-dark #quick-settings select.browser-default:not(.qs-inline-select),
 body.mephisto-dark #quick-settings input.browser-default:not([type=range]),
 body.mephisto-dark #quick-settings #qs_variant_detect {
     background: #16171b;
@@ -983,7 +987,7 @@ body.mephisto-dark #quick-settings #qs_variant_detect {
     border-color: #34353d;
 }
 body.mephisto-dark #quick-settings #qs_variant_detect:hover { background: #202127; }
-body.mephisto-dark #quick-settings select.browser-default:focus,
+body.mephisto-dark #quick-settings select.browser-default:not(.qs-inline-select):focus,
 body.mephisto-dark #quick-settings input.browser-default:focus {
     border-color: var(--mp-on); /* accent on focus */
     outline: none;

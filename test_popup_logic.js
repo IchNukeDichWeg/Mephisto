@@ -20023,6 +20023,48 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('CSS-1 (3.1.335): ...and hovering does not repaint it either', (os[0] - hv[0] || os[1] - hv[1] || os[2] - hv[2] || 1) > 0, { overridden: os, hover: hv });
     ok('CSS-1 (3.1.335): the spec helper agrees with the hunter\'s arithmetic', JSON.stringify(gs) === '[1,4,0]' && JSON.stringify(spec('#quick-settings .qs-row.qs-toggle.qs-overridden')) === '[1,3,0]');
 })();
+(() => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // Specificity per Selectors 4: :is/:not/:has take their most specific argument, :where counts 0.
+    const spec = (sel) => {
+        let a = 0, b = 0, c = 0, i = 0;
+        const arg = () => { let d = 1, s = ++i; while (d) { i++; if (sel[i] === '(') d++; else if (sel[i] === ')') d--; } const t = sel.slice(s, i); i++; return t; };
+        const max = (list) => list.split(',').map(spec).reduce((m, x) => (x[0] - m[0] || x[1] - m[1] || x[2] - m[2]) > 0 ? x : m, [0, 0, 0]);
+        while (i < sel.length) {
+            const ch = sel[i];
+            if (ch === '#') { a++; i++; while (/[\w-]/.test(sel[i] || '')) i++; }
+            else if (ch === '.') { b++; i++; while (/[\w-]/.test(sel[i] || '')) i++; }
+            else if (ch === '[') { b++; while (sel[i] !== ']') i++; i++; }
+            else if (ch === ':' && sel[i + 1] === ':') { c++; i += 2; while (/[\w-]/.test(sel[i] || '')) i++; }
+            else if (ch === ':') { i++; let n = ''; while (/[\w-]/.test(sel[i] || '')) n += sel[i++];
+                if (sel[i] === '(') { const t = arg(); if (/^(is|not|has|matches)$/.test(n)) { const m = max(t); a += m[0]; b += m[1]; c += m[2]; } else if (n !== 'where') b++; }
+                else b++; }
+            else if (/[a-zA-Z]/.test(ch)) { c++; while (/[\w-]/.test(sel[i] || '')) i++; }
+            else i++;
+        }
+        return [a, b, c];
+    };
+    const rules = (css) => { css = css.replace(/\/\*[\s\S]*?\*\//g, ''); const out = []; const re = /([^{}]+)\{([^{}]*)\}/g; let m;
+        while ((m = re.exec(css))) out.push({ sels: m[1].trim().replace(/^@[^{]*$/, '').split(',').map(s => s.trim()), body: m[2], at: m.index }); return out; };
+    const css = fs.readFileSync(ROOT + '/src/popup/popup.css', 'utf8');
+    const rs = rules(css);
+    const gt = (x, y, later) => (x[0] - y[0] || x[1] - y[1] || x[2] - y[2] || (later ? 1 : -1)) > 0;
+    const inline = rs.find(r => /background-image: linear-gradient/.test(r.body) && r.sels.some(s => /select[.\w-]*\.qs-inline-select$/.test(s)));
+    ok('CSS-2 (3.1.335): the inline select rule (with its caret) is found', !!inline);
+    if (!inline) return;
+    const isel = inline.sels.find(s => /qs-inline-select$/.test(s)), is = spec(isel);
+    // #qs_search_mode carries browser-default too; every browser-default select rule must lose to the
+    // inline rule or not match it at all
+    const boxy = rs.filter(r => r !== inline && r.sels.some(s => /select\.browser-default/.test(s) && !/(:hover|::|option)/.test(s)));
+    ok('CSS-2 (3.1.335): the browser-default select rules are found (light, dark, dark focus)', boxy.length >= 3, boxy.length);
+    for (const r of boxy) {
+        const s = r.sels.find(x => /select\.browser-default/.test(x));
+        const excluded = /:not\(\.qs-inline-select\)/.test(s);
+        ok(`CSS-2 (3.1.335): "${s}" does not restyle the inline search-budget select`, excluded || gt(is, spec(s), inline.at > r.at), { inline: is, other: spec(s) });
+    }
+    const pl = rs.find(r => r.sels.includes('#quick-settings select.browser-default'));
+    ok('CSS-2 (3.1.335): other selects keep the full-width box', !!pl && !/:not/.test(pl.sels.join()) && /width: 100%/.test(pl.body));
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
