@@ -110,8 +110,14 @@ function eeIdb(mode, fn) {
     return eeOpenDb().then(db => new Promise((resolve, reject) => {
         const tx = db.transaction(EE_STORE, mode);
         const rq = fn(tx.objectStore(EE_STORE));
-        rq.onsuccess = () => resolve(rq.result);
-        rq.onerror = () => reject(rq.error);
+        // Settled by the TRANSACTION, not the request: a put's success fires before the commit, and
+        // the commit of a 7-69 MB value (written out as a blob file) can still abort on a full disk.
+        // Resolving on the request let eeUpdate drop the old engine for a new one that never landed,
+        // leaving neither (audit 3.1.335 EEHOST-1; same fix as book-store.js STORES-3).
+        const fail = () => { reject(tx.error || rq.error || new Error('transaction aborted')); db.close(); };
+        tx.oncomplete = () => { resolve(rq.result); db.close(); };
+        tx.onerror = fail;
+        tx.onabort = fail;
     }));
 }
 

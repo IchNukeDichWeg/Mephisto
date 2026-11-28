@@ -14136,10 +14136,11 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     // ee-host.js with an in-memory IndexedDB and a fetch that serves `JS of <ver>` / the version's bytes
     const load = (fetchImpl) => {
         const store = new Map(), later = (f) => setTimeout(f, 0);
-        const indexedDB = {open() { const rq = {}; later(() => { rq.result = {transaction() { return {objectStore() {
-            const op = (fn) => { const r = {}; later(() => { try { r.result = fn(); r.onsuccess(); } catch (e) { r.error = e; r.onerror(); } }); return r; };
+        // eeIdb settles on tx.oncomplete (audit 3.1.335 EEHOST-1), so the fake transaction commits after the request
+        const indexedDB = {open() { const rq = {}; later(() => { rq.result = {close() {}, transaction() { const tx = {objectStore() {
+            const op = (fn) => { const r = {}; later(() => { try { r.result = fn(); r.onsuccess && r.onsuccess(); later(() => tx.oncomplete && tx.oncomplete()); } catch (e) { r.error = e; tx.error = e; r.onerror && r.onerror(); tx.onerror && tx.onerror(); } }); return r; };
             return {get: k => op(() => store.get(k)), put: (v, k) => op(() => { store.set(k, v); }), delete: k => op(() => { store.delete(k); })};
-        }}; }}; rq.onsuccess(); }); return rq; }};
+        }}; return tx; }}; rq.onsuccess(); }); return rq; }};
         const c = vm.createContext({indexedDB, fetch: fetchImpl, Blob, setTimeout, Promise, Number, Math, String, Error, TextEncoder});
         c.self = c;
         const ee = vm.runInContext(src.replace(/^export \{[^}]*\};?\s*$/m, '') + '\n({eeVersion, eeUpdate, eeCached, eeDownload, eeForget})', c);
@@ -20155,6 +20156,80 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext(cut('test/record-cursor.html', 'function shape(moves, tr)', '\n// The last unbroken run'), rc);
     const r = rc.shape(pts.map(p => ({t: p.t + 1000, x: p.x, y: p.y})), {ox: 0, oy: 0, cx: 120, cy: 0, dist: 120});
     ok('CURSORORACLE-3 (3.1.335): recorder event_rate_per_s uses the same (n-1)/T', r && Math.abs(r.rate - want) < 1e-9, r && r.rate);
+})();
+// ---- audit 3.1.335 EEHOST-1: the engine cache settles on the transaction commit, so an aborted write is not "stored" ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/pages/review/ee-host.js', 'utf8');
+    // An IndexedDB that behaves like the spec on the point at issue: the request's success fires first,
+    // the write lands only when the transaction commits, and a commit can still abort (disk full while
+    // Chromium writes the big value out as a blob file). `abortKey` names the put whose commit aborts.
+    const load = (abortKey) => {
+        const store = new Map(), later = (f) => setTimeout(f, 0);
+        let closed = 0;
+        const db = {close() { closed++; }, transaction() {
+            const tx = {};
+            const op = (apply, key) => { const r = {}; later(() => {
+                try { r.result = apply.peek(); } catch (e) { r.error = e; r.onerror && r.onerror(); tx.error = e; tx.onerror && tx.onerror(); return; }
+                r.onsuccess && r.onsuccess();
+                later(() => {
+                    if (key !== undefined && key === abortKey) { tx.error = {name: 'QuotaExceededError', message: 'commit aborted'}; tx.onabort && tx.onabort(); }
+                    else { apply.commit(); tx.oncomplete && tx.oncomplete(); }
+                });
+            }); return r; };
+            tx.objectStore = () => ({
+                get: k => op({peek: () => store.get(k), commit() {}}),
+                put: (v, k) => op({peek: () => undefined, commit: () => store.set(k, v)}, k),
+                delete: k => op({peek: () => undefined, commit: () => store.delete(k)}, k),
+            });
+            return tx;
+        }};
+        const indexedDB = {open() { const rq = {}; later(() => { rq.result = db; rq.onsuccess(); }); return rq; }};
+        const c = vm.createContext({indexedDB, fetch: async (url) => {
+            const v = url.match(/explanation-engine\/([\d.]+)\//)[1];
+            if (url.endsWith('.js')) return {ok: true, text: async () => `JS of ${v}`};
+            let sent = false;
+            return {ok: true, headers: {get: () => String(v.length)},
+                body: {getReader: () => ({read: async () => sent ? {done: true} : (sent = true, {done: false, value: new TextEncoder().encode(v)})})}};
+        }, Blob, setTimeout, Promise, Number, Math, String, Error, TextEncoder});
+        c.self = c;
+        const ee = vm.runInContext(src.replace(/^export \{[^}]*\};?\s*$/m, '') + '\n({eeVersion, eeUpdate, eeCached, eeDownload})', c);
+        store.set('js:1.124.57', 'JS of 1.124.57'); store.set('wasm:1.124.57', new TextEncoder().encode('1.124.57').buffer);
+        store.set('installed-version', '1.124.57');
+        return {ee, store, closed: () => closed};
+    };
+    try {
+        // 1) the new wasm's put succeeds as a request, then its commit aborts
+        {
+            const {ee, store} = load('wasm:1.125.0');
+            await ee.eeVersion();
+            const res = await ee.eeUpdate('1.125.0', () => {}).then(() => 'updated', e => 'failed: ' + (e && (e.name || e.message)));
+            ok('EEHOST-1 (3.1.335): an update whose wasm commit aborts reports a failure, not success', res === 'failed: QuotaExceededError', res);
+            ok('EEHOST-1 (3.1.335): ...the installed version stays 1.124.57 and its engine is kept',
+               store.get('installed-version') === '1.124.57' && store.get('js:1.124.57') === 'JS of 1.124.57' && store.has('wasm:1.124.57'),
+               [...store.keys()]);
+            const cached = await ee.eeCached();
+            ok('EEHOST-1 (3.1.335): ...and Classify still finds the old engine', !!cached && cached.js === 'JS of 1.124.57', cached && cached.js);
+        }
+        // 2) a plain Download whose commit aborts rejects instead of saying "stored"
+        {
+            const {ee, store} = load('wasm:1.124.57');
+            store.delete('wasm:1.124.57');
+            const res = await ee.eeDownload(() => {}).then(() => 'stored', e => 'failed: ' + (e && (e.name || e.message)));
+            ok('EEHOST-1 (3.1.335): a Download whose commit aborts rejects', res === 'failed: QuotaExceededError', res);
+        }
+        // 3) the normal path still works: reads resolve with their value, writes land, connections close
+        {
+            const {ee, store, closed} = load(null);
+            await ee.eeVersion();
+            await ee.eeUpdate('1.125.0', () => {});
+            const after = await ee.eeCached();
+            ok('EEHOST-1 (3.1.335): a committed update installs the new engine and drops the old one',
+               store.get('installed-version') === '1.125.0' && after && after.js === 'JS of 1.125.0' && !store.has('js:1.124.57'),
+               [...store.keys()]);
+            ok('EEHOST-1 (3.1.335): ...each transaction closes its connection', closed() >= 7, closed());
+        }
+    } catch (e) { fails++; console.log('FAIL EEHOST-1 (3.1.335): threw ' + (e && e.message)); }
 })();
 // ==== END FIX CHECKS ====
 
