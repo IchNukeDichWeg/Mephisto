@@ -1293,6 +1293,10 @@ async function analyseNow(gen) {
             if (l2) l2.innerHTML = '<div class="an-lrow"><span></span><span class="an-lval">not running</span><span></span></div>';
             status(`Second engine unavailable (${err.message || err})`, 'err');
         }
+        // The page was left while the second engine loaded: it came back null (disposed) or threw, and
+        // humanFor below would then build a Maia net under the NEW generation, which every guard in
+        // buildHuman passes, so it stayed loaded behind Settings (audit 3.1.335 ANALYSIS-1).
+        if (gen !== pageGen) return;
     }
     // THE BUDGET IS A CHOICE (user call 2026-08-15). The last notch means the search runs until the
     // position changes, the way an analysis board always did; every other notch stops it after that

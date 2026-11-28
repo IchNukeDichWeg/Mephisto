@@ -19364,6 +19364,56 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
     ok('CONFIGSTORE-1 (3.1.333): the settings page and the cheat sheet look labels up', /MephistoI18n\.t\('hk\.' \+ a, l\)/.test(gj) && /i18n\('hk\.' \+ a, l\)/.test(pj)); }
+// ---- audit 3.1.335 ANALYSIS-1: analyseNow stands down when the page was left while the second engine loaded ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const i = aj.indexOf('async function analyseNow(gen) {'), body = aj.slice(i, aj.indexOf('\n}\n', i) + 3);
+    const els = {}, $ = (id) => (els[id] = els[id] || {id, textContent: '', innerHTML: '', classList: {toggle() {}}});
+    const calls = [];
+    let release2 = null;
+    const fake = {startInfinite: () => ({stop: () => Promise.resolve()})};
+    const store = {an_time: 5, an_limit_kind: 'time', an_depth: 20, an_engine2: 'sf18'};
+    const run = async (mode) => {
+        calls.length = 0;
+        const pc = vm.createContext({Math, String, Promise, Error, console, $, cfg: (k) => store[k], CFG: {an_depth: 20}, AN_DEPTH_MAX: 99, AN_INFINITE: 999,
+            pageGen: 0, match: null, largeGame: () => false, cursor: 0, positions: [{fen: 'f', turn: 'w'}], stopSearch: () => Promise.resolve(),
+            ensureEngine: async () => fake,
+            // the second engine is still loading when the page is left; it then resolves null (disposed) or throws
+            ensureEngine2: () => new Promise((res, rej) => { release2 = () => (mode === 'throw' ? rej(new Error('gone')) : res(null)); }),
+            status: (t) => calls.push('status'), engineFen: (p) => p.fen, evalCache: new Map(), evalCache2: new Map(), humanCache: new Map(),
+            humanCacheKey: (f) => f, renderEval() {}, renderEngineLines() {}, renderEngine2Lines() {}, renderArrows() {},
+            humanFor: () => { calls.push('humanFor'); return Promise.resolve(); }, render() {}, renderBands: () => calls.push('renderBands'),
+            renderBook() {}, liveSearch: null, liveSearch2: null, searchTimer: null,
+            setTimeout: (f, ms) => { calls.push('timer'); return 1; }});
+        vm.runInContext(body, pc);
+        const p = vm.runInContext('analyseNow(0)', pc);
+        for (let k = 0; k < 20; k++) await null;
+        pc.pageGen = 1;                       // teardown: the page was left
+        release2();
+        await p;
+        return calls.slice();
+    };
+    const a = await run('null');
+    ok('ANALYSIS-1 (3.1.335): a second engine disposed mid-load does not lead on to humanFor (no Maia net behind Settings)', !a.includes('humanFor') && !a.includes('renderBands'), a);
+    ok('ANALYSIS-1 (3.1.335): ...nor arms the search timer for a page nobody is on', !a.includes('timer'), a);
+    const b = await run('throw');
+    ok('ANALYSIS-1 (3.1.335): a second engine that throws after the page was left does not lead on to humanFor either', !b.includes('humanFor') && !b.includes('renderBands'), b);
+    // control: the same visit with the page still open reaches humanFor as before
+    calls.length = 0;
+    {
+        const pc = vm.createContext({Math, String, Promise, Error, console, $, cfg: (k) => store[k], CFG: {an_depth: 20}, AN_DEPTH_MAX: 99, AN_INFINITE: 999,
+            pageGen: 0, match: null, largeGame: () => false, cursor: 0, positions: [{fen: 'f', turn: 'w'}], stopSearch: () => Promise.resolve(),
+            ensureEngine: async () => fake, ensureEngine2: async () => null,
+            status() {}, engineFen: (p) => p.fen, evalCache: new Map(), evalCache2: new Map(), humanCache: new Map(),
+            humanCacheKey: (f) => f, renderEval() {}, renderEngineLines() {}, renderEngine2Lines() {}, renderArrows() {},
+            humanFor: () => { calls.push('humanFor'); return Promise.resolve(); }, render() {}, renderBands: () => calls.push('renderBands'),
+            renderBook() {}, liveSearch: null, liveSearch2: null, searchTimer: null, setTimeout: () => 1});
+        vm.runInContext(body, pc);
+        await vm.runInContext('analyseNow(0)', pc);
+    }
+    ok('ANALYSIS-1 (3.1.335): ...while on the page the human column still runs', calls.includes('humanFor') && calls.includes('renderBands'), calls);
+})().catch(e => { fails++; console.log('FAIL ANALYSIS-1 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
