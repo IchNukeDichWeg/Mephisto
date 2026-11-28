@@ -20065,6 +20065,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const pl = rs.find(r => r.sels.includes('#quick-settings select.browser-default'));
     ok('CSS-2 (3.1.335): other selects keep the full-width box', !!pl && !/:not/.test(pl.sels.join()) && /width: 100%/.test(pl.body));
 })();
+(() => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // A var() with no fallback naming an undefined property is invalid at computed-value time: the
+    // background silently falls back to transparent. Every --mp-* the analysis page uses without a
+    // fallback must be declared by options.css (the page's palette) or by the page itself.
+    const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
+    const acss = strip(fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.css', 'utf8'));
+    const ocss = strip(fs.readFileSync(ROOT + '/src/options/options.css', 'utf8'));
+    const defined = new Set([...(ocss + acss).matchAll(/(--mp-[\w-]+)\s*:/g)].map(m => m[1]));
+    const used = [...new Set([...acss.matchAll(/var\(\s*(--mp-[\w-]+)\s*\)/g)].map(m => m[1]))];
+    const missing = used.filter(v => !defined.has(v));
+    ok('CSS-3 (3.1.335): every --mp-* the analysis page uses without a fallback is defined', used.length > 0 && missing.length === 0, missing);
+    const bg = (sel) => { const m = acss.match(new RegExp(sel.replace(/[.]/g, '\\.') + '\\s*\\{([^}]*)\\}')); return m && (m[1].match(/background:\s*([^;]+);/) || [])[1]; };
+    ok('CSS-3 (3.1.335): the current mainline move is washed like Game Review\'s selected move', bg('.an-mcell.an-sel') === 'var(--mp-on-soft)', bg('.an-mcell.an-sel'));
+    ok('CSS-3 (3.1.335): the current large-board move is marked the same way', bg('.an-lg-mv.an-lg-cur') === 'var(--mp-on-soft)', bg('.an-lg-mv.an-lg-cur'));
+    ok('CSS-3 (3.1.335): hovering a move or an engine line shows the hairline wash',
+       ['.an-lrow:hover', '.an-mcell:hover', '.an-lg-mv:hover'].every(s => bg(s) === 'var(--mp-hair)'),
+       ['.an-lrow:hover', '.an-mcell:hover', '.an-lg-mv:hover'].map(bg));
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

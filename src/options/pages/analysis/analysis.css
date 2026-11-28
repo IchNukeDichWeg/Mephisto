@@ -200,7 +200,7 @@
     border-radius: 3px;
 }
 .an-lrow:first-child { border-top: none; }
-.an-lrow:hover { background: var(--mp-hover); }
+.an-lrow:hover { background: var(--mp-hair); }
 .an-lrow.an-top { font-weight: 600; }
 .an-lrank {
     font-size: 10px;
@@ -266,8 +266,10 @@
     cursor: pointer;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
-.an-mcell:hover { background: var(--mp-hover); }
-.an-mcell.an-sel { background: var(--mp-sel); font-weight: 600; }
+/* --mp-hair / --mp-on-soft, as Game Review's move list: the --mp-hover / --mp-sel these used were
+   never defined anywhere, so both resolved to transparent and the current move was only bold */
+.an-mcell:hover { background: var(--mp-hair); }
+.an-mcell.an-sel { background: var(--mp-on-soft); font-weight: 600; }
 
 /* the search budget: the kind picks the unit, the slider is the control, the number at the row's
    end is the readout -- the same look as every other slider row. Fixed widths for the select and
@@ -388,5 +390,5 @@
 .an-lg-moves-h { margin-top: 16px; }
 .an-lg-moves { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.8; color: var(--mp-text); }
 .an-lg-mv { cursor: pointer; padding: 1px 3px; border-radius: 3px; }
-.an-lg-mv:hover { background: var(--mp-hover); }
-.an-lg-mv.an-lg-cur { background: var(--mp-hover); font-weight: 600; }
+.an-lg-mv:hover { background: var(--mp-hair); }
+.an-lg-mv.an-lg-cur { background: var(--mp-on-soft); font-weight: 600; }
