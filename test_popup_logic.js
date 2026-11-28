@@ -20110,6 +20110,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('CURSORORACLE-1 (3.1.335): dt_ms stays a mean', Number(cols[5]) === 16, row);
     }).catch((e) => ok('CURSORORACLE-1 (3.1.335): row loop runs', false, String(e)));
 })();
+(() => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // A snap click sends ONE mouseMoved, so there are no gaps to measure. The row must say so, not
+    // print dt 0.0 / sd 0.00, the very "perfect grid" signature the oracle exists to flag.
+    const src = fs.readFileSync(ROOT + '/test/cursor-oracle.mjs', 'utf8');
+    const cut = (from, to) => { const a = src.indexOf(from), b = src.indexOf(to, a); if (a < 0 || b < 0) throw new Error('anchor ' + (a < 0 ? from : to)); return src.slice(a, b); };
+    const helpers = cut('const mean = (a)', '// The clock is stubbed');
+    const dtShapeSrc = cut('function dtShape(all)', "console.log('\\nthe click at the end");
+    const loop = cut('for (const travelMs of [8, 120, 300, 600])', "console.log('\\n  a hand");
+    const lines = [];
+    let travel = 0;
+    const ctx = vm.createContext({
+        console: {log: (s) => lines.push(s)}, String, Math, Number,
+        click: async (_a, _b, _c, _d, t) => { travel = t; return null; },
+        // the snap row: one move, dwell a real 0 (move and press share one clock tick), no gaps
+        clickShape: () => travel === 8
+            ? {dwell: 0, hold: 85, pressDpx: 0, dtMean: NaN, dtSd: NaN, dts: [], moves: 1, force: 0.5}
+            : {dwell: 50, hold: 85, pressDpx: 0, dtMean: 16, dtSd: 2, dts: [16, 15, 17], moves: 4, force: 0.5},
+    });
+    vm.runInContext(helpers + dtShapeSrc + '\nthis.__run = async () => {\n' + loop + '\n};', ctx);
+    ctx.__run().then(() => {
+        const snap = (lines.find(s => /^\s+8ms/.test(s)) || '').trim().split(/\s+/);
+        const path = (lines.find(s => /^\s+120ms/.test(s)) || '').trim().split(/\s+/);
+        ok('CURSORORACLE-2 (3.1.335): snap row dt_ms is not a measured 0.0', snap[5] === '-', snap);
+        ok('CURSORORACLE-2 (3.1.335): snap row dt_sd is not a measured 0.00', snap[6] === '-', snap);
+        ok('CURSORORACLE-2 (3.1.335): snap row on_grid/skip print the same blank, not NaN', snap[7] === '-' && snap[8] === '-', snap);
+        ok('CURSORORACLE-2 (3.1.335): snap dwell is a real 0 and still prints 0.0', snap[2] === '0.0', snap);
+        ok('CURSORORACLE-2 (3.1.335): a pathed row still prints its gap numbers', path[5] === '16.0' && path[6] === '2.00', path);
+    }).catch((e) => ok('CURSORORACLE-2 (3.1.335): row loop runs', false, String(e)));
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

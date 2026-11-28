@@ -211,12 +211,19 @@ console.log('  travel   moves  dwell_p50  hold_p50   press_dpx   dt_ms   dt_sd  
 for (const travelMs of [8, 120, 300, 600]) {
     const runs = [];
     for (let i = 0; i < 30; i++) runs.push(clickShape(await click(0, 0, 300, 120, travelMs)));
-    const col = (k, d = 2, stat = mean) => f(stat(runs.map(r => r[k]).filter(v => !Number.isNaN(v))) || 0, d);
+    // A column with nothing to measure prints '-'. The snap click sends one mouseMoved, so it has no
+    // gaps at all, and coercing that to 0 printed dt_sd 0.00: the perfect-grid tell, for a stream
+    // that does not exist. Snap dwell stays a real 0 (move and press go out on the same tick).
+    const col = (k, d = 2, stat = mean) => {
+        const v = runs.map(r => r[k]).filter(x => !Number.isNaN(x));
+        return v.length ? f(stat(v), d) : '-';
+    };
+    const na = (x) => Number.isNaN(x) ? '-' : f(x);
     const g = dtShape(runs.flatMap(r => r.dts));
     console.log(`  ${String(travelMs).padStart(4)}ms  ${col('moves', 1).padStart(6)}   `
         + `${col('dwell', 1, median).padStart(7)}   ${col('hold', 1, median).padStart(7)}   ${col('pressDpx').padStart(8)}   `
         + `${col('dtMean', 1).padStart(5)}   ${col('dtSd', 2).padStart(5)}   `
-        + `${f(g.onGrid).padStart(7)}   ${f(g.skip).padStart(4)}   ${runs[0].force}`);
+        + `${na(g.onGrid).padStart(7)}   ${na(g.skip).padStart(4)}   ${runs[0].force}`);
 }
 console.log('\n  a hand: dwell p50 23 ms, hold p50 83 ms, press_dpx 0, on_grid ~0.90 with skip ~0.08,');
 console.log('          force 0.5. on_grid near 1.00 with skip 0.00 is a perfect grid; on_grid low');
