@@ -19507,6 +19507,29 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('ANALYSIS-4 (3.1.335): ...with its status line as before', st.some(([t, k]) => /Human model unavailable \(offscreen load failed\)/.test(t) && k === 'err'), st);
     }
 })().catch(e => { fails++; console.log('FAIL ANALYSIS-4 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.335 BACKGROUND1-1: the review socket never borrows a discarded or frozen tab ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const bg = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const a = bg.indexOf('const CCR_BUSY_PATH'), b = bg.indexOf('// ONE REVIEW AT A TIME', a);
+    const run = (tabs) => {
+        const created = [];
+        const c = vm.createContext({URL, ccrWaitComplete: async () => {}, chrome: {tabs: {
+            query: async () => tabs.map((t, i) => Object.assign({id: i + 1}, t)),
+            create: async (o) => { created.push(o); return {id: 99}; }}}});
+        vm.runInContext(bg.slice(a, b), c);
+        return vm.runInContext('ccrEnsureTab()', c).then(r => ({r, created}));
+    };
+    Promise.all([
+        run([{url: 'https://www.chess.com/analysis', discarded: true}]),
+        run([{url: 'https://www.chess.com/home', frozen: true}]),
+        run([{url: 'https://www.chess.com/analysis', discarded: true}, {url: 'https://www.chess.com/home', discarded: false, frozen: false}]),
+    ]).then(([disc, froz, mixed]) => {
+        ok('BACKGROUND1-1 (3.1.335): a discarded calm tab is skipped and a background tab is spawned', disc.r.spawned && disc.created.length === 1 && disc.created[0].active === false, disc.r);
+        ok('BACKGROUND1-1 (3.1.335): a frozen calm tab is skipped and a background tab is spawned', froz.r.spawned && froz.created.length === 1, froz.r);
+        ok('BACKGROUND1-1 (3.1.335): a live calm tab is still borrowed past a discarded one', mixed.r.tab && mixed.r.tab.id === 2 && !mixed.r.spawned && mixed.created.length === 0, mixed.r);
+    });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

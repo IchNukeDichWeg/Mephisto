@@ -1478,9 +1478,12 @@ function ccrWaitComplete(tabId, timeoutMs) {
 // inside a live game, where a page wrapper (chess.com's telemetry, or our own puzzle probe) sees a
 // review socket the page never started (audit 3.1.328 PAGE-7). Only a tab on some other page is
 // borrowed; otherwise a background tab is spawned, as when none is open.
+// Nor a tab Memory Saver discarded or Chrome froze: a discarded tab has no renderer, so
+// executeScript rejects (MPH-R04, "reload that tab"), and a frozen one stalls the injection until it
+// thaws, where a spawned tab would just have worked (audit 3.1.335 BACKGROUND1-1).
 const CCR_BUSY_PATH = /^\/(game|play|live|daily|variants|puzzles?)(\/|$)/;
 function ccrCalmTab(t) {
-  if (t.id == null) return false;
+  if (t.id == null || t.discarded || t.frozen) return false;
   try { return !CCR_BUSY_PATH.test(new URL(t.url || t.pendingUrl || '').pathname); } catch (e) { return false; }
 }
 
