@@ -199,6 +199,20 @@ class WasmEngine {
     }
 
     async start() {
+        this.disposed = false;
+        try { await this.boot(); }
+        catch (e) {
+            // A FAILED START CLEANS UP AFTER ITSELF. boot() arms the listener, the lease port and the
+            // 15 s ping before it knows the engine loads, and most callers just drop an
+            // engine whose start threw: the Analysis page rebuilt one on every cursor move while the
+            // net would not load, each leaving one more of all three running until the tab closed
+            // (audit 3.1.335 ENGINES-1). Skipped when a dispose() during the start is what threw.
+            if (!this.disposed) this.dispose();
+            throw e;
+        }
+    }
+
+    async boot() {
         await chrome.runtime.sendMessage({ensureOffscreen: true});
         chrome.runtime.onMessage.addListener(this.onMessage);
         // THE PAGE'S HANDLE. A closed tab sends no dispose; the browser closes this port with the
@@ -440,6 +454,7 @@ class WasmEngine {
 
     dispose() {
         clearInterval(this.keepAlive);
+        this.disposed = true;   // start() reads it: a dispose during the start already cleaned up
         try { chrome.runtime.onMessage.removeListener(this.onMessage); } catch (e) { /* gone */ }
         // `release` first: a port closed from this end is a dispose on purpose, not a closed page
         try { this.leasePort?.postMessage({release: true}); this.leasePort?.disconnect(); } catch (e) { /* gone */ }
@@ -529,7 +544,10 @@ class NativeEngine {
             MultiPV: this.opts.multipv, Threads: this.opts.threads, Hash: this.opts.hash,
             UCI_Variant: variant, UCI_Chess960: false, UCI_LimitStrength: false, Personality: '---',
         };
-        await this.request('configure', {options: this.configured});
+        // A refused configure leaves the port open, and the relay holds a host process per options
+        // port: the caller drops this engine, so close it here (audit 3.1.335 ENGINES-1).
+        try { await this.request('configure', {options: this.configured}); }
+        catch (e) { this.dispose(); throw e; }
     }
 
     // The host protocol has no ucinewgame (python-chess sends one only when its game object

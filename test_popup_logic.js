@@ -20231,6 +20231,92 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         }
     } catch (e) { fails++; console.log('FAIL EEHOST-1 (3.1.335): threw ' + (e && e.message)); }
 })();
+(async () => {
+    // A FAILED ENGINE START FREES WHAT IT ARMED. The Analysis page rebuilds its engine on every cursor
+    // move while the net will not load; each failed WasmEngine.start() used to leave its 15 s ping,
+    // its lease port and its onMessage listener running, and a NativeEngine whose configure was
+    // refused kept its host port open.
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/util/engines.js', 'utf8');
+    const intervals = new Set(); let nextId = 1;
+    const listeners = new Set(); const ports = [];
+    let initReply = {kind: 'error', error: 'net fetch failed'};
+    const mkPort = (name) => {
+        const p = {name, open: true, msg: [], disc: [], sent: [],
+            onMessage: {addListener: (f) => p.msg.push(f)}, onDisconnect: {addListener: (f) => p.disc.push(f)},
+            postMessage: (x) => { p.sent.push(x); if (x.cmd === 'configure') Promise.resolve().then(() => p.msg.forEach(f => f({id: x.id, error: 'configure refused'}))); },
+            disconnect: () => { p.open = false; }};
+        ports.push(p); return p;
+    };
+    const chrome = {runtime: {
+        sendMessage: async (m) => {
+            if (m && m.toOffscreen && m.cmd === 'init') {
+                const r = {fromOffscreen: true, clientId: m.clientId, ...initReply};
+                Promise.resolve().then(() => [...listeners].forEach(f => f(r)));
+            }
+            return undefined;
+        },
+        onMessage: {addListener: (f) => listeners.add(f), removeListener: (f) => listeners.delete(f)},
+        connect: ({name}) => mkPort(name),
+    }};
+    const ctx = {console: {log() {}, warn() {}}, chrome,
+        setInterval: () => { const id = nextId++; intervals.add(id); return id; },
+        clearInterval: (id) => intervals.delete(id),
+        setTimeout: () => 0, clearTimeout() {}};
+    ctx.self = ctx;
+    ctx.self.MephistoReviewCore = {parseInfo: () => null};
+    vm.createContext(ctx);
+    vm.runInContext(src, ctx);
+    const {makeEngine} = ctx.self.MephistoEngines;
+    const opts = {variant: 'chess', threads: 1, hash: 16, multipv: 1};
+    let threw = 0;
+    for (let i = 0; i < 3; i++) {
+        try { await makeEngine('stockfish-18-nnue', opts, 'analysis').start(); } catch (e) { threw++; }
+    }
+    const leaseOpen = ports.filter(p => p.open && /^mephisto-engine-lease:/.test(p.name)).length;
+    ok('ENGINES-1 (3.1.335): three failed WASM starts all throw', threw === 3, threw);
+    ok('ENGINES-1 (3.1.335): a failed WASM start leaves no keepAlive interval, lease port or onMessage listener behind',
+       intervals.size === 0 && leaseOpen === 0 && listeners.size === 0,
+       {intervals: intervals.size, ports: leaseOpen, listeners: listeners.size});
+
+    // a start that works keeps all three, and its dispose frees them
+    initReply = {kind: 'ready'};
+    const good = makeEngine('stockfish-18-nnue', opts, 'analysis');
+    const started = good.start();
+    // isready: answer readyok once the engine asks for it
+    const origSend = chrome.runtime.sendMessage;
+    chrome.runtime.sendMessage = async (m) => {
+        if (m && m.cmd === 'uci' && m.line === 'isready') Promise.resolve().then(() => [...listeners].forEach(f => f({fromOffscreen: true, clientId: m.clientId, kind: 'line', line: 'readyok'})));
+        return origSend(m);
+    };
+    await started;
+    ok('ENGINES-1 (3.1.335): a WASM start that succeeds keeps its ping, port and listener',
+       intervals.size === 1 && listeners.size === 1 && ports.filter(p => p.open).length === 1);
+    good.dispose();
+    ok('ENGINES-1 (3.1.335): ...and its dispose frees them', intervals.size === 0 && listeners.size === 0);
+
+    // a dispose DURING start (Stop pressed while the net loads) is not followed by a second one
+    initReply = null;
+    let disposes = 0;
+    const send2 = chrome.runtime.sendMessage;
+    chrome.runtime.sendMessage = async (m) => { if (m && m.cmd === 'dispose') disposes++; if (m && m.cmd === 'init') return; return send2(m); };
+    const mid = makeEngine('stockfish-18-nnue', opts, 'analysis');
+    const p = mid.start().catch(e => e);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    mid.dispose();
+    const err = await p;
+    ok('ENGINES-1 (3.1.335): a start cancelled by dispose rejects once and sends one dispose',
+       /disposed/.test(String(err && err.message)) && disposes === 1, [String(err && err.message), disposes]);
+
+    // native: a refused configure closes the host port
+    const nat = makeEngine('sf19-native', opts, 'analysis');
+    let nerr = null;
+    try { await nat.start(); } catch (e) { nerr = e; }
+    const np = ports.filter(p => p.name === 'sf19-native');
+    ok('ENGINES-1 (3.1.335): a native start whose configure is refused throws and disconnects its port',
+       nerr && /configure refused/.test(nerr.message) && np.length === 1 && !np[0].open && nat.port === null,
+       [nerr && nerr.message, np.map(p => p.open)]);
+})().catch(e => { fails++; console.log('FAIL ENGINES-1 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
