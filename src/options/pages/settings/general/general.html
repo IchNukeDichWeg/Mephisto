@@ -113,7 +113,8 @@
                     <div class="set-ctl">
                         <span class="set-step">
                             <button type="button" class="set-step-btn" data-step="-1">&minus;</button>
-                            <input id="elo_input" type="number" min="0" max="3190" step="10">
+                            <!-- max is one step above the engines' 3190 cap: the panel limits only 0 < elo <= 3190, so 3200 is "full strength" (audit 3.1.335 GENERALJS-2) -->
+                            <input id="elo_input" type="number" min="0" max="3200" step="10">
                             <button type="button" class="set-step-btn" data-step="1">+</button>
                         </span>
                     </div>

@@ -20422,6 +20422,15 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     s = vm.runInContext('state()', ctx);
     ok('GENERALJS-1 (3.1.335): ordinary modifiers still wait and a plain key binds', s.capturing === null && s.binding === 'k', s);
 })();
+// ---- audit 3.1.335 GENERALJS-2: the Settings Elo field can hold the panel's full-strength value ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const gh = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const pj = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const max = +((gh.match(/<input id="elo_input"[^>]*max="(\d+)"/) || [])[1]);
+    const full = +((pj.match(/const FULL_STRENGTH_ELO = (\d+);/) || [])[1]);
+    ok('GENERALJS-2 (3.1.335): the Elo field max reaches FULL_STRENGTH_ELO, so an edit never turns full strength into a 3190 cap', max > 0 && full > 0 && max >= full, [max, full]);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
