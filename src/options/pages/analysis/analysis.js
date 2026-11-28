@@ -1100,7 +1100,7 @@ async function reloadHuman() {
             await humanFor(pos);
             render();
             renderBands(pos);
-        } catch (e) { status(`Human model unavailable (${e.message || e})`, 'err'); }
+        } catch (e) { humanUnavailable(pos, e); }
         return;
     }
     if (human) { try { human.dispose?.(); } catch (e) { /* */ } human = null; humanKey = null; }
@@ -1121,7 +1121,7 @@ async function reloadHuman() {
         await humanFor(pos);
         render();
         renderBands(pos);
-    } catch (e) { status(`Human model unavailable (${e.message || e})`, 'err'); }
+    } catch (e) { humanUnavailable(pos, e); }
 }
 
 // teardown() bumps this. An engine whose start() was still loading when the page was left used to be
@@ -1319,7 +1319,8 @@ async function analyseNow(gen) {
             });
         }, secs * 1000);
     }
-    humanFor(pos).then(() => { if (cursor === at) render(); }).catch(() => {});
+    humanFor(pos).then(() => { if (cursor === at) render(); })
+        .catch((err) => { if (gen === pageGen && cursor === at) humanUnavailable(pos, err); });
     renderBands(pos);
     renderBook();
 }
@@ -1847,6 +1848,16 @@ function renderHumanLines(pos, hum) {
                 Core.clamp(h.prob * 100, 2, 100), h.uci)).join('')
         : `<div class="an-lrow"><span></span><span class="an-lval">${kind ? emptyColumnWord(pos, !!hum) : 'off'}</span><span></span></div>`;
     wireLineClicks(host);
+}
+
+// A model that failed to load says so, as the engine columns do (3.1.321 F1). The error used to be
+// swallowed, or only reach the status line, and the column claimed "thinking…" on every position
+// while no human search ran (audit 3.1.335 ANALYSIS-4).
+function humanUnavailable(pos, err) {
+    status(`Human model unavailable (${err?.message || err})`, 'err');
+    if (positions[cursor]?.fen !== pos.fen) return;
+    const host = $('an_human_lines');
+    if (host) host.innerHTML = '<div class="an-lrow"><span></span><span class="an-lval">not running</span><span></span></div>';
 }
 
 function renderArrows(pos, ev, hum) {

@@ -19460,6 +19460,53 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const after = calls.splice(0);
     ok('ANALYSIS-3 (3.1.335): with no match running render() draws the analysis as before', after.includes('position ANALYSIS') && after.includes('arrows') && after.includes('eval'), after);
 }
+// ---- audit 3.1.335 ANALYSIS-4: a human model that fails to load says "not running" in its column, not "thinking…" ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const fn = (sig) => { const i = aj.indexOf(sig); if (i < 0) throw new Error('slice ' + sig); return aj.slice(i, aj.indexOf('\n}\n', i) + 3); };
+    const settle = async () => { for (let k = 0; k < 50; k++) await null; };
+    const mkEls = () => { const els = {}; return [els, (id) => (els[id] = els[id] || {id, textContent: '', innerHTML: '', classList: {toggle() {}}})]; };
+    const extra = aj.includes('function humanUnavailable(') ? fn('function humanUnavailable(') : '';
+    // analyseNow: the swallowed rejection of humanFor
+    {
+        const [els, $] = mkEls();
+        const st = [];
+        const fake = {startInfinite: () => ({stop: () => Promise.resolve()})};
+        const store = {an_time: 999, an_limit_kind: 'time', an_depth: 20, an_engine2: '', an_human: 'maia3', an_band: 1500};
+        const pc = vm.createContext({Math, String, Promise, Error, console, $, cfg: (k) => store[k], CFG: {an_depth: 20}, AN_DEPTH_MAX: 99, AN_INFINITE: 999,
+            pageGen: 0, match: null, largeGame: () => false, cursor: 0, positions: [{fen: 'f', turn: 'w'}], stopSearch: () => Promise.resolve(),
+            ensureEngine: async () => fake, ensureEngine2: async () => null,
+            status: (t, k) => st.push([t, k]), engineFen: (p) => p.fen, evalCache: new Map(), evalCache2: new Map(), humanCache: new Map(),
+            humanCacheKey: (f) => f, renderEval() {}, renderEngineLines() {}, renderEngine2Lines() {}, renderArrows() {},
+            humanFor: () => Promise.reject(new Error('maia3 weights missing')), render() {}, renderBands() {}, renderBook() {},
+            liveSearch: null, liveSearch2: null, searchTimer: null});
+        vm.runInContext(fn('async function analyseNow(gen) {') + '\n' + extra, pc);
+        $('an_human_lines').innerHTML = '<span class="an-lval">thinking…</span>';
+        await vm.runInContext('analyseNow(0)', pc);
+        await settle();
+        ok('ANALYSIS-4 (3.1.335): a failed human model load turns the column to "not running"', /not running/.test(els.an_human_lines.innerHTML) && !/thinking/.test(els.an_human_lines.innerHTML), els.an_human_lines.innerHTML);
+        ok('ANALYSIS-4 (3.1.335): ...and the status line says why', st.some(([t, k]) => /Human model unavailable \(maia3 weights missing\)/.test(t) && k === 'err'), st);
+    }
+    // reloadHuman: a band or model change whose load fails
+    {
+        const [els, $] = mkEls();
+        const st = [];
+        const c = vm.createContext({Promise, Error, String, $, st, els});
+        vm.runInContext(`let bandRun = 0, human = null, humanKey = null, match = null;
+            const cursor = 0, positions = [{fen: 'f', turn: 'w'}], humanCache = new Map(), bandCache = new Map(), evalCache = new Map(), CFG = {an_band: 1500};
+            const cfg = (k) => (k === 'an_human' ? 'maia3' : 1500);
+            function syncBandRow() {} function largeGame() { return false; } function anVariant() { return 'chess'; } function takesRating() { return true; }
+            function renderHumanLines() { $('an_human_lines').innerHTML = '<span class="an-lval">thinking…</span>'; }
+            function status(t, k) { st.push([t, k]); } function render() {} function renderBands() {} function renderArrows() {}
+            function ensureHuman() { return Promise.reject(new Error('offscreen load failed')); } function humanFor() { return Promise.resolve(); }
+            ${fn('async function reloadHuman() {')}
+            ${extra}`, c);
+        await vm.runInContext('reloadHuman()', c);
+        ok('ANALYSIS-4 (3.1.335): reloadHuman\'s failed load also leaves the column on "not running"', /not running/.test(els.an_human_lines.innerHTML), els.an_human_lines.innerHTML);
+        ok('ANALYSIS-4 (3.1.335): ...with its status line as before', st.some(([t, k]) => /Human model unavailable \(offscreen load failed\)/.test(t) && k === 'err'), st);
+    }
+})().catch(e => { fails++; console.log('FAIL ANALYSIS-4 checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
