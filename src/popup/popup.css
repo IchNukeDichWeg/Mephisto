@@ -1492,8 +1492,10 @@ body.mephisto-dark #game-detection.unsupported { color: #ff7a70; }
 /* Autoplay armed but overridden by Help Mode or Manual Mode. Not an error -- both legitimately mean
    "I will play the move myself" -- but with the switches split across tabs you can no longer see the
    one doing the overriding, so a solid green fill would be a lie. Hollow it out: still armed, not
-   running. The row's title says which mode has it. */
-#quick-settings .qs-row.qs-toggle.qs-overridden {
+   running. The row's title says which mode has it. The :has() is for specificity: the checked-row
+   fill above is (1,4,0) through its :has(.qs-cb:checked), so a plain .qs-overridden (1,3,0) lost
+   the background and only the dashes showed. */
+#quick-settings .qs-row.qs-toggle.qs-overridden:has(.qs-cb:checked) {
     background: var(--mp-bg);
     border-style: dashed;
 }

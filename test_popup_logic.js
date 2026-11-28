@@ -19986,6 +19986,43 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        c.seen.includes(true), c.seen);
     ok('CONTENT2-3 (3.1.335): ...and the chain still stops once the scrape succeeds', q.length === 0 && c.scrapes.length === 0, q.length);
 }
+(() => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // Specificity per Selectors 4: :is/:not/:has take their most specific argument, :where counts 0.
+    const spec = (sel) => {
+        let a = 0, b = 0, c = 0, i = 0;
+        const arg = () => { let d = 1, s = ++i; while (d) { i++; if (sel[i] === '(') d++; else if (sel[i] === ')') d--; } const t = sel.slice(s, i); i++; return t; };
+        const max = (list) => list.split(',').map(spec).reduce((m, x) => (x[0] - m[0] || x[1] - m[1] || x[2] - m[2]) > 0 ? x : m, [0, 0, 0]);
+        while (i < sel.length) {
+            const ch = sel[i];
+            if (ch === '#') { a++; i++; while (/[\w-]/.test(sel[i] || '')) i++; }
+            else if (ch === '.') { b++; i++; while (/[\w-]/.test(sel[i] || '')) i++; }
+            else if (ch === '[') { b++; while (sel[i] !== ']') i++; i++; }
+            else if (ch === ':' && sel[i + 1] === ':') { c++; i += 2; while (/[\w-]/.test(sel[i] || '')) i++; }
+            else if (ch === ':') { i++; let n = ''; while (/[\w-]/.test(sel[i] || '')) n += sel[i++];
+                if (sel[i] === '(') { const t = arg(); if (/^(is|not|has|matches)$/.test(n)) { const m = max(t); a += m[0]; b += m[1]; c += m[2]; } else if (n !== 'where') b++; }
+                else b++; }
+            else if (/[a-zA-Z]/.test(ch)) { c++; while (/[\w-]/.test(sel[i] || '')) i++; }
+            else i++;
+        }
+        return [a, b, c];
+    };
+    const rules = (css) => { css = css.replace(/\/\*[\s\S]*?\*\//g, ''); const out = []; const re = /([^{}]+)\{([^{}]*)\}/g; let m;
+        while ((m = re.exec(css))) out.push({ sels: m[1].trim().replace(/^@[^{]*$/, '').split(',').map(s => s.trim()), body: m[2], at: m.index }); return out; };
+    const css = fs.readFileSync(ROOT + '/src/popup/popup.css', 'utf8');
+    const rs = rules(css);
+    const green = rs.find(r => r.sels.includes('#quick-settings .qs-row.qs-toggle:has(.qs-cb:checked)') && /background: var\(--mp-on-soft\)/.test(r.body));
+    const hollow = rs.find(r => r.sels.some(s => /\.qs-row\.qs-toggle\.qs-overridden/.test(s) && !/\s\.qs-(cb|label)/.test(s)) && /background: var\(--mp-bg\)/.test(r.body));
+    ok('CSS-1 (3.1.335): both rules are found', !!green && !!hollow);
+    if (!green || !hollow) return;
+    const hs = hollow.sels.find(s => /qs-overridden/.test(s)), gs = spec(green.sels[0]), os = spec(hs);
+    const cmp = os[0] - gs[0] || os[1] - gs[1] || os[2] - gs[2] || (hollow.at > green.at ? 1 : -1);
+    ok('CSS-1 (3.1.335): the overridden Autoplay row\'s hollow background outranks the checked row\'s green fill', cmp > 0, { overridden: os, checked: gs });
+    const hover = rs.find(r => r.sels.includes('#quick-settings .qs-row.qs-toggle:hover'));
+    const hv = spec(hover.sels[0]);
+    ok('CSS-1 (3.1.335): ...and hovering does not repaint it either', (os[0] - hv[0] || os[1] - hv[1] || os[2] - hv[2] || 1) > 0, { overridden: os, hover: hv });
+    ok('CSS-1 (3.1.335): the spec helper agrees with the hunter\'s arithmetic', JSON.stringify(gs) === '[1,4,0]' && JSON.stringify(spec('#quick-settings .qs-row.qs-toggle.qs-overridden')) === '[1,3,0]');
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
