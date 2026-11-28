@@ -764,7 +764,13 @@ function startDragSelect() {
     getOverlayRoot().appendChild(veil);
 
     let sx = 0, sy = 0, dragging = false;
-    const done = () => { veil.remove(); dragVeil = null; document.removeEventListener('keydown', onKey, true); };
+    const done = () => {
+        veil.remove(); dragVeil = null; document.removeEventListener('keydown', onKey, true);
+        // removeOverlay and the toolbar-popup disconnect keep the host while the veil is up and leave
+        // it to this tear-down, which never took it down: an empty div and closed root stayed in the
+        // site's body (audit 3.1.335 CONTENT1-4). Every overlay of ours has an id, so none left = unused.
+        if (overlayRoot && !overlayRoot.querySelector('[id]')) { overlayHost?.remove(); overlayHost = null; overlayRoot = null; }
+    };
     function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); done(); } }
     document.addEventListener('keydown', onKey, true);
     veil.addEventListener('mousedown', (e) => {

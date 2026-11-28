@@ -19808,6 +19808,44 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         }
     } else ok('CONTENT1-3 (3.1.335): slice built', false);
 }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // the real getOverlayRoot + startDragSelect, on a tiny fake DOM
+    const fnEnd = (start) => csrc.indexOf('\n}\n', start) + 3;
+    const g = csrc.indexOf('function getOverlayRoot() {');
+    const d = csrc.indexOf('function startDragSelect() {');
+    const code = 'let overlayHost = null, overlayRoot = null, dragVeil = null;\n' + csrc.slice(g, fnEnd(g)) + csrc.slice(d, fnEnd(d))
+        + ';globalThis.start = startDragSelect; globalThis.st = () => ({host: overlayHost, root: overlayRoot, veil: dragVeil});'
+        + 'globalThis.closeWhileVeil = () => { if (!dragVeil) { overlayHost?.remove(); overlayHost = null; overlayRoot = null; } };';
+    class El {
+        constructor(tag) { this.tagName = tag; this.children = []; this.parent = null; this.style = {cssText: ''}; this.id = ''; this.ls = {}; }
+        appendChild(c) { c.parent = this; this.children.push(c); return c; }
+        remove() { if (this.parent) { this.parent.children = this.parent.children.filter(x => x !== this); this.parent = null; } }
+        get isConnected() { let p = this; while (p.parent) p = p.parent; return p === body; }
+        addEventListener(t, f) { this.ls[t] = f; }
+        attachShadow() { const r = new El('#root'); r.parent = this; this.shadow = r; return r; }
+        querySelector(sel) { const walk = (n) => { for (const c of n.children) { if (sel === '[id]' && c.id) return c; const x = walk(c); if (x) return x; } return null; }; return walk(this); }
+    }
+    const body = new El('BODY');
+    const docLs = {};
+    const c = {document: {body, createElement: (t) => new El(t.toUpperCase()), addEventListener: (t, f) => { docLs[t] = f; }, removeEventListener: () => {}},
+               window: {devicePixelRatio: 1}, self: {}, console: {warn: () => {}}, isTextEntry: () => false};
+    vm.createContext(c);
+    let built = true;
+    try { vm.runInContext(code, c); } catch (e) { built = false; console.log('  threw ' + e.message); }
+    if (built) {
+        // toolbar-popup mode: the veil goes up, the popup closes (host kept for the veil), Esc ends it
+        c.start(); c.closeWhileVeil();
+        ok('CONTENT1-4 (3.1.335): the host stays while the veil is up', body.children.length === 1 && !!c.st().veil);
+        docLs.keydown({key: 'Escape', preventDefault() {}});
+        ok('CONTENT1-4 (3.1.335): ...and the veil\'s own tear-down then removes the empty host', body.children.length === 0 && c.st().host === null && c.st().root === null, body.children.length);
+        // an overlay still in the root (the open panel) keeps the host when the veil ends
+        c.start();
+        const panel = new El('DIV'); panel.id = 'mephisto-overlay'; c.st().root.appendChild(panel);
+        docLs.keydown({key: 'Escape', preventDefault() {}});
+        ok('CONTENT1-4 (3.1.335): a veil ended with the panel open leaves the host and the panel alone', body.children.length === 1 && c.st().root && c.st().root.children.includes(panel));
+    } else ok('CONTENT1-4 (3.1.335): slice built', false);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
