@@ -20509,6 +20509,62 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            afterLoad === '' && lastPos(h) === `position fen ${S0}` && h.text('an_lg_moves') === '', [afterLoad, lastPos(h)]);
     } catch (e) { fails++; console.log('FAIL LARGEBOARD-1 (3.1.335): the harness threw ' + (e && e.stack || e)); }
 })();
+// ---- audit 3.1.335 LARGEBOARD-2: a search that ends on the time budget says "done", like the chess side ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the REAL large-board.js against a stub DOM and a stub engine whose search behaves like WasmEngine.startInfinite:
+    // it streams one info frame, and once stop() has been called the bestmove's done frame is never delivered
+    const src = fs.readFileSync(ROOT + '/src/options/pages/analysis/large-board.js', 'utf8').replace(/^export \{[^}]*\};?\s*$/m, '');
+    const S0 = 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL[] w - - 0 1';
+    const harness = (opts) => {
+        const els = {};
+        const el = (id) => els[id] || (els[id] = {id, h: {}, value: '', textContent: '', innerHTML: '', className: '',
+            classList: {toggle() {}}, setAttribute() {}, addEventListener(t, f) { (this.h[t] = this.h[t] || []).push(f); },
+            fire(t, ev) { for (const f of this.h[t] || []) f(ev || {}); }});
+        const searches = [];
+        class Eng {
+            constructor() { this.listeners = []; }
+            async start() {}
+            dispose() {}
+            emit(lines) { for (const line of lines) for (const f of this.listeners.slice()) f({kind: 'line', line}); }
+            once(pred) { return new Promise((res) => { const f = (m) => { if (pred(m)) { this.listeners.splice(this.listeners.indexOf(f), 1); res(m); } }; this.listeners.push(f); }); }
+            send(c) {
+                if (c === 'd') setTimeout(() => this.emit(['Fen: ' + S0, 'Checkers: ']), 0);
+                if (c === 'go perft 1') setTimeout(() => this.emit(['c3c4: 1', 'h3h4: 1', 'Nodes searched: 2']), 0);
+            }
+            startInfinite(fen, turn, onUpdate) {
+                let stopped = false;
+                const s = {stopped: () => stopped, stop: async () => { stopped = true; }};
+                setTimeout(() => { if (!stopped) onUpdate({depth: 17, nodes: 4210000, lines: [{pv: ['c3c4'], cp: 20}], done: false}); }, 0);
+                searches.push(s);
+                return s;
+            }
+        }
+        const ctx = vm.createContext({document: {getElementById: el, activeElement: null}, window: {confirm: () => false}, setTimeout, clearTimeout, console});
+        ctx.self = ctx;
+        ctx.MephistoEngines = {WasmEngine: Eng};
+        ctx.MephistoReviewCore = {isMateScore: () => false};
+        vm.runInContext(src + '\n;this.L = {showLargeGame, hideLargeGame};', ctx);
+        return {L: ctx.L, el, searches, opts: () => opts};
+    };
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    try {
+        let h = harness({multipv: 1, threads: 1, hash: 16, depth: 0, secs: 0.05});
+        h.L.showLargeGame('shogi', h.opts);
+        // waits on STATE, not on a fixed sleep: under load the search can start late or the 50 ms
+        // timer can fire late, and a sleep-then-read check flaked at load average 15
+        for (let i = 0; i < 300 && !(h.searches.length && h.searches[0].stopped() && /done/.test(h.el('an_lg_meta').textContent)); i++) await wait(10);
+        const end = h.el('an_lg_meta').textContent;
+        ok('LARGEBOARD-2 (3.1.335): a time-budget search marks the meta "done" once the timer stops it',
+           h.searches.length === 1 && h.searches[0].stopped() && end === 'depth 17 · 4210k · done (0.05s)', end);
+        // the infinite notch (secs 0) never stops on its own, so it never claims to be done
+        h = harness({multipv: 1, threads: 1, hash: 16, depth: 0, secs: 0});
+        h.L.showLargeGame('shogi', h.opts);
+        await wait(120);
+        ok('LARGEBOARD-2 (3.1.335): ...while an infinite search keeps its live meta with no "done"',
+           h.el('an_lg_meta').textContent === 'depth 17 · 4210k' && !h.searches[0].stopped(), h.el('an_lg_meta').textContent);
+    } catch (e) { fails++; console.log('FAIL LARGEBOARD-2 (3.1.335): the harness threw ' + (e && e.stack || e)); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

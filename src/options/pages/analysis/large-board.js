@@ -255,7 +255,16 @@ async function refreshNow(want, gen) {
         renderLines(res);
         drawArrow();
     }, {depth: o.depth});
-    if (!o.depth && o.secs) budgetTimer = setTimeout(() => { stopSearch(); }, o.secs * 1000);
+    // stop() sets stopped=true before the bestmove lands, so the engine's own done frame never reaches
+    // renderLines and a budget-ended search looked live for good; mark it here, as analysis.js does for
+    // the chess board (audit 3.1.335 LARGEBOARD-2). Not after a newer refresh: its meta is its own.
+    if (!o.depth && o.secs) budgetTimer = setTimeout(() => {
+        stopSearch().then(() => {
+            if (gen !== posGen || live) return;
+            const m = $('an_lg_meta');
+            if (m && /^depth /.test(m.textContent) && !/done/.test(m.textContent)) m.textContent += ` · done (${o.secs}s)`;
+        });
+    }, o.secs * 1000);
 }
 
 // ---- board ----------------------------------------------------------------------------------------
