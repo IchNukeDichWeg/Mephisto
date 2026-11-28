@@ -20565,6 +20565,38 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            h.el('an_lg_meta').textContent === 'depth 17 · 4210k' && !h.searches[0].stopped(), h.el('an_lg_meta').textContent);
     } catch (e) { fails++; console.log('FAIL LARGEBOARD-2 (3.1.335): the harness threw ' + (e && e.stack || e)); }
 })();
+// ---- audit 3.1.335 MAIA-1: a Maia-1 / Leela go answers the position it encoded, not one set while its pass ran ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const lib = (f) => fs.existsSync(ROOT + '/lib/' + f) ? ROOT + '/lib/' + f : ROOT + '/../tree/lib/' + f;
+    // the real maia.js and the shipped policy table, imports stubbed; the "net" puts all its policy on
+    // lc0's e2e4 slot (e2e4 for White, e7e5 for Black after the rank flip) and takes a few ms per pass
+    const table = JSON.parse(fs.readFileSync(lib('engine/maia/lc0_policy_index.json'), 'utf8'));
+    const src = fs.readFileSync(ROOT + '/src/offscreen/maia.js', 'utf8').replace(/^import [^\n]*\n/gm, '').replace(/^export /gm, '');
+    const c = vm.createContext({console: {log() {}}, performance: {now: () => 0}, TextDecoder, Float32Array, Promise, Math, JSON, Map, setTimeout,
+        fetchModel: async (dir, file) => file.endsWith('.json') ? new TextEncoder().encode(JSON.stringify(table)) : new ArrayBuffer(4),
+        readyEnv: async () => {},
+        ort: {Tensor: function () {}, InferenceSession: {create: async () => ({run: async () => {
+            await new Promise(r => setTimeout(r, 5));
+            const p = new Float32Array(1858).fill(-10); p[table.indexOf('e2e4')] = 10;
+            return {'/output/policy': {data: p}, '/output/wdl': {data: [0.3, 0.4, 0.3]}}; }})}}});
+    c.self = c;
+    vm.runInContext(fs.readFileSync(lib('chess.js'), 'utf8'), c);
+    vm.runInContext(src, c);
+    (async () => {
+        const lines = [];
+        const eng = await vm.runInContext('createMaiaEngine', c)(1500, (l) => lines.push(l));
+        // the load flush: every queued line handed over in one synchronous loop
+        for (const l of ['position startpos', 'go', 'stop', 'setoption name MultiPV value 3', 'position startpos moves e2e4', 'go']) eng.uci(l);
+        // wait on the answers, not a fixed 50 ms: two 5 ms passes missed a 50 ms sleep under load
+        for (let i = 0; i < 300 && lines.filter(l => l.startsWith('bestmove')).length < 2; i++) await new Promise(r => setTimeout(r, 10));
+        const best = lines.filter(l => l.startsWith('bestmove'));
+        const firstPvs = lines.slice(0, lines.indexOf(best[0])).filter(l => / pv /.test(l)).map(l => l.split(' pv ')[1]);
+        ok('MAIA-1 (3.1.335): a go whose position was replaced before its net pass returned still answers its own position (White\'s e2e4, not Black\'s e7e5)',
+           best.length === 2 && best[0] === 'bestmove e2e4' && best[1] === 'bestmove e7e5', best);
+        ok('MAIA-1 (3.1.335): ...and it emits the line count that was set when it started', firstPvs.join() === 'e2e4', firstPvs);
+    })().catch(e => { fails++; console.log('FAIL MAIA-1 (3.1.335) checks threw: ' + (e && e.stack || e)); });
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

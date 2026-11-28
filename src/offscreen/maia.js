@@ -165,10 +165,15 @@ export async function createMaiaEngine(level, listen, net = null) {
     }
 
     async function go() {
-        if (!legalUcis.length) { listen('bestmove (none)'); return; }
+        // THE POSITION IS READ ONCE, before the await. A `position` handled while session.run is
+        // pending (the load flush sends [position X, go, stop, position Y, go] in one loop) replaced
+        // legalUcis/black/castles, so go#1 ranked Y's legal moves with X's logits: startpos answered
+        // `bestmove e7e5`, a move legal in Y that no re-sync check can catch (audit 3.1.335 MAIA-1).
+        const legal = legalUcis, blk = black, cs = castles, lines = multipv;
+        if (!legal.length) { listen('bestmove (none)'); return; }
         const t0 = performance.now();
         const out = await session.run({ '/input/planes': new ort.Tensor('float32', encode(history.slice(0, 8)), [1, 112, 8, 8]) });
-        const scored = scoreMoves(out['/output/policy'].data, legalUcis, black, castles);
+        const scored = scoreMoves(out['/output/policy'].data, legal, blk, cs);
         const cp = valueToCp(Array.from(out['/output/wdl'].data)); // one position eval (same for every line)
         // Emit one info line per requested line, ranked by human-likelihood. The multipv field is
         // REQUIRED: without it the panel's activeLines goes NaN and no arrows draw. BEST-FIRST
@@ -178,7 +183,7 @@ export async function createMaiaEngine(level, listen, net = null) {
         // same position eval, so only the ORDER of the moves survived and anything downstream had to
         // invent numbers from the rank. `maiaprob` is in ten-thousandths, and it goes BEFORE `pv`
         // because parseInfo takes everything after `pv` as the line.
-        const n = Math.min(multipv, scored.length);
+        const n = Math.min(lines, scored.length);
         for (let i = 0; i < n; i++)
             listen(`info depth 1 multipv ${i + 1} score cp ${cp} `
                  + `maiaprob ${Math.round(scored[i][1] * 10000)} pv ${scored[i][0]}`);
