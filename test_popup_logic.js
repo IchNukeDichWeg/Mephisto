@@ -19738,6 +19738,47 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     } catch (e) { console.log('  threw ' + e.message); }
     ok('CONTENT1-1 (3.1.335): the sync sets the Dock select to the content script\'s value', dk.value === 'free', dk.value);
 }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // the real blur selector + applyHideOpponent, and the real pushPosition, with the page stubbed
+    const fnEnd = (start) => csrc.indexOf('\n}\n', start) + 3;
+    const h1 = csrc.indexOf('const HIDE_OPP_SELECTORS = [');
+    const h2 = csrc.indexOf('].join(\', \');', h1) + 13;
+    const ob = csrc.indexOf('const oppBox = (sel) =>');
+    const ob2 = csrc.indexOf('\n', ob) + 1;
+    const hs = csrc.indexOf('let hideOppStyle = null;');
+    const ha = fnEnd(csrc.indexOf('function applyHideOpponent(on)'));
+    const pp = csrc.indexOf('function pushPosition() {');
+    const code = csrc.slice(h1, h2) + '\n' + csrc.slice(ob, ob2) + 'let hideOppMatched = null;\n' + csrc.slice(hs, ha) + csrc.slice(pp, fnEnd(pp))
+        + '\n;globalThis.apply = applyHideOpponent; globalThis.push = pushPosition; globalThis.styleText = () => hideOppStyle && hideOppStyle.textContent;';
+    let flipped = false, orient = 'white', sent = 0;
+    const head = {appendChild: (el) => { el.isConnected = true; }};
+    const c = {site: 'chesscom', boardFlippedFromSide: () => flipped, playerColor: () => 'white', getOrientation: () => orient,
+               document: {head, documentElement: head, createElement: () => ({textContent: '', isConnected: false, remove() {}}), querySelectorAll: () => [1]},
+               bgLog: () => {}, console: {warn: () => {}, log: () => {}}, performance: {now: () => 0},
+               config: {hide_opponent: true, engine: 'sf'}, scrapeStorming: () => false, tryScrapePosition: () => 'fen' + orient,
+               scrapeCount: 0, scrapeMs: 0, noScrapeRetries: 0, lastPushKey: null, moving: false, resumePush: false,
+               sendToPanel: () => { sent++; }, scrapeClocks: () => null, opponentUsername: () => null, opponentRating: () => null,
+               maybeCheckStreamer: () => {}};
+    vm.createContext(c);
+    let built = true;
+    try { vm.runInContext(code, c); } catch (e) { built = false; console.log('  threw ' + e.message); }
+    if (built) {
+        c.apply(true);
+        ok('CONTENT1-2 (3.1.335): Hide Opponent blurs the top box on an unflipped board', /player-top/.test(c.styleText()) && !/player-bottom/.test(c.styleText()));
+        flipped = true; orient = 'black';
+        c.push();
+        ok('CONTENT1-2 (3.1.335): ...the position push after a flip is still delivered', sent === 1, sent);
+        ok('CONTENT1-2 (3.1.335): ...and moves the blur to the bottom box, where the opponent now is',
+           /board-layout-player-bottom/.test(c.styleText()) && !/board-layout-player-top/.test(c.styleText()), c.styleText());
+        flipped = false; orient = 'white';
+        c.push();
+        ok('CONTENT1-2 (3.1.335): flipping back moves it back to the top box', /board-layout-player-top/.test(c.styleText()) && !/player-bottom/.test(c.styleText()));
+        c.apply(false); flipped = true; orient = 'black';
+        c.push();
+        ok('CONTENT1-2 (3.1.335): with Hide Opponent off a push adds no blur', c.styleText() === null, c.styleText());
+    } else ok('CONTENT1-2 (3.1.335): slice built', false);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

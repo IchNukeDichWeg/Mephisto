@@ -924,7 +924,7 @@ function applyHideOpponent(on) {
     if (hideOppStyle.textContent !== css) hideOppStyle.textContent = css;
     // A STYLESHEET THAT MATCHES NOTHING IS INDISTINGUISHABLE FROM ONE THAT WORKS, from in here --
     // which is why this was reported as "does not work" with nothing to go on. Count instead, and
-    // say so once. Re-counted on every config push because these boxes render after the board.
+    // say so once. Re-counted on every config push and new position: these boxes render after the board.
     let n = 0;
     try { n = document.querySelectorAll(sel).length; } catch (e) { n = -1; }
     if (n !== hideOppMatched) {
@@ -4323,6 +4323,10 @@ function pushPosition() {
     const orient = getOrientation();
     const key = `${orient}|${res}`;
     if (key === lastPushKey) return; // already delivered as a full (analysed) push -> nothing to do
+    // A flip mid-game swaps which player box is the opponent's, and the blur was picked at the last
+    // config push: it then blurred your own name and showed theirs (audit 3.1.335 CONTENT1-2). Once
+    // per new position; the stylesheet is rewritten only when the selector changed.
+    if (hideOppStyle) applyHideOpponent(true);
     try {
         if (moving) {
             if (wakeThink) wakeThink();   // a think in progress re-checks the board now (see thinkWait)
