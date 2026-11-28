@@ -1105,7 +1105,9 @@ function shape(moves, tr) {
         if (Math.abs(moves[i].t - t0 - T / 2) < Math.abs(moves[hi].t - t0 - T / 2)) hi = i;
     }
     const over = s.some(v => v > tr.dist + OVERSHOOT_PX);
-    return {n, T, rate: n / (T / 1000), tPeak, dHalf: s[hi] / tr.dist, dev, devAt, over};
+    // n samples span n-1 gaps over T, so the cadence is (n-1)/T, as in the oracle. Recordings
+    // analysed before 28.11.2026 used n/T and read event_rate_per_s high by n/(n-1).
+    return {n, T, rate: (n - 1) / (T / 1000), tPeak, dHalf: s[hi] / tr.dist, dev, devAt, over};
 }
 
 // The last unbroken run of samples: walk back until a gap says the hand had stopped.

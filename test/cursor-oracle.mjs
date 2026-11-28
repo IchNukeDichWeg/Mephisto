@@ -69,7 +69,9 @@ function shape(pts, dist) {
         if (off > dev) { dev = off; devAt = pts[i].x / dist; }
     }
     const half = pts.reduce((best, p) => Math.abs(p.t - T / 2) < Math.abs(best.t - T / 2) ? p : best, pts[0]);
-    return {n: pts.length, T, rate: pts.length / (T / 1000), tPeak, dHalf: half.x / dist, dev, devAt};
+    // T runs from the first point (t=0) to the last, so it spans n-1 gaps: n/T read 70/s on the
+    // 80px row against a true 65/s. test/record-cursor.html uses the same (n-1)/T, keep them paired.
+    return {n: pts.length, T, rate: (pts.length - 1) / (T / 1000), tPeak, dHalf: half.x / dist, dev, devAt};
 }
 
 const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;

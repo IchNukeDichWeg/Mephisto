@@ -20140,6 +20140,22 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('CURSORORACLE-2 (3.1.335): a pathed row still prints its gap numbers', path[5] === '16.0' && path[6] === '2.00', path);
     }).catch((e) => ok('CURSORORACLE-2 (3.1.335): row loop runs', false, String(e)));
 })();
+(() => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // 13 samples 16 ms apart, the first at t=0: 12 gaps over 192 ms is 62.5 events/s. Counting all 13
+    // points over the span of 12 gaps read 67.7/s, n/(n-1) too high. Both instruments must agree.
+    const cut = (file, from, to) => { const s = fs.readFileSync(ROOT + '/' + file, 'utf8'); const a = s.indexOf(from), b = s.indexOf(to, a); if (a < 0 || b < 0) throw new Error(file + ' anchor ' + (a < 0 ? from : to)); return s.slice(a, b); };
+    const pts = Array.from({length: 13}, (_, i) => ({t: i * 16, x: i * 10, y: 0}));
+    const want = 12 / 0.192;
+    const oc = vm.createContext({Math});
+    vm.runInContext(cut('test/cursor-oracle.mjs', 'function shape(pts, dist)', '\nconst mean = '), oc);
+    const o = oc.shape(pts, 120);
+    ok('CURSORORACLE-3 (3.1.335): oracle rate/s counts gaps, not points', Math.abs(o.rate - want) < 1e-9, o.rate);
+    const rc = vm.createContext({Math, MIN_MOVES: 5, MIN_DIST: 30, OVERSHOOT_PX: 3});
+    vm.runInContext(cut('test/record-cursor.html', 'function shape(moves, tr)', '\n// The last unbroken run'), rc);
+    const r = rc.shape(pts.map(p => ({t: p.t + 1000, x: p.x, y: p.y})), {ox: 0, oy: 0, cx: 120, cy: 0, dist: 120});
+    ok('CURSORORACLE-3 (3.1.335): recorder event_rate_per_s uses the same (n-1)/T', r && Math.abs(r.rate - want) < 1e-9, r && r.rate);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
