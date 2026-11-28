@@ -20691,6 +20691,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     range.value = '30'; range.dispatchEvent({type: 'input', bubbles: true});   // a user drag: the browser's input bubbles
     ok('...a user drag still repaints the fill live', range.props['--fill'] === '30%', range.props['--fill']);
 }
+(() => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const src = fs.readFileSync(ROOT + '/src/options/util/dragdrop.js', 'utf8');
+    const start = src.indexOf('export function wirePgnDrop');
+    const code = src.slice(start).replace(/^export\s+/, '');
+    const ctx = vm.createContext({ console: { log() {}, warn() {} } });
+    vm.runInContext(code + '\nthis.wirePgnDrop = wirePgnDrop;', ctx);
+    const handlers = {}, got = [];
+    const zone = { addEventListener: (t, f) => { handlers[t] = f; } };
+    ctx.wirePgnDrop(zone, null, (text) => got.push(text));
+    const file = (name, type, text, reject) => ({ name, type, text: () => reject ? Promise.reject(new Error('NotReadableError')) : Promise.resolve(text) });
+    const drop = (files) => { let prevented = false; const p = handlers.drop({ dataTransfer: { types: ['Files'], files }, preventDefault: () => { prevented = true; } }); return { p, prevented: () => prevented }; };
+    (async () => {
+        got.length = 0;
+        const b = drop([file('book.bin', '', '\u0000\u0001binary')]); await b.p;
+        ok('OPTUTIL-1 (3.1.335): a dropped .bin book never reaches the PGN box', got.length === 0, got);
+        ok('OPTUTIL-1 (3.1.335): the ignored drop is still swallowed (the browser does not open the file)', b.prevented());
+        got.length = 0;
+        let threw = null;
+        try { await drop([file('game.pgn', '', '', true)]).p; } catch (e) { threw = String(e); }
+        ok('OPTUTIL-1 (3.1.335): an unreadable PGN file does not leave an unhandled rejection', threw === null, threw);
+        ok('OPTUTIL-1 (3.1.335): an unreadable PGN file delivers nothing', got.length === 0, got);
+        got.length = 0;
+        await drop([file('book.bin', '', 'x'), file('Game.PGN', '', '1. e4 e5')]).p;
+        ok('OPTUTIL-1 (3.1.335): the .pgn file is picked out of a mixed drop', got.length === 1 && got[0] === '1. e4 e5', got);
+        got.length = 0;
+        await drop([file('clip', 'text/plain', '1. d4')]).p;
+        ok('OPTUTIL-1 (3.1.335): a text/* file without an extension still loads', got.length === 1 && got[0] === '1. d4', got);
+    })();
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
