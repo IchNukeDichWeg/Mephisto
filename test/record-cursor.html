@@ -12,6 +12,17 @@ No automation ever touches this file. Open it in a normal browser, use it with a
 the live summary, download the two files. Synthetic events can check that the plumbing works; they
 cannot produce a usable number, because the thing being measured IS the hand.
 
+THE THREE MODES, IN THE ORDER THEY MATTER
+
+  Game       a real game against a weak built-in engine, on a clock. Every move gives two aimed
+             journeys (cursor to the piece, piece to the square) scored exactly like a target
+             trial, AND a think in front of the first of them. This is the only mode that
+             produces a genuine think, so it is the one to record.
+  Targets    the scripted reflex task: click the lit square. Tight distance bands and many
+             repeats, so the shape percentiles converge fast. No thinking in it by design.
+  Free play  move pieces with no rules and no opponent. Catches what a scripted task cannot,
+             but with no reason to stop, the hand does not stop.
+
 THE NUMBERS, AND WHY EACH ONE IS HERE
 
   hold_ms           press to release on the same click (pointerdown to pointerup, same button,
@@ -34,6 +45,22 @@ THE NUMBERS, AND WHY EACH ONE IS HERE
                     onset-to-press window of a target trial, which includes free play and the gap
                     between a click and the next target. The between-actions rate. A synthetic
                     cursor usually emits nothing at all here, which is itself a signature.
+  think_*           GAME MODE ONLY, and the reason game mode exists. A hand told to "pause for
+                    five seconds" performs a pause; a hand given a position worth thinking about
+                    thinks, and the two are not the same measurement. An instructed-pause
+                    recording (27.11.2026) came back with no gap over 0.94 s in 68 s of play:
+                    the instruction had simply not been followed, and could not be, because
+                    nothing in the task gave the hand a reason to stop.
+                      think_ms            becoming free to act, to the first sample of the final
+                                          approach. The decision, with travel removed.
+                      think_still_ms      of that, time in gaps longer than PAUSE_MS.
+                      think_max_still_ms  the longest single rest inside one think.
+                      think_drift_px      path length travelled while thinking, approach excluded.
+                      think_bursts        separate runs of motion inside the think.
+                      think_dead_share    share of thinks with NO cursor motion at all. This one
+                                          number decides what CDP_IDLE_DRIFT should do: near 1
+                                          and the right answer is to emit nothing, near 0 and a
+                                          still cursor is itself the tell.
   pressure          the modal pointerdown pressure. A physical mouse reports a constant (0.5 in
                     Chromium), so this is a reference value, not a distribution. Worth having
                     written down because a synthesised event that reports 0 or 1 stands out.
@@ -212,12 +239,34 @@ WHAT TO DO WITH IT
         <div class="panel" style="min-width:0;width:calc(var(--sq) * 8)">
             <h2>Mode</h2>
             <div class="row">
+                <button id="mGame">Game</button>
                 <button id="mTargets">Targets</button>
                 <button id="mFree">Free play</button>
                 <button id="mIdle" class="on">Paused</button>
             </div>
+            <div class="row" style="margin-top:6px">
+                <label class="note">Clock
+                    <select id="gTc">
+                        <option value="60">1+0 bullet</option>
+                        <option value="180">3+0 blitz</option>
+                        <option value="0">no clock</option>
+                    </select>
+                </label>
+                <label class="note">Opponent
+                    <select id="gLevel">
+                        <option value="1">1 (weakest)</option>
+                        <option value="2" selected>2</option>
+                    </select>
+                </label>
+                <button id="gNew">New game</button>
+            </div>
+            <p id="gameLine" class="note" style="margin:6px 0 0"></p>
             <p id="status" class="note" style="margin:8px 0 0"></p>
             <ol id="howto">
+                <li>Game: play a real game against the weak engine, and think as long as you
+                    like. This is the mode that matters: the pauses have to be YOURS, not a pause
+                    you were told to take. Click-click or drag, both are recorded. Promotion is
+                    always a queen, because the choice is a dialog and a dialog is not a hand.</li>
                 <li>Targets: click the lit square, then the next one. Keep going for about three
                     minutes, which is roughly 150 clicks.</li>
                 <li>Free play: move pieces around however you like, click-click and drag both, for
@@ -291,6 +340,214 @@ const GLYPH = {
     k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟',
 };
 
+// ---- chess rules ------------------------------------------------------------------------------
+// Index 0 is a8 and 63 is h1, which is the order buildBoard already walks, so a square's index is
+// its position in the DOM. Upper case is white. A compact generator rather than a library: the
+// page has no build step and must stay one file that opens from disk.
+const CH_FILES = 'abcdefgh';
+const ixOf = (sq) => (8 - Number(sq[1])) * 8 + CH_FILES.indexOf(sq[0]);
+const sqOf = (ix) => CH_FILES[ix & 7] + (8 - (ix >> 3));
+const isW = (p) => p >= 'A' && p <= 'Z';
+const OFF = {N: [-17, -15, -10, -6, 6, 10, 15, 17], B: [-9, -7, 7, 9], R: [-8, -1, 1, 8],
+             Q: [-9, -8, -7, -1, 1, 7, 9, 8], K: [-9, -8, -7, -1, 1, 7, 9, 8]};
+const SLIDE = {B: 1, R: 1, Q: 1};
+
+function startPos() {
+    const b = new Array(64).fill('');
+    const back = 'rnbqkbnr';
+    for (let c = 0; c < 8; c++) {
+        b[c] = back[c]; b[8 + c] = 'p'; b[48 + c] = 'P'; b[56 + c] = back[c].toUpperCase();
+    }
+    return {b, turn: 'w', ep: -1, cas: {K: true, Q: true, k: true, q: true}, half: 0, full: 1};
+}
+
+// A knight or king step that wraps round the board shows up as a file jump of more than two.
+const onBoard = (from, to, off) =>
+    to >= 0 && to < 64 && Math.abs((to & 7) - (from & 7)) <= (off === 8 || off === -8 ? 0 : 2);
+
+function genMoves(p, side) {
+    const out = [];
+    const mine = side === 'w';
+    for (let i = 0; i < 64; i++) {
+        const pc = p.b[i];
+        if (!pc || isW(pc) !== mine) continue;
+        const t = pc.toUpperCase();
+        if (t === 'P') {
+            const dir = mine ? -8 : 8, start = mine ? 6 : 1, last = mine ? 0 : 7;
+            const one = i + dir;
+            if (one >= 0 && one < 64 && !p.b[one]) {
+                if ((one >> 3) === last) for (const q of 'QRBN') out.push({from: i, to: one, promo: q});
+                else out.push({from: i, to: one});
+                const two = i + dir * 2;
+                if ((i >> 3) === start && !p.b[two]) out.push({from: i, to: two, dbl: true});
+            }
+            for (const dx of [-1, 1]) {
+                const to = i + dir + dx;
+                if (to < 0 || to > 63 || Math.abs((to & 7) - (i & 7)) !== 1) continue;
+                if (p.b[to] && isW(p.b[to]) !== mine) {
+                    if ((to >> 3) === last) for (const q of 'QRBN') out.push({from: i, to, promo: q});
+                    else out.push({from: i, to});
+                } else if (to === p.ep) out.push({from: i, to, ep: true});
+            }
+            continue;
+        }
+        for (const off of OFF[t]) {
+            let to = i;
+            for (;;) {
+                const prev = to;
+                to += off;
+                if (!onBoard(prev, to, off)) break;
+                if (p.b[to] && isW(p.b[to]) === mine) break;
+                out.push({from: i, to});
+                if (p.b[to] || !SLIDE[t]) break;
+            }
+        }
+    }
+    // Castling: the squares between must be empty and the king may not start, cross or land in
+    // check. The crossing test is done by make+inCheck below rather than a square list, so a piece
+    // that only attacks the crossing square is still caught.
+    const k = mine ? 'K' : 'k', q = mine ? 'Q' : 'q';
+    const home = mine ? 60 : 4;
+    if (p.b[home] === (mine ? 'K' : 'k') && !inCheck(p, side)) {
+        if (p.cas[k] && !p.b[home + 1] && !p.b[home + 2] && p.b[home + 3] === (mine ? 'R' : 'r'))
+            out.push({from: home, to: home + 2, cas: 'k'});
+        if (p.cas[q] && !p.b[home - 1] && !p.b[home - 2] && !p.b[home - 3] && p.b[home - 4] === (mine ? 'R' : 'r'))
+            out.push({from: home, to: home - 2, cas: 'q'});
+    }
+    return out;
+}
+
+function attacked(p, ix, bySide) {
+    for (const m of genAttacks(p, bySide)) if (m.to === ix) return true;
+    return false;
+}
+// Attacks only: no castling (a castle can never capture) and pawns push without attacking, so the
+// pushes are left out. Calling genMoves here would recurse through its own inCheck.
+function genAttacks(p, side) {
+    const out = [];
+    const mine = side === 'w';
+    for (let i = 0; i < 64; i++) {
+        const pc = p.b[i];
+        if (!pc || isW(pc) !== mine) continue;
+        const t = pc.toUpperCase();
+        if (t === 'P') {
+            const dir = mine ? -8 : 8;
+            for (const dx of [-1, 1]) {
+                const to = i + dir + dx;
+                if (to >= 0 && to < 64 && Math.abs((to & 7) - (i & 7)) === 1) out.push({from: i, to});
+            }
+            continue;
+        }
+        for (const off of OFF[t]) {
+            let to = i;
+            for (;;) {
+                const prev = to;
+                to += off;
+                if (!onBoard(prev, to, off)) break;
+                out.push({from: i, to});
+                if (p.b[to] || !SLIDE[t]) break;
+            }
+        }
+    }
+    return out;
+}
+
+function kingIx(p, side) {
+    const k = side === 'w' ? 'K' : 'k';
+    for (let i = 0; i < 64; i++) if (p.b[i] === k) return i;
+    return -1;
+}
+function inCheck(p, side) {
+    const ix = kingIx(p, side);
+    return ix < 0 ? false : attacked(p, ix, side === 'w' ? 'b' : 'w');
+}
+
+function make(p, m) {
+    const b = p.b.slice();
+    const pc = b[m.from];
+    const mine = isW(pc);
+    const cas = {...p.cas};
+    b[m.from] = '';
+    if (m.ep) b[m.to + (mine ? 8 : -8)] = '';
+    b[m.to] = m.promo ? (mine ? m.promo : m.promo.toLowerCase()) : pc;
+    if (m.cas === 'k') { b[m.to + 1] = ''; b[m.to - 1] = mine ? 'R' : 'r'; }
+    if (m.cas === 'q') { b[m.to - 2] = ''; b[m.to + 1] = mine ? 'R' : 'r'; }
+    const home = mine ? 60 : 4;
+    if (pc.toUpperCase() === 'K') { cas[mine ? 'K' : 'k'] = false; cas[mine ? 'Q' : 'q'] = false; }
+    if (m.from === home + 3 || m.to === home + 3) cas[mine ? 'K' : 'k'] = false;
+    if (m.from === home - 4 || m.to === home - 4) cas[mine ? 'Q' : 'q'] = false;
+    const oHome = mine ? 4 : 60;
+    if (m.to === oHome + 3) cas[mine ? 'k' : 'K'] = false;
+    if (m.to === oHome - 4) cas[mine ? 'q' : 'Q'] = false;
+    return {
+        b, turn: mine ? 'b' : 'w', cas,
+        ep: m.dbl ? (m.from + m.to) / 2 : -1,
+        half: (pc.toUpperCase() === 'P' || p.b[m.to]) ? 0 : p.half + 1,
+        full: p.full + (mine ? 0 : 1),
+    };
+}
+
+function legalMoves(p, side) {
+    const s = side || p.turn;
+    return genMoves(p, s).filter(m => {
+        if (m.cas) {                              // the king may not cross an attacked square
+            const step = m.cas === 'k' ? 1 : -1;
+            if (attacked(p, m.from + step, s === 'w' ? 'b' : 'w')) return false;
+        }
+        return !inCheck(make(p, m), s);
+    });
+}
+
+// ---- the opponent -----------------------------------------------------------------------------
+// Deliberately weak and deliberately cheap. This page is a measuring instrument for a HAND, so the
+// opponent only has to make the game real enough that the thinking is real: a strong engine would
+// just lose the recording to resignation. Levels, in Elo terms roughly 600 / 1000 / 1300:
+//   1  random legal, mild preference for a capture
+//   2  one ply: grab the best material on offer, with noise, and do not walk into an obvious recapture
+//   3  two plies of negamax on material alone
+const VAL = {P: 100, N: 320, B: 330, R: 500, Q: 900, K: 0};
+function material(p) {
+    let s = 0;
+    for (const pc of p.b) if (pc) s += (isW(pc) ? 1 : -1) * VAL[pc.toUpperCase()];
+    return s;
+}
+function negamax(p, d, side) {
+    const ms = legalMoves(p, side);
+    if (!ms.length) return inCheck(p, side) ? -99999 : 0;
+    if (d === 0) return (side === 'w' ? 1 : -1) * material(p);
+    let best = -1e9;
+    for (const m of ms) {
+        const v = -negamax(make(p, m), d - 1, side === 'w' ? 'b' : 'w');
+        if (v > best) best = v;
+    }
+    return best;
+}
+function botMove(p, level, rnd) {
+    const r = rnd || Math.random;
+    const ms = legalMoves(p, p.turn);
+    if (!ms.length) return null;
+    if (level <= 1) {
+        const caps = ms.filter(m => p.b[m.to]);
+        const pool = (caps.length && r() < 0.6) ? caps : ms;
+        return pool[Math.floor(r() * pool.length)];
+    }
+    const depth = level >= 3 ? 2 : 0;
+    const sign = p.turn === 'w' ? 1 : -1;
+    let best = null, bestV = -1e9;
+    for (const m of ms) {
+        // The noise is what makes it beatable: without it level 2 plays the same tactic every time
+        // and a human learns it in three games, which would change how they think and corrupt the
+        // very thing being measured.
+        const v = -negamax(make(p, m), depth, p.turn === 'w' ? 'b' : 'w') + (r() - 0.5) * 90;
+        if (v > bestV) { bestV = v; best = m; }
+    }
+    return best;
+}
+
+// Depth 2 was built and dropped: its worst single reply measured 210+ ms, and the bot shares the
+// main thread with the mousemove stream, so a slow reply would print itself into the data as a gap.
+// Levels 1 and 2 measure a worst reply of 1 ms and 7 ms, both under one polling quantum at 122 Hz.
+
 // ---- state --------------------------------------------------------------------------------------
 const log = [];                // the raw event log; every recorded event, nothing rounded
 let mode = 'idle';             // 'idle' | 'targets' | 'free'
@@ -303,7 +560,23 @@ let pieces = {};               // square -> piece letter
 let selected = null, drag = null;
 let capped = false;
 let modeSince = performance.now();
-const modeMs = {idle: 0, targets: 0, free: 0};
+const modeMs = {idle: 0, targets: 0, free: 0, game: 0};
+
+// ---- game state ---------------------------------------------------------------------------------
+// A real game is a better instrument than an instructed pause. Told to "pause 3-8 seconds", a hand
+// performs a pause; given a position worth thinking about, it thinks, and the think is what has to
+// be imitated. Every player move also yields two aimed journeys -- to the piece, then to the
+// destination -- so the shape numbers come out of the same recording as the thinks.
+let gpos = null;               // the rules position, or null when no game is running
+let gSide = 'w';               // the human's colour
+let gClock = {w: 0, b: 0, base: 60, at: 0, running: false};
+let gOver = null;              // null while the game is live, else the reason it ended
+let gSel = null;               // click-click selection in game mode
+let gDrag = null;
+let gJourney = null;           // the open aimed journey: origin, start index, and when it opened
+let gTurnStart = 0;            // when the human last became free to act, for the think
+let gMoveNo = 0;
+let gThinks = [];              // one record per human move: the think and what the cursor did in it
 // Banked time plus the mode that is still running. Without the running part a three minute
 // recording reads 0s right up to the moment the mode is switched, including in the download.
 function msIn(m) { return modeMs[m] + (m === mode ? performance.now() - modeSince : 0); }
@@ -429,10 +702,14 @@ function setMode(m) {
     selected = null;
     document.querySelectorAll('.sq.sel').forEach(el => el.classList.remove('sel'));
     mode = m;
-    for (const [id, name] of [['mTargets', 'targets'], ['mFree', 'free'], ['mIdle', 'idle']]) {
+    for (const [id, name] of [['mGame', 'game'], ['mTargets', 'targets'], ['mFree', 'free'], ['mIdle', 'idle']]) {
         document.getElementById(id).classList.toggle('on', name === m);
     }
-    if (m === 'targets') { setStatus('Click the lit square. The next one lights straight after.'); nextTarget(); }
+    if (m === 'game') {
+        setStatus('Play. Think as long as you want: the pause is the measurement.');
+        if (!gpos || gOver) gNewGame(); else { gTurnStart = performance.now(); gOpenJourney(); gameStatus(); }
+    }
+    else if (m === 'targets') { setStatus('Click the lit square. The next one lights straight after.'); nextTarget(); }
     else if (m === 'free') { setStatus('Move pieces however you like: click-click and drag both.'); }
     else { setStatus('Paused. Nothing is being added to the log.'); }
     render();
@@ -496,6 +773,175 @@ function closeTrial(pressIdx, hit) {
     openTrial = null;
 }
 
+// ---- game mode ----------------------------------------------------------------------------------
+// Every human move produces TWO aimed journeys: cursor -> the piece, then piece -> the destination.
+// Both are scored exactly like a target trial, so the shape numbers keep coming. The first of the
+// two also carries the think, which is the thing a target task cannot produce.
+const gTcEl = () => document.getElementById('gTc');
+const gLevelEl = () => document.getElementById('gLevel');
+const gameLineEl = () => document.getElementById('gameLine');
+
+function gSync() {
+    pieces = {};
+    for (let i = 0; i < 64; i++) if (gpos.b[i]) pieces[sqOf(i)] = gpos.b[i];
+    paint();
+}
+
+function gNewGame() {
+    gpos = startPos();
+    gSide = 'w';                       // the human is white, so the recording opens on a human move
+    gOver = null;
+    gSel = null; gDrag = null;
+    gMoveNo = 0;
+    ghost.style.display = 'none';
+    const base = Number(gTcEl().value) || 0;
+    gClock = {w: base, b: base, base, at: performance.now(), running: base > 0};
+    document.querySelectorAll('.sq.sel,.sq.hot').forEach(el => el.classList.remove('sel', 'hot'));
+    gSync();
+    gTurnStart = performance.now();
+    gOpenJourney();
+    gameStatus();
+}
+
+// The clock is charged against wall time on every read rather than ticked by an interval: an
+// interval that the main thread delays would quietly hand back time, and the clock being honest is
+// part of why the thinking is honest.
+function gCharge() {
+    if (!gClock.running || gOver || !gpos) return;
+    const now = performance.now();
+    const d = (now - gClock.at) / 1000;
+    gClock.at = now;
+    gClock[gpos.turn] -= d;
+    if (gClock[gpos.turn] <= 0) {
+        gClock[gpos.turn] = 0;
+        gOver = (gpos.turn === gSide ? 'you ran out of time' : 'the engine ran out of time');
+    }
+}
+
+function fmtClock(s) {
+    if (!gClock.base) return '--:--';
+    const t = Math.max(0, s);
+    return String(Math.floor(t / 60)) + ':' + String(Math.floor(t % 60)).padStart(2, '0')
+        + '.' + String(Math.floor((t * 10) % 10));
+}
+
+function gameStatus() {
+    if (!gpos) { gameLineEl().textContent = 'No game. Press New game.'; return; }
+    gCharge();
+    const ms = gOver ? [] : legalMoves(gpos, gpos.turn);
+    if (!gOver && !ms.length) gOver = inCheck(gpos, gpos.turn)
+        ? (gpos.turn === gSide ? 'checkmate, you lost' : 'checkmate, you won')
+        : 'stalemate, draw';
+    if (!gOver && gpos.half >= 100) gOver = 'fifty-move draw';
+    const you = gSide === 'w' ? gClock.w : gClock.b;
+    const them = gSide === 'w' ? gClock.b : gClock.w;
+    const chk = !gOver && inCheck(gpos, gpos.turn) ? '  CHECK' : '';
+    gameLineEl().textContent = gOver
+        ? `Game over: ${gOver}. ${gMoveNo} of your moves recorded. New game to go again.`
+        : `move ${gpos.full}  ${gpos.turn === gSide ? 'your turn' : 'engine thinking'}`
+          + `   you ${fmtClock(you)}   engine ${fmtClock(them)}${chk}`;
+    gameLineEl().className = gOver ? 'warn' : 'note';
+}
+
+function gOpenJourney() {
+    gJourney = {ox: lastPos ? lastPos.x : null, oy: lastPos ? lastPos.y : null,
+                startIdx: log.length, tOpen: performance.now()};
+}
+
+const nearestBand = (d) => DIST_BANDS.reduce((a, b) => Math.abs(b - d) < Math.abs(a - d) ? b : a);
+
+// Closing a journey is where a game move becomes a scored trial. A target trial knows its aim point
+// before the hand moves; here it is only known at the press, so the trial is assembled backwards
+// from the square that was actually pressed. Everything downstream reads the same fields.
+function gCloseJourney(sq, pressIdx, kind) {
+    if (!gJourney) return;
+    const c = centre(sq);
+    const haveOrigin = gJourney.ox !== null;
+    const dist = haveOrigin ? Math.hypot(c.x - gJourney.ox, c.y - gJourney.oy) : 0;
+    trials.push({
+        id: trials.length + 1,
+        sq, band: nearestBand(dist), dist,
+        ox: gJourney.ox, oy: gJourney.oy,
+        scorable: haveOrigin && dist >= MIN_DIST,
+        cx: c.x, cy: c.y,
+        rect: rectOf(sq),
+        tLight: gJourney.tOpen,
+        startIdx: gJourney.startIdx,
+        endIdx: log.length,
+        pressIdx,
+        hit: true,                     // in a game the pressed square IS the aim: there is no miss
+        game: true, kind,              // 'pickup' | 'drop'; only a pickup can carry a think
+        trimmed: true,
+    });
+    gJourney = null;
+}
+
+// WHAT THE HAND DOES WHILE IT THINKS, which is the whole reason this mode exists. The approach to
+// the piece is cut off the front of the journey first: what is left is the think, and inside it the
+// cursor either rests or drifts. CDP_IDLE_DRIFT has nothing to imitate until this is measured.
+function gRecordThink(pressIdx) {
+    const slice = log.slice(gJourney ? gJourney.startIdx : 0, pressIdx + 1);
+    const mv = slice.filter(e => e.type === 'mousemove');
+    if (!mv.length) {
+        gThinks.push({move: gMoveNo + 1, think: performance.now() - gTurnStart, approach: 0,
+                      bursts: 0, still: null, maxStill: null, drift: 0, samples: 0});
+        return;
+    }
+    // the final approach is the last unbroken run of samples; everything before it is the think
+    let cut = 0;
+    for (let i = mv.length - 1; i > 0; i--) {
+        if (mv[i].t - mv[i - 1].t > PAUSE_MS) { cut = i; break; }
+    }
+    const pre = mv.slice(0, cut);
+    const think = (cut ? mv[cut].t : mv[0].t) - gTurnStart;
+    let bursts = 0, still = 0, maxStill = 0, drift = 0;
+    for (let i = 1; i < pre.length; i++) {
+        const d = pre[i].t - pre[i - 1].t;
+        if (d > PAUSE_MS) { still += d; if (d > maxStill) maxStill = d; bursts++; }
+        else drift += Math.hypot(pre[i].x - pre[i - 1].x, pre[i].y - pre[i - 1].y);
+    }
+    if (pre.length) bursts++;          // the run after the last gap is a burst too
+    const lead = cut ? mv[cut].t - gTurnStart : 0;
+    gThinks.push({move: gMoveNo + 1, think: Math.max(0, think), approach: mv[mv.length - 1].t - (cut ? mv[cut].t : mv[0].t),
+                  bursts, still: pre.length ? still : 0, maxStill: pre.length ? maxStill : 0,
+                  drift, samples: pre.length, lead});
+}
+
+function gTryMove(from, to) {
+    const ms = legalMoves(gpos, gpos.turn).filter(m => sqOf(m.from) === from && sqOf(m.to) === to);
+    if (!ms.length) return false;
+    // Always a queen. A promotion dialog would put a click on a menu into the middle of the data,
+    // and a menu click is not a board move: it would be scored as one and corrupt the shape numbers.
+    const m = ms.find(x => !x.promo || x.promo === 'Q') || ms[0];
+    gpos = make(gpos, m);
+    gMoveNo++;
+    gCharge();
+    gSync();
+    gameStatus();
+    if (!gOver) setTimeout(gBotReply, 120);
+    return true;
+}
+
+// The engine answers after a short visible pause. The pause is cosmetic -- the search itself is
+// measured at 1-7 ms -- but an instant reply reads as a machine and changes how the next think goes.
+function gBotReply() {
+    if (!gpos || gOver || gpos.turn === gSide) return;
+    gameStatus();
+    if (gOver) return;
+    const m = botMove(gpos, Number(gLevelEl().value));
+    if (!m) { gameStatus(); return; }
+    gpos = make(gpos, m);
+    gCharge();
+    gSync();
+    document.querySelectorAll('.sq.hot').forEach(el => el.classList.remove('hot'));
+    board[sqOf(m.to)].el.classList.add('hot');
+    // The human becomes free to act HERE, which is where the next think starts being counted.
+    gTurnStart = performance.now();
+    gOpenJourney();
+    gameStatus();
+    render();
+}
+
 // ---- board interaction --------------------------------------------------------------------------
 // preventDefault on mousedown only: it stops text selection and the browser's own drag image, both
 // of which would suppress the mousemove stream this page exists to record.
@@ -511,6 +957,32 @@ boardEl.addEventListener('pointerdown', (e) => {
         if (openTrial) { closeTrial(idx, hit); nextTarget(); render(); }
         return;
     }
+    if (mode === 'game') {
+        if (!gpos || gOver || gpos.turn !== gSide) return;
+        const idx = log.length - 1;
+        const own = pieces[sq] && (isW(pieces[sq]) === (gSide === 'w'));
+        if (gSel && !own) {                       // the drop half of a click-click move
+            if (gTryMove(gSel, sq)) {
+                gCloseJourney(sq, idx, 'drop');
+                board[gSel].el.classList.remove('sel');
+                gSel = null;
+                gOpenJourney();
+            }
+            return;
+        }
+        if (!own) return;
+        if (gSel) board[gSel].el.classList.remove('sel');
+        // The pick-up press closes the journey that carried the think, and opens the one that
+        // carries the drop. Order matters: the think is read off the journey before it is replaced.
+        gRecordThink(idx);
+        gCloseJourney(sq, idx, 'pickup');
+        gSel = sq;
+        board[sq].el.classList.add('sel');
+        gDrag = {from: sq, piece: pieces[sq], moved: false};
+        ghost.textContent = GLYPH[pieces[sq]];
+        gOpenJourney();
+        return;
+    }
     if (mode === 'free' && pieces[sq]) {
         drag = {from: sq, piece: pieces[sq], moved: false};
         ghost.textContent = GLYPH[pieces[sq]];
@@ -518,6 +990,18 @@ boardEl.addEventListener('pointerdown', (e) => {
 });
 
 boardEl.addEventListener('pointermove', (e) => {
+    if (gDrag && mode === 'game') {
+        if (!gDrag.moved) {
+            const c = centre(gDrag.from);
+            if (Math.hypot(e.clientX - c.x, e.clientY - c.y) < 8) return;
+            gDrag.moved = true;
+            board[gDrag.from].glyph.textContent = '';
+            ghost.style.display = 'block';
+        }
+        ghost.style.left = (e.clientX - 19) + 'px';
+        ghost.style.top = (e.clientY - 19) + 'px';
+        return;
+    }
     if (!drag) return;
     // The ghost only appears once the hand has actually travelled, so a click-click move does not
     // flash a dragged piece and confuse what the hand was doing.
@@ -533,6 +1017,27 @@ boardEl.addEventListener('pointermove', (e) => {
 });
 
 window.addEventListener('pointerup', (e) => {
+    if (mode === 'game') {
+        const sq = sqAt(e.clientX, e.clientY);
+        if (gDrag && gDrag.moved) {
+            ghost.style.display = 'none';
+            const ok = sq && sq !== gDrag.from && gTryMove(gDrag.from, sq);
+            if (ok) {
+                gCloseJourney(sq, log.length - 1, 'drop');
+                if (gSel) board[gSel].el.classList.remove('sel');
+                gSel = null;
+                gOpenJourney();
+            } else {
+                paint();                         // an illegal drop puts the piece back
+            }
+            gDrag = null;
+        } else if (gDrag) {
+            gDrag = null;                        // a press that never travelled stays a selection
+        }
+        gameStatus();
+        render();
+        return;
+    }
     if (mode === 'free') {
         const sq = sqAt(e.clientX, e.clientY);
         if (drag && drag.moved) {
@@ -603,6 +1108,12 @@ function shape(moves, tr) {
     return {n, T, rate: n / (T / 1000), tPeak, dHalf: s[hi] / tr.dist, dev, devAt, over};
 }
 
+// The last unbroken run of samples: walk back until a gap says the hand had stopped.
+function trimApproach(mv) {
+    for (let i = mv.length - 1; i > 0; i--) if (mv[i].t - mv[i - 1].t > PAUSE_MS) return mv.slice(i);
+    return mv;
+}
+
 function analyse() {
     const out = {hold: [], dwell: [], dt: [], dtMove: [], rate: [], shapes: [], press: [], coal: []};
 
@@ -645,7 +1156,12 @@ function analyse() {
             if (d > 0 && d <= PAUSE_MS) out.dtMove.push(d);
         }
         if (!tr.hit) continue;                   // a miss says nothing about aiming at that target
-        const sh = tr.scorable === false ? null : shape(mv, tr);
+        // A game journey can open seconds before the hand sets off, so its samples are a think
+        // followed by a flight. Only the flight is a movement, and tPeak over think+flight is
+        // meaningless. Targets mode is deliberately NOT trimmed: its window already starts at the
+        // light, and re-cutting it would silently redefine the 27-28.11 numbers it is calibrated on.
+        const mvs = tr.trimmed ? trimApproach(mv) : mv;
+        const sh = tr.scorable === false ? null : shape(mvs, tr);
         if (sh) {
             out.rate.push(sh.rate);
             out.shapes.push(Object.assign({band: tr.band, dist: tr.dist}, sh));
@@ -738,6 +1254,19 @@ function draw() {
     spread(sumBody, 'dt_ms_in_move', a.dtMove, 2, 'mean ' + f(mean(a.dtMove), 2) + '  sd ' + f(sd(a.dtMove), 2));
     spread(sumBody, 'event_rate_per_s', a.rate, 1, 'mousemoves during a target move');
     const pm = modal(a.press), cm = modal(a.coal);
+    // THE THINK, which only game mode can produce. A target task measures reaction; this measures
+    // what the hand does across seconds of deciding, which is what the synthetic cursor has to fill.
+    if (gThinks.length) {
+        const T = gThinks.filter(t => t.think > 0);
+        spread(sumBody, 'think_ms', T.map(t => t.think), 0, 'free to act, to setting off');
+        spread(sumBody, 'think_still_ms', T.map(t => t.still), 0, 'of that, cursor not moving');
+        spread(sumBody, 'think_max_still_ms', T.map(t => t.maxStill), 0, 'longest single rest');
+        spread(sumBody, 'think_drift_px', T.map(t => t.drift), 1, 'path travelled while thinking');
+        spread(sumBody, 'think_bursts', T.map(t => t.bursts), 1, 'separate motions in the think');
+        const dead = T.filter(t => t.samples === 0).length;
+        row(sumBody, ['think_dead_share', '-', f(T.length ? dead / T.length : null, 3), '-', T.length,
+            dead + ' thinks with the cursor completely still']);
+    }
     row(sumBody, ['idle_rate_per_s', '-', f(a.idleRate, 1), '-', a.idleN || 0,
         f(a.idleMs / 1000, 1) + 's not moving to a target']);
     row(sumBody, ['pressure', '-', f(pm.value, 3), '-', pm.n,
@@ -757,7 +1286,11 @@ function draw() {
     row(metaBody, ['events recorded', log.length, '', '', '', capped ? 'CAP REACHED' : '']);
     row(metaBody, ['target trials', a.trials, '', '', '', a.hits + ' hit, ' + (a.trials - a.hits) + ' missed']);
     row(metaBody, ['scored moves', a.shapes.length, '', '', '', '>=' + MIN_MOVES + ' samples, >=' + MIN_DIST + 'px']);
-    row(metaBody, ['time targets / free', f(msIn('targets') / 1000, 0) + 's / ' + f(msIn('free') / 1000, 0) + 's', '', '', '', '']);
+    row(metaBody, ['time game / targets / free', f(msIn('game') / 1000, 0) + 's / '
+        + f(msIn('targets') / 1000, 0) + 's / ' + f(msIn('free') / 1000, 0) + 's', '', '', '', '']);
+    row(metaBody, ['game moves recorded', gThinks.length, '', '', '',
+        gpos ? (gOver || ('level ' + (document.getElementById('gLevel') || {value: '?'}).value
+            + ', ' + (gClock.base ? gClock.base + 's base' : 'no clock'))) : 'no game']);
     row(metaBody, ['clock resolution ms', f(CLOCK_MS, 4), '', '', '', 'performance.now() floor']);
     row(metaBody, ['devicePixelRatio', String(window.devicePixelRatio), '', '', '', 'sub-pixel coords depend on it']);
 
@@ -832,7 +1365,10 @@ document.getElementById('dlJson').addEventListener('click', () => {
             note: 'browsers clamp this for privacy; a dt sd near zero may be the clamp, not the hand'},
         agent: navigator.userAgent,
         session: {events: log.length, capped: capped, trials: a.trials, hits: a.hits,
-            scored_moves: a.shapes.length, ms_targets: msIn('targets'), ms_free: msIn('free')},
+            scored_moves: a.shapes.length, ms_targets: msIn('targets'), ms_free: msIn('free'),
+            ms_game: msIn('game'), game_moves: gThinks.length,
+            game: gpos ? {level: Number((document.getElementById('gLevel') || {}).value) || null,
+                          base_s: gClock.base, over: gOver, full_moves: gpos.full} : null},
         constants: {overshoot_px: OVERSHOOT_PX, pause_ms: PAUSE_MS, min_moves: MIN_MOVES,
             min_dist_px: MIN_DIST, dist_bands_px: DIST_BANDS},
         summary: {
@@ -847,14 +1383,32 @@ document.getElementById('dlJson').addEventListener('click', () => {
             coalesced_n: {modal: cm.value, share: cm.share, distinct: cm.distinct, n: cm.n},
             frac_coord_share: {value: a.coordN ? a.coordFrac / a.coordN : null, n: a.coordN},
             overshoot_share: {value: a.overshoot, n: a.overshootN},
+            think_ms: q(gThinks.filter(t => t.think > 0).map(t => t.think)),
+            think_still_ms: q(gThinks.filter(t => t.think > 0).map(t => t.still)),
+            think_max_still_ms: q(gThinks.filter(t => t.think > 0).map(t => t.maxStill)),
+            think_drift_px: q(gThinks.filter(t => t.think > 0).map(t => t.drift)),
+            think_bursts: q(gThinks.filter(t => t.think > 0).map(t => t.bursts)),
+            think_dead_share: (() => {
+                const T = gThinks.filter(t => t.think > 0);
+                return {value: T.length ? T.filter(t => t.samples === 0).length / T.length : null, n: T.length};
+            })(),
             tPeak: q(a.shapes.map(s => s.tPeak)),
             d_at_half: q(a.shapes.map(s => s.dHalf)),
             dev_px: q(a.shapes.map(s => s.dev)),
             dev_at: q(a.shapes.map(s => s.devAt)),
         },
         by_distance_band: band,
+        // One row per human move, not just the percentiles: the shape of a think over a game is a
+        // sequence, and whether a long think follows a capture or a check is only readable here.
+        thinks: gThinks,
         definitions: {
             hold_ms: 'pointerdown to pointerup, same pointerId and button',
+            think_ms: 'game mode: becoming free to act, to the first sample of the final approach',
+            think_still_ms: 'within the think, time in gaps longer than pause_ms',
+            think_max_still_ms: 'the longest single such gap',
+            think_drift_px: 'path length travelled during the think, excluding the final approach',
+            think_bursts: 'separate runs of motion inside the think',
+            think_dead_share: 'share of thinks with no cursor motion at all before the approach',
             dwell_ms: 'press time minus the last sampled position outside the target square',
             dt_ms: 'gap between consecutive mousemoves, gaps over pause_ms excluded as pauses',
             dt_ms_in_move: 'the same gap, restricted to samples inside a target move: sampling '
@@ -878,11 +1432,18 @@ document.getElementById('dlJson').addEventListener('click', () => {
 document.getElementById('reset').addEventListener('click', () => {
     if (!confirm('Clear ' + log.length + ' recorded events? This cannot be undone.')) return;
     log.length = 0; trials = []; openTrial = null; capped = false;
-    modeMs.idle = modeMs.targets = modeMs.free = 0;
+    modeMs.idle = modeMs.targets = modeMs.free = 0; modeMs.game = 0;
+    gThinks = []; gpos = null; gOver = null; gSel = null; gDrag = null; gJourney = null;
     modeSince = performance.now();
     buildBoard();
     setMode('idle');
 });
+
+document.getElementById('mGame').addEventListener('click', () => setMode('game'));
+document.getElementById('gNew').addEventListener('click', () => { setMode('game'); gNewGame(); render(); });
+// The clock is read, not ticked: gCharge works off wall time, so a delayed interval cannot hand
+// time back. 250 ms only decides how often the number on screen is refreshed.
+setInterval(() => { if (mode === 'game' && gpos && !gOver) gameStatus(); }, 250);
 
 document.getElementById('mTargets').addEventListener('click', () => setMode('targets'));
 document.getElementById('mFree').addEventListener('click', () => setMode('free'));
