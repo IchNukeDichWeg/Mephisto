@@ -19779,6 +19779,35 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('CONTENT1-2 (3.1.335): with Hide Opponent off a push adds no blur', c.styleText() === null, c.styleText());
     } else ok('CONTENT1-2 (3.1.335): slice built', false);
 }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    // the real onProbeAnnounce wires the tt/cb update listeners; fire them with the panel open and closed
+    const a = csrc.indexOf('function onProbeAnnounce(e) {');
+    const code = 'let ttState = null, ttSid = null, cbState = null, cbSid = null, puzSid = null;\n'
+        + csrc.slice(a, csrc.indexOf('\n}\n', a) + 3) + ';globalThis.announce = onProbeAnnounce;';
+    const listeners = {};
+    let pushes = 0;
+    const c = {PROBE_TYPES: ['tt', 'cb'], config: {engine: 'sf'}, positionObserver: {},
+               schedulePush: () => { pushes++; }, acceptPuzzleCaptures: () => {},
+               document: {addEventListener: (n, f) => { (listeners[n] = listeners[n] || []).push(f); }, dispatchEvent: () => {}},
+               CustomEvent: function () {}};
+    vm.createContext(c);
+    let built = true;
+    try { vm.runInContext(code, c); } catch (e) { built = false; console.log('  threw ' + e.message); }
+    const fire = (n) => (listeners[n] || []).forEach(f => f({detail: '{"fen":"x"}'}));
+    if (built) {
+        for (const [t, sid] of [['tt', 'T1'], ['cb', 'C1']]) {
+            c.announce({detail: JSON.stringify({t, s: sid})});
+            c.positionObserver = {}; pushes = 0;
+            fire(sid + 'u');
+            ok(`CONTENT1-3 (3.1.335): an open panel scrapes on a ${t} probe update`, pushes === 1, pushes);
+            // removeOverlay / the toolbar-popup disconnect: observer stopped, config kept
+            c.positionObserver = null; pushes = 0;
+            fire(sid + 'u');
+            ok(`CONTENT1-3 (3.1.335): ...a closed panel does not on a ${t} update (no scrape, no worker wake per move)`, pushes === 0, pushes);
+        }
+    } else ok('CONTENT1-3 (3.1.335): slice built', false);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

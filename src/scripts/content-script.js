@@ -2929,11 +2929,14 @@ function onProbeAnnounce(e) {
     if (d.t === 'tt' && !ttSid) {
         ttSid = d.s;
         document.addEventListener(ttSid + 's', ev => { try { ttState = JSON.parse(ev.detail); } catch (err) { ttState = null; } });
-        document.addEventListener(ttSid + 'u', ev => { try { ttState = JSON.parse(ev.detail); } catch (err) { return; } if (config) schedulePush(); });
+        // Gated on the observer as well as the config: a closed panel keeps its config but stops the
+        // observer, and this push kept scraping and waking the worker on every move (audit 3.1.335
+        // CONTENT1-3). The next config push starts both again.
+        document.addEventListener(ttSid + 'u', ev => { try { ttState = JSON.parse(ev.detail); } catch (err) { return; } if (config && positionObserver) schedulePush(); });
     } else if (d.t === 'cb' && !cbSid) {
         cbSid = d.s;
         document.addEventListener(cbSid + 's', ev => { try { cbState = JSON.parse(ev.detail); } catch (err) { cbState = null; } });
-        document.addEventListener(cbSid + 'u', ev => { try { cbState = JSON.parse(ev.detail); } catch (err) { return; } if (config) schedulePush(); });
+        document.addEventListener(cbSid + 'u', ev => { try { cbState = JSON.parse(ev.detail); } catch (err) { return; } if (config && positionObserver) schedulePush(); });   // gated as tt above
     } else if (d.t === 'puz' && !puzSid) {
         puzSid = d.s;
         document.addEventListener(puzSid + 'p', ev => {
