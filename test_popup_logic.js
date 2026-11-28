@@ -20084,6 +20084,32 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        ['.an-lrow:hover', '.an-mcell:hover', '.an-lg-mv:hover'].every(s => bg(s) === 'var(--mp-hair)'),
        ['.an-lrow:hover', '.an-mcell:hover', '.an-lg-mv:hover'].map(bg));
 })();
+(() => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The click table is compared against a hand's p50 line, so dwell and hold must be p50s too.
+    // Drive the REAL row loop with canned clicks whose hold/dwell are right-skewed like a lognormal.
+    const src = fs.readFileSync(ROOT + '/test/cursor-oracle.mjs', 'utf8');
+    const cut = (from, to) => { const a = src.indexOf(from), b = src.indexOf(to, a); if (a < 0 || b < 0) throw new Error('anchor ' + (a < 0 ? from : to)); return src.slice(a, b); };
+    const helpers = cut('const mean = (a)', '// The clock is stubbed');
+    const loop = cut('for (const travelMs of [8, 120, 300, 600])', "console.log('\\n  a hand");
+    const lines = [];
+    const holds = [80, 82, 84, 86, 300], dwells = [40, 45, 50, 55, 200];   // p50 84 / 50, means 126.4 / 78
+    let k = 0;
+    const ctx = vm.createContext({
+        console: {log: (s) => lines.push(s)}, String, Math, Number,
+        click: async () => null,
+        clickShape: () => { const i = k++ % 5; return {dwell: dwells[i], hold: holds[i], pressDpx: 0, dtMean: 16, dtSd: 2, dts: [16, 16], moves: 5, force: 0.5}; },
+        dtShape: () => ({p50: 16, onGrid: 1, skip: 0}),
+    });
+    vm.runInContext(helpers + '\nthis.__run = async () => {\n' + loop + '\n};', ctx);
+    ctx.__run().then(() => {
+        const row = lines.find(s => /^\s+120ms/.test(s)) || '';
+        const cols = row.trim().split(/\s+/);
+        ok('CURSORORACLE-1 (3.1.335): click table dwell column is the p50, not the mean', Number(cols[2]) === 50, row);
+        ok('CURSORORACLE-1 (3.1.335): click table hold column is the p50, not the mean', Number(cols[3]) === 84, row);
+        ok('CURSORORACLE-1 (3.1.335): dt_ms stays a mean', Number(cols[5]) === 16, row);
+    }).catch((e) => ok('CURSORORACLE-1 (3.1.335): row loop runs', false, String(e)));
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

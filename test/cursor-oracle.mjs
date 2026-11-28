@@ -74,6 +74,10 @@ function shape(pts, dist) {
 
 const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
 const sd = (a) => Math.sqrt(mean(a.map(v => (v - mean(a)) ** 2)));
+const median = (a) => {
+    const s = a.slice().sort((x, y) => x - y), m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
 const f = (x, d = 2) => x.toFixed(d);
 // The clock is stubbed at the worker's own idle-Mac step cost (16ms), so `rate` here is the shape
 // the code asks for, not what a loaded browser delivers -- the browser figure is measured live.
@@ -200,14 +204,17 @@ function dtShape(all) {
 }
 
 console.log('\nthe click at the end of the path (30 clicks per row)\n');
-console.log('  travel   moves   dwell_ms   hold_ms   press_dpx   dt_ms   dt_sd   on_grid   skip   force');
+// dwell and hold are p50s because the hand line below quotes p50s. Both are drawn lognormal, so a
+// mean sits above the median by exp(sd^2/2): hold read ~89-90 ms against HOLD_MED_MS 85 and the
+// hand's 83, a ~6 ms gap that the p50 (84-87 ms over 1000 clicks per row) does not have.
+console.log('  travel   moves  dwell_p50  hold_p50   press_dpx   dt_ms   dt_sd   on_grid   skip   force');
 for (const travelMs of [8, 120, 300, 600]) {
     const runs = [];
     for (let i = 0; i < 30; i++) runs.push(clickShape(await click(0, 0, 300, 120, travelMs)));
-    const col = (k, d = 2) => f(mean(runs.map(r => r[k]).filter(v => !Number.isNaN(v))) || 0, d);
+    const col = (k, d = 2, stat = mean) => f(stat(runs.map(r => r[k]).filter(v => !Number.isNaN(v))) || 0, d);
     const g = dtShape(runs.flatMap(r => r.dts));
     console.log(`  ${String(travelMs).padStart(4)}ms  ${col('moves', 1).padStart(6)}   `
-        + `${col('dwell', 1).padStart(7)}   ${col('hold', 1).padStart(7)}   ${col('pressDpx').padStart(8)}   `
+        + `${col('dwell', 1, median).padStart(7)}   ${col('hold', 1, median).padStart(7)}   ${col('pressDpx').padStart(8)}   `
         + `${col('dtMean', 1).padStart(5)}   ${col('dtSd', 2).padStart(5)}   `
         + `${f(g.onGrid).padStart(7)}   ${f(g.skip).padStart(4)}   ${runs[0].force}`);
 }
