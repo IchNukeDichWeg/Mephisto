@@ -440,6 +440,10 @@ function loadFen(text) {
         return status(t('an.lg_bad_fen', 'Not a {game} FEN: {why}', {game: gameName(), why}), 'err');
     }
     startFen = fen; moves = []; ply = 0; selected = null;
+    // Only refreshNow redrew the list, after the engine's answer (on a game switch, the whole engine
+    // load, or never if it fails), so the old line stayed clickable over an empty one and a click set
+    // ply past its end (audit 3.1.335 LARGEBOARD-1).
+    renderMoves();
     status('');
     refresh();
 }
@@ -458,7 +462,8 @@ function wire() {
     $('an_lg_next')?.addEventListener('click', () => { if (ply < moves.length) { ply++; selected = null; refresh(); } });
     $('an_lg_moves')?.addEventListener('click', (ev) => {
         const s = ev.target.closest?.('[data-ply]');
-        if (s) { ply = +s.dataset.ply; selected = null; refresh(); }
+        // clamped: a list drawn for an older line must not set ply past the current one
+        if (s) { ply = Math.min(+s.dataset.ply, moves.length); selected = null; refresh(); }
     });
     $('an_lg_lines')?.addEventListener('click', (ev) => {
         const row = ev.target.closest?.('[data-move]');
@@ -486,6 +491,10 @@ function showLargeGame(g, opts) {
         if (host) host.innerHTML = '';
         const box = $('an_lg_fen');
         if (box) box.value = '';
+        // the old game's hands and "Sente to move" are just as stale until the new engine answers
+        for (const id of ['an_lg_hand_top', 'an_lg_hand_bottom']) { const el = $(id); if (el) el.innerHTML = ''; }
+        const tm = $('an_lg_turn');
+        if (tm) tm.textContent = '';
         loadFen('');
     }
 }

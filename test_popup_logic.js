@@ -20431,6 +20431,84 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const full = +((pj.match(/const FULL_STRENGTH_ELO = (\d+);/) || [])[1]);
     ok('GENERALJS-2 (3.1.335): the Elo field max reaches FULL_STRENGTH_ELO, so an edit never turns full strength into a 3190 cap', max > 0 && full > 0 && max >= full, [max, full]);
 }
+// ---- audit 3.1.335 LARGEBOARD-1: a Load or a game switch clears the old move list, and a stale click cannot set ply past the line ----
+(async () => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the REAL large-board.js against a stub DOM and a stub Fairy (the same shape as the 3.1.331 LARGEBOARD harness)
+    const src = fs.readFileSync(ROOT + '/src/options/pages/analysis/large-board.js', 'utf8').replace(/^export \{[^}]*\};?\s*$/m, '');
+    const S0 = 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL[] w - - 0 1';
+    const S1 = 'lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL[] b - - 1 1';
+    const S2 = 'lnsgkgsnl/1r5b1/pppppp1pp/6p2/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL[] w - - 0 2';
+    const X0 = 'rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1';
+    const table = {shogi: {'': {fen: S0, legal: ['c3c4', 'h3h4']}, 'c3c4': {fen: S1, legal: ['g7g6']}, 'c3c4 g7g6': {fen: S2, legal: ['a3a4']}},
+                   xiangqi: {'': {fen: X0, legal: ['h3e3']}}};
+    const harness = () => {
+        const els = {};
+        const el = (id) => els[id] || (els[id] = {id, h: {}, value: '', textContent: '', innerHTML: '', className: '',
+            classList: {toggle() {}}, setAttribute() {}, addEventListener(t, f) { (this.h[t] = this.h[t] || []).push(f); },
+            fire(t, ev) { for (const f of this.h[t] || []) f(ev || {}); }});
+        const queue = [], sent = [];
+        class Eng {
+            constructor(name, opts) { this.variant = opts.variant; this.listeners = []; this.pos = []; }
+            async start() {}
+            dispose() {}
+            emit(lines) { for (const line of lines) for (const f of this.listeners.slice()) f({kind: 'line', line}); }
+            once(pred) { return new Promise((res) => { const f = (m) => { if (pred(m)) { this.listeners.splice(this.listeners.indexOf(f), 1); res(m); } }; this.listeners.push(f); }); }
+            at() {
+                const T = table[this.variant]; let key = '';
+                for (const m of this.pos) { const k = key ? key + ' ' + m : m; if (!T[key].legal.includes(m) || !T[k]) break; key = k; }
+                return T[key];
+            }
+            send(c) {
+                sent.push(c);
+                const p = /^position fen .+?(?: moves (.*))?$/.exec(c);
+                if (p) { this.pos = p[1] ? p[1].split(' ') : []; return; }
+                const pos = this.at();
+                if (c === 'd') queue.push(() => this.emit(['Fen: ' + pos.fen, 'Checkers: ']));
+                if (c === 'go perft 1') queue.push(() => this.emit([...pos.legal.map(m => m + ': 1'), 'Nodes searched: ' + pos.legal.length]));
+            }
+            startInfinite() { return {stop: async () => {}}; }
+        }
+        const ctx = vm.createContext({document: {getElementById: el, activeElement: null}, window: {confirm: () => false}, setTimeout, clearTimeout, console});
+        ctx.self = ctx;
+        ctx.MephistoEngines = {WasmEngine: Eng};
+        ctx.MephistoReviewCore = {isMateScore: () => false};
+        vm.runInContext(src + '\n;this.L = {showLargeGame, hideLargeGame};', ctx);
+        const tick = () => new Promise(r => setTimeout(r, 0));
+        return {L: ctx.L, el, sent,
+            settle: async () => { for (let idle = 0, i = 0; idle < 5 && i < 500; i++) { await tick(); if (queue.length) { queue.shift()(); idle = 0; } else idle++; } },
+            sq: (f, r) => el('an_lg_board').fire('click', {target: {closest: (s) => s === '.an-lg-hit' ? {dataset: {f: String(f), r: String(r)}} : null}}),
+            mv: (n) => el('an_lg_moves').fire('click', {target: {closest: (s) => s === '[data-ply]' ? {dataset: {ply: String(n)}} : null}}),
+            text: (id) => el(id).innerHTML.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
+            opts: () => ({multipv: 2, threads: 1, hash: 16, depth: 0, secs: 0})};
+    };
+    const lastPos = (h) => h.sent.filter(c => /^position /.test(c)).pop();
+    try {
+        // a two-move shogi line, then Xiangqi: the shogi list must go at once, not when the new engine is up
+        let h = harness();
+        h.L.showLargeGame('shogi', h.opts); await h.settle();
+        h.sq(2, 2); h.sq(2, 3); await h.settle();
+        h.sq(6, 6); h.sq(6, 5); await h.settle();
+        const before = h.text('an_lg_moves');
+        h.L.showLargeGame('xiangqi', h.opts);
+        const during = h.text('an_lg_moves');
+        h.mv(2);                                   // a click on the old list's 2nd move while the switch is loading
+        await h.settle();
+        h.el('an_lg_next').fire('click'); await h.settle();
+        ok('LARGEBOARD-1 (3.1.335): a game switch clears the old move list at once, and a click on it leaves ply inside the new (empty) line',
+           before === '1. c3c4 g7g6' && during === '' && lastPos(h) === `position fen ${X0}` && h.text('an_lg_moves') === '',
+           [before, during, lastPos(h)]);
+        // Start position inside one game: same thing, the old list goes with the Load
+        h = harness();
+        h.L.showLargeGame('shogi', h.opts); await h.settle();
+        h.sq(2, 2); h.sq(2, 3); await h.settle();
+        h.el('an_lg_start').fire('click');
+        const afterLoad = h.text('an_lg_moves');
+        h.mv(1); await h.settle();
+        ok('LARGEBOARD-1 (3.1.335): ...and so does Start position, so its old list cannot put a move back on an empty line',
+           afterLoad === '' && lastPos(h) === `position fen ${S0}` && h.text('an_lg_moves') === '', [afterLoad, lastPos(h)]);
+    } catch (e) { fails++; console.log('FAIL LARGEBOARD-1 (3.1.335): the harness threw ' + (e && e.stack || e)); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
