@@ -459,8 +459,12 @@ async function loadEngine(clientId, engineName, variant, maiaLevel, elos) {
         // Silenced first, since its client id is still current and say() would pass the bestmove its
         // stop flushes to the panel as an answer.
         engine.listen = () => {}; engine.onError = () => {};
-        abandon(engine, downloadFailed);
-        if (downloadFailed) {
+        // Only a CURRENT load parks. forgetClient has already freed this client's spare, so a
+        // disposed client's download failing afterwards parked a stopped instance (workers and heap
+        // kept) for an id nothing would init again (audit 3.1.335 OFFSCREEN-1).
+        const keep = downloadFailed && !superseded();
+        abandon(engine, keep);
+        if (keep) {
             if (spare[clientId]) freeEngine(spare[clientId].engine);   // one parked instance per client
             spare[clientId] = {name: engineName, engine};
         }

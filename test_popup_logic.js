@@ -20597,6 +20597,55 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('MAIA-1 (3.1.335): ...and it emits the line count that was set when it started', firstPvs.join() === 'e2e4', firstPvs);
     })().catch(e => { fails++; console.log('FAIL MAIA-1 (3.1.335) checks threw: ' + (e && e.stack || e)); });
 }
+// ---- audit 3.1.335 OFFSCREEN-1: a disposed client's load whose net download then fails is freed, not parked ----
+(async () => {
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The whole offscreen host on a simulated clock. SF 19 recommends one net; each download waits
+    // until the test rejects it. An engine records every uci line and whether terminate() reached it
+    // (freeEngine calls terminate, the parking path only sends `stop`).
+    const src = fs.readFileSync(ROOT + '/src/offscreen/offscreen.js', 'utf8').replace(/await import\(/g, 'await __imp(');
+    const host = () => {
+        let now = 1e6, listener; const timers = [], engines = [], downloads = [];
+        const tick = () => new Promise(r => setImmediate(r));
+        const mk = (fn, ms, iv) => { const t = {at: now + ms, fn, iv}; timers.push(t); return t; };
+        const advance = async (ms) => { await tick(); const end = now + ms;
+            for (;;) { timers.sort((a, b) => a.at - b.at); const t = timers[0]; if (!t || t.at > end) break;
+                now = t.at; if (t.iv) t.at += t.iv; else timers.shift(); t.fn(); await tick(); } now = end; await tick(); };
+        const c = {console: {log() {}}, Date: {now: () => now},
+            setTimeout: (f, ms) => mk(f, ms, 0), setInterval: (f, ms) => mk(f, ms, ms),
+            clearTimeout: (t) => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); },
+            window: {close() {}},
+            __imp: async (path) => /model-fetch/.test(path)
+                ? {fetchModel: () => new Promise((res, rej) => downloads.push(rej))}
+                : {default: async () => { const e = {got: [], terminated: false, uci: (l) => e.got.push(l),
+                    terminate() { e.terminated = true; },
+                    getRecommendedNnue: (i) => (i === 0 ? 'nn-a.nnue' : null), setNnueBuffer() {}}; engines.push(e); return e; }},
+            chrome: {runtime: {sendMessage: () => {}, onMessage: {addListener: (f) => listener = f}}}};
+        vm.createContext(c); vm.runInContext(src, c);
+        return {advance, engines, downloads, msg: (id, o) => listener({toOffscreen: true, clientId: id, ...o}, {}, () => {})};
+    };
+    // a tab disposed while its net download is pending; the download fails afterwards
+    let h = host();
+    h.msg('7', {cmd: 'init', engine: 'stockfish-19-nnue', variant: 'chess'}); await h.advance(10);
+    ok('OFFSCREEN-1 (3.1.335): setup, one instance waiting on its net', h.engines.length === 1 && h.downloads.length === 1, [h.engines.length, h.downloads.length]);
+    h.msg('7', {cmd: 'dispose'}); await h.advance(10);
+    h.downloads[0](new Error('MPH-N01: offline')); await h.advance(10);
+    ok('OFFSCREEN-1 (3.1.335): a disposed client\'s failed download frees its instance (terminate reached it)',
+       h.engines[0].terminated === true, h.engines[0]);
+    // the same tab id inits the same engine again: it must get a fresh instance, not the forgotten one
+    h.msg('7', {cmd: 'init', engine: 'stockfish-19-nnue', variant: 'chess'}); await h.advance(10);
+    ok('OFFSCREEN-1 (3.1.335): nothing was parked for the forgotten client (a re-init instantiates anew)',
+       h.engines.length === 2, h.engines.length);
+    // contract kept: a live client's failed download still parks its instance for the retry
+    h = host();
+    h.msg('8', {cmd: 'init', engine: 'stockfish-19-nnue', variant: 'chess'}); await h.advance(10);
+    h.downloads[0](new Error('MPH-N01: offline')); await h.advance(10);
+    ok('OFFSCREEN-1 (3.1.335): a live client\'s failed download still parks (stopped, not terminated)',
+       h.engines[0].terminated === false && h.engines[0].got.includes('stop'), h.engines[0]);
+    await h.advance(31000);
+    h.msg('8', {cmd: 'init', engine: 'stockfish-19-nnue', variant: 'chess'}); await h.advance(10);
+    ok('OFFSCREEN-1 (3.1.335): ...and its retry reuses the parked instance', h.engines.length === 1, h.engines.length);
+})().catch(e => { fails++; console.log('FAIL OFFSCREEN-1 (3.1.335) checks threw: ' + (e && e.stack || e)); });
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
