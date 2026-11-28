@@ -72,6 +72,11 @@ function resumeIfDeferred() {
 }
 document.addEventListener('visibilitychange', resumeIfDeferred);
 window.addEventListener('focus', resumeIfDeferred);
+// Auto-Next held while away (heldWhileAway): a finished puzzle's end screen makes no further
+// mutation, so the press would wait for one forever. Coming back is the trigger.
+const advanceOnReturn = () => { if (tabActive()) try { maybeAdvancePuzzle(); } catch (e) { /* never break the page */ } };
+document.addEventListener('visibilitychange', advanceOnReturn);
+window.addEventListener('focus', advanceOnReturn);
 
 // ask the background for our own tab id as early as possible (content-script sender.tab is always
 // populated). The popup iframe uses it to message just this tab instead of the globally-active tab.
@@ -4212,8 +4217,18 @@ function panelRunning() {
     return !!self.MephistoPanel?.isBooted?.();
 }
 
+// Background Play off holds MOVES while the tab is hidden or unfocused (handle()). The buttons that
+// start the next game or puzzle answer to the same switch: without it Grind queued a game while you
+// were tabbed away that the extension then refused to play, so it was aborted for no first move, and
+// the next follow-up box queued another (audit 3.1.335 CONTENT2-2). Held, not dropped: Grind and
+// Rematch poll, and Auto-Next is re-checked on return (advanceOnReturn).
+function heldWhileAway() {
+    return !!config && !config.background_play && !tabActive();
+}
+
 function maybeAdvancePuzzle() {
     if (!panelRunning() || !config || !config.puzzle_auto_next || !config.puzzle_mode || !config.autoplay) return;
+    if (heldWhileAway()) return;   // nothing latched: advanceOnReturn looks again
     const btn = puzzleNextButton();
     if (!btn) {
         // the row is back to its mid-puzzle shape: a new puzzle is live, so arm for the next end.
@@ -4229,6 +4244,7 @@ function maybeAdvancePuzzle() {
         const now = puzzleNextButton();
         if (!now || now === puzzleNextClicked) return;
         if (!panelRunning() || !config || !config.puzzle_auto_next || !config.puzzle_mode || !config.autoplay) return;
+        if (heldWhileAway()) return;   // tabbed away during the wait
         puzzleNextClicked = now;
         bgLogAlways('puzzle: advancing to the next one', {label: now.getAttribute('aria-label') || ''});
         // A TRUSTED CLICK, through the same path as the moves (debugger or Python backend, with the
@@ -5310,6 +5326,11 @@ function grindTick() {
         grindSeenFollowUp = false;
         return;
     }
+    if (heldWhileAway()) {            // the countdown starts over, in full, when you are back
+        grindCancel('the tab is inactive and Background Play is off');
+        grindSeenFollowUp = false;
+        return;
+    }
     const box = GRIND_SITES[site].box();
     if (!box) {                       // back in a game (or never finished one): reset and wait
         grindCancel('the game is not over');
@@ -5326,6 +5347,7 @@ function grindTick() {
     grindTimer = setTimeout(() => {
         grindTimer = null;
         if (!panelRunning() || !config.grind_mode || !config.autoplay) return;   // switched off while we waited
+        if (heldWhileAway()) { grindSeenFollowUp = false; return; }   // tabbed away while we waited
         if (config.accept_rematch && rematchOffer()) return;   // the opponent asked first: that is the next game
         const btn = grindNewGameButton();
         if (!btn) return console.debug('Mephisto: grind found nothing to click');
@@ -5361,7 +5383,7 @@ function rematchOffer() {
 }
 
 function rematchTick() {
-    if (!panelRunning() || !config || !config.accept_rematch || !config.autoplay) {
+    if (!panelRunning() || !config || !config.accept_rematch || !config.autoplay || heldWhileAway()) {
         if (rematchTimer) { clearTimeout(rematchTimer); rematchTimer = null; }
         return;
     }
@@ -5370,6 +5392,7 @@ function rematchTick() {
     rematchTimer = setTimeout(() => {
         rematchTimer = null;
         if (!panelRunning() || !config.accept_rematch || !config.autoplay) return;   // switched off while we waited
+        if (heldWhileAway()) return;                               // tabbed away: the next poll re-arms
         const btn = rematchOffer();
         if (!btn) return;                                          // withdrawn while we waited
         grindCancel('the opponent offered a rematch');

@@ -3476,7 +3476,7 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /sendMessage\(\{panelWasOpen: true\}, \(r\) => \{\s*if \(chrome\.runtime\.lastError \|\| !r\?\.open \|\| overlayEl\(PANEL_OVERLAY_ID\)\) return;\s*toggleOverlay\(\);/.test(csrc));
     { // A CLOSED PANEL PRESSES NOTHING. The real ticks with every setting on: only the panel differs.
       const cut = (from, to) => csrc.slice(csrc.indexOf(from), csrc.indexOf(to));
-      const c = vm.createContext({self: {MephistoPanel: {isBooted: () => c.panel}}, console: {debug() {}}, document: {contains: () => true}, bgLogAlways() {},
+      const c = vm.createContext({self: {MephistoPanel: {isBooted: () => c.panel}}, console: {debug() {}}, document: {contains: () => true}, bgLogAlways() {}, tabActive: () => true,
           chrome: {runtime: {sendMessage: () => c.pressed.push('rematch')}}, setTimeout: (f) => c.timers.push(f), clearTimeout() {},
           // Next is pressed with a trusted click since 3.1.330 PAGEA-4; either way it counts once
           puzzleNextDelayMs: () => 0, puzzleNextButton: () => ({click: () => c.pressed.push('next'), getAttribute: () => '', getBoundingClientRect: () => ({left: 0, top: 0, width: 1, height: 1})}),
@@ -9761,7 +9761,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         const trusted = [];
         const c = vm.createContext({Promise, document: {contains: () => true}, site: 'chesscom',
             config: {puzzle_auto_next: true, puzzle_mode: true, autoplay: true}, puzzleNextClicked: null, puzzleNextTimer: null,
-            panelRunning: () => true, puzzleNextButton: () => btn, puzzleNextDelayMs: () => 0, bgLogAlways() {},
+            panelRunning: () => true, puzzleNextButton: () => btn, puzzleNextDelayMs: () => 0, bgLogAlways() {}, heldWhileAway: () => false,
             setTimeout: (f) => { f(); return 0; },
             simulateClickSquare: (r, range, travel) => { trusted.push([r, range, travel]); return refuse ? Promise.reject(new Error('backend click refused')) : Promise.resolve({}); }});
         vm.runInContext(cs.slice(i, j).replace(/^let /gm, 'var '), c);
@@ -18032,7 +18032,7 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
             document: {elementFromPoint: (x, y) => (x === 120 && y === 210) ? (covered ? panel : btn) : null, contains: () => true},
             chrome: {runtime: {sendMessage: (m) => sent.push(m), lastError: null}},
             setTimeout: (f) => { timers.push(f); return timers.length; }, clearTimeout() {},
-            GRIND_SITES: {lichess: {box: () => ({})}}, panelRunning: () => true,
+            GRIND_SITES: {lichess: {box: () => ({})}}, panelRunning: () => true, heldWhileAway: () => false,
             config: {accept_rematch: true, autoplay: true}, rematchOffer: () => btn, REMATCH_PAUSE_MS: [0, 0], REMATCH_VERIFY_MS: 0});
         vm.runInContext('var rematchTimer = null; const GRIND_VERIFY_MS = 0;' + cut('function clickLandsOn(', 'function grindClick(')
             + cut('function grindClick(', '\n}\n') + '\n}\n' + cut('function rematchTick() {', 'setInterval(rematchTick'), c);
@@ -19896,6 +19896,65 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('CONTENT2-1 (3.1.335): a drag the clock paced short is floored to 250 ms, never snapped', c.dragMs.length === 3 && c.dragMs.every(ms => ms >= 250), c.dragMs);
         ok('CONTENT2-1 (3.1.335): a Move Time setting under 250 ms still falls back to two clicks', low === 'click,click', low);
     })();
+}
+// ---- audit 3.1.335 CONTENT2-2: with Background Play off, Grind, Accept Rematch and Auto-Next hold their clicks while the tab is away ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from) => { const a = s.indexOf(from); return a < 0 ? '' : s.slice(a, s.indexOf('\n}\n', a) + 3); };
+    const timers = [];
+    const c = vm.createContext({console: {log() {}, warn() {}, debug() {}}, Math, Number,
+        setTimeout: (f, ms) => { timers.push(f); return timers.length; }, clearTimeout: (id) => { timers[id - 1] = null; },
+        clicks: [], hidden: true, listeners: {}});
+    const run = () => { const fs_ = timers.splice(0); fs_.forEach(f => f && f()); };
+    vm.runInContext(`var site = 'lichess', grindTimer = null, grindSeenFollowUp = false, rematchTimer = null;
+        var puzzleNextClicked = null, puzzleNextTimer = null;
+        var config = {grind_mode: true, autoplay: true, accept_rematch: true, puzzle_mode: true, puzzle_auto_next: true, grind_delay: 0, background_play: false};
+        var self = {MephistoPanel: {isBooted: () => true}};
+        var btnEl = {getAttribute: () => '', getBoundingClientRect: () => ({left: 0, top: 0, width: 10, height: 10}), classList: {contains: () => false}};
+        var document = {get visibilityState() { return hidden ? 'hidden' : 'visible'; }, hasFocus: () => !hidden, contains: () => true,
+                        addEventListener: (t, f) => { (listeners[t] = listeners[t] || []).push(f); }};
+        var window = {addEventListener: (t, f) => { (listeners[t] = listeners[t] || []).push(f); }};
+        var chrome = {runtime: {sendMessage(m, cb) { clicks.push('rematch'); cb && cb(); }, lastError: null}};
+        const GRIND_SITES = {lichess: {box: () => ({})}};
+        const REMATCH_PAUSE_MS = [0, 0], REMATCH_VERIFY_MS = 0;
+        function setInterval() {}
+        function rematchOffer() { return btnEl; } function grindNewGameButton() { return btnEl; }
+        function grindClick() { clicks.push('grind'); } function clickLandsOn() { return true; }
+        function puzzleNextButton() { return btnEl; } function puzzleNextDelayMs() { return 0; }
+        function simulateClickSquare() { clicks.push('next'); return Promise.resolve(); }
+        function bgLogAlways() {}
+        ${cut('function tabActive() {')}
+        ${cut('function grindCancel(why) {')}
+        ${cut('function panelRunning() {')}
+        ${cut('function heldWhileAway() {')}
+        ${cut('function grindTick() {')}
+        ${cut('function rematchTick() {')}
+        ${cut('function maybeAdvancePuzzle() {')}
+        ${(s.match(/^const advanceOnReturn[^\n]*\n(?:document|window)\.addEventListener[^\n]*\n(?:document|window)\.addEventListener[^\n]*\n/m) || [''])[0]}`, c);
+    const tick = () => { vm.runInContext('grindTick(); rematchTick(); maybeAdvancePuzzle()', c); run(); run(); };
+    // the countdowns start while the tab is in front, and the user tabs away before they fire
+    c.hidden = false; vm.runInContext('config.accept_rematch = false; grindTick(); maybeAdvancePuzzle()', c);
+    c.hidden = true; run();
+    ok('CONTENT2-2 (3.1.335): a Grind / Auto-Next countdown that comes due after you tab away clicks nothing', c.clicks.length === 0, c.clicks.slice());
+    // a game or puzzle that ends while the tab is already away
+    vm.runInContext('config.accept_rematch = true', c);
+    tick(); tick();
+    ok('CONTENT2-2 (3.1.335): ...and one that ends while away clicks nothing either (Grind, Rematch, Auto-Next)', c.clicks.length === 0, c.clicks.slice());
+    // back in front: the next poll presses, and Auto-Next is re-armed by the return itself (the end screen makes no mutation)
+    c.hidden = false;
+    vm.runInContext('config.accept_rematch = false', c);
+    (c.listeners.focus || []).forEach(f => f()); run();
+    ok('CONTENT2-2 (3.1.335): coming back presses Auto-Next without waiting for a DOM mutation', c.clicks.includes('next'), c.clicks.slice());
+    vm.runInContext('grindTick()', c); run();
+    ok('CONTENT2-2 (3.1.335): ...and the next Grind poll starts the countdown and presses', c.clicks.includes('grind'), c.clicks.slice());
+    vm.runInContext('config.accept_rematch = true; rematchTick()', c); run();
+    ok('CONTENT2-2 (3.1.335): ...and Accept Rematch takes the offer', c.clicks.includes('rematch'), c.clicks.slice());
+    // Background Play on: away does not hold anything
+    c.clicks.length = 0; c.hidden = true;
+    vm.runInContext("config.background_play = true; config.accept_rematch = false; grindSeenFollowUp = false; puzzleNextClicked = null", c);
+    vm.runInContext('grindTick(); maybeAdvancePuzzle()', c); run(); run();
+    ok('CONTENT2-2 (3.1.335): with Background Play on, a hidden tab still grinds and advances', c.clicks.includes('grind') && c.clicks.includes('next'), c.clicks.slice());
 }
 // ==== END FIX CHECKS ====
 
