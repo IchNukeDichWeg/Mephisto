@@ -19846,6 +19846,57 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('CONTENT1-4 (3.1.335): a veil ended with the panel open leaves the host and the panel alone', body.children.length === 1 && c.st().root && c.st().root.children.includes(panel));
     } else ok('CONTENT1-4 (3.1.335): slice built', false);
 }
+// ---- audit 3.1.335 CONTENT2-1: Drag Pieces is gated on the Move Time setting, not the clock-paced move_time ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from) => { const a = s.indexOf(from); return s.slice(a, s.indexOf('\n}\n', a) + 3); };
+    const ha = s.indexOf('let halfClicked = null;'), hb = s.indexOf('function moveHeldBack()');
+    // the real pushConfig branch of handle(), and the real line that applies one move's timing
+    const pa = s.indexOf('} else if (response.pushConfig) {'), pb = s.indexOf('} else if (response.drawHint) {', pa);
+    const pushBody = s.slice(s.indexOf('{', pa) + 1, pb);
+    const timingLine = (s.match(/^\s*if \(response\.timing\) Object\.assign\(config, response\.timing\);$/m) || [''])[0];
+    const c = vm.createContext({console: {log() {}, warn() {}}, setTimeout, Promise, Date, Math, inputs: [], dragMs: [],
+        DOMRect: function (x, y, w, h) { Object.assign(this, {x, y, width: w, height: h}); }});
+    vm.runInContext(`var site = 'lichess', moveGen = 0, pendingForPush = null, lastAimed = null, lastPushKey = null, lastDisplayKey = null;
+        var config = null;
+        var document = {querySelector: () => null};
+        const DROP_RE = /^[A-Z]@/, UCI_RE = /^[a-h][1-8][a-h][1-8][qrbnk]?$/, DRAG_MIN_MS = 250, POCKET_ROLE = {};
+        const FITTS_REF_ID = 2;
+        function applyHideOpponent() {} function syncUserArrowWatch() {} function maybeCheckStreamer() {}
+        function startPositionObserver() {} function schedulePush() {}
+        function promiseTimeout(ms) { return new Promise(r => setTimeout(r, Math.min(ms, 5))); }
+        function thinkWait(ms) { return Promise.resolve(false); }
+        function warmClicker() { return Promise.resolve(); }
+        function clickableBoardBounds() { return {x: 0, y: 0, width: 800, height: 800}; }
+        function getOrientation() { return 'white'; }
+        function is4PC() { return false; } function boardStillMatchesAnalysis() { return true; }
+        function moveHeldBack() { return null; } function chesscomViewingHistory() { return false; }
+        function isChesscomVariants() { return false; } function cbGeometry() { return null; }
+        function cursorPathFor() { return 0; } function dropMove() {} function bgLog() {}
+        async function simulateClickSquare() { inputs.push('click'); }
+        async function simulateDragSquares(f, t, r, ms) { inputs.push('drag'); dragMs.push(ms); }
+        function onPushConfig(response) { ${pushBody} }
+        function onTiming(response) { ${timingLine} }
+        ${s.slice(ha, hb).replace('let halfClicked', 'var halfClicked').replace('let fromClickInFlight', 'var fromClickInFlight')}
+        ${cut('function simulateMove(move, deselect')}`, c);
+    const play = async (setting, paced) => {
+        c.inputs.length = 0;
+        vm.runInContext('onPushConfig', c)({pushConfig: true, config: {drag_moves: true, think_time: 0, think_variance: 0, move_time: setting, move_variance: setting}});
+        vm.runInContext('onTiming', c)({timing: {think_time: 0, think_variance: 0, move_time: paced, move_variance: 0}});
+        await vm.runInContext(`simulateMove('e2e4', false, 0)`, c);
+        return c.inputs.join(',');
+    };
+    (async () => {
+        ok('CONTENT2-1 (3.1.335): the slices were found', !!timingLine && pa > 0 && pb > pa, [!!timingLine, pa, pb]);
+        const plenty = await play(300, 300), budget = await play(300, 233), trouble = await play(300, 200), low = await play(200, 200);
+        ok('CONTENT2-1 (3.1.335): Move Time 300 with Drag Pieces on drags with clock to spare', plenty === 'drag', plenty);
+        ok('CONTENT2-1 (3.1.335): ...and still drags when the clock paces this move to 233 ms', budget === 'drag', budget);
+        ok('CONTENT2-1 (3.1.335): ...and in time trouble (paced to 200 ms)', trouble === 'drag', trouble);
+        ok('CONTENT2-1 (3.1.335): a drag the clock paced short is floored to 250 ms, never snapped', c.dragMs.length === 3 && c.dragMs.every(ms => ms >= 250), c.dragMs);
+        ok('CONTENT2-1 (3.1.335): a Move Time setting under 250 ms still falls back to two clicks', low === 'click,click', low);
+    })();
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

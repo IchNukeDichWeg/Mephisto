@@ -388,6 +388,9 @@ function handleExtensionMessage(response, sender, sendResponse) {
         // falls back to it for every later move (audit 3.1.331 CONTENT1-1). The toolbar popup's
         // messages are already copies; this makes the in-page path behave the same.
         config = {...response.config};
+        // The Move Time SETTING, kept apart from config.move_time: every automove overwrites that with
+        // the clock-paced value for one move, and the Drag Pieces gate must not follow it (CONTENT2-1).
+        config.move_time_setting = config.move_time;
         applyHideOpponent(!!config.hide_opponent); // follows the setting on every config push
         syncUserArrowWatch();                      // Evals on Your Arrows, likewise
         maybeCheckStreamer();   // opt-in; one lookup per opponent, skipped entirely when off
@@ -6134,12 +6137,17 @@ function simulateMove(move, deselect, think = null, sessionGen = undefined) {
             return;
         }
         // Gated on the SETTING, not this move's randomized total: with Move Variance a total-based
-        // gate would flip a game between drags and clicks move by move.
+        // gate would flip a game between drags and clicks move by move. Nor on config.move_time,
+        // which the automove overwrote with this move's clock-paced value: a 300 ms setting is paced
+        // to 233 ms on a 2 s budget and to 200 ms in time trouble, so a game turned to clicks as the
+        // clock ran down (audit 3.1.335 CONTENT2-1).
         // ChessBase demands it too: its board sets singleClickDisabled, so two clicks select the
         // piece and then do nothing (3.1.321 audit F16). Its model says so (cbGeometry().dragOnly).
         const mustDrag = isChesscomVariants() || (site === 'chessbase' && !!cbGeometry()?.dragOnly);
-        if (mustDrag || (config.drag_moves && config.move_time >= DRAG_MIN_MS)) {
-            const dragMs = Math.max(approachMs + travelMs, mustDrag ? DRAG_MIN_MS : 0);
+        if (mustDrag || (config.drag_moves && (config.move_time_setting ?? config.move_time) >= DRAG_MIN_MS)) {
+            // Floored for the opt-in toggle too: the gate passes on the setting, but the clock can pace
+            // this move under DRAG_MIN_MS, and a drag is never allowed to snap (see above).
+            const dragMs = Math.max(approachMs + travelMs, DRAG_MIN_MS);
             await simulateDragSquares(getBoundsFromCoords(move.substring(0, 2)),
                                       getBoundsFromCoords(move.substring(2)), 0.8, dragMs);
             // The gesture is the budget here; top up only if it came home early.
