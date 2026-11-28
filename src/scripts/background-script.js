@@ -2236,7 +2236,7 @@ function cdpClick(tabId, x, y, travelMs = 0) {
           return resolve();
         }
         const dwell = clickDwellMs(), hold = clickHoldMs();
-        await cdpMove(target, from.x, from.y, x, y, carvePath(Math.max(0, travelMs), dwell, hold), false, expired);
+        const drawn = await cdpMove(target, from.x, from.y, x, y, carvePath(Math.max(0, travelMs), dwell, hold), false, expired);
         lastPos.set(tabId, {x, y});
         // The path may have been parked on a hidden tab until now; see CDP_CLICK_GRACE_MS.
         if (expired()) throw new Error('click expired before it was pressed');
@@ -2245,7 +2245,11 @@ function cdpClick(tabId, x, y, travelMs = 0) {
         // because every waypoint is jittered; pressing on the nominal target put a sub-pixel jump
         // between the last mousemove and the press. Still inside the square either way -- this is
         // about the two events agreeing, not about where the click lands.
-        const end = CDP_PRESS_AT_PATH_END ? (lastDrawn.get(tabId) || {x, y}) : {x, y};
+        // ONLY WHEN THE PATH RAN TO ITS END. A path cut short (the tab stopped answering moves, or
+        // moveStalled already held it so nothing was drawn) leaves lastDrawn on the waypoint that
+        // stalled, which sits next to the PREVIOUS click's square: pressing there selected the piece
+        // moved last turn. Such a click presses on its nominal target, as cdpMove's header promises.
+        const end = (CDP_PRESS_AT_PATH_END && drawn) ? (lastDrawn.get(tabId) || {x, y}) : {x, y};
         const press = {...opts, x: end.x, y: end.y};
         await cdpDispatch(target, {...press, type: 'mousePressed'});
         await cdpSleep(hold);

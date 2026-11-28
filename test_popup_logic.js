@@ -19530,6 +19530,63 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('BACKGROUND1-1 (3.1.335): a live calm tab is still borrowed past a discarded one', mixed.r.tab && mixed.r.tab.id === 2 && !mixed.r.spawned && mixed.created.length === 0, mixed.r);
     });
 }
+(async () => {
+    // CDP_PRESS_AT_PATH_END pressed at lastDrawn even when cdpMove cut the path short. A tab that
+    // stops answering mouseMoved mid-path (hidden, minimised, or a renderer slower than
+    // CDP_MOVE_ACK_MS) leaves lastDrawn on the first waypoint, next to the PREVIOUS click's square,
+    // and the press landed there: on autoplay's first click that selects the piece moved last turn.
+    // The real click path is run against a fake debugger, as the CDP-move-ack block does.
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const b = fs.readFileSync(ROOT + '/src/scripts/background-script.js', 'utf8');
+    const region = b.slice(b.indexOf('const attached = new Set();'), b.indexOf('chrome.debugger.onDetach?.addListener'))
+        .replace('CDP_MOVE_ACK_MS = 1000', 'CDP_MOVE_ACK_MS = 60')
+        .replace('CDP_CLICK_GRACE_MS = 3000', 'CDP_CLICK_GRACE_MS = 60000')
+        .replace('ATTACH_SETTLE_MS = 450', 'ATTACH_SETTLE_MS = 0');
+    ok('BACKGROUND2-1 (3.1.335): the slice holds the click path and the press-at-path-end toggle',
+       /function cdpClick\(/.test(region) && /async function cdpMove\(/.test(region)
+       && /CDP_MOVE_ACK_MS = 60/.test(region) && /const CDP_PRESS_AT_PATH_END = true;/.test(region));
+    const quiet = (f, ms) => { const t = setTimeout(f, ms); t.unref && t.unref(); return t; };
+    const state = {hover: 'fast'}, sent = [];
+    const chromeStub = {runtime: {lastError: null}, debugger: {
+        attach: (t, v, cb) => cb(),
+        sendCommand: (t, m, p, cb) => {
+            sent.push({type: p.type, x: p.x, y: p.y});
+            if (p.type === 'mouseMoved' && state.hover === 'never') return;   // a tab that is not painting
+            setTimeout(cb, 0);
+        }}};
+    const api = new Function('chrome', 'setTimeout', 'clearTimeout',
+        'let cdpPending = 0, cdpHung = 0, cdpCalls = 0, cdpTotalMs = 0, cdpWorstMs = 0;'
+        + 'const CDP_HUNG_MS = 1e9;' + region
+        + 'return {cdpClick, moveStalled, lastDrawn};')(chromeStub, quiet, clearTimeout);
+    const near = (p, x, y) => p && Math.hypot(p.x - x, p.y - y) <= 0.01;
+    const presses = () => sent.filter(e => e.type === 'mousePressed' || e.type === 'mouseReleased');
+    // the rig's timers are unref'd (a never-answered move leaves its long timers behind), so hold the
+    // loop open while the clicks run or node exits before the first sleep wakes
+    const keep = setInterval(() => {}, 1000);
+    try {
+        // 1. a rendering tab: the path completes and the press sits on its last waypoint (the feature)
+        await api.cdpClick(7, 400, 600, 300);
+        const moves1 = sent.filter(e => e.type === 'mouseMoved');
+        const last1 = moves1[moves1.length - 1], pr1 = presses();
+        ok('BACKGROUND2-1 (3.1.335): a completed path still presses and releases on its last drawn point',
+           moves1.length >= 2 && pr1.length === 2 && pr1.every(p => near(p, last1.x, last1.y))
+           && Math.hypot(last1.x - 400, last1.y - 600) < 3, {last1, pr1});
+        // 2. the tab stops painting mid-path: one hover goes out, never answers, the path is abandoned
+        sent.length = 0; state.hover = 'never';
+        await api.cdpClick(7, 400, 280, 300);
+        const pr2 = presses(), mv2 = sent.filter(e => e.type === 'mouseMoved');
+        ok('BACKGROUND2-1 (3.1.335): a path cut short by an unanswered move presses on the target, not on the stalled waypoint',
+           mv2.length === 1 && pr2.length === 2 && pr2.every(p => near(p, 400, 280)), {mv2, pr2});
+        ok('BACKGROUND2-1 (3.1.335): ...and the tab is remembered as not answering moves', api.moveStalled.has(7));
+        // 3. moveStalled already holds the tab: cdpMove draws nothing and lastDrawn is an older path's point
+        sent.length = 0;
+        await api.cdpClick(7, 400, 440, 300);
+        const pr3 = presses();
+        ok('BACKGROUND2-1 (3.1.335): a click on a tab already stalled presses on its own target, not where an older path stopped',
+           sent.filter(e => e.type === 'mouseMoved').length === 0 && pr3.length === 2 && pr3.every(p => near(p, 400, 440)), pr3);
+    } catch (e) { fails++; console.log('FAIL BACKGROUND2-1 (3.1.335): click path threw: ' + (e && e.stack || e)); }
+    finally { clearInterval(keep); }
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
@@ -20934,7 +20991,8 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        /const lastDrawn = new Map\(\)/.test(b)
        && /if \(target && target\.tabId\) lastDrawn\.set\(target\.tabId, \{x: mx, y: my\}\);/.test(b));
     ok('CDP-PRESS-END: the click presses and releases on that point, not on the nominal target',
-       /const end = CDP_PRESS_AT_PATH_END \? \(lastDrawn\.get\(tabId\) \|\| \{x, y\}\) : \{x, y\};/.test(b)
+       /const end = \(CDP_PRESS_AT_PATH_END && drawn\) \? \(lastDrawn\.get\(tabId\) \|\| \{x, y\}\) : \{x, y\};/.test(b)
+       && /const drawn = await cdpMove\(/.test(b)
        && /const press = \{\.\.\.opts, x: end\.x, y: end\.y\};/.test(b)
        && /\{\.\.\.press, type: 'mousePressed'\}/.test(b) && /\{\.\.\.press, type: 'mouseReleased'\}/.test(b));
     ok('CDP-PRESS-END: a tab whose path never ran falls back to the nominal target',
