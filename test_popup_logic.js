@@ -19705,6 +19705,39 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
            /function custom_hotkey\(i\) \{\s*const c = MephistoConfig\.hotkeyCustom\(\)\[i\];\s*if \(!c \|\| !c\.setting\) return false;/.test(psrc));
     })();
 }
+{ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    // the real drag-end listener, run on a right-docked panel dragged to the middle of the screen
+    const a = csrc.indexOf("window.addEventListener('mouseup', () => {\n        // ONLY a real drag-end");
+    const b = csrc.indexOf('}, {signal});', a);
+    const body = a < 0 || b < 0 ? '' : csrc.slice(csrc.indexOf('{', a) + 1, b);
+    let pushed = 0, saved = 0;
+    const c = {dragging: true, dragMoved: true, panelDock: 'right', frame: {style: {}},
+               wrap: {getBoundingClientRect: () => ({left: 700})}, saveOverlayBox: () => { saved++; },
+               self: {MephistoPanel: {panelStyleChanged: () => { pushed++; }}}};
+    vm.createContext(c);
+    try { vm.runInContext('(() => {' + body + '})()', c); } catch (e) { console.log('  threw ' + e.message); }
+    ok('CONTENT1-1 (3.1.335): a drag that undocks the panel stores it as free', c.panelDock === 'free' && saved === 1, c.panelDock);
+    ok('CONTENT1-1 (3.1.335): ...and tells the panel, so its Dock select stops saying Right', pushed === 1, pushed);
+    // a drag of an already-free panel has nothing to tell
+    pushed = 0; Object.assign(c, {dragging: true, dragMoved: true, panelDock: 'free'});
+    try { vm.runInContext('(() => {' + body + '})()', c); } catch (e) { /* */ }
+    ok('CONTENT1-1 (3.1.335): a free panel dragged again does not re-sync the select', pushed === 0, pushed);
+    // the panel side: the hook is exported and re-reads the dock into #qs_dock
+    ok('CONTENT1-1 (3.1.335): MephistoPanel exports panelStyleChanged', /self\.MephistoPanel = \{[\s\S]*?panelStyleChanged: \(\) =>/.test(psrc));
+    const s1 = psrc.indexOf('function read_panel_style()');
+    const s2 = psrc.indexOf('function sync_panel_style_rows()');
+    const e2 = s2 < 0 ? -1 : psrc.indexOf('\n}\n', s2);
+    const dk = {value: 'right'};
+    const pc = {IS_CONTENT_SCRIPT: true, self: {MephistoContent: {handle: (m) => m.panelStyleRead ? {opacity: 80, dock: 'free'} : null}},
+                PANEL_ROOT: {getElementById: (id) => id === 'qs_dock' ? dk : null}};
+    vm.createContext(pc);
+    try {
+        vm.runInContext(psrc.slice(s1, psrc.indexOf('\n}\n', s1) + 3) + (s2 < 0 ? '' : psrc.slice(s2, e2 + 3)) + ';sync_panel_style_rows();', pc);
+    } catch (e) { console.log('  threw ' + e.message); }
+    ok('CONTENT1-1 (3.1.335): the sync sets the Dock select to the content script\'s value', dk.value === 'free', dk.value);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

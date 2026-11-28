@@ -1405,7 +1405,12 @@ async function toggleOverlay() {
         if (!dragMoved) return;
         // Dragging a docked panel is a request to undock it: the alternative is a panel that snaps
         // back to the edge and looks broken. The dock control is how you get it back.
-        if (panelDock !== 'free' && (wrap.getBoundingClientRect().left !== 0)) panelDock = 'free';
+        if (panelDock !== 'free' && (wrap.getBoundingClientRect().left !== 0)) {
+            panelDock = 'free';
+            // The Dock select reads the value only when the panel opens. Left saying Right, picking
+            // Right again fired no 'change', so the panel could not re-dock (audit 3.1.335 CONTENT1-1).
+            self.MephistoPanel?.panelStyleChanged?.();
+        }
         saveOverlayBox(wrap);
     }, {signal});
     applyPanelStyle();

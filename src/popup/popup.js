@@ -10938,6 +10938,13 @@ function read_panel_style() {
 function send_panel_style(style) {
     send_to_active_tab({panelStyle: style});
 }
+// The content script changes the dock on its own when a title-bar drag undocks the panel; the
+// select must follow, or it shows Right while the panel floats (audit 3.1.335 CONTENT1-1).
+function sync_panel_style_rows() {
+    const style = read_panel_style();
+    const dk = PANEL_ROOT.getElementById?.('qs_dock');
+    if (style && dk) dk.value = style.dock || 'free';
+}
 
 function request_draw_eval_bar(data) {
     send_to_active_tab({drawEvalBar: true, ...data});
@@ -14162,6 +14169,8 @@ self.MephistoPanel = {
     snapWithCrop: (crop) => { snap_position(crop).catch(e => console.warn('Mephisto: snap failed', e)); },
     // the floating panel's title bar owns the compact toggle; the panel owns the state
     toggleCompact: () => toggle_compact(),
+    // the content script undocked the panel itself (a title-bar drag): re-read the Dock select
+    panelStyleChanged: () => { try { sync_panel_style_rows(); } catch (e) { /* panel not built */ } },
     // the content-script's keydown listener dispatches hotkey actions here; returns whether it was
     // handled, so the listener only swallows the key then (see do_hotkey / the keydown listener).
     hotkey: (action) => { try { return do_hotkey(action); } catch (e) { console.warn('Mephisto: hotkey failed', e); return false; } },
