@@ -20353,6 +20353,33 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     }
     ok('GENERALHTML-1 (3.1.335): no locale says Human Move Times replaces the move time', bad.length === 0, bad);
 })();
+(() => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The Variance settings were folded into Think Time / Move Time (fresh_timing sets
+    // think_variance = think_time), so the page has no Variance control left to point at.
+    const pop = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    ok('GENERALHTML-2 (3.1.335): fresh_timing ties the variance to the time itself',
+       /think_variance:\s*think,/.test(pop) && /move_variance:\s*move\b/.test(pop));
+    const html = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    ok('GENERALHTML-2 (3.1.335): the options page has no Variance control',
+       !/id="[a-z_]*variance[a-z_]*"/i.test(html));
+    const m = html.match(/data-i18n-tip="set\.tip\.human_times"[^>]*data-tooltip="([^"]*)"/);
+    const fallback = m ? m[1].replace(/\s+/g, ' ') : '';
+    ok('GENERALHTML-2 (3.1.335): Human Move Times HTML fallback no longer names a Variance value',
+       !!m && !/Variance/i.test(fallback) && /Think Time/.test(fallback), fallback);
+    // The word each locale used for the removed Variance setting in this tooltip.
+    const word = {en: 'Variance', de: 'Varianz', es: 'Varianza', fr: 'Variance', hi: 'विचरण', it: 'Varianza',
+                  ja: 'ばらつき', ko: '편차', nl: 'Variantie', pl: 'Wariancja', pt: 'Variância', ru: 'разброс',
+                  tr: 'Sapma', zh: '波动'};
+    const dir = ROOT + '/src/i18n/locales';
+    const bad = [];
+    for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.json'))) {
+        const lang = f.slice(0, -5);
+        const tip = JSON.parse(fs.readFileSync(dir + '/' + f, 'utf8'))['set.tip.human_times'] || '';
+        if (!tip || !word[lang] || tip.includes(word[lang])) bad.push(lang);
+    }
+    ok('GENERALHTML-2 (3.1.335): no locale Human Move Times tooltip names a Variance value', bad.length === 0, bad);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
