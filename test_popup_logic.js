@@ -19956,6 +19956,36 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     vm.runInContext('grindTick(); maybeAdvancePuzzle()', c); run(); run();
     ok('CONTENT2-2 (3.1.335): with Background Play on, a hidden tab still grinds and advances', c.clicks.includes('grind') && c.clicks.includes('next'), c.clicks.slice());
 }
+// ---- audit 3.1.335 CONTENT2-3: a mutation folded into a scrape-retry chain still reaches Auto-Next ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const s = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
+    const cut = (from) => { const a = s.indexOf(from); return a < 0 ? '' : s.slice(a, s.indexOf('\n}\n', a) + 3); };
+    // fake clock: timers run in due order
+    let now = 0; const q = [];
+    const c = vm.createContext({console: {log() {}, warn() {}}, performance: {now: () => now},
+        setTimeout: (f, ms) => { q.push({at: now + ms, f}); return q.length; }, seen: [], buttonUp: false, scrapes: []});
+    const advanceTo = (t) => { for (;;) { q.sort((a, b) => a.at - b.at); const n = q[0]; if (!n || n.at > t) break; q.shift(); now = n.at; n.f(); } now = t; };
+    vm.runInContext(`var config = {}, pushDebounce = null, lastPushKey = 'white|FEN', lastDisplayKey = null, lastScrapeFail = '', moving = false;
+        const MEPHISTO_BUILD = 'x', NO_SCRAPE_RETRY_MS = 40, NO_SCRAPE_MAX_RETRIES = 10;
+        let noScrapeRetries = 0, scrapeCount = 0, scrapeMs = 0;
+        function scrapeStorming() { return false; } function bgLog() {} function getOrientation() { return 'white'; }
+        function tryScrapePosition() { return scrapes.length ? scrapes.shift() : 'FEN'; }
+        function maybeAdvancePuzzle() { seen.push(buttonUp); }
+        ${cut('function schedulePush() {')}
+        ${cut('function pushPosition() {')}`, c);
+    // our last move animates: three scrapes say 'no', then the board settles
+    c.scrapes.push('no', 'no', 'no');
+    vm.runInContext('schedulePush()', c);
+    advanceTo(50);                                 // first push ran and started the retry chain
+    c.buttonUp = true;                             // the site swaps in the Next button mid-chain...
+    vm.runInContext('schedulePush()', c);          // ...and its mutation is folded into the chain
+    advanceTo(1000);
+    ok('CONTENT2-3 (3.1.335): the slices were found', /function pushPosition\(\)/.test(s) && /function schedulePush\(\)/.test(s));
+    ok('CONTENT2-3 (3.1.335): a Next button that appears during a scrape-retry chain is looked for before the chain ends',
+       c.seen.includes(true), c.seen);
+    ok('CONTENT2-3 (3.1.335): ...and the chain still stops once the scrape succeeds', q.length === 0 && c.scrapes.length === 0, q.length);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====

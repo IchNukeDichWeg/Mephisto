@@ -4341,8 +4341,15 @@ function pushPosition() {
             giveUp: noScrapeRetries >= NO_SCRAPE_MAX_RETRIES, build: MEPHISTO_BUILD});
         if (noScrapeRetries < NO_SCRAPE_MAX_RETRIES) {
             noScrapeRetries++;
-            // reuse pushDebounce so a mutation arriving mid-retry doesn't schedule a second chain
-            pushDebounce = setTimeout(() => { pushDebounce = null; pushPosition(); }, NO_SCRAPE_RETRY_MS);
+            // reuse pushDebounce so a mutation arriving mid-retry doesn't schedule a second chain. That
+            // mutation is folded into this chain, so the chain looks for the Next button too: the end
+            // of a puzzle often lands while our last move is still animating, and nothing else
+            // re-checked once the page went quiet (audit 3.1.335 CONTENT2-3).
+            pushDebounce = setTimeout(() => {
+                pushDebounce = null;
+                pushPosition();
+                try { maybeAdvancePuzzle(); } catch (e) { /* never let this break a scrape */ }
+            }, NO_SCRAPE_RETRY_MS);
         }
         return;
     }
