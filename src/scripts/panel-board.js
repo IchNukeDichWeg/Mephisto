@@ -74,8 +74,16 @@
         // under the pointer. elementFromPoint is used on the ROOT (the shadow root in-page), because
         // document.elementFromPoint would return the host element, not the square inside it.
         let dragFrom = null, dragX = 0, dragY = 0, dragGhost = null;
+        // A mouse released on the square it was pressed on still gets a click there, however far it
+        // travelled. After a dragged release `up` has already acted, and when it opened the promotion
+        // picker (no re-render, so the square stays live) that click picked up the enemy piece and
+        // its render threw the picker away: the move was never played (audit 3.1.335 PANELBOARD-1).
+        // Set by a dragged release, eaten by the click; the next press clears it, so a click that
+        // never came cannot swallow a later one.
+        let swallowClick = false;
 
         function dragStart(ev, alg) {
+            swallowClick = false;
             if (!pos[alg] || ev.button !== 0) return; // only a real piece, only the left button
             dragFrom = alg; dragX = ev.clientX; dragY = ev.clientY;
             const selectedBefore = selected; // a press on a capture target is a click that may wobble
@@ -123,6 +131,7 @@
                 const dragged = !!dragGhost;
                 if (dragGhost) { dragGhost.remove(); dragGhost = null; }
                 if (!dragged) return; // barely moved -> it was a click; let the click handler run
+                swallowClick = true;
                 const el = (root.elementFromPoint ? root : document).elementFromPoint(e.clientX, e.clientY);
                 const sqEl = el && el.closest && el.closest('.square-55d63');
                 const to = sqEl && [...sqEl.classList].map(c => c.match(/^square-([a-h][1-8])$/))
@@ -195,6 +204,7 @@
 
         function squareClicked(alg) {
             if (!onMove) return;
+            if (swallowClick) { swallowClick = false; return; }
             if (selected === alg) { selected = null; targets = []; render(); return; }
             if (selected) {
                 const from = selected;

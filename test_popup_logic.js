@@ -18925,7 +18925,12 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     log.length = 0;
     jitter('e4');
     ok('...a jittery press on a piece with nothing selected plays nothing', log.length === 0, log);
+    // a real click is always preceded by its own press, which clears the swallow a dragged release
+    // arms (audit 3.1.335 PANELBOARD-1); a bare click here would be eaten and leave e4 unselected
+    sq('e4').on.pointerdown({button: 0, clientX: 10, clientY: 10, preventDefault() {}});
+    win.pointerup({clientX: 10, clientY: 10});
     sq('e4').on.click();
+    ok('...a plain click after a jittery press still picks the pawn up', !!sq('e4').style.boxShadow, sq('e4').style.boxShadow);
     jitter('e4');
     ok('...and a jittery click on the selected piece itself plays nothing', log.length === 0, log);
 }
@@ -20767,6 +20772,52 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
         ok('OPTUTIL-2 (3.1.335): the cached good module still resolves after the failures', g2.v && g2.v.title === 'General', g2);
     })();
 })();
+// ---- audit 3.1.335 PANELBOARD-1: the click after a wobbled capture-promotion does not select the enemy piece and wipe the picker ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pb = fs.readFileSync(ROOT + '/src/scripts/panel-board.js', 'utf8');
+    const el = (tag) => ({tag, style: {}, classList: [], children: [], on: {}, className: '', parent: null,
+        appendChild(c) { c.parent = this; this.children.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; },
+        remove() { if (this.parent) this.parent.children = this.parent.children.filter(x => x !== this); this.parent = null; }});
+    const host = el('div'); host.clientWidth = 400;
+    Object.defineProperty(host, 'innerHTML', {set() { for (const k of host.children) k.parent = null; host.children = []; }});
+    Object.defineProperty(host, 'firstChild', {get() { return host.children[0] || null; }});
+    const find = (n, cls) => { if ((' ' + (n.className || '') + ' ').includes(' ' + cls + ' ')) return n;
+        for (const k of n.children || []) { const r = find(k, cls); if (r) return r; } return null; };
+    host.querySelector = (q) => find(host, q.slice(1));
+    const win = {};
+    let under = null;
+    const c = vm.createContext({Math, requestAnimationFrame() {},
+        window: {addEventListener: (t, f) => { win[t] = f; }, removeEventListener: (t, f) => { if (win[t] === f) delete win[t]; }},
+        document: {createElement: el, body: el('body'),
+                   elementFromPoint: () => under && {closest: () => ({classList: ['square-55d63', 'square-' + under]})}}});
+    c.self = c;
+    vm.runInContext(pb, c);
+    const log = [];
+    // white pawn e7, black rook d8: e7xd8 promotes
+    c.MephistoBoard(host, {position: '3r3k/4P3/8/8/8/8/8/4K3 w - - 0 1', onMove: (f, t, p) => { log.push(f + t + (p || '')); return true; },
+        needsPromotion: (f, t) => (f === 'e7' && t[1] === '8') ? 'w' : null, legalTargets: (s) => s === 'e7' ? ['e8', 'd8'] : []});
+    const sq = (alg) => host.children[0].children[8 - +alg[1]].children['abcdefgh'.indexOf(alg[0])];   // white at the bottom
+    const menu = () => host.children[0] && host.children[0].children.find(x => /z-index:60/.test(x.style.cssText || ''));
+    sq('e7').on.click();
+    // press on the rook, wobble 6px, release on the rook; the browser then clicks that same element
+    under = 'd8';
+    const d8 = sq('d8');
+    d8.on.pointerdown({button: 0, clientX: 10, clientY: 10, preventDefault() {}});
+    win.pointermove({clientX: 16, clientY: 12}); win.pointerup({clientX: 16, clientY: 12});
+    ok('PANELBOARD-1 (3.1.335): a wobbled click on the rook with e7 picked up opens the promotion picker', !!menu(), !!menu());
+    d8.on.click();
+    ok('PANELBOARD-1 (3.1.335): ...the click that follows the release leaves the picker open', !!menu(), !!menu());
+    ok('PANELBOARD-1 (3.1.335): ...and does not pick up the enemy rook', !sq('d8').style.boxShadow, sq('d8').style.boxShadow);
+    const q = menu() && menu().children.find(x => x.textContent === 'Q');
+    if (q) q.on.click({stopPropagation() {}});
+    ok('PANELBOARD-1 (3.1.335): ...choosing the queen plays e7d8q', log.join() === 'e7d8q', log);
+    // the next ordinary click (pointerdown that does not travel, then click) still works
+    sq('e1').on.pointerdown({button: 0, clientX: 50, clientY: 50, preventDefault() {}});
+    win.pointerup({clientX: 50, clientY: 50});
+    sq('e1').on.click();
+    ok('PANELBOARD-1 (3.1.335): ...and the next plain click still picks a piece up', !!sq('e1').style.boxShadow, sq('e1').style.boxShadow);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
