@@ -1226,7 +1226,10 @@ class GeneralSettings extends SettingsPage {
                 if (mi >= 0) { macros[mi].key = ''; saveMacros(); } else { bindings[capturing] = ''; save(bindings); }
                 capturing = null; say(''); return render();
             }
-            if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return; // wait for the real key
+            // wait for the real key. AltGraph too: Windows sends Control then AltGraph for one AltGr
+            // press (Linux sends AltGraph for ISO_Level3_Shift), so the capture ended on AltGr itself
+            // and no AltGr symbol (@ # | [ ] { } \ ~ €) could be bound.
+            if (['Control', 'Alt', 'AltGraph', 'Shift', 'Meta', 'Fn', 'Hyper', 'Super', 'Symbol', 'OS'].includes(e.key)) return;
             const k = keyString(e);
             // REFUSED, visibly, and still listening for another key. Any key that already belongs to
             // something else: the listener acts on the first owner it finds, so a second action on

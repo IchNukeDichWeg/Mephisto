@@ -20380,6 +20380,48 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     }
     ok('GENERALHTML-2 (3.1.335): no locale Human Move Times tooltip names a Variance value', bad.length === 0, bad);
 })();
+(() => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // the REAL rebind capture listener from general.js, run against an AltGr press
+    const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
+    const a = gj.indexOf("document.addEventListener('keydown', (e) => {\n            if (!capturing) return;");
+    const b = gj.indexOf('}, true);', a);
+    ok('GENERALJS-1 (3.1.335): capture listener found', a > 0 && b > a, [a, b]);
+    if (!(a > 0 && b > a)) return;
+    const body = gj.slice(gj.indexOf('(e) => {', a), b + 1);
+    const cs = fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8');
+    const hs = cs.slice(cs.indexOf('        canonHotkey(k) {'), cs.indexOf('        hotkeyString(e) {'));
+    const hb = cs.slice(cs.indexOf('        hotkeyString(e) {'), cs.indexOf('return this.canonHotkey(parts.join(\'+\'));', cs.indexOf('        hotkeyString(e) {')) + 60);
+    const hbEnd = hb.slice(0, hb.indexOf('},', hb.indexOf('return this.canonHotkey')) + 2);
+    const ctx = vm.createContext({ stored: [] });
+    vm.runInContext(`
+        const MephistoConfig = { ${hs} ${hbEnd} hotkeyOwner: () => null };
+        let capturing = 'autoplay';
+        const macros = [], bindings = {};
+        const say = () => {}, render = () => {}, saveMacros = () => {}, t = (k, d) => d, pretty = (k) => k, ownerName = (o) => o;
+        const save = (o) => { stored.push(JSON.stringify(o)); };
+        const keyString = (e) => MephistoConfig.hotkeyString(e);
+        var onKey = ${body};
+        var ev = (o) => Object.assign({ ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, preventDefault() {}, stopPropagation() {} }, o);
+        var press = (o) => onKey(ev(o));
+        var state = () => ({ capturing, binding: bindings.autoplay });
+    `, ctx);
+    // Windows AltGr+2 on a Swiss/German layout: Control, then AltGraph, then '@' (ctrl+alt set)
+    vm.runInContext(`press({ key: 'Control', ctrlKey: true }); press({ key: 'AltGraph', ctrlKey: true, altKey: true });`, ctx);
+    let s = vm.runInContext('state()', ctx);
+    ok('GENERALJS-1 (3.1.335): the AltGraph keydown does not end the capture', s.capturing === 'autoplay' && s.binding === undefined, s);
+    vm.runInContext(`press({ key: '@', ctrlKey: true, altKey: true });`, ctx);
+    s = vm.runInContext('state()', ctx);
+    ok('GENERALJS-1 (3.1.335): the AltGr symbol itself is bound', s.capturing === null && s.binding === 'Ctrl+Alt+@', s);
+    // Linux ISO_Level3_Shift reports a bare AltGraph
+    vm.runInContext(`capturing = 'autoplay'; press({ key: 'AltGraph' });`, ctx);
+    s = vm.runInContext('state()', ctx);
+    ok('GENERALJS-1 (3.1.335): a bare AltGraph (Linux) keeps capturing', s.capturing === 'autoplay' && s.binding === 'Ctrl+Alt+@', s);
+    // the other modifiers still wait, and a plain key still binds
+    vm.runInContext(`press({ key: 'Shift', shiftKey: true }); press({ key: 'Meta', metaKey: true }); press({ key: 'k' });`, ctx);
+    s = vm.runInContext('state()', ctx);
+    ok('GENERALJS-1 (3.1.335): ordinary modifiers still wait and a plain key binds', s.capturing === null && s.binding === 'k', s);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
