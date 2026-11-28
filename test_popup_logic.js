@@ -20317,6 +20317,42 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
        nerr && /configure refused/.test(nerr.message) && np.length === 1 && !np[0].open && nat.port === null,
        [nerr && nerr.message, np.map(p => p.open)]);
 })().catch(e => { fails++; console.log('FAIL ENGINES-1 checks threw: ' + (e && e.stack || e)); });
+(() => {
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    // The premise: Human Move Times rewrites only the think time in fresh_timing; the move time
+    // passes through. Slice the real function and run it both ways.
+    const pop = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+    const a = pop.indexOf('function fresh_timing(situation) {');
+    const b = pop.indexOf('\n}\n', a) + 3;
+    const store = {think_time: '1000', move_time: '400'};
+    const run = (human) => {
+        const ctx = {MephistoConfig: {get: k => store[k] ?? 'null'},
+                     config: {think_time: 0, move_time: 0, human_times: human},
+                     lognormal_ms: m => Math.round(m * 1.03), situational_timing: t => t, clock_pace_timing: t => t};
+        vm.createContext(ctx);
+        vm.runInContext(pop.slice(a, b) + '\nthis.out = fresh_timing({});', ctx);
+        return ctx.out;
+    };
+    const off = run(false), on = run(true);
+    ok('GENERALHTML-1 (3.1.335): Human Move Times leaves move_time/move_variance as set',
+       on.move_time === off.move_time && on.move_variance === off.move_variance && on.move_time === 400, {off, on});
+
+    // So the Simulated Move Time tooltip must not say Human Move Times replaces it, in the HTML
+    // fallback or in any locale; Time Trouble Mode (which does replace it) stays named.
+    const html = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.html', 'utf8');
+    const m = html.match(/data-i18n-tip="set\.tip\.mephisto_will_always_take_at"[^>]*data-tooltip="([^"]*)"/);
+    const fallback = m ? m[1].replace(/\s+/g, ' ') : '';
+    ok('GENERALHTML-1 (3.1.335): HTML fallback no longer names Human Move Times',
+       !!m && !/Human Move Times/.test(fallback) && /Time Trouble Mode/.test(fallback), fallback);
+    const dir = ROOT + '/src/i18n/locales';
+    const bad = [];
+    for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.json'))) {
+        const d = JSON.parse(fs.readFileSync(dir + '/' + f, 'utf8'));
+        const tip = d['set.tip.mephisto_will_always_take_at'] || '';
+        if (!tip || tip.includes(d['set.human_times']) || !tip.includes(d['set.time_trouble'])) bad.push(f);
+    }
+    ok('GENERALHTML-1 (3.1.335): no locale says Human Move Times replaces the move time', bad.length === 0, bad);
+})();
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
