@@ -58,6 +58,11 @@
         const onRender = cfg.onRender || null;
         let selected = null;              // the square currently picked up, if any
         let targets = [];                  // legal destinations for `selected`, drawn as dots
+        // The open underpromotion picker, {from, to, colour, done}, so render() can draw it again on
+        // the new board. It lived only in the old board's DOM: any same-placement repaint (the
+        // analysis page re-rendering when the human-model answer lands, a resize, a flip) threw it
+        // away with neither a move nor a cancel (audit 3.1.335 PANELBOARD-2).
+        let promo = null;
         // Fall back to the theme path if the inlined map is missing this piece: buildPieces only
         // records pieces whose fetch succeeded, so one failure left `src=""` -- which the browser
         // renders as a broken-image glyph on that piece alone (seen on a promoted queen).
@@ -158,7 +163,8 @@
         function promptPromotion(from, to, colour, done) {
             const board = host.firstChild;
             const sqEl = host.querySelector(`.square-${to}`);
-            if (!board || !sqEl) return done('q'); // nowhere to put the picker -> queen, never a dead end
+            if (!board || !sqEl) { promo = null; return done('q'); } // nowhere to put the picker -> queen, never a dead end
+            promo = {from, to, colour, done};
             const sq = sqEl.offsetWidth || Math.floor((host.clientWidth || 350) / 8);
             const menu = document.createElement('div');
             const below = sqEl.offsetTop + sq * 4 <= board.offsetHeight; // hang down unless it would overflow
@@ -185,7 +191,7 @@
             const veil = document.createElement('div'); // click anywhere else = cancel
             veil.style.cssText = 'position:absolute;inset:0;z-index:59';
             veil.addEventListener('click', (e) => { e.stopPropagation(); close(); done(null); });
-            function close() { menu.remove(); veil.remove(); }
+            function close() { promo = null; menu.remove(); veil.remove(); }
             board.appendChild(veil);
             board.appendChild(menu);
         }
@@ -286,6 +292,7 @@
             host.innerHTML = '';
             host.appendChild(board);
             if (onRender) { try { onRender(pos, board); } catch (e) { /* a decoration never breaks the board */ } }
+            if (promo) promptPromotion(promo.from, promo.to, promo.colour, promo.done); // last, so it sits on top
         }
 
         render();
@@ -303,7 +310,8 @@
                 // piece. The same placement re-rendered keeps them (audit 3.1.331 PANELBOARD-1).
                 const key = (o) => Object.keys(o).sort().map(k => k + o[k]).join();
                 // an identical placement keeps the old object, so a caller's memo on `pos` still hits (audit 3.1.333 PROBES-6)
-                if (key(next) !== key(pos)) { selected = null; targets = []; pos = next; }
+                // A new one also drops an open promotion picker: its move was made on the old position.
+                if (key(next) !== key(pos)) { selected = null; targets = []; promo = null; pos = next; }
                 render();
             },
             orientation(o) { if (o === undefined) return orientation; orientation = o; render(); },

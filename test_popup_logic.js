@@ -20818,6 +20818,59 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     sq('e1').on.click();
     ok('PANELBOARD-1 (3.1.335): ...and the next plain click still picks a piece up', !!sq('e1').style.boxShadow, sq('e1').style.boxShadow);
 }
+// ---- audit 3.1.335 PANELBOARD-2: a repaint with the same placement (position, resize, orientation) keeps an open promotion picker ----
+{
+const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const pb = fs.readFileSync(ROOT + '/src/scripts/panel-board.js', 'utf8');
+    const el = (tag) => ({tag, style: {}, classList: [], children: [], on: {}, className: '', parent: null,
+        appendChild(c) { c.parent = this; this.children.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; },
+        remove() { if (this.parent) this.parent.children = this.parent.children.filter(x => x !== this); this.parent = null; }});
+    const host = el('div'); host.clientWidth = 400;
+    Object.defineProperty(host, 'innerHTML', {set() { for (const k of host.children) k.parent = null; host.children = []; }});
+    Object.defineProperty(host, 'firstChild', {get() { return host.children[0] || null; }});
+    const find = (n, cls) => { if ((' ' + (n.className || '') + ' ').includes(' ' + cls + ' ')) return n;
+        for (const k of n.children || []) { const r = find(k, cls); if (r) return r; } return null; };
+    host.querySelector = (q) => find(host, q.slice(1));
+    const c = vm.createContext({Math, requestAnimationFrame() {},
+        window: {addEventListener() {}, removeEventListener() {}},
+        document: {createElement: el, body: el('body'), elementFromPoint: () => null}});
+    c.self = c;
+    vm.runInContext(pb, c);
+    const log = [];
+    const FEN = '7k/4P3/8/8/8/8/8/4K3 w - - 0 1';
+    const b = c.MephistoBoard(host, {position: FEN, onMove: (f, t, p) => { log.push(f + t + (p || '')); return true; },
+        needsPromotion: (f, t) => (f === 'e7' && t[1] === '8') ? 'w' : null, legalTargets: (s) => s === 'e7' ? ['e8'] : []});
+    const sq = (alg) => find(host, 'square-' + alg);
+    const kids = () => (host.children[0] ? host.children[0].children : []);
+    const menu = () => kids().find(x => /z-index:60/.test(x.style.cssText || ''));
+    const veil = () => kids().find(x => /z-index:59/.test(x.style.cssText || ''));
+    const pick = (t) => { const cell = menu() && menu().children.find(x => x.textContent === t); if (cell) cell.on.click({stopPropagation() {}}); };
+    sq('e7').on.click(); sq('e8').on.click();
+    ok('PANELBOARD-2 (3.1.335): clicking e7 then e8 opens the promotion picker', !!menu(), !!menu());
+    b.position(FEN);
+    ok('PANELBOARD-2 (3.1.335): ...a position() with the same FEN keeps it open', !!menu() && !!veil(), [!!menu(), !!veil()]);
+    b.resize();
+    ok('PANELBOARD-2 (3.1.335): ...so does resize()', !!menu() && !!veil(), [!!menu(), !!veil()]);
+    b.orientation('black');
+    ok('PANELBOARD-2 (3.1.335): ...and an orientation flip', !!menu() && !!veil(), [!!menu(), !!veil()]);
+    ok('PANELBOARD-2 (3.1.335): ...with exactly one picker on the board, not a stack', kids().filter(x => /z-index:(59|60)/.test(x.style.cssText || '')).length === 2,
+       kids().length);
+    pick('N');
+    ok('PANELBOARD-2 (3.1.335): ...and choosing from the redrawn picker still plays the move', log.join() === 'e7e8n', log);
+    b.resize();
+    ok('PANELBOARD-2 (3.1.335): ...after which a repaint draws no picker', !menu(), !!menu());
+    // cancelled: the veil closes it for good
+    log.length = 0; b.orientation('white');
+    sq('e7').on.click(); sq('e8').on.click(); b.resize();
+    const v = veil(); if (v) v.on.click({stopPropagation() {}}); b.resize();
+    ok('PANELBOARD-2 (3.1.335): a picker cancelled after a repaint stays closed and plays nothing', !menu() && log.length === 0, [!!menu(), log]);
+    // a NEW placement drops the half-made move with the selection, as it drops the dots
+    sq('e7').on.click(); sq('e8').on.click();
+    b.position('7k/4P3/8/8/8/8/8/3K4 b - - 0 1');
+    ok('PANELBOARD-2 (3.1.335): a different placement closes the picker and plays nothing', !menu() && log.length === 0, [!!menu(), log]);
+    b.resize();
+    ok('PANELBOARD-2 (3.1.335): ...and it does not come back on the next repaint', !menu(), !!menu());
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
