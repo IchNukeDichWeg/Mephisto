@@ -243,6 +243,13 @@
         // first press of a setting never saved flips it from what it really is). Sanitized on every
         // read like the macros; an unassigned slot is {setting: ''} and its key does nothing.
         HOTKEY_CUSTOM: ['custom_1', 'custom_2'],
+        // On/off settings whose switch was removed. A custom slot left on one would still eat its key
+        // and flip (or reload the panel for) a value nothing reads, while the Settings picker, which
+        // has no option for it, shows the slot as unassigned. Refusing them here covers every
+        // removal at once; the one-time migrations in loadOnce only cleared the PV keys, Pace to
+        // Clock, Contempt and Dark Mode slots, never Board Animation or Mistakes Where People Make Them.
+        // Add a name here whenever a switch is removed (audit 3.1.335 CONFIG-1).
+        RETIRED_SETTINGS: ['board_animation', 'clock_pace', 'contempt', 'dark_mode', 'humanize_maia_where', 'pv_keys'],
         hotkeyCustom() {
             let saved;
             try { saved = JSON.parse(this.get('hotkey_custom')); } catch (e) { /* unset/corrupt */ }
@@ -250,7 +257,8 @@
             return this.HOTKEY_CUSTOM.map((_, i) => {
                 const c = arr[i];
                 const ok = c && typeof c.setting === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(c.setting)
-                    && c.setting !== 'hotkeys' && c.setting !== 'hotkey_macros' && c.setting !== 'hotkey_custom';
+                    && c.setting !== 'hotkeys' && c.setting !== 'hotkey_macros' && c.setting !== 'hotkey_custom'
+                    && !this.RETIRED_SETTINGS.includes(c.setting);
                 return ok ? {setting: c.setting, label: String(c.label || c.setting).slice(0, 80), def: c.def === true}
                           : {setting: '', label: '', def: false};
             });

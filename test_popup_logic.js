@@ -4228,8 +4228,10 @@ if (PREMOVE_DEPTH_PREV === 13 && PREMOVE_DEPTH_LAST === 14) {
        && /const HZ_MAIA_DEFAULT = true;/.test(psrc) && !/humanize_flag\('humanize_maia', false\)/.test(psrc));
     // SIMP-WHERE: Mistakes Where People Make Them (B2) was never calibrated against measured error
     // rates; the owner removed it. No row, no registration, no reader, no locale strings, and the
-    // Err Like Your Rating shares are the clock multipliers alone.
-    const srcAll = ['src/popup/popup.js', 'src/scripts/config-store.js', 'src/scripts/content-script.js', 'src/options/pages/review/review.js'].map(f => fs.readFileSync(ROOT + '/' + f, 'utf8')).join('\n') + gh + gj;
+    // Err Like Your Rating shares are the clock multipliers alone. The one place the id may still
+    // appear is config-store's RETIRED_SETTINGS, which keeps a custom hotkey slot off it (audit 3.1.335 CONFIG-1).
+    const srcAll = ['src/popup/popup.js', 'src/scripts/config-store.js', 'src/scripts/content-script.js', 'src/options/pages/review/review.js'].map(f => fs.readFileSync(ROOT + '/' + f, 'utf8')).join('\n')
+        .replace(/RETIRED_SETTINGS: \[[^\]]*\]/, '') + gh + gj;
     ok('SIMP-WHERE: Mistakes Where People Make Them is gone: no row, no setting, no hazard code, no strings',
        !/humanize_maia_where|hz_where_|hz_p_err|HZ_WHERE_|whereK/.test(srcAll) && locs.every(l => !('set.humanize_maia_where' in l) && !('set.tip.humanize_maia_where' in l))
        && /const m = \(cls\) => \(x \? hz_tc_mult\(cls, x\.tc, x\.frac, x\.phase, elo\) : 1\);/.test(psrc));
@@ -17253,7 +17255,9 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
     const all = ['/src/popup/popup.js', '/src/options/pages/settings/general/general.js', '/src/options/pages/settings/general/general.html',
                  '/src/scripts/config-store.js', '/src/scripts/content-script.js'].map(f => fs.readFileSync(ROOT + f, 'utf8')).join('\n');
-    ok('SIMP-RM: Board Animation (read by nothing) has no row, no registration and no config entry', !/board_animation/.test(all));
+    // config-store's RETIRED_SETTINGS may name it: that list keeps a custom hotkey slot off it (audit 3.1.335 CONFIG-1)
+    ok('SIMP-RM: Board Animation (read by nothing) has no row, no registration and no config entry',
+       !/board_animation/.test(all.replace(/RETIRED_SETTINGS: \[[^\]]*\]/, '')));
     // hard-wired to their defaults: no row, no registration, no config read; the readers use a constant
     for (const [k, c] of [['fen_refresh', 'FEN_POLL_MS = 1000'], ['premove_confidence', 'PREMOVE_CERT_DEPTH = 14'],
                           ['refute_plies', 'REFUTE_PLIES = 4'], ['auto_draw_cp', 'AUTO_DRAW_CP = 20']]) {
@@ -17442,7 +17446,8 @@ print(json.dumps([m.panel_owned(['UCI_Variant:crazyhouse', 'Hash:128', 'Skill Le
     const gj = fs.readFileSync(ROOT + '/src/options/pages/settings/general/general.js', 'utf8');
     const csrc = fs.readFileSync(ROOT + '/src/scripts/content-script.js', 'utf8');
     const locs = fs.readdirSync(ROOT + '/src/i18n/locales').map(f => JSON.parse(fs.readFileSync(ROOT + '/src/i18n/locales/' + f, 'utf8')));
-    const strip = (s) => s.replace(/clock_pace_timing|CLOCK_PACE_\w+|__clock_pace_retired/g, '');
+    // RETIRED_SETTINGS may name it: that list keeps a custom hotkey slot off it (audit 3.1.335 CONFIG-1)
+    const strip = (s) => s.replace(/RETIRED_SETTINGS: \[[^\]]*\]/, '').replace(/clock_pace_timing|CLOCK_PACE_\w+|__clock_pace_retired/g, '');
     const csLive = cs.slice(0, cs.indexOf('// PACE TO CLOCK IS ALWAYS ON'));
     ok('SIMP-PACE2: no clock_pace switch is read, registered, toggled or bound anywhere; the panel row and the three strings are gone',
        !/clock_pace|qs_clockpace|pace_to_clock/.test(strip(psrc).replace(/It was the Pace to Clock switch \(`clock_pace`, off by default\);/, '') + ph + gh + gj + csrc + strip(csLive))
@@ -19662,6 +19667,43 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
             ROOT, (n) => { fails += n; });
         ok('BOTGAMES-1 (3.1.335): the pin it holds passes on the current library', fails === before);
     }
+}
+// ---- audit 3.1.335 CONFIG-1: a custom hotkey slot on a removed switch reads as unassigned ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const mk = (stored) => {
+        const c = {console, location: {protocol: 'chrome-extension:'}, navigator: {},
+            chrome: {storage: {local: {get: async () => ({...stored}), set: async () => {}, remove: async () => {}},
+                onChanged: {addListener() {}}}}};
+        c.self = c;
+        vm.createContext(c);
+        vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/config-store.js', 'utf8'), c);
+        return c.MephistoConfig;
+    };
+    (async () => {
+        // a v3.1.334 profile: both slots on switches removed since, every older migration already done
+        const C = mk({__cfg_migrated: '1', __pv_keys_hotkeys: '1', __clock_pace_retired: '1',
+            hotkey_custom: JSON.stringify([{setting: 'board_animation', label: 'Board Animation', def: true},
+                                           {setting: 'humanize_maia_where', label: 'Mistakes Where People Make Them', def: false}])});
+        await C.ready;
+        const cu = C.hotkeyCustom();
+        ok('CONFIG-1 (3.1.335): a slot on Board Animation or Mistakes Where People Make Them loads as unassigned',
+           cu.every(c => c.setting === '' && c.label === '' && c.def === false), cu);
+        // every removed switch, written after load too (an old options tab, a sync)
+        for (const s of ['board_animation', 'clock_pace', 'contempt', 'dark_mode', 'humanize_maia_where', 'pv_keys']) {
+            C.set('hotkey_custom', JSON.stringify([{setting: s, label: s}, {setting: 'background_play', label: 'Background Play'}]));
+            const r = C.hotkeyCustom();
+            ok('CONFIG-1 (3.1.335): a slot on ' + s + ' is refused, a live setting beside it is kept',
+               r[0].setting === '' && r[1].setting === 'background_play' && r[1].label === 'Background Play', r);
+        }
+        C.set('hotkey_custom', JSON.stringify([{setting: 'humanize_guards', def: true}, {setting: ''}]));
+        ok('CONFIG-1 (3.1.335): a live humanize_* switch is still accepted', C.hotkeyCustom()[0].setting === 'humanize_guards'
+           && C.hotkeyCustom()[0].def === true, C.hotkeyCustom());
+        // the popup's custom_hotkey bails on an empty slot, so the key goes back to the site
+        const psrc = fs.readFileSync(ROOT + '/src/popup/popup.js', 'utf8');
+        ok('CONFIG-1 (3.1.335): the panel ignores an unassigned slot (key not swallowed)',
+           /function custom_hotkey\(i\) \{\s*const c = MephistoConfig\.hotkeyCustom\(\)\[i\];\s*if \(!c \|\| !c\.setting\) return false;/.test(psrc));
+    })();
 }
 // ==== END FIX CHECKS ====
 
