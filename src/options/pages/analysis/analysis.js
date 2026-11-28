@@ -276,7 +276,9 @@ class AnalysisPage extends SettingsPage {
         $('an_prev')?.addEventListener('click', () => go(cursor - 1));
         $('an_next')?.addEventListener('click', () => go(cursor + 1));
         $('an_last')?.addEventListener('click', () => go(positions.length - 1));
-        $('an_flip')?.addEventListener('click', () => { flipped = !flipped; buildBoard(); render(); });
+        // renderPockets too: it is the only thing that reads `flipped` for the strips, and render() does not
+        // call it, so each pocket sat on the wrong side until the next move (audit 3.1.335 ANALYSIS-2)
+        $('an_flip')?.addEventListener('click', () => { flipped = !flipped; buildBoard(); render(); renderPockets(); });
         $('an_copy_fen')?.addEventListener('click', () => copyOut(fullFen(positions[cursor]), 'FEN'));
         $('an_copy_pgn')?.addEventListener('click', () => copyOut(pgnText(), 'PGN'));
         $('an_export')?.addEventListener('click', (e) => exportPosition(e.currentTarget));

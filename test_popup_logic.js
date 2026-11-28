@@ -19414,6 +19414,26 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     }
     ok('ANALYSIS-1 (3.1.335): ...while on the page the human column still runs', calls.includes('humanFor') && calls.includes('renderBands'), calls);
 })().catch(e => { fails++; console.log('FAIL ANALYSIS-1 checks threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.335 ANALYSIS-2: Flip redraws the crazyhouse pockets onto the sides they belong to ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const fn = (sig) => { const i = aj.indexOf(sig); return aj.slice(i, aj.indexOf('\n}\n', i) + 3); };
+    const a = aj.indexOf("$('an_flip')?.addEventListener('click', "), flipLine = aj.slice(a, aj.indexOf('\n', a));
+    const els = {};
+    const mk = (id) => ({id, innerHTML: '', listeners: {}, classList: {toggle() {}}, querySelectorAll: () => [], addEventListener(t, f) { this.listeners[t] = f; }});
+    const $ = (id) => (els[id] = els[id] || mk(id));
+    const c = vm.createContext({$, flipped: false, cursor: 0, armedDrop: null,
+        positions: [{fen: 'f', turn: 'w', holdings: {w: 'p', b: 'n'}}], anVariant: () => 'crazyhouse',
+        pocketHtml: (side, held) => `${side}:${held}`, armDrop() {}, buildBoard() {}, render() {}});
+    vm.runInContext(fn('function renderPockets()') + '\n' + flipLine, c);
+    vm.runInContext('renderPockets()', c);
+    const before = [els.an_pocket_top.innerHTML, els.an_pocket_bottom.innerHTML];
+    els.an_flip.listeners.click();
+    const after = [els.an_pocket_top.innerHTML, els.an_pocket_bottom.innerHTML];
+    ok('ANALYSIS-2 (3.1.335): before the flip Black\'s pocket is on top and White\'s at the bottom', /b:n/.test(before[0]) && /w:p/.test(before[1]), before);
+    ok('ANALYSIS-2 (3.1.335): after Flip the strips swap with the board (White on top, Black at the bottom)', c.flipped === true && /w:p/.test(after[0]) && /b:n/.test(after[1]), after);
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
