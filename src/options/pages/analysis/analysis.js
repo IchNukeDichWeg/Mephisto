@@ -1672,6 +1672,15 @@ function render() {
     // column's .then in analyseNow) redrew the hidden chess board and sent its opening and tablebase
     // lookups (audit 3.1.330 follow-up L5). applyGame redraws it on the way back to chess.
     if (largeGame()) return;
+    // THE MATCH OWNS THE BOARD, as go/playMove/analyseNow already know. Flip, a board resize and a
+    // human-band change still land here mid-match, and drew the analysis position with its eval and
+    // numbered arrows; the next match move put the pieces back but the arrows stayed until the match
+    // ended (audit 3.1.335 ANALYSIS-3). Only the match's own position is redrawn.
+    if (match?.running) {
+        if (!board) buildBoard();
+        if (match.fen) board?.position(match.fen);
+        return;
+    }
     const pos = positions[cursor];
     if (!pos) return;
     if (!board) buildBoard();
@@ -2502,7 +2511,7 @@ const MATCH_HASH = 32;       // MB per side: two engines, and a depth/ms budget 
 // The cap keeps a match bounded in time: a per-move budget is never longer than this, however
 // the form is set. (The offscreen lease no longer cuts a longer move: engines ping every 15 s.)
 const MATCH_MAX_MS = 60000;
-let match = null;            // {running, stopped, engines, games, names, budget} -- the last match stays for its table
+let match = null;            // {running, stopped, engines, games, names, budget, fen} -- the last match stays for its table; fen is what render() redraws mid-match
 
 function matchRefusal(a, b, variant, engines) {
     const kind = (id) => engines.find(e => e.id === id)?.kind;
@@ -2678,6 +2687,7 @@ async function runMatch() {
             // a new game is a new game to the engines too: no hash carried over from the last one
             for (const e of [ea, eb]) { e.send?.('ucinewgame'); await e.isready?.(); }
             const c = rules(startFen);
+            match.fen = startFen;
             board?.position(startFen);
             renderMatch();
             while (!match.stopped) {
@@ -2695,7 +2705,8 @@ async function runMatch() {
                     break;
                 }
                 g.sans.push(mv.san);
-                board?.position(c.fen());
+                match.fen = c.fen();
+                board?.position(match.fen);
                 renderEval({fen: fenBefore, turn}, res);
                 const cp = res.lines[0].cp;
                 const line = `Game ${i + 1}/${n} - move ${Math.ceil(g.sans.length / 2)}: ${who[turn]} played ${mv.san}`

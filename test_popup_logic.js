@@ -11778,7 +11778,7 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const an = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
     const fn = (head) => { const a = an.indexOf(head), b = an.indexOf('\n}\n', a) + 3; if (a < 0) throw new Error('slice ' + head); return an.slice(a, b); };
     const c = vm.createContext({Promise, game: 'chess', extras: 0, firstStart: null});
-    vm.runInContext(`let bandRun = 0, human = null, humanKey = null, humanChain = Promise.resolve(), board = {position() {}};
+    vm.runInContext(`let bandRun = 0, match = null, human = null, humanKey = null, humanChain = Promise.resolve(), board = {position() {}};
         let pageGen = 0; const cursor = 0, positions = [{fen: 'start', turn: 'w'}], humanCache = new Map(), bandCache = new Map(), evalCache = new Map(), evalCache2 = new Map(), CFG = {an_band: 1500};
         const cfg = (k) => (k === 'an_human' ? 'maia1' : k === 'an_game' ? game : k === 'an_engine2' ? false : 1500);
         const $ = () => null; function syncBandRow() {} function takesRating() { return false; } function ratingFor(k, b) { return b; }
@@ -19433,6 +19433,32 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     const after = [els.an_pocket_top.innerHTML, els.an_pocket_bottom.innerHTML];
     ok('ANALYSIS-2 (3.1.335): before the flip Black\'s pocket is on top and White\'s at the bottom', /b:n/.test(before[0]) && /w:p/.test(before[1]), before);
     ok('ANALYSIS-2 (3.1.335): after Flip the strips swap with the board (White on top, Black at the bottom)', c.flipped === true && /w:p/.test(after[0]) && /b:n/.test(after[1]), after);
+}
+// ---- audit 3.1.335 ANALYSIS-3: render() during an engine match redraws the match's board, not the analysis position and its arrows ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const aj = fs.readFileSync(ROOT + '/src/options/pages/analysis/analysis.js', 'utf8');
+    const fn = (sig) => { const i = aj.indexOf(sig); if (i < 0) throw new Error('slice ' + sig); return aj.slice(i, aj.indexOf('\n}\n', i) + 3); };
+    const calls = [];
+    const c = vm.createContext({calls, cursor: 0, positions: [{fen: 'ANALYSIS', turn: 'w'}],
+        board: {position: (f) => calls.push('position ' + f)}, buildBoard() {}, largeGame: () => false,
+        evalCache: new Map([['ANALYSIS', {lines: [{pv: ['e2e4']}]}]]), evalCache2: new Map(), humanCache: new Map(),
+        humanCacheKey: (f) => f, cfg: () => '', $: () => null,
+        renderExtras: () => calls.push('extras'), renderEval: () => calls.push('eval'), renderEngineLines: () => calls.push('lines'),
+        renderEngine2Lines() {}, renderHumanLines: () => calls.push('human'), renderArrows: () => calls.push('arrows'),
+        renderBook: () => calls.push('book'), highlightMove() {}});
+    vm.runInContext('var match = {running: true, fen: "MATCH"};\n' + fn('function render() {'), c);
+    vm.runInContext('render()', c);
+    const during = calls.splice(0);
+    ok('ANALYSIS-3 (3.1.335): mid-match render() (Flip, resize, band change) puts the match position back on the board', during.includes('position MATCH') && !during.includes('position ANALYSIS'), during);
+    ok('ANALYSIS-3 (3.1.335): ...and draws no analysis eval or arrows over it', !during.includes('arrows') && !during.includes('eval'), during);
+    // runMatch records the position it shows, so render() has something to put back
+    const rm = fn('async function runMatch() {');
+    ok('ANALYSIS-3 (3.1.335): runMatch keeps the board\'s position on `match` at each game start and each move',
+       /match\.fen = startFen;/.test(rm) && /match\.fen = c\.fen\(\);/.test(rm), null);
+    vm.runInContext('match = {running: false, fen: "MATCH"}; render()', c);
+    const after = calls.splice(0);
+    ok('ANALYSIS-3 (3.1.335): with no match running render() draws the analysis as before', after.includes('position ANALYSIS') && after.includes('arrows') && after.includes('eval'), after);
 }
 // ==== END FIX CHECKS ====
 
