@@ -174,19 +174,43 @@ function clickShape(evs) {
         pressDpx: press && last ? Math.hypot(press.x - last.x, press.y - last.y) : NaN,
         dtMean: dts.length ? mean(dts) : NaN,
         dtSd: dts.length ? sd(dts) : NaN,
+        dts,
         moves: moves.length,
         force: press ? press.force : undefined,
     };
 }
 
+// THE SHAPE OF THE GAP, which the mean and the sd between them cannot show. A uniform smear and a
+// hard grid with dropped beats can carry the SAME sd while looking nothing alike in a histogram,
+// and the histogram is what a detector reads. Pooled over the whole row: a single pathed click
+// carries 3-30 gaps, far too few for a share.
+//
+// Measured on a real hand (test/record-cursor.html, 6,532 gaps, 27.11.2026): p50 8.2 ms, 87.1% of
+// gaps inside 8.0-8.4, the core spread 0.30 ms = 3.7% of the mean, and the rest a sparse tail with
+// a clear spike at 16.4 = exactly two polling quanta, one beat dropped. on_grid ~0.90, skip ~0.08.
+function dtShape(all) {
+    if (all.length < 2) return {p50: NaN, onGrid: NaN, skip: NaN};
+    const srt = all.slice().sort((a, b) => a - b);
+    const p50 = srt[Math.floor(srt.length / 2)] || 1;
+    return {
+        p50,
+        onGrid: all.filter(d => Math.abs(d - p50) <= 0.10 * p50).length / all.length,
+        skip: all.filter(d => d >= 1.7 * p50 && d <= 2.3 * p50).length / all.length,
+    };
+}
+
 console.log('\nthe click at the end of the path (30 clicks per row)\n');
-console.log('  travel   moves   dwell_ms   hold_ms   press_dpx   dt_ms   dt_sd   press force');
+console.log('  travel   moves   dwell_ms   hold_ms   press_dpx   dt_ms   dt_sd   on_grid   skip   force');
 for (const travelMs of [8, 120, 300, 600]) {
     const runs = [];
     for (let i = 0; i < 30; i++) runs.push(clickShape(await click(0, 0, 300, 120, travelMs)));
     const col = (k, d = 2) => f(mean(runs.map(r => r[k]).filter(v => !Number.isNaN(v))) || 0, d);
+    const g = dtShape(runs.flatMap(r => r.dts));
     console.log(`  ${String(travelMs).padStart(4)}ms  ${col('moves', 1).padStart(6)}   `
         + `${col('dwell', 1).padStart(7)}   ${col('hold', 1).padStart(7)}   ${col('pressDpx').padStart(8)}   `
-        + `${col('dtMean', 1).padStart(5)}   ${col('dtSd', 2).padStart(5)}   ${runs[0].force}`);
+        + `${col('dtMean', 1).padStart(5)}   ${col('dtSd', 2).padStart(5)}   `
+        + `${f(g.onGrid).padStart(7)}   ${f(g.skip).padStart(4)}   ${runs[0].force}`);
 }
-console.log('\n  a hand: dwell tens of ms, hold 60-120 ms, press_dpx 0, dt_sd well above 0, force 0.5');
+console.log('\n  a hand: dwell p50 23 ms, hold p50 83 ms, press_dpx 0, on_grid ~0.90 with skip ~0.08,');
+console.log('          force 0.5. on_grid near 1.00 with skip 0.00 is a perfect grid; on_grid low');
+console.log('          with skip low is a smear, which is a different wrong shape, not a fix.');
