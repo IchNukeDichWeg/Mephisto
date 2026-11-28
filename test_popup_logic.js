@@ -15968,6 +15968,63 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     ok('BOTGAMES-1: a move made on the board mid-replay stops the replay, no line move lands after it',
        desync.r.ok && JSON.stringify(desync.hist) === JSON.stringify(['e4', 'd5']), desync.hist);
 })().catch(e => { fails++; console.log('FAIL BOTGAMES-1 check threw: ' + (e && e.stack || e)); });
+// ---- audit 3.1.335 BOTGAMES-1: every bot line is replayed through chess.js and must END THE GAME ----
+// bot-games.js says this rule "is pinned in the suite by replaying each line"; until this block it was not.
+// A bad entry fails silently at runtime: the page's game.move() refuses a wrong SAN without throwing, the
+// replay stops, and the bot then plays for real -- or a wrong winner lets the line run from the wrong side
+// and the mate goes to the bot. So the library is held to it here, line by line.
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const c = vm.createContext({}); c.self = c;
+    vm.runInContext(fs.readFileSync(ROOT + '/lib/chess.js', 'utf8'), c);
+    vm.runInContext(fs.readFileSync(ROOT + '/src/scripts/bot-games.js', 'utf8'), c);
+    // what is wrong with one entry, [] when nothing is
+    vm.runInContext(`var vetLine = (g) => {
+        const bad = [];
+        if (!g || typeof g.id !== 'string' || !g.id || typeof g.name !== 'string' || !g.name) bad.push('no id/name');
+        if (!(g.winner === 'white' || g.winner === 'black' || g.winner === null)) bad.push('winner ' + g.winner);
+        const moves = Array.isArray(g.moves) ? g.moves : [];
+        if (!moves.length) bad.push('no moves');
+        const x = new Chess();
+        for (let i = 0; i < moves.length; i++) {
+            if (x.isGameOver()) { bad.push('over before ply ' + (i + 1)); break; }
+            let m = null;
+            try { m = x.move(moves[i]); } catch (e) { m = null; }
+            if (!m) { bad.push('illegal ply ' + (i + 1) + ' ' + moves[i]); break; }
+            // the page is handed the SAN as written, so it must be chess.js's own spelling of the move
+            if (m.san !== moves[i]) bad.push('ply ' + (i + 1) + ' ' + moves[i] + ' is ' + m.san);
+        }
+        if (bad.length) return bad;
+        if (g.winner) {
+            if (!x.isCheckmate()) bad.push('winner ' + g.winner + ' but no mate');
+            else if (x.turn() !== (g.winner === 'white' ? 'b' : 'w')) bad.push('mated side is ' + (x.turn() === 'w' ? 'white' : 'black'));
+        } else if (x.isCheckmate()) bad.push('no winner recorded but it ends in mate');
+        // no winner: a draw the board itself declares, or one the panel claims (endWith 'draw')
+        else if (!x.isGameOver() && g.endWith !== 'draw') bad.push('ends unfinished without endWith draw');
+        return bad;
+    };`, c);
+    const games = vm.runInContext('self.MephistoBotGames', c);
+    const vet = (g) => vm.runInContext('vetLine', c)(g);
+    ok('BOTGAMES-1 (3.1.335): the library is there and not empty', Array.isArray(games) && games.length >= 18, games && games.length);
+    const ids = games.map(g => g.id);
+    ok('BOTGAMES-1 (3.1.335): every id is unique', new Set(ids).size === ids.length, ids);
+    const broken = games.map(g => [g.id, vet(g)]).filter(([, b]) => b.length);
+    ok('BOTGAMES-1 (3.1.335): every line is legal, in chess.js SAN, and ends the game the way its entry says', broken.length === 0, broken);
+    ok('BOTGAMES-1 (3.1.335): the lines that win end in mate by the recorded winner',
+       games.filter(g => g.winner).length >= 17 && games.filter(g => g.winner).every(g => !vet(g).length));
+    // the checker itself has teeth: each kind of bad entry the header warns about is caught
+    const sch = games.find(g => g.id === 'scholars'), g9 = games.find(g => g.id === 'cc_classic9');
+    const mut = {
+        'a line one ply short of mate': {...sch, moves: sch.moves.slice(0, -1)},
+        'the winner set to the wrong colour': {...sch, winner: 'black'},
+        'a SAN typo': {...sch, moves: [...sch.moves.slice(0, -1), 'Qf7']},
+        'a non-canonical SAN': {...sch, moves: ['e2e4', ...sch.moves.slice(1)]},
+        'moves after the mate': {...sch, moves: [...sch.moves, 'Kxf7']},
+        'the drawn G9 without its endWith draw': (() => { const { endWith, ...rest } = g9; return rest; })(),
+    };
+    for (const [what, g] of Object.entries(mut))
+        ok(`BOTGAMES-1 (3.1.335): the pin catches ${what}`, vet(g).length > 0, vet(g));
+}
 // ---- audit 3.1.331 CLASSIFYCORE-1: a double push that can be taken en passant is material offered ----
 {
     const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
@@ -19587,6 +19644,25 @@ const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { 
     } catch (e) { fails++; console.log('FAIL BACKGROUND2-1 (3.1.335): click path threw: ' + (e && e.stack || e)); }
     finally { clearInterval(keep); }
 })();
+// ---- audit 3.1.335 BOTGAMES-1: the suite really replays every bot line, as bot-games.js says ----
+{
+    const ok = (name, cond, got) => { if (cond) console.log('ok   ' + name); else { fails++; console.log(`FAIL ${name}${got === undefined ? '' : '  (got ' + JSON.stringify(got) + ')'}`); } };
+    const header = fs.readFileSync(ROOT + '/src/scripts/bot-games.js', 'utf8');
+    ok('BOTGAMES-1 (3.1.335): bot-games.js still points at the suite pin',
+       header.includes('pinned in the suite by replaying each line through chess.js'));
+    const suite = fs.readFileSync(ROOT + '/test_popup_logic.js', 'utf8');
+    const at = suite.indexOf('// ---- audit 3.1.335 BOTGAMES-1: every bot line is replayed through chess.js');
+    ok('BOTGAMES-1 (3.1.335): test_popup_logic.js has a block that replays every MephistoBotGames line', at >= 0);
+    if (at >= 0) {
+        const end = suite.indexOf('\n// ---- audit', at + 10);
+        const block = suite.slice(at, end < 0 ? undefined : end + 1);
+        const before = fails;
+        new Function('fs', 'vm', 'ROOT', 'bump', `let fails = 0; ${block}; bump(fails);`)(
+            fs, {createContext: vm.createContext, runInContext: vm.runInContext},
+            ROOT, (n) => { fails += n; });
+        ok('BOTGAMES-1 (3.1.335): the pin it holds passes on the current library', fails === before);
+    }
+}
 // ==== END FIX CHECKS ====
 
 // ==== SUGGEST A HUMAN ERROR ====
